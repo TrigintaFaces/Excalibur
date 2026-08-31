@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-using Excalibur.Data.Postgres;
+using Excalibur.Data.Postgres.Persistence;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
-using PostgresPersistenceOptions = Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions;
 
 namespace Excalibur.Integration.Tests.Data;
 
@@ -70,7 +68,7 @@ public sealed class PostgresPersistenceProviderIntegrationShould
 
 		// Act & Assert
 		provider.ConnectionString.ShouldNotBeNullOrEmpty();
-		provider.Name.ShouldBe("postgres-test");
+		provider.Name.ShouldBe("reporting");
 	}
 
 	#endregion
@@ -146,30 +144,8 @@ public sealed class PostgresPersistenceProviderIntegrationShould
 		// Assert
 		_ = metrics.ShouldNotBeNull();
 		metrics["Provider"].ShouldBe("Postgres");
-		metrics["Name"].ShouldBe("postgres-test");
+		metrics["Name"].ShouldBe("reporting");
 		metrics["IsAvailable"].ShouldBe(true);
-	}
-
-	[Fact]
-	public async Task GetConnectionPoolStatsReturnsValidData()
-	{
-		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new PostgresPersistenceProvider(options, NullLogger<PostgresPersistenceProvider>.Instance);
-
-		// Force a connection to populate pool stats
-		using (var connection = provider.CreateConnection())
-		{
-			connection.Open();
-		}
-
-		// Act
-		var stats = await provider.GetConnectionPoolStatsAsync(CancellationToken.None);
-
-		// Assert
-		_ = stats.ShouldNotBeNull();
-		stats.ContainsKey("MaxPoolSize").ShouldBeTrue();
-		stats.ContainsKey("MinPoolSize").ShouldBeTrue();
 	}
 
 	#endregion
@@ -208,22 +184,24 @@ public sealed class PostgresPersistenceProviderIntegrationShould
 
 	#region Helper Methods
 
-	private static IOptions<PostgresProviderOptions> CreateOptions(string connectionString)
+	private static IOptions<PostgresPersistenceOptions> CreateOptions(string connectionString)
 	{
-		return Options.Create(new PostgresProviderOptions
+		return Options.Create(new PostgresPersistenceOptions
 		{
+			Name = "reporting",
 			ConnectionString = connectionString,
-			Name = "postgres-test",
 			CommandTimeout = 30,
-			ConnectTimeout = 15,
-			Pool =
+			ConnectionTimeout = 15,
+			Pooling =
 			{
 				MaxPoolSize = 10,
 				MinPoolSize = 1,
-				EnablePooling = true,
+				EnableConnectionPooling = true,
 			},
-			RetryCount = 3,
-			UseDataSource = true
+			Resilience =
+			{
+				MaxRetryAttempts = 3,
+			},
 		});
 	}
 

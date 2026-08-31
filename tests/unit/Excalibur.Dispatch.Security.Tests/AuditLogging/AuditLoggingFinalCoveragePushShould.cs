@@ -29,7 +29,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_StoreAsync_ThrowsOnDuplicateEventId()
 	{
 		// Arrange - store an event, then try storing another with the same EventId
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		var auditEvent = new AuditEvent
 		{
@@ -67,7 +67,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_Count_ReturnsCorrectValue()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		store.Count.ShouldBe(0);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -108,7 +108,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_StoreAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -131,7 +131,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_GetByIdAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -144,7 +144,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -157,7 +157,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -170,7 +170,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrityAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -186,7 +186,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public async Task InMemoryAuditStore_GetLastEventAsync_ThrowsOnCancellation()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -202,7 +202,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_StoreAsync_ThrowsOnNullEvent()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.StoreAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
@@ -210,7 +210,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_GetByIdAsync_ThrowsOnNullOrWhitespaceEventId()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.GetByIdAsync("", CancellationToken.None)).ConfigureAwait(false);
 		await Should.ThrowAsync<ArgumentException>(
@@ -220,7 +220,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_QueryAsync_ThrowsOnNullQuery()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.QueryAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
@@ -228,7 +228,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_CountAsync_ThrowsOnNullQuery()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.CountAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
@@ -240,7 +240,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_GetByIdAsync_ReturnsNullForNonExistentEvent()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var result = await store.GetByIdAsync("non-existent", CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeNull();
 	}
@@ -252,9 +252,9 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_QueryAsync_ReturnsEmptyForNonExistentTenant()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var result = await store.QueryAsync(
-			new AuditQuery { TenantId = "non-existent-tenant" },
+			new AuditQuery(),
 			CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeEmpty();
 	}
@@ -262,9 +262,9 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_CountAsync_ReturnsZeroForNonExistentTenant()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var count = await store.CountAsync(
-			new AuditQuery { TenantId = "non-existent-tenant" },
+			new AuditQuery(),
 			CancellationToken.None).ConfigureAwait(false);
 		count.ShouldBe(0L);
 	}
@@ -274,10 +274,10 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	#region InMemoryAuditStore - VerifyChainIntegrity Empty Date Range
 
 	[Fact]
-	public async Task InMemoryAuditStore_VerifyChainIntegrity_ReturnsValidForEmptyRange()
+	public async Task InMemoryAuditStore_VerifyChainIntegrity_ReportsNoEventsInScopeForEmptyRange()
 	{
 		// Arrange - date range with no events
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		_ = await store.StoreAsync(new AuditEvent
 		{
 			EventId = "outside-range",
@@ -294,8 +294,10 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			new DateTimeOffset(2020, 12, 31, 0, 0, 0, TimeSpan.Zero),
 			CancellationToken.None).ConfigureAwait(false);
 
-		// Assert - valid with 0 events verified
-		result.IsValid.ShouldBeTrue();
+		// Assert - nothing was examined, so nothing was established
+		result.Outcome.ShouldBe(
+			AuditIntegrityOutcome.NoEventsInScope,
+			"the range excludes every stored event, so the run verified nothing and is not a pass.");
 		result.EventsVerified.ShouldBe(0);
 	}
 
@@ -306,7 +308,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	[Fact]
 	public async Task InMemoryAuditStore_GetLastEventAsync_ReturnsNullForUnknownTenant()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var result = await store.GetLastEventAsync("unknown-tenant", CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeNull();
 	}
@@ -378,16 +380,16 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
 		Should.Throw<ArgumentNullException>(
-			() => new RbacAuditStore(null!, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger));
+			() => new RbacAuditStore(null!, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger));
 	}
 
 	[Fact]
-	public void RbacAuditStore_Constructor_ThrowsOnNullRoleProvider()
+	public void RbacAuditStore_Constructor_ThrowsOnNullScopeFactory()
 	{
 		var store = A.Fake<IAuditStore>();
 		var logger = new NullLogger<RbacAuditStore>();
 		Should.Throw<ArgumentNullException>(
-			() => new RbacAuditStore(store, null!, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger));
+			() => new RbacAuditStore(store, null!, logger));
 	}
 
 	[Fact]
@@ -396,7 +398,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var store = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		Should.Throw<ArgumentNullException>(
-			() => new RbacAuditStore(store, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), null!));
+			() => new RbacAuditStore(store, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), null!));
 	}
 
 	#endregion
@@ -410,7 +412,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var innerStore = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -452,7 +454,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var innerStore = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => sut.QueryAsync(null!, CancellationToken.None)).ConfigureAwait(false);
@@ -464,7 +466,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var innerStore = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => sut.CountAsync(null!, CancellationToken.None)).ConfigureAwait(false);
@@ -492,7 +494,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public void AddAuditLogging_Factory_ThrowsOnNullServices()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => AuditLoggingServiceCollectionExtensions.AddAuditLogging(null!, _ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create())));
+			() => AuditLoggingServiceCollectionExtensions.AddAuditLogging(null!, _ => AuditStoreTenantScope.Untenanted()));
 	}
 
 	[Fact]
@@ -561,8 +563,8 @@ public sealed class AuditLoggingFinalCoveragePushShould
 	public void AddAuditLogging_Factory_IsIdempotent()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 
 		var storeDescriptors = services.Where(d => d.ServiceType == typeof(IAuditStore)).ToList();
 		storeDescriptors.Count.ShouldBe(1);
@@ -620,7 +622,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		A.CallTo(() => innerStore.GetByIdAsync("missing", A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
@@ -647,7 +649,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, metaLogger), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -775,7 +777,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 
 		public Task<AuditIntegrityResult> VerifyChainIntegrityAsync(
 			DateTimeOffset startDate, DateTimeOffset endDate, CancellationToken cancellationToken = default)
-			=> Task.FromResult(AuditIntegrityResult.Valid(0, startDate, endDate));
+			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
 		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);

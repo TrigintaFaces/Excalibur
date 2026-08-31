@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Confluent.Kafka;
+
 namespace Excalibur.Dispatch.Transport.Kafka;
 
 /// <summary>
@@ -79,6 +81,50 @@ public interface IKafkaTransportBuilder
 	/// </code>
 	/// </example>
 	IKafkaTransportBuilder UseSchemaRegistry(Action<ConfluentSchemaRegistryOptions>? configure = null);
+
+	/// <summary>
+	/// Configures the security protocol used for broker connections.
+	/// </summary>
+	/// <param name="protocol">The security protocol.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Every Kafka client this transport builds -- producer, consumer, admin and dead-letter clients --
+	/// is configured with this protocol. A protocol that does not carry TLS is refused when the client
+	/// is built unless <see cref="RequireTls"/> has been turned off.
+	/// </para>
+	/// <para>
+	/// Setting this and the raw <c>security.protocol</c> configuration key to different values is
+	/// refused rather than resolved. Use one or the other.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// kafka.BootstrapServers("broker:9093")
+	///      .UseSecurityProtocol(SecurityProtocol.SaslSsl);
+	/// </code>
+	/// </example>
+	IKafkaTransportBuilder UseSecurityProtocol(SecurityProtocol protocol);
+
+	/// <summary>
+	/// Configures whether broker connections must be encrypted. Enabled by default.
+	/// </summary>
+	/// <param name="require">
+	/// <see langword="true"/> to refuse to build a Kafka client whose security protocol does not carry
+	/// TLS; <see langword="false"/> to permit an unencrypted connection.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <strong>Passing false permits credentials and message payloads to travel in the clear.</strong>
+	/// It exists for local brokers and test fixtures, not for anything holding real data.
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // A local broker with no TLS listener.
+	/// kafka.BootstrapServers("localhost:9092").RequireTls(false);
+	/// </code>
+	/// </example>
+	IKafkaTransportBuilder RequireTls(bool require = true);
 
 	/// <summary>
 	/// Configures the transport to use Confluent Schema Registry with fluent builder configuration.
@@ -258,6 +304,15 @@ internal sealed class KafkaTransportBuilder : IKafkaTransportBuilder
 	private readonly KafkaTransportOptions _options;
 
 	/// <summary>
+	/// The consumer's CloudEvents delegate, handed to the CloudEvents options registration.
+	/// </summary>
+	/// <remarks>
+	/// The adapter binds <c>IOptions&lt;KafkaCloudEventOptions&gt;</c> from DI, so a value written onto the transport
+	/// options object is never read. The delegate is carried to that registration instead.
+	/// </remarks>
+	internal Action<KafkaCloudEventOptions>? CloudEventsConfigure { get; private set; }
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="KafkaTransportBuilder"/> class.
 	/// </summary>
 	/// <param name="options">The transport options to configure.</param>
@@ -271,6 +326,20 @@ internal sealed class KafkaTransportBuilder : IKafkaTransportBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(servers);
 		_options.BootstrapServers = servers;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IKafkaTransportBuilder UseSecurityProtocol(SecurityProtocol protocol)
+	{
+		_options.SecurityProtocol = protocol;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IKafkaTransportBuilder RequireTls(bool require = true)
+	{
+		_options.RequireTls = require;
 		return this;
 	}
 
@@ -339,8 +408,7 @@ internal sealed class KafkaTransportBuilder : IKafkaTransportBuilder
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_options.CloudEventOptions ??= new KafkaCloudEventOptions();
-		configure(_options.CloudEventOptions);
+		CloudEventsConfigure = configure;
 
 		return this;
 	}

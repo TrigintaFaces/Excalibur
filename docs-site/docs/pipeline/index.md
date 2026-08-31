@@ -146,6 +146,42 @@ public class ValidationMiddleware : IDispatchMiddleware
 }
 ```
 
+### How a message's kind is determined
+
+A message's kind comes from the **interface it implements**, not from a property or an attribute:
+
+| Interface | Kind |
+|-----------|------|
+| `IDispatchAction` / `IDispatchAction<TResponse>` | `MessageKinds.Action` |
+| `IDispatchEvent` | `MessageKinds.Event` |
+| `IDispatchDocument` | `MessageKinds.Document` |
+
+`MessageKinds` is a flags enum, so a type implementing more than one of these carries every
+corresponding kind.
+
+### Messages with no kind
+
+A type that implements only the bare `IDispatchMessage` marker declares no kind. Dispatch does not
+reject it and does not guess: it treats the message as `MessageKinds.All`, so **every** middleware
+applies to it rather than the fewest.
+
+That is deliberate and it is not an error. The alternative — applying no middleware to a message whose
+kind is unknown — would route an unclassified message straight past validation, authorization and
+auditing. Applying all of them is the fail-closed choice.
+
+To find such a type in a running system, look for the activity event
+`dispatch.message.unclassified` on the current trace. It carries:
+
+| Tag | Meaning |
+|-----|---------|
+| `dispatch.message.type` | The full name of the type that declared no kind |
+| `dispatch.message.missing_interface` | The interfaces it could implement to declare one |
+| `dispatch.message.applied_kinds` | The kinds applied instead — `All` |
+
+The event is emitted on the trace rather than the log because classification happens on the dispatch
+path with no logger in scope. If you did not intend the message to receive every middleware, have it
+implement `IDispatchAction`, `IDispatchEvent`, or `IDispatchDocument`.
+
 ## Short-Circuiting
 
 Return early without calling `next()` to skip downstream processing:

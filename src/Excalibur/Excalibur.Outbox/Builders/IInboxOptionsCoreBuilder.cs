@@ -12,7 +12,7 @@ namespace Excalibur.Outbox;
 /// batch sizes, per-run limits, and retry attempts.
 /// </para>
 /// </remarks>
-public interface IInboxOptionsCoreBuilder
+internal interface IInboxOptionsCoreBuilder
 {
 	/// <summary>
 	/// Sets the capacity of the internal message processing queue.

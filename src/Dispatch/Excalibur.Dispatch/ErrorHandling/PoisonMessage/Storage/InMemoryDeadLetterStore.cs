@@ -17,19 +17,30 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 {
 	private readonly ConcurrentDictionary<string, StoredEntry> _messages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeadLetterStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryDeadLetterStore" /> class.
 	/// </summary>
-	/// <param name="tenantContext"> The ambient tenant, or <see langword="null" /> in a single-tenant host. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="logger"> The logger for diagnostic output. </param>
-	public InMemoryDeadLetterStore(ITenantContext? tenantContext, ILogger<InMemoryDeadLetterStore> logger)
+	public InMemoryDeadLetterStore(ITenantContext tenantContext, ILogger<InMemoryDeadLetterStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(logger);
 
-		// Optional by construction: a single-tenant host registers no ITenantContext, which resolves to the
-		// untenanted partition — a concrete term, so entries are never stored or read unscoped.
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger;
 	}
@@ -44,7 +55,7 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 	/// dead-letter entry holds the failed message body, so cross-tenant reads disclose message content.
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)

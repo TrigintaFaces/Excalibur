@@ -205,7 +205,7 @@ builder.Services.AddInMemoryClaimCheck(
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `PayloadThreshold` | `long` | 262144 (256KB) | Minimum payload size to trigger claim check pattern |
-| `DefaultTtl` | `TimeSpan` | 7 days | How long payloads are retained before expiration |
+| `DefaultTtl` | `TimeSpan` | 7 days | How long payloads are retained before expiration. `TimeSpan.Zero` disables expiry and keeps payloads until deleted explicitly |
 | `EnableCompression` | `bool` | `true` | Whether to compress payloads |
 | `CompressionThreshold` | `long` | 1024 (1KB) | Minimum size for compression (smaller payloads not compressed) |
 | `CompressionLevel` | `CompressionLevel` | `Optimal` | GZip compression level (`NoCompression`, `Fastest`, `Optimal`, `SmallestSize`) |
@@ -249,13 +249,10 @@ var metadata = new ClaimCheckMetadata
     MessageType = "OrderCreated",
     ContentType = "application/json",
     CorrelationId = "correlation-abc",
-    Properties = new Dictionary<string, string>
+    Properties =
     {
         ["OrderNumber"] = "ORD-2025-001",
-        ["CustomerId"] = "CUST-789"
-    },
-    Tags = new Dictionary<string, string>
-    {
+        ["CustomerId"] = "CUST-789",
         ["Environment"] = "Production",
         ["Region"] = "US-East"
     }
@@ -298,12 +295,13 @@ await Task.Delay(TimeSpan.FromSeconds(10));
 
 try
 {
-    // This will throw InvalidOperationException if expired
+    // An expired payload is no longer retrievable, so this throws KeyNotFoundException -
+    // the same exception a deleted or never-stored payload raises.
     var retrieved = await claimCheckProvider.RetrieveAsync(reference);
 }
-catch (InvalidOperationException ex)
+catch (KeyNotFoundException ex)
 {
-    Console.WriteLine($"Expired: {ex.Message}");
+    Console.WriteLine($"Expired or missing: {ex.Message}");
 }
 ```
 
@@ -608,7 +606,7 @@ System.InvalidOperationException: Checksum validation failed for claim check 'cc
 
 **Symptoms:**
 ```
-System.InvalidOperationException: Claim check with ID 'cc-...' has expired.
+System.Collections.Generic.KeyNotFoundException: Claim check with ID 'cc-...' has expired.
 ```
 
 **Causes:**

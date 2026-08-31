@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
-/// Synthesizes default pipeline profiles when none are explicitly registered. Implements requirements R7.5-R7.12 for automatic pipeline synthesis.
+/// Synthesizes default pipeline profiles when none are explicitly registered.
 /// </summary>
 /// <remarks> Creates a new pipeline profile synthesizer. </remarks>
 /// <param name="logger"> Logger for synthesis diagnostics. </param>
@@ -33,14 +33,14 @@ public sealed partial class PipelineProfileSynthesizer(
 #pragma warning restore CS9113
 {
 	/// <summary>
-	/// Represents the default baseline middleware order as per R7.6.
+	/// Represents the default baseline middleware order.
 	/// </summary>
 	/// <remarks>
 	/// Correlation is handled at the Dispatcher level before middleware runs.
 	/// </remarks>
 	private static readonly MiddlewareDefinition[] DefaultMiddlewareOrder =
 	[
-		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
+		// Note: CorrelationMiddleware removed - correlation now handled at Dispatcher level
 		new(typeof(TenantIdentityMiddleware), MessageKinds.All, "TenantIdentity", DispatchFeature.MultiTenancy),
 		new(typeof(ContractVersionCheckMiddleware), MessageKinds.Event | MessageKinds.Document, "ContractVersionCheck",
 			DispatchFeature.Versioning),
@@ -89,7 +89,7 @@ public sealed partial class PipelineProfileSynthesizer(
 		var middlewareTypes = new List<Type>();
 		var omittedMiddleware = new List<string>();
 
-		// Build middleware list based on feature availability (R7.10)
+		// Build middleware list based on feature availability
 		foreach (var definition in DefaultMiddlewareOrder)
 		{
 			if (IsFeatureEnabled(definition.RequiredFeature))
@@ -108,7 +108,7 @@ public sealed partial class PipelineProfileSynthesizer(
 			}
 		}
 
-		// Log synthesis summary (R7.11)
+		// Log synthesis summary
 		LogPipelineSynthesisComplete(middlewareTypes.Count, omittedMiddleware.Count);
 
 		if (omittedMiddleware.Count > 0)
@@ -144,18 +144,18 @@ public sealed partial class PipelineProfileSynthesizer(
 		var profiles = new Dictionary<string, IPipelineProfile>(StringComparer.Ordinal);
 		var mappings = new Dictionary<MessageKinds, string>();
 
-		// Synthesize the default profile (R7.5)
+		// Synthesize the default profile
 		var defaultProfile = SynthesizeDefaultProfile();
 		profiles["default"] = defaultProfile;
 
-		// Create default mappings (R7.7)
+		// Create default mappings
 		mappings[MessageKinds.Event] = "default";
 		mappings[MessageKinds.Action] = "default";
 		mappings[MessageKinds.Document] = "default";
 
 		LogMappedMessageKinds();
 
-		// Check for ambiguous mappings (R7.11)
+		// Check for ambiguous mappings
 		ValidateMappings(mappings);
 
 		var result = new SynthesisResult(

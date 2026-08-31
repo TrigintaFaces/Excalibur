@@ -80,8 +80,8 @@ if (!string.IsNullOrEmpty(azureConnectionString))
 		_ = asb.ConnectionString(azureConnectionString)
 			.ConfigureProcessor(processor =>
 			{
-				_ = processor.MaxConcurrentCalls(azureConfig.GetValue("MaxConcurrentCalls", 10))
-					.PrefetchCount(azureConfig.GetValue("PrefetchCount", 20));
+				processor.MaxConcurrentCalls = azureConfig.GetValue("MaxConcurrentCalls", 10);
+				processor.PrefetchCount = azureConfig.GetValue("PrefetchCount", 20);
 			})
 			.MapEntity<object>(azureConfig["QueueName"] ?? "dispatch-events");
 	});
@@ -95,6 +95,9 @@ if (!string.IsNullOrEmpty(kafkaServers))
 	_ = builder.Services.AddKafkaTransport("kafka", kafka =>
 	{
 		_ = kafka.BootstrapServers(kafkaServers)
+			// Local broker with no TLS listener. Against a real cluster, delete this line and set
+			// the protocol instead: .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+			.RequireTls(false)
 			.ConfigureConsumer(consumer =>
 			{
 				_ = consumer.GroupId(kafkaConfig["GroupId"] ?? "processor-group");
@@ -111,6 +114,9 @@ if (!string.IsNullOrEmpty(rabbitConnectionString))
 	_ = builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 	{
 		_ = rmq.ConnectionString(rabbitConnectionString)
+			// The sample's configured broker is plaintext, so it opts out of the transport's
+			// secure-by-default posture explicitly. A real broker uses an 'amqps://' string.
+			.RequireTls(false)
 			.ConfigureQueue(queue =>
 			{
 				_ = queue.Name(rabbitConfig["QueueName"] ?? "dispatch-events")
@@ -136,10 +142,6 @@ if (!string.IsNullOrEmpty(awsQueueUrl))
 				_ = queue.ReceiveWaitTimeSeconds(awsConfig.GetValue("WaitTimeSeconds", 20))
 					.VisibilityTimeout(TimeSpan.FromSeconds(awsConfig.GetValue("VisibilityTimeout", 30)));
 			})
-			.ConfigureBatch(batch =>
-			{
-				_ = batch.ReceiveMaxMessages(awsConfig.GetValue("MaxNumberOfMessages", 10));
-			})
 			.MapQueue<object>(awsQueueUrl);
 	});
 }
@@ -157,14 +159,7 @@ if (!string.IsNullOrEmpty(pubsubConfig["ProjectId"]))
 }
 
 // =============================================================================
-// 5. Configure Background Services
-// =============================================================================
-
-// Outbox processor (publishes events from SQL Server outbox to transports)
-builder.Services.AddHostedService<OutboxProcessorService>();
-
-// =============================================================================
-// 6. Build and Run
+// 5. Build and Run
 // =============================================================================
 var host = builder.Build();
 

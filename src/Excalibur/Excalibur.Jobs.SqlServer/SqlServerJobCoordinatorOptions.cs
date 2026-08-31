@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.Jobs.SqlServer;
 
 /// <summary>
@@ -14,7 +12,6 @@ public sealed class SqlServerJobCoordinatorOptions
 	/// Gets or sets the SQL Server connection string.
 	/// </summary>
 	/// <value>The SQL Server connection string.</value>
-	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>

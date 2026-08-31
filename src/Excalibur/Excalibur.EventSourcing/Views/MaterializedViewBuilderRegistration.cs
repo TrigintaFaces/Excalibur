@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Views;
 
 /// <summary>
@@ -22,6 +24,8 @@ namespace Excalibur.EventSourcing.Views;
 /// </param>
 internal sealed record MaterializedViewBuilderRegistration(
 	Type ViewType,
+	[property: DynamicallyAccessedMembers(
+		DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicMethods)]
 	Type BuilderType,
 	object BuilderInstance,
 	ViewStoreAccessor Accessor,

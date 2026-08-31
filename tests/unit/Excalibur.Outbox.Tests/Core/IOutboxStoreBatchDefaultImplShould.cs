@@ -158,9 +158,9 @@ public sealed class IOutboxStoreBatchDefaultImplShould : UnitTestBase
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
-		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
-		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
 		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(0);
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) => ValueTask.FromResult(new OutboxStatistics());
+		public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken) => ValueTask.FromResult(new OutboxStatistics());
 	}
 }

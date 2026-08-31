@@ -8,10 +8,12 @@ using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -27,12 +29,10 @@ namespace Excalibur.Dispatch.Messaging;
 /// <param name="activator"> Service responsible for creating instances of message handlers. </param>
 /// <param name="invoker"> Service responsible for invoking handler methods with appropriate parameters. </param>
 /// <param name="logger"> Logger for capturing message bus operations and diagnostics. </param>
-[RequiresUnreferencedCode(
-	"LocalMessageBus uses reflection (MakeGenericType, MakeGenericMethod, Expression.Compile) to build typed dispatch plans. " +
-	"In AOT scenarios, use the source-generated dispatcher from the Excalibur.Dispatch.SourceGenerators package.")]
-[RequiresDynamicCode(
-	"LocalMessageBus uses runtime code generation for typed dispatch plan construction. " +
-	"In AOT scenarios, use the source-generated dispatcher from the Excalibur.Dispatch.SourceGenerators package.")]
+[SuppressMessage(
+	"Design",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification = "The local bus is the single seam every message kind, handler shape and diagnostic surface passes through.")]
 internal sealed partial class LocalMessageBus(
 	IServiceProvider provider,
 	IHandlerRegistry registry,
@@ -53,10 +53,10 @@ internal sealed partial class LocalMessageBus(
 		InitializeFrozenEventHandlersMap(registry);
 
 	private readonly FrozenDictionary<Type, EventDispatchPlan[]> _frozenEventDispatchPlanMap =
-		InitializeFrozenEventDispatchPlanMap(registry);
+		InitializeFrozenEventDispatchPlanMap(registry, logger);
 
 	private readonly FrozenDictionary<Type, DirectActionDispatchPlan> _frozenDirectActionPlanMap =
-		InitializeFrozenDirectActionPlanMap(registry);
+		InitializeFrozenDirectActionPlanMap(registry, logger);
 
 	private readonly ConcurrentDictionary<Type, HandlerRegistryEntry> _handlerEntryCache = new();
 
@@ -66,7 +66,7 @@ internal sealed partial class LocalMessageBus(
 	private readonly ConcurrentDictionary<Type, EventDispatchPlan[]?> _eventDispatchPlanCache = new();
 
 	private readonly ConcurrentDictionary<Type, DirectActionDispatchPlan?> _directActionPlanCache =
-		InitializeDirectActionPlanCache(registry);
+		InitializeDirectActionPlanCache(registry, logger);
 
 	private readonly ConcurrentDictionary<Type, PrecompiledDirectActionDispatchPlan?> _precompiledDirectActionPlanCache = new();
 	private readonly ConcurrentDictionary<Type, bool> _selfRegisteredHandlerCache = new();
@@ -88,12 +88,17 @@ internal sealed partial class LocalMessageBus(
 	private readonly IServiceProviderIsService? _serviceProviderIsService =
 		provider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
 
+
+
 	// Scope-correct handler resolution (eliminates the captive-dependency failure where a singleton
 	// message bus resolves a scoped handler from the root container). The lifetime decision and scope
 	// acquisition live in a dedicated collaborator; the bus keeps only a hot-path verdict cache keyed by
-	// action type so the root-resolvable path (transient/singleton handlers) pays no dictionary lookup.
+	// message type so the root-resolvable path (transient/singleton handlers) pays no dictionary lookup.
+	// Single-handler messages (actions, documents) cache a bool verdict; an event caches the first handler
+	// type that requires a scope (the aggregate OR verdict, plus an honest diagnostic anchor) or null.
 	private readonly HandlerScopeResolver _scopeResolver = new(provider);
-	private readonly ConcurrentDictionary<Type, bool> _actionRequiresScopeCache = new();
+	private readonly ConcurrentDictionary<Type, bool> _messageRequiresScopeCache = new();
+	private readonly ConcurrentDictionary<Type, Type?> _eventScopeAnchorCache = new();
 
 	[ThreadStatic] private static LocalMessageBus? s_scopeReqBus;
 	[ThreadStatic] private static Type? s_scopeReqType;
@@ -134,38 +139,10 @@ internal sealed partial class LocalMessageBus(
 		IMessageContext? context,
 		CancellationToken cancellationToken);
 
-	private delegate bool PrecompiledDirectCanHandleDelegate(Type actionType);
-
-	private delegate bool PrecompiledDirectTryGetMetadataDelegate(
-		Type actionType,
-		out bool expectsResponse,
-		out bool requiresContext);
-
-	private delegate ValueTask<object?> PrecompiledDirectInvokeDelegate(
-		IDispatchAction action,
-		IServiceProvider provider,
-		IMessageContext? context,
-		CancellationToken cancellationToken);
-
-	private static readonly Lock PrecompiledDirectProviderLock = new();
-	private static PrecompiledDirectProvider[] _precompiledDirectProviders = [];
-	private static volatile bool _precompiledDirectProvidersInitialized;
 	[ThreadStatic] private static LocalMessageBus? s_cachedNoContextBus;
 	[ThreadStatic] private static Type? s_cachedNoContextHandlerType;
 	[ThreadStatic] private static Func<object>? s_cachedNoContextResolver;
 	private static readonly IMessageContext NoContextActivationContext = new MessageContext();
-
-	static LocalMessageBus()
-	{
-		AppDomain.CurrentDomain.AssemblyLoad += static (_, _) =>
-		{
-			lock (PrecompiledDirectProviderLock)
-			{
-				_precompiledDirectProvidersInitialized = false;
-				_precompiledDirectProviders = [];
-			}
-		};
-	}
 
 	/// <summary>
 	/// Sends a command or action message to its registered handler for processing.
@@ -176,16 +153,6 @@ internal sealed partial class LocalMessageBus(
 	/// <returns> A task that represents the asynchronous send operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="action" /> or <paramref name="context" /> is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when no handler is registered for the action type. </exception>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Handler types are discovered and preserved through source generation or explicit registration. The invoker uses cached delegates for AOT compatibility.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification =
-			"The handler invocation is AOT-safe when handlers are registered through source generation or explicit registration with preserved types.")]
 	public Task SendAsync(IDispatchAction action, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(action);
@@ -201,10 +168,15 @@ internal sealed partial class LocalMessageBus(
 		var messageType = action.GetType();
 		if (!TryGetHandlerEntry(messageType, out var entry))
 		{
-			throw new InvalidOperationException(
-				$"No handler registered for action '{messageType.FullName}'. " +
-				$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
-				$"Alternatively, register the handler directly with services.AddTransient<IActionHandler<{messageType.Name}>, YourHandler>().");
+			throw CreateMissingHandlerException(messageType);
+		}
+
+		// A handler whose dependency graph reaches a scoped service must be resolved from a DI scope, never
+		// from the root container this singleton bus captured. The ultra-local and direct fast paths gate on
+		// the same verdict; this is the general path taken whenever middleware is registered.
+		if (RequiresScope(messageType))
+		{
+			return SendScopedAsync(entry, action, context, cancellationToken);
 		}
 
 		var handler = ActivateHandler(entry.HandlerType, context);
@@ -238,16 +210,38 @@ internal sealed partial class LocalMessageBus(
 	/// <param name="cancellationToken"> Cancellation token to monitor for cancellation requests. </param>
 	/// <returns> A task that represents the asynchronous publish operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="evt" /> or <paramref name="context" /> is null. </exception>
+	/// <remarks>
+	/// <para>
+	/// <strong>Scope sharing.</strong> All handlers for a single published event observe the <em>same</em>
+	/// scoped service instances. When at least one handler for the event must be resolved from a
+	/// dependency-injection scope, exactly one scope is used for the whole fan-out — the caller's request
+	/// scope when the dispatch carries one, otherwise the ambient scope, otherwise one scope created for the
+	/// event and disposed once every handler has completed. When no handler needs a scope, none is opened.
+	/// </para>
+	/// <para>
+	/// <strong>Faults are isolated; state is not.</strong> These are different properties and they must not
+	/// be conflated. Every handler is started even if an earlier one throws, and the failures are aggregated,
+	/// so one handler's fault never abandons the others. The scoped instances, however, are shared: a handler
+	/// that faults after leaving a scoped service in a broken state (an aborted transaction, a
+	/// change-tracking context poisoned by a failed save) hands that state to its sibling handlers, which run
+	/// afterwards and observe it. A handler that must not inherit a sibling's partial work should either take
+	/// its dependency as a factory it resolves per invocation, or be dispatched as its own message.
+	/// </para>
+	/// </remarks>
 	[UnconditionalSuppressMessage(
-		"AOT",
+		"Trimming",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
-			"Handler types are discovered and preserved through source generation or explicit registration. The invoker uses cached delegates for AOT compatibility.")]
+			"IMessageBus carries no ahead-of-time annotation, so this implementation cannot declare one without "
+			+ "diverging from the interface it implements. The requirement is declared on the registration that "
+			+ "composes this bus, which is where a consumer's compiler reads it.")]
 	[UnconditionalSuppressMessage(
 		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		"IL3050:Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling",
 		Justification =
-			"The handler invocation is AOT-safe when handlers are registered through source generation or explicit registration with preserved types.")]
+			"IMessageBus carries no ahead-of-time annotation, so this implementation cannot declare one without "
+			+ "diverging from the interface it implements. The requirement is declared on the registration that "
+			+ "composes this bus, which is where a consumer's compiler reads it.")]
 	public async Task PublishAsync(IDispatchEvent evt, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(evt);
@@ -268,13 +262,82 @@ internal sealed partial class LocalMessageBus(
 			return;
 		}
 
+		// ONE scope per published event, opened only when at least one handler requires one and shared by
+		// every handler for that event -- not one scope per handler. The resolver's precedence decides where
+		// it comes from (caller-supplied scope, then ambient, then freshly created); the first two are
+		// borrowed and cannot be subdivided per handler, so a per-handler rule would mean different
+		// unit-of-work semantics per host.
+		var scopeAnchor = GetEventScopeAnchor(messageType, plans);
+		if (scopeAnchor is not null)
+		{
+			await PublishInScopeAsync(scopeAnchor, messageType, evt, plans, context, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		await PublishToPlansAsync(messageType, evt, plans, context, scopeOpen: false, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Runs the whole fan-out inside a single scope. The scope is acquired once for the event and released
+	/// only after every handler has completed: <see cref="PublishToPlansAsync"/> awaits all invocations
+	/// before returning, so disposal cannot race a handler that did not complete synchronously.
+	/// </summary>
+	[RequiresUnreferencedCode("Event dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Event dispatch uses reflection-based dispatch plan resolution.")]
+	private async ValueTask PublishInScopeAsync(
+		Type scopeAnchor,
+		Type messageType,
+		IDispatchEvent evt,
+		EventDispatchPlan[] plans,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+		=> _ = await _scopeResolver.RunAsync<object?>(
+			scopeAnchor,
+			PreferredScope(context),
+			async scopedProvider =>
+			{
+				// Rebind the caller's context to the resolved scope for the duration of the fan-out (and
+				// restore it after) so every handler resolves from that scope and sees a RequestServices
+				// matching where it was resolved -- without discarding the context's correlation, items or
+				// features, which a substitute context would lose.
+				var previous = context.RequestServices;
+				context.RequestServices = scopedProvider;
+				try
+				{
+					await PublishToPlansAsync(messageType, evt, plans, context, scopeOpen: true, cancellationToken)
+						.ConfigureAwait(false);
+				}
+				finally
+				{
+					context.RequestServices = previous;
+				}
+
+				return null;
+			}).ConfigureAwait(false);
+
+	/// <summary>
+	/// Invokes every dispatch plan for the event. When <paramref name="scopeOpen"/> is set, a scope is
+	/// already held for this event and the handlers that require one are given the (scope-bound) context so
+	/// they resolve from it; handlers that do not require a scope keep their existing no-context resolution
+	/// path, so a shared scope never costs them their singleton/no-context bypass.
+	/// </summary>
+	[RequiresUnreferencedCode("Event dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Event dispatch uses reflection-based dispatch plan resolution.")]
+	private async ValueTask PublishToPlansAsync(
+		Type messageType,
+		IDispatchEvent evt,
+		EventDispatchPlan[] plans,
+		IMessageContext context,
+		bool scopeOpen,
+		CancellationToken cancellationToken)
+	{
 		if (plans.Length == 1)
 		{
 			var singlePlan = plans[0];
 			var singleInvocation = singlePlan.Invoke(
 				this,
 				evt,
-				singlePlan.RequiresContext ? context : null,
+				ResolvePlanContext(singlePlan, context, scopeOpen),
 				cancellationToken);
 			if (!singleInvocation.IsCompletedSuccessfully)
 			{
@@ -301,7 +364,7 @@ internal sealed partial class LocalMessageBus(
 					var invocation = plan.Invoke(
 						this,
 						evt,
-						plan.RequiresContext ? context : null,
+						ResolvePlanContext(plan, context, scopeOpen),
 						cancellationToken);
 					invocations[i] = invocation;
 				}
@@ -337,6 +400,15 @@ internal sealed partial class LocalMessageBus(
 
 		if (faults is not null)
 		{
+			// A single fault surfaces as itself, not wrapped: the number of registered handlers must not
+			// change which exception type a consumer sees, or an exception handler / mapper registered for
+			// the domain exception stops matching the moment a second handler is registered. Only a genuine
+			// multi-fault fan-out aggregates. (Same unwrap rule as Task.GetAwaiter().GetResult().)
+			if (faults.Count == 1)
+			{
+				ExceptionDispatchInfo.Capture(faults[0]).Throw();
+			}
+
 			throw new AggregateException(
 				$"One or more handlers failed while publishing event '{messageType.Name}'.",
 				faults);
@@ -352,16 +424,6 @@ internal sealed partial class LocalMessageBus(
 	/// <returns> A task that represents the asynchronous document sending operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="doc" /> or <paramref name="context" /> is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when no handler is registered for the document type. </exception>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Handler types are discovered and preserved through source generation or explicit registration. The invoker uses cached delegates for AOT compatibility.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification =
-			"The handler invocation is AOT-safe when handlers are registered through source generation or explicit registration with preserved types.")]
 	public Task SendDocumentAsync(IDispatchDocument doc, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(doc);
@@ -370,10 +432,14 @@ internal sealed partial class LocalMessageBus(
 		var messageType = doc.GetType();
 		if (!TryGetHandlerEntry(messageType, out var entry))
 		{
-			throw new InvalidOperationException(
-				$"No handler registered for document '{messageType.FullName}'. " +
-				$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
-				$"Alternatively, register the handler directly with services.AddTransient<IDocumentHandler<{messageType.Name}>, YourHandler>().");
+			throw CreateMissingHandlerException(messageType);
+		}
+
+		// Same rule as the action path: a handler that reaches a scoped service resolves from a DI scope,
+		// never from the root container this singleton bus captured.
+		if (RequiresScope(messageType))
+		{
+			return SendDocumentScopedAsync(entry.HandlerType, doc, context, cancellationToken);
 		}
 
 		var handler = ActivateHandler(entry.HandlerType, context);
@@ -402,6 +468,34 @@ internal sealed partial class LocalMessageBus(
 	/// <returns> A task that represents the asynchronous publish operation. </returns>
 	public Task PublishAsync(IDispatchDocument doc, IMessageContext context, CancellationToken cancellationToken)
 		=> SendDocumentAsync(doc, context, cancellationToken);
+
+	/// <summary>
+	/// Builds the exception thrown when a message reaches the local bus with no handler registered for it.
+	/// </summary>
+	/// <param name="messageType"> The message type that has no registered handler. </param>
+	/// <returns> An exception naming the message type and both ways to register a handler for it. </returns>
+	internal static HandlerNotRegisteredException CreateMissingHandlerException(Type messageType)
+	{
+		var isDocument = typeof(IDispatchDocument).IsAssignableFrom(messageType);
+		var kind = isDocument ? "document" : "action";
+		var handlerInterface = isDocument ? "IDocumentHandler" : "IActionHandler";
+
+		return new HandlerNotRegisteredException(
+			$"No handler registered for {kind} '{messageType.FullName}'. " +
+			$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
+			$"Alternatively, register the handler directly with services.AddTransient<{handlerInterface}<{messageType.Name}>, YourHandler>().");
+	}
+
+	/// <summary>
+	/// Determines whether a handler is registered for the supplied message type.
+	/// </summary>
+	/// <param name="messageType"> The message type to look up. </param>
+	/// <returns> <see langword="true" /> when a handler is registered; otherwise <see langword="false" />. </returns>
+	/// <remarks>
+	/// Dispatch paths that convert handler failures into a failed result call this before invoking the bus, so that a missing
+	/// registration — a configuration fault rather than a runtime outcome — is raised outside that conversion and reaches the caller.
+	/// </remarks>
+	internal bool HasHandlerFor(Type messageType) => TryGetHandlerEntry(messageType, out _);
 
 	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct invocation uses reflection-based dispatch plan resolution.")]
@@ -640,7 +734,7 @@ internal sealed partial class LocalMessageBus(
 					return false;
 				}
 
-				invocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+				invocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				return true;
 			}
 
@@ -713,7 +807,7 @@ internal sealed partial class LocalMessageBus(
 					return false;
 				}
 
-				var precompiledInvocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				invocation = precompiledInvocation.IsCompletedSuccessfully
 					? ValueTask.CompletedTask
 					: AwaitNoResponseValueTaskAsync(precompiledInvocation);
@@ -814,7 +908,7 @@ internal sealed partial class LocalMessageBus(
 				return false;
 			}
 
-			var precompiledInvocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+			var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 			invocation = precompiledInvocation.IsCompletedSuccessfully
 				? ValueTask.CompletedTask
 				: AwaitNoResponseValueTaskAsync(precompiledInvocation);
@@ -890,7 +984,7 @@ internal sealed partial class LocalMessageBus(
 				return false;
 			}
 
-			invocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+			invocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 			return true;
 		}
 
@@ -1005,14 +1099,14 @@ internal sealed partial class LocalMessageBus(
 			if (expectsResponse)
 			{
 				withResponseInvoker = (action, cancellationToken) =>
-					precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+					precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				noResponseInvoker = null;
 				return true;
 			}
 
 			noResponseInvoker = (action, cancellationToken) =>
 			{
-				var precompiledInvocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				return precompiledInvocation.IsCompletedSuccessfully
 					? ValueTask.CompletedTask
 					: AwaitNoResponseValueTaskAsync(precompiledInvocation);
@@ -1204,14 +1298,12 @@ internal sealed partial class LocalMessageBus(
 			return cached ?? [];
 		}
 
-		var created = CreateEventDispatchPlans(handlers);
+		var created = CreateEventDispatchPlans(handlers, logger);
 		_ = _eventDispatchPlanCache.TryAdd(messageType, created);
 		return created;
 	}
 
-	[RequiresUnreferencedCode("Creates event dispatch plans via reflection-based typed invoker construction.")]
-	[RequiresDynamicCode("Creates event dispatch plans via reflection-based typed invoker construction.")]
-	private static EventDispatchPlan[] CreateEventDispatchPlans(HandlerRegistryEntry[] handlers)
+	private static EventDispatchPlan[] CreateEventDispatchPlans(HandlerRegistryEntry[] handlers, ILogger logger)
 	{
 		if (handlers.Length == 0)
 		{
@@ -1224,7 +1316,7 @@ internal sealed partial class LocalMessageBus(
 			var entry = handlers[index];
 			var requiresContext = HandlerActivator.RequiresContextInjection(entry.HandlerType);
 			EventHandlerAsyncInvoker invoker;
-			if (TryCreateTypedEventAsyncInvoker(entry.MessageType, entry.HandlerType, out var typedInvoker))
+			if (TryCreateTypedEventAsyncInvoker(entry.MessageType, entry.HandlerType, logger, out var typedInvoker))
 			{
 				invoker = typedInvoker;
 			}
@@ -1235,13 +1327,12 @@ internal sealed partial class LocalMessageBus(
 				invoker = CreateEventAsyncInvoker(entry.HandlerType);
 			}
 
-			plans[index] = new EventDispatchPlan(requiresContext, invoker);
+			plans[index] = new EventDispatchPlan(entry.HandlerType, requiresContext, invoker);
 		}
 
 		return plans;
 	}
 
-	[RequiresUnreferencedCode("Creates direct action dispatch plans via reflection-based typed invoker construction.")]
 	[RequiresDynamicCode("Creates direct action dispatch plans via reflection-based typed invoker construction.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private DirectActionDispatchPlan? CreateDirectActionDispatchPlan(Type actionType)
@@ -1251,15 +1342,13 @@ internal sealed partial class LocalMessageBus(
 			return null;
 		}
 
-		return CreateRuntimeDirectActionDispatchPlan(entry);
+		return CreateRuntimeDirectActionDispatchPlan(entry, logger);
 	}
 
-	[RequiresUnreferencedCode("Creates runtime dispatch plans using reflection-based typed invoker construction.")]
-	[RequiresDynamicCode("Creates runtime dispatch plans using reflection-based typed invoker construction.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static DirectActionDispatchPlan CreateRuntimeDirectActionDispatchPlan(HandlerRegistryEntry entry)
+	private static DirectActionDispatchPlan CreateRuntimeDirectActionDispatchPlan(HandlerRegistryEntry entry, ILogger logger)
 	{
-		if (TryCreateTypedDirectActionDispatchPlan(entry, out var typedPlan))
+		if (TryCreateTypedDirectActionDispatchPlan(entry, logger, out var typedPlan))
 		{
 			return typedPlan;
 		}
@@ -1274,15 +1363,14 @@ internal sealed partial class LocalMessageBus(
 			InvokeWithResponseAsync: entry.ExpectsResponse ? CreateDirectActionWithResponseAsyncInvoker(entry.HandlerType) : null);
 	}
 
-	[RequiresUnreferencedCode("Creates typed dispatch plans via reflection-based invoker construction.")]
-	[RequiresDynamicCode("Creates typed dispatch plans via reflection-based invoker construction at runtime.")]
 	private static bool TryCreateTypedDirectActionDispatchPlan(
 		HandlerRegistryEntry entry,
+		ILogger logger,
 		out DirectActionDispatchPlan plan)
 	{
 		if (!entry.ExpectsResponse)
 		{
-			if (!TryCreateTypedNoResponseAsyncInvoker(entry.MessageType, entry.HandlerType, out var invokeNoResponseAsync))
+			if (!TryCreateTypedNoResponseAsyncInvoker(entry.MessageType, entry.HandlerType, logger, out var invokeNoResponseAsync))
 			{
 				plan = default;
 				return false;
@@ -1300,7 +1388,7 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		if (!TryGetActionResponseType(entry.MessageType, out var responseType) ||
-			!TryCreateTypedWithResponseAsyncInvoker(entry.MessageType, entry.HandlerType, responseType, out var invokeWithResponseAsync))
+			!TryCreateTypedWithResponseAsyncInvoker(entry.MessageType, entry.HandlerType, responseType, logger, out var invokeWithResponseAsync))
 		{
 			plan = default;
 			return false;
@@ -1317,8 +1405,7 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
-	[RequiresUnreferencedCode("Inspects action type interfaces via reflection to find IDispatchAction<TResponse>.")]
-	private static bool TryGetActionResponseType(Type actionType, out Type responseType)
+	private static bool TryGetActionResponseType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type actionType, out Type responseType)
 	{
 		foreach (var candidate in actionType.GetInterfaces())
 		{
@@ -1334,13 +1421,28 @@ internal sealed partial class LocalMessageBus(
 		return false;
 	}
 
-	[RequiresUnreferencedCode("Uses MakeGenericType/MakeGenericMethod to create typed action invoker delegates.")]
-	[RequiresDynamicCode("Uses MakeGenericType/MakeGenericMethod to create typed action invoker delegates at runtime.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling",
+		Justification =
+			"The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is "
+			+ "unavailable this declines and the caller dispatches through the source-generated invoker instead. "
+			+ "Declaring the requirement would push it up the composition chain to every consumer, including the "
+			+ "ones this guard exists to serve.")]
 	private static bool TryCreateTypedNoResponseAsyncInvoker(
 		Type actionType,
-		Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
+		ILogger logger,
 		out DirectActionNoResponseAsyncInvoker invoker)
 	{
+		// Building a typed invoker needs runtime code generation. Under AOT, decline so the caller
+		// falls back to the context-aware path, which dispatches through IHandlerInvoker (source-generated).
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			invoker = null!;
+			return false;
+		}
+
 		if (!typeof(IDispatchAction).IsAssignableFrom(actionType) ||
 			!typeof(IActionHandler<>).MakeGenericType(actionType).IsAssignableFrom(handlerType))
 		{
@@ -1359,19 +1461,35 @@ internal sealed partial class LocalMessageBus(
 		}
 		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
 		{
+			LogTypedInvokerBuildFailed(logger, ex, handlerType.FullName ?? handlerType.Name);
 			invoker = null!;
 			return false;
 		}
 	}
 
-	[RequiresUnreferencedCode("Uses MakeGenericType/MakeGenericMethod to create typed action-with-response invoker delegates.")]
-	[RequiresDynamicCode("Uses MakeGenericType/MakeGenericMethod to create typed action-with-response invoker delegates at runtime.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling",
+		Justification =
+			"The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is "
+			+ "unavailable this declines and the caller dispatches through the source-generated invoker instead. "
+			+ "Declaring the requirement would push it up the composition chain to every consumer, including the "
+			+ "ones this guard exists to serve.")]
 	private static bool TryCreateTypedWithResponseAsyncInvoker(
 		Type actionType,
-		Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		Type responseType,
+		ILogger logger,
 		out DirectActionWithResponseAsyncInvoker invoker)
 	{
+		// Building a typed invoker needs runtime code generation. Under AOT, decline so the caller
+		// falls back to the context-aware path, which dispatches through IHandlerInvoker (source-generated).
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			invoker = null!;
+			return false;
+		}
+
 		var actionInterface = typeof(IDispatchAction<>).MakeGenericType(responseType);
 		var handlerInterface = typeof(IActionHandler<,>).MakeGenericType(actionType, responseType);
 		if (!actionInterface.IsAssignableFrom(actionType) || !handlerInterface.IsAssignableFrom(handlerType))
@@ -1391,18 +1509,34 @@ internal sealed partial class LocalMessageBus(
 		}
 		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
 		{
+			LogTypedInvokerBuildFailed(logger, ex, handlerType.FullName ?? handlerType.Name);
 			invoker = null!;
 			return false;
 		}
 	}
 
-	[RequiresUnreferencedCode("Uses MakeGenericType/MakeGenericMethod to create typed event invoker delegates.")]
-	[RequiresDynamicCode("Uses MakeGenericType/MakeGenericMethod to create typed event invoker delegates at runtime.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling",
+		Justification =
+			"The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is "
+			+ "unavailable this declines and the caller dispatches through the source-generated invoker instead. "
+			+ "Declaring the requirement would push it up the composition chain to every consumer, including the "
+			+ "ones this guard exists to serve.")]
 	private static bool TryCreateTypedEventAsyncInvoker(
 		Type eventType,
-		Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
+		ILogger logger,
 		out EventHandlerAsyncInvoker invoker)
 	{
+		// Building a typed invoker needs runtime code generation. Under AOT, decline so the caller
+		// falls back to the context-aware path, which dispatches through IHandlerInvoker (source-generated).
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			invoker = null!;
+			return false;
+		}
+
 		if (!typeof(IDispatchEvent).IsAssignableFrom(eventType) ||
 			!typeof(IEventHandler<>).MakeGenericType(eventType).IsAssignableFrom(handlerType))
 		{
@@ -1421,12 +1555,13 @@ internal sealed partial class LocalMessageBus(
 		}
 		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
 		{
+			LogTypedInvokerBuildFailed(logger, ex, handlerType.FullName ?? handlerType.Name);
 			invoker = null!;
 			return false;
 		}
 	}
 
-	private static DirectActionNoResponseAsyncInvoker CreateTypedNoResponseAsyncInvokerCore<TAction, THandler>()
+	private static DirectActionNoResponseAsyncInvoker CreateTypedNoResponseAsyncInvokerCore<TAction, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>()
 		where TAction : IDispatchAction
 		where THandler : IActionHandler<TAction>
 	{
@@ -1434,7 +1569,7 @@ internal sealed partial class LocalMessageBus(
 			bus.InvokeTypedNoResponse<TAction, THandler>(action, context, cancellationToken);
 	}
 
-	private static DirectActionWithResponseAsyncInvoker CreateTypedWithResponseAsyncInvokerCore<TAction, THandler, TResponse>()
+	private static DirectActionWithResponseAsyncInvoker CreateTypedWithResponseAsyncInvokerCore<TAction, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TResponse>()
 		where TAction : IDispatchAction<TResponse>
 		where THandler : IActionHandler<TAction, TResponse>
 	{
@@ -1442,7 +1577,7 @@ internal sealed partial class LocalMessageBus(
 			bus.InvokeTypedWithResponse<TAction, THandler, TResponse>(action, context, cancellationToken);
 	}
 
-	private static EventHandlerAsyncInvoker CreateTypedEventAsyncInvokerCore<TEvent, THandler>()
+	private static EventHandlerAsyncInvoker CreateTypedEventAsyncInvokerCore<TEvent, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>()
 		where TEvent : IDispatchEvent
 		where THandler : IEventHandler<TEvent>
 	{
@@ -1451,7 +1586,6 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("Precompiled dispatch plan resolution probes assemblies via reflection.")]
 	private bool TryGetPrecompiledDirectActionDispatchPlan(
 		Type actionType,
 		out PrecompiledDirectActionDispatchPlan plan)
@@ -1480,10 +1614,13 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
-	[RequiresUnreferencedCode("Resolves precompiled dispatch plans via assembly probing and reflection.")]
+	// Providers are discovered via PrecompiledDirectDispatchRegistry, which each consuming assembly's
+	// source-generated PrecompiledDirectActionDispatch class populates through a [ModuleInitializer] at
+	// module load. No reflection: the registration call site is ordinary, trimmer-visible code, so the
+	// generated type's absence is simply "nothing registered" rather than a silent reflective fallback.
 	private static PrecompiledDirectActionDispatchPlan? ResolvePrecompiledDirectActionDispatchPlan(Type actionType)
 	{
-		var providers = GetPrecompiledDirectProviders();
+		var providers = PrecompiledDirectDispatchRegistry.GetAll();
 		for (var index = 0; index < providers.Length; index++)
 		{
 			var provider = providers[index];
@@ -1513,93 +1650,9 @@ internal sealed partial class LocalMessageBus(
 		return null;
 	}
 
-	[RequiresUnreferencedCode("Probes loaded assemblies for precompiled dispatch providers via reflection.")]
-	private static PrecompiledDirectProvider[] GetPrecompiledDirectProviders()
-	{
-		if (_precompiledDirectProvidersInitialized)
-		{
-			return _precompiledDirectProviders;
-		}
-
-		lock (PrecompiledDirectProviderLock)
-		{
-			if (_precompiledDirectProvidersInitialized)
-			{
-				return _precompiledDirectProviders;
-			}
-
-			var providers = new List<PrecompiledDirectProvider>();
-			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-			for (var index = 0; index < assemblies.Length; index++)
-			{
-				TryAddPrecompiledDirectProvider(assemblies[index], providers);
-			}
-
-			_precompiledDirectProviders = [.. providers];
-			_precompiledDirectProvidersInitialized = true;
-			return _precompiledDirectProviders;
-		}
-	}
-
-	[RequiresUnreferencedCode("Uses Assembly.GetType and reflection to discover precompiled direct action dispatch providers.")]
-	private static void TryAddPrecompiledDirectProvider(Assembly assembly, ICollection<PrecompiledDirectProvider> providers)
-	{
-		const string typeName = "Excalibur.Dispatch.Generated.PrecompiledDirectActionDispatch";
-
-		Type? dispatchType;
-		try
-		{
-			dispatchType = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
-		}
-		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
-		{
-			return;
-		}
-
-		if (dispatchType is null)
-		{
-			return;
-		}
-
-		var canHandleMethod = dispatchType.GetMethod(
-			"CanHandle",
-			BindingFlags.Public | BindingFlags.Static,
-			binder: null,
-			[typeof(Type)],
-			modifiers: null);
-		var tryGetMetadataMethod = dispatchType.GetMethod(
-			"TryGetMetadata",
-			BindingFlags.Public | BindingFlags.Static,
-			binder: null,
-			[typeof(Type), typeof(bool).MakeByRefType(), typeof(bool).MakeByRefType()],
-			modifiers: null);
-		var invokeMethod = dispatchType.GetMethod(
-			"InvokeAsync",
-			BindingFlags.Public | BindingFlags.Static,
-			binder: null,
-			[typeof(IDispatchAction), typeof(IServiceProvider), typeof(IMessageContext), typeof(CancellationToken)],
-			modifiers: null);
-
-		if (canHandleMethod is null || tryGetMetadataMethod is null || invokeMethod is null)
-		{
-			return;
-		}
-
-		try
-		{
-			var canHandle = canHandleMethod.CreateDelegate<PrecompiledDirectCanHandleDelegate>();
-			var tryGetMetadata = tryGetMetadataMethod.CreateDelegate<PrecompiledDirectTryGetMetadataDelegate>();
-			var invoke = invokeMethod.CreateDelegate<PrecompiledDirectInvokeDelegate>();
-			providers.Add(new PrecompiledDirectProvider(canHandle, tryGetMetadata, invoke));
-		}
-		catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not AccessViolationException)
-		{
-		}
-	}
-
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static DirectActionNoResponseSyncInvoker CreateDirectActionNoResponseSyncInvoker(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var asyncInvoker = CreateDirectActionNoResponseAsyncInvoker(handlerType);
@@ -1631,7 +1684,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static DirectActionNoResponseAsyncInvoker CreateDirectActionNoResponseAsyncInvoker(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		return (bus, action, context, cancellationToken) =>
@@ -1640,7 +1693,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static DirectActionWithResponseSyncInvoker CreateDirectActionWithResponseSyncInvoker(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var asyncInvoker = CreateDirectActionWithResponseAsyncInvoker(handlerType);
@@ -1675,7 +1728,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static DirectActionWithResponseAsyncInvoker CreateDirectActionWithResponseAsyncInvoker(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		return (bus, action, context, cancellationToken) =>
@@ -1684,7 +1737,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static EventHandlerAsyncInvoker CreateEventAsyncInvoker(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		return (bus, evt, context, cancellationToken) =>
@@ -1693,7 +1746,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ValueTask InvokeDirectActionNoResponse(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IDispatchAction action,
 		IMessageContext? context,
@@ -1707,7 +1760,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ValueTask<object?> InvokeDirectAction(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IDispatchAction action,
 		IMessageContext? context,
@@ -1721,7 +1774,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ValueTask InvokeEventHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IDispatchEvent evt,
 		IMessageContext? context,
@@ -1739,7 +1792,7 @@ internal sealed partial class LocalMessageBus(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ValueTask InvokeTypedNoResponse<
 		TAction,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 	THandler>(
 		IDispatchAction action,
 		IMessageContext? context,
@@ -1759,7 +1812,7 @@ internal sealed partial class LocalMessageBus(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ValueTask<object?> InvokeTypedWithResponse<
 		TAction,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 	THandler,
 		TResponse>(
 		IDispatchAction action,
@@ -1780,7 +1833,7 @@ internal sealed partial class LocalMessageBus(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ValueTask InvokeTypedEvent<
 		TEvent,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 	THandler>(
 		IDispatchEvent evt,
 		IMessageContext? context,
@@ -1798,32 +1851,120 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	/// <summary>
-	/// Returns whether the handler for <paramref name="actionType"/> must be resolved from a
-	/// dependency-injection scope (rather than the root container captured by this singleton bus).
-	/// Deterministic and cached per action type; the warm path is a ThreadStatic compare so the
-	/// root-resolvable hot path (transient/singleton handlers) pays no dictionary lookup.
+	/// Returns whether the single handler for <paramref name="messageType"/> (an action or a document) must
+	/// be resolved from a dependency-injection scope rather than the root container captured by this
+	/// singleton bus. Deterministic and cached per message type; the warm path is a ThreadStatic compare so
+	/// the root-resolvable hot path (transient/singleton handlers) pays no dictionary lookup.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private bool RequiresScope(Type actionType)
+	private bool RequiresScope(Type messageType)
 	{
-		if (ReferenceEquals(s_scopeReqBus, this) && ReferenceEquals(s_scopeReqType, actionType))
+		if (ReferenceEquals(s_scopeReqBus, this) && ReferenceEquals(s_scopeReqType, messageType))
 		{
 			return s_scopeReqValue;
 		}
 
-		var requiresScope = _actionRequiresScopeCache.GetOrAdd(
-			actionType,
-			static (type, self) => self.ResolveActionScopeVerdict(type),
+		var requiresScope = _messageRequiresScopeCache.GetOrAdd(
+			messageType,
+			static (type, self) => self.ResolveMessageScopeVerdict(type),
 			this);
 
 		s_scopeReqBus = this;
-		s_scopeReqType = actionType;
+		s_scopeReqType = messageType;
 		s_scopeReqValue = requiresScope;
 		return requiresScope;
 	}
 
-	private bool ResolveActionScopeVerdict(Type actionType)
-		=> TryGetHandlerEntry(actionType, out var entry) && _scopeResolver.RequiresScope(entry.HandlerType);
+	private bool ResolveMessageScopeVerdict(Type messageType)
+		=> TryGetHandlerEntry(messageType, out var entry) && _scopeResolver.RequiresScope(entry.HandlerType);
+
+	/// <summary>
+	/// Returns the first handler for <paramref name="eventType"/> that must be resolved from a
+	/// dependency-injection scope, or <see langword="null"/> when no handler for the event needs one. The
+	/// verdict is the OR over the event's handlers — one scope is opened for the event if <em>any</em>
+	/// handler requires it — and is cached per event type. The returned type is also the diagnostic anchor
+	/// naming a handler that genuinely required the scope. Each handler's own verdict is fail-safe: the
+	/// resolver biases an unprovable dependency graph to Scope.
+	/// </summary>
+	private Type? GetEventScopeAnchor(Type eventType, EventDispatchPlan[] plans)
+	{
+		if (_eventScopeAnchorCache.TryGetValue(eventType, out var cached))
+		{
+			return cached;
+		}
+
+		Type? anchor = null;
+		for (var index = 0; index < plans.Length; index++)
+		{
+			var handlerType = plans[index].HandlerType;
+			if (_scopeResolver.RequiresScope(handlerType))
+			{
+				anchor = handlerType;
+				break;
+			}
+		}
+
+		_ = _eventScopeAnchorCache.TryAdd(eventType, anchor);
+		return anchor;
+	}
+
+	/// <summary>
+	/// Chooses the context a single event dispatch plan is invoked with. A handler that requires context
+	/// injection always gets it. When a scope is open for the event, a handler that requires a scope also
+	/// gets the (scope-bound) context, because that is what routes its activation through the scope's
+	/// provider. Every other handler keeps <see langword="null"/> and its existing no-context resolution —
+	/// an open scope must not cost a root-safe handler its singleton/no-context bypass.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private IMessageContext? ResolvePlanContext(EventDispatchPlan plan, IMessageContext context, bool scopeOpen)
+		=> plan.RequiresContext || (scopeOpen && _scopeResolver.RequiresScope(plan.HandlerType))
+			? context
+			: null;
+
+	/// <summary>
+	/// Invokes a single-handler message (an action or a document) inside the scope the resolver selects,
+	/// rebinding the caller's context to that scope for the duration of the invocation so the handler
+	/// resolves from it while keeping the context's correlation, items, features and result.
+	/// </summary>
+	private ValueTask<object?> InvokeInScopeAsync(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
+		IDispatchMessage message,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+		=> _scopeResolver.RunAsync(handlerType, PreferredScope(context), async scopedProvider =>
+		{
+			var previous = context.RequestServices;
+			context.RequestServices = scopedProvider;
+			try
+			{
+				var handler = ActivateHandler(handlerType, context);
+				return await InvokeHandler(handler, message, cancellationToken).ConfigureAwait(false);
+			}
+			finally
+			{
+				context.RequestServices = previous;
+			}
+		});
+
+	private async Task SendScopedAsync(
+		HandlerRegistryEntry entry,
+		IDispatchAction action,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+	{
+		var result = await InvokeInScopeAsync(entry.HandlerType, action, context, cancellationToken).ConfigureAwait(false);
+		if (entry.ExpectsResponse && result is not null)
+		{
+			context.Result = result;
+		}
+	}
+
+	private async Task SendDocumentScopedAsync(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
+		IDispatchDocument doc,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+		=> _ = await InvokeInScopeAsync(handlerType, doc, context, cancellationToken).ConfigureAwait(false);
 
 	/// <summary>
 	/// Returns the caller-supplied request scope to prefer for scoped resolution: the dispatch context's
@@ -1835,40 +1976,76 @@ internal sealed partial class LocalMessageBus(
 	private IServiceProvider? PreferredScope(IMessageContext? context)
 	{
 		var requestServices = context?.RequestServices;
-		return requestServices is not null && !ReferenceEquals(requestServices, provider)
-			? requestServices
-			: null;
+
+		// Two things disqualify a caller-supplied provider from being treated as a scope.
+		//
+		// The reference check catches the provider this bus was constructed with. On its own it is not
+		// enough: that provider is the root ENGINE scope, a different object from the ServiceProvider a
+		// consumer gets back from BuildServiceProvider(). A worker or console app that builds a provider
+		// and constructs a context from it — new MessageContext(message, provider) — therefore had its
+		// root accepted as a request scope, and every scoped dependency resolved from it was captive,
+		// shared across every dispatch.
+		//
+		// The IServiceScope test closes that. Measured against Microsoft.Extensions.DependencyInjection:
+		// the object returned by BuildServiceProvider() (ServiceProvider) is NOT an IServiceScope, while
+		// a real scope's provider (ServiceProviderEngineScope) is. So a consumer-passed root is rejected
+		// and a genuine scope — including the ASP.NET Core request scope — is accepted.
+		//
+		// The failure direction is deliberate. A container whose scope provider does not implement
+		// IServiceScope is rejected here and the resolver falls through to creating a fresh scope: correct,
+		// marginally more expensive, and never captive. Being wrong toward an extra scope is the safe way
+		// to be wrong; being wrong toward sharing one is the defect this replaces.
+		return requestServices is not null
+			&& !ReferenceEquals(requestServices, provider)
+			&& requestServices is IServiceScope
+				? requestServices
+				: null;
 	}
 
+	[RequiresUnreferencedCode("Falls back to reflection-based dispatch plan resolution when no precompiled plan covers the action.")]
 	private ValueTask<object?> InvokeScopedObjectAsync(
 		Type actionType,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		IDispatchAction action,
 		IMessageContext? context,
 		CancellationToken cancellationToken)
 		=> _scopeResolver.RunAsync(handlerType, PreferredScope(context), async scopedProvider =>
 		{
-			// Reuse the caller's context when it already targets the resolved scope; otherwise bind a
-			// context to the resolved scope so the handler's RequestServices matches where it was resolved.
-			var scopedContext = context is not null && ReferenceEquals(context.RequestServices, scopedProvider)
-				? context
-				: new MessageContext(action, scopedProvider);
+			// Rebind the caller's context to the resolved scope for the duration of the invocation (and
+			// restore it after) so the handler resolves from that scope and sees a RequestServices
+			// matching where it was resolved -- the same treatment the event fan-out above gives its
+			// context, and for the same reason: substituting a fresh context here discarded the caller's
+			// tenant, user, correlation and causation outright. A handler resolved into a fresh scope
+			// therefore ran untenanted, and silently, because a context carrying no tenant is
+			// indistinguishable downstream from one for a genuinely untenanted operation. Only a null
+			// caller context needs a substitute, and it has nothing to lose.
+			var scopedContext = context ?? new MessageContext(action, scopedProvider);
+			var previousServices = scopedContext.RequestServices;
+			scopedContext.RequestServices = scopedProvider;
 
-			// Prefer the source-generated precompiled plan (AOT-safe, no reflection), resolved from the
-			// scope provider; fall back to activator-based resolution (also from the scope) otherwise.
-			if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan) &&
-				!ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+			try
 			{
-				return await precompiledPlan.Invoke(action, scopedProvider, scopedContext, cancellationToken).ConfigureAwait(false);
-			}
+				// Prefer the source-generated precompiled plan (AOT-safe, no reflection), resolved from the
+				// scope provider; fall back to activator-based resolution (also from the scope) otherwise.
+				if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan) &&
+					!ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+				{
+					return await precompiledPlan.Invoke(action, scopedProvider, scopedContext, cancellationToken).ConfigureAwait(false);
+				}
 
-			var handler = ActivateHandler(handlerType, scopedContext);
-			return await InvokeHandler(handler, action, cancellationToken).ConfigureAwait(false);
+				var handler = ActivateHandler(handlerType, scopedContext);
+				return await InvokeHandler(handler, action, cancellationToken).ConfigureAwait(false);
+			}
+			finally
+			{
+				scopedContext.RequestServices = previousServices;
+			}
 		});
 
+	[RequiresUnreferencedCode("Falls back to reflection-based dispatch plan resolution when no precompiled plan covers the action.")]
 	private async ValueTask InvokeScopedNoResponseAsync(
 		Type actionType,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		IDispatchAction action,
 		IMessageContext? context,
 		CancellationToken cancellationToken)
@@ -1876,7 +2053,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private object ResolveHandlerWithoutContext(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (ReferenceEquals(s_cachedNoContextBus, this) &&
@@ -1948,7 +2125,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private object ActivateHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IMessageContext context)
 	{
@@ -1983,7 +2160,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private Func<object> BuildNoContextResolver(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var activationPlan = GetNoContextActivationPlan(handlerType);
@@ -1999,7 +2176,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private Func<IMessageContext, IServiceProvider, object> BuildContextResolver(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var activationPlan = GetContextActivationPlan(handlerType);
@@ -2016,7 +2193,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private NoContextActivationPlan GetNoContextActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_noContextActivationPlanCache.TryGetValue(handlerType, out var cached))
@@ -2031,7 +2208,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ContextActivationPlan GetContextActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_contextActivationPlanCache.TryGetValue(handlerType, out var cached))
@@ -2046,7 +2223,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private NoContextActivationPlan BuildNoContextActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (TryGetSingletonNoContextHandler(handlerType, out var singleton))
@@ -2066,7 +2243,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private ContextActivationPlan BuildContextActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (TryGetSingletonNoContextHandler(handlerType, out var singleton))
@@ -2098,7 +2275,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool CanUseSingletonNoContextBypass(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_singletonNoContextEligibilityCache.TryGetValue(handlerType, out var cached))
@@ -2113,7 +2290,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool ComputeSingletonNoContextEligibility(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		// A scoped handler must never be cached as a process-lifetime singleton, nor resolved from the
@@ -2126,7 +2303,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryGetSingletonNoContextHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		out object handler)
 	{
@@ -2176,7 +2353,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryPromoteTransientStatelessNoContextHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		out object handler)
 	{
@@ -2188,7 +2365,29 @@ internal sealed partial class LocalMessageBus(
 
 		try
 		{
-			var resolved = provider.GetRequiredService(handlerType);
+			// GetService, not GetRequiredService, and an activation fallback behind it. A handler
+			// registered the documented way -- AddTransient<IActionHandler<TAction>, THandler>() -- is not
+			// resolvable by its concrete type at all, so asking the container for one returns null. That is
+			// not a reason to decline the promotion: eligibility above has already established a public
+			// parameterless constructor, no instance fields and no context injection.
+			//
+			// The fallback is the container's own activation algorithm called directly. ActivatorUtilities
+			// performs the same constructor selection and argument resolution the provider would have
+			// performed had the concrete type been registered, so the promoted instance is
+			// framework-constructed -- it does not round-trip through DI -- but for a handler of this shape
+			// it is not a different object from the one a registration would have produced. handlerType
+			// arrives annotated with the constructor members the activation needs, so the trimming and
+			// ahead-of-time contracts are satisfied at the call site and nothing propagates onto the
+			// dispatch path. A constructor that cannot be satisfied throws InvalidOperationException, which
+			// is caught below to decline the promotion rather than fail the dispatch.
+			var resolved = provider.GetService(handlerType) ?? ActivatorUtilities.CreateInstance(provider, handlerType);
+
+			if (resolved is null)
+			{
+				handler = default!;
+				return false;
+			}
+
 			_ = _singletonNoContextHandlerCache.TryAdd(handlerType, resolved);
 			handler = resolved;
 			return true;
@@ -2202,7 +2401,7 @@ internal sealed partial class LocalMessageBus(
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool CanPromoteTransientStatelessNoContextHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_parameterlessStatelessPromotionEligibilityCache.TryGetValue(handlerType, out var cached))
@@ -2210,16 +2409,40 @@ internal sealed partial class LocalMessageBus(
 			return cached;
 		}
 
-		var eligible = IsSelfRegisteredHandler(handlerType) &&
-					   !HandlerActivator.RequiresContextInjection(handlerType) &&
-					   HasParameterlessConstructor(handlerType) &&
-					   !HasInstanceFields(handlerType);
+		// Split the shape test from the lifetime test so a handler that is stateless but registered with a
+		// more expensive lifetime can be told apart from one that simply is not promotable. Only the first
+		// deserves the advisory below.
+		// Deliberately NOT gated on IsSelfRegisteredHandler. That check asked whether the container can
+		// resolve the concrete handler type, which is true only when the consumer ALSO wrote
+		// AddTransient<THandler>() alongside the interface mapping -- an extra registration no
+		// documentation asks for. Gating the shared instance on it made the leaner dispatch path reachable
+		// only by accident, and left the documented registration paying for a fresh handler on every
+		// dispatch. The properties that actually make sharing safe are the three below, and none of them
+		// depends on how the handler was registered; the lifetime check that follows is what keeps a
+		// Scoped or Singleton registration honoured.
+		var shapeAllowsSharing = !HandlerActivator.RequiresContextInjection(handlerType) &&
+								 HasParameterlessConstructor(handlerType) &&
+								 !HasInstanceFields(handlerType);
+
+		var eligible = shapeAllowsSharing && _scopeResolver.MayPromoteToSharedInstance(handlerType);
+
+		// Advisory, emitted here because this block runs once per handler type — the cache check above
+		// returns before it on every later dispatch. It must never move onto the per-dispatch path.
+		if (shapeAllowsSharing &&
+			!eligible &&
+			_scopeResolver.TryGetRegisteredLifetime(handlerType, out var registeredLifetime) &&
+			registeredLifetime != ServiceLifetime.Transient)
+		{
+			LogHandlerLifetimeMoreExpensiveThanNeeded(handlerType.Name, registeredLifetime.ToString());
+		}
+
 		_ = _parameterlessStatelessPromotionEligibilityCache.TryAdd(handlerType, eligible);
 		return eligible;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool HasParameterlessConstructor(Type handlerType)
+	private static bool HasParameterlessConstructor(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType)
 	{
 		var constructors = handlerType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 		for (var i = 0; i < constructors.Length; i++)
@@ -2234,6 +2457,15 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2070:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes' in call to 'System.Type.GetFields'",
+		Justification =
+			"A shape probe whose only effect is to decline an optimisation. Fields trimming removed cannot be "
+			+ "read, and their absence makes the handler look stateless, so the worst outcome is that a handler "
+			+ "is promoted to a shared instance -- which is only reached when the scope resolver separately "
+			+ "agrees it may be shared. Requiring the fields be preserved would push a trim contract through "
+			+ "every caller in the handler-type flow to keep a heuristic exact.")]
 	private static bool HasInstanceFields(Type handlerType)
 	{
 		var fields = handlerType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -2364,9 +2596,7 @@ internal sealed partial class LocalMessageBus(
 		return resolved.ToFrozenDictionary();
 	}
 
-	[RequiresUnreferencedCode("Initializes frozen event dispatch plans via reflection-based typed invoker construction.")]
-	[RequiresDynamicCode("Initializes frozen event dispatch plans via reflection-based typed invoker construction.")]
-	private static FrozenDictionary<Type, EventDispatchPlan[]> InitializeFrozenEventDispatchPlanMap(IHandlerRegistry registry)
+	private static FrozenDictionary<Type, EventDispatchPlan[]> InitializeFrozenEventDispatchPlanMap(IHandlerRegistry registry, ILogger logger)
 	{
 		var eventHandlers = InitializeFrozenEventHandlersMap(registry);
 		if (eventHandlers.Count == 0)
@@ -2377,15 +2607,13 @@ internal sealed partial class LocalMessageBus(
 		var plans = new Dictionary<Type, EventDispatchPlan[]>(eventHandlers.Count);
 		foreach (var pair in eventHandlers)
 		{
-			plans[pair.Key] = CreateEventDispatchPlans(pair.Value);
+			plans[pair.Key] = CreateEventDispatchPlans(pair.Value, logger);
 		}
 
 		return plans.ToFrozenDictionary();
 	}
 
-	[RequiresUnreferencedCode("Initializes frozen action dispatch plans via reflection-based typed invoker construction.")]
-	[RequiresDynamicCode("Initializes frozen action dispatch plans via reflection-based typed invoker construction.")]
-	private static FrozenDictionary<Type, DirectActionDispatchPlan> InitializeFrozenDirectActionPlanMap(IHandlerRegistry registry)
+	private static FrozenDictionary<Type, DirectActionDispatchPlan> InitializeFrozenDirectActionPlanMap(IHandlerRegistry registry, ILogger logger)
 	{
 		var entries = GetConcreteEntries(registry);
 		if (entries.Count == 0)
@@ -2407,7 +2635,7 @@ internal sealed partial class LocalMessageBus(
 				continue;
 			}
 
-			plans.Add(entry.MessageType, CreateRuntimeDirectActionDispatchPlan(entry));
+			plans.Add(entry.MessageType, CreateRuntimeDirectActionDispatchPlan(entry, logger));
 		}
 
 		return plans.Count == 0
@@ -2425,7 +2653,7 @@ internal sealed partial class LocalMessageBus(
 		return new ConcurrentDictionary<Type, HandlerRegistryEntry[]>();
 	}
 
-	private static ConcurrentDictionary<Type, DirectActionDispatchPlan?> InitializeDirectActionPlanCache(IHandlerRegistry registry)
+	private static ConcurrentDictionary<Type, DirectActionDispatchPlan?> InitializeDirectActionPlanCache(IHandlerRegistry registry, ILogger logger)
 	{
 		var cache = new ConcurrentDictionary<Type, DirectActionDispatchPlan?>();
 		var entries = GetConcreteEntries(registry);
@@ -2442,7 +2670,7 @@ internal sealed partial class LocalMessageBus(
 				continue;
 			}
 
-			_ = cache.TryAdd(entry.MessageType, CreateRuntimeDirectActionDispatchPlan(entry));
+			_ = cache.TryAdd(entry.MessageType, CreateRuntimeDirectActionDispatchPlan(entry, logger));
 		}
 
 		return cache;
@@ -2528,7 +2756,7 @@ internal sealed partial class LocalMessageBus(
 	[UnconditionalSuppressMessage("Trimming", "IL2069",
 		Justification = "Handler types are registered at startup and preserved by the DI container.")]
 	private readonly record struct DirectActionDispatchPlan(
-		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
 		bool ExpectsResponse,
 		bool RequiresContext,
@@ -2540,12 +2768,7 @@ internal sealed partial class LocalMessageBus(
 	private readonly record struct PrecompiledDirectActionDispatchPlan(
 		bool ExpectsResponse,
 		bool RequiresContext,
-		PrecompiledDirectInvokeDelegate Invoke);
-
-	private readonly record struct PrecompiledDirectProvider(
-		PrecompiledDirectCanHandleDelegate CanHandle,
-		PrecompiledDirectTryGetMetadataDelegate TryGetMetadata,
-		PrecompiledDirectInvokeDelegate Invoke);
+		Func<IDispatchAction, IServiceProvider, IMessageContext?, CancellationToken, ValueTask<object?>> Invoke);
 
 	private enum NoContextActivationMode : byte
 	{
@@ -2571,7 +2794,11 @@ internal sealed partial class LocalMessageBus(
 		ContextActivationMode Mode,
 		object? SingletonHandler);
 
+	[UnconditionalSuppressMessage("Trimming", "IL2069",
+		Justification = "Handler types are registered at startup and preserved by the DI container.")]
 	private readonly record struct EventDispatchPlan(
+		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		Type HandlerType,
 		bool RequiresContext,
 		EventHandlerAsyncInvoker Invoke);
 
@@ -2579,4 +2806,22 @@ internal sealed partial class LocalMessageBus(
 	[LoggerMessage(DeliveryEventId.NoHandlersForEvent, LogLevel.Warning,
 		"No handlers registered for event {EventType}")]
 	private partial void LogNoHandlersRegisteredForEvent(string eventType);
+
+	// Information rather than Warning: an explicit Scoped or Singleton registration is a legitimate choice
+	// and is honoured, so warning on it would train consumers to filter this category — and then the
+	// messages that do matter get filtered with it. The wording says what we DO (honour the registration)
+	// before what they COULD do, because the previous behaviour silently overrode them and a consumer
+	// reading this needs to know that is no longer the case.
+	[LoggerMessage(DeliveryEventId.HandlerLifetimeMoreExpensiveThanNeeded, LogLevel.Information,
+		"Handler {HandlerType} is registered {Lifetime} and is being resolved that way. It has no " +
+		"constructor dependencies and no instance state, so registering it Transient would let Dispatch " +
+		"reuse a single instance and skip a per-dispatch activation. Registering it Transient is optional; " +
+		"if the {Lifetime} lifetime is deliberate, nothing needs to change.")]
+	private partial void LogHandlerLifetimeMoreExpensiveThanNeeded(string handlerType, string lifetime);
+
+	// Debug rather than Warning: the fallback dispatches correctly, it is only slower. But it must
+	// leave a thread to pull -- a consumer whose throughput silently halved otherwise has nothing to read.
+	[LoggerMessage(DeliveryEventId.TypedInvokerBuildFailed, LogLevel.Debug,
+		"Could not build a typed dispatch invoker for handler {HandlerType}; dispatch falls back to the reflection-based path.")]
+	private static partial void LogTypedInvokerBuildFailed(ILogger logger, Exception exception, string handlerType);
 }

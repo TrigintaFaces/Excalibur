@@ -381,7 +381,7 @@ public sealed partial class EncryptionDecryptionService : IEncryptionDecryptionS
 		};
 	}
 
-	// Source-generated logging methods (Sprint 369 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(ComplianceEventId.BulkDecryptionCompleted, LogLevel.Information,
 		"Bulk decryption completed: {ProcessedCount} items processed, {ErrorCount} errors")]
 	private partial void LogDecryptAllCompleted(int processedCount, int errorCount);

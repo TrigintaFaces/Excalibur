@@ -15,7 +15,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 
 // bd-l9c3cv (S887) — independent (author≠impl, TestsDeveloper) NON-SKIPPED real-infra regression locks proving
 // the ambient-tenant row-scoping of the SQL Server + Postgres inbox stores end-to-end. The store adopted the
-// canonical TenantScope.FromContext(_tenantContext) pattern: the write stamps the AMBIENT tenant (never the
+// canonical CurrentTenantScope pattern: the write stamps the AMBIENT tenant (never the
 // row's own value) and every keyed read/claim/mark emits the tenant predicate ONLY from the ambient scope, so a
 // scoped store can never emit a predicate-less read while a tenant is active. These locks assert the EMITTED
 // behaviour against the real database (a mocked client cannot reproduce the server-side MERGE/UPDATE match

@@ -17,10 +17,9 @@ This package is included in the following metapackages:
 This package provides RabbitMQ integration for Excalibur.Dispatch, enabling:
 
 - **Message Publishing & Consuming**: Full support for exchanges, queues, and routing
-- **CloudEvents Support**: DoD-compliant structured and binary mode CloudEvents
+- **CloudEvents Support**: DoD-compliant structured and binary mode CloudEvents. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
 - **Reliability Features**: Dead letter queues, publisher confirms, automatic recovery
 - **Batching**: Configurable batch processing for high-throughput scenarios
-- **Encryption**: Optional message-level encryption support
 
 ## Installation
 
@@ -35,10 +34,16 @@ dotnet add package Excalibur.Dispatch.Transport.RabbitMQ
 #### Using Connection String
 
 ```csharp
-services.AddRabbitMqMessageBus(options =>
+services.Configure<RabbitMqOptions>(options =>
 {
-    options.ConnectionString = "amqp://user:password@localhost:5672/vhost";
+    options.Connection.ConnectionString = "amqp://user:password@localhost:5672/vhost";
 });
+```
+
+Alternatively, register the transport with the fluent builder, which populates the same options:
+
+```csharp
+services.AddRabbitMQTransport("rabbitmq", rmq => rmq.HostName("localhost").Port(5672));
 ```
 
 #### Using Individual Properties
@@ -46,9 +51,9 @@ services.AddRabbitMqMessageBus(options =>
 ```csharp
 services.Configure<RabbitMqOptions>(options =>
 {
-    options.ConnectionString = "amqp://localhost";
+    options.Connection.ConnectionString = "amqp://localhost";
     options.Exchange = "dispatch.events";
-    options.QueueName = "my-service-queue";
+    options.Queue.QueueName = "my-service-queue";
     options.RoutingKey = "orders.*";
 });
 ```
@@ -58,9 +63,9 @@ services.Configure<RabbitMqOptions>(options =>
 Configure via environment variables for containerized deployments:
 
 ```bash
-RABBITMQ__CONNECTIONSTRING=amqp://user:password@rabbitmq:5672/
+RABBITMQ__CONNECTION__CONNECTIONSTRING=amqp://user:password@rabbitmq:5672/
 RABBITMQ__EXCHANGE=dispatch.events
-RABBITMQ__QUEUENAME=my-service-queue
+RABBITMQ__QUEUE__QUEUENAME=my-service-queue
 ```
 
 ```csharp
@@ -72,7 +77,7 @@ services.Configure<RabbitMqOptions>(configuration.GetSection("RabbitMQ"));
 #### Username/Password (Connection String)
 
 ```csharp
-options.ConnectionString = "amqp://username:password@hostname:5672/vhost";
+options.Connection.ConnectionString = "amqp://username:password@hostname:5672/vhost";
 ```
 
 #### TLS/SSL Configuration
@@ -80,7 +85,7 @@ options.ConnectionString = "amqp://username:password@hostname:5672/vhost";
 For production environments, enable TLS:
 
 ```csharp
-options.ConnectionString = "amqps://user:password@hostname:5671/";
+options.Connection.ConnectionString = "amqps://user:password@hostname:5671/";
 ```
 
 #### Certificate-Based Authentication
@@ -98,10 +103,10 @@ services.Configure<RabbitMqOptions>(options =>
     options.Exchange = "dispatch.events";
 
     // Queue configuration
-    options.QueueName = "order-processor";
-    options.QueueDurable = true;      // Survive broker restart (default: true)
-    options.QueueExclusive = false;   // Allow multiple consumers (default: false)
-    options.QueueAutoDelete = false;  // Keep queue when consumers disconnect (default: false)
+    options.Queue.QueueName = "order-processor";
+    options.Queue.QueueDurable = true;      // Survive broker restart (default: true)
+    options.Queue.QueueExclusive = false;   // Allow multiple consumers (default: false)
+    options.Queue.QueueAutoDelete = false;  // Keep queue when consumers disconnect (default: false)
 
     // Routing
     options.RoutingKey = "orders.#";  // Wildcard routing pattern
@@ -110,40 +115,44 @@ services.Configure<RabbitMqOptions>(options =>
 
 #### Consumer Settings
 
+`RabbitMqOptions.Consumption` carries the inbound payload guard; over-limit messages are rejected
+before the body is deserialized.
+
 ```csharp
 services.Configure<RabbitMqOptions>(options =>
 {
-    // Prefetch (QoS)
-    options.PrefetchCount = 100;      // Messages to prefetch (default: 100)
-    options.PrefetchGlobal = false;   // Per-consumer prefetch (default: false)
-
-    // Acknowledgment
-    options.AutoAck = false;          // Manual acknowledgment (default: false)
-    options.RequeueOnReject = true;   // Requeue rejected messages (default: true)
-
-    // Batching
-    options.MaxBatchSize = 50;        // Max messages per batch (default: 50)
-    options.MaxBatchWaitMs = 500;     // Max wait for batch (default: 500ms)
-
-    // Consumer identification
-    options.ConsumerTag = "order-service-1";
+    options.Consumption.MaxPayloadBytes = 4 * 1024 * 1024;  // default: 4 MiB; null to opt out
 });
 ```
+
+Prefetch (QoS) is a queue setting on the transport builder:
+
+```csharp
+services.AddRabbitMQTransport(rmq =>
+{
+    rmq.HostName("localhost")
+       .ConfigureQueue(queue => queue
+           .Name("order-processor")
+           .PrefetchCount(100));   // default: 100
+});
+```
+
+Acknowledgment is not configurable: the transport always consumes with manual acknowledgment, and
+the `MessageAction` returned by the handler decides the delivery's fate -- `Acknowledge`, `Requeue`
+(nack with requeue), or `Reject` (nack without requeue, so it reaches the dead-letter exchange when
+one is configured).
 
 #### CloudEvents Support
 
 Enable CloudEvents for interoperable event-driven architectures:
 
 ```csharp
-services.AddRabbitMqMessageBus(options =>
+services.AddCloudEventsForRabbitMq(rabbitMq =>
 {
-    options.ConnectionString = "amqp://localhost";
-    options.EnableCloudEvents = true;  // Default: true
-
-    // CloudEvents-specific settings
-    options.ExchangeType = ExchangeType.Topic;
-    options.Persistence = MessagePersistence.Persistent;
-    options.RoutingStrategy = RoutingStrategy.EventType;
+    rabbitMq.Exchange.DefaultExchange = "dispatch.events";
+    rabbitMq.Exchange.ExchangeType = RabbitMQExchangeType.Topic;
+    rabbitMq.Exchange.Persistence = RabbitMqPersistence.Persistent;
+    rabbitMq.Exchange.EnablePublisherConfirms = true;
 });
 ```
 
@@ -151,17 +160,6 @@ For DoD-compliant validation:
 
 ```csharp
 services.AddRabbitMqCloudEventValidation(enableDoDCompliance: true);
-```
-
-#### Encryption
-
-Enable message-level encryption for sensitive data:
-
-```csharp
-services.Configure<RabbitMqOptions>(options =>
-{
-    options.EnableEncryption = true;
-});
 ```
 
 ### Retry Policies
@@ -172,69 +170,46 @@ services.Configure<RabbitMqOptions>(options =>
 services.Configure<RabbitMqOptions>(options =>
 {
     // Enable dead letter handling
-    options.EnableDeadLetterExchange = true;
-    options.DeadLetterExchange = "dispatch.dlx";
-    options.DeadLetterRoutingKey = "failed.orders";
+    options.DeadLetter.EnableDeadLetterExchange = true;
+    options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
+    options.DeadLetter.DeadLetterRoutingKey = "failed.orders";
 });
 ```
 
 #### Connection Recovery
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+services.AddRabbitMQTransport(rmq =>
 {
-    // Connection resilience
-    options.ConnectionTimeoutSeconds = 30;           // Connection timeout (default: 30)
-    options.AutomaticRecoveryEnabled = true;         // Auto-reconnect (default: true)
-    options.NetworkRecoveryIntervalSeconds = 10;     // Recovery interval (default: 10)
+    rmq.HostName("localhost")
+       .AutomaticRecovery(
+           enabled: true,                                       // Auto-reconnect (default: true)
+           networkRecoveryInterval: TimeSpan.FromSeconds(10));  // Recovery interval (default: 10s)
 });
 ```
 
 ## Health Checks
 
-### Registration
-
-The transport implements `ITransportHealthChecker` for integration with ASP.NET Core health checks:
+The transport adapter implements `ITransportHealthChecker`, and this package ships the ASP.NET Core
+health check that surfaces it. Register it on the standard health-checks builder:
 
 ```csharp
 services.AddHealthChecks()
-    .AddCheck<RabbitMqHealthCheck>("rabbitmq", tags: new[] { "ready", "messaging" });
+    .AddRabbitMqTransportHealthCheck(
+        name: "rabbitmq-transport",
+        tags: new[] { "ready", "messaging" });
 ```
 
-### Configuration
-
-Configure health check behavior:
+To cover every registered transport with a single check instead, use the transport-agnostic
+overload from `Excalibur.Dispatch`:
 
 ```csharp
-services.Configure<RabbitMqHealthCheckOptions>(options =>
-{
-    options.Timeout = TimeSpan.FromSeconds(5);
-    options.IncludeQueueMetrics = true;
-});
+services.AddHealthChecks()
+    .AddTransportHealthChecks(name: "transports", tags: new[] { "ready" });
 ```
 
-### Custom Health Check Implementation
-
-```csharp
-public class RabbitMqHealthCheck : IHealthCheck
-{
-    private readonly ITransportHealthChecker _healthChecker;
-
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await _healthChecker.CheckQuickHealthAsync(cancellationToken);
-
-        return result.Status switch
-        {
-            TransportHealthStatus.Healthy => HealthCheckResult.Healthy(),
-            TransportHealthStatus.Degraded => HealthCheckResult.Degraded(result.Description),
-            _ => HealthCheckResult.Unhealthy(result.Description)
-        };
-    }
-}
-```
+You do not need to author a health check yourself -- both entry points resolve the registered
+`ITransportHealthChecker` implementations for you.
 
 ## Production Considerations
 
@@ -249,19 +224,17 @@ public class RabbitMqHealthCheck : IHealthCheck
 #### High Availability
 
 - Deploy RabbitMQ in **cluster mode** with mirrored queues
-- Use `QueueDurable = true` for message persistence
-- Enable `AutomaticRecoveryEnabled` for automatic reconnection
+- Use `Queue.QueueDurable = true` for message persistence
+- Enable `AutomaticRecovery` on the transport builder for automatic reconnection
 
 ### Performance Tuning
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+services.AddRabbitMQTransport(rmq =>
 {
-    // High-throughput configuration
-    options.PrefetchCount = 250;         // Increase for fast processors
-    options.MaxBatchSize = 100;          // Larger batches
-    options.MaxBatchWaitMs = 100;        // Shorter wait times
-    options.AutoAck = false;             // Keep manual ack for reliability
+    rmq.ConfigureQueue(queue => queue
+        .Name("order-processor")
+        .PrefetchCount(250));   // Increase for fast processors
 });
 ```
 
@@ -361,46 +334,41 @@ Enable detailed logging for troubleshooting:
 services.Configure<RabbitMqOptions>(options =>
 {
     // Connection
-    options.ConnectionString = "amqp://user:pass@localhost:5672/";
-    options.ConnectionTimeoutSeconds = 30;
-    options.AutomaticRecoveryEnabled = true;
-    options.NetworkRecoveryIntervalSeconds = 10;
+    options.Connection.ConnectionString = "amqp://user:pass@localhost:5672/";
 
     // Exchange
     options.Exchange = "dispatch.events";
 
-    // Queue
-    options.QueueName = "my-service";
-    options.QueueDurable = true;
-    options.QueueExclusive = false;
-    options.QueueAutoDelete = false;
-    options.QueueArguments = new Dictionary<string, object>
-    {
-        ["x-message-ttl"] = 86400000,  // 24 hours
-        ["x-max-length"] = 100000
-    };
+    // Queue. QueueArguments is a populated dictionary, not a settable property.
+    options.Queue.QueueName = "my-service";
+    options.Queue.QueueDurable = true;
+    options.Queue.QueueExclusive = false;
+    options.Queue.QueueAutoDelete = false;
+    options.Queue.QueueArguments["x-message-ttl"] = 86400000;  // 24 hours
+    options.Queue.QueueArguments["x-max-length"] = 100000;
 
     // Routing
     options.RoutingKey = "orders.#";
 
     // Consumer
-    options.PrefetchCount = 100;
-    options.PrefetchGlobal = false;
-    options.AutoAck = false;
-    options.RequeueOnReject = true;
-    options.ConsumerTag = "order-processor-1";
-
-    // Batching
-    options.MaxBatchSize = 50;
-    options.MaxBatchWaitMs = 500;
+    options.Consumption.MaxPayloadBytes = null;  // No inbound payload cap
 
     // Dead Letter
-    options.EnableDeadLetterExchange = true;
-    options.DeadLetterExchange = "dispatch.dlx";
-    options.DeadLetterRoutingKey = "failed";
+    options.DeadLetter.EnableDeadLetterExchange = true;
+    options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
+    options.DeadLetter.DeadLetterRoutingKey = "failed";
+});
+```
 
-    // Security
-    options.EnableEncryption = false;
+Connection recovery and prefetch are configured on the transport builder rather than on
+`RabbitMqOptions`:
+
+```csharp
+services.AddRabbitMQTransport(rmq =>
+{
+    rmq.HostName("localhost")
+       .AutomaticRecovery(enabled: true, networkRecoveryInterval: TimeSpan.FromSeconds(10))
+       .ConfigureQueue(queue => queue.Name("my-service").PrefetchCount(100));
 });
 ```
 

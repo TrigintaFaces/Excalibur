@@ -13,8 +13,9 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore.Tests;
 /// Unit tests for <see cref="DispatchStartupFilter"/>.
 /// </summary>
 /// <remarks>
-/// Sprint 698 T.3 (t2hyt): Tests for the internal startup filter that validates keyed service
-/// registrations, detects collisions, and validates observability configuration.
+/// Sprint 698 T.3 (t2hyt): Tests for the internal startup filter. Required services (dispatcher, and an
+/// outbox store when the outbox is enabled) throw; advisory configuration is logged. Each throwing arm is
+/// paired with a liveness arm so a guard that rejected everything could not pass.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -49,7 +50,7 @@ public sealed class DispatchStartupFilterShould
 	#region Missing IDispatcher Tests
 
 	[Fact]
-	public void LogErrorWhenIDispatcherMissing()
+	public void ThrowWhenIDispatcherMissing()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -58,13 +59,25 @@ public sealed class DispatchStartupFilterShould
 		var logger = new FakeLogger<DispatchStartupFilter>();
 		var filter = new DispatchStartupFilter(sp, logger);
 
-		// Act
-		filter.Configure(_ => { });
+		// Act + Assert - a host with no dispatcher must not start
+		var ex = Should.Throw<InvalidOperationException>(() => filter.Configure(_ => { }));
+		ex.Message.ShouldContain("IDispatcher");
+		ex.Message.ShouldContain("AddDispatch()");
+	}
 
-		// Assert - should log error about missing IDispatcher
-		logger.LogEntries.ShouldContain(e =>
-			e.LogLevel == LogLevel.Error &&
-			e.Message.Contains("IDispatcher"));
+	[Fact]
+	public void NotThrowWhenIDispatcherRegistered()
+	{
+		// Liveness arm: a valid configuration must still start. Without this, a guard that rejected
+		// every configuration would satisfy the safety arm above.
+		var services = new ServiceCollection();
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(A.Fake<IDispatchMiddleware>());
+		services.AddSingleton<System.Diagnostics.Metrics.IMeterFactory>(new TestMeterFactory());
+		var sp = services.BuildServiceProvider();
+		var filter = new DispatchStartupFilter(sp, new FakeLogger<DispatchStartupFilter>());
+
+		Should.NotThrow(() => filter.Configure(_ => { }));
 	}
 
 	#endregion
@@ -97,7 +110,7 @@ public sealed class DispatchStartupFilterShould
 	#region Outbox Without Store Tests
 
 	[Fact]
-	public void LogWarningWhenOutboxEnabledWithoutStore()
+	public void ThrowWhenOutboxEnabledWithoutStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -110,13 +123,42 @@ public sealed class DispatchStartupFilterShould
 		var logger = new FakeLogger<DispatchStartupFilter>();
 		var filter = new DispatchStartupFilter(sp, logger);
 
-		// Act
-		filter.Configure(_ => { });
+		// Act + Assert - an enabled outbox with no store loses every staged message silently, so the
+		// host must refuse to start rather than accept writes it cannot persist.
+		var ex = Should.Throw<InvalidOperationException>(() => filter.Configure(_ => { }));
+		ex.Message.ShouldContain("IOutboxStore");
+	}
 
-		// Assert
-		logger.LogEntries.ShouldContain(e =>
-			e.LogLevel == LogLevel.Warning &&
-			e.Message.Contains("IOutboxStore"));
+	[Fact]
+	public void NotThrowWhenOutboxEnabledWithStore()
+	{
+		// Liveness arm: a correctly configured outbox must still start.
+		var services = new ServiceCollection();
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(A.Fake<IDispatchMiddleware>());
+		services.AddSingleton<System.Diagnostics.Metrics.IMeterFactory>(new TestMeterFactory());
+		services.Configure<OutboxConfigurationOptions>(o => o.Enabled = true);
+		services.AddKeyedSingleton<IOutboxStore>("default", A.Fake<IOutboxStore>());
+		var sp = services.BuildServiceProvider();
+		var filter = new DispatchStartupFilter(sp, new FakeLogger<DispatchStartupFilter>());
+
+		Should.NotThrow(() => filter.Configure(_ => { }));
+	}
+
+	[Fact]
+	public void NotThrowWhenOutboxDisabledWithoutStore()
+	{
+		// Liveness arm: the outbox is optional. A host that never enabled it must not be blocked by a
+		// missing outbox store.
+		var services = new ServiceCollection();
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(A.Fake<IDispatchMiddleware>());
+		services.AddSingleton<System.Diagnostics.Metrics.IMeterFactory>(new TestMeterFactory());
+		services.Configure<OutboxConfigurationOptions>(o => o.Enabled = false);
+		var sp = services.BuildServiceProvider();
+		var filter = new DispatchStartupFilter(sp, new FakeLogger<DispatchStartupFilter>());
+
+		Should.NotThrow(() => filter.Configure(_ => { }));
 	}
 
 	#endregion
@@ -166,7 +208,7 @@ public sealed class DispatchStartupFilterShould
 
 	#endregion
 
-	#region Keyed Service Collision Detection (Event 2604)
+	#region Keyed Default Resolution
 
 	[Fact]
 	public void LogDebugWhenKeyedDefaultResolves()
@@ -193,24 +235,37 @@ public sealed class DispatchStartupFilterShould
 	}
 
 	[Fact]
-	public void NotLogCollisionWhenNoKeyedServicesRegistered()
+	public void NotThrowWhenNoKeyedServicesRegistered()
 	{
-		// Arrange - no keyed outbox/inbox registered at all
+		// Arrange - no keyed outbox/inbox registered at all. Neither is required, so an absent keyed
+		// registration is a legal configuration and must start.
 		var services = new ServiceCollection();
 		services.AddSingleton(A.Fake<IDispatcher>());
 		services.AddSingleton(A.Fake<IDispatchMiddleware>());
 		services.AddSingleton<System.Diagnostics.Metrics.IMeterFactory>(new TestMeterFactory());
 		var sp = services.BuildServiceProvider();
-		var logger = new FakeLogger<DispatchStartupFilter>();
-		var filter = new DispatchStartupFilter(sp, logger);
+		var filter = new DispatchStartupFilter(sp, new FakeLogger<DispatchStartupFilter>());
 
-		// Act
-		filter.Configure(_ => { });
+		// Act + Assert
+		Should.NotThrow(() => filter.Configure(_ => { }));
+	}
 
-		// Assert - no collision warning
-		logger.LogEntries.ShouldNotContain(e =>
-			e.LogLevel == LogLevel.Warning &&
-			e.Message.Contains("collision"));
+	[Fact]
+	public void ThrowWhenKeyedDefaultAliasCannotResolve()
+	{
+		// A "default" alias delegating to a provider key nothing registered would fail at first use.
+		var services = new ServiceCollection();
+		services.AddSingleton(A.Fake<IDispatcher>());
+		services.AddSingleton(A.Fake<IDispatchMiddleware>());
+		services.AddSingleton<System.Diagnostics.Metrics.IMeterFactory>(new TestMeterFactory());
+		services.AddKeyedSingleton<IOutboxStore>(
+			"default",
+			(sp, _) => sp.GetRequiredKeyedService<IOutboxStore>("never-registered"));
+		var sp = services.BuildServiceProvider();
+		var filter = new DispatchStartupFilter(sp, new FakeLogger<DispatchStartupFilter>());
+
+		var ex = Should.Throw<InvalidOperationException>(() => filter.Configure(_ => { }));
+		ex.Message.ShouldContain("IOutboxStore");
 	}
 
 	#endregion

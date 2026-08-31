@@ -4,8 +4,6 @@
 
 using System.Data;
 
-using Excalibur.Data.Resilience;
-
 namespace Excalibur.Data.Persistence;
 
 /// <summary>
@@ -17,31 +15,27 @@ namespace Excalibur.Data.Persistence;
 /// <para>
 /// This interface follows the ISP pattern — consumers that only need simple
 /// data request execution use <see cref="IPersistenceProvider"/> directly.
-/// Transaction-heavy workflows use this sub-interface.
+/// Transaction-heavy workflows use this sub-interface. Connection details and the retry policy are a
+/// separate capability, <see cref="IPersistenceProviderConnection"/>, because a provider can supply
+/// those without being able to run a transaction.
 /// </para>
 /// <para>
 /// Reference: <c>System.Data.IDbConnection.BeginTransaction</c> — transaction creation is
 /// a separate concern from connection/query execution.
 /// </para>
+/// <para>
+/// <strong>Offer this capability only if you can honour it.</strong> The scope returned by
+/// <see cref="CreateTransactionScope"/> is ambient and open-ended: it is created before the provider
+/// knows which requests will enrol in it, and those requests are then executed against it. A store
+/// whose atomicity requires the full write set up front, a fixed partition key, or a retryable
+/// callback cannot express that contract, and should decline this capability by returning
+/// <see langword="null"/> from <see cref="IPersistenceProvider.GetService"/> rather than throwing
+/// here. Declining is visible at discovery, where a caller can still choose another path; throwing is
+/// only visible at the point of use, after the caller has committed to a design that cannot work.
+/// </para>
 /// </remarks>
 public interface IPersistenceProviderTransaction
 {
-	/// <summary>
-	/// Gets the connection string or connection configuration for the provider.
-	/// </summary>
-	/// <value>
-	/// The connection string or connection configuration for the provider.
-	/// </value>
-	string ConnectionString { get; }
-
-	/// <summary>
-	/// Gets the retry policy used for DataRequest execution.
-	/// </summary>
-	/// <value>
-	/// The retry policy used for DataRequest execution.
-	/// </value>
-	IDataRequestRetryPolicy RetryPolicy { get; }
-
 	/// <summary>
 	/// Executes a DataRequest within a transaction scope with retry logic.
 	/// </summary>

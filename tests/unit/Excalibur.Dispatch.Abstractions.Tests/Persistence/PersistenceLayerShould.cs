@@ -256,11 +256,11 @@ public sealed class PersistenceLayerShould
 		// Arrange
 		var store = A.Fake<IOutboxStoreAdmin>();
 		var messages = new List<OutboundMessage> { new OutboundMessage("FailedMsg", [1], "dest") };
-		_ = A.CallTo(() => store.GetFailedMessagesAsync(3, A<DateTimeOffset?>._, 100, A<CancellationToken>._))
+		_ = A.CallTo(() => store.GetAllTenantsFailedMessagesAsync(3, A<DateTimeOffset?>._, 100, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(messages));
 
 		// Act
-		var result = await store.GetFailedMessagesAsync(3, null, 100, CancellationToken.None).ConfigureAwait(false);
+		var result = await store.GetAllTenantsFailedMessagesAsync(3, null, 100, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.Count().ShouldBe(1);
@@ -273,11 +273,11 @@ public sealed class PersistenceLayerShould
 		var store = A.Fake<IOutboxStoreAdmin>();
 		var scheduledBefore = DateTimeOffset.UtcNow;
 		var messages = new List<OutboundMessage> { new OutboundMessage("ScheduledMsg", [1], "dest") };
-		_ = A.CallTo(() => store.GetScheduledMessagesAsync(scheduledBefore, 100, A<CancellationToken>._))
+		_ = A.CallTo(() => store.GetAllTenantsScheduledMessagesAsync(scheduledBefore, 100, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(messages));
 
 		// Act
-		var result = await store.GetScheduledMessagesAsync(scheduledBefore, 100, CancellationToken.None).ConfigureAwait(false);
+		var result = await store.GetAllTenantsScheduledMessagesAsync(scheduledBefore, 100, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.Count().ShouldBe(1);
@@ -305,11 +305,11 @@ public sealed class PersistenceLayerShould
 		// Arrange
 		var store = A.Fake<IOutboxStoreAdmin>();
 		var stats = new OutboxStatistics();
-		_ = A.CallTo(() => store.GetStatisticsAsync(A<CancellationToken>._))
+		_ = A.CallTo(() => store.GetAllTenantsStatisticsAsync(A<CancellationToken>._))
 			.Returns(new ValueTask<OutboxStatistics>(stats));
 
 		// Act
-		var result = await store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var result = await store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -405,16 +405,16 @@ public sealed class PersistenceLayerShould
 	public async Task InboxStoreGetsFailed()
 	{
 		// Arrange
-		// Sprint 680 T.11: GetFailedEntriesAsync moved to IInboxStoreAdmin
+		// Sprint 680 T.11: GetAllTenantsFailedEntriesAsync moved to IInboxStoreAdmin
 		var store = A.Fake<IInboxStoreAdmin>();
 		var entry = new InboxEntry("msg-1", "FailedHandler", "FailedCommand", [1, 2, 3]);
 		entry.MarkFailed("Test error");
 		var entries = new List<InboxEntry> { entry };
-		_ = A.CallTo(() => store.GetFailedEntriesAsync(3, A<DateTimeOffset?>._, 100, A<CancellationToken>._))
+		_ = A.CallTo(() => store.GetAllTenantsFailedEntriesAsync(3, A<DateTimeOffset?>._, 100, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<InboxEntry>>(entries));
 
 		// Act
-		var result = await store.GetFailedEntriesAsync(3, null, 100, CancellationToken.None).ConfigureAwait(false);
+		var result = await store.GetAllTenantsFailedEntriesAsync(3, null, 100, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.Count().ShouldBe(1);
@@ -424,14 +424,14 @@ public sealed class PersistenceLayerShould
 	public async Task InboxStoreCleansUp()
 	{
 		// Arrange
-		// Sprint 680 T.11: CleanupAsync moved to IInboxStoreAdmin
+		// Sprint 680 T.11: CleanupAllTenantsProcessedEntriesAsync moved to IInboxStoreAdmin
 		var store = A.Fake<IInboxStoreAdmin>();
 		var olderThan = DateTimeOffset.UtcNow.AddDays(-30);
-		_ = A.CallTo(() => store.CleanupAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		_ = A.CallTo(() => store.CleanupAllTenantsProcessedEntriesAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(100));
 
 		// Act
-		var removed = await store.CleanupAsync(olderThan, CancellationToken.None).ConfigureAwait(false);
+		var removed = await store.CleanupAllTenantsProcessedEntriesAsync(olderThan, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		removed.ShouldBe(100);

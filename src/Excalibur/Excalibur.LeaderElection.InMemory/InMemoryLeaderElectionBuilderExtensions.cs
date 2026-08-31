@@ -33,6 +33,7 @@ public static class InMemoryLeaderElectionBuilderExtensions
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("inmemory"));
 		builder.Services.TryAddSingleton<InMemoryLeaderElectionFactory>();
+		InMemoryElectionRegistration.RegisterSingletonElectionAndGate(builder.Services);
 
 		return builder;
 	}

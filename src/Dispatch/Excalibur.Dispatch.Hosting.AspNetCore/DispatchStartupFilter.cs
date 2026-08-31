@@ -17,7 +17,8 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore;
 /// <remarks>
 /// Runs during <c>WebApplication.Build()</c> via <see cref="IStartupFilter"/>,
 /// providing earlier feedback than the <c>PipelineValidationHostedService</c>.
-/// Checks for missing required services and conflicting configuration.
+/// A missing required service throws, so a host whose messaging cannot work does not start;
+/// configuration that is merely sub-optimal (an empty pipeline, absent metrics) is logged instead.
 /// </remarks>
 internal sealed partial class DispatchStartupFilter(
 	IServiceProvider serviceProvider,
@@ -32,13 +33,11 @@ internal sealed partial class DispatchStartupFilter(
 
 	private void ValidateDispatchServices()
 	{
-		// Verify IDispatcher is registered (core requirement)
-		var dispatcher = serviceProvider.GetService<IDispatcher>();
-		if (dispatcher is null)
-		{
-			LogMissingService(logger, nameof(IDispatcher), "AddDispatch()");
-			return;
-		}
+		// Verify IDispatcher is registered (core requirement). A host without a dispatcher cannot serve a
+		// single request, so failing to start is strictly better than starting healthy and failing later.
+		_ = serviceProvider.GetService<IDispatcher>()
+			?? throw new InvalidOperationException(
+				$"Required service '{nameof(IDispatcher)}' is not registered. Register it via AddDispatch().");
 
 		// Verify at least one middleware is registered
 		var middlewares = serviceProvider.GetServices<IDispatchMiddleware>();
@@ -47,15 +46,18 @@ internal sealed partial class DispatchStartupFilter(
 			LogEmptyPipeline(logger);
 		}
 
-		// Check for outbox configuration without store
+		// Outbox enabled with no store is unrecoverable and silent: every staged message is accepted and
+		// never persisted, so the loss surfaces as missing downstream messages long after the fact and far
+		// from its cause. The keyed "default" lookup is the same resolution the outbox pipeline itself
+		// performs, so this fails exactly when the runtime would have found nothing.
 		var outboxOptions = serviceProvider.GetService<IOptions<OutboxConfigurationOptions>>();
 		if (outboxOptions?.Value.Enabled == true)
 		{
-			var outboxStore = serviceProvider.GetKeyedService<IOutboxStore>("default");
-			if (outboxStore is null)
-			{
-				LogMissingOutboxStore(logger);
-			}
+			_ = serviceProvider.GetKeyedService<IOutboxStore>("default")
+				?? throw new InvalidOperationException(
+					$"The outbox is enabled but required service '{nameof(IOutboxStore)}' is not registered. "
+					+ "Register an outbox store via AddSqlServerOutboxStore()/AddPostgresOutboxStore(), "
+					+ "or disable the outbox.");
 		}
 
 		// Detect keyed service configuration for DI collision prevention
@@ -71,8 +73,8 @@ internal sealed partial class DispatchStartupFilter(
 
 	private void ValidateKeyedServiceRegistrations()
 	{
-		// Check critical keyed service interfaces have a "default" alias registered.
-		// When multiple providers are configured but no default is set, warn the consumer.
+		// Check critical keyed service interfaces resolve through their "default" alias. An alias that
+		// cannot resolve is a broken registration, not a preference, so resolution failure throws.
 		ValidateKeyedDefault<IOutboxStore>("IOutboxStore", "AddSqlServerOutboxStore()/AddPostgresOutboxStore()");
 		ValidateKeyedDefault<IInboxStore>("IInboxStore", "AddSqlServerInboxStore()/AddPostgresInboxStore()");
 	}
@@ -87,33 +89,25 @@ internal sealed partial class DispatchStartupFilter(
 				LogKeyedServiceResolved(logger, serviceName, service.GetType().Name);
 			}
 		}
-		catch (InvalidOperationException)
+		catch (InvalidOperationException ex)
 		{
-			// Keyed service resolution failed -- multiple providers may be registered
-			// without a default alias. Log a warning.
-			LogKeyedServiceCollision(logger, serviceName, registrationHint);
+			// The "default" alias exists but could not be resolved -- typically it delegates to a provider
+			// key nothing registered. Whatever depends on this service would fail at its first use, so stop
+			// here instead. The inner exception carries the resolution failure.
+			throw new InvalidOperationException(
+				$"Required service '{serviceName}' is registered under the \"default\" key but could not be "
+				+ $"resolved. Register a provider via {registrationHint}.",
+				ex);
 		}
 	}
-
-	[LoggerMessage(2600, LogLevel.Error,
-		"Required service '{ServiceName}' is not registered. Register it via {RegistrationMethod}.")]
-	private static partial void LogMissingService(ILogger logger, string serviceName, string registrationMethod);
 
 	[LoggerMessage(2601, LogLevel.Warning,
 		"No dispatch middleware registered. The pipeline is empty. Register middleware via AddDispatch(builder => builder.UseMiddleware<T>()) or enable pipeline synthesis.")]
 	private static partial void LogEmptyPipeline(ILogger logger);
 
-	[LoggerMessage(2602, LogLevel.Warning,
-		"Outbox is enabled but no IOutboxStore is registered. Register an outbox store via AddOutbox<TStore>() or UseOutbox().")]
-	private static partial void LogMissingOutboxStore(ILogger logger);
-
 	[LoggerMessage(2603, LogLevel.Debug,
 		"Keyed service '{ServiceName}' resolved to '{ImplementationType}' via \"default\" key.")]
 	private static partial void LogKeyedServiceResolved(ILogger logger, string serviceName, string implementationType);
-
-	[LoggerMessage(2604, LogLevel.Warning,
-		"Keyed service '{ServiceName}' could not resolve \"default\" key. Multiple providers may be registered without a default alias. Register via {RegistrationHint} or call SetDefault{ServiceName}().")]
-	private static partial void LogKeyedServiceCollision(ILogger logger, string serviceName, string registrationHint);
 
 	[LoggerMessage(2605, LogLevel.Information,
 		"No IMeterFactory registered. Dispatch metrics and tracing are disabled. " +

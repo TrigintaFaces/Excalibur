@@ -22,7 +22,7 @@ public sealed class MetricsLoggingOptions
 	public bool RecordOpenTelemetryMetrics { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to record custom metrics via Tests.Shared.Common.IMetricsCollector.
+	/// Gets or sets a value indicating whether to record custom metrics.
 	/// </summary>
 	/// <value> Default is true. </value>
 	public bool RecordCustomMetrics { get; set; } = true;

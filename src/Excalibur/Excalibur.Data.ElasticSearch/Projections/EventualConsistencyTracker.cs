@@ -28,7 +28,6 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 	private readonly string _checkpointIndexName;
 	private readonly SemaphoreSlim _initializationLock = new(1, 1);
 	private bool _initialized;
-	private ConsistencyAlertOptions? _alertConfiguration;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventualConsistencyTracker" /> class.
@@ -376,15 +375,6 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		return lagging;
 	}
 
-	/// <inheritdoc />
-	public Task ConfigureConsistencyAlertsAsync(
-		ConsistencyAlertOptions config,
-		CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(config);
-		_alertConfiguration = config;
-		return Task.CompletedTask;
-	}
 
 	/// <inheritdoc/>
 	public void Dispose()

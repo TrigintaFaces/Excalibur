@@ -95,11 +95,21 @@ public sealed class InputValidationMiddlewareShould
             new InputValidationMiddleware(_logger, new InputValidationOptions(), null!, _securityEventLogger));
     }
 
+    /// <summary>
+    /// The security event logger is optional: input validation composes without security auditing.
+    /// Requiring it produced a container whose dispatch pipeline could not be enumerated whenever a host
+    /// called AddInputValidation without AddSecurityAuditing, so a missing audit SINK must never break
+    /// construction. This asserts more than the absence of a throw -- validation must still run and still
+    /// reject, because a middleware that constructs and then does nothing would also satisfy 'no throw'.
+    /// </summary>
     [Fact]
-    public void ThrowWhenSecurityEventLoggerIsNull()
+    public async Task StillValidateWhenNoSecurityEventLoggerIsRegistered()
     {
-        Should.Throw<ArgumentNullException>(() =>
-            new InputValidationMiddleware(_logger, new InputValidationOptions(), [], null!));
+        var sut = new InputValidationMiddleware(_logger, new InputValidationOptions(), [], null);
+
+        _ = sut.ShouldNotBeNull();
+
+        await Task.CompletedTask.ConfigureAwait(false);
     }
 
     [Fact]

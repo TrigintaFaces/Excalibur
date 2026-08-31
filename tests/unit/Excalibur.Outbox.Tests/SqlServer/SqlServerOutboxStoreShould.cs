@@ -452,7 +452,7 @@ public sealed class SqlServerOutboxStoreShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
-			() => store.GetTransportDeliveriesAsync(null!, CancellationToken.None));
+			() => store.GetTransportDeliveriesAsync(null!, "tenant-a", CancellationToken.None));
 	}
 
 	[Fact]

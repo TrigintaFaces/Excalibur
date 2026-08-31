@@ -26,10 +26,4 @@ public sealed partial class CosmosDbEventStore
 	[LoggerMessage(EventSourcingEventId.CloudStoreLoadingEvents, LogLevel.Debug,
 		"Loaded {Count} events for stream {StreamId}")]
 	partial void LogLoadingEvents(string streamId, int count);
-
-	[LoggerMessage(EventSourcingEventId.CloudStoreLargeAppendChunked, LogLevel.Information,
-		"Appending {EventCount} events to stream {StreamId} exceeds the transactional batch limit " +
-		"of {BatchLimit}; committing in {ChunkCount} sequential batches (each atomic per partition, " +
-		"not atomic across batches)")]
-	partial void LogLargeAppendChunked(string streamId, int eventCount, int chunkCount, int batchLimit);
 }

@@ -8,9 +8,12 @@
 -- This script sets up the required databases for the sample:
 --
 --   1. SQL Server #1 (port 1433): LegacyDb with CDC enabled
---   2. SQL Server #2 (port 1434): EventStore (tables must be created manually)
+--   2. SQL Server #2 (port 1434): EventStore and its tables
 --
--- Run this script after docker-compose up -d and containers are healthy.
+-- setup-databases.sh applies this file for you: it splits the file at the SECTION 2 banner
+-- and sends each half to the server that section targets. Run it after docker-compose up -d
+-- and the containers are healthy. To apply the file by hand instead, run each section
+-- separately against its own instance -- see below.
 --
 -- ============================================================================
 -- IMPORTANT: Run each section on the appropriate SQL Server instance!
@@ -133,8 +136,10 @@ GO
 -- ============================================================================
 -- NOTE: Connect to SQL Server #2 (port 1434) before running this section!
 --
--- The Excalibur.EventSourcing.SqlServer package does NOT auto-create tables.
--- You must create the database and tables before running the application.
+-- The Excalibur.EventSourcing.SqlServer package does NOT auto-create tables: it ships DDL
+-- under its Scripts/ folder and executes none of it at startup. These tables must exist
+-- before the application runs, or the first write fails with "Invalid object name".
+-- setup-databases.sh applies this section automatically.
 -- ============================================================================
 
 USE master;
@@ -157,10 +162,10 @@ BEGIN
     CREATE TABLE [dbo].[EventStoreEvents]
     (
         [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
-        [EventId]        NVARCHAR(256)         NOT NULL,
-        [AggregateId]    NVARCHAR(256)         NOT NULL,
-        [AggregateType]  NVARCHAR(256)         NOT NULL,
-        [EventType]      NVARCHAR(256)         NOT NULL,
+        [EventId]        NVARCHAR(255)         NOT NULL,
+        [AggregateId]    NVARCHAR(255)         NOT NULL,
+        [AggregateType]  NVARCHAR(255)         NOT NULL,
+        [EventType]      NVARCHAR(255)         NOT NULL,
         -- MUST be nullable. GDPR erasure tombstones an event by setting EventData to
         -- NULL while preserving its position in the stream. A NOT NULL column makes
         -- every erasure fail.
@@ -168,7 +173,8 @@ BEGIN
         [Metadata]       VARBINARY(MAX)        NULL,
         [Version]        BIGINT                NOT NULL,
         [Timestamp]      DATETIMEOFFSET        NOT NULL,
-        [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2         NOT NULL,
+        [TenantId]       NVARCHAR(64) COLLATE Latin1_General_BIN2         NOT NULL
+            CONSTRAINT [DF_EventStoreEvents_TenantId] DEFAULT '__untenanted__',
 
         CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
         CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
@@ -187,9 +193,9 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreSnapshots')
 BEGIN
     CREATE TABLE [dbo].[EventStoreSnapshots]
     (
-        [SnapshotId]     NVARCHAR(256)         NOT NULL,
-        [AggregateId]    NVARCHAR(256)         NOT NULL,
-        [AggregateType]  NVARCHAR(256)         NOT NULL,
+        [SnapshotId]     NVARCHAR(255)         NOT NULL,
+        [AggregateId]    NVARCHAR(255)         NOT NULL,
+        [AggregateType]  NVARCHAR(255)         NOT NULL,
         [Version]        BIGINT                NOT NULL,
         [Data]           VARBINARY(MAX)        NOT NULL,
         [CreatedAt]      DATETIMEOFFSET        NOT NULL,
@@ -198,7 +204,7 @@ BEGIN
         -- separate rows instead of overwriting one another. NOT NULL and no default:
         -- SQL Server forbids a nullable column in a PRIMARY KEY, and the reserved '__untenanted__' sentinel is the single-tenant value the
         -- store writes explicitly — omitting it must fail the INSERT, not silently land in that partition.
-        [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2         NOT NULL,
+        [TenantId]       NVARCHAR(64) COLLATE Latin1_General_BIN2         NOT NULL,
 
         CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
     );

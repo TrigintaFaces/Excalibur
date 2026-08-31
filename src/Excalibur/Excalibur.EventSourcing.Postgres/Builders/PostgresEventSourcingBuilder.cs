@@ -136,4 +136,14 @@ internal sealed class PostgresEventSourcingBuilder : IPostgresEventSourcingBuild
 		_options.SnapshotStoreTable = tableName;
 		return this;
 	}
+
+	/// <inheritdoc/>
+	public IPostgresEventSourcingBuilder EventTypeInfoResolver(
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver)
+	{
+		ArgumentNullException.ThrowIfNull(resolver);
+
+		_options.EventTypeInfoResolver = resolver;
+		return this;
+	}
 }

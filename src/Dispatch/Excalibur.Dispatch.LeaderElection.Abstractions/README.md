@@ -203,7 +203,7 @@ public interface ILeaderElectionFactory
 
 ```csharp
 services.AddExcalibur(x => x.AddLeaderElection(le => le
-    .UseConsul(opts => opts.ConsulAddress = "http://localhost:8500")
+    .UseConsul(opts => opts.ConsulAddress("http://localhost:8500"))
     .WithHealthChecks()
     .WithFencingTokens()));
 ```

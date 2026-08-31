@@ -405,7 +405,7 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 		return (result, sourceProviderId, targetProviderId);
 	}
 
-	// Source-generated logging methods (Sprint 369 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(ComplianceEventId.ReEncryptionSucceeded, LogLevel.Information,
 		"Re-encryption succeeded: {FieldCount} fields in {DurationMs}ms")]
 	private partial void LogReEncryptionSucceeded(int fieldCount, double durationMs);

@@ -9,13 +9,59 @@ using Microsoft.Extensions.Logging;
 
 using MongoDB.Driver;
 
+using Polly;
+using Polly.Retry;
+
 namespace Excalibur.Data.MongoDB;
 
 /// <summary>
 /// MongoDB retry policy implementation.
 /// </summary>
-internal sealed partial class MongoDbRetryPolicy(int maxRetryAttempts, ILogger logger) : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
+/// <remarks>
+/// Attempt sequencing, backoff and the terminal rethrow are owned by a Polly <see cref="ResiliencePipeline" />; this type contributes
+/// only the MongoDB-specific policy - which exceptions are transient (<see cref="ShouldRetry(Exception)" />) and how long to wait
+/// (<see cref="GetDelay(int)" />). Delays are scheduled through an injected <see cref="TimeProvider" /> so the backoff schedule is
+/// observable in a test without elapsing wall-clock time.
+/// </remarks>
+internal sealed partial class MongoDbRetryPolicy : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
 {
+	private readonly ILogger _logger;
+	private readonly ResiliencePipeline _pipeline;
+	private readonly ResiliencePipeline _documentPipeline;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MongoDbRetryPolicy" /> class scheduling backoff against the system clock.
+	/// </summary>
+	/// <param name="maxRetryAttempts"> The maximum number of retry attempts made after the initial attempt. </param>
+	/// <param name="logger"> The logger instance. </param>
+	public MongoDbRetryPolicy(int maxRetryAttempts, ILogger logger)
+		: this(maxRetryAttempts, logger, TimeProvider.System)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MongoDbRetryPolicy" /> class scheduling backoff against the supplied time provider.
+	/// </summary>
+	/// <param name="maxRetryAttempts"> The maximum number of retry attempts made after the initial attempt. </param>
+	/// <param name="logger"> The logger instance. </param>
+	/// <param name="timeProvider"> The time provider used to schedule the backoff delay between attempts. </param>
+	public MongoDbRetryPolicy(int maxRetryAttempts, ILogger logger, TimeProvider timeProvider)
+	{
+		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(timeProvider);
+
+		_logger = logger;
+		MaxRetryAttempts = maxRetryAttempts;
+
+		_pipeline = BuildPipeline(
+			timeProvider,
+			(exception, attempt, delayMilliseconds) => LogMongoOperationRetry(attempt, MaxRetryAttempts, delayMilliseconds, exception));
+
+		_documentPipeline = BuildPipeline(
+			timeProvider,
+			(exception, attempt, delayMilliseconds) => LogMongoDocumentOperationRetry(attempt, MaxRetryAttempts, delayMilliseconds, exception));
+	}
+
 	/// <summary>
 	/// Gets the initial delay before the first retry attempt.
 	/// </summary>
@@ -32,7 +78,7 @@ internal sealed partial class MongoDbRetryPolicy(int maxRetryAttempts, ILogger l
 	/// Gets the maximum number of retry attempts.
 	/// </summary>
 	/// <value> The maximum number of retry attempts. </value>
-	public int MaxRetryAttempts { get; } = maxRetryAttempts;
+	public int MaxRetryAttempts { get; }
 
 	/// <summary>
 	/// Gets the base delay between retry attempts.
@@ -80,31 +126,14 @@ internal sealed partial class MongoDbRetryPolicy(int maxRetryAttempts, ILogger l
 	public async Task<TResult> ResolveAsync<TConnection, TResult>(
 		IDataRequest<TConnection, TResult> request,
 		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		Exception? lastException = null;
-
-		for (var attempt = 0; attempt <= MaxRetryAttempts; attempt++)
-		{
-			try
+		CancellationToken cancellationToken) =>
+		await _pipeline.ExecuteAsync(
+			async ct =>
 			{
 				var connection = await connectionFactory().ConfigureAwait(false);
-				return await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex) when (ShouldRetry(ex, attempt))
-			{
-				lastException = ex;
-				if (attempt < MaxRetryAttempts)
-				{
-					var delay = GetDelay(attempt + 1);
-					LogMongoOperationRetry(attempt + 1, MaxRetryAttempts, delay.TotalMilliseconds, ex);
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-		}
-
-		throw lastException ?? new InvalidOperationException("No exception captured during retry attempts");
-	}
+				return await DataRequestExtensions.ResolveAsync(request, connection, ct).ConfigureAwait(false);
+			},
+			cancellationToken).ConfigureAwait(false);
 
 	/// <summary>
 	/// Executes a document DataRequest with retry logic for transient failures.
@@ -118,30 +147,45 @@ internal sealed partial class MongoDbRetryPolicy(int maxRetryAttempts, ILogger l
 	public async Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
 		IDocumentDataRequest<TConnection, TResult> request,
 		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		Exception? lastException = null;
-
-		for (var attempt = 0; attempt <= MaxRetryAttempts; attempt++)
-		{
-			try
+		CancellationToken cancellationToken) =>
+		await _documentPipeline.ExecuteAsync(
+			async ct =>
 			{
 				var connection = await connectionFactory().ConfigureAwait(false);
-				return await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex) when (ShouldRetry(ex, attempt))
-			{
-				lastException = ex;
-				if (attempt < MaxRetryAttempts)
-				{
-					var delay = GetDelay(attempt + 1);
-					LogMongoDocumentOperationRetry(attempt + 1, MaxRetryAttempts, delay.TotalMilliseconds, ex);
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
+				return await DataRequestExtensions.ResolveAsync(request, connection, ct).ConfigureAwait(false);
+			},
+			cancellationToken).ConfigureAwait(false);
+
+	/// <summary>
+	/// Builds the retry pipeline that owns attempt sequencing, backoff scheduling and the terminal rethrow.
+	/// </summary>
+	/// <param name="timeProvider"> The time provider used to schedule the backoff delay. </param>
+	/// <param name="onRetry"> Invoked before each backoff with the failure, the 1-based retry number and the delay in milliseconds. </param>
+	/// <returns> The configured pipeline. </returns>
+	private ResiliencePipeline BuildPipeline(TimeProvider timeProvider, Action<Exception, int, double> onRetry)
+	{
+		// A non-positive budget means "attempt once, never retry". The retry strategy requires a budget of at least
+		// one, so the no-retry case is an empty pipeline rather than a retry strategy configured to do nothing.
+		if (MaxRetryAttempts <= 0)
+		{
+			return ResiliencePipeline.Empty;
 		}
 
-		throw lastException ?? new InvalidOperationException("No exception captured during retry attempts");
+		return new ResiliencePipelineBuilder { TimeProvider = timeProvider }
+			.AddRetry(new RetryStrategyOptions
+			{
+				MaxRetryAttempts = MaxRetryAttempts,
+				ShouldHandle = args => ValueTask.FromResult(args.Outcome.Exception is { } exception && ShouldRetry(exception)),
+
+				// AttemptNumber is 0-based on the first failure, so the delay for that failure is GetDelay(1).
+				DelayGenerator = args => ValueTask.FromResult<TimeSpan?>(GetDelay(args.AttemptNumber + 1)),
+				OnRetry = args =>
+				{
+					onRetry(args.Outcome.Exception!, args.AttemptNumber + 1, args.RetryDelay.TotalMilliseconds);
+					return ValueTask.CompletedTask;
+				},
+			})
+			.Build();
 	}
 
 	// Source-generated logging methods

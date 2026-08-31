@@ -68,6 +68,10 @@ public sealed class MqttTransportConformanceTests
                 mqtt.ClientId = $"conformance-{Guid.NewGuid():N}";
                 mqtt.Topic = _topic;
                 mqtt.QualityOfService = MqttQualityOfService.AtLeastOnce;
+
+                // The Mosquitto container listens in the clear, so the secure-by-default posture is
+                // opted out here deliberately.
+                mqtt.RequireTls = false;
             })
             .BuildServiceProvider();
     }

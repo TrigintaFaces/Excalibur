@@ -31,10 +31,13 @@ public partial class EventVersionManager
 	private static readonly CompositeFormat NoUpgradePathFoundFormat =
 			CompositeFormat.Parse(Resources.EventVersionManager_NoUpgradePathFoundFormat);
 
-	// Copy-on-write (5gezua): the value is an immutable snapshot replaced (never mutated in place) under
+	// Copy-on-write: the value is an immutable snapshot replaced (never mutated in place) under
 	// _registrationLock, so read paths (UpgradeEvent/FindUpgradePath/GetUpgradersForEventType) enumerate a
 	// stable list without a lock even if a registration races a read.
 	private readonly ConcurrentDictionary<string, IReadOnlyList<IEventUpgrader>> _upgraders = new(StringComparer.Ordinal);
+
+	private readonly UpgradePathResolver<IEventUpgrader> _paths =
+		new(static u => u.FromVersion, static u => u.ToVersion);
 	private readonly Lock _registrationLock = new();
 	private readonly ILogger<EventVersionManager> _logger;
 
@@ -57,6 +60,14 @@ public partial class EventVersionManager
 	public void RegisterUpgrader(IEventUpgrader upgrader)
 	{
 		ArgumentNullException.ThrowIfNull(upgrader);
+
+		if (upgrader.FromVersion >= upgrader.ToVersion)
+		{
+			throw new ArgumentException(
+				$"Invalid upgrader: FromVersion ({upgrader.FromVersion}) must be less than ToVersion " +
+				$"({upgrader.ToVersion}). Only forward upgrading is supported.",
+				nameof(upgrader));
+		}
 
 		// Top-level lock eliminates the TOCTOU between GetOrAdd (which may create or return an existing
 		// list) and the subsequent conflict-check + mutation, and serializes concurrent registrations.
@@ -84,6 +95,7 @@ public partial class EventVersionManager
 			// Replace with a fresh immutable snapshot rather than mutating the list a reader may be
 			// enumerating (copy-on-write).
 			_upgraders[upgrader.EventType] = [.. existing, upgrader];
+			_paths.Invalidate();
 		}
 
 		LogUpgraderRegistered(upgrader.EventType, upgrader.FromVersion, upgrader.ToVersion);
@@ -126,7 +138,7 @@ public partial class EventVersionManager
 		}
 
 		// Find upgrade path using BFS
-		var upgradePath = FindUpgradePath(upgraderList, fromVersion, toVersion);
+		var upgradePath = _paths.Resolve(eventType, upgraderList, fromVersion, toVersion);
 		if (upgradePath == null || upgradePath.Count == 0)
 		{
 			throw new InvalidOperationException(
@@ -165,48 +177,4 @@ public partial class EventVersionManager
 			? upgraders
 			: [];
 
-	/// <summary>
-	/// Finds the shortest upgrade path between versions using BFS.
-	/// </summary>
-	/// <param name="upgraders">The list of available event upgraders.</param>
-	/// <param name="fromVersion">The starting version.</param>
-	/// <param name="toVersion">The target version.</param>
-	/// <returns>A list of upgraders representing the shortest path, or null if no path exists.</returns>
-	private static List<IEventUpgrader>? FindUpgradePath(
-		IReadOnlyList<IEventUpgrader> upgraders,
-		int fromVersion,
-		int toVersion)
-	{
-		// Use BFS to find shortest path
-		var queue = new Queue<(int Version, List<IEventUpgrader> Path)>();
-		var visited = new HashSet<int>();
-
-		queue.Enqueue((fromVersion, []));
-		_ = visited.Add(fromVersion);
-
-		while (queue.Count > 0)
-		{
-			var (currentVersion, currentPath) = queue.Dequeue();
-
-			if (currentVersion == toVersion)
-			{
-				return currentPath;
-			}
-
-			// Find all possible next steps. Order candidates by ToVersion for a canonical, registration-order-
-			// independent tie-break: when two equal-length upgrade paths exist, the chosen chain must not depend
-			// on DI registration order.
-			foreach (var upgrader in upgraders.Where(u => u.FromVersion == currentVersion).OrderBy(u => u.ToVersion))
-			{
-				if (!visited.Contains(upgrader.ToVersion))
-				{
-					_ = visited.Add(upgrader.ToVersion);
-					var newPath = new List<IEventUpgrader>(currentPath) { upgrader };
-					queue.Enqueue((upgrader.ToVersion, newPath));
-				}
-			}
-		}
-
-		return null;
-	}
 }

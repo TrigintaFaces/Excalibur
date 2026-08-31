@@ -24,7 +24,7 @@ internal sealed class NullRetryPolicy : IRelationalDataRequestRetryPolicy, IDocu
 	public TimeSpan BaseRetryDelay => TimeSpan.Zero;
 
 	/// <inheritdoc />
-	// R0.8: Remove unused parameter - interface contract requires these parameters even though null policy never retries
+	// Remove unused parameter - interface contract requires these parameters even though null policy never retries
 
 	public static bool ShouldRetry(Exception exception, int attemptNumber) => false;
 
@@ -33,7 +33,7 @@ internal sealed class NullRetryPolicy : IRelationalDataRequestRetryPolicy, IDocu
 	public bool ShouldRetry(Exception exception) => false;
 
 	/// <inheritdoc />
-	// R0.8: Remove unused parameter - interface contract requires this parameter even though null policy always returns zero
+	// Remove unused parameter - interface contract requires this parameter even though null policy always returns zero
 
 	public static TimeSpan GetDelay(int attemptNumber) => TimeSpan.Zero;
 

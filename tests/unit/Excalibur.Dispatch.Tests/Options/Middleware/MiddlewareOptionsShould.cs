@@ -300,7 +300,7 @@ public sealed class MiddlewareOptionsShould
 		opts.TenantRegionHeader.ShouldBe("X-Tenant-Region");
 		opts.DefaultTenantId.ShouldNotBeNull();
 		opts.MinTenantIdLength.ShouldBe(1);
-		opts.MaxTenantIdLength.ShouldBe(100);
+		opts.MaxTenantIdLength.ShouldBe(Excalibur.Dispatch.TenantId.MaxLength);
 		opts.TenantIdPattern.ShouldBeNull();
 	}
 

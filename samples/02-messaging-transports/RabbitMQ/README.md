@@ -106,6 +106,10 @@ RabbitMQ/
 |---------|-------------|---------|
 | `RabbitMq:ConnectionString` | AMQP connection string | `amqp://guest:guest@localhost:5672/` |
 
+The broker these samples run against is plaintext, so the registration calls `RequireTls(false)`.
+The transport otherwise refuses an unencrypted connection; a real deployment uses an `amqps://`
+connection string and leaves that alone.
+
 Connection settings can be overridden in `appsettings.json` or via environment variables. The exchange name, type, and CloudEvents options are configured in code via the fluent builder API.
 
 ## Key Concepts

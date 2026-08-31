@@ -93,4 +93,7 @@ public sealed class ComplianceAlertHandlerConformanceTests : ComplianceAlertHand
 		HandleStatusChangeAsync_ComplianceLost_ShouldCompleteSuccessfully();
 
 	#endregion HandleStatusChangeAsync Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

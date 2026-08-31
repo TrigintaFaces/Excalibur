@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 
@@ -24,11 +25,11 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// <para>
 /// Key behaviors verified:
 /// <list type="bullet">
-/// <item><description>SaveRequestAsync THROWS InvalidOperationException on duplicate RequestId</description></item>
+/// <item><description>SaveRequestAsync THROWS DuplicateErasureRequestException on duplicate RequestId</description></item>
 /// <item><description>DataSubjectId automatically SHA256-hashed for privacy</description></item>
 /// <item><description>STATE MACHINE: RecordCancellationAsync only works for Pending/Scheduled status</description></item>
 /// <item><description>RecordCompletionAsync THROWS KeyNotFoundException if request not found</description></item>
-/// <item><description>SaveCertificateAsync THROWS InvalidOperationException on duplicate CertificateId</description></item>
+/// <item><description>SaveCertificateAsync THROWS DuplicateErasureCertificateException on duplicate CertificateId</description></item>
 /// <item><description>UpdateStatusAsync sets ExecutedAt when status changes to InProgress</description></item>
 /// <item><description>GetScheduledRequestsAsync returns requests where ScheduledExecutionAt &lt;= now</description></item>
 /// <item><description>CleanupExpiredCertificatesAsync removes where RetainUntil &lt; now</description></item>
@@ -41,8 +42,18 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Pattern", "STORE")]
 public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConformanceTestKit
 {
+
+	/// <summary>
+	/// Exposes the kit's own wiring check to the runner. The check is an arm like any other, so a
+	/// suite that omits THIS member disables it silently -- the one gap it cannot report itself.
+	/// </summary>
+	/// <returns>A completed task when every arm in the kit is wired.</returns>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() =>
+		ConformanceSuite_ShouldWireEveryArm();
+
 	/// <inheritdoc />
-	protected override IErasureStore CreateStore() => new InMemoryErasureStore(TestDataSubjectHasher.Instance);
+	protected override IErasureStore CreateStore() => new InMemoryErasureStore(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
 
 	#region Request Lifecycle Tests
 
@@ -51,8 +62,12 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 		SaveRequestAsync_ShouldPersistRequest();
 
 	[Fact]
-	public Task SaveRequestAsync_DuplicateId_ShouldThrowInvalidOperationException_Test() =>
-		SaveRequestAsync_DuplicateId_ShouldThrowInvalidOperationException();
+	public Task SaveRequestAsync_DuplicateId_ShouldThrowDuplicateErasureRequestException_Test() =>
+		SaveRequestAsync_DuplicateId_ShouldThrowDuplicateErasureRequestException();
+
+	[Fact]
+	public Task SaveRequestAsync_NonDuplicateFailure_ShouldNotTranslateToDuplicate_Test() =>
+		SaveRequestAsync_NonDuplicateFailure_ShouldNotTranslateToDuplicate();
 
 	[Fact]
 	public Task SaveRequestAsync_ShouldHashDataSubjectId_Test() =>
@@ -147,8 +162,8 @@ public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConforman
 		SaveCertificateAsync_ShouldPersistCertificate();
 
 	[Fact]
-	public Task SaveCertificateAsync_DuplicateId_ShouldThrowInvalidOperationException_Test() =>
-		SaveCertificateAsync_DuplicateId_ShouldThrowInvalidOperationException();
+	public Task SaveCertificateAsync_DuplicateId_ShouldThrowDuplicateErasureCertificateException_Test() =>
+		SaveCertificateAsync_DuplicateId_ShouldThrowDuplicateErasureCertificateException();
 
 	[Fact]
 	public Task GetCertificateAsync_ByRequestId_ShouldReturnCertificate_Test() =>

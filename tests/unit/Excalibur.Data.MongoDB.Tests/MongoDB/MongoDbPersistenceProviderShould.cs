@@ -34,7 +34,7 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	{
 		// Assert
 		_ = _provider.ShouldNotBeNull();
-		_provider.Name.ShouldBe("MongoDB");
+		_provider.Name.ShouldBe("mongodb");
 		_provider.ProviderType.ShouldBe("Document");
 		_provider.DocumentStoreType.ShouldBe("MongoDB");
 	}
@@ -164,14 +164,13 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task ExecuteAsyncThrowsWhenProviderNotInitialized()
+	public void DeclinesTheDataRequestExecutorCapability()
 	{
-		// Arrange - Use IDbConnection as connection type which implements IDisposable
-		// Note: The cast will fail at runtime but the provider checks database initialization first
-		var request = A.Fake<IDataRequest<IDbConnection, string>>();
-
-		// Act & Assert - Throws InvalidOperationException because database is not initialized
-		_ = await Should.ThrowAsync<InvalidOperationException>(() => _provider.ExecuteAsync(request, CancellationToken.None)).ConfigureAwait(false);
+		// This replaces an arm whose own comment recorded that "the cast will fail at runtime": a document
+		// store is not reachable through an IDbConnection, so it now declines the capability instead of
+		// advertising a member that cannot work. Declining is detectable before the call, which the
+		// previous throw was not. Its execution surface is ExecuteDocumentAsync, exercised above.
+		_provider.GetService(typeof(IDataRequestExecutor)).ShouldBeNull();
 	}
 
 	[Fact]
@@ -242,18 +241,6 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GetConnectionPoolStatsAsyncReturnsDefaultsWhenNotInitialized()
-	{
-		// Act
-		var stats = await _provider.GetConnectionPoolStatsAsync(CancellationToken.None).ConfigureAwait(false);
-
-		// Assert - Returns default stats from options, not null
-		_ = stats.ShouldNotBeNull();
-		stats.ShouldContainKey("MaxPoolSize");
-		stats.ShouldContainKey("ActiveConnections");
-	}
-
-	[Fact]
 	public void CreateTransactionScopeReturnsValidScope()
 	{
 		// Act - CreateTransactionScope doesn't require IsAvailable to be true
@@ -294,7 +281,7 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	public void PropertiesHaveExpectedValues()
 	{
 		// Assert
-		_provider.Name.ShouldBe("MongoDB");
+		_provider.Name.ShouldBe("mongodb");
 		_provider.ProviderType.ShouldBe("Document");
 		_provider.DocumentStoreType.ShouldBe("MongoDB");
 		_provider.IsAvailable.ShouldBeFalse(); // Not initialized yet

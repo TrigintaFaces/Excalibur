@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Firestore;
 using Excalibur.Integration.Tests.Data.EventStore;
@@ -25,7 +26,7 @@ namespace Excalibur.Integration.Tests.Data.Workflows;
 [Trait("Category", "Integration")]
 [Trait("Component", "Workflows")]
 public sealed class FirestoreWorkflowConformanceTests
-    : WorkflowConformanceTestKit, IClassFixture<FirestoreEventStoreContainerFixture>
+    : WorkflowConformanceTestKit
 {
     private readonly FirestoreEventStoreContainerFixture _fixture;
 
@@ -50,7 +51,7 @@ public sealed class FirestoreWorkflowConformanceTests
             EmulatorHost = _fixture.EmulatorEndpoint,
         });
 
-        return new FirestoreEventStore(_fixture.Db, options, NullLogger<FirestoreEventStore>.Instance);
+        return new FirestoreEventStore(_fixture.Db, options, NullLogger<FirestoreEventStore>.Instance, UntenantedContext.Instance);
     }
 
     /// <inheritdoc/>
@@ -70,4 +71,8 @@ public sealed class FirestoreWorkflowConformanceTests
     [Fact]
     public override Task DelayedRestart_ResumesAndCompletesExactlyOnce() =>
         base.DelayedRestart_ResumesAndCompletesExactlyOnce();
+
+    [Fact]
+    public override Task ConformanceSuite_ShouldWireEveryArm() =>
+    	base.ConformanceSuite_ShouldWireEveryArm();
 }

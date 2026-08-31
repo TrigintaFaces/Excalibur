@@ -58,11 +58,13 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public async Task InitializeSuccessfully()
+	public async Task InitializeWithoutClaimingConnected()
 	{
 		var options = A.Fake<MessageBusOptions>();
 		await _sut.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		_sut.IsConnected.ShouldBeTrue();
+
+		// IsConnected means "ready for operations"; the pump only starts in StartAsync.
+		_sut.IsConnected.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -80,6 +82,9 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	{
 		var options = A.Fake<MessageBusOptions>();
 		await _sut.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
+
+		// the pump must be running before the adapter is ready for operations
+		await _sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();

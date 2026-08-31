@@ -24,12 +24,13 @@ public sealed class RedisSnapshotStoreShould : UnitTestBase
 		var connection = CreateUninitializedConnection();
 		var options = Options.Create(new RedisSnapshotStoreOptions { ConnectionString = "localhost:6379" });
 		var logger = NullLogger<RedisSnapshotStore>.Instance;
+		var tenantContext = TestTenantContext.SingleTenantDefault;
 
-		Should.Throw<ArgumentNullException>(() => new RedisSnapshotStore(null!, options, logger))
+		Should.Throw<ArgumentNullException>(() => new RedisSnapshotStore(null!, options, logger, tenantContext))
 			.ParamName.ShouldBe("connection");
-		Should.Throw<ArgumentNullException>(() => new RedisSnapshotStore(connection, null!, logger))
+		Should.Throw<ArgumentNullException>(() => new RedisSnapshotStore(connection, null!, logger, tenantContext))
 			.ParamName.ShouldBe("options");
-		Should.Throw<ArgumentNullException>(() => new RedisSnapshotStore(connection, options, null!))
+		Should.Throw<ArgumentNullException>(() => new RedisSnapshotStore(connection, options, null!, tenantContext))
 			.ParamName.ShouldBe("logger");
 	}
 

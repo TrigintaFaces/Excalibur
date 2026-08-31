@@ -6,6 +6,7 @@ using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - identifiers are constants in this test fixture
 
@@ -35,7 +36,8 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 public sealed class OracleSnapshotStoreFixture : ContainerFixtureBase
 {
 	private OracleContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
+	private bool _schemaCreated;
 
 	/// <summary>
 	/// Gets the connection string for the Oracle container.
@@ -77,13 +79,15 @@ public sealed class OracleSnapshotStoreFixture : ContainerFixtureBase
 	/// <summary>
 	/// Creates the snapshot table if it does not already exist.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
@@ -93,33 +97,21 @@ public sealed class OracleSnapshotStoreFixture : ContainerFixtureBase
 			Schema = (await userCommand.ExecuteScalarAsync().ConfigureAwait(false))?.ToString() ?? "SYSTEM";
 		}
 
-		// TENANTID participates in the uniqueness key so two tenants holding a snapshot of the same
-		// aggregate occupy two rows rather than colliding on one. NOTE, stated rather than assumed:
-		// Oracle does not treat two NULLs as equal, so this constraint does NOT enforce uniqueness for
-		// the untenanted (single-tenant) case where TENANTID is NULL. Upsert semantics come from the
-		// store's MERGE in either case; the constraint is a backstop for the tenanted path, not the
-		// mechanism.
-		var createTableSql = $"""
-			CREATE TABLE {TableName} (
-				SNAPSHOTID      VARCHAR2(255) NOT NULL,
-				AGGREGATEID     VARCHAR2(255) NOT NULL,
-				AGGREGATETYPE   VARCHAR2(255) NOT NULL,
-				VERSION         NUMBER(19) NOT NULL,
-				DATA            BLOB,
-				CREATEDAT       TIMESTAMP(7) WITH TIME ZONE NOT NULL,
-				METADATA        BLOB,
-				TENANTID        VARCHAR2(255),
-				CONSTRAINT UQ_SNAPSHOT_AGGREGATE_TENANT UNIQUE (AGGREGATEID, AGGREGATETYPE, TENANTID)
-			)
-			""";
-
-		await using (var command = connection.CreateCommand())
+		// Provision from the DDL the package SHIPS, not a copy of it. The copy declared TENANTID
+		// nullable, which Oracle's distinct-NULLs semantics make unable to constrain the untenanted
+		// partition at all -- every untenanted save could insert a duplicate row for the same aggregate.
+		// The shipped script (001_CreateSnapshotSchema.sql) declares it NOT NULL with the reserved
+		// '__untenanted__' sentinel and a plain unique index on the triple. ODP.NET submits one
+		// statement per command, so the script is split on ';'.
+		foreach (var statement in ShippedSchemaScript.ReadStatements(
+			"src/Excalibur/Excalibur.EventSourcing.Oracle/Scripts/001_CreateSnapshotSchema.sql"))
 		{
-			command.CommandText = createTableSql;
+			await using var command = connection.CreateCommand();
+			command.CommandText = statement;
 			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
-		_initialized = true;
+		_schemaCreated = true;
 	}
 
 	/// <summary>
@@ -132,7 +124,7 @@ public sealed class OracleSnapshotStoreFixture : ContainerFixtureBase
 	/// </summary>
 	public async Task CleanupTableAsync()
 	{
-		if (!_initialized)
+		if (!_schemaCreated)
 		{
 			return;
 		}

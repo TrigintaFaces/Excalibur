@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Dispatch;
 
 using Google.Cloud.Firestore;
 
@@ -201,16 +202,19 @@ public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSub
 			MessageId = doc.GetValue<string>("messageId"),
 			MessageType = doc.GetValue<string>("messageType"),
 			Payload = Convert.FromBase64String(doc.GetValue<string>("payload")),
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 			Headers = doc.ContainsField("headers") && doc.GetValue<string?>("headers") != null
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.GetValue<string>("headers"), JsonOptions)
 				: null,
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			AggregateId = doc.ContainsField("aggregateId") ? doc.GetValue<string?>("aggregateId") : null,
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,
 			CausationId = doc.ContainsField("causationId") ? doc.GetValue<string?>("causationId") : null,
-			TenantId = doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null,
+			// Read-tolerant, matching FirestoreOutboxStore.FromFirestoreDocument: a missing field folds
+			// onto the reserved sentinel through the same total conversion, never surfacing as null.
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null).TenantId,
 			Destination = doc.ContainsField("destination") ? doc.GetValue<string?>("destination") : null,
 			CreatedAt = DateTimeOffset.Parse(doc.GetValue<string>("createdAt"), CultureInfo.InvariantCulture),
 			PublishedAt = doc.ContainsField("publishedAt") && doc.GetValue<string?>("publishedAt") != null

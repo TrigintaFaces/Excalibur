@@ -261,10 +261,10 @@ var sbSender = sender.GetService(typeof(ServiceBusSender))
 Configure resilience per transport via the options classes:
 
 ```csharp
-services.Configure<RabbitMqOptions>(options =>
+services.AddRabbitMQTransport(rmq =>
 {
-    options.Connection.AutomaticRecoveryEnabled = true;
-    options.Connection.NetworkRecoveryIntervalSeconds = 10;
+    rmq.HostName("rabbitmq")
+       .AutomaticRecovery(enabled: true, networkRecoveryInterval: TimeSpan.FromSeconds(10));
 });
 ```
 
@@ -366,7 +366,7 @@ public interface IDeadLetterQueueManager
     Task<DeadLetterStatistics> GetStatisticsAsync(
         CancellationToken cancellationToken);
 
-    Task<int> PurgeDeadLetterQueueAsync(
+    Task<int> PurgeAllTenantsDeadLetterQueueAsync(
         CancellationToken cancellationToken);
 }
 ```

@@ -77,6 +77,23 @@ public sealed class NullDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueueAdmi
 		Task.FromResult(false);
 
 	/// <inheritdoc />
-	Task<int> IDeadLetterQueueAdmin.PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken) =>
+	Task<int> IDeadLetterQueueAdmin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken) =>
 		Task.FromResult(0);
+
+	/// <inheritdoc />
+	/// <remarks>A null queue stores nothing, so an estate-wide read is empty rather than unsupported.</remarks>
+	Task<IReadOnlyList<DeadLetterEntry>> IDeadLetterQueueAdmin.GetAllTenantsEntriesAsync(
+		DeadLetterQueryFilter? filter,
+		CancellationToken cancellationToken) =>
+		Task.FromResult<IReadOnlyList<DeadLetterEntry>>([]);
+
+	/// <inheritdoc />
+	/// <remarks>A null queue stores nothing, so no entry is ever found.</remarks>
+	Task<DeadLetterEntry?> IDeadLetterQueueAdmin.GetAllTenantsEntryAsync(Guid entryId, CancellationToken cancellationToken) =>
+		Task.FromResult<DeadLetterEntry?>(null);
+
+	/// <inheritdoc />
+	/// <remarks>A null queue stores nothing, so there is never an entry to replay.</remarks>
+	Task<bool> IDeadLetterQueueAdmin.ReplayAllTenantsEntryAsync(Guid entryId, CancellationToken cancellationToken) =>
+		Task.FromResult(false);
 }

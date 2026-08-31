@@ -41,33 +41,4 @@ public interface IElasticsearchSecurityAnalysis
 	Task<SecurityAnalysisResult> AnalyzeAuthenticationEventAsync(
 		AuthenticationEvent authenticationEvent,
 		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Analyzes a data access event for unusual patterns and potential data exfiltration attempts.
-	/// </summary>
-	/// <param name="dataAccessEvent"> The data access event to analyze. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains the security analysis result including anomaly
-	/// detection and risk assessment.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when security analysis fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the data access event is null. </exception>
-	Task<SecurityAnalysisResult>
-		AnalyzeDataAccessEventAsync(DataAccessEvent dataAccessEvent, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Performs comprehensive threat detection analysis based on current security events and patterns.
-	/// </summary>
-	/// <param name="analysisRequest"> The threat detection analysis request with parameters. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains the threat detection result including identified
-	/// threats and recommended countermeasures.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when threat detection fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the analysis request is null. </exception>
-	Task<ThreatDetectionResult> PerformThreatDetectionAsync(
-		ThreatDetectionRequest analysisRequest,
-		CancellationToken cancellationToken);
 }

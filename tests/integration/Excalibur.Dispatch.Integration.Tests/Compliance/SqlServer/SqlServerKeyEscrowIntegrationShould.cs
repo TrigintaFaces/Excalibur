@@ -362,7 +362,7 @@ public sealed class SqlServerKeyEscrowIntegrationShould : IAsyncLifetime, IDispo
 	private async Task CreateTablesAsync()
 	{
 		var createTablesSql = @"
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrow')
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrow' AND schema_id = SCHEMA_ID('dbo'))
             BEGIN
                 CREATE TABLE dbo.KeyEscrow (
                     EscrowId NVARCHAR(64) NOT NULL PRIMARY KEY,
@@ -387,7 +387,7 @@ public sealed class SqlServerKeyEscrowIntegrationShould : IAsyncLifetime, IDispo
                 )
             END
 
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrowTokens')
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrowTokens' AND schema_id = SCHEMA_ID('dbo'))
             BEGIN
                 CREATE TABLE dbo.KeyEscrowTokens (
                     TokenId NVARCHAR(64) NOT NULL PRIMARY KEY,
@@ -404,7 +404,7 @@ public sealed class SqlServerKeyEscrowIntegrationShould : IAsyncLifetime, IDispo
                 )
             END
 
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrowWrap')
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrowWrap' AND schema_id = SCHEMA_ID('dbo'))
             BEGIN
                 CREATE TABLE dbo.KeyEscrowWrap (
                     EscrowId NVARCHAR(64) NOT NULL,

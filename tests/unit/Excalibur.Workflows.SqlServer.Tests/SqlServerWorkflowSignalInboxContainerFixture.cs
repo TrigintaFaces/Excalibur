@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in this test fixture.
 
@@ -18,14 +19,15 @@ namespace Excalibur.Workflows.SqlServer.Tests;
 /// Starts a real SQL Server container and creates <c>[dbo].[workflow_signal_inbox]</c> whose columns and
 /// constraints mirror EXACTLY what <see cref="SqlServerWorkflowSignalInbox"/>'s Dapper INSERT/SELECT
 /// reference (per the package README schema): the <c>Sequence BIGINT IDENTITY</c> arrival column backs
-/// deterministic drain ordering, and the <c>UNIQUE (InstanceId, SignalId)</c> constraint backs the
-/// conditional-insert dedup that survives a "restart" (a fresh inbox instance over the same DB).
+/// deterministic drain ordering, and the <c>UNIQUE (TenantId, InstanceId, SignalId)</c> constraint backs
+/// the conditional-insert dedup that survives a "restart" (a fresh inbox instance over the same DB) while
+/// keeping two tenants' identically-named signals distinct rather than treating the second as a duplicate.
 /// Never skipped: when Docker is unavailable the base fixture fails fast.
 /// </remarks>
 public sealed class SqlServerWorkflowSignalInboxContainerFixture : ContainerFixtureBase
 {
     private MsSqlContainer? _container;
-    private bool _initialized;
+    private readonly OneTimeInitializer _initializer = new();
 
     /// <summary>
     /// Gets the schema name for the signal-inbox table (the impl's default).
@@ -50,6 +52,7 @@ public sealed class SqlServerWorkflowSignalInboxContainerFixture : ContainerFixt
     protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
     {
         _container = new MsSqlBuilder()
+            .WithBoundedMemory()
             .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
             .WithName($"mssql-workflow-signal-inbox-test-{Guid.NewGuid():N}")
             .WithPassword("Test@Pass123")
@@ -62,17 +65,19 @@ public sealed class SqlServerWorkflowSignalInboxContainerFixture : ContainerFixt
     /// <summary>
     /// Ensures the signal-inbox schema is initialized.
     /// </summary>
-    public async Task EnsureInitializedAsync()
-    {
-        if (_initialized)
-        {
-            return;
-        }
+    public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+    /// <summary>
+    /// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+    /// here is rethrown to every later caller instead of being retried against a database this
+    /// call already half-provisioned.
+    /// </summary>
+    private async Task InitializeSchemaAsync()
+    {
         await using var connection = CreateConnection();
         await connection.OpenAsync().ConfigureAwait(false);
 
-        // Mirrors the package README DDL exactly: IDENTITY arrival sequence + UNIQUE (InstanceId, SignalId).
+        // Mirrors the package README DDL exactly: IDENTITY arrival sequence + UNIQUE (TenantId, InstanceId, SignalId).
         var createTableSql = $"""
             IF NOT EXISTS (SELECT * FROM sys.tables t
                 JOIN sys.schemas s ON t.schema_id = s.schema_id
@@ -80,19 +85,18 @@ public sealed class SqlServerWorkflowSignalInboxContainerFixture : ContainerFixt
             BEGIN
                 CREATE TABLE [{SchemaName}].[{TableName}] (
                     Sequence    BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    TenantId    NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL,
                     InstanceId  NVARCHAR(200)        NOT NULL,
                     SignalId    NVARCHAR(200)        NOT NULL,
                     SignalName  NVARCHAR(200)        NOT NULL,
                     PayloadJson NVARCHAR(MAX)        NULL,
-                    CONSTRAINT UQ_{TableName} UNIQUE (InstanceId, SignalId)
+                    CONSTRAINT UQ_{TableName} UNIQUE (TenantId, InstanceId, SignalId)
                 );
             END
             """;
 
         await using var command = new SqlCommand(createTableSql, connection);
         _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-        _initialized = true;
     }
 
     /// <summary>

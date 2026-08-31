@@ -180,4 +180,8 @@ public sealed class KeyRotationSchedulerConformanceTests : KeyRotationSchedulerC
 		GetNextRotationTimeAsync_ExistingKey_ShouldReturnCalculatedTime();
 
 	#endregion GetNextRotationTimeAsync Tests
+
+	[Fact]
+	public override Task ConformanceSuite_ShouldWireEveryArm() =>
+		base.ConformanceSuite_ShouldWireEveryArm();
 }

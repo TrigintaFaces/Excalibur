@@ -46,6 +46,8 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Dispatch projects -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Patterns.Azure\Excalibur.Dispatch.Patterns.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.ClaimCheck.AwsS3\Excalibur.Dispatch.ClaimCheck.AwsS3.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
@@ -66,6 +68,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging.SqlServer\Excalibur.AuditLogging.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging.Postgres\Excalibur.AuditLogging.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Security.AuditLogging\Excalibur.Security.AuditLogging.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Pdf\Excalibur.Compliance.Pdf.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Aws\Excalibur.Compliance.Aws.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Azure\Excalibur.Compliance.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Vault\Excalibur.Compliance.Vault.csproj" />
@@ -119,5 +122,58 @@
     <None Update="xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The key-escrow suite provisions from the script the package SHIPS, not from a copy. These
+      three tables previously had no shipped DDL at all while every suite passed on its own
+      hand-written CREATE TABLE, so nothing covered the file a consumer actually runs. Linking it
+      in means a column added to the product's schema reaches the tests automatically, and one
+      that is missing fails them.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\002_CreateKeyEscrowSchema.sql" Link="Schema\002_CreateKeyEscrowSchema.sql" />
+    <!--
+      The erasure/legal-hold tenant-totality suites provision AND migrate from the scripts the
+      packages ship, for the same reason. The two dialects both ship a file called
+      001_CreateComplianceSchema.sql, so each is linked under a dialect-named folder: the resource
+      name is derived from the Link path, and a shared leaf would make the two indistinguishable to
+      a suffix match — a suite would silently load the other engine's DDL.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\001_CreateComplianceSchema.sql" Link="Schema\SqlServer\001_CreateComplianceSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\003_MakeComplianceTenantTotal.sql" Link="Schema\SqlServer\003_MakeComplianceTenantTotal.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\001_CreateComplianceSchema.sql" Link="Schema\Postgres\001_CreateComplianceSchema.sql" />
+    <!-- Dead-letter DDL, linked under the same dialect-named folders and for the same reason: both
+         engines ship a file named 001_CreateDeadLetterSchema.sql, and neither dead-letter store creates
+         its table at runtime, so the conformance suites must provision from the shipped script. -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Scripts\001_CreateDeadLetterSchema.sql" Link="Schema\Postgres\001_CreateDeadLetterSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\001_CreateDeadLetterSchema.sql" Link="Schema\SqlServer\001_CreateDeadLetterSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\002_MakeComplianceTenantTotal.sql" Link="Schema\Postgres\002_MakeComplianceTenantTotal.sql" />
+    <!--
+      The data-inventory tenant-totality migrations. These carry more weight than the two above,
+      because the shape they migrate FROM is the one every existing deployment holds: the tenant
+      discriminator reached the inventory tables by editing 001 in place, and both provisioning
+      paths guard on table existence, so an upgrading consumer's tables are never reshaped. Linking
+      these in is what lets a suite prove the migration actually repairs that database rather than
+      asserting it against a schema only a fresh install has.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\004_MakeDataInventoryTenantTotal.sql" Link="Schema\SqlServer\004_MakeDataInventoryTenantTotal.sql" />
+    <!--
+      The index-width repair that follows 004 in the real upgrade chain. It is embedded because the
+      legacy-regress fixture has to be able to put the shared inventory tables BACK the way it found
+      them: 001 now creates the shape 004 and 006 together leave behind, so a suite that regresses
+      past both must replay both, or every later suite in the collection meets a schema no consumer
+      has. Not embedding it is also what let the fixture drift behind this script in the first place.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\006_MakeInventoryKeysFitTheIndexLimit.sql" Link="Schema\SqlServer\006_MakeInventoryKeysFitTheIndexLimit.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Scripts\003_MakeDataInventoryTenantTotal.sql" Link="Schema\Postgres\003_MakeDataInventoryTenantTotal.sql" />
+    <!--
+      The key-escrow tenant-totality migration. This one is bound not because its shape is
+      interesting but because its RESTRAINT is: the stored term is AEAD associated data, so the
+      migration is required NOT to backfill the sentinel, and the arm that binds it proves a key
+      escrowed under the older shape still recovers after the shipped script has run. A future edit
+      that "finishes the job" with an UPDATE would satisfy every schema check and destroy the key
+      material; this is what makes that edit fail here first.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Scripts\005_MakeEscrowTenantTotal.sql" Link="Schema\SqlServer\005_MakeEscrowTenantTotal.sql" />
   </ItemGroup>
 </Project>

@@ -20,9 +20,9 @@ internal sealed class JsonClaimCheckSerializer(JsonSerializerOptions? options = 
 	// Intentionally NOT the event canonical serializer (EventSerializationDefaults.Canonical): a claim-check
 	// payload is arbitrary consumer data, not an event, and this serializer is consumer-injectable. Converging
 	// to the frozen Canonical would DROP the MaxDepth = 64 DoS guard below (Canonical carries no MaxDepth and
-	// is read-only, so it cannot). Documented-exempt in the 4o8i86 event-serializer guard.
+	// is read-only, so it cannot). Documented-exempt in the event-serializer guard.
 	//
-	// unv8i3: when no options are supplied, default to the framework-wide JSON policy
+	// when no options are supplied, default to the framework-wide JSON policy
 	// (camelCase + case-insensitive) so payloads interop with every other ISerializer impl.
 	// Without this, null options fall through to System.Text.Json's PascalCase/case-sensitive
 	// defaults — a cross-serializer interop hazard and a convention violation.
@@ -31,7 +31,7 @@ internal sealed class JsonClaimCheckSerializer(JsonSerializerOptions? options = 
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 		PropertyNameCaseInsensitive = true,
 		WriteIndented = false,
-		// 4si10h: bound recursion depth so a deeply-nested (potentially hostile) claim-check payload
+		// bound recursion depth so a deeply-nested (potentially hostile) claim-check payload
 		// cannot exhaust the stack on deserialize. 64 matches System.Text.Json's own default guard.
 		MaxDepth = 64,
 	};

@@ -117,11 +117,11 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		// Wait until trimming converges.
 		await AwaitStoreConditionAsync(
-			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries,
+			async () => (await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries,
 			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have exactly MaxEntries (oldest should be removed)
-		var allEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var allEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		allEntries.Count().ShouldBeLessThanOrEqualTo(options.MaxEntries);
 	}
 
@@ -163,7 +163,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await Task.WhenAll(createTasks.Concat(markTasks.Cast<Task>()));
 
 		// Assert - All operations completed without deadlocks
-		var allEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var allEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		allEntries.Count().ShouldBe(operationCount);
 	}
 
@@ -204,7 +204,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		// Assert - Operations after disposal should throw
 		_ = await Should.ThrowAsync<ObjectDisposedException>(async () =>
-			await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+			await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -251,7 +251,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 	}
 
 	[Fact]
-	public async Task AllowMarkingProcessedMessageAsFailedUpdatingStatus()
+	public async Task RefuseToMarkAProcessedMessageAsFailed()
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions();
@@ -264,13 +264,17 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 		await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 
-		// Act - MarkFailedAsync can be called on processed entry (updates the status to Failed)
+		// Act - a late caller reports its own failure against an entry that is already terminal.
 		await store.MarkFailedAsync(messageId, TestHandler, "Test error", CancellationToken.None);
 
-		// Assert - Entry should now be marked as Failed
+		// Assert - Processed is absorbing. Demoting the entry would make it re-admittable, so the next
+		// redelivery would run the handler again and IsProcessedAsync would answer false about a message
+		// that really was processed.
 		var entry = await store.GetEntryAsync(messageId, TestHandler, CancellationToken.None);
 		_ = entry.ShouldNotBeNull();
-		entry.Status.ShouldBe(InboxStatus.Failed);
+		entry.Status.ShouldBe(InboxStatus.Processed);
+		entry.LastError.ShouldBeNull("a refused transition must not record its error either");
+		(await store.IsProcessedAsync(messageId, TestHandler, CancellationToken.None)).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -295,11 +299,11 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		// Wait until async trimming converges.
 		await AwaitStoreConditionAsync(
-			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 1,
+			async () => (await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 1,
 			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have trimmed to approximately the max entries
-		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var remainingEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		remainingEntries.Count().ShouldBeLessThanOrEqualTo(options.MaxEntries + 1); // Allow for timing tolerance
 
 		// Assert - Newest entries should remain
@@ -324,11 +328,11 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await store.MarkProcessedAsync("expired-message", TestHandler, CancellationToken.None).ConfigureAwait(false); // Mark as processed so cleanup can remove it
 		// Manual cleanup should work even when automatic cleanup is disabled.
 		// Use zero retention to avoid timing races from clock/scheduler variance in CI.
-		var removedCount = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		var removedCount = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Should have cleaned up the expired entry
 		removedCount.ShouldBe(1);
-		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var remainingEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		remainingEntries.ShouldBeEmpty();
 	}
 
@@ -349,12 +353,12 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		}
 
 		// Zero retention removes all processed entries immediately and avoids clock-edge timing races.
-		var preCleaned = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		var preCleaned = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 		preCleaned.ShouldBeGreaterThan(0);
 
 		// Act - Run concurrent cleanup operations
 		var cleanupTasks = Enumerable.Range(0, 5)
-			.Select(_ => store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).AsTask())
+			.Select(_ => store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).AsTask())
 			.ToArray();
 
 		var results = await Task.WhenAll(cleanupTasks);
@@ -366,15 +370,15 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		for (var i = 0; i < 5; i++)
 		{
-			_ = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
-			if (!(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
+			_ = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+			if (!(await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
 			{
 				break;
 			}
 		}
 
 		// Assert - No entries should remain
-		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var remainingEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		remainingEntries.ShouldBeEmpty();
 	}
 
@@ -419,7 +423,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var store = CreateStore(options);
 
 		// Act - Get statistics on empty store
-		var emptyStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var emptyStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 
 		// Assert
 		_ = emptyStats.ShouldNotBeNull();
@@ -524,7 +528,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				{
 					for (var j = 0; j < 20; j++)
 					{
-						var stats = await store.GetStatisticsAsync(CancellationToken.None);
+						var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 						_ = stats.ShouldNotBeNull();
 						await Task.Yield();
 					}
@@ -544,7 +548,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				try
 				{
 					await WaitHelpers.AwaitSignalAsync(firstCreationObserved.Task, TestTimeouts.Scale(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
-					_ = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+					_ = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -560,7 +564,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		createdMessageIds.Count.ShouldBeGreaterThan(0);
 
 		// Verify final consistency
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		_ = finalStats.ShouldNotBeNull();
 
 		// After cleanup runs concurrently, processed entries may have been removed
@@ -625,7 +629,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		{
 			for (var i = 0; i < 50; i++)
 			{
-				var stats = await store.GetStatisticsAsync(CancellationToken.None);
+				var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 				var totalAccounted = stats.ProcessedEntries + stats.FailedEntries + stats.PendingEntries;
 
 				if (totalAccounted > stats.TotalEntries)
@@ -640,7 +644,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await Task.WhenAll(transitionTasks.Concat(statsTasks));
 
 		// Assert - Final state should be consistent
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		finalStats.ProcessedEntries.ShouldBe(processedCount);
 		finalStats.FailedEntries.ShouldBe(failedCount);
 		finalStats.TotalEntries.ShouldBe(messageCount);
@@ -673,7 +677,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await Task.WhenAll(markProcessedTasks).ConfigureAwait(false);
 
 		// Zero retention removes all processed entries immediately and avoids expiry timing races.
-		var preCleaned = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		var preCleaned = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 		preCleaned.ShouldBeGreaterThan(0);
 
 		// Launch many concurrent cleanup operations
@@ -681,7 +685,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var cleanupTasks = Enumerable.Range(0, cleanupConcurrency)
 			.Select(async _ =>
 			{
-				var result = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+				var result = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None);
 				cleanupResults.Add(result);
 			});
 
@@ -694,19 +698,19 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		for (var i = 0; i < 10; i++)
 		{
-			_ = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
-			if (!(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
+			_ = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+			if (!(await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
 			{
 				break;
 			}
 		}
 
 		// All entries should be gone
-		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var remainingEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		remainingEntries.ShouldBeEmpty();
 
 		// Statistics should reflect empty state
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(0);
 		stats.PendingEntries.ShouldBe(0);
 		stats.ProcessedEntries.ShouldBe(0);
@@ -748,14 +752,14 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		// Wait until trimming converges.
 		await AwaitStoreConditionAsync(
-			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 10,
+			async () => (await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 10,
 			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have maintained capacity limits
-		var finalEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var finalEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		finalEntries.Count().ShouldBeLessThanOrEqualTo(options.MaxEntries + 10); // Allow for some timing tolerance
 
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBeLessThanOrEqualTo(options.MaxEntries + 10);
 
 		// Should have created many messages successfully
@@ -789,7 +793,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 						_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 
 						// Immediate state check
-						var entry = (await store.GetAllEntriesAsync(CancellationToken.None)).FirstOrDefault(e => e.MessageId == messageId);
+						var entry = (await store.GetAllTenantsEntriesAsync(CancellationToken.None)).FirstOrDefault(e => e.MessageId == messageId);
 						if (entry == null)
 						{
 							operationResults.Add(false);
@@ -815,7 +819,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 						}
 
 						// Verify statistics consistency
-						var stats = await store.GetStatisticsAsync(CancellationToken.None);
+						var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 						var totalAccounted = stats.ProcessedEntries + stats.FailedEntries + stats.PendingEntries;
 						if (totalAccounted > stats.TotalEntries)
 						{
@@ -850,7 +854,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		successRate.ShouldBeGreaterThan(0.65); // At least 65% success rate under high concurrency
 
 		// Final state should be consistent
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		var finalTotalAccounted = finalStats.ProcessedEntries + finalStats.FailedEntries + finalStats.PendingEntries;
 		finalTotalAccounted.ShouldBeLessThanOrEqualTo(finalStats.TotalEntries);
 	}
@@ -995,7 +999,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		operationExceptions.ShouldBeEmpty();
 
 		// Final state should be consistent - at most one entry for the shared message ID
-		var allEntries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var allEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		allEntries.Count().ShouldBeLessThanOrEqualTo(1);
 		if (allEntries.Any())
 		{
@@ -1032,7 +1036,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var cleanupTasks = Enumerable.Range(0, 10).Select(async i =>
 		{
 			await cleanupGate.Task.ConfigureAwait(false);
-			var result = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+			var result = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			cleanupResults.Add(result);
 		});
 
@@ -1072,8 +1076,8 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		(totalCleaned + successfulStateChanges).ShouldBeLessThanOrEqualTo(messageCount);
 
 		// Final state should be consistent
-		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var remainingEntries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(remainingEntries.Count());
 	}
 
@@ -1156,7 +1160,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				for (var j = 0; j < 100; j++)
 				{
-					var stats = await store.GetStatisticsAsync(CancellationToken.None);
+					var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 					_ = stats.ShouldNotBeNull();
 					await Task.Yield();
 				}
@@ -1179,7 +1183,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		}
 
 		// Final consistency check
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		finalStats.TotalEntries.ShouldBe(messageCount);
 		var totalAccountedFinal = finalStats.ProcessedEntries + finalStats.FailedEntries + finalStats.PendingEntries;
 		totalAccountedFinal.ShouldBe(finalStats.TotalEntries);
@@ -1204,7 +1208,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		{
 			for (var i = 0; i < statisticsReadCount; i++)
 			{
-				var stats = await store.GetStatisticsAsync(CancellationToken.None);
+				var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 				statisticsSnapshots.Add(stats);
 
 				// Validate consistency in each snapshot
@@ -1258,7 +1262,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		lastSnapshot.TotalEntries.ShouldBeGreaterThanOrEqualTo(firstSnapshot.TotalEntries);
 
 		// Final state consistency
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		finalStats.TotalEntries.ShouldBe(messageCount);
 		(finalStats.ProcessedEntries + finalStats.FailedEntries).ShouldBe(messageCount);
 		finalStats.PendingEntries.ShouldBe(0);
@@ -1369,7 +1373,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		conflictedOperations.Count.ShouldBeGreaterThan(0);
 
 		// Final state should reflect transitions for all messages
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		finalStats.TotalEntries.ShouldBe(conflictMessageCount);
 		finalStats.PendingEntries.ShouldBe(0);
 		(finalStats.ProcessedEntries + finalStats.FailedEntries).ShouldBe(conflictMessageCount);
@@ -1385,7 +1389,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 	private InMemoryInboxStore CreateStore(InMemoryInboxOptions options)
 	{
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _logger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _logger, UntenantedContext.Instance);
 		_disposables.Add(store);
 		return store;
 	}

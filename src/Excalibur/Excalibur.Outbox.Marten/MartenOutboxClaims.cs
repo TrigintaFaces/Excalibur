@@ -81,10 +81,17 @@ internal static class MartenOutboxClaims
 			CREATE SCHEMA IF NOT EXISTS "{schema}";
 
 			CREATE TABLE IF NOT EXISTS {qualified} (
-			    message_id    text        NOT NULL PRIMARY KEY,
-			    dispatcher_id text        NOT NULL,
-			    claimed_at    timestamptz NOT NULL
+			    message_id      text        NOT NULL PRIMARY KEY,
+			    dispatcher_id   text        NOT NULL,
+			    claimed_at      timestamptz NOT NULL,
+			    next_attempt_at timestamptz NULL
 			);
+
+			-- Separate from the CREATE so a table created before the failure floor existed gains the
+			-- column too. CREATE TABLE IF NOT EXISTS is a no-op against an existing table, so without
+			-- this an upgraded deployment would keep the old shape and every statement below would
+			-- fail on an unknown column.
+			ALTER TABLE {qualified} ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz NULL;
 			""",
 			connection);
 #pragma warning restore CA2100
@@ -122,7 +129,6 @@ internal static class MartenOutboxClaims
 		}
 
 		var qualified = Qualify(schema, table);
-		var now = DateTimeOffset.UtcNow;
 
 		// One statement, so there is no window between deciding a message is free and taking it.
 		//
@@ -131,16 +137,35 @@ internal static class MartenOutboxClaims
 		// it holds only for a claim older than the timeout, so a live claim is never stolen and the
 		// statement returns nothing for it.
 		//
+		// The second WHERE term is the failure floor. A message reported failed carries a next_attempt_at,
+		// and until that instant passes it is not handed to anybody -- which is what stops a persistently
+		// failing destination being retried as fast as the drain can loop. Once it passes, the row is
+		// claimable again on the ordinary path, so a failure delays a message rather than ending it.
+		//
+		// Every instant in this statement comes from clock_timestamp(), the database's clock, and never from
+		// the dispatcher's. A lease is written by one machine and judged by another, so a cutoff computed
+		// here would compare two unsynchronised clocks: a dispatcher running ahead by more than the timeout
+		// evaluates a lease someone else is actively delivering under as expired, and takes it. The atomic
+		// claim does not help -- it arbitrates simultaneous claimants, and under skew the two are not
+		// simultaneous, so the second dispatcher's write is the only one at that instant and succeeds
+		// legitimately on a predicate that was already wrong. Reading both sides of the comparison from the
+		// one clock that orders the rows is what makes the predicate true rather than merely atomic.
+		//
+		// clock_timestamp() rather than now(): now() is the enclosing transaction's start time, which is
+		// stale by however long the transaction has run.
+		//
 		// RETURNING reports only the rows actually written, which is exactly the set this dispatcher won.
 #pragma warning disable CA2100 // Query built from validated identifiers, not from user input
 		await using var command = new NpgsqlCommand(
 			$"""
-			INSERT INTO {qualified} (message_id, dispatcher_id, claimed_at)
-			SELECT unnest(@MessageIds), @DispatcherId, @Now
+			INSERT INTO {qualified} (message_id, dispatcher_id, claimed_at, next_attempt_at)
+			SELECT unnest(@MessageIds), @DispatcherId, clock_timestamp(), NULL
 			ON CONFLICT (message_id) DO UPDATE
-			    SET dispatcher_id = EXCLUDED.dispatcher_id,
-			        claimed_at    = EXCLUDED.claimed_at
-			    WHERE {qualified}.claimed_at < @Cutoff
+			    SET dispatcher_id   = EXCLUDED.dispatcher_id,
+			        claimed_at      = EXCLUDED.claimed_at,
+			        next_attempt_at = NULL
+			    WHERE {qualified}.claimed_at < clock_timestamp() - make_interval(secs => @ClaimTimeoutSeconds)
+			      AND ({qualified}.next_attempt_at IS NULL OR {qualified}.next_attempt_at <= clock_timestamp())
 			RETURNING message_id;
 			""",
 			connection);
@@ -148,8 +173,7 @@ internal static class MartenOutboxClaims
 
 		_ = command.Parameters.AddWithValue("MessageIds", messageIds.ToArray());
 		_ = command.Parameters.AddWithValue("DispatcherId", dispatcherId);
-		_ = command.Parameters.AddWithValue("Now", now);
-		_ = command.Parameters.AddWithValue("Cutoff", now - claimTimeout);
+		_ = command.Parameters.AddWithValue("ClaimTimeoutSeconds", claimTimeout.TotalSeconds);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 		while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -209,10 +233,10 @@ internal static class MartenOutboxClaims
 		await using var command = new NpgsqlCommand(
 			$"""
 			INSERT INTO {qualified} (message_id, dispatcher_id, claimed_at)
-			VALUES (@MessageId, @Terminal, @Now)
+			VALUES (@MessageId, @Terminal, clock_timestamp())
 			ON CONFLICT (message_id) DO UPDATE
 			    SET dispatcher_id = @Terminal,
-			        claimed_at    = @Now
+			        claimed_at    = clock_timestamp()
 			    WHERE {qualified}.dispatcher_id <> @Terminal
 			RETURNING message_id;
 			""",
@@ -221,10 +245,97 @@ internal static class MartenOutboxClaims
 
 		_ = command.Parameters.AddWithValue("MessageId", messageId);
 		_ = command.Parameters.AddWithValue("Terminal", TerminalDispatcherId);
-		_ = command.Parameters.AddWithValue("Now", DateTimeOffset.UtcNow);
 
 		var won = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 		return won is not null;
+	}
+
+	/// <summary>
+	/// Records a delivery failure against a message, and reports whether this caller was entitled to.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Two conditions have to hold together and cannot be checked separately. The caller must own the
+	/// claim it is reporting against, and the message must not already be settled. Reading the row and
+	/// then writing it would leave a window between the two in which another dispatcher takes the claim
+	/// over, and the late report would then clear a lease its successor is actively delivering under --
+	/// which is how the same message ends up sent twice.
+	/// </para>
+	/// <para>
+	/// One statement decides it. A message that was never claimed has no row, so the insert lands and the
+	/// failure is recorded -- that is the message failed straight from staged, which is legitimate. A
+	/// message this dispatcher holds matches the update predicate. A message held by anyone else does
+	/// not, and neither does a settled one, because the terminal identity is a value no real dispatcher
+	/// can present. Both of those return nothing and the caller is told it lost.
+	/// </para>
+	/// <para>
+	/// The winner's claim is released and a floor is stamped in its place, so what governs the next
+	/// attempt is the failure instant rather than a lease left to age out. The floor is stamped from
+	/// <c>clock_timestamp()</c> because <see cref="ClaimAsync"/> compares it against that same clock: a
+	/// floor written from the reporting dispatcher's clock and judged against another's would expire
+	/// early or late by whatever those two machines disagree by. The floor is anchored at the
+	/// failure precisely because a message that failed without ever being claimed has no lease to derive
+	/// one from.
+	/// </para>
+	/// </remarks>
+	/// <param name="connection">An open connection to the Marten database.</param>
+	/// <param name="transaction">
+	/// The transaction this write joins. The caller commits it together with the document update, so the
+	/// claim release and the recorded attempt count reach the database as one act — a crash between them
+	/// would otherwise leave the message re-claimable with its attempt count unchanged, and a count that
+	/// never advances is a message that never reaches the retry ceiling.
+	/// </param>
+	/// <param name="schema">The claim table's schema.</param>
+	/// <param name="table">The claim table's name.</param>
+	/// <param name="messageId">The message being reported as failed.</param>
+	/// <param name="dispatcherId">The dispatcher reporting the failure.</param>
+	/// <param name="floor">How long the message is withheld from the claim, measured from now.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>
+	/// <see langword="true"/> when this caller was entitled to record the failure and it was recorded;
+	/// <see langword="false"/> when the claim belongs to another dispatcher or the message is already
+	/// settled, in which case nothing was written.
+	/// </returns>
+	public static async Task<bool> TryRecordFailureAsync(
+		NpgsqlConnection connection,
+		NpgsqlTransaction transaction,
+		string schema,
+		string table,
+		string messageId,
+		string dispatcherId,
+		TimeSpan floor,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(transaction);
+
+		var qualified = Qualify(schema, table);
+
+		// claimed_at is set to the epoch rather than to now: the claim is being given up, and leaving a
+		// fresh timestamp there would make the message wait out the whole claim timeout on top of the
+		// floor. Releasing it this way leaves next_attempt_at as the only thing holding the message back.
+		#pragma warning disable CA2100 // Query built from validated identifiers, not from user input
+		await using var command = new NpgsqlCommand(
+		$"""
+		INSERT INTO {qualified} (message_id, dispatcher_id, claimed_at, next_attempt_at)
+		VALUES (@MessageId, @DispatcherId, @Released, clock_timestamp() + make_interval(secs => @FloorSeconds))
+		ON CONFLICT (message_id) DO UPDATE
+		    SET claimed_at      = @Released,
+		        next_attempt_at = clock_timestamp() + make_interval(secs => @FloorSeconds)
+		    WHERE {qualified}.dispatcher_id = @DispatcherId
+		RETURNING message_id;
+		""",
+			connection,
+			transaction);
+		#pragma warning restore CA2100
+
+		_ = command.Parameters.AddWithValue("MessageId", messageId);
+		_ = command.Parameters.AddWithValue("DispatcherId", dispatcherId);
+		_ = command.Parameters.AddWithValue("Released", DateTimeOffset.UnixEpoch);
+		_ = command.Parameters.AddWithValue("FloorSeconds", floor.TotalSeconds);
+
+		var recorded = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+		return recorded is not null;
 	}
 
 	/// <summary>

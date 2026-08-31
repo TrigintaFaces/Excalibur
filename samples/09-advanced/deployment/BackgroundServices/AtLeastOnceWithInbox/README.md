@@ -19,11 +19,11 @@ Choose AtLeastOnce when:
 ## Configuration
 
 ```csharp
-services.Configure<OutboxOptions>(options =>
+services.Configure<OutboxDeliveryOptions>(options =>
 {
     options.DeliveryGuarantee = OutboxDeliveryGuarantee.AtLeastOnce;
     options.ConsumerBatchSize = 100;
-    options.PollingInterval = TimeSpan.FromSeconds(5);
+    options.PerRunTotal = 1000;
 });
 ```
 

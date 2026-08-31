@@ -48,6 +48,8 @@
     <!-- NOTE: These are NOT in core Dispatch anymore (Sprint 306 T3.X-2). Tests need them directly. -->
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Npgsql" />
+    <!-- Parameter-binding symmetry lock (SqlParameterTokens) reads Dapper's DynamicParameters -->
+    <PackageReference Include="Dapper" />
     <!-- ASP.NET Testing -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <!-- Generic Host for test hosts -->

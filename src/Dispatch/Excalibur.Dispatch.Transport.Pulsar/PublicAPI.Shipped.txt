@@ -38,3 +38,6 @@ Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensi
 const Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions.DefaultTransportName = "pulsar" -> string!
 static Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions.AddPulsarTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions.AddPulsarTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.RequireTls.get -> bool
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.RequireTls.set -> void
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder.RequireTls(bool required) -> Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!

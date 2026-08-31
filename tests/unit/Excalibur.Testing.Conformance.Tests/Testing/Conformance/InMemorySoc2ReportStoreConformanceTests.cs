@@ -129,4 +129,7 @@ public sealed class InMemorySoc2ReportStoreConformanceTests : Soc2ReportStoreCon
 		GetReportCountAsync_TenantFilter_ShouldFilterCorrectly();
 
 	#endregion Multi-Tenant Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

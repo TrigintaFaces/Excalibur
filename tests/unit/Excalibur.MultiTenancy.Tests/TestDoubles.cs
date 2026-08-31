@@ -32,8 +32,12 @@ internal static class TestDoubles
         public bool HasTenant => !string.IsNullOrEmpty(TenantId);
     }
 
-    /// <summary>A minimal event store that ignores the ambient tenant — used as a registerable inner store.</summary>
-    internal sealed class NoopEventStore : IEventStore
+    /// <summary>
+    /// A minimal event store that ignores the ambient tenant — used as a registerable inner store. Takes
+    /// (and ignores) <see cref="ITenantContext"/> so <c>AddTenantAwareStore</c>'s constructor-shape probe
+    /// derives the scoped mechanism, matching a real tenant-aware provider's constructor shape.
+    /// </summary>
+    internal sealed class NoopEventStore(ITenantContext tenantContext) : IEventStore
     {
         public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
             string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
@@ -49,8 +53,12 @@ internal static class TestDoubles
             ValueTask.FromResult(AppendResult.CreateSuccess(0, null));
     }
 
-    /// <summary>A minimal saga store that ignores the ambient tenant — used as a registerable inner store.</summary>
-    internal sealed class NoopSagaStore : ISagaStore
+    /// <summary>
+    /// A minimal saga store that ignores the ambient tenant — used as a registerable inner store. Takes
+    /// (and ignores) <see cref="ITenantContext"/> so <c>AddTenantAwareStore</c>'s constructor-shape probe
+    /// derives the scoped mechanism, matching a real tenant-aware provider's constructor shape.
+    /// </summary>
+    internal sealed class NoopSagaStore(ITenantContext tenantContext) : ISagaStore
     {
         public Task<TSagaState?> LoadAsync<TSagaState>(Guid sagaId, CancellationToken cancellationToken)
             where TSagaState : SagaState => Task.FromResult<TSagaState?>(null);
@@ -59,8 +67,12 @@ internal static class TestDoubles
             where TSagaState : SagaState => Task.CompletedTask;
     }
 
-    /// <summary>A minimal inbox store that ignores the ambient tenant — used as a registerable inner store.</summary>
-    internal sealed class NoopInboxStore : IInboxStore
+    /// <summary>
+    /// A minimal inbox store that ignores the ambient tenant — used as a registerable inner store. Takes
+    /// (and ignores) <see cref="ITenantContext"/> so <c>AddTenantAwareStore</c>'s constructor-shape probe
+    /// derives the scoped mechanism, matching a real tenant-aware provider's constructor shape.
+    /// </summary>
+    internal sealed class NoopInboxStore(ITenantContext tenantContext) : IInboxStore
     {
         public ValueTask<InboxEntry> CreateEntryAsync(
             string messageId, string handlerType, string messageType, byte[] payload,
@@ -88,6 +100,33 @@ internal static class TestDoubles
     internal sealed class NoopProjectionStore<TProjection> : IProjectionStore<TProjection>
         where TProjection : class
     {
+        public Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
+            Task.FromResult<TProjection?>(null);
+
+        public Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task DeleteAsync(string id, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<TProjection>> QueryAsync(
+            IDictionary<string, object>? filters, QueryOptions? options, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TProjection>>([]);
+
+        public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken) =>
+            Task.FromResult(0L);
+    }
+
+    /// <summary>
+    /// A minimal projection store that READS the ambient tenant — registerable through the tenant-scoped
+    /// projection seam, which derives the capability marker from this constructor's ITenantContext
+    /// parameter rather than from anything the registration says about itself.
+    /// </summary>
+    internal sealed class TenantReadingProjectionStore<TProjection>(ITenantContext tenant)
+        : IProjectionStore<TProjection>
+        where TProjection : class
+    {
+        public string? Tenant => tenant.TenantId;
+
         public Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
             Task.FromResult<TProjection?>(null);
 

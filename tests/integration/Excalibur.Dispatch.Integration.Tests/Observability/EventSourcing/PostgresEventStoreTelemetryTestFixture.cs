@@ -10,6 +10,8 @@ using Npgsql;
 
 using Testcontainers.PostgreSql;
 
+using Tests.Shared.Helpers;
+
 #pragma warning disable CA2100 // SQL strings are safe - table name is a constant in test fixture
 
 namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
@@ -114,39 +116,20 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var createTableSql = $"""
-			CREATE TABLE IF NOT EXISTS {SchemaName}.{TableName} (
-				position BIGSERIAL PRIMARY KEY,
-				event_id VARCHAR(255) NOT NULL UNIQUE,
-				aggregate_id VARCHAR(255) NOT NULL,
-				aggregate_type VARCHAR(255) NOT NULL,
-				event_type VARCHAR(255) NOT NULL,
-				event_data BYTEA NOT NULL,
-				metadata BYTEA,
-				version BIGINT NOT NULL,
-				timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				is_dispatched BOOLEAN NOT NULL DEFAULT FALSE,
-				-- The event store scopes every read to the row-level tenant_id discriminator, so its
-				-- absence fails LoadAsync with 42703 rather than returning unscoped rows. The uniqueness
-				-- constraint carries the tenant too: stream identity is per tenant, and a constraint on
-				-- (aggregate_id, aggregate_type, version) alone would make two tenants collide in the
-				-- fixture while they do not collide in production.
-				tenant_id VARCHAR(450) NOT NULL DEFAULT '__untenanted__',
-				UNIQUE (tenant_id, aggregate_id, aggregate_type, version)
-			);
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. A hand-
+		// written copy previously declared event_data NOT NULL, which fails the GDPR erasure path (it
+		// tombstones an event by setting event_data to NULL) with a not-null violation the erasure test
+		// never exercised. A fixture that holds no schema cannot drift from one.
+		var scripts = ShippedSchemaScript.ReadAll(
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/004_CreateEventStoreSchema.sql",
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/005_MakeEventStreamIdentityTenantScoped.sql",
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/006_ConvergeUntenantedToDefaultTenant.sql");
 
-			CREATE INDEX IF NOT EXISTS idx_events_aggregate
-				ON {SchemaName}.{TableName}(aggregate_id, aggregate_type, version);
-
-			CREATE INDEX IF NOT EXISTS idx_events_undispatched
-				ON {SchemaName}.{TableName}(is_dispatched, position) WHERE is_dispatched = false;
-
-			CREATE INDEX IF NOT EXISTS idx_events_type
-				ON {SchemaName}.{TableName}(event_type);
-			""";
-
-		await using var command = new NpgsqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		foreach (var script in scripts)
+		{
+			await using var command = new NpgsqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 
 		_initialized = true;
 	}
@@ -168,7 +151,8 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 
 		return new PostgresEventStore(
 			ConnectionString,
-			NullLogger<PostgresEventStore>.Instance);
+			NullLogger<PostgresEventStore>.Instance,
+			tenantContext: new TestTenantContext());
 	}
 
 	/// <summary>

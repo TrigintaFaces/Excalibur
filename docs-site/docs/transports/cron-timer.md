@@ -14,8 +14,8 @@ The Cron Timer transport enables scheduled message dispatching using cron expres
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Transport.CronTimer
   ```
+  The cron timer transport ships inside `Excalibur.Dispatch`; there is no separate transport package to install.
 - Familiarity with [choosing a transport](./choosing-a-transport.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
 :::tip ASP.NET Core Eventing Framework
@@ -33,8 +33,8 @@ This transport fulfills the `AddTimerEventQueue()` capability from the [ASP.NET 
 // Register ICronScheduler (required)
 builder.Services.AddSingleton<ICronScheduler, CronScheduler>();
 
-// Simple cron timer with default name
-builder.Services.AddCronTimerTransport("*/5 * * * *");
+// Named cron timer — the name is required and identifies the timer
+builder.Services.AddCronTimerTransport("cleanup", "*/5 * * * *");
 
 // Named cron timer with options
 builder.Services.AddCronTimerTransport("daily-report", "0 2 * * *", options =>
@@ -294,7 +294,7 @@ The transport emits OpenTelemetry metrics via the shared `TransportMeter`:
 |--------|------|-------------|
 | `dispatch.transport.messages_received_total` | Counter | Total trigger messages dispatched |
 | `dispatch.transport.errors_total` | Counter | Failed executions |
-| `dispatch.transport.receive_duration_ms` | Histogram | Handler execution time |
+| `dispatch.transport.receive.duration` | Histogram | Handler execution time |
 | `dispatch.transport.starts_total` | Counter | Transport start events |
 | `dispatch.transport.stops_total` | Counter | Transport stop events |
 | `dispatch.transport.connection_status` | Gauge | Running status (0=stopped, 1=running) |

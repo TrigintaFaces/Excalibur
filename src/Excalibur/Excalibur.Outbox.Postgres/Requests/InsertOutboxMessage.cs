@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -7,6 +7,7 @@ using System.Data;
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Outbox.Postgres;
 
@@ -15,6 +16,7 @@ namespace Excalibur.Outbox.Postgres;
 /// </summary>
 public sealed class InsertOutboxMessage : DataRequest<int>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InsertOutboxMessage"/> class.
 	/// </summary>
@@ -58,6 +60,12 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		// The tenant term is supplied by the caller and stamped into the row below, so the
+		// declaration and the INSERT agree. FromStoredValue (not Scoped) is total: it maps null,
+		// empty and the reserved sentinel alike onto the untenanted partition, which is this
+		// column's contract and keeps an untenanted stage from throwing.
+		var tenantPartition = KeyedTenantPartition.FromStoredValue(tenantId);
+
 		// correlation_id/causation_id/priority/scheduled_at plus the routing fields
 		// (partition_key/group_key/sequence_number/target_transports/is_multi_transport) are dedicated columns
 		// (not folded into the metadata blob) so every consumer-supplied field survives the stage→reload
@@ -75,7 +83,12 @@ public sealed class InsertOutboxMessage : DataRequest<int>
 		parameters.Add("MessageType", messageType, direction: ParameterDirection.Input);
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
 		parameters.Add("MessageBody", messageBody, direction: ParameterDirection.Input);
-		parameters.Add("TenantId", tenantId, direction: ParameterDirection.Input);
+		// Bind the PARTITION's term, never the raw argument. The partition is total -- null, empty and the
+		// reserved sentinel all resolve to the untenanted term -- so an untenanted stage binds a concrete
+		// value rather than NULL, and the column can be NOT NULL. Binding `tenantId` here instead would
+		// reject every untenanted write the moment the column became total, and would let the declared
+		// disposition and the value actually stored disagree. One local feeds both, so they cannot.
+		parameters.Add("TenantId", tenantPartition.TenantId, direction: ParameterDirection.Input);
 		parameters.Add("Destination", destination, direction: ParameterDirection.Input);
 		parameters.Add("CorrelationId", correlationId, direction: ParameterDirection.Input);
 		parameters.Add("CausationId", causationId, direction: ParameterDirection.Input);

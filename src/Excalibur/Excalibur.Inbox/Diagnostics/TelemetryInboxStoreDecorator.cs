@@ -12,7 +12,7 @@ namespace Excalibur.Inbox.Diagnostics;
 /// Telemetry decorator for <see cref="IInboxStore"/> that instruments operations
 /// with counters and histograms.
 /// </summary>
-internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, ITransactionalInboxStore, IScopedTransactionalInboxStore, IDisposable
+internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, ILeasedInboxStore, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, ITransactionalInboxStore, IScopedTransactionalInboxStore, IDisposable
 {
 	/// <summary>
 	/// The meter name for inbox store telemetry.
@@ -56,6 +56,15 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// Reports the EFFECTIVE lease capability and composes through chains (see <see cref="SupportsClaim"/>).
+	/// Tracked separately from <see cref="SupportsClaim"/> because the two are different protocols: an inner
+	/// store may offer the caller-governed claim and no lease, and forwarding a lease into it would fail.
+	/// </remarks>
+	public bool SupportsLeasedClaim =>
+		_inner is ILeasedInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsLeasedClaim);
+
+	/// <inheritdoc/>
+	/// <remarks>
 	/// Reports the EFFECTIVE durable Processing-tracking capability and composes through chains (see
 	/// <see cref="SupportsClaim"/>).
 	/// </remarks>
@@ -83,6 +92,69 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 		_inner is IInboxStoreCapabilities capabilities
 			? capabilities.SupportsTransactional
 			: _inner is ITransactionalInboxStore or IScopedTransactionalInboxStore;
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// Reports the EFFECTIVE scoped transactional capability, composing through chains (see
+	/// <see cref="SupportsClaim"/>). This decorator declares <see cref="IScopedTransactionalInboxStore"/>
+	/// in order to FORWARD it, so a bare type check on the decorator reports the seam unconditionally;
+	/// reporting it here answers for what the chain can actually execute.
+	/// </para>
+	/// <para>
+	/// Either inner seam satisfies it, which is why this tracks <see cref="SupportsTransactional"/> rather
+	/// than narrowing to the scoped one. The decorator BRIDGES the scoped seam onto a relational-only inner
+	/// store -- wrapping its transaction in a scope -- so through this decorator a relational store really
+	/// does offer the scoped protocol. Narrowing here would report the seam absent while the decorator
+	/// stands ready to serve it, sending the caller to the weaker claim protocol for no reason.
+	/// </para>
+	/// </remarks>
+	public bool SupportsScopedTransactional =>
+		_inner is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsScopedTransactional || capabilities.SupportsTransactional
+			: _inner is ITransactionalInboxStore or IScopedTransactionalInboxStore;
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Reports the EFFECTIVE backoff-schedule capability and composes through chains (see
+	/// <see cref="SupportsClaim"/>). This decorator declares
+	/// <see cref="IBackoffSchedulableInboxStore"/> so it can FORWARD the schedule, which makes a bare type
+	/// check on this decorator report a capability the inner store may not have. Answering here is what
+	/// keeps the caller's own fallback decision observable rather than absorbed.
+	/// </remarks>
+	public bool SupportsBackoffScheduling =>
+		_inner is IBackoffSchedulableInboxStore
+		|| (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsBackoffScheduling);
+
+	/// <summary>
+	/// Resolves the inner store's administrative surface, refusing with a stated reason when it has none.
+	/// </summary>
+	/// <value>The inner store's <see cref="IInboxStoreAdmin"/> implementation.</value>
+	/// <exception cref="NotSupportedException">
+	/// The decorated store does not provide the administrative surface. The message names the store that
+	/// does not, because a decorated chain gives the caller no other way to find out which one it was.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This decorator implements <see cref="IInboxStoreAdmin"/> so the retry processor reaches the inner
+	/// store through it, and an inner store without that surface is a genuine misconfiguration. What the
+	/// cast got wrong was the REPORT, not the refusal: a hard cast raises
+	/// <see cref="InvalidCastException"/>, which <see cref="IInboxStoreAdmin"/> does not document and which
+	/// names neither the capability that was missing nor the store that was missing it. A caller reading it
+	/// learns only that some cast failed somewhere inside a decorator chain.
+	/// </para>
+	/// <para>
+	/// The refusal is deliberately not softened into a silent no-op. Dropping an administrative call would
+	/// leave the retry processor believing it had queried or mutated entries it never reached.
+	/// </para>
+	/// </remarks>
+	private IInboxStoreAdmin Admin =>
+		_inner as IInboxStoreAdmin
+		?? throw new NotSupportedException(
+			$"The inbox store this decorator wraps ({_inner.GetType().Name}) does not implement "
+			+ "IInboxStoreAdmin, so the administrative surface (bulk queries, statistics, cleanup and the "
+			+ "retry processor's failed-entry sweep) cannot be forwarded to it. Configure an admin-capable "
+			+ "inbox store, or do not register the components that require one.");
 
 	/// <inheritdoc/>
 	public async ValueTask<bool> TryProcessTransactionallyAsync(
@@ -249,26 +321,72 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<bool> TryClaimAsync(string messageId, string handlerType, TimeSpan leaseDuration, CancellationToken cancellationToken)
+	public async ValueTask<LeaseToken?> TryAcquireLeaseAsync(string messageId, string handlerType, TimeSpan leaseDuration, CancellationToken cancellationToken)
 	{
-		// Forward the lease-based claim to the inner store. Fail LOUD (never a silent no-op) if the inner store
-		// cannot claim atomically — a silent fallback would re-create the check-then-act race.
-		if (_inner is not IClaimableInboxStore claimable)
+		// Forward the lease acquisition to the inner store. Fail LOUD (never a silent no-op) if the inner store
+		// has no lease path — a silent fallback would re-create the check-then-act race.
+		if (_inner is not ILeasedInboxStore leased)
 		{
 			throw new NotSupportedException(
-				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
-				"lease-based claiming cannot be forwarded through the telemetry decorator.");
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ILeasedInboxStore; " +
+				"a lease cannot be acquired through the telemetry decorator.");
 		}
 
 		var start = Stopwatch.GetTimestamp();
 
 		try
 		{
-			return await claimable.TryClaimAsync(messageId, handlerType, leaseDuration, cancellationToken).ConfigureAwait(false);
+			return await leased.TryAcquireLeaseAsync(messageId, handlerType, leaseDuration, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
 			RecordOperation("try_claim_lease", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> CompleteAsync(string messageId, string handlerType, LeaseToken lease, CancellationToken cancellationToken)
+	{
+		// Fail LOUD, as the acquire path does: a decorator that silently swallowed the fenced finalise would
+		// report success for a write that never happened.
+		if (_inner is not ILeasedInboxStore leased)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ILeasedInboxStore; " +
+				"a leased entry cannot be completed through the telemetry decorator.");
+		}
+
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			return await leased.CompleteAsync(messageId, handlerType, lease, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("complete_lease", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> FailAsync(string messageId, string handlerType, LeaseToken lease, string errorMessage, CancellationToken cancellationToken)
+	{
+		if (_inner is not ILeasedInboxStore leased)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ILeasedInboxStore; " +
+				"a leased entry cannot be failed through the telemetry decorator.");
+		}
+
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			return await leased.FailAsync(messageId, handlerType, lease, errorMessage, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("fail_lease", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
 		}
 	}
 
@@ -400,13 +518,13 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// Admin (bulk query / retry-processor) surface. Forwarded to the inner store cast to
-	/// <see cref="IInboxStoreAdmin"/> — a telemetry-decorated store must expose the admin capability so the
-	/// retry processor (which casts the store to <see cref="IInboxStoreAdmin"/>) works through the decorator;
-	/// an inner store that is not admin-capable is a genuine misconfiguration and surfaces as an
-	/// <see cref="InvalidCastException"/> rather than being silently dropped.
+	/// Admin (bulk query / retry-processor) surface, forwarded to the inner store through
+	/// <see cref="Admin"/>. A telemetry-decorated store must expose the admin capability so the retry
+	/// processor works through the decorator; an inner store that is not admin-capable is a genuine
+	/// misconfiguration and is refused with a <see cref="NotSupportedException"/> naming it, rather than
+	/// being silently dropped.
 	/// </remarks>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -416,8 +534,8 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 
 		try
 		{
-			return await ((IInboxStoreAdmin)_inner)
-				.GetFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken)
+			return await Admin
+				.GetAllTenantsFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken)
 				.ConfigureAwait(false);
 		}
 		finally
@@ -438,7 +556,7 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 
 		try
 		{
-			await ((IInboxStoreAdmin)_inner)
+			await Admin
 				.MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken)
 				.ConfigureAwait(false);
 		}
@@ -449,13 +567,13 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		var start = Stopwatch.GetTimestamp();
 
 		try
 		{
-			return await ((IInboxStoreAdmin)_inner).GetAllEntriesAsync(cancellationToken).ConfigureAwait(false);
+			return await Admin.GetAllTenantsEntriesAsync(cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -464,13 +582,13 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		var start = Stopwatch.GetTimestamp();
 
 		try
 		{
-			return await ((IInboxStoreAdmin)_inner).GetStatisticsAsync(cancellationToken).ConfigureAwait(false);
+			return await Admin.GetAllTenantsStatisticsAsync(cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -479,13 +597,13 @@ internal sealed class TelemetryInboxStoreDecorator : IInboxStore, IProcessingTra
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		var start = Stopwatch.GetTimestamp();
 
 		try
 		{
-			return await ((IInboxStoreAdmin)_inner).CleanupAsync(olderThan, cancellationToken).ConfigureAwait(false);
+			return await Admin.CleanupAllTenantsProcessedEntriesAsync(olderThan, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{

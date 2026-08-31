@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.OpenSearch;
+using Excalibur.Data.OpenSearch.IndexManagement;
 using Excalibur.Data.OpenSearch.Persistence;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +18,7 @@ using OpenSearch.Client;
 //
 //   1. DI Registration -- Single-node and multi-node cluster setup
 //   2. Connection Settings -- Custom configuration via ConnectionSettings
-//   3. Resilience -- Circuit breaker and retry policy options
+//   3. Index Management -- ISM policies, templates, aliases, index CRUD
 //   4. Health Checks -- Cluster health monitoring
 //   5. Persistence Provider -- Keyed persistence with index/shard configuration
 //   6. Dead Letter Handling -- Failed document routing and retry
@@ -151,59 +152,36 @@ Console.WriteLine("  Preconfigured client host built successfully.");
 Console.WriteLine();
 
 // ──────────────────────────────────────────────────────────────────────
-// Section 4: Resilience Configuration
+// Section 4: Index Management (ISM)
 // ──────────────────────────────────────────────────────────────────────
 //
-// Excalibur.Data.OpenSearch provides resilience options for retry policies
-// and circuit breakers via OpenSearchResilienceOptions, composed into
-// OpenSearchConfigurationOptions.
+// Index State Management -- policies, templates, aliases and index CRUD --
+// is opt-in. Register a client first; the managers resolve from it.
 
-Console.WriteLine("--- Section 4: Resilience Configuration ---");
+Console.WriteLine("--- Section 4: Index Management (ISM) ---");
 Console.WriteLine();
 
-// OpenSearchResilienceOptions is a POCO you can bind from configuration
-// or configure in code. It composes retry, circuit breaker, and timeout settings.
-var resilienceOptions = new OpenSearchResilienceOptions
-{
-    Enabled = true,
-    Retry = new OpenSearchRetryPolicyOptions
-    {
-        Enabled = true,
-        MaxAttempts = 5,
-        BaseDelay = TimeSpan.FromSeconds(2),
-        MaxDelay = TimeSpan.FromSeconds(60),
-        JitterFactor = 0.2,
-        UseExponentialBackoff = true,
-    },
-    CircuitBreaker = new CircuitBreakerOptions
-    {
-        Enabled = true,
-        FailureThreshold = 10,
-        MinimumThroughput = 20,
-        BreakDuration = TimeSpan.FromSeconds(45),
-        SamplingDuration = TimeSpan.FromSeconds(120),
-        FailureRateThreshold = 0.6,
-    },
-    Timeouts = new OpenSearchTimeoutOptions
-    {
-        SearchTimeout = TimeSpan.FromSeconds(15),
-        IndexTimeout = TimeSpan.FromSeconds(30),
-        BulkTimeout = TimeSpan.FromMinutes(5),
-        DeleteTimeout = TimeSpan.FromSeconds(15),
-    },
-};
+var ismBuilder = Host.CreateApplicationBuilder(args);
 
-Console.WriteLine("  Resilience configuration:");
-Console.WriteLine($"    Retry enabled:           {resilienceOptions.Retry.Enabled}");
-Console.WriteLine($"    Max retry attempts:      {resilienceOptions.Retry.MaxAttempts}");
-Console.WriteLine($"    Exponential backoff:     {resilienceOptions.Retry.UseExponentialBackoff}");
-Console.WriteLine($"    Base delay:              {resilienceOptions.Retry.BaseDelay}");
-Console.WriteLine($"    Circuit breaker enabled: {resilienceOptions.CircuitBreaker.Enabled}");
-Console.WriteLine($"    Failure threshold:       {resilienceOptions.CircuitBreaker.FailureThreshold}");
-Console.WriteLine($"    Break duration:          {resilienceOptions.CircuitBreaker.BreakDuration}");
-Console.WriteLine($"    Failure rate threshold:  {resilienceOptions.CircuitBreaker.FailureRateThreshold:P0}");
-Console.WriteLine($"    Search timeout:          {resilienceOptions.Timeouts.SearchTimeout}");
-Console.WriteLine($"    Bulk timeout:            {resilienceOptions.Timeouts.BulkTimeout}");
+ismBuilder.Services.AddOpenSearchServices(nodeUri: "http://localhost:9200");
+ismBuilder.Services.AddOpenSearchIndexManagement();
+
+var ismApp = ismBuilder.Build();
+
+using (var ismScope = ismApp.Services.CreateScope())
+{
+    var lifecycle = ismScope.ServiceProvider.GetRequiredService<IIndexLifecycleManager>();
+    var templates = ismScope.ServiceProvider.GetRequiredService<IIndexTemplateManager>();
+    var operations = ismScope.ServiceProvider.GetRequiredService<IIndexOperationsManager>();
+    var aliases = ismScope.ServiceProvider.GetRequiredService<IIndexAliasManager>();
+
+    Console.WriteLine("  Index management resolved:");
+    Console.WriteLine($"    Lifecycle (ISM policies):  {lifecycle.GetType().Name}");
+    Console.WriteLine($"    Templates:                 {templates.GetType().Name}");
+    Console.WriteLine($"    Operations (CRUD/rollover):{operations.GetType().Name}");
+    Console.WriteLine($"    Aliases:                   {aliases.GetType().Name}");
+}
+
 Console.WriteLine();
 
 // ──────────────────────────────────────────────────────────────────────

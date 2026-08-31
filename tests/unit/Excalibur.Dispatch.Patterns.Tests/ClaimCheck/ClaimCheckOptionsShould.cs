@@ -139,10 +139,6 @@ public sealed class ClaimCheckOptionsShould
 		options.Storage.ConnectionString.ShouldBe(string.Empty);
 		options.Storage.ContainerName.ShouldBe("claim-checks");
 		options.Storage.BlobNamePrefix.ShouldBe("claims");
-		options.Storage.UseHierarchicalStorage.ShouldBeFalse();
-		options.Storage.ColdStorageThreshold.ShouldBe(TimeSpan.FromDays(30));
-		options.Storage.EnableEncryption.ShouldBeFalse();
-		options.Storage.ChunkSize.ShouldBe(1024 * 1024);
 		options.Storage.Operations.MaxConcurrency.ShouldBe(Environment.ProcessorCount);
 		options.Storage.Operations.BufferPoolSize.ShouldBe(100);
 		options.Storage.Operations.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
@@ -261,9 +257,6 @@ public sealed class ClaimCheckOptionsShould
 			Storage =
 			{
 				ConnectionString = "Server=test",
-				UseHierarchicalStorage = true,
-				ColdStorageThreshold = TimeSpan.FromDays(60),
-				EnableEncryption = true,
 				Operations =
 				{
 					MaxRetries = 5,
@@ -284,8 +277,7 @@ public sealed class ClaimCheckOptionsShould
 		};
 
 		options.PayloadThreshold.ShouldBe(128 * 1024);
-		options.Storage.UseHierarchicalStorage.ShouldBeTrue();
-		options.Storage.EnableEncryption.ShouldBeTrue();
+		options.Storage.ConnectionString.ShouldBe("Server=test");
 		options.Compression.CompressionLevel.ShouldBe(CompressionLevel.Fastest);
 		options.Cleanup.CleanupBatchSize.ShouldBe(500);
 	}

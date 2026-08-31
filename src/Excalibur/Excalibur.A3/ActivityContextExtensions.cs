@@ -16,14 +16,26 @@ namespace Excalibur.A3;
 public static class ActivityContextExtensions
 {
 	/// <summary>
+	/// The context key under which the caller's <see cref="IAccessToken" /> is stored. Shared by the
+	/// reader below and by the audit middleware that writes it, so the two cannot drift apart into a
+	/// key nobody produces.
+	/// </summary>
+	internal const string AccessTokenKey = "AccessToken";
+
+	/// <summary>
 	/// Retrieves the <see cref="IAccessToken" /> from the activity context.
 	/// </summary>
 	/// <param name="context">The activity context.</param>
 	/// <returns>The access token if present; otherwise, <see langword="null"/>.</returns>
+	/// <remarks>
+	/// The token is placed on the context from the scope the message is being processed in, before the
+	/// action is audited. A context belonging to a dispatch with no request scope has no caller and
+	/// returns <see langword="null" />.
+	/// </remarks>
 	public static IAccessToken? AccessToken(this IActivityContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		return context.GetValue<IAccessToken?>("AccessToken", defaultValue: null);
+		return context.GetValue<IAccessToken?>(AccessTokenKey, defaultValue: null);
 	}
 
 	/// <summary>

@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Compliance.Encryption;
 
@@ -50,6 +51,7 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 {
 	private const int NonceSizeBytes = 12; // GCM standard nonce
 	private const int TagSizeBytes = 16; // 128-bit auth tag
+	private const int DataKeySizeBytes = 32; // AES-256 data encryption key
 
 	private static readonly CompositeFormat UnsupportedAlgorithmFormat =
 		CompositeFormat.Parse(Resources.AesGcmEncryptionProvider_UnsupportedAlgorithm);
@@ -64,8 +66,11 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		CompositeFormat.Parse(Resources.AesGcmEncryptionProvider_KeyStatusNotAllowedForEncryption);
 
 	private readonly IKeyManagementProvider _keyManagement;
+	private readonly IKeyMaterialProvider? _keyMaterial;
+	private readonly IKeyWrappingProvider? _keyWrapping;
 	private readonly ILogger<AesGcmEncryptionProvider> _logger;
 	private readonly AesGcmEncryptionOptions _options;
+	private readonly IFipsDetector _fipsDetector;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -74,25 +79,44 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 	/// <param name="keyManagement">The key management provider for key retrieval.</param>
 	/// <param name="logger">The logger for diagnostics.</param>
 	/// <param name="options">Optional configuration options.</param>
+	/// <param name="fipsDetector">
+	/// Optional FIPS detector used to answer <see cref="ValidateFipsComplianceAsync" />. When omitted the
+	/// provider uses the default detector, which inspects the host operating system.
+	/// </param>
 	public AesGcmEncryptionProvider(
 		IKeyManagementProvider keyManagement,
 		ILogger<AesGcmEncryptionProvider> logger,
-		AesGcmEncryptionOptions? options = null)
+		AesGcmEncryptionOptions? options = null,
+		IFipsDetector? fipsDetector = null)
 	{
 		_keyManagement = keyManagement ?? throw new ArgumentNullException(nameof(keyManagement));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options ?? new AesGcmEncryptionOptions();
+		_fipsDetector = fipsDetector ?? new DefaultFipsDetector(NullLogger<DefaultFipsDetector>.Instance);
 
-		// Validate at DI construction time that the key management provider can supply key material.
-		// This gives a clear error at startup instead of a cryptic EncryptionException at runtime
-		// when the first encrypt/decrypt operation is attempted.
-		if (keyManagement is not IKeyMaterialProvider)
+		// Resolve the two key paths this provider can drive. Raw key material is the direct path; key
+		// wrapping is the envelope path, which is the one a cloud KMS or HSM can serve, because it never
+		// asks the key service to export key bytes.
+		//
+		// Material is resolved by cast because it is an internal, same-assembly capability. Wrapping is a
+		// public optional capability resolved through GetService, so it stays discoverable when the
+		// provider sits behind a decorator that forwards capability queries.
+		_keyMaterial = keyManagement as IKeyMaterialProvider;
+		_keyWrapping = keyManagement.GetService(typeof(IKeyWrappingProvider)) as IKeyWrappingProvider;
+
+		// Validate at DI construction time that at least one key path exists, so a misconfiguration is a
+		// startup failure rather than a cryptic EncryptionException on first use -- or, far worse, a
+		// deployment that appears to work until the moment it has to decrypt.
+		if (_keyMaterial is null && _keyWrapping is null)
 		{
 			throw new InvalidOperationException(
-				$"The registered IKeyManagementProvider ({keyManagement.GetType().Name}) does not implement " +
-				$"IKeyMaterialProvider. AesGcmEncryptionProvider requires a provider that can supply raw key " +
-				$"material. Use InMemoryKeyManagementProvider for development or a cloud KMS provider that " +
-				$"implements IKeyMaterialProvider for production.");
+				$"The registered IKeyManagementProvider ({keyManagement.GetType().Name}) supplies neither raw " +
+				$"key material nor key wrapping, so AesGcmEncryptionProvider has no key to encrypt with. A " +
+				$"provider must either expose key material for direct encryption, or implement " +
+				$"IKeyWrappingProvider so a locally generated data key can be wrapped by the key service. " +
+				$"Cloud KMS and HSM-backed providers supply the latter; they deliberately do not export key " +
+				$"bytes. An in-process provider that supplies key material does not survive a restart, so it " +
+				$"is not suitable for data that must still be decryptable afterwards.");
 		}
 	}
 
@@ -109,7 +133,8 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		// Key status is checked AFTER material retrieval so revocation between resolve and
 		// material fetch is caught before any encryption occurs.
 		var keyMetadata = await ResolveEncryptionKeyAsync(context, cancellationToken).ConfigureAwait(false);
-		var keyMaterial = await GetKeyMaterialAsync(keyMetadata, cancellationToken).ConfigureAwait(false);
+		var (keyMaterial, wrappedKey) = await AcquireEncryptionKeyAsync(keyMetadata, cancellationToken)
+			.ConfigureAwait(false);
 
 		// Re-validate key status after material retrieval to close TOCTOU gap
 		if (keyMetadata.Status != KeyStatus.Active)
@@ -172,6 +197,7 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 				Algorithm = EncryptionAlgorithm.Aes256Gcm,
 				Iv = nonce,
 				AuthTag = tag,
+				WrappedKey = wrappedKey,
 				EncryptedAt = DateTimeOffset.UtcNow,
 				TenantId = context.TenantId
 			};
@@ -258,7 +284,8 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 			};
 		}
 
-		var keyMaterial = await GetKeyMaterialAsync(keyMetadata, cancellationToken).ConfigureAwait(false);
+		var keyMaterial = await AcquireDecryptionKeyAsync(encryptedData, keyMetadata, cancellationToken)
+			.ConfigureAwait(false);
 
 		try
 		{
@@ -302,13 +329,13 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// Check if the system is running in FIPS mode
-		// On Windows, this checks the registry setting; on Linux, it checks /proc/sys/crypto/fips_enabled
+		// Ask the detector, which inspects the host: the Windows FIPS policy in the registry, or the Linux
+		// kernel parameter. This deliberately does not consult CryptoConfig.AllowOnlyFipsAlgorithms, which
+		// .NET Core and later hardcode to false regardless of the host, so that a genuinely FIPS-enabled
+		// deployment is reported as compliant instead of being told it is not.
 		try
 		{
-			// .NET's AesGcm uses platform-provided cryptography
-			// On FIPS-enabled systems, it uses FIPS-validated modules
-			var isFipsEnabled = CryptoConfig.AllowOnlyFipsAlgorithms;
+			var isFipsEnabled = _fipsDetector.IsFipsEnabled;
 
 			LogFipsComplianceValidated(isFipsEnabled);
 
@@ -401,23 +428,121 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		return keyMetadata;
 	}
 
+	/// <summary>
+	/// Obtains the key to encrypt with, and the wrapped form to persist alongside the ciphertext when the
+	/// envelope path is used.
+	/// </summary>
+	/// <remarks>
+	/// The direct path is preferred when the provider exposes key material, so a provider that supplies it
+	/// keeps producing exactly what it produced before. The envelope path is used otherwise: a single-use
+	/// data key is generated from a cryptographic random source and handed to the key service to be
+	/// wrapped, which is the only path a KMS can serve without exporting its key.
+	/// </remarks>
+	private async Task<(byte[] Material, WrappedDataKey? Wrapped)> AcquireEncryptionKeyAsync(
+		KeyMetadata keyMetadata,
+		CancellationToken cancellationToken)
+	{
+		if (_keyMaterial is not null)
+		{
+			var material = await _keyMaterial
+				.GetKeyMaterialAsync(keyMetadata.KeyId, keyMetadata.Version, cancellationToken)
+				.ConfigureAwait(false);
+
+			return (material, null);
+		}
+
+		if (_keyWrapping is null)
+		{
+			throw new EncryptionException(Resources.AesGcmEncryptionProvider_KeyMaterialUnavailable)
+			{
+				ErrorCode = EncryptionErrorCode.ServiceUnavailable
+			};
+		}
+
+		// A fresh data key per payload, from the platform CSPRNG. Never a GUID or a general-purpose RNG.
+		var dataKey = RandomNumberGenerator.GetBytes(DataKeySizeBytes);
+
+		try
+		{
+			var wrapped = await _keyWrapping
+				.WrapDataKeyAsync(keyMetadata.KeyId, keyMetadata.Version, dataKey, cancellationToken)
+				.ConfigureAwait(false);
+
+			// A provider returning no wrapped bytes would leave the payload permanently unreadable, so this
+			// fails closed here rather than persisting ciphertext whose key is already gone.
+			if (wrapped is null || wrapped.CiphertextBlob.Length == 0)
+			{
+				throw new EncryptionException(
+					"The key wrapping provider returned an empty wrapped data key. Encryption was abandoned " +
+					"because the resulting ciphertext could never be decrypted.")
+				{
+					ErrorCode = EncryptionErrorCode.ServiceUnavailable
+				};
+			}
+
+			return (dataKey, wrapped);
+		}
+		catch
+		{
+			CryptographicOperations.ZeroMemory(dataKey);
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// Obtains the key to decrypt with, selecting the scheme recorded on the payload itself.
+	/// </summary>
+	/// <remarks>
+	/// The scheme is read from the data rather than from the current wiring, so a payload stays readable
+	/// after the key path is reconfigured.
+	/// </remarks>
+	private async Task<byte[]> AcquireDecryptionKeyAsync(
+		EncryptedData encryptedData,
+		KeyMetadata keyMetadata,
+		CancellationToken cancellationToken)
+	{
+		if (encryptedData.WrappedKey is null)
+		{
+			return await GetKeyMaterialAsync(keyMetadata, cancellationToken).ConfigureAwait(false);
+		}
+
+		if (_keyWrapping is null)
+		{
+			throw new EncryptionException(
+				"This payload was encrypted under an envelope, but the registered key management provider " +
+				"does not implement IKeyWrappingProvider, so its data key cannot be unwrapped. Register the " +
+				"key service that wrapped it.")
+			{
+				ErrorCode = EncryptionErrorCode.ServiceUnavailable
+			};
+		}
+
+		var dataKey = await _keyWrapping
+			.UnwrapDataKeyAsync(
+				encryptedData.KeyId,
+				encryptedData.KeyVersion,
+				encryptedData.WrappedKey,
+				cancellationToken)
+			.ConfigureAwait(false);
+
+		if (dataKey is null || dataKey.Length == 0)
+		{
+			throw new EncryptionException(
+				"The key wrapping provider returned an empty data key when unwrapping. Decryption was " +
+				"abandoned rather than attempted with a substituted key.")
+			{
+				ErrorCode = EncryptionErrorCode.ServiceUnavailable
+			};
+		}
+
+		return dataKey;
+	}
+
 	private Task<byte[]> GetKeyMaterialAsync(KeyMetadata keyMetadata, CancellationToken cancellationToken)
 	{
-		// This is a placeholder - in a real implementation, key material would come from:
-		// - Cloud KMS (AWS KMS, Azure Key Vault, Google Cloud KMS)
-		// - HSM
-		// - Secure key store
-		//
-		// The IKeyManagementProvider interface is intentionally designed to NOT expose
-		// key material directly. A separate internal interface or derived type would
-		// provide key material access to trusted encryption providers.
-		//
-		// For the InMemoryKeyManagementProvider used in development/testing,
-		// we'll use a derived interface.
-
-		if (_keyManagement is IKeyMaterialProvider keyMaterialProvider)
+		if (_keyMaterial is not null)
 		{
-			return keyMaterialProvider.GetKeyMaterialAsync(keyMetadata.KeyId, keyMetadata.Version, cancellationToken);
+			return _keyMaterial.GetKeyMaterialAsync(keyMetadata.KeyId, keyMetadata.Version, cancellationToken);
 		}
 
 		throw new EncryptionException(Resources.AesGcmEncryptionProvider_KeyMaterialUnavailable)

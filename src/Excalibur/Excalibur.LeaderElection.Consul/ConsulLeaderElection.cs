@@ -51,14 +51,21 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	// provider is configured or leadership is not held.
 	// Sentinel for "no current fencing token" — a real monotonic token is never long.MinValue. The field is
 	// accessed via Interlocked from both the acquire/renew flow and the LeaderChanged event raise, so a plain
-	// long? (non-atomic, no memory barrier) could tear or read stale across those threads (wj6b10).
+	// long? (non-atomic, no memory barrier) could tear or read stale across those threads.
 	private const long NoFencingToken = long.MinValue;
 	private long _currentFencingToken = NoFencingToken;
 
-	// 3g58kl: UTC ticks of the instant the current leadership tenure began, accessed via Interlocked
+	// UTC ticks of the instant the current leadership tenure began, accessed via Interlocked
 	// alongside _currentFencingToken (both mutated at the same acquisition site under no lock, mirroring
 	// the existing lock-free field pattern used throughout this type).
 	private long _leadershipAcquiredAtTicks;
+
+	// Timestamp of the last exchange with Consul that CONFIRMED this candidate still holds the lock: a
+	// successful session renewal, a monitor read naming us leader, or the acquisition itself. The grace
+	// period is measured from here, so it bounds how long leadership can be believed without confirmation.
+	// Monotonic (GetTimestamp, not wall clock) because it measures an elapsed interval in this process;
+	// Interlocked because both timer callbacks write it off the thread pool.
+	private long _lastSuccessfulRenewalTicks;
 
 	private ConcurrentBag<Task> _trackedTasks = [];
 	private readonly CancellationTokenSource _shutdownTokenSource = new();
@@ -491,6 +498,11 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		"Error during leadership monitoring for resource '{Resource}'")]
 	partial void LogErrorDuringMonitoring(Exception ex, string resource);
 
+	[LoggerMessage(LeaderElectionEventId.ConsulGracePeriodElapsed, Microsoft.Extensions.Logging.LogLevel.Warning,
+		"Relinquishing leadership for resource '{Resource}': {Elapsed} elapsed since the last confirmed " +
+		"renewal, exceeding the configured grace period of {GracePeriod}")]
+	partial void LogGracePeriodElapsed(string resource, TimeSpan elapsed, TimeSpan gracePeriod);
+
 	/// <summary>
 	/// Creates a new Consul session for leader election with configured health checks and TTL.
 	/// </summary>
@@ -602,6 +614,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 
 				_cachedCurrentLeaderId = CandidateId;
 				Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
+				Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
 				LogAcquiredLeadership(_resourceName);
 
 				// Raise events
@@ -761,6 +774,11 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			{
 				LogSessionRenewalFailed(_resourceName);
 
+				// A null response is Consul TELLING us the session is gone. That is a definitive loss: the
+				// server has already released the lock and another candidate may hold it, so relinquish at
+				// once rather than waiting out the grace period, which exists for the ambiguous case.
+				RelinquishLocally();
+
 				// Session expired, recreate it
 				await CreateSessionAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
 
@@ -772,6 +790,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			}
 			else
 			{
+				Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
 				LogRenewedSession(_resourceName);
 			}
 		}
@@ -781,7 +800,13 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		}
 		catch (Exception ex)
 		{
+			// An exception is AMBIGUOUS about ownership: Consul was unreachable, so the session may still be
+			// alive and renew shortly, or it may already have expired server-side and been handed on.
+			// Relinquishing at once would be a false relinquish on a transient blip; holding indefinitely
+			// would let this candidate act as leader for unbounded time after the server-side TTL lapsed.
+			// The grace period is exactly that bound, and this is where it is enforced.
 			LogErrorDuringRenewal(ex, _resourceName);
+			RelinquishIfGraceElapsed();
 		}
 	}
 
@@ -789,7 +814,25 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	{
 		try
 		{
-			var currentLeader = await FetchCurrentLeaderIdAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
+			var (fetched, currentLeader) = await FetchCurrentLeaderIdAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
+
+			if (!fetched)
+			{
+				// A failed read tells us nothing about who holds the lock. Overwriting the cached leader with
+				// the failure's null would drop leadership on the first transient blip -- a false relinquish
+				// with no grace at all, which is the opposite of the bound this option promises. Leave the
+				// cached value alone and let the same grace period decide, so an unreachable Consul produces
+				// one relinquish after the bound rather than one per failed poll.
+				RelinquishIfGraceElapsed();
+				return;
+			}
+
+			if (string.Equals(currentLeader, CandidateId, StringComparison.Ordinal))
+			{
+				// Consul confirmed us as leader, which is as good a confirmation as a renewal.
+				Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
+			}
+
 			_cachedCurrentLeaderId = currentLeader;
 
 			// Check if leadership changed
@@ -828,11 +871,64 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	}
 
 	/// <summary>
+	/// Relinquishes leadership when the configured grace period has elapsed since the last exchange with
+	/// Consul that confirmed this candidate holds the lock.
+	/// </summary>
+	/// <remarks>
+	/// This is the enforcement site for the framework-wide grace bound on this provider. Consul's own
+	/// session TTL bounds when a DIFFERENT candidate may take the lock; it does not bound how long THIS
+	/// candidate keeps believing it is leader while it cannot reach the server. Without this check the
+	/// two windows are unrelated, and a partitioned incumbent reports leadership indefinitely.
+	/// </remarks>
+	private void RelinquishIfGraceElapsed()
+	{
+		if (!IsLeader)
+		{
+			return;
+		}
+
+		var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
+		if (elapsed > _options.GracePeriod)
+		{
+			LogGracePeriodElapsed(_resourceName, elapsed, _options.GracePeriod);
+			RelinquishLocally();
+		}
+	}
+
+	/// <summary>
+	/// Drops locally-held leadership without contacting Consul.
+	/// </summary>
+	/// <remarks>
+	/// Deliberately does not call <c>KV.Release</c>: this path runs precisely when Consul is unreachable or
+	/// has already invalidated the session, so there is nothing to release and an attempt would block the
+	/// relinquish behind the same unreachable server. The lock is freed server-side by the session TTL.
+	/// </remarks>
+	private void RelinquishLocally()
+	{
+		if (!IsLeader)
+		{
+			return;
+		}
+
+		_cachedCurrentLeaderId = null;
+		_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
+
+		LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+		_lastKnownLeaderId = null;
+	}
+
+	/// <summary>
 	/// Asynchronously fetches the current leader ID from Consul's KV store.
 	/// </summary>
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
-	/// <returns> The current leader's candidate ID, or null if no leader exists. </returns>
-	private async Task<string?> FetchCurrentLeaderIdAsync(CancellationToken cancellationToken)
+	/// <returns>
+	/// <c>Fetched</c> is <see langword="true"/> when Consul answered, in which case <c>LeaderId</c> is the
+	/// current leader's candidate id or <see langword="null"/> for "no leader". <c>Fetched</c> is
+	/// <see langword="false"/> when the read failed, which says nothing about who holds the lock and must
+	/// not be read as "no leader".
+	/// </returns>
+	private async Task<(bool Fetched, string? LeaderId)> FetchCurrentLeaderIdAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -842,8 +938,11 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			if (result.Response is { Value: not null })
 			{
 				var leaderInfo = JsonSerializer.Deserialize(result.Response.Value, ConsulLeaderElectionJsonContext.Default.LeaderInfo);
-				return leaderInfo?.CandidateId;
+				return (true, leaderInfo?.CandidateId);
 			}
+
+			// Consul answered and the key is absent: genuinely no leader.
+			return (true, null);
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
@@ -854,7 +953,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			LogErrorGettingCurrentLeader(ex, _resourceName);
 		}
 
-		return null;
+		return (false, null);
 	}
 
 	/// <summary>

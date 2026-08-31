@@ -8,7 +8,6 @@ using System.Text.RegularExpressions;
 
 using Azure;
 using Azure.Identity;
-using Azure.Security.KeyVault.Keys;
 using Azure.Security.KeyVault.Secrets;
 
 using Microsoft.Extensions.Logging;
@@ -23,7 +22,6 @@ namespace Excalibur.Data.ElasticSearch.Security;
 public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, IDisposable, IAsyncDisposable
 {
 	private readonly SecretClient _secretClient;
-	private readonly KeyClient _keyClient;
 	private readonly ILogger<AzureKeyVaultProvider> _logger;
 	private readonly AzureKeyVaultOptions _options;
 	private readonly SemaphoreSlim _operationSemaphore;
@@ -56,7 +54,6 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			var vaultUri = new Uri(_options.VaultUri);
 
 			_secretClient = new SecretClient(vaultUri, credential);
-			_keyClient = new KeyClient(vaultUri, credential);
 
 			_operationSemaphore = new SemaphoreSlim(_options.MaxConcurrentOperations, _options.MaxConcurrentOperations);
 
@@ -71,6 +68,23 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			_logger.LogError(ex, "Failed to initialize Azure Key Vault provider for vault {VaultUri}", _options.VaultUri);
 			throw new SecurityException("Failed to initialize Azure Key Vault provider", ex);
 		}
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AzureKeyVaultProvider" /> class over a caller-supplied
+	/// <see cref="SecretClient" />, so the vault can be substituted without reaching the network.
+	/// </summary>
+	internal AzureKeyVaultProvider(
+		SecretClient secretClient,
+		IOptions<AzureKeyVaultOptions> options,
+		ILogger<AzureKeyVaultProvider> logger)
+	{
+		_secretClient = secretClient ?? throw new ArgumentNullException(nameof(secretClient));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_operationSemaphore = new SemaphoreSlim(_options.MaxConcurrentOperations, _options.MaxConcurrentOperations);
+		_healthCheckTimer = new Timer(PerformHealthCheck, state: null,
+			TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15));
 	}
 
 	/// <inheritdoc />
@@ -182,10 +196,25 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	}
 
 	/// <inheritdoc />
-	public async Task<bool> SetSecretAsync(
+	public Task<bool> SetSecretAsync(
 		string keyName,
 		string secretValue,
 		SecretMetadata? metadata,
+		CancellationToken cancellationToken) =>
+		SetSecretCoreAsync(keyName, secretValue, metadata, SecretOperation.Write, cancellationToken);
+
+	/// <summary>
+	/// Stores a secret, optionally raising a <see cref="SecretAccessed"/> record for the store itself.
+	/// </summary>
+	/// <remarks>
+	/// When <c> auditOperation </c> is <see langword="null" /> the caller is a higher-level operation that records
+	/// itself. One operation produces one audit record: a rotation is audited as a rotation, never as a plain write.
+	/// </remarks>
+	private async Task<bool> SetSecretCoreAsync(
+		string keyName,
+		string secretValue,
+		SecretMetadata? metadata,
+		SecretOperation? auditOperation,
 		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(keyName))
@@ -216,8 +245,11 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			_ = await _secretClient.SetSecretAsync(secret, cancellationToken).ConfigureAwait(false);
 
 			// Raise secret accessed event for auditing
-			SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
-				keyName, SecretOperation.Write, DateTimeOffset.UtcNow, GetCurrentUserId()));
+			if (auditOperation is { } operation)
+			{
+				SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
+					keyName, operation, DateTimeOffset.UtcNow, GetCurrentUserId()));
+			}
 
 			_logger.LogInformation("Secret {SecretName} stored successfully in Azure Key Vault", secretName);
 			return true;
@@ -359,11 +391,26 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	}
 
 	/// <inheritdoc />
-	public async Task<KeyGenerationResult> GenerateEncryptionKeyAsync(
+	public Task<KeyGenerationResult> GenerateEncryptionKeyAsync(
 		string keyName,
 		EncryptionKeyType keyType,
 		int keySize,
 		SecretMetadata? metadata,
+		CancellationToken cancellationToken) =>
+		GenerateEncryptionKeyCoreAsync(keyName, keyType, keySize, metadata, SecretOperation.Write, cancellationToken);
+
+	/// <summary>
+	/// Generates and stores new key material, optionally auditing the store.
+	/// </summary>
+	/// <remarks>
+	/// When <c> auditOperation </c> is <see langword="null" /> the caller audits the operation itself.
+	/// </remarks>
+	private async Task<KeyGenerationResult> GenerateEncryptionKeyCoreAsync(
+		string keyName,
+		EncryptionKeyType keyType,
+		int keySize,
+		SecretMetadata? metadata,
+		SecretOperation? auditOperation,
 		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(keyName))
@@ -382,7 +429,8 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			};
 
 			var keyDataBase64 = Convert.ToBase64String(keyData);
-			var success = await SetSecretAsync(keyName, keyDataBase64, metadata, cancellationToken).ConfigureAwait(false);
+			var success = await SetSecretCoreAsync(keyName, keyDataBase64, metadata, auditOperation, cancellationToken)
+				.ConfigureAwait(false);
 
 			if (!success)
 			{
@@ -438,8 +486,10 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 
 			var previousVersion = await GetKeyVersionAsync(keyName, cancellationToken).ConfigureAwait(false) ?? "unknown";
 
-			// Generate new key with same parameters
-			var generationResult = await GenerateEncryptionKeyAsync(keyName, keyType, keySize, currentMetadata, cancellationToken)
+			// Generate new key with same parameters. The store is NOT audited as a Write: a rotation is one
+			// operation and produces one audit record, raised below as SecretOperation.Rotate.
+			var generationResult = await GenerateEncryptionKeyCoreAsync(
+				keyName, keyType, keySize, currentMetadata, auditOperation: null, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (!generationResult.Success)
@@ -451,7 +501,13 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 
 			var newKeyVersion = generationResult.KeyVersion ?? throw new InvalidOperationException($"Key generation succeeded for '{keyName}' but KeyVersion is null.");
 
-			// Raise key rotation event
+			// The audit record for the rotation. SecretAccessed carries every operation that touches secret
+			// material, so a consumer auditing key access sees the rotation here rather than inferring it.
+			SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(
+				keyName, SecretOperation.Rotate, DateTimeOffset.UtcNow, GetCurrentUserId()));
+
+			// The lifecycle notification, carrying the new version for cache invalidation and re-wrapping. It is a
+			// separate channel with a separate audience and is not a duplicate of the audit record above.
 			KeyRotated?.Invoke(this, new KeyRotatedEventArgs(
 				keyName, newKeyVersion, DateTimeOffset.UtcNow, nextRotationDue));
 

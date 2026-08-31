@@ -240,7 +240,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore,
 		var options = new ReplaceOptions { IsUpsert = true };
 
 		var result = await _collection!.ReplaceOneAsync(filter, document, options, cancellationToken).ConfigureAwait(false);
-		LogGrantSaved(grant.UserId, grant.TenantId ?? "null", grant.GrantType, grant.Qualifier);
+		LogGrantSaved(grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier);
 
 		return result.ModifiedCount > 0 || result.UpsertedId is not null ? 1 : 0;
 	}
@@ -262,7 +262,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore,
 		foreach (var doc in documents)
 		{
 			var grant = doc.ToGrant();
-			var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
+			var key = $"{grant.TenantId}:{grant.GrantType}:{grant.Qualifier}";
 			result[key] = grant;
 		}
 

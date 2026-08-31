@@ -128,7 +128,7 @@ ex.Data["StatusCode"] = 403;
 throw ex;
 ```
 
-Similarly, `GetErrorCode()` extracts application-specific error codes using the same lookup strategy (`ErrorCode` property or `Data` dictionary entry).
+Similarly, `GetErrorCode()` returns the error code as text. A `DispatchException` answers with its own `ErrorCode`; any other exception is searched with the same lookup strategy (`ErrorCode` property or `Data` dictionary entry), and a numeric code is rendered as text.
 
 ## Configuration
 
@@ -186,7 +186,7 @@ The handler logs every exception using source-generated `[LoggerMessage]` with s
 [APPL]<== ERROR 404: Order 'abc-123' was not found.
 ```
 
-Log entries include `TraceId` and `ExceptionId` in the logging scope, enabling correlation across distributed traces and support tickets. The event ID is `ExcaliburHostingEventId.GlobalExceptionOccurred`.
+Log entries include `TraceId` and `ExceptionId` in the logging scope, enabling correlation across distributed traces and support tickets. The event ID is `162510`.
 
 ## Full Web Host Middleware Stack
 

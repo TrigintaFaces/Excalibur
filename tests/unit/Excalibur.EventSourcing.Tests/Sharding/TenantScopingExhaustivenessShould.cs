@@ -7,6 +7,7 @@ using System.Reflection;
 using Excalibur.Compliance;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Erasure;
 using Excalibur.EventSourcing.Sharding;
@@ -38,7 +39,9 @@ namespace Excalibur.EventSourcing.Tests.Sharding;
 /// fail-closed tenant-scoping <em>decorator</em>.
 /// </item>
 /// <item>
-/// <b>Marker-only set</b> (<see cref="IInboxStore"/>, <see cref="IOutboxStore"/>,
+/// <b>Marker-only set</b> (<see cref="IInboxStore"/>, <see cref="IOutboxStore"/> - the latter gated on
+/// <see cref="ITenantPartitionedCapability{TContract}"/> rather than the scoping marker,
+
 /// <see cref="IEventStoreErasure"/>, <see cref="IErasureStore"/>, <see cref="ILegalHoldStore"/>): the marker
 /// is enforced at registration but the store is <em>not</em>
 /// decorated. A tenant decorator on the cross-tenant outbox drain would read the ambient tenant as absent,
@@ -73,7 +76,34 @@ public sealed class TenantScopingExhaustivenessShould
     /// </remarks>
     private static readonly ImmutableHashSet<Type> MarkerOnlyContracts =
         [typeof(IInboxStore), typeof(IOutboxStore), typeof(IEventStoreErasure),
-         typeof(IErasureStore), typeof(ILegalHoldStore)];
+         typeof(IErasureStore), typeof(ILegalHoldStore),
+
+         // The audit store is gated and not wrapped: multi-tenancy requires its capability marker
+         // and registers no decorator for it, so the tenant term is applied inside the store like
+         // the erasure and legal-hold stores rather than by a wrapper.
+         typeof(Excalibur.Compliance.IAuditStore),
+
+         // The snapshot and dead-letter stores apply the ambient tenant inside the store -- it is
+         // part of the key each one builds -- so they are gated and not wrapped, like the erasure
+         // and legal-hold stores above. IColdEventStore is gated and deliberately unprovided: no
+         // provider can present the marker because blob storage cannot row-scope, which is what
+         // makes its gate a fail-fast tripwire for an unsupported combination rather than a
+         // requirement anyone is meant to satisfy.
+         typeof(ISnapshotStore), typeof(IDeadLetterQueue), typeof(IColdEventStore),
+
+         // The compliance store is gated and not wrapped, on the same reasoning as erasure and legal
+         // hold: both shipped providers bind the ambient tenant term inside the store -- the Mongo one
+         // composes it into the upsert key -- so a decorator would add a second filter over a store
+         // that already filters, without repairing the first.
+         typeof(Excalibur.Compliance.IComplianceStore),
+
+         // The poison-message dead-letter STORE, distinct from IDeadLetterQueue above. Gated and not
+         // wrapped: every shipped provider stamps the ambient term on write and binds it on read, taking
+         // the tenant from context rather than from a filter the caller supplies, so a wrapper would add
+         // a second filter over a store that already filters. Decorating it would also be actively wrong
+         // here -- the contract routes optional capabilities through GetService precisely because casting
+         // is lossy through a wrapper -- but that is a consequence, not the reason it sits in this tier.
+         typeof(IDeadLetterStore)];
 
     /// <summary>
     /// Theory source: every contract in the committed <c>TenantOwnedContracts.All</c> manifest, read by
@@ -111,10 +141,25 @@ public sealed class TenantScopingExhaustivenessShould
         var ex = Should.Throw<InvalidOperationException>(() =>
             services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
 
-        ex.Message.ShouldContain("not tenant-scoping-capable");
+        ex.Message.ShouldContain(
+            ExpectedCapabilityPhrase(contract),
+            customMessage: "The rejection must describe the capability that is missing, not merely that "
+            + "something is. The outbox is gated on a different capability from every other contract - it "
+            + "carries the tenant on the row rather than reading an ambient one - and a message that said "
+            + "otherwise would send a consumer to make their outbox ambient-scoped, which stalls the drain.");
         ex.Message.ShouldContain(ExpectedContractName(contract));
         ex.Message.ShouldContain(nameof(TenantIsolationStrategy.RowDiscriminator));
     }
+
+    /// <summary>
+    /// The phrase the rejection must carry for a given contract. Two gates exist, because two different
+    /// capabilities are demanded: ambient tenant scoping for the stores that apply the ambient discriminator,
+    /// and row-carried tenancy for the outbox, whose drain is deliberately estate-wide.
+    /// </summary>
+    private static string ExpectedCapabilityPhrase(Type contract) =>
+        contract == typeof(IOutboxStore)
+            ? "does not persist the tenant discriminator on each row"
+            : "not tenant-scoping-capable";
 
     // ---- LIVENESS tier 1: the decoratable set resolves to its fail-closed decorator -----------------------
 
@@ -183,7 +228,14 @@ public sealed class TenantScopingExhaustivenessShould
         using var provider = BuildMarkedProvider(services =>
         {
             services.AddSingleton(outbox);
-            services.AddSingleton(A.Fake<ITenantScopingCapability<IOutboxStore>>());
+
+            // The outbox is gated on ITenantPartitionedCapability, NOT ITenantScopingCapability, and the
+            // difference is the invariant this arm now pins. The scoping marker attests that a store applies
+            // the AMBIENT tenant to every operation; an outbox that did so would read the tenant as absent at
+            // drain time and claim the empty set. The partitioned marker attests the mechanism a correct
+            // outbox does implement - the discriminator travels on the row and the owning tenant is
+            // re-established from it. Swapping this back to the scoping marker makes the gate throw.
+            services.AddSingleton(A.Fake<ITenantPartitionedCapability<IOutboxStore>>());
         });
 
         provider.GetRequiredService<IOutboxStore>().ShouldBeSameAs(outbox);
@@ -288,6 +340,30 @@ public sealed class TenantScopingExhaustivenessShould
         else if (contract == typeof(ILegalHoldStore))
         {
             services.AddSingleton(A.Fake<ILegalHoldStore>());
+        }
+        else if (contract == typeof(ISnapshotStore))
+        {
+            services.AddSingleton(A.Fake<ISnapshotStore>());
+        }
+        else if (contract == typeof(IDeadLetterQueue))
+        {
+            services.AddSingleton(A.Fake<IDeadLetterQueue>());
+        }
+        else if (contract == typeof(IColdEventStore))
+        {
+            services.AddSingleton(A.Fake<IColdEventStore>());
+        }
+        else if (contract == typeof(Excalibur.Compliance.IAuditStore))
+        {
+            services.AddSingleton(A.Fake<Excalibur.Compliance.IAuditStore>());
+        }
+        else if (contract == typeof(Excalibur.Compliance.IComplianceStore))
+        {
+            services.AddSingleton(A.Fake<Excalibur.Compliance.IComplianceStore>());
+        }
+        else if (contract == typeof(IDeadLetterStore))
+        {
+            services.AddSingleton(A.Fake<IDeadLetterStore>());
         }
         else
         {

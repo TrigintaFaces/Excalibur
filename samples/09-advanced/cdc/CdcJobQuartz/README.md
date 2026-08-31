@@ -143,25 +143,34 @@ chmod +x setup-databases.sh
 ./setup-databases.sh
 ```
 
-This prepares **SQL Server #1** (port 1433): it creates `LegacyDb`, enables CDC, and creates the
-source tables.
+This applies `scripts/setup-databases.sql` in full, each section to the server it targets:
+**Section 1** against **SQL Server #1** (port 1433) — creates `LegacyDb`, enables CDC, and creates
+the source tables — and **Section 2** against **SQL Server #2** (port 1434) — creates the
+`EventStore` database and its tables.
 
-### 4. Create the Event Store Schema
+The framework does **not** auto-create the event-store tables:
+`Excalibur.EventSourcing.SqlServer` ships DDL under its `Scripts/` folder and runs none of it at
+startup. If the event-store schema is missing, the application starts and then fails on its first
+write. That is why the script applies Section 2 rather than leaving it to you.
 
-**`setup-databases.sh` does not create the event-store tables.** The framework does not
-auto-create them either, so this step is required — without it the application starts and then
-fails on its first write.
+### 4. What the Script Created
 
-Run **Section 2** of `scripts/setup-databases.sql` against **SQL Server #2 (port 1434)**:
+`setup-databases.sql` spans **two servers** and is not runnable end-to-end against a single
+instance — Section 1 targets the CDC source (port 1433) and Section 2 targets the event store
+(port 1434). The script splits it at the Section 2 banner and applies each half to its own server.
+If you would rather apply it by hand, run each section separately:
 
 ```bash
-docker exec -i excalibur-sqlserver-eventstore-job /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U sa -P "$SA_PASSWORD" -C -i /dev/stdin < setup-databases.sql
-```
+# Section 1 -> SQL Server #1 (CDC source)
+awk '/^-- SECTION 2: Run on SQL Server #2/ { exit } { print }' scripts/setup-databases.sql \
+    | docker exec -i excalibur-sqlserver-cdc-job /opt/mssql-tools18/bin/sqlcmd \
+        -S localhost -U sa -P "$SA_PASSWORD" -C -b -i /dev/stdin
 
-`setup-databases.sql` spans **two servers** — Section 1 targets the CDC source (port 1433) and
-Section 2 targets the event store (port 1434). Apply each section to its own server; the file is
-not runnable end-to-end against a single instance.
+# Section 2 -> SQL Server #2 (event store)
+awk '/^-- SECTION 2: Run on SQL Server #2/ { f = 1 } f { print }' scripts/setup-databases.sql \
+    | docker exec -i excalibur-sqlserver-eventstore-job /opt/mssql-tools18/bin/sqlcmd \
+        -S localhost -U sa -P "$SA_PASSWORD" -C -b -i /dev/stdin
+```
 
 Section 2 creates:
 

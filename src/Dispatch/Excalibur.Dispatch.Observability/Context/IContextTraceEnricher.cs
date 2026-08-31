@@ -4,6 +4,8 @@
 
 using System.Diagnostics;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Observability.Context;
 
 /// <summary>
@@ -16,10 +18,8 @@ public interface IContextTraceEnricher
 	/// </summary>
 	/// <param name="activity"> The activity to enrich. </param>
 	/// <param name="context"> The message context providing enrichment data. </param>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresUnreferencedCode("Context values are serialized with the reflection-based JSON serializer; supply source-generated serialization for trimming and AOT.")]
+	[RequiresDynamicCode("Context values are serialized with the reflection-based JSON serializer; supply source-generated serialization for trimming and AOT.")]
 	void EnrichActivity(Activity? activity, IMessageContext context);
 
 	/// <summary>
@@ -29,10 +29,8 @@ public interface IContextTraceEnricher
 	/// <param name="context"> The message context associated with the span. </param>
 	/// <param name="kind"> The span kind to create. </param>
 	/// <returns> The created activity, if any. </returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresUnreferencedCode("Context values are serialized with the reflection-based JSON serializer; supply source-generated serialization for trimming and AOT.")]
+	[RequiresDynamicCode("Context values are serialized with the reflection-based JSON serializer; supply source-generated serialization for trimming and AOT.")]
 	Activity? CreateContextOperationSpan(string operationName, IMessageContext context, ActivityKind kind = ActivityKind.Internal);
 
 	/// <summary>

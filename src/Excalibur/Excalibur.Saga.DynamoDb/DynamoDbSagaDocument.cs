@@ -18,7 +18,7 @@ namespace Excalibur.Saga.DynamoDb;
 /// Uses single-table design with the following key structure:
 /// </para>
 /// <list type="bullet">
-/// <item><description>PK: SAGA#{sagaId} - Partition by saga</description></item>
+/// <item><description>PK: SAGA#t:{tenantId}:{sagaId} - Partition by tenant AND saga</description></item>
 /// <item><description>SK: {sagaType} - Sort key for multi-type queries</description></item>
 /// </list>
 /// </remarks>
@@ -47,11 +47,52 @@ internal static class DynamoDbSagaDocument
 	public const string SagaPrefix = "SAGA#";
 
 	/// <summary>
-	/// Creates the partition key value for a given saga ID.
+	/// The segment every partition key carries ahead of the owning tenant, after <see cref="SagaPrefix"/>.
 	/// </summary>
+	public const string TenantKeyPrefix = "t:";
+
+	/// <summary>
+	/// The complete leading prefix of every saga partition key this release writes:
+	/// <see cref="SagaPrefix"/> followed by <see cref="TenantKeyPrefix"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The tenant segment is NOT the leading one on this provider - the item-kind discriminator is, because
+	/// the table is a single-table design and may hold items that are not sagas at all. A probe that tested
+	/// <c>begins_with(PK, "t:")</c> would therefore match nothing and report every table clean; one that
+	/// tested <c>NOT begins_with(PK, "t:")</c> would match everything and report every table dirty. Both are
+	/// wrong in the same way, and the composed prefix is what makes the test say what it means.
+	/// </para>
+	/// <para>
+	/// Declared once and consumed by both <see cref="CreatePK"/> and the store's legacy-item probe, so the
+	/// shape the store writes and the shape it refuses to read cannot drift apart.
+	/// </para>
+	/// </remarks>
+	public const string TenantedPartitionKeyPrefix = SagaPrefix + TenantKeyPrefix;
+
+	/// <summary>
+	/// Creates the partition key value for a given tenant and saga ID.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The tenant belongs to the item's IDENTITY, which is a different property from the tenant term the
+	/// write condition carries. The condition decides whether this scope may write an item; the identity
+	/// decides which items can exist at all. Keyed on the saga identifier alone, two tenants running a saga
+	/// at the same business key are ONE item, so the condition that correctly refuses a cross-tenant
+	/// overwrite also refuses the second tenant its own saga -- an estate-wide uniqueness constraint on the
+	/// saga identifier rather than an isolation control.
+	/// </para>
+	/// <para>
+	/// The tenant term is total (never null, never empty): a host with no tenancy resolves the framework
+	/// single-tenant default and a genuinely untenanted saga resolves the reserved untenanted sentinel, so
+	/// every partition key carries a tenant segment and none can be produced without one.
+	/// </para>
+	/// </remarks>
+	/// <param name="tenantId">The owning tenant term, as resolved from the store's scope.</param>
 	/// <param name="sagaId">The saga identifier.</param>
 	/// <returns>The partition key value.</returns>
-	public static string CreatePK(Guid sagaId) => $"{SagaPrefix}{sagaId}";
+	public static string CreatePK(string tenantId, Guid sagaId) =>
+		$"{TenantedPartitionKeyPrefix}{tenantId}:{sagaId}";
 
 	/// <summary>
 	/// Creates the sort key value for a given saga type.
@@ -71,6 +112,7 @@ internal static class DynamoDbSagaDocument
 	/// </param>
 	/// <param name="createdUtc">The creation timestamp.</param>
 	/// <param name="updatedUtc">The update timestamp.</param>
+	/// <param name="tenantId">The owning tenant term, which forms the leading segment of the partition key.</param>
 	/// <param name="ttlSeconds">Optional TTL in seconds (0 = no TTL).</param>
 	/// <returns>The DynamoDB item attributes.</returns>
 	public static Dictionary<string, AttributeValue> FromSagaState<TSagaState>(
@@ -79,13 +121,14 @@ internal static class DynamoDbSagaDocument
 		long newVersion,
 		DateTimeOffset createdUtc,
 		DateTimeOffset updatedUtc,
+		string tenantId,
 		int ttlSeconds = 0)
 		where TSagaState : SagaState
 	{
 		var sagaType = typeof(TSagaState).Name;
 		var item = new Dictionary<string, AttributeValue>
 		{
-			[PK] = new() { S = CreatePK(sagaState.SagaId) },
+			[PK] = new() { S = CreatePK(tenantId, sagaState.SagaId) },
 			[SK] = new() { S = CreateSK(sagaType) },
 			[SagaId] = new() { S = sagaState.SagaId.ToString() },
 			[SagaType] = new() { S = sagaType },

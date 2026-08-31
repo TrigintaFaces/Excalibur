@@ -70,7 +70,9 @@ public sealed class CosmosDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 		});
 
 		return Task.FromResult<ISagaStore>(
-			new CosmosDbSagaStore(_fixture.Client, options, NullLogger<CosmosDbSagaStore>.Instance, new DispatchJsonSerializer()));
+			new CosmosDbSagaStore(
+				_fixture.Client, options, NullLogger<CosmosDbSagaStore>.Instance, new DispatchJsonSerializer(),
+				SingleTenantTestContext.Instance));
 	}
 
 	/// <inheritdoc/>

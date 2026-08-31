@@ -11,8 +11,10 @@ dotnet add package Excalibur.Compliance
 ## Quick Start
 
 ```csharp
-// Add Excalibur.Compliance to your service configuration
-services.AddCompliance();
+// Encryption at rest with an in-memory key manager (development default).
+services.AddComplianceEncryption(compliance => compliance
+    .WithEncryption()
+    .WithInMemoryKeyManagement());
 ```
 
 ## Documentation
@@ -21,4 +23,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

@@ -29,6 +29,27 @@ namespace Excalibur.Security;
 /// </remarks>
 public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvider
 {
+	/// <summary>
+	/// The smallest curve this provider will sign or verify with, in bits.
+	/// </summary>
+	/// <remarks>
+	/// The curve is carried by the consumer's key, not chosen here, so without this floor a P-224 key
+	/// would be accepted silently and produce a signature weaker than the documented strength. A
+	/// stronger curve than the minimum is accepted: it can only improve on the guarantee.
+	/// </remarks>
+	private const int MinimumCurveSizeInBits = 256;
+
+	private static void RejectCurvesBelowTheMinimum(ECDsa ecdsa)
+	{
+		if (ecdsa.KeySize < MinimumCurveSizeInBits)
+		{
+			throw new CryptographicException(
+				$"The supplied ECDSA key uses a {ecdsa.KeySize}-bit curve. This provider requires at " +
+				$"least {MinimumCurveSizeInBits} bits (P-256 or stronger), because it pairs the signature " +
+				"with SHA-256 and a smaller curve would be the weakest link.");
+		}
+	}
+
 	/// <inheritdoc />
 	public bool SupportsAlgorithm(SigningAlgorithm algorithm)
 		=> algorithm == SigningAlgorithm.ECDSASHA256;
@@ -47,13 +68,16 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 		{
 			using var ecdsa = ECDsa.Create();
 			ecdsa.ImportPkcs8PrivateKey(keyMaterial, out _);
+			RejectCurvesBelowTheMinimum(ecdsa);
 			var signature = ecdsa.SignData(data, HashAlgorithmName.SHA256,
 				DSASignatureFormat.Rfc3279DerSequence);
 			return Task.FromResult(signature);
 		}
 		catch (CryptographicException ex)
 		{
-			throw new SigningException("ECDSA signing failed. Verify that the key material is a valid PKCS#8 private key.", ex);
+			throw new SigningException(
+				"ECDSA signing failed. Verify that the key material is a valid PKCS#8 private key on a "
+				+ "P-256 or stronger curve.", ex);
 		}
 	}
 
@@ -73,13 +97,16 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 		{
 			using var ecdsa = ECDsa.Create();
 			ecdsa.ImportSubjectPublicKeyInfo(keyMaterial, out _);
+			RejectCurvesBelowTheMinimum(ecdsa);
 			var result = ecdsa.VerifyData(data, signature, HashAlgorithmName.SHA256,
 				DSASignatureFormat.Rfc3279DerSequence);
 			return Task.FromResult(result);
 		}
 		catch (CryptographicException ex)
 		{
-			throw new VerificationException("ECDSA verification failed. Verify that the key material is a valid SubjectPublicKeyInfo.", ex);
+			throw new VerificationException(
+				"ECDSA verification failed. Verify that the key material is a valid SubjectPublicKeyInfo on a "
+				+ "P-256 or stronger curve.", ex);
 		}
 	}
 }

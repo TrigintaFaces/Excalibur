@@ -20,13 +20,6 @@ public sealed class CachingTelemetryConstantsShould
 	}
 
 	[Fact]
-	public void HaveCorrectActivitySourceName()
-	{
-		// Assert
-		CachingTelemetryConstants.ActivitySourceName.ShouldBe("Excalibur.Caching");
-	}
-
-	[Fact]
 	public void HaveCorrectVersion()
 	{
 		// Assert

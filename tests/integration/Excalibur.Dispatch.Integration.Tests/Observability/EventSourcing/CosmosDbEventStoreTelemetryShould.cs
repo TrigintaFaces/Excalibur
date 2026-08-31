@@ -19,9 +19,11 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// <remarks>
 /// <para>
 /// In CI the emulator is required, not optional: an unavailable emulator fails this suite with a named
-/// diagnostic rather than skipping it. A skipped test reports as a pass, so a suite that skips whenever
-/// its dependency is missing reports green precisely when it has verified nothing — and this is the only
-/// place the CosmosDb provider's telemetry is exercised.
+/// diagnostic rather than skipping it. A skipped test is recorded as not-executed, so it is not counted
+/// as a pass — but the run still exits green with no failures, and this is the only place the CosmosDb
+/// provider's telemetry is exercised. A skip here is therefore a silent hole in CI coverage even though
+/// the counters describe it honestly, which is why CI fails instead. The counter that shows it is
+/// executed against expected; failed-count and exit code cannot.
 /// </para>
 /// <para>
 /// Outside CI the emulator remains optional, so a developer without a container runtime gets a skip
@@ -498,7 +500,8 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 				$"The CosmosDb emulator is REQUIRED in CI and was unavailable: " +
 				$"{nameof(CosmosDbEventStoreTelemetryTestFixture)} failed to initialize, so " +
 				$"{nameof(CosmosDbEventStoreTelemetryShould)} could verify nothing. This suite must not " +
-				$"skip in CI — a skip reports as a pass. Check that a container runtime is present and " +
+				$"skip in CI: a skipped run still exits green with zero failures, so nothing in the " +
+				$"result summary would report the gap. Check that a container runtime is present and " +
 				$"that the emulator image started.");
 		}
 		else

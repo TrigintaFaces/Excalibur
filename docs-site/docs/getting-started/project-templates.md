@@ -298,7 +298,7 @@ Templates reference Excalibur packages via a configurable MSBuild property:
 
 ```xml
 <PropertyGroup>
-  <ExcaliburDispatchVersion>0.1.0-*</ExcaliburDispatchVersion>
+  <ExcaliburDispatchVersion>10.*</ExcaliburDispatchVersion>
 </PropertyGroup>
 ```
 

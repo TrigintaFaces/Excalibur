@@ -78,7 +78,6 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Selects profiles using compatibility checks that rely on reflection.")]
 	public IPipelineProfile? SelectProfile(IDispatchMessage message)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -109,11 +108,14 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	/// <summary>
 	/// Core profile selection logic. Called once per message type, then cached.
 	/// </summary>
-	[RequiresUnreferencedCode("Selects profiles using compatibility checks that rely on reflection.")]
 	private IPipelineProfile? SelectProfileCore(IDispatchMessage message)
 	{
 		// Determine message kinds
-		var messageKinds = _applicabilityStrategy?.DetermineMessageKinds(message) ?? MessageKinds.All;
+		// One classifier answers this question. Without a configured strategy the default one is used
+		// directly rather than assuming a kind, so profile selection cannot disagree with middleware
+		// applicability about what a message is.
+		var messageKinds = _applicabilityStrategy?.DetermineMessageKinds(message)
+			?? Delivery.DefaultMiddlewareApplicabilityStrategy.DetermineMessageKinds(message.GetType());
 
 		// Snapshot values to avoid repeated dictionary enumeration
 		var profileValues = _profiles.Values;
@@ -162,7 +164,6 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	/// <summary>
 	/// Checks whether a profile is compatible with a message by delegating to <see cref="IPipelineProfileMatcher"/>.
 	/// </summary>
-	[RequiresUnreferencedCode("Uses reflection to determine message kind.")]
 	private static bool IsProfileCompatible(IPipelineProfile profile, IDispatchMessage message) =>
 		profile is IPipelineProfileMatcher matcher && matcher.IsCompatible(message);
 
@@ -212,7 +213,7 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	{
 		// Register the built-in profiles with their REAL middleware lists.
 		// Previously these registered empty PipelineProfile.Create*Profile() shells
-		// (Array.Empty<Type>(), "filled by synthesizer per R7.6") while the only
+		// (Array.Empty<Type>(), "filled by synthesizer") while the only
 		// registrar carrying real middleware (DefaultPipelineProfiles) had zero call
 		// sites and was dead code. The synthesizer never ran (it short-circuits when
 		// the registry is non-empty), so "default" was never registered and the empty

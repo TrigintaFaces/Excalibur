@@ -7,11 +7,10 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// xUnit collection definition for Firestore EventStore integration tests.
 /// Collection definitions must be in the same assembly as the tests.
 /// </summary>
-[CollectionDefinition(CollectionName)]
-public class FirestoreEventStoreTestCollection : ICollectionFixture<FirestoreEventStoreContainerFixture>
+public static class FirestoreEventStoreTestCollection
 {
 	/// <summary>
 	/// The collection name used by test classes.
 	/// </summary>
-	public const string CollectionName = "Firestore EventStore Integration Tests";
+	public const string CollectionName = global::Excalibur.Integration.Tests.FirestoreSerialCollection.CollectionName;
 }

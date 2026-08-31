@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Grpc.Core;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Messaging;
@@ -108,7 +109,16 @@ public static class SagaBuilderFirestoreExtensions
 			var projectId = firestoreBuilder.ProjectIdValue ?? "emulator-project";
 			var emulatorHost = firestoreBuilder.EmulatorHostValue;
 			builder.Services.TryAddSingleton(_ =>
-				new FirestoreDbBuilder { ProjectId = projectId, EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly, Endpoint = emulatorHost }.Build());
+				new FirestoreDbBuilder
+				{
+					ProjectId = projectId,
+
+					// Endpoint and EmulatorDetection.EmulatorOnly are mutually exclusive: setting both
+					// throws "Endpoint is set, contrary to use of EmulatorDetection.EmulatorOnly", so this
+					// registration could not resolve a client at all when an emulator host was configured.
+					Endpoint = emulatorHost,
+					ChannelCredentials = ChannelCredentials.Insecure,
+				}.Build());
 		}
 		else if (firestoreBuilder.ProjectIdValue is not null)
 		{
@@ -117,7 +127,13 @@ public static class SagaBuilderFirestoreExtensions
 		}
 
 		// Register store services
-		builder.Services.TryAddSingleton<FirestoreSagaStore>();
+		_ = builder.Services.AddDefaultTenantContext();
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the store
+		// through THIS path, while the sibling entry point in the same package looks done.
+		_ = builder.Services.AddTenantAwareStore<ISagaStore, FirestoreSagaStore>();
 		builder.Services.AddKeyedSingleton<ISagaStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreSagaStore>());
 		builder.Services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("firestore"));

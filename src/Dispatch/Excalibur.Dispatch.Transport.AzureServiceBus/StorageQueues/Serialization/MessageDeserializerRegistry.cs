@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>
 /// AOT-safe registry that maps message type names to their typed deserialization delegates.
-/// Populated at DI composition time via <see cref="MessageDeserializerRegistryPopulator"/>,
+/// Populated when the registry is first resolved from the registrations accumulated at DI composition time,
 /// eliminating the need for <see cref="System.Reflection.MethodInfo.MakeGenericMethod"/>
 /// at runtime.
 /// </summary>
@@ -20,8 +20,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// This follows the Explicit-Generic-DI Registry pattern established in Excalibur.Saga
 /// and Excalibur.Dispatch.Caching. During DI composition, each
 /// <c>AddStorageQueueMessage&lt;TMessage&gt;()</c> call accumulates a typed registration action.
-/// On first options resolution, the <see cref="MessageDeserializerRegistryPopulator"/> drains
-/// the accumulated actions and freezes the registry.
+/// The registry factory drains the accumulated actions and freezes the registry on first resolution.
 /// </para>
 /// </remarks>
 internal sealed class MessageDeserializerRegistry

@@ -146,29 +146,6 @@ public sealed class PerformanceRecordsShould
 		metrics.ThroughputOperationsPerSecond.ShouldBe(1000.0);
 	}
 
-	// --- BenchmarkResults ---
-
-	[Fact]
-	public void BenchmarkResults_CreateWithRequiredProperties()
-	{
-		var testDate = DateTimeOffset.UtcNow;
-		var results = new BenchmarkResults
-		{
-			TestDate = testDate,
-			Iterations = 10000,
-			TotalDuration = TimeSpan.FromSeconds(5),
-			MessagesPerSecond = 2000.0,
-			AverageLatencyMs = 0.5,
-		};
-
-		results.TestDate.ShouldBe(testDate);
-		results.Iterations.ShouldBe(10000);
-		results.TotalDuration.ShouldBe(TimeSpan.FromSeconds(5));
-		results.MessagesPerSecond.ShouldBe(2000.0);
-		results.AverageLatencyMs.ShouldBe(0.5);
-		results.PerformanceSnapshot.ShouldBeNull();
-	}
-
 	// --- CacheFreezeStatus ---
 
 	[Fact]

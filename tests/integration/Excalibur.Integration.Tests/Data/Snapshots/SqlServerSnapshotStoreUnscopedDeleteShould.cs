@@ -62,13 +62,22 @@ public sealed class SqlServerSnapshotStoreUnscopedDeleteShould
 	public SqlServerSnapshotStoreUnscopedDeleteShould(SqlServerSnapshotStoreContainerFixture fixture) =>
 		_fixture = fixture;
 
+	// `tenantScoped: false` is the UNSCOPED store these arms are about, and it must keep binding the
+	// reserved untenanted term. A store with no tenant context is no longer constructible, but an absent
+	// context never meant "no term": it became TenantScope.Untenanted, and every keyed statement routed that
+	// through KeyedTenantPartition, which reinterprets None as the untenanted partition. Resolving the
+	// sentinel reproduces that term exactly. The default tenant identity would NOT: it binds an ordinary
+	// tenant, so these arms would stop exercising the untenanted branch — which is the only branch the
+	// empty-predicate defect this file guards can appear on — while still passing.
 	private ISnapshotStore CreateStore(bool tenantScoped) =>
 		new SqlServerSnapshotStore(
 			() => _fixture.CreateConnection(),
 			NullLogger<SqlServerSnapshotStore>.Instance,
-			_fixture.SchemaName,
-			_fixture.TableName,
-			tenantScoped ? new AmbientHolderTenantContext() : null);
+			tenantContext: tenantScoped
+				? new AmbientHolderTenantContext()
+				: UntenantedTestTenantContext.Instance,
+			schema: _fixture.SchemaName,
+			table: _fixture.TableName);
 
 	private static ISnapshot CreateSnapshot(string aggregateId, long version, string data, string? tenantId) =>
 		new SqlServerUnscopedDeleteSnapshot(

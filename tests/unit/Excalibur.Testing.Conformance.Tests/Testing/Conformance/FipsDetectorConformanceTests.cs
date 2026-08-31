@@ -85,4 +85,7 @@ public sealed class FipsDetectorConformanceTests : FipsDetectorConformanceTestKi
 		FipsDetectionResult_Disabled_ShouldCreateCorrectResult();
 
 	#endregion FipsDetectionResult Factory Method Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

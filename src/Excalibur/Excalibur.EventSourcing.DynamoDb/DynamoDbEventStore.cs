@@ -33,19 +33,71 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	/// <summary>The maximum number of items DynamoDB allows in a single <c>TransactWriteItems</c> call.</summary>
 	private const int DynamoTransactItemLimit = 100;
 
+	/// <summary>
+	/// The leading segment every partition key this store writes carries, ahead of the owning tenant.
+	/// </summary>
+	/// <remarks>
+	/// Declared once and consumed by both the key builder and the legacy-item probe, so the shape the store
+	/// writes and the shape it refuses to read cannot drift apart.
+	/// </remarks>
+	private const string TenantKeyPrefix = "t:";
+
+	// Set only once the legacy-item probe has come back clean. Separate from _initialized because the probe
+	// is deliberately NOT on the initialisation path: it runs on the first read that comes back empty, which
+	// is the first moment an unaddressable item could be mistaken for an absent one.
+	private volatile bool _legacyItemsProbed;
+
 	private readonly IAmazonDynamoDB _client;
-	private readonly IAmazonDynamoDBStreams _streamsClient;
+	private readonly IAmazonDynamoDBStreams? _streamsClient;
 	private readonly DynamoDbEventStoreOptions _options;
 	private readonly ILogger<DynamoDbEventStore> _logger;
+	private readonly ITenantContext _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 
 	// The single canonical event contract (camelCase + string-enum + null-ignore) shared by every event
 	// store. Using the default serializer here would write PascalCase / enum-as-number bodies that mis-read
-	// when loaded through the canonical read path (the i2eabb cross-path fault).
+	// when loaded through the canonical read path (the cross-path fault).
 	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
+
+	/// <summary>
+	/// Whether the host supplied an event type-info resolver, selecting the reflection-free serialization
+	/// path. Decided once at construction because the resolver cannot change for a constructed store.
+	/// </summary>
+	private readonly bool _hasEventTypeInfoResolver;
 
 	private volatile bool _initialized;
 	private volatile bool _disposed;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="DynamoDbEventStore" /> class without a Streams client.
+	/// </summary>
+	/// <remarks>
+	/// The store reads and writes events through the DynamoDB client alone; the Streams client is needed
+	/// only to serve a change feed. A store built this way is fully functional for appends, loads, and
+	/// version queries, and reports the change feed as unavailable rather than failing to construct. Use
+	/// the overload that also takes an <see cref="IAmazonDynamoDBStreams" /> to consume the change feed.
+	/// </remarks>
+	/// <param name="client"> The DynamoDB client. </param>
+	/// <param name="options"> The event store options. </param>
+	/// <param name="logger"> The logger. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions events by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
+	public DynamoDbEventStore(
+		IAmazonDynamoDB client,
+		IOptions<DynamoDbEventStoreOptions> options,
+		ILogger<DynamoDbEventStore> logger,
+		ITenantContext tenantContext)
+	{
+		_client = client ?? throw new ArgumentNullException(nameof(client));
+		_streamsClient = null;
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		_hasEventTypeInfoResolver = EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, _options.EventTypeInfoResolver);
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DynamoDbEventStore" /> class.
@@ -54,20 +106,43 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	/// <param name="streamsClient"> The DynamoDB Streams client. </param>
 	/// <param name="options"> The event store options. </param>
 	/// <param name="logger"> The logger. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions events by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public DynamoDbEventStore(
 		IAmazonDynamoDB client,
 		IAmazonDynamoDBStreams streamsClient,
 		IOptions<DynamoDbEventStoreOptions> options,
-		ILogger<DynamoDbEventStore> logger)
+		ILogger<DynamoDbEventStore> logger,
+		ITenantContext tenantContext)
 	{
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_streamsClient = streamsClient ?? throw new ArgumentNullException(nameof(streamsClient));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		_hasEventTypeInfoResolver = EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, _options.EventTypeInfoResolver);
 	}
 
 	/// <inheritdoc />
 	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.DynamoDb;
+
+	/// <summary>
+	/// Returns the DynamoDB Streams client, or throws when this store was constructed without one.
+	/// </summary>
+	/// <returns> The Streams client backing the change-feed operations. </returns>
+	/// <exception cref="InvalidOperationException">
+	/// The store was constructed from a DynamoDB client alone, with no accompanying Streams client, so the
+	/// change feed cannot be served.
+	/// </exception>
+	private IAmazonDynamoDBStreams EnsureStreamsClient() =>
+		_streamsClient ?? throw new InvalidOperationException(
+			"The DynamoDB event store has no DynamoDB Streams client, so the change feed is unavailable. " +
+			"Supply one with the registration's StreamsClient/StreamsClientFactory, or register an " +
+			"IAmazonDynamoDBStreams in the container. Configuring the store by service URL or region " +
+			"builds both clients automatically.");
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)
@@ -81,7 +156,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
 		{
-			return this;
+			// Only advertise the change feed when it can actually be served. Without a Streams client the
+			// capability is genuinely absent, and the contract asks for null rather than an instance that
+			// throws on first use.
+			return _streamsClient is null ? null : this;
 		}
 
 		if (serviceType == typeof(ICloudNativeEventStoreInfo))
@@ -136,6 +214,14 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			} while (request.ExclusiveStartKey?.Count > 0);
+
+			if (events.Count == 0)
+			{
+				// An empty result is the ambiguous one: either this aggregate was never written, or it was
+				// written under the untenanted key shape and is unaddressable now. Refuse before reporting
+				// emptiness to a caller who would read it as a new aggregate.
+				await EnsureEmptyReadIsTrustworthyAsync(cancellationToken).ConfigureAwait(false);
+			}
 
 			LogLoadingEvents(streamId, events.Count);
 
@@ -386,11 +472,15 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		IChangeFeedOptions? options,
 		CancellationToken cancellationToken)
 	{
+		// Refused before the store is touched: a change feed that cannot be served should say so without a
+		// round-trip, and the refusal must not be mistaken for a connectivity fault.
+		var streamsClient = EnsureStreamsClient();
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var subscription = new DynamoDbEventStoreStreamsSubscription(
 			_client,
-			_streamsClient,
+			streamsClient,
 			_options,
 			_logger);
 
@@ -426,6 +516,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		if (response.Items.Count == 0)
 		{
+			// AppendAsync prechecks through here, so guarding this answer also guards the write that would
+			// otherwise start a second, disjoint history at version 0.
+			await EnsureEmptyReadIsTrustworthyAsync(cancellationToken).ConfigureAwait(false);
 			return -1;
 		}
 
@@ -483,12 +576,15 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		{
 			// DynamoDB has no store-wide global sequence across items/streams; global ordering is
 			// unsupported for this provider, so no global first-event position is reported.
-			return AppendResult.CreateSuccess(result.NextExpectedVersion, firstEventPosition: null);
+			// A successful CloudAppendResult always states the version it advanced the stream to.
+			return AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)
 		{
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
+			// A concurrency conflict is the one failure that measured the stream's actual version, so it
+			// always states one.
+			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion!.Value);
 		}
 
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");
@@ -509,8 +605,25 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}
 
-	private static string BuildStreamId(string aggregateType, string aggregateId) =>
-		$"{aggregateType}:{aggregateId}";
+	/// <summary>
+	/// Composes the DynamoDB partition key for one stream, with the owning tenant as its leading segment.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The tenant is part of the stream's IDENTITY rather than a filter applied to it. A filter would scope
+	/// reads while leaving two tenants sharing one item set and one sort-key sequence, so the second tenant
+	/// to use an aggregate identifier would be told it has a concurrency conflict on a stream it never
+	/// wrote. Composing the key gives each tenant its own partition, its own items, and its own version
+	/// sequence, and makes a cross-tenant read unaddressable rather than merely filtered out.
+	/// </para>
+	/// <para>
+	/// The tenant term is total (never null, never empty): a host with no tenancy resolves the framework
+	/// single-tenant default, and a genuinely untenanted row resolves the reserved untenanted sentinel. So
+	/// every key carries a tenant segment and none can be produced without one.
+	/// </para>
+	/// </remarks>
+	private string BuildStreamId(string aggregateType, string aggregateId) =>
+		$"{TenantKeyPrefix}{TenantScope.FromContext(_tenantContext).TenantId}:{aggregateType}:{aggregateId}";
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
@@ -544,11 +657,13 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		return null;
 	}
 
-	private byte[] SerializeEvent(IDomainEvent evt)
+	private byte[] SerializeEvent(IDomainEvent evt, string? aggregateId, string? aggregateType)
 	{
-#pragma warning disable IL2026
-		return JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions);
-#pragma warning restore IL2026
+#pragma warning disable IL2026, IL3050
+		return _hasEventTypeInfoResolver
+			? ResolvedEventPayload.Serialize(evt, _jsonOptions, aggregateId, aggregateType)
+			: JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions);
+#pragma warning restore IL2026, IL3050
 	}
 
 	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
@@ -682,12 +797,12 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			["eventType"] = new AttributeValue { S = eventTypeName },
 			["version"] = new AttributeValue { N = version.ToString() },
 			["timestamp"] = new AttributeValue { S = evt.OccurredAt.ToString("O") },
-			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt)) },
-#pragma warning disable IL2026
+			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt, aggregateId, aggregateType)) },
+#pragma warning disable IL2026, IL3050
 			["metadata"] = evt.Metadata != null
-				? new AttributeValue { S = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata, _jsonOptions)) }
+				? new AttributeValue { S = Convert.ToBase64String(SerializeMetadata(evt.Metadata)) }
 				: new AttributeValue { NULL = true }
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 		};
 	}
 
@@ -736,6 +851,123 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		{
 			_ = _initLock.Release();
 		}
+	}
+
+	/// <summary>
+	/// Refuses when the events table still holds an item written under the untenanted partition-key shape of
+	/// an earlier release. Called only through <see cref="EnsureEmptyReadIsTrustworthyAsync"/>, which decides
+	/// when it runs.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Such an item is unaddressable under the current key shape, and the failure that follows is the worst
+	/// one available: a load returns an EMPTY STREAM rather than an error, so the caller sees a new
+	/// aggregate, appends at version 0, and ends holding two disjoint histories under one identity. Refusing
+	/// converts that silence into a failure while every event is still intact.
+	/// </para>
+	/// <para>
+	/// Nothing is modified. Which tenant owns an existing untenanted item is a question about the deployment
+	/// rather than about the data, so it cannot be decided here; the message states the procedure instead.
+	/// </para>
+	/// <para>
+	/// The partition key is the only place the tenant appears, and DynamoDB has no ordered access across
+	/// partitions, so this is one filtered <c>Scan</c> request rather than an index range read. It reads a
+	/// single page: a table upgraded in place carries the old shape on EVERY item, so the first page cannot
+	/// miss it, and bounding the request keeps a large correctly-keyed table from paying for a full scan at
+	/// every cold start. A table that holds both shapes only beyond the first page - which takes a partial
+	/// rollback to produce - is not detected here.
+	/// </para>
+	/// </remarks>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <exception cref="InvalidOperationException">
+	/// The table holds at least one event item whose partition key carries no tenant segment.
+	/// </exception>
+	private async Task RefuseLegacyUntenantedItemsAsync(CancellationToken cancellationToken)
+	{
+		ScanResponse response;
+
+		try
+		{
+			response = await _client.ScanAsync(
+				new ScanRequest
+				{
+					TableName = _options.EventsTableName,
+					ProjectionExpression = "#pk",
+					FilterExpression = "NOT begins_with(#pk, :prefix)",
+					ExpressionAttributeNames = new Dictionary<string, string>
+					{
+						["#pk"] = _options.PartitionKeyAttribute
+					},
+					ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+					{
+						[":prefix"] = new AttributeValue { S = TenantKeyPrefix }
+					}
+				},
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (ResourceNotFoundException)
+		{
+			// The table has not been provisioned, so it holds nothing to refuse. A read against a missing
+			// table still fails on its own path, with the error that path already produces.
+			return;
+		}
+
+		var legacyItem = response.Items?.FirstOrDefault();
+
+		if (legacyItem is null)
+		{
+			return;
+		}
+
+		var legacyKey = legacyItem.TryGetValue(_options.PartitionKeyAttribute, out var partitionKey)
+			? partitionKey.S
+			: "(unreadable)";
+
+		throw new InvalidOperationException(
+			$"Events table '{_options.EventsTableName}' holds at least one event item whose partition key " +
+			$"('{legacyKey}') carries no tenant segment, so it was written by a release that stored " +
+			$"streams without one. Those items are unaddressable under the current key shape: a load of " +
+			$"the aggregate they belong to would return an empty stream, and the caller would then append " +
+			$"a second, disjoint history under the same identity. Nothing has been modified. Stop writers, " +
+			$"export every event item preserving version order within each stream, re-key each one by " +
+			$"prefixing '{TenantKeyPrefix}<tenantId>:' with the tenant that owns the aggregate, re-import, " +
+			$"and start the application again.");
+	}
+
+	/// <summary>
+	/// Verifies, at most once per store instance, that an empty read from the events table means the stream
+	/// is genuinely absent rather than merely unaddressable.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Called from every point at which this store is about to act on the ABSENCE of items, and from nowhere
+	/// else. A read that returns items proves the table is addressable and needs no probe; only silence is
+	/// ambiguous, and only silence is checked.
+	/// </para>
+	/// <para>
+	/// Deliberately not on the initialisation path, and here that matters more than on any other provider:
+	/// the probe is a filtered <c>Scan</c>, so running it at initialisation would spend a scan page on every
+	/// process start - on every serverless cold start, forever - to detect a condition that can only hold
+	/// across a one-time upgrade. Here it costs nothing at startup, nothing on a read that finds items, and
+	/// at most one scan page per store instance.
+	/// </para>
+	/// <para>
+	/// Unsynchronised: two concurrent first-empty-reads may both probe. The probe reads and modifies
+	/// nothing, so a duplicate costs one extra request and nothing else - cheaper than serialising every
+	/// empty read behind a lock. The flag is set only once the probe has come back clean, so a table that
+	/// holds legacy items refuses every call rather than only the first.
+	/// </para>
+	/// </remarks>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	private async Task EnsureEmptyReadIsTrustworthyAsync(CancellationToken cancellationToken)
+	{
+		if (_legacyItemsProbed)
+		{
+			return;
+		}
+
+		await RefuseLegacyUntenantedItemsAsync(cancellationToken).ConfigureAwait(false);
+		_legacyItemsProbed = true;
 	}
 
 	private async Task EnsureTableExistsAsync(CancellationToken cancellationToken)
@@ -805,4 +1037,17 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			} while (status != TableStatus.ACTIVE);
 		}
 	}
+
+	/// <summary>
+	/// Serializes event metadata, dispatching each value through the host's source-generated resolver when
+	/// one was supplied and falling back to reflection when none was.
+	/// </summary>
+	/// <param name="metadata">The event metadata to serialize.</param>
+	/// <returns>The UTF-8 encoded metadata object.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
+	private byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
+		_hasEventTypeInfoResolver
+			? EventSerializationDefaults.SerializeMetadataWithResolver(metadata, _jsonOptions)
+			: JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
 }

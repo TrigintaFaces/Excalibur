@@ -34,12 +34,6 @@ public sealed class AuditOptions
 	public bool AuditConfigurationChanges { get; init; } = true;
 
 	/// <summary>
-	/// Gets the audit log retention period.
-	/// </summary>
-	/// <value> The time to retain audit logs for compliance purposes. Defaults to 7 years. </value>
-	public TimeSpan RetentionPeriod { get; init; } = TimeSpan.FromDays(2555); // 7 years
-
-	/// <summary>
 	/// Gets the compliance frameworks to support.
 	/// </summary>
 	/// <value> List of compliance standards to generate reports for. </value>

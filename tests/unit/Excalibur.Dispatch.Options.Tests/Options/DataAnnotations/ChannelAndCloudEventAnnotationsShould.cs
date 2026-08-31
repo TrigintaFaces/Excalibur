@@ -134,46 +134,6 @@ public sealed class ChannelAndCloudEventAnnotationsShould
 
 	#endregion
 
-	#region DeadLetterOptions
-
-	[Fact]
-	public void DeadLetter_Succeed_WithDefaults()
-	{
-		var options = new DeadLetterOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void DeadLetter_Fail_WhenMaxAttemptsIsZero()
-	{
-		var options = new DeadLetterOptions { MaxAttempts = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(DeadLetterOptions.MaxAttempts)));
-	}
-
-	#endregion
-
-	#region PipelineOptions
-
-	[Fact]
-	public void Pipeline_Succeed_WithDefaults()
-	{
-		var options = new PipelineOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void Pipeline_Fail_WhenMaxConcurrencyIsZero()
-	{
-		var options = new PipelineOptions { MaxConcurrency = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(PipelineOptions.MaxConcurrency)));
-	}
-
-	#endregion
-
 	#region TracingOptions
 
 	[Fact]
@@ -202,23 +162,5 @@ public sealed class ChannelAndCloudEventAnnotationsShould
 
 	#endregion
 
-	#region SerializationOptions
 
-	[Fact]
-	public void Serialization_Succeed_WithDefaults()
-	{
-		var options = new SerializationOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void Serialization_Fail_WhenDefaultBufferSizeIsZero()
-	{
-		var options = new SerializationOptions { DefaultBufferSize = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(SerializationOptions.DefaultBufferSize)));
-	}
-
-	#endregion
 }

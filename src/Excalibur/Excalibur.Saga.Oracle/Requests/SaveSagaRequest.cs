@@ -31,8 +31,8 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// The tenant scope. When tenant-scoped it is the isolation authority: the saga row is stamped with this
 	/// tenant and the version-gated MERGE match additionally requires the persisted tenant to equal it, so a
 	/// save under one tenant can never match (and overwrite) another tenant's saga. When
-	/// <see cref="TenantScope.None"/> (the non-multi-tenant path) the saga's own <c>TenantId</c> is persisted
-	/// and no tenant is added to the match (byte-identical un-scoped behavior). A tenant-scoped scope cannot
+	/// the scope is untenanted it stamps the reserved sentinel, not an absent tenant, so the term is present
+	/// either way and the match predicate is unconditional. A tenant-scoped scope cannot
 	/// be constructed without a tenant, so a predicate-less save while tenancy is active is unrepresentable.
 	/// </param>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -51,14 +51,19 @@ public static class SqlServerOutboxExtensions
 		_ = services.Configure(configure);
 		BridgeProcessorIdFromOutboxBuilder(services);
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerOutboxOptions>, SqlServerOutboxOptionsValidator>());
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves ITenantContext.
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
+		// depends on it.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore emits the ITenantScopingCapability<IOutboxStore> marker inseparably from the store
-		// registration (S886 rw2ull (B)). The outbox store enforces tenant isolation by persisting each message's
-		// own TenantId column (the drain is intentionally cross-tenant) and reads no ambient tenant context, so
-		// the resolved context is not threaded into construction.
-		services.AddTenantScopedStore<IOutboxStore, SqlServerOutboxStore>(
-			static (sp, _) => new SqlServerOutboxStore(
+		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
+		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
+		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
+		// persists its own TenantId on the write path and the drain hands that value back, so the owning
+		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
+		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
+		// estate-wide operator report and counts the whole table.
+		services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(
+			static sp => new SqlServerOutboxStore(
 				sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>(),
 				sp.GetService<IPayloadSerializer>(),
 				inboxOptions: null,
@@ -104,12 +109,18 @@ public static class SqlServerOutboxExtensions
 
 		_ = services.Configure(configure);
 		BridgeProcessorIdFromOutboxBuilder(services);
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves ITenantContext.
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
+		// depends on it.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore emits the ITenantScopingCapability<IOutboxStore> marker inseparably from the store
-		// registration (S886 rw2ull (B)). Isolation is carried by each message's own persisted TenantId column;
-		// the store reads no ambient tenant context (the drain is intentionally cross-tenant).
-		services.AddTenantScopedStore<IOutboxStore, SqlServerOutboxStore>((sp, _) =>
+		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
+		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
+		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
+		// persists its own TenantId on the write path and the drain hands that value back, so the owning
+		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
+		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
+		// estate-wide operator report and counts the whole table.
+		services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
@@ -260,7 +271,18 @@ public static class SqlServerOutboxExtensions
 
 		_ = services.Configure(configure);
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterQueueOptions>, SqlServerDeadLetterQueueOptionsValidator>());
-		services.TryAddSingleton<SqlServerDeadLetterQueue>();
+
+		// SqlServerDeadLetterQueue takes a required ITenantContext, so the container must be able to supply
+		// one or the registration resolves to nothing. The outbox-store registrations above do the same;
+		// this one did not, which made every AddSqlServerDeadLetterQueue host unresolvable.
+		services.AddDefaultTenantContext();
+		// AddTenantAwareStore constructs the queue (injecting ITenantContext, since both of its public
+		// constructors declare one) AND emits the ITenantScopingCapability<IDeadLetterQueue> marker
+		// inseparably, so the attestation cannot exist without the wiring it describes. IDeadLetterQueue is
+		// [TenantOwned] and this queue genuinely scopes -- it stamps the tenant on insert and filters reads
+		// on it, and its primary key is (Id, TenantId) -- but a bare TryAddSingleton attested nothing, so
+		// RowDiscriminator refused every host that registered it.
+		_ = services.AddTenantAwareStore<IDeadLetterQueue, SqlServerDeadLetterQueue>();
 		services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 		services.TryAddSingleton<IDeadLetterQueueAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 

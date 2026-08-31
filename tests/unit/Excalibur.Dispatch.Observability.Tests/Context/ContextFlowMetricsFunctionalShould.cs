@@ -210,7 +210,7 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 		_metrics.RecordPipelineStageLatency(stage, 42);
 
 		_measurements.ShouldContain(m =>
-			m.Name == "dispatch.context.flow.stage_latency_ms" &&
+			m.Name == "dispatch.context.flow.stage_latency" &&
 			(double)m.Value == 42 &&
 			HasTag(m.Tags, "stage", stage));
 	}
@@ -222,7 +222,7 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 		_metrics.RecordSerializationLatency(operation, 5);
 
 		_measurements.ShouldContain(m =>
-			m.Name == "dispatch.context.flow.serialization_latency_ms" &&
+			m.Name == "dispatch.context.flow.serialization_latency" &&
 			(double)m.Value == 5 &&
 			HasTag(m.Tags, "operation", operation));
 	}
@@ -234,7 +234,7 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 		_metrics.RecordDeserializationLatency(operation, 3);
 
 		_measurements.ShouldContain(m =>
-			m.Name == "dispatch.context.flow.deserialization_latency_ms" &&
+			m.Name == "dispatch.context.flow.deserialization_latency" &&
 			(double)m.Value == 3 &&
 			HasTag(m.Tags, "operation", operation));
 	}

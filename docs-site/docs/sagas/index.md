@@ -370,6 +370,44 @@ services.AddExcalibur(x => x.AddSagas(saga =>
     })));
 ```
 
+### On the document stores, the tenant is part of the saga's key
+
+:::danger Upgrading a Cosmos DB, DynamoDB, Firestore or MongoDB saga store: the key shape changed
+Saga documents written by an earlier version are **not addressable** by this one. Drain your in-flight
+sagas before upgrading, or re-key them — see [Cosmos DB, DynamoDB, Firestore and MongoDB keys carry the
+tenant](../migration/nosql-tenant-key-rekey.md). This applies **even if you never enabled
+multi-tenancy**: the key carries a reserved single-tenant or untenanted segment either way.
+:::
+
+A saga is correlated by a **business key** — an order number, a customer reference — so two tenants
+legitimately run a saga at the same identifier. Keyed on that identifier alone they would be one
+document, and the check that correctly refuses a cross-tenant overwrite would also refuse the second
+tenant a saga of its own: an isolation control degenerating into an estate-wide uniqueness constraint,
+surfacing to the second tenant as a concurrency failure on a saga it is creating for the first time.
+
+The owning tenant is therefore part of the stored key on every provider:
+
+| Provider | Identity as stored |
+| --- | --- |
+| SQL Server | `PRIMARY KEY CLUSTERED (TenantId, SagaId)` |
+| PostgreSQL | `PRIMARY KEY (tenant_id, saga_id)` |
+| Oracle | `PRIMARY KEY (TenantId, SagaId)` |
+| MongoDB | `_id` = `t:{tenantId}:{sagaId}` |
+| Cosmos DB | `id` = `t:{tenantId}:{sagaId}`; the partition key remains the saga type |
+| DynamoDB | `PK` = `SAGA#t:{tenantId}:{sagaId}`; the sort key remains the saga type |
+| Firestore | document id = `t:{tenantId}:{sagaId}_{sagaType}` |
+
+The tenant segment is always present: a host with no tenancy resolves the framework single-tenant
+default, and a genuinely untenanted saga resolves the reserved untenanted value.
+
+**Each tenant gets its own saga document, and a cross-tenant write is unaddressable rather than merely
+refused.** The ownership comparison each store performs after a fetch is retained on top of this — it is
+what still applies to a document the store did not itself write — but it is not what makes coexistence
+work.
+
+A saga's tenant is bound at creation. **Saving an existing saga under a different tenant is refused, not
+merged** — treat that failure as an escalation, not something to retry.
+
 ## Retention & Cleanup
 
 Completed sagas remain in the store after they finish so you can audit or correlate them. To stop the store growing without bound, purge completed sagas older than a retention window. Purge-by-age is a first-class capability on **every** saga store — the in-memory store, the relational providers (SQL Server, PostgreSQL), MongoDB, and the document stores **Azure Cosmos DB, AWS DynamoDB, and Google Firestore**. Only sagas whose completion instant is older than the threshold are removed; in-flight sagas are never touched.

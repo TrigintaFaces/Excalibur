@@ -89,7 +89,7 @@ public sealed class CancellationMemoryPerformanceShould : IDisposable
 					MaxEntries = operationsPerRound * concurrentWorkers + 100,
 					EnableAutomaticCleanup = false
 				}),
-				logger);
+				logger, UntenantedContext.Instance);
 
 			var cancellationEvents = new ConcurrentBag<CancellationEventMetrics>();
 
@@ -606,7 +606,7 @@ public sealed class CancellationMemoryPerformanceShould : IDisposable
 				MaxEntries = tokensPerCascade * cascadeDepth + 100,
 				EnableAutomaticCleanup = false
 			}),
-			logger);
+			logger, UntenantedContext.Instance);
 
 		try
 		{

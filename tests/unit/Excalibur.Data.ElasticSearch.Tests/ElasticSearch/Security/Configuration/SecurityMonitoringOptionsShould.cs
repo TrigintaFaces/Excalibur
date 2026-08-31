@@ -30,36 +30,6 @@ public sealed class SecurityMonitoringOptionsShould
 	}
 
 	[Fact]
-	public void HaveDetectAnomaliesAsTrue_ByDefault()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions();
-
-		// Assert
-		settings.DetectAnomalies.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void HaveMonitorAuthenticationAttacksAsTrue_ByDefault()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions();
-
-		// Assert
-		settings.MonitorAuthenticationAttacks.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void HaveDetectDataExfiltrationAsTrue_ByDefault()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions();
-
-		// Assert
-		settings.DetectDataExfiltration.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void HaveAutomatedResponseEnabledAsFalse_ByDefault()
 	{
 		// Act
@@ -99,26 +69,6 @@ public sealed class SecurityMonitoringOptionsShould
 		settings.FailedLoginThreshold.ShouldBe(5);
 	}
 
-	[Fact]
-	public void HaveDefaultAlertingSettings_ByDefault()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions();
-
-		// Assert
-		_ = settings.Alerting.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void HaveDefaultThreatIntelligenceSettings_ByDefault()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions();
-
-		// Assert
-		_ = settings.ThreatIntelligence.ShouldNotBeNull();
-	}
-
 	#endregion
 
 	#region Init Property Tests
@@ -131,36 +81,6 @@ public sealed class SecurityMonitoringOptionsShould
 
 		// Assert
 		settings.Enabled.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AllowSettingDetectAnomalies_ViaInitializer()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions { DetectAnomalies = false };
-
-		// Assert
-		settings.DetectAnomalies.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AllowSettingMonitorAuthenticationAttacks_ViaInitializer()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions { MonitorAuthenticationAttacks = false };
-
-		// Assert
-		settings.MonitorAuthenticationAttacks.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AllowSettingDetectDataExfiltration_ViaInitializer()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions { DetectDataExfiltration = false };
-
-		// Assert
-		settings.DetectDataExfiltration.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -282,9 +202,6 @@ public sealed class SecurityMonitoringOptionsShould
 		var settings = new SecurityMonitoringOptions
 		{
 			Enabled = true,
-			DetectAnomalies = true,
-			MonitorAuthenticationAttacks = true,
-			DetectDataExfiltration = true,
 			AutomatedResponseEnabled = true,
 			StoreAlertsInElasticsearch = true,
 			MonitoringInterval = TimeSpan.FromMinutes(1),
@@ -293,9 +210,6 @@ public sealed class SecurityMonitoringOptionsShould
 
 		// Assert
 		settings.Enabled.ShouldBeTrue();
-		settings.DetectAnomalies.ShouldBeTrue();
-		settings.MonitorAuthenticationAttacks.ShouldBeTrue();
-		settings.DetectDataExfiltration.ShouldBeTrue();
 		settings.AutomatedResponseEnabled.ShouldBeTrue();
 		settings.StoreAlertsInElasticsearch.ShouldBeTrue();
 		settings.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(1));
@@ -309,18 +223,12 @@ public sealed class SecurityMonitoringOptionsShould
 		var settings = new SecurityMonitoringOptions
 		{
 			Enabled = false,
-			DetectAnomalies = false,
-			MonitorAuthenticationAttacks = false,
-			DetectDataExfiltration = false,
 			AutomatedResponseEnabled = false,
 			StoreAlertsInElasticsearch = false
 		};
 
 		// Assert
 		settings.Enabled.ShouldBeFalse();
-		settings.DetectAnomalies.ShouldBeFalse();
-		settings.MonitorAuthenticationAttacks.ShouldBeFalse();
-		settings.DetectDataExfiltration.ShouldBeFalse();
 		settings.AutomatedResponseEnabled.ShouldBeFalse();
 		settings.StoreAlertsInElasticsearch.ShouldBeFalse();
 	}
@@ -328,57 +236,6 @@ public sealed class SecurityMonitoringOptionsShould
 	#endregion
 
 	#region Threat Detection Configuration Tests
-
-	[Fact]
-	public void AllowEnablingOnlyAnomalyDetection()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions
-		{
-			DetectAnomalies = true,
-			MonitorAuthenticationAttacks = false,
-			DetectDataExfiltration = false
-		};
-
-		// Assert
-		settings.DetectAnomalies.ShouldBeTrue();
-		settings.MonitorAuthenticationAttacks.ShouldBeFalse();
-		settings.DetectDataExfiltration.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AllowEnablingOnlyAuthenticationMonitoring()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions
-		{
-			DetectAnomalies = false,
-			MonitorAuthenticationAttacks = true,
-			DetectDataExfiltration = false
-		};
-
-		// Assert
-		settings.DetectAnomalies.ShouldBeFalse();
-		settings.MonitorAuthenticationAttacks.ShouldBeTrue();
-		settings.DetectDataExfiltration.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AllowEnablingOnlyDataExfiltrationDetection()
-	{
-		// Act
-		var settings = new SecurityMonitoringOptions
-		{
-			DetectAnomalies = false,
-			MonitorAuthenticationAttacks = false,
-			DetectDataExfiltration = true
-		};
-
-		// Assert
-		settings.DetectAnomalies.ShouldBeFalse();
-		settings.MonitorAuthenticationAttacks.ShouldBeFalse();
-		settings.DetectDataExfiltration.ShouldBeTrue();
-	}
 
 	#endregion
 }

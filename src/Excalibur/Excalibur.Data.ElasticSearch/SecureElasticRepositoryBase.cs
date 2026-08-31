@@ -64,6 +64,8 @@ public abstract class SecureElasticRepositoryBase<
 	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
 	/// <returns> A task representing the asynchronous indexing operation with security enhancements applied. </returns>
 	/// <exception cref="SecurityException"> Thrown when security validation fails or access is denied. </exception>
+	[RequiresUnreferencedCode("Field-level encryption encrypts the document's fields, which serializes it reflectively over its members; trimming may remove them.")]
+	[RequiresDynamicCode("Field-level encryption encrypts the document's fields, which serializes it reflectively, generating serialization code for its type at run time.")]
 	public async Task<IndexResponse> SecureIndexAsync(TEntity document, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(document);
@@ -126,6 +128,8 @@ public abstract class SecureElasticRepositoryBase<
 	/// <returns> The decrypted document if found and accessible, null otherwise. </returns>
 	/// <exception cref="SecurityException"> Thrown when security validation fails or access is denied. </exception>
 	/// <exception cref="ArgumentException"></exception>
+	[RequiresUnreferencedCode("Field-level encryption decrypts the stored document, which deserializes it reflectively over its members; trimming may remove them.")]
+	[RequiresDynamicCode("Field-level encryption decrypts the stored document, which deserializes it reflectively, generating serialization code for its type at run time.")]
 	public async Task<TEntity?> SecureGetByIdAsync(string id, CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(id))
@@ -206,6 +210,8 @@ public abstract class SecureElasticRepositoryBase<
 	/// <returns> A task representing the asynchronous update operation with security enhancements applied. </returns>
 	/// <exception cref="SecurityException"> Thrown when security validation fails or access is denied. </exception>
 	/// <exception cref="ArgumentException"></exception>
+	[RequiresUnreferencedCode("Field-level encryption encrypts the document's fields, which serializes it reflectively over its members; trimming may remove them.")]
+	[RequiresDynamicCode("Field-level encryption encrypts the document's fields, which serializes it reflectively, generating serialization code for its type at run time.")]
 	public async Task<UpdateResponse<TEntity>> SecureUpdateAsync(
 		string id,
 		TEntity document,
@@ -332,6 +338,8 @@ public abstract class SecureElasticRepositoryBase<
 	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
 	/// <returns> The search results with decrypted documents if encryption is enabled. </returns>
 	/// <exception cref="SecurityException"> Thrown when security validation fails or access is denied. </exception>
+	[RequiresUnreferencedCode("Field-level encryption decrypts each hit, which deserializes it reflectively over its members; trimming may remove them.")]
+	[RequiresDynamicCode("Field-level encryption decrypts each hit, which deserializes it reflectively, generating serialization code for its type at run time.")]
 	public async Task<SearchResponse<TEntity>> SecureSearchAsync(
 		Action<SearchRequestDescriptor<TEntity>> searchRequest,
 		CancellationToken cancellationToken)
@@ -452,8 +460,9 @@ public abstract class SecureElasticRepositoryBase<
 			throw new SecurityException("User context is required for secure operations");
 		}
 
-		// Network security validation
-		if (_securitySettings.NetworkSecurity.Enabled && !string.IsNullOrEmpty(sourceIpAddress))
+		// Network security validation. Deliberately not conditioned on the source address being known:
+		// an unavailable address is an input to the decision, not a reason to skip it.
+		if (_securitySettings.NetworkSecurity.Enabled)
 		{
 			await ValidateNetworkAccessAsync(sourceIpAddress, cancellationToken).ConfigureAwait(false);
 		}
@@ -472,9 +481,24 @@ public abstract class SecureElasticRepositoryBase<
 	/// Validates network access based on security policies.
 	/// </summary>
 	/// <exception cref="SecurityException"></exception>
-	private Task ValidateNetworkAccessAsync(string sourceIpAddress, CancellationToken cancellationToken)
+	private Task ValidateNetworkAccessAsync(string? sourceIpAddress, CancellationToken cancellationToken)
 	{
 		var networkSettings = _securitySettings.NetworkSecurity;
+
+		if (string.IsNullOrEmpty(sourceIpAddress))
+		{
+			// A whitelist is deny-by-default: a caller whose address cannot be determined has not been
+			// allowed by it, so an unknown address is a denial rather than a skipped check. This matches
+			// how an unavailable user identity is treated a few lines above. With no whitelist configured
+			// there is nothing to satisfy and the operation proceeds.
+			if (networkSettings.IpWhitelist.Count != 0)
+			{
+				throw new SecurityException(
+					"Access denied: an IP whitelist is configured but the source IP address is unavailable.");
+			}
+
+			return Task.CompletedTask;
+		}
 
 		// Check IP blacklist
 		if (networkSettings.IpBlacklist.Exists(blocked => IsIpInRange(sourceIpAddress, blocked)))

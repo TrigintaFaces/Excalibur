@@ -19,8 +19,6 @@ public sealed class MessageBusOptionsShould
 		var options = new TestMessageBusOptions();
 
 		// Assert
-		options.EnableEncryption.ShouldBeFalse();
-		options.EncryptionProviderKey.ShouldBeNull();
 		options.EnableRetries.ShouldBeFalse();
 		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryStrategy.ShouldBe(RetryStrategy.FixedDelay);
@@ -38,26 +36,6 @@ public sealed class MessageBusOptionsShould
 
 		// Assert
 		options.Name.ShouldBe("my-bus");
-	}
-
-	[Fact]
-	public void EnableEncryption_CanBeSet()
-	{
-		// Act
-		var options = new TestMessageBusOptions { EnableEncryption = true };
-
-		// Assert
-		options.EnableEncryption.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void EncryptionProviderKey_CanBeSet()
-	{
-		// Act
-		var options = new TestMessageBusOptions { EncryptionProviderKey = "aes-256" };
-
-		// Assert
-		options.EncryptionProviderKey.ShouldBe("aes-256");
 	}
 
 	[Fact]

@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 
 using Tests.Shared.Categories;
 
-namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Transport.Builders.Options;
+namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Builders.Options;
 
 /// <summary>
 /// Unit tests for <see cref="RabbitMQTransportOptions"/> and its sub-option classes
@@ -248,16 +248,12 @@ public sealed class RabbitMQTransportOptionsShould : UnitTestBase
 		options.DeadLetter.Exchange = "custom-dlx";
 		options.DeadLetter.Queue = "custom-dlq";
 		options.DeadLetter.RoutingKey = "dead.#";
-		options.DeadLetter.MaxRetryAttempts = 5;
-		options.DeadLetter.RetryDelay = TimeSpan.FromMinutes(1);
 
 		// Assert
 		options.EnableDeadLetter.ShouldBeTrue();
 		options.DeadLetter.Exchange.ShouldBe("custom-dlx");
 		options.DeadLetter.Queue.ShouldBe("custom-dlq");
 		options.DeadLetter.RoutingKey.ShouldBe("dead.#");
-		options.DeadLetter.MaxRetryAttempts.ShouldBe(5);
-		options.DeadLetter.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
 	[Fact]

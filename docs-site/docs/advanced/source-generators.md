@@ -39,20 +39,26 @@ Source generators are Roslyn compiler extensions that analyze your code during c
 
 ### Generator Inventory
 
-The `Excalibur.Dispatch.SourceGenerators` package includes:
+The principal generators in the `Excalibur.Dispatch.SourceGenerators` package are:
 
 | Generator | Purpose | Output File |
 |-----------|---------|-------------|
-| [`HandlerRegistrySourceGenerator`](#handlerregistrysourcegenerator) | Discovers, registers, and resolves handlers; generates `AddDiscoveredHandlers()` | `PrecompiledHandlerRegistry.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs` |
-| [`DispatchActionExtensionGenerator`](#dispatchactionextensiongenerator) | Typed dispatch with `TResponse` inference | `DispatchActionExtensions.g.cs` |
-| [`HandlerInvokerSourceGenerator`](#handlerinvokersourcegenerator) | AOT-compatible handler invocation via interceptors | `HandlerInvokerInterceptors.g.cs` |
-| [`MessageTypeSourceGenerator`](#messagetypesourcegenerator) | Message type metadata | `PrecompiledHandlerMetadata.g.cs` |
+| [`HandlerRegistrySourceGenerator`](#handlerregistrysourcegenerator) | Discovers, registers, and resolves handlers; generates `AddDiscoveredHandlers()` | `PrecompiledHandlerRegistry.g.cs`, `PrecompiledHandlerMetadata.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs`, `GeneratedHandlerActivatorRegistrations.g.cs`, `PrecompiledDirectActionDispatch.g.cs` |
+| [`DispatchActionExtensionGenerator`](#dispatchactionextensiongenerator) | Typed dispatch with `TResponse` inference | `TypedDispatchExtensions.g.cs` |
+| [`HandlerInvokerSourceGenerator`](#handlerinvokersourcegenerator) | AOT-compatible handler invocation via interceptors | `HandlerInvokerRegistry.g.cs` |
+| [`MessageTypeSourceGenerator`](#messagetypesourcegenerator) | Preserves discovered message types from trimming | `GeneratedMessageTypeRegistrations.g.cs` |
 | [`StaticPipelineGenerator`](#staticpipelinegenerator) | Static middleware pipelines | `StaticPipelines.g.cs` |
 | [`MiddlewareDecompositionAnalyzer`](#middlewaredecompositionanalyzer) | Middleware analysis | `MiddlewareDecomposition.g.cs` |
 | [`CachePolicySourceGenerator`](#cachepolicysourcegenerator) | Cache policy registration | `CacheInfoRegistry.g.cs` |
-| [`JsonSerializationSourceGenerator`](#jsonserializationsourcegenerator) | Message type metadata for AOT serialization | `DiscoveredMessageTypeMetadata.g.cs` |
+| [`JsonSerializationSourceGenerator`](#jsonserializationsourcegenerator) | Message type metadata for AOT serialization | `DiscoveredMessageTypeRegistry.g.cs`, `DiscoveredMessageTypeMetadata.g.cs` |
 | [`MessageResultExtractorGenerator`](#messageresultextractorgenerator) | AOT result factory (no reflection) | `ResultFactoryRegistry.g.cs` |
 | [`ServiceRegistrationSourceGenerator`](#serviceregistrationsourcegenerator) | DI service registration | `GeneratedServiceCollectionExtensions.g.cs` |
+
+The package ships further generators that this page does not walk through individually — cache-info
+extraction, middleware invoker interception, projection tag resolution, event-store type mapping, fluent
+and ahead-of-time validation, saga registration and metadata, and pipeline determinism analysis. For the
+complete generator-to-output-file inventory, see
+[Viewing Generated Code](viewing-generated-code.md#file-naming-conventions).
 
 ## Installation
 
@@ -80,7 +86,7 @@ Discovers all handler implementations at compile time and generates registration
 
 ```csharp
 // PrecompiledHandlerRegistry.g.cs
-public static class PrecompiledHandlerRegistry
+internal static class PrecompiledHandlerRegistry
 {
     public static void RegisterAll(IHandlerRegistry registry)
     {
@@ -134,8 +140,10 @@ For each concrete type implementing `IDispatchAction<TResponse>`, the generator 
 **Generated Output:**
 
 ```csharp
-// DispatchActionExtensions.g.cs
-public static class DispatchActionExtensions
+// TypedDispatchExtensions.g.cs
+// The class name carries the assembly name, so two assemblies generating these
+// extensions cannot collide.
+public static class TypedDispatchExtensions_MyAssembly
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task<IMessageResult<OrderDto>> DispatchAsync(
@@ -166,31 +174,52 @@ Generates AOT-compatible handler invocation interceptors that eliminate reflecti
 
 ### MessageTypeSourceGenerator
 
-Generates metadata about discovered handlers for runtime queries.
+Discovers the message types in the compilation and emits a module initializer that keeps them, and their
+constructors, properties and fields, from being removed by the trimmer.
 
 **Generated Output:**
 
 ```csharp
-// PrecompiledHandlerMetadata.g.cs
-public static class PrecompiledHandlerMetadata
-{
-    public static bool TryGetHandlerForMessage(Type messageType, out HandlerMetadata? metadata);
-    public static ImmutableArray<Type> GetMessageTypesForHandler(Type handlerType);
+// GeneratedMessageTypeRegistrations.g.cs
+namespace Excalibur.Dispatch.Generated;
 
-    public sealed class HandlerMetadata
-    {
-        public required Type HandlerType { get; init; }
-        public required Type MessageType { get; init; }
-        public required bool HasResponse { get; init; }
-        public Type? ResponseType { get; init; }
-    }
+internal static class GeneratedMessageTypeRegistrations
+{
+    // One entry per discovered message type. Referencing the types statically is what
+    // survives trimming; nothing here is called at runtime.
+    private static readonly Type[] PreservedMessageTypes = [
+        typeof(MyApp.Orders.GetOrderQuery),
+        typeof(MyApp.Orders.PlaceOrderCommand),
+    ];
+
+    [ModuleInitializer]
+    public static void Initialize() { }
 }
 ```
 
 **Use Cases:**
-- Query handler registrations at runtime
-- Validate message-handler bindings
-- Build documentation/introspection tools
+- Keep message types reachable in trimmed and Native AOT builds
+- Preserve the members a serializer reaches reflectively
+
+To *query* handler registrations at runtime, resolve `IHandlerRegistry` from the service provider and use
+`TryGetHandler(Type messageType, out IHandlerRegistryEntry entry)` or `GetAll()`. The registry is the
+supported public surface for introspection; the metadata class emitted by
+[`HandlerRegistrySourceGenerator`](#handlerregistrysourcegenerator) is an internal implementation detail
+that populates it and is not callable from consumer code.
+
+```csharp
+var registry = serviceProvider.GetRequiredService<IHandlerRegistry>();
+
+if (registry.TryGetHandler(typeof(GetOrderQuery), out var entry))
+{
+    Console.WriteLine(entry.HandlerType);
+}
+
+foreach (var registration in registry.GetAll())
+{
+    Console.WriteLine(registration.MessageType);
+}
+```
 
 ---
 
@@ -231,7 +260,7 @@ file static class StaticPipelines
         }
         catch (Exception ex)
         {
-            return MessageResult.Exception(ex);
+            return MessageResult.Failed(ex);
         }
     }
 
@@ -304,7 +333,7 @@ Generates compile-time cache policy registration for types implementing `ICachea
 
 ```csharp
 // CacheInfoRegistry.g.cs
-public static class CacheInfoRegistry
+internal static class CacheInfoRegistry
 {
     public static CacheableInfo? GetCacheableInfo(IDispatchMessage message);
     public static CacheAttributeInfo? GetCacheAttributeInfo(IDispatchMessage message);
@@ -349,7 +378,7 @@ Generates compile-time metadata for all discovered `IDispatchMessage` types, ena
 
 ```csharp
 // DiscoveredMessageTypeMetadata.g.cs
-public static class DiscoveredMessageTypeMetadata
+internal static class DiscoveredMessageTypeMetadata
 {
     /// <summary>
     /// Gets all discovered concrete message types (compile-time).
@@ -487,7 +516,7 @@ public class MultiImpl : IReader, IWriter { }
 // GeneratedServiceCollectionExtensions.g.cs
 namespace Microsoft.Extensions.DependencyInjection;
 
-public static class GeneratedServiceCollectionExtensions
+internal static class GeneratedServiceCollectionExtensions
 {
     public static IServiceCollection AddGeneratedServices(this IServiceCollection services)
     {

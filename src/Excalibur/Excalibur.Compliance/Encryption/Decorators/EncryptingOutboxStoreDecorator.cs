@@ -8,6 +8,8 @@ using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Compliance.Encryption.Decorators;
 
 /// <summary>
@@ -131,6 +133,8 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		var mode = _options.Value.Mode;
@@ -146,6 +150,8 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		var messages = await Inner.GetUnsentMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false);
@@ -168,30 +174,30 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// </summary>
 	private sealed class DecryptingAdmin(IOutboxStoreAdmin inner, EncryptingOutboxStoreDecorator owner) : IOutboxStoreAdmin
 	{
-		public async ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(
+		public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(
 			int maxRetries,
 			DateTimeOffset? olderThan,
 			int batchSize,
 			CancellationToken cancellationToken)
 		{
-			var messages = await inner.GetFailedMessagesAsync(maxRetries, olderThan, batchSize, cancellationToken).ConfigureAwait(false);
+			var messages = await inner.GetAllTenantsFailedMessagesAsync(maxRetries, olderThan, batchSize, cancellationToken).ConfigureAwait(false);
 			return await owner.DecryptMessagesAsync(messages, cancellationToken).ConfigureAwait(false);
 		}
 
-		public async ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(
+		public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(
 			DateTimeOffset scheduledBefore,
 			int batchSize,
 			CancellationToken cancellationToken)
 		{
-			var messages = await inner.GetScheduledMessagesAsync(scheduledBefore, batchSize, cancellationToken).ConfigureAwait(false);
+			var messages = await inner.GetAllTenantsScheduledMessagesAsync(scheduledBefore, batchSize, cancellationToken).ConfigureAwait(false);
 			return await owner.DecryptMessagesAsync(messages, cancellationToken).ConfigureAwait(false);
 		}
 
 		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) =>
 			inner.CleanupAllTenantsSentMessagesAsync(olderThan, batchSize, cancellationToken);
 
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) =>
-			inner.GetStatisticsAsync(cancellationToken);
+		public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken) =>
+			inner.GetAllTenantsStatisticsAsync(cancellationToken);
 	}
 
 	/// <summary>
@@ -235,8 +241,8 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		}
 
 		// Carries transport identity and status, never a payload.
-		public Task<IEnumerable<OutboundMessageTransport>> GetTransportDeliveriesAsync(string messageId, CancellationToken cancellationToken) =>
-			inner.GetTransportDeliveriesAsync(messageId, cancellationToken);
+		public Task<IEnumerable<OutboundMessageTransport>> GetTransportDeliveriesAsync(string messageId, string? tenantId, CancellationToken cancellationToken) =>
+			inner.GetTransportDeliveriesAsync(messageId, tenantId, cancellationToken);
 
 		public Task MarkTransportSentAsync(string messageId, string transportName, CancellationToken cancellationToken) =>
 			inner.MarkTransportSentAsync(messageId, transportName, cancellationToken);
@@ -250,9 +256,13 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken) =>
 			owner.StageMessageAsync(message, cancellationToken);
 
+		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
 			owner.EnqueueAsync(message, context, cancellationToken);
 
+		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 			owner.GetUnsentMessagesAsync(batchSize, cancellationToken);
 
@@ -270,6 +280,10 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	private sealed class DecryptingMultiTransportAdmin(IMultiTransportOutboxStoreAdmin inner, EncryptingOutboxStoreDecorator owner)
 		: IMultiTransportOutboxStoreAdmin
 	{
+		// Carries transport identity and status, never a payload.
+		public Task<IEnumerable<OutboundMessageTransport>> GetAllTenantsTransportDeliveriesAsync(string messageId, CancellationToken cancellationToken) =>
+			inner.GetAllTenantsTransportDeliveriesAsync(messageId, cancellationToken);
+
 		public async Task<IEnumerable<(OutboundMessage Message, OutboundMessageTransport Transport)>> GetPendingTransportDeliveriesAsync(
 			string transportName,
 			int batchSize,
@@ -305,6 +319,8 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 	/// </summary>
 	private sealed class DecryptingFencedStore(IFencedOutboxStore inner, EncryptingOutboxStoreDecorator owner) : IFencedOutboxStore
 	{
+		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 			int batchSize,
 			long fencingToken,
@@ -320,9 +336,13 @@ internal sealed class EncryptingOutboxStoreDecorator : IsolatingOutboxStoreDecor
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken) =>
 			owner.StageMessageAsync(message, cancellationToken);
 
+		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
 			owner.EnqueueAsync(message, context, cancellationToken);
 
+		[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 			owner.GetUnsentMessagesAsync(batchSize, cancellationToken);
 

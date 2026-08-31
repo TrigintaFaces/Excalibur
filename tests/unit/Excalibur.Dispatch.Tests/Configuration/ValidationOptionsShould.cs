@@ -86,31 +86,4 @@ public sealed class ValidationOptionsShould
 		options.CustomValidatorTypes.Count.ShouldBe(1);
 	}
 
-	// --- VersioningOptions ---
-
-	[Fact]
-	public void VersioningOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new VersioningOptions();
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.RequireContractVersion.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void VersioningOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new VersioningOptions
-		{
-			Enabled = false,
-			RequireContractVersion = false,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.RequireContractVersion.ShouldBeFalse();
-	}
 }

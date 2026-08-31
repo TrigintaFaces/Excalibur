@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.CosmosDb;
 
@@ -9,7 +10,8 @@ using Microsoft.Azure.Cosmos;
 namespace Excalibur.Data.Tests.CosmosDb;
 
 /// <summary>
-/// Unit locks for <see cref="CosmosDbSagaStore.PurgeCompletedBeforeAsync"/> (bead qt5kh7).
+/// Unit locks for <see cref="CosmosDbSagaStore.PurgeCompletedBeforeAsync"/> and
+/// <see cref="CosmosDbSagaStore.PurgeAllTenantsCompletedBeforeAsync"/> (bead qt5kh7, vtklu8).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,23 +23,29 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </para>
 /// <para>
 /// Contract: <c>PurgeCompletedBeforeAsync(threshold, ct)</c> deletes ONLY sagas that are completed
-/// (<c>completedAt</c> defined and non-null) AND aged (<c>completedAt &lt; threshold</c>), NEVER a
-/// running saga (<c>completedAt</c> absent/null), and returns the deleted count.
+/// (<c>completedAt</c> defined and non-null) AND aged (<c>completedAt &lt; threshold</c>) AND owned by the
+/// CALLING tenant, NEVER a running saga (<c>completedAt</c> absent/null) and NEVER another tenant's
+/// completed sagas, and returns the deleted count. It never refuses: <see cref="TenantScope.TenantId"/> is
+/// total, so untenanted, the single-tenant default, and a real tenant all bind a concrete predicate value.
+/// <c>PurgeAllTenantsCompletedBeforeAsync</c> is the one estate-wide sweep that applies no tenant predicate
+/// at all, and is reachable only by calling it directly.
 /// </para>
 /// <para>
 /// NON-VACUITY: the running-saga exclusion is enforced server-side by the
 /// <c>IS_DEFINED(c.completedAt) AND c.completedAt != null</c> guard in the query text; the not-yet-aged
-/// exclusion by the <c>c.completedAt &lt; @cutoff</c> bound. A mutant that drops the IS_DEFINED/non-null
-/// guard (running sagas become eligible) or the age bound (purges everything) changes the captured
-/// <see cref="QueryDefinition"/> and turns the query assertion RED. The behavioral test additionally
-/// fails if the impl fails to delete a matched document or mis-counts.
+/// exclusion by the <c>c.completedAt &lt; @cutoff</c> bound; the cross-tenant exclusion by the
+/// <c>c.tenantId = @tenantId</c> predicate, bound to the CURRENT tenant scope, not the caller's payload. A
+/// mutant that drops the IS_DEFINED/non-null guard (running sagas become eligible), the age bound (purges
+/// everything), or the tenant predicate (a scoped call reverts to deleting every tenant's rows) changes the
+/// captured <see cref="QueryDefinition"/> and turns the query assertion RED. The behavioral test
+/// additionally fails if the impl fails to delete a matched document or mis-counts.
 /// </para>
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
 public sealed class CosmosDbSagaPurgeShould
 {
-	private static CosmosDbSagaStore CreateStore(CosmosClient client, Container container)
+	private static CosmosDbSagaStore CreateStore(CosmosClient client, Container container, ITenantContext? tenantContext = null)
 	{
 		var database = A.Fake<Database>();
 		_ = A.CallTo(() => client.GetDatabase(A<string>._)).Returns(database);
@@ -50,7 +58,20 @@ public sealed class CosmosDbSagaPurgeShould
 			CreateContainerIfNotExists = false,
 			Client = new CosmosDbClientOptions { ConnectionString = "AccountEndpoint=https://localhost:8081/;AccountKey=dGVzdA==;" },
 		});
-		return new CosmosDbSagaStore(client, options, A.Fake<ILogger<CosmosDbSagaStore>>(), new DispatchJsonSerializer());
+		return new CosmosDbSagaStore(
+			client,
+			options,
+			A.Fake<ILogger<CosmosDbSagaStore>>(),
+			new DispatchJsonSerializer(),
+			tenantContext: tenantContext ?? TestTenantContext.Untenanted);
+	}
+
+	/// <summary>A context pinned to a real, named tenant, for the scoped-purge tenant-predicate locks.</summary>
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => true;
 	}
 
 	// FeedResponse<T>/FeedIterator<T> are not proxy-fakeable (no accessible ctor for Castle), so use
@@ -110,6 +131,54 @@ public sealed class CosmosDbSagaPurgeShould
 		captured!.QueryText.ShouldContain("IS_DEFINED(c.completedAt)");
 		captured.QueryText.ShouldContain("c.completedAt != null");
 		captured.QueryText.ShouldContain("c.completedAt < @cutoff");
+	}
+
+	[Theory]
+	[InlineData("tenant-a")]
+	public async Task Purge_AppliesTheCurrentTenantAsAServerSidePredicate_ForARealTenant(string tenantId)
+	{
+		// RED against the pre-fix code: a store scoped to a real, named tenant used to REFUSE this call
+		// with TenantScopeNotSupportedException. It must now filter instead.
+		QueryDefinition? captured = null;
+		var container = A.Fake<Container>();
+		_ = A.CallTo(() => container.GetItemQueryIterator<CosmosDbSagaDocument>(
+				A<QueryDefinition>._, A<string>._, A<QueryRequestOptions>._))
+			.ReturnsLazily((QueryDefinition q, string _, QueryRequestOptions _) =>
+			{
+				captured = q;
+				return SinglePageIterator([]);
+			});
+
+		var store = CreateStore(A.Fake<CosmosClient>(), container, new FixedTenantContext(tenantId));
+
+		var removed = await store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+
+		removed.ShouldBe(0);
+		captured.ShouldNotBeNull();
+		captured!.QueryText.ShouldContain("AND c.tenantId = @tenantId");
+	}
+
+	[Fact]
+	public async Task PurgeAllTenantsCompletedBeforeAsync_AppliesNoTenantPredicate()
+	{
+		// The estate-wide sweep, called directly, applies no tenant term even when the ambient scope names
+		// a real tenant -- distinguishing it from the scoped purge above.
+		QueryDefinition? captured = null;
+		var container = A.Fake<Container>();
+		_ = A.CallTo(() => container.GetItemQueryIterator<CosmosDbSagaDocument>(
+				A<QueryDefinition>._, A<string>._, A<QueryRequestOptions>._))
+			.ReturnsLazily((QueryDefinition q, string _, QueryRequestOptions _) =>
+			{
+				captured = q;
+				return SinglePageIterator([]);
+			});
+
+		var store = CreateStore(A.Fake<CosmosClient>(), container, new FixedTenantContext("tenant-a"));
+
+		_ = await store.PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+
+		captured.ShouldNotBeNull();
+		captured!.QueryText.ShouldNotContain("tenantId");
 	}
 
 	[Fact]

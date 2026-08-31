@@ -43,11 +43,11 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 		// The events table is a KEYED (tenant-columned) store, so a destructive GDPR erase must NEVER emit an
 		// empty tenant predicate — an unscoped erase against a tenant-columned table would tombstone every
 		// tenant's rows for this aggregate (cross-tenant GDPR data destruction). Route the scope through the
-		// keyed partition: TenantScope.None (or an absent context) becomes the '__untenanted__' sentinel term,
+		// keyed partition: default(TenantScope) (or an absent context) becomes the '__untenanted__' sentinel term,
 		// so the partition always yields a concrete, non-null tenant value. The predicate is UNCONDITIONAL and
 		// NULL-safe on the column side (a legacy NULL folds to the sentinel), matching the snapshot store's
 		// fail-closed COALESCE form. A bare `= @TenantId` (no COALESCE) would miss legacy NULL untenanted rows;
-		// an empty predicate would over-erase across tenants — both are the mutants AC-6 forbids.
+		// an empty predicate would over-erase across tenants — both are the mutants the tenant-isolation arms forbid.
 		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND COALESCE(tenant_id, @UntenantedSentinel) = @TenantId";
 

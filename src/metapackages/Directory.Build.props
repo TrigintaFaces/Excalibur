@@ -1,0 +1,23 @@
+<Project>
+  <!-- Import parent props first -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    A metapackage's whole job is to name the handful of packages it bundles. Central transitive pinning
+    promotes the UNION of every referenced project's transitive graph onto the nuspec as DIRECT
+    dependencies, which is harmless for an implementation package (it has real content, so the promoted
+    set is close to what it already uses) and wrong for a project whose entire content is
+    ProjectReferences: the bundle list disappears into the graph it bundles.
+
+    Measured on Excalibur.Postgres before this file existed: 60 direct dependencies for a package that
+    references 7 projects and 2 packages, including QuestPDF, MongoDB.Driver and Npgsql. A consumer
+    installing a package named for Postgres pulled a PDF library and the MongoDB driver into their app.
+
+    Turning pinning off here does NOT lose the version floors it was providing. Those floors live on the
+    implementation packages, which keep pinning and keep declaring them, and a consumer of a metapackage
+    reaches them through exactly that chain.
+  -->
+  <PropertyGroup>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+</Project>

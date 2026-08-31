@@ -281,16 +281,16 @@ public sealed class DeliveryGuaranteeShould
 		public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken) =>
 			default;
 
-		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) =>
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) =>
 			new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) =>
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) =>
 			new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>());
 
 		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) =>
 			new ValueTask<int>(0);
 
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) =>
+		public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken) =>
 			new ValueTask<OutboxStatistics>(new OutboxStatistics());
 	}
 

@@ -30,20 +30,6 @@ public sealed class ActivityGroupItemShould
 	}
 
 	#region Constant Value Tests
-
-	[Fact]
-	public void NullTenantPartitionKey_Equals__null__()
-	{
-		// Arrange
-		var field = _itemType.GetField("NullTenantPartitionKey", BindingFlags.NonPublic | BindingFlags.Static);
-
-		// Act
-		var value = (string)field!.GetValue(null)!;
-
-		// Assert
-		value.ShouldBe("__null__");
-	}
-
 	[Fact]
 	public void PartitionKeyAttribute_Equals_tenant_id()
 	{
@@ -124,36 +110,6 @@ public sealed class ActivityGroupItemShould
 
 	#endregion
 
-	#region CreatePK Tests
-
-	[Fact]
-	public void CreatePK_ReturnsTenantId_WhenProvided()
-	{
-		// Arrange
-		var method = _itemType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)method!.Invoke(null, new object?[] { "tenant-456" })!;
-
-		// Assert
-		result.ShouldBe("tenant-456");
-	}
-
-	[Fact]
-	public void CreatePK_ReturnsNullTenantPartitionKey_WhenNull()
-	{
-		// Arrange
-		var method = _itemType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)method!.Invoke(null, new object?[] { null })!;
-
-		// Assert
-		result.ShouldBe("__null__");
-	}
-
-	#endregion
-
 	#region CreateSK Tests
 
 	[Fact]
@@ -185,20 +141,6 @@ public sealed class ActivityGroupItemShould
 		// Assert
 		result.ShouldBe("tenant-456#ACTGRP#Group#Developers");
 	}
-
-	[Fact]
-	public void CreateGsiSK_ReturnsCorrectKey_WithNullTenantId()
-	{
-		// Arrange
-		var method = _itemType.GetMethod("CreateGsiSK", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)method!.Invoke(null, new object?[] { null, "Group", "Developers" })!;
-
-		// Assert
-		result.ShouldBe("null#ACTGRP#Group#Developers");
-	}
-
 	#endregion
 
 	#region Type Tests

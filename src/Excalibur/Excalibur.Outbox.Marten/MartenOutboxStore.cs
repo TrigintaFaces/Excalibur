@@ -11,6 +11,8 @@ using Npgsql;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Outbox.Marten;
 
 /// <summary>
@@ -28,12 +30,27 @@ namespace Excalibur.Outbox.Marten;
 /// with the same id already exists — rather than an upsert, so a concurrent duplicate is rejected
 /// rather than silently overwriting the original (the exactly-once staging invariant).
 /// </para>
+/// <para>
+/// <b>Tenancy: the discriminator is carried on the document, never applied as a filter.</b> Each staged
+/// document records the tenant of the message it projects, and every drained message hands that value
+/// back, so the owning tenant is re-established from the document rather than inferred from ambient
+/// state. This store reads no ambient tenant on any path, and its declaration of
+/// <see cref="ITenantPartitionedStore"/> states that mechanism explicitly.
+/// </para>
+/// <para>
+/// The drain is deliberately estate-wide, and that is a requirement rather than an omission: one
+/// dispatcher serves every tenant, so a drain narrowed to an ambient tenant would read it as absent,
+/// claim the empty set, and stall delivery for all of them. The remaining statements load, update, and
+/// delete a document by its identity, where a tenant term could not exclude a foreign document — the
+/// identity already addresses at most one — and could only turn the correct document into none.
+/// </para>
 /// </remarks>
-public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDisposable
+public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin, ITenantPartitionedStore, IDisposable
 {
 	private readonly IDocumentStore _store;
 	private readonly MartenOutboxStoreOptions _options;
 	private readonly ILogger<MartenOutboxStore> _logger;
+	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
 	/// Identifies this store instance as the holder of a claim.
@@ -53,10 +70,22 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	/// <param name="store"> The Marten document store. </param>
 	/// <param name="options"> The outbox store options. </param>
 	/// <param name="logger"> The logger instance. </param>
+	/// <param name="timeProvider">
+	/// The clock used for the instants this store records rather than compares — a send time, an attempt
+	/// time, the moment a statistics snapshot was taken. Defaults to <see cref="TimeProvider.System"/>.
+	/// <para>
+	/// It is deliberately NOT the clock that decides claim eligibility. A lease is written by one machine
+	/// and judged by another, so any predicate reading this clock would compare two unsynchronised ones;
+	/// those instants come from <c>clock_timestamp()</c> inside the claim statement instead. Injecting the
+	/// clock here is what lets a test drive this store's clock arbitrarily far from the database's and
+	/// observe that the claim does not move — which is the property, stated as a test.
+	/// </para>
+	/// </param>
 	public MartenOutboxStore(
 		IDocumentStore store,
 		IOptions<MartenOutboxStoreOptions> options,
-		ILogger<MartenOutboxStore> logger)
+		ILogger<MartenOutboxStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(store);
 		ArgumentNullException.ThrowIfNull(options);
@@ -65,6 +94,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		_store = store;
 		_options = options.Value;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <inheritdoc/>
@@ -94,6 +124,8 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -113,11 +145,13 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 
 		await using var session = _store.LightweightSession();
 
@@ -125,8 +159,13 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		// dispatchers polling together saw the same rows and both sent them — every message delivered
 		// twice for as long as more than one instance was running. The claim below is what narrows this
 		// to the messages belonging to this dispatcher.
+		// Staged (never attempted) and Failed (attempted, still below the retry ceiling) are both owed
+		// delivery. Restricting this to Staged would withhold a failed message permanently, which looks
+		// like a well-behaved backoff from the outside and is actually a silent drop. What keeps a failed
+		// message from being retried immediately is the floor in the claim table, not its absence here.
 		var candidates = await session.Query<MartenOutboxDocument>()
-			.Where(d => d.Status == OutboxStatus.Staged && (d.ScheduledAt == null || d.ScheduledAt <= now))
+			.Where(d => (d.Status == OutboxStatus.Staged || d.Status == OutboxStatus.Failed)
+				&& (d.ScheduledAt == null || d.ScheduledAt <= now))
 			.OrderBy(d => d.Priority)
 			.ThenBy(d => d.CreatedAt)
 			.Take(batchSize)
@@ -138,7 +177,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 			return [];
 		}
 
-		await using var connection = await OpenClaimConnectionAsync(session, cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var claimed = await MartenOutboxClaims.ClaimAsync(
 			connection,
@@ -171,7 +210,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		// no optimistic concurrency, so concurrent callers all observe a not-yet-sent message and all
 		// write it sent. The transition is arbitrated in the claim table instead, where exactly one caller
 		// can win it, and the loser is told the message was already settled rather than settling it again.
-		await using (var connection = await OpenClaimConnectionAsync(session, cancellationToken).ConfigureAwait(false))
+		await using (var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false))
 		{
 			var won = await MartenOutboxClaims.TrySettleAsync(
 				connection,
@@ -187,7 +226,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		}
 
 		document.Status = OutboxStatus.Sent;
-		document.SentAt = DateTimeOffset.UtcNow;
+		document.SentAt = _timeProvider.GetUtcNow();
 		document.LastError = null;
 
 		session.Update(document);
@@ -205,33 +244,87 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 
-		await using var session = _store.LightweightSession();
+		// The claim release and the document update are ONE transaction on ONE connection, and the reason is
+		// termination rather than tidiness. As two independent writes, a crash between them left the claim
+		// released under a floor while the document still read Staged with its old attempt count. Once the
+		// floor elapsed the message was claimed again, failed again, and recorded the same count again — and
+		// because the dead-letter ceiling is driven by that count, the message was retried without end and
+		// never dead-lettered. Every other provider performs this as a single statement; this one did not.
+		//
+		// Rolling back on any failure is the safe direction: nothing is released, so the message stays claimed
+		// by this dispatcher and is retried when the claim ages out — with its attempt count intact.
+		// Through the shared helper, not a bare CreateConnection: the helper also ensures the claim table
+		// exists, which Marten does not manage and which a consumer or a test fixture may recreate under a
+		// live store.
+		await using var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+		// The document write cannot arbitrate this. Every caller opens its own session and a session applies
+		// no optimistic concurrency, so concurrent callers all read the message and all write it — last one
+		// wins, on every field. The decision is taken in the claim table instead, where one conditional
+		// statement both checks that this dispatcher owns the claim and releases it under a floor. A caller
+		// that does not own the claim, or whose message is already settled, is told so here and writes nothing.
+		var entitled = await MartenOutboxClaims.TryRecordFailureAsync(
+			connection,
+			transaction,
+			_options.ClaimsSchemaName,
+			_options.ClaimsTableName,
+			messageId,
+			_dispatcherId,
+			TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds),
+			cancellationToken).ConfigureAwait(false);
+
+		if (!entitled)
+		{
+			// Silent, like the missing-message case below. The report is stale rather than erroneous: this
+			// dispatcher lost the claim, and the message belongs to whoever holds it now.
+			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		// Enlisted on the transaction above rather than opening its own: Marten writes through it and leaves
+		// the commit to us, which is what lets both writes land together. This is the store's documented
+		// seam for joining an existing transaction, so no part of the unit of work is hand-rolled.
+		//
+		// Note this does NOT contradict the drain's rule that a claim must not ride the session's unit of
+		// work. That rule exists because a read-only drain disposes its session without saving, which would
+		// roll a claim back; this path always reaches a decision — commit or rollback — so there is no
+		// session lifetime for the claim to be lost to.
+		await using var session = _store.LightweightSession(global::Marten.Services.SessionOptions.ForTransaction(transaction));
 
 		var document = await session.LoadAsync<MartenOutboxDocument>(messageId, cancellationToken).ConfigureAwait(false);
 		if (document is null)
 		{
-			// Mirror the conformance expectation: a missing message is a silent no-op on mark-failed.
+			// Mirror the conformance expectation: a missing message is a silent no-op on mark-failed. The
+			// claim release is rolled back with it, so the two stay consistent.
+			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
 		document.Status = OutboxStatus.Failed;
 		document.LastError = errorMessage;
-		document.RetryCount = retryCount;
-		document.LastAttemptAt = DateTimeOffset.UtcNow;
+
+		// The recorded count never decreases. The retry ceiling that eventually gives up on a message is
+		// driven by it, so a late report carrying a lower number would push that ceiling further away
+		// every time it arrived, and the message would be retried without end.
+		if (retryCount > document.RetryCount)
+		{
+			document.RetryCount = retryCount;
+		}
+
+		document.LastAttemptAt = _timeProvider.GetUtcNow();
 
 		session.Update(document);
 		await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-		// Returned to the pool, so the claim is released rather than left to expire. Without this a
-		// failed message would sit unavailable for the whole claim timeout before any dispatcher could
-		// retry it — a retry delay nobody configured and nothing reports.
-		await ReleaseClaimAsync(session, messageId, cancellationToken).ConfigureAwait(false);
+		// The single commit. Before it, neither write is visible; after it, both are.
+		await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
 		LogMessageFailed(messageId, errorMessage, retryCount);
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -266,7 +359,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(
 		DateTimeOffset scheduledBefore,
 		int batchSize,
 		CancellationToken cancellationToken)
@@ -319,7 +412,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		// the terminal tombstone that made its transition single-winner, so nothing else removes it: the
 		// row goes when the message goes, and skipping this would grow the table by one row per message
 		// ever sent.
-		await using (var connection = await OpenClaimConnectionAsync(session, cancellationToken).ConfigureAwait(false))
+		await using (var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false))
 		{
 			await MartenOutboxClaims.PurgeAsync(
 				connection,
@@ -334,9 +427,9 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 
 		await using var session = _store.QuerySession();
 
@@ -391,19 +484,18 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 	public void Dispose() => _claimsTableLock.Dispose();
 
 	/// <summary>
-	/// Returns the session's connection, open, with the claim table present.
+	/// Opens a connection to the Marten database with the claim table present.
 	/// </summary>
 	/// <remarks>
-	/// The claim rides the session's own connection so it reaches the same database as the documents,
-	/// whatever the consumer configured on their store. The table is created once per store instance;
-	/// <c>CREATE TABLE IF NOT EXISTS</c> makes a concurrent first call harmless rather than a race.
+	/// A SEPARATE connection built by Marten's own factory, never the session's, so a claim does not ride
+	/// a unit of work that a read-only drain discards. The claim table is ensured on every call rather
+	/// than once per store instance: Marten manages the schema and a consumer or test fixture may recreate
+	/// it under a live store, after which a cached "already created" is simply wrong. The body carries the
+	/// full reasoning for both choices.
 	/// </remarks>
-	/// <param name="session">The session whose connection to use.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <returns>The open connection.</returns>
-	private async Task<NpgsqlConnection> OpenClaimConnectionAsync(
-		IDocumentSession session,
-		CancellationToken cancellationToken)
+	/// <returns>The open connection. The caller disposes it.</returns>
+	private async Task<NpgsqlConnection> OpenClaimConnectionAsync(CancellationToken cancellationToken)
 	{
 		// A SEPARATE connection, built by Marten's own factory, and the caller disposes it.
 		//
@@ -460,7 +552,7 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		string messageId,
 		CancellationToken cancellationToken)
 	{
-		await using var connection = await OpenClaimConnectionAsync(session, cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenClaimConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		await MartenOutboxClaims.ReleaseAsync(
 			connection, _options.ClaimsSchemaName, _options.ClaimsTableName, messageId, cancellationToken)

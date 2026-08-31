@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 ///
 /// Framework Versions:
 /// - Excalibur: 1.0.0 (local build)
-/// - MediatR: 13.0+ (latest stable)
+/// - MediatR: 12.5.0
 ///
 /// Benchmark Categories:
 /// 1. Handler Invocation (hot path) - Basic dispatch performance
@@ -98,7 +98,6 @@ public class MediatRComparisonBenchmarks
 			{
 				options.UseLightMode = true;
 				options.EnablePipelineSynthesis = false;
-				options.Features.EnableCacheMiddleware = false;
 				options.Features.EnableMetrics = false;
 				options.Features.EnableAuthorization = false;
 				options.Features.ValidateMessageSchemas = false;
@@ -123,6 +122,33 @@ public class MediatRComparisonBenchmarks
 		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
 		_directContextFactory = _dispatchDirectServiceProvider.GetRequiredService<IMessageContextFactory>();
 
+		// NON-VACUITY ARM. The benchmarks below are NAMED for the ultra-local / direct-local path, but
+		// nothing about calling that API guarantees it is taken: the dispatcher consults
+		// CanBypassMiddlewareFor first and falls through to the full pipeline when any middleware is
+		// configured. If that happens here, these benchmarks quietly measure the pipeline and publish the
+		// number under a fast-path name -- a wrong figure with no assertion anywhere to catch it, which is
+		// the failure mode a benchmark cannot detect by running successfully.
+		//
+		// So prove the premise before measuring it. Fail LOUD: a benchmark that cannot measure what it is
+		// named for must not emit a number at all.
+		if (_directLocalDispatcher is null)
+		{
+			throw new InvalidOperationException(
+				"Direct-local benchmarks: the dispatcher does not implement IDirectLocalDispatcher, so the "
+				+ "ultra-local path cannot be exercised and every 'ultra-local' figure below would describe "
+				+ "the ordinary pipeline.");
+		}
+
+		if (!_directLocalDispatcher.CanBypassMiddlewareFor(typeof(TestCommand))
+			|| !_directLocalDispatcher.CanBypassMiddlewareFor(typeof(TestQuery)))
+		{
+			throw new InvalidOperationException(
+				"Direct-local benchmarks: this container reports that middleware applies, so dispatch will "
+				+ "take the pipeline and these benchmarks would report pipeline cost under a fast-path "
+				+ "name. Either the Direct profile stopped meaning zero middleware, or something registered "
+				+ "middleware into this container. Fix the container -- do not rename the benchmark.");
+		}
+
 		// Setup Excalibur singleton-promoted path (auto-promote stateless handlers)
 		var singletonServices = new ServiceCollection();
 		_ = singletonServices.AddLogging();
@@ -133,7 +159,6 @@ public class MediatRComparisonBenchmarks
 			{
 				options.UseLightMode = true;
 				options.EnablePipelineSynthesis = false;
-				options.Features.EnableCacheMiddleware = false;
 				options.Features.EnableMetrics = false;
 				options.Features.EnableAuthorization = false;
 				options.Features.ValidateMessageSchemas = false;

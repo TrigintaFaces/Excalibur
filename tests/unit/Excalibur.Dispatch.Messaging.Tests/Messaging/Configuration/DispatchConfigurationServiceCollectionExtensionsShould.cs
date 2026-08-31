@@ -204,7 +204,6 @@ public sealed class DispatchConfigurationServiceCollectionExtensionsShould
 				options.UseLightMode = true;
 				options.Inbox.Enabled = false;
 				options.Consumer.Dedupe.Enabled = true;
-				options.Outbox.UseInMemoryStorage = true;
 			});
 		});
 		using var provider = services.BuildServiceProvider();
@@ -213,7 +212,6 @@ public sealed class DispatchConfigurationServiceCollectionExtensionsShould
 		options.UseLightMode.ShouldBeTrue();
 		options.Inbox.Enabled.ShouldBeFalse();
 		options.Consumer.Dedupe.Enabled.ShouldBeTrue();
-		options.Outbox.UseInMemoryStorage.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -227,24 +225,45 @@ public sealed class DispatchConfigurationServiceCollectionExtensionsShould
 		options.UseLightMode.ShouldBeFalse();
 		options.Inbox.Enabled.ShouldBeTrue();
 		options.Consumer.Dedupe.Enabled.ShouldBeFalse();
-		options.Outbox.UseInMemoryStorage.ShouldBeFalse();
-		options.Outbox.MaxRetries.ShouldBe(10);
-		options.Outbox.SentMessageRetention.ShouldBe(TimeSpan.FromDays(7));
 	}
 
+	// SAFETY: durability was requested and nothing supplies it, so start-up must fail rather than run with
+	// deduplication silently absent. Asserting the option round-trips (above) cannot catch that — round-
+	// tripping is exactly what worked while the promise went unkept.
 	[Fact]
-	public void AddDefaultDispatchPipelinesRegisterSynthesizedDefaultMiddleware()
+	public void AddDispatchWithDurabilityFailStartupWhenNoInboxStoreIsRegistered()
 	{
 		var services = new ServiceCollection();
-		services.AddDefaultDispatchPipelines();
+		services.AddDispatchWithDurability();
 		using var provider = services.BuildServiceProvider();
 
-		var synthesizer = provider.GetRequiredService<IDefaultPipelineSynthesizer>();
-		var pipeline = synthesizer.SynthesizePipeline(MessageKinds.All, new DispatchOptions());
+		var error = Should.Throw<InvalidOperationException>(() => provider.ValidateStartupGates());
 
-		pipeline.ShouldContain(typeof(TransportRouterMiddleware));
-		pipeline.ShouldContain(typeof(InboxMiddleware));
-		pipeline.ShouldContain(typeof(OutboxStagingMiddleware));
+		error.Message.ShouldContain("IInboxStore");
+	}
+
+	// LIVENESS: the guard must admit the wired case. Without this arm a guard that rejected every
+	// configuration — including correct ones — would pass the safety arm above.
+	[Fact]
+	public void AddDispatchWithDurabilityStartWhenAnInboxStoreIsRegistered()
+	{
+		var services = new ServiceCollection();
+		services.AddDispatchWithDurability();
+		services.AddSingleton(A.Fake<IInboxStore>());
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => provider.ValidateStartupGates());
+	}
+
+	// LIVENESS: an application that never asks for the durable inbox must be unaffected by the guard.
+	[Fact]
+	public void AddDispatchStartWhenTheDurableInboxWasNeverEnabled()
+	{
+		var services = new ServiceCollection();
+		services.AddDispatch(builder => builder.WithLightMode());
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => provider.ValidateStartupGates());
 	}
 
 	private sealed class RecordingMessageBus : IMessageBus

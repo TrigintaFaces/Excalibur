@@ -37,6 +37,14 @@ public static class SqlServerKeyEscrowServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerKeyEscrowOptions>,
 				SqlServerKeyEscrowOptionsValidator>());
+
+		// Escrow encrypts every key it stores, so a registration without an encryption provider is
+		// inoperable. Registered as a second validator rather than folded into the options validator
+		// so that option-shape failures and wiring failures are reported together, and so neither can
+		// mask the other. ValidateOnStart above turns this into a startup failure.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerKeyEscrowOptions>,
+				KeyEscrowEncryptionWiringValidator>());
 		services.TryAddSingleton<IKeyEscrowService, SqlServerKeyEscrowService>();
 
 		return services;
@@ -65,6 +73,14 @@ public static class SqlServerKeyEscrowServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerKeyEscrowOptions>,
 				SqlServerKeyEscrowOptionsValidator>());
+
+		// Escrow encrypts every key it stores, so a registration without an encryption provider is
+		// inoperable. Registered as a second validator rather than folded into the options validator
+		// so that option-shape failures and wiring failures are reported together, and so neither can
+		// mask the other. ValidateOnStart above turns this into a startup failure.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerKeyEscrowOptions>,
+				KeyEscrowEncryptionWiringValidator>());
 		services.TryAddSingleton<IKeyEscrowService, SqlServerKeyEscrowService>();
 
 		return services;

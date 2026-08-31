@@ -58,8 +58,8 @@ using Excalibur.AuditLogging.SqlServer;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add audit logging with SQL Server storage
-builder.Services.AddAuditLogging()
-    .UseAuditStore<SqlServerAuditStore>();
+builder.Services.AddAuditLogging();
+builder.Services.AddSqlServerAuditStore();
 
 builder.Services.Configure<SqlServerAuditOptions>(options =>
 {
@@ -221,25 +221,43 @@ var result = await auditLogger.VerifyIntegrityAsync(
     endDate: DateTimeOffset.UtcNow,
     cancellationToken);
 
-if (result.IsValid)
+switch (result.Outcome)
 {
-    Console.WriteLine($"Verified {result.EventsVerified} events - integrity OK");
-}
-else
-{
-    Console.WriteLine($"INTEGRITY VIOLATION: {result.ViolationCount} violations found");
-    Console.WriteLine($"First violation: {result.FirstViolationEventId}");
-    Console.WriteLine($"Details: {result.ViolationDescription}");
+    case AuditIntegrityOutcome.Verified:
+        Console.WriteLine($"Verified {result.EventsVerified} events - integrity OK");
+        break;
+
+    case AuditIntegrityOutcome.ViolationsDetected:
+        Console.WriteLine($"INTEGRITY VIOLATION: {result.CompromisedChainCount} compromised chain(s)");
+        Console.WriteLine($"First violation: {result.FirstViolationEventId}");
+        Console.WriteLine($"Details: {result.ViolationDescription}");
+        break;
+
+    case AuditIntegrityOutcome.NoEventsInScope:
+        Console.WriteLine("No audit events in this window - integrity was not checked");
+        break;
 }
 ```
+
+:::warning An empty window is not a pass
+
+Verification has three outcomes, not two. When the requested window contains no audit events, the
+store reports `NoEventsInScope`: it examined nothing, so nothing about the integrity of your audit
+log follows from the run. Never fold that case in with `Verified` when producing compliance
+evidence — an unexamined period is not evidence that the log is intact. A window you expected to
+contain events but that reports `NoEventsInScope` may mean audit events are not reaching the store
+at all.
+
+:::
 
 ### Integrity Result Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `IsValid` | bool | Whether hash chain is intact |
-| `EventsVerified` | long | Number of events checked |
-| `ViolationCount` | int | Number of violations found |
+| `Outcome` | `AuditIntegrityOutcome` | `Verified`, `ViolationsDetected`, or `NoEventsInScope` |
+| `EventsVerified` | long | Number of events checked (always 0 for `NoEventsInScope`) |
+| `CompromisedChainCount` | int | Number of the store's chaining units that failed. Each compromised unit counts once however many of its records are affected. With `IsHashChained` false the store chains nothing and each record is its own unit, so this counts records instead. |
+| `IsHashChained` | bool | Whether the records were hash-chained. `false` means only each record's own content integrity was tested — deletion, insertion and reordering were not. |
 | `FirstViolationEventId` | string? | ID of the first corrupted event |
 | `ViolationDescription` | string? | Detailed validation message |
 | `StartDate` | DateTimeOffset | Start of the verification range |
@@ -445,8 +463,11 @@ var query = new AuditQuery
     ActorId = "user-123",
     ResourceType = "Order",
 
-    // Multi-tenant / multi-app
-    TenantId = "tenant-abc",
+    // Tenant scoping is NOT a query field. Every store resolves the tenant from the
+    // ambient ITenantContext and adds the predicate itself, so a caller cannot widen
+    // or forge its scope by editing the query.
+
+    // Multi-app
     ApplicationName = "OrderService",
 
     // Pagination
@@ -457,6 +478,16 @@ var query = new AuditQuery
 var events = await auditStore.QueryAsync(query, cancellationToken);
 var count = await auditStore.CountAsync(query, cancellationToken);
 ```
+
+:::warning `ActorId` and `IpAddress` filters do not survive field encryption
+If you enable `UseAuditLogEncryption()`, those two fields are encrypted by default, and the cipher is
+randomized — two records holding the same actor id hold different ciphertext, so no server-side
+comparison can match either. **`QueryAsync` and `CountAsync` throw `NotSupportedException`** naming the
+field and the option, rather than returning an empty list or a zero that reads as *"this actor did
+nothing"*. Set `AuditEncryptionOptions.EncryptActorId = false` to keep the field searchable, at the cost
+of storing it in the clear. See [encryption costs you the ability to query by that
+field](../compliance/audit-logging.md#encryption-costs-you-the-ability-to-query-by-that-field).
+:::
 
 ---
 

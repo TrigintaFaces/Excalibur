@@ -4,6 +4,8 @@
 using Excalibur.Data.Sharding;
 using Excalibur.Dispatch;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
@@ -29,6 +31,8 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
 	{
 		var store = ResolveStore();
@@ -36,6 +40,8 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken)
 	{
 		var store = ResolveStore();
@@ -50,6 +56,8 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -68,15 +76,14 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 		return store.CountAsync(filters, cancellationToken);
 	}
 
-	private IProjectionStore<TProjection> ResolveStore()
-	{
-		var tenantId = _tenantContext.TenantId;
-		if (string.IsNullOrEmpty(tenantId))
-		{
-			throw new InvalidOperationException(
-				"No ambient tenant is resolved. Ensure the tenant is established (TenantContextHolder.BeginScope) before accessing the projection store.");
-		}
-
-		return _resolver.Resolve(tenantId);
-	}
+	/// <summary>
+	/// Resolves the shard for the ambient tenant, failing closed when none is established.
+	/// </summary>
+	/// <returns>The projection store for the ambient tenant's shard.</returns>
+	/// <exception cref="TenantRequiredException">
+	/// No tenant is resolved. The guard is <see cref="TenantScope.FromContext(ITenantContext)"/> rather than a
+	/// local null check, so this path throws the same documented type as every other tenant-required path in
+	/// the framework — a consumer's <c>catch (TenantRequiredException)</c> handler covers routing too.
+	/// </exception>
+	private IProjectionStore<TProjection> ResolveStore() => _resolver.Resolve(TenantScope.FromContext(_tenantContext).TenantId);
 }

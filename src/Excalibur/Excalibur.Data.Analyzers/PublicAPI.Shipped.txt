@@ -1,0 +1,9 @@
+#nullable enable
+Excalibur.Data.Analyzers.NoTenantTermJustificationAnalyzer
+Excalibur.Data.Analyzers.NoTenantTermJustificationAnalyzer.NoTenantTermJustificationAnalyzer() -> void
+Excalibur.Data.Analyzers.TenantPartitionParameterAnalyzer
+Excalibur.Data.Analyzers.TenantPartitionParameterAnalyzer.TenantPartitionParameterAnalyzer() -> void
+override Excalibur.Data.Analyzers.NoTenantTermJustificationAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Data.Analyzers.NoTenantTermJustificationAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>
+override Excalibur.Data.Analyzers.TenantPartitionParameterAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Data.Analyzers.TenantPartitionParameterAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>

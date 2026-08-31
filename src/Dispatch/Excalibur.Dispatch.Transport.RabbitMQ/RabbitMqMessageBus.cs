@@ -13,6 +13,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -42,7 +43,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 internal sealed partial class RabbitMqMessageBus(
 	IChannel channel,
 	IPayloadSerializer serializer,
-	RabbitMqOptions options,
+	IOptions<RabbitMqOptions> options,
 	ILogger<RabbitMqMessageBus> logger,
 	IEnvelopeCloudEventBridge? cloudEventBridge = null,
 	ICloudEventMapper<(IBasicProperties properties, ReadOnlyMemory<byte> body)>? cloudEventMapper = null,
@@ -50,8 +51,8 @@ internal sealed partial class RabbitMqMessageBus(
 	RabbitMqTopologyInitializer? topologyInitializer = null) : IMessageBus
 {
 	private readonly IChannel _channel = channel ?? throw new ArgumentNullException(nameof(channel));
-	private readonly string _exchange = options.Exchange;
-	private readonly string _routingKey = options.RoutingKey;
+	private readonly string _exchange = options.Value.Exchange;
+	private readonly string _routingKey = options.Value.RoutingKey;
 	private readonly RabbitMqCloudEventOptions? _cloudEventOptions = cloudEventOptions;
 	private readonly RabbitMqTopologyInitializer? _topologyInitializer = topologyInitializer;
 
@@ -189,10 +190,6 @@ internal sealed partial class RabbitMqMessageBus(
 			CausationId = context.CausationId,
 			TraceParent = context.GetTraceParent(),
 			TenantId = context.GetTenantId(),
-			SessionId = context.GetSessionId(),
-			WorkflowId = context.GetWorkflowId(),
-			PartitionKey = context.GetPartitionKey(),
-			Source = context.GetSource(),
 			MessageType = context.GetMessageType() ?? message.GetType().FullName,
 			ContentType = context.GetContentType() ?? "application/json",
 			DeliveryCount = context.GetDeliveryCount(),

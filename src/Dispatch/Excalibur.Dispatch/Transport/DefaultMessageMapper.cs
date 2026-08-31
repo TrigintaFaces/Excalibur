@@ -72,7 +72,7 @@ public class DefaultMessageMapper : IMessageMapper
 		// Copy common properties
 		target.CorrelationId = source.CorrelationId;
 		target.CausationId = source.CausationId;
-		target.TenantId = source.TenantId; // tenancy isolation invariant — must be copied first-class (bd-1vqmei)
+		target.TenantId = source.TenantId; // tenancy isolation invariant — must be copied first-class
 		target.SourceTransport = source.SourceTransport;
 		target.TargetTransport = targetTransportName;
 		target.Timestamp = source.Timestamp;

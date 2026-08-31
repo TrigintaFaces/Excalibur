@@ -9,7 +9,7 @@
     <EnableDefaultAnalyzers>false</EnableDefaultAnalyzers>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <!-- Packed as an analyzer asset INSIDE Excalibur.Dispatch.Compat.MediatR (ADR-341 §9, Option B2):
+    <!-- Packed as an analyzer asset INSIDE Excalibur.Dispatch.Compat.MediatR:
          this project is not itself published; its DLL ships in the Compat.MediatR NuGet. -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IsPackable>false</IsPackable>

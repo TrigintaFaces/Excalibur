@@ -24,10 +24,6 @@ internal static class TypeResolver
 	/// name is trusted (e.g. migrating the consumer's own store); untrusted names (e.g. a remote dead-letter
 	/// envelope) MUST leave it <see langword="false"/>. Mirrors the event serializer's secure default.
 	/// </param>
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "RuntimeFeature check ensures AOT path avoids reflection")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "JIT fallback resolves types from loaded assemblies via reflection")]
 	public static Type? ResolveType(string typeName, bool allowAssemblyScan = false)
 	{
 		if (string.IsNullOrEmpty(typeName))
@@ -47,7 +43,7 @@ internal static class TypeResolver
 			return null;
 		}
 
-		// 6v2z7q: the unbounded JIT assembly scan is the gadget-chain vector — an untrusted type name can
+		// the unbounded JIT assembly scan is the gadget-chain vector — an untrusted type name can
 		// resolve an attacker-chosen type from any loaded assembly. It is OFF by default; only a caller that
 		// KNOWS the type name is trusted opts in. An unregistered type otherwise resolves to null.
 		if (!allowAssemblyScan)

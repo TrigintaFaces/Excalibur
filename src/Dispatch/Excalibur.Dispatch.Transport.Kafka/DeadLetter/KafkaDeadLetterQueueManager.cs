@@ -256,7 +256,7 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 	}
 
 	/// <inheritdoc/>
-	public Task<int> PurgeDeadLetterQueueAsync(
+	public Task<int> PurgeAllTenantsDeadLetterQueueAsync(
 		CancellationToken cancellationToken)
 	{
 		var dlqTopic = _options.GetDeadLetterTopicName(_defaultSourceTopic);

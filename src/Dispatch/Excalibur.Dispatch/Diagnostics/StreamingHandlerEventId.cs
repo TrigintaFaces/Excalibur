@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// <item>60300-60399: Health Checks</item>
 /// </list>
 /// </remarks>
-public static class StreamingHandlerEventId
+internal static class StreamingHandlerEventId
 {
 	// ========================================
 	// 60000-60099: Streaming Handler Lifecycle

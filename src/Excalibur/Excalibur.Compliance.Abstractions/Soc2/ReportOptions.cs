@@ -39,11 +39,6 @@ public record ReportOptions
 	public TrustServicesCategory[]? Categories { get; init; }
 
 	/// <summary>
-	/// Whether to include detailed evidence.
-	/// </summary>
-	public bool IncludeDetailedEvidence { get; init; } = true;
-
-	/// <summary>
 	/// Whether to include test results (Type II only).
 	/// </summary>
 	public bool IncludeTestResults { get; init; } = true;
@@ -57,19 +52,4 @@ public record ReportOptions
 	/// Custom report title.
 	/// </summary>
 	public string? CustomTitle { get; init; }
-
-	/// <summary>
-	/// Whether to include management's assertion.
-	/// </summary>
-	public bool IncludeManagementAssertion { get; init; } = true;
-
-	/// <summary>
-	/// Whether to include system description.
-	/// </summary>
-	public bool IncludeSystemDescription { get; init; } = true;
-
-	/// <summary>
-	/// Maximum evidence items per criterion.
-	/// </summary>
-	public int? MaxEvidenceItemsPerCriterion { get; init; }
 }

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -54,6 +56,8 @@ public interface IOutboxDispatcher : IAsyncDisposable
 	/// storage for manual intervention.
 	/// </remarks>
 	/// <exception cref="OperationCanceledException"> Thrown when the operation is cancelled via the cancellation token. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken);
 
 	/// <summary>

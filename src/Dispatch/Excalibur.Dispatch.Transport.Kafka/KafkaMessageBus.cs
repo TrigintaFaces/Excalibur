@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Kafka;
 
@@ -44,7 +45,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 internal sealed partial class KafkaMessageBus(
 		IProducer<string, byte[]> producer,
 		IPayloadSerializer serializer,
-		KafkaOptions options,
+		IOptions<KafkaOptions> options,
 		ILogger<KafkaMessageBus> logger,
 		ICloudEventMapper<Message<string, string>>? cloudEventMapper = null,
 		KafkaCloudEventOptions? cloudEventOptions = null) : IMessageBus, IAsyncDisposable
@@ -56,14 +57,14 @@ internal sealed partial class KafkaMessageBus(
 	private readonly IPayloadSerializer _serializer =
 			serializer ?? throw new ArgumentNullException(nameof(serializer));
 	private readonly KafkaOptions _options =
-			options ?? throw new ArgumentNullException(nameof(options));
+			options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILogger<KafkaMessageBus> _logger =
 			logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly KafkaCloudEventOptions? _cloudEventOptions = cloudEventOptions;
 	private readonly ICloudEventMapper<Message<string, string>>? _cloudEventMapper = cloudEventMapper;
 
-	private readonly string _topic = !string.IsNullOrWhiteSpace(options.Topic)
-			? options.Topic
+	private readonly string _topic = !string.IsNullOrWhiteSpace(options.Value.Topic)
+			? options.Value.Topic
 			: cloudEventOptions?.DefaultTopic ?? string.Empty;
 
 	private readonly bool _enableTransactions = cloudEventOptions?.Producer.EnableTransactions == true;

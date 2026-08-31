@@ -155,14 +155,18 @@ public sealed class TenantScopedTieredReadThroughShould
 
         // Prove tenant-scoping capability through the sole sanctioned dep-gated seam (a bare marker is
         // structurally unimplementable). AddMultiTenancy itself registers the ambient ITenantContext.
-        _ = services.AddTenantScopedStore<IEventStore, TenantAwareNoopEventStore>((_, _) => new TenantAwareNoopEventStore());
+        _ = services.AddTenantAwareStore<IEventStore, TenantAwareNoopEventStore>(
+            sp => new TenantAwareNoopEventStore(sp.GetRequiredService<ITenantContext>()));
 
         // The tiered/cold gate in ApplyRowDiscriminator fails fast when a cold tier (IColdEventStore) is present
         // without a tenant-scoping capability marker. Emit the marker for the cold store through the same
-        // dep-gated seam so this provider exercises the SUPPORTED (tenant-aware cold) config. TContract == TStore
-        // == IColdEventStore, and TryAddSingleton<IColdEventStore> no-ops against the already-registered fake, so
-        // the TieredEventStoreDecorator still resolves the same coldStore; only the marker is added.
-        _ = services.AddTenantScopedStore<IColdEventStore, IColdEventStore>((_, _) => coldStore);
+        // dep-gated seam so this provider exercises the SUPPORTED (tenant-aware cold) config.
+        // ColdStoreScopingMarkerCarrier's constructor declares ITenantContext, so the seam derives the scoped
+        // marker from it; TryAddSingleton<ColdStoreScopingMarkerCarrier> registers under a key nothing else
+        // resolves, so the TieredEventStoreDecorator still resolves the real, already-registered coldStore fake
+        // — only the marker is added.
+        _ = services.AddTenantAwareStore<IColdEventStore, ColdStoreScopingMarkerCarrier>(
+            sp => new ColdStoreScopingMarkerCarrier(sp.GetRequiredService<ITenantContext>()));
 
         _ = services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
@@ -182,9 +186,9 @@ public sealed class TenantScopedTieredReadThroughShould
 
     /// <summary>
     /// A minimal event store registered only to emit the <c>ITenantScopingCapability&lt;IEventStore&gt;</c> marker
-    /// via the dep-gated <c>AddTenantScopedStore</c> seam. Its factory is never resolved by these tests.
+    /// via the dep-gated <c>AddTenantAwareStore</c> seam. Its factory is never resolved by these tests.
     /// </summary>
-    private sealed class TenantAwareNoopEventStore : IEventStore
+    private sealed class TenantAwareNoopEventStore(ITenantContext tenantContext) : IEventStore
     {
         public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
             string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
@@ -198,5 +202,33 @@ public sealed class TenantScopedTieredReadThroughShould
             string aggregateId, string aggregateType, IEnumerable<IDomainEvent> events,
             long expectedVersion, CancellationToken cancellationToken) =>
             ValueTask.FromResult(AppendResult.CreateSuccess(0, null));
+    }
+
+    /// <summary>
+    /// A throwaway <see cref="IColdEventStore"/> implementer registered ONLY to derive the scoped marker
+    /// through <c>AddTenantAwareStore</c>'s constructor-shape probe — never resolved. The real cold store
+    /// under test is the FakeItEasy fake supplied by the caller and registered separately via
+    /// <see cref="ServiceCollectionServiceExtensions.AddSingleton{TService}(IServiceCollection, TService)"/>;
+    /// this type exists only because the probe needs a real constructor to reflect on, which an arbitrary
+    /// caller-supplied fake instance does not offer.
+    /// </summary>
+    private sealed class ColdStoreScopingMarkerCarrier(ITenantContext tenantContext) : IColdEventStore
+    {
+        public Task<long> WriteAsync(
+            KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Unreachable — this type is never resolved.");
+
+        public Task<IReadOnlyList<StoredEvent>> ReadAsync(
+            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Unreachable — this type is never resolved.");
+
+        public Task<IReadOnlyList<StoredEvent>> ReadAsync(
+            KeyedTenantPartition tenant, string aggregateId, long fromVersion, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Unreachable — this type is never resolved.");
+
+        public Task<bool> HasArchivedEventsAsync(
+            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Unreachable — this type is never resolved.");
     }
 }

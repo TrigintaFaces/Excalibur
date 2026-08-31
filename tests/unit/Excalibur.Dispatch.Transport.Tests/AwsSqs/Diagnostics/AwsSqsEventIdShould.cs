@@ -60,8 +60,6 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 		AwsSqsEventId.ConnectionReleased.ShouldBeInRange(25000, 25099);
 		AwsSqsEventId.ConnectionPoolExhausted.ShouldBeInRange(25000, 25099);
 		AwsSqsEventId.RetryAttempt.ShouldBeInRange(25000, 25099);
-		AwsSqsEventId.CircuitBreakerOpened.ShouldBeInRange(25000, 25099);
-		AwsSqsEventId.CircuitBreakerClosed.ShouldBeInRange(25000, 25099);
 		AwsSqsEventId.BatchOperationStarted.ShouldBeInRange(25000, 25099);
 		AwsSqsEventId.BatchOperationCompleted.ShouldBeInRange(25000, 25099);
 		AwsSqsEventId.SessionCreated.ShouldBeInRange(25000, 25099);
@@ -456,8 +454,6 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 			AwsSqsEventId.ConnectionReleased,
 			AwsSqsEventId.ConnectionPoolExhausted,
 			AwsSqsEventId.RetryAttempt,
-			AwsSqsEventId.CircuitBreakerOpened,
-			AwsSqsEventId.CircuitBreakerClosed,
 			AwsSqsEventId.BatchOperationStarted,
 			AwsSqsEventId.BatchOperationCompleted,
 			AwsSqsEventId.SessionCreated,

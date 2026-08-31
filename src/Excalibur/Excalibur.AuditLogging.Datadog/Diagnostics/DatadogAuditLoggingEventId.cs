@@ -5,7 +5,7 @@ namespace Excalibur.AuditLogging.Datadog;
 /// <summary>
 /// Event IDs for Datadog audit exporter diagnostics (93420-93439).
 /// </summary>
-public static class DatadogAuditLoggingEventId
+internal static class DatadogAuditLoggingEventId
 {
 	/// <summary>Datadog event forwarded.</summary>
 	public const int EventForwarded = 93420;

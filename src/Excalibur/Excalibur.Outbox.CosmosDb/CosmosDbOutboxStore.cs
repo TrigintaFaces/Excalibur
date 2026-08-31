@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb;
 using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Azure.Cosmos;
@@ -23,20 +24,19 @@ namespace Excalibur.Outbox.CosmosDb;
 /// <summary>
 /// Azure Cosmos DB implementation of the cloud-native outbox store.
 /// </summary>
-public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, IAsyncDisposable
+public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, ICloudNativeOutboxStoreClaim, IAsyncDisposable, ITenantPartitionedStore
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	private readonly CosmosDbOutboxOptions _options;
 	private readonly ILogger<CosmosDbOutboxStore> _logger;
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 
 	private CosmosClient? _client;
+
+	// Whether this store built the client it holds. A borrowed client belongs to the container that
+	// registered it, and disposing something you did not create is how one feature's shutdown breaks
+	// another feature that is still running against the same account.
+	private bool _ownsClient;
 	private Database? _database;
 	private Container? _container;
 	private volatile bool _initialized;
@@ -64,6 +64,35 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 		_options.Validate();
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbOutboxStore"/> class over a client supplied by
+	/// the caller.
+	/// </summary>
+	/// <remarks>
+	/// This is the constructor dependency injection selects when a <see cref="CosmosClient"/> is registered,
+	/// and it is the reason a host that enables several Cosmos features opens one connection pool rather
+	/// than one per feature. The client's lifetime belongs to whoever registered it, so this store never
+	/// disposes it.
+	/// </remarks>
+	/// <param name="client">The Cosmos client to borrow. Its lifetime belongs to the caller.</param>
+	/// <param name="options">The Cosmos DB outbox options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="checkpointStore">
+	/// Optional durable change-feed checkpoint store, as for the other constructor.
+	/// </param>
+	public CosmosDbOutboxStore(
+		CosmosClient client,
+		IOptions<CosmosDbOutboxOptions> options,
+		ILogger<CosmosDbOutboxStore> logger,
+		IChangeFeedCheckpointStore? checkpointStore = null)
+		: this(options, logger, checkpointStore)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+
+		_client = client;
+		_ownsClient = false;
+	}
+
 	/// <inheritdoc/>
 	public CloudPersistenceProviderType ProviderType => CloudPersistenceProviderType.CosmosDb;
 
@@ -88,15 +117,25 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 			LogInitializing(_options.ContainerName);
 
-			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
+			// Only build a client when none was supplied. A store that overwrites an injected client would
+			// leave the registered singleton unused while still opening a second connection pool.
+			if (_client is null)
+			{
+				_client = CosmosDbOutboxClientFactory.Create(_options);
+				_ownsClient = true;
+			}
+
 			_database = _client.GetDatabase(_options.DatabaseName);
 
 			if (_options.CreateContainerIfNotExists)
 			{
 				var containerProperties = new ContainerProperties(_options.ContainerName, "/partitionKey")
 				{
-					DefaultTimeToLive = _options.DefaultTimeToLiveSeconds
+					// -1 enables the TTL subsystem while expiring nothing by default, so an item's own ttl
+					// decides its lifetime. A POSITIVE value here would expire EVERY item that does not
+					// override it -- including messages that have not been delivered yet, which is the one
+					// thing an outbox exists to prevent. Retention is applied per message on publish.
+					DefaultTimeToLive = -1
 				};
 
 				var response = await _database.CreateContainerIfNotExistsAsync(
@@ -129,7 +168,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
-		var document = ToDocument(message, partitionKey);
+		var document = CosmosDbOutboxDocumentMap.ToDocument(message, partitionKey);
 		var cosmosPartitionKey = new CosmosPartitionKey(partitionKey.Value);
 
 		try
@@ -142,7 +181,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 			LogOperationCompleted("Add", response.RequestCharge);
 
-			var resultMessage = FromDocument(response.Resource);
+			var resultMessage = CosmosDbOutboxDocumentMap.FromDocument(response.Resource);
 			return new CloudOperationResult<CloudOutboxMessage>(
 				success: true,
 				statusCode: (int)response.StatusCode,
@@ -195,7 +234,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 		foreach (var message in messages)
 		{
-			var document = ToDocument(message, partitionKey);
+			var document = CosmosDbOutboxDocumentMap.ToDocument(message, partitionKey);
 			_ = batch.CreateItem(document);
 		}
 
@@ -276,14 +315,14 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 			string? continuationToken = null;
 			string? sessionToken = null;
 
-			var iterator = _container!.GetItemQueryIterator<OutboxDocument>(query, requestOptions: queryOptions);
+			var iterator = _container!.GetItemQueryIterator<CosmosDbOutboxDocument>(query, requestOptions: queryOptions);
 
 			if (iterator.HasMoreResults)
 			{
 				var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
 				foreach (var doc in response.Resource)
 				{
-					messages.Add(FromDocument(doc));
+					messages.Add(CosmosDbOutboxDocumentMap.FromDocument(doc));
 				}
 
 				totalRequestCharge += response.RequestCharge;
@@ -322,6 +361,233 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// The atomic step is <c>ReplaceItem</c> under <c>IfMatchEtag</c>. Cosmos admits the replace only while
+	/// the document still carries the ETag this claimant read, so of two claimants that read the same
+	/// document exactly one replace succeeds and the other is refused with <c>412 PreconditionFailed</c>.
+	/// That refusal is the mechanism working, not a fault: the loser simply does not get the message.
+	/// </para>
+	/// <para>
+	/// The query that precedes it only nominates candidates. It cannot itself exclude a competitor — two
+	/// claimants querying at the same instant see the same rows — so nothing is decided until the
+	/// conditional replace lands. A plain upsert here would be silently wrong: an upsert has no
+	/// precondition to fail, so both claimants would succeed and both would publish.
+	/// </para>
+	/// </remarks>
+	public async Task<CloudQueryResult<CloudOutboxMessage>> ClaimPendingAsync(
+		IPartitionKey partitionKey,
+		int batchSize,
+		string claimantId,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(partitionKey);
+		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+		ArgumentException.ThrowIfNullOrWhiteSpace(claimantId);
+		EnsureInitialized();
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+		var leaseCutoff = DateTimeOffset.UtcNow.AddSeconds(-_options.LeaseTimeoutSeconds)
+			.ToString("o", CultureInfo.InvariantCulture);
+
+		try
+		{
+			var candidates = await QueryClaimableIdsAsync(partitionKey, batchSize, leaseCutoff, cancellationToken)
+				.ConfigureAwait(false);
+
+			var totalRequestCharge = candidates.RequestCharge;
+			var sessionToken = candidates.SessionToken;
+			var claimed = new List<CloudOutboxMessage>(candidates.Ids.Count);
+
+			foreach (var messageId in candidates.Ids)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				var attempt = await TryClaimOneAsync(messageId, partitionKey, claimantId, leaseCutoff, cancellationToken)
+					.ConfigureAwait(false);
+
+				totalRequestCharge += attempt.RequestCharge;
+				sessionToken = attempt.SessionToken ?? sessionToken;
+
+				if (attempt.Claimed is not null)
+				{
+					claimed.Add(attempt.Claimed);
+				}
+			}
+
+			LogOperationCompleted("ClaimPending", totalRequestCharge);
+
+			return new CloudQueryResult<CloudOutboxMessage>(claimed, totalRequestCharge, continuationToken: null, sessionToken);
+		}
+		catch (CosmosException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			using var scope = WriteStoreTelemetry.BeginLogScope(
+				_logger,
+				WriteStoreTelemetry.Stores.OutboxStore,
+				WriteStoreTelemetry.Providers.CosmosDb,
+				"claim_pending");
+			LogOperationFailed("ClaimPending", ex.Message, ex);
+			throw;
+		}
+		finally
+		{
+			WriteStoreTelemetry.RecordOperation(
+				WriteStoreTelemetry.Stores.OutboxStore,
+				WriteStoreTelemetry.Providers.CosmosDb,
+				"claim_pending",
+				result,
+				stopwatch.Elapsed);
+		}
+	}
+
+	/// <summary>
+	/// Nominates the documents that look claimable right now.
+	/// </summary>
+	/// <remarks>
+	/// This decides nothing. Two claimants querying at the same instant see the same identifiers; exclusion
+	/// happens later, at the conditional replace. Its only job is to keep the conditional writes off
+	/// documents that obviously cannot be claimed.
+	/// </remarks>
+	/// <param name="partitionKey">The partition to read.</param>
+	/// <param name="batchSize">The maximum number of identifiers to return.</param>
+	/// <param name="leaseCutoff">The instant before which a stamped lease has expired.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The candidate identifiers, with the cost of finding them.</returns>
+	private async Task<(IReadOnlyList<string> Ids, double RequestCharge, string? SessionToken)> QueryClaimableIdsAsync(
+		IPartitionKey partitionKey,
+		int batchSize,
+		string leaseCutoff,
+		CancellationToken cancellationToken)
+	{
+		// The lease instant is stored round-trip ("o") in UTC, which is fixed width and therefore orders
+		// correctly under the ordinal string comparison Cosmos applies to this range.
+		var query = new QueryDefinition(
+				"SELECT c.id FROM c WHERE c.partitionKey = @pk AND c.isPublished = false " +
+				"AND (NOT IS_DEFINED(c.leasedAt) OR IS_NULL(c.leasedAt) OR c.leasedAt < @leaseCutoff) " +
+				"ORDER BY c.createdAt ASC")
+			.WithParameter("@pk", partitionKey.Value)
+			.WithParameter("@leaseCutoff", leaseCutoff);
+
+		var queryOptions = new QueryRequestOptions
+		{
+			PartitionKey = new CosmosPartitionKey(partitionKey.Value),
+			MaxItemCount = batchSize
+		};
+
+		var ids = new List<string>(batchSize);
+		double requestCharge = 0;
+		string? sessionToken = null;
+
+		var iterator = _container!.GetItemQueryIterator<CosmosDbOutboxIdProjection>(query, requestOptions: queryOptions);
+		while (iterator.HasMoreResults && ids.Count < batchSize)
+		{
+			var page = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			requestCharge += page.RequestCharge;
+			sessionToken = page.Headers.Session;
+
+			foreach (var candidate in page.Resource)
+			{
+				ids.Add(candidate.Id);
+				if (ids.Count == batchSize)
+				{
+					break;
+				}
+			}
+		}
+
+		return (ids, requestCharge, sessionToken);
+	}
+
+	/// <summary>
+	/// Attempts to win one document, stamping the lease under an ETag precondition.
+	/// </summary>
+	/// <param name="messageId">The document to claim.</param>
+	/// <param name="partitionKey">The partition the document lives in.</param>
+	/// <param name="claimantId">The claimant to record as the lease owner.</param>
+	/// <param name="leaseCutoff">The instant before which an existing lease has expired.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The claimed message when this claimant won, otherwise <see langword="null"/>, with the cost.</returns>
+	private async Task<(CloudOutboxMessage? Claimed, double RequestCharge, string? SessionToken)> TryClaimOneAsync(
+		string messageId,
+		IPartitionKey partitionKey,
+		string claimantId,
+		string leaseCutoff,
+		CancellationToken cancellationToken)
+	{
+		var cosmosPartitionKey = new CosmosPartitionKey(partitionKey.Value);
+		double requestCharge = 0;
+
+		CosmosDbOutboxDocument? document = null;
+		string? readEtag = null;
+
+		try
+		{
+			var readResponse = await _container!.ReadItemAsync<CosmosDbOutboxDocument>(
+				messageId,
+				cosmosPartitionKey,
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			requestCharge += readResponse.RequestCharge;
+			document = readResponse.Resource;
+			readEtag = readResponse.ETag;
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			// Deleted or aged out between the query and this read. Nothing to claim.
+			requestCharge += ex.RequestCharge;
+		}
+
+		// Re-check against the document we are about to replace: the query's view is already stale, and the
+		// ETag alone would not stop us taking a message another claimant leased in the meantime.
+		if (document is null || document.IsPublished || !IsLeaseClaimable(document.LeasedAt, leaseCutoff))
+		{
+			return (null, requestCharge, null);
+		}
+
+		// The stamp is taken HERE, immediately before the write that establishes the lease, and not at the
+		// start of the drain. A batch-start instant would hand the last message of an N-message batch a
+		// lease that has already burned the query round-trip plus N-1 conditional writes, so its protective
+		// interval would shrink as the batch grows -- and the lease is the only thing standing between a
+		// slow drain and a second dispatcher publishing the same message. The eligibility cutoff is
+		// deliberately NOT re-anchored: it stays at the batch-start value, because an older cutoff is the
+		// conservative direction (it judges fewer leases expired) and so cannot admit a live lease.
+		document.LeasedAt = DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+		document.LeasedBy = claimantId;
+
+		try
+		{
+			var replaceResponse = await _container!.ReplaceItemAsync(
+				document,
+				messageId,
+				cosmosPartitionKey,
+				new ItemRequestOptions { IfMatchEtag = readEtag },
+				cancellationToken).ConfigureAwait(false);
+
+			requestCharge += replaceResponse.RequestCharge;
+			var claimed = CosmosDbOutboxDocumentMap.FromDocument(document) with { ETag = replaceResponse.ETag };
+			return (claimed, requestCharge, replaceResponse.Headers.Session);
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+		{
+			// Another claimant replaced the document first. Expected under concurrency — this is the
+			// exclusion doing its job, so it is neither logged as a failure nor retried here.
+			return (null, requestCharge + ex.RequestCharge, null);
+		}
+	}
+
+	/// <summary>
+	/// Decides whether a stored lease instant leaves the message claimable, given the cutoff before which a
+	/// lease has expired.
+	/// </summary>
+	/// <param name="leasedAt">The stored lease instant, or <see langword="null"/> / empty when unclaimed.</param>
+	/// <param name="leaseCutoff">The round-trip-formatted instant before which a lease has expired.</param>
+	/// <returns><see langword="true"/> when the message may be claimed.</returns>
+	private static bool IsLeaseClaimable(string? leasedAt, string leaseCutoff) =>
+		string.IsNullOrEmpty(leasedAt) || string.CompareOrdinal(leasedAt, leaseCutoff) < 0;
+
+	/// <inheritdoc/>
 	public async Task<CloudOperationResult> MarkAsPublishedAsync(
 		string messageId,
 		IPartitionKey partitionKey,
@@ -336,7 +602,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 		try
 		{
 			// Read the existing document first
-			var readResponse = await _container!.ReadItemAsync<OutboxDocument>(
+			var readResponse = await _container!.ReadItemAsync<CosmosDbOutboxDocument>(
 				messageId,
 				cosmosPartitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -410,12 +676,12 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 		var operationResults = new List<CloudOperationResult>();
 
 		// Read all documents first
-		var documents = new List<(OutboxDocument Doc, string ETag)>();
+		var documents = new List<(CosmosDbOutboxDocument Doc, string ETag)>();
 		foreach (var messageId in messageIds)
 		{
 			try
 			{
-				var response = await _container!.ReadItemAsync<OutboxDocument>(
+				var response = await _container!.ReadItemAsync<CosmosDbOutboxDocument>(
 					messageId,
 					cosmosPartitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -520,7 +786,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 			var deletedCount = 0;
 			double totalRequestCharge = 0;
 
-			var iterator = _container!.GetItemQueryIterator<CleanupDocumentDto>(query, requestOptions: queryOptions);
+			var iterator = _container!.GetItemQueryIterator<CosmosDbOutboxIdProjection>(query, requestOptions: queryOptions);
 
 			while (iterator.HasMoreResults)
 			{
@@ -633,7 +899,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 		try
 		{
-			var readResponse = await _container!.ReadItemAsync<OutboxDocument>(
+			var readResponse = await _container!.ReadItemAsync<CosmosDbOutboxDocument>(
 				messageId,
 				cosmosPartitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -695,86 +961,13 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 		_disposed = true;
 
-		_client?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
-	}
-
-	private static OutboxDocument ToDocument(CloudOutboxMessage message, IPartitionKey partitionKey) =>
-		new()
-		{
-			Id = message.MessageId,
-			PartitionKey = partitionKey.Value,
-			MessageType = message.MessageType,
-			Payload = Convert.ToBase64String(message.Payload),
-#pragma warning disable IL2026
-			Headers = message.Headers != null
-				? JsonSerializer.Serialize(message.Headers, JsonOptions)
-				: null,
-#pragma warning restore IL2026
-			AggregateId = message.AggregateId,
-			AggregateType = message.AggregateType,
-			CorrelationId = message.CorrelationId,
-			CausationId = message.CausationId,
-			TenantId = message.TenantId,
-			Destination = message.Destination,
-			CreatedAt = message.CreatedAt.ToString("o"),
-			PublishedAt = message.PublishedAt?.ToString("o"),
-			IsPublished = message.IsPublished,
-			RetryCount = message.RetryCount,
-			LastError = message.LastError
-		};
-
-	private static CloudOutboxMessage FromDocument(OutboxDocument doc) =>
-		new()
-		{
-			MessageId = doc.Id,
-			MessageType = doc.MessageType,
-			Payload = Convert.FromBase64String(doc.Payload),
-#pragma warning disable IL2026
-			Headers = !string.IsNullOrEmpty(doc.Headers)
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.Headers, JsonOptions)
-				: null,
-#pragma warning restore IL2026
-			AggregateId = doc.AggregateId,
-			AggregateType = doc.AggregateType,
-			CorrelationId = doc.CorrelationId,
-			CausationId = doc.CausationId,
-			TenantId = doc.TenantId,
-			Destination = doc.Destination,
-			CreatedAt = DateTimeOffset.Parse(doc.CreatedAt, CultureInfo.InvariantCulture),
-			PublishedAt = !string.IsNullOrEmpty(doc.PublishedAt) ? DateTimeOffset.Parse(doc.PublishedAt, CultureInfo.InvariantCulture) : null,
-			RetryCount = doc.RetryCount,
-			LastError = doc.LastError,
-			PartitionKeyValue = doc.PartitionKey,
-			ETag = doc.ETag
-		};
-
-	private CosmosClientOptions CreateClientOptions() =>
-		new()
-		{
-			ApplicationName = "Excalibur.Outbox.CosmosDb",
-			MaxRetryAttemptsOnRateLimitedRequests = _options.MaxRetryAttempts,
-			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.MaxRetryWaitTimeInSeconds),
-			ConnectionMode = _options.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
-
-			// fmjwqy (SA HYBRID): framework-built client uses STJ so persisted documents'
-			// [JsonPropertyName] attributes are honored (SDK v3 default Newtonsoft ignores them).
-			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
-			{
-				PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-			},
-		};
-
-	private CosmosClient CreateClient(CosmosClientOptions options)
-	{
-		if (!string.IsNullOrWhiteSpace(_options.Connection.ConnectionString))
-		{
-			return new CosmosClient(_options.Connection.ConnectionString, options);
-		}
-
-		return new CosmosClient(_options.Connection.AccountEndpoint, _options.Connection.AccountKey, options);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -787,39 +980,5 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 			throw new InvalidOperationException(
 				"Outbox store has not been initialized. Call InitializeAsync first.");
 		}
-	}
-
-	/// <summary>
-	/// Internal document representation for Cosmos DB storage.
-	/// </summary>
-	private sealed class OutboxDocument
-	{
-		public required string Id { get; set; }
-		public required string PartitionKey { get; set; }
-		public required string MessageType { get; set; }
-		public required string Payload { get; set; }
-		public string? Headers { get; set; }
-		public string? AggregateId { get; set; }
-		public string? AggregateType { get; set; }
-		public string? CorrelationId { get; set; }
-		public string? CausationId { get; set; }
-		public string? TenantId { get; set; }
-		public string? Destination { get; set; }
-		public required string CreatedAt { get; set; }
-		public string? PublishedAt { get; set; }
-		public bool IsPublished { get; set; }
-		public int RetryCount { get; set; }
-		public string? LastError { get; set; }
-		public string? ETag { get; set; }
-		public int? Ttl { get; set; }
-	}
-
-	/// <summary>
-	/// Typed DTO for deserializing cleanup query results that return only document IDs.
-	/// </summary>
-	private sealed class CleanupDocumentDto
-	{
-		[JsonPropertyName("id")]
-		public string Id { get; set; } = string.Empty;
 	}
 }

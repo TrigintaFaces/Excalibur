@@ -11,8 +11,10 @@ dotnet add package Excalibur.AuditLogging.Splunk
 ## Quick Start
 
 ```csharp
-// Add Excalibur.AuditLogging.Splunk to your service configuration
-services.AddAuditLoggingSplunk();
+services.AddAuditLogging();
+services.AddSplunkAuditExporter(splunk => splunk
+    .HecEndpoint(new Uri("https://splunk.example.com:8088"))
+    .HecToken(configuration["Splunk:HecToken"]!));
 ```
 
 ## Documentation
@@ -21,4 +23,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

@@ -49,7 +49,7 @@ public sealed class CosmosDbCompositionShould : UnitTestBase
 		sagaBuilder.ConnectionString(TestConnectionString).DatabaseName("saga-db").ContainerName("sagas");
 
 		// Assert - each builder/options has its own values
-		esBuilder.DatabaseNameValue.ShouldBe("es-db");
+		esOptions.DatabaseName.ShouldBe("es-db");
 		esOptions.EventsContainerName.ShouldBe("events");
 
 		dataOptions.DatabaseName.ShouldBe("data-db");

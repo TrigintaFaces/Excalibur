@@ -34,6 +34,14 @@ internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : 
 	/// Creates a new message context instance, recycling a previously returned context when available.
 	/// </summary>
 	/// <returns> A new or recycled message context. </returns>
+	/// <remarks>
+	/// This is the root-context path: <c>DispatcherContextExtensions.GetOrCreateChildContext</c> calls it
+	/// only when there is no ambient <see cref="Excalibur.Dispatch.Messaging.MessageContextHolder"/> context
+	/// to child from -- a top-level dispatch with no causal parent. Applies the same ambient-tenant
+	/// fallback <see cref="DispatchContextInitializer"/> applies
+	/// (<see cref="MessageContextTenantFallbackExtensions.ApplyAmbientTenantFallback"/>), so a root
+	/// dispatch on an async flow with an ambient tenant established is no longer silently untenanted.
+	/// </remarks>
 	public IMessageContext CreateContext()
 	{
 		var context = s_cachedContext;
@@ -42,12 +50,14 @@ internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : 
 			s_cachedContext = null;
 			// PERF: Use fast init path -- serviceProvider is constructor-injected, guaranteed non-null.
 			context.InitializeFast(serviceProvider);
+			context.ApplyAmbientTenantFallback();
 			return context;
 		}
 
 		var fresh = new MessageContext();
 		// PERF: Use fast init path -- serviceProvider is constructor-injected, guaranteed non-null.
 		fresh.InitializeFast(serviceProvider);
+		fresh.ApplyAmbientTenantFallback();
 		return fresh;
 	}
 
@@ -78,6 +88,8 @@ internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : 
 				context.Items[kvp.Key] = kvp.Value;
 			}
 		}
+
+		context.ApplyAmbientTenantFallback();
 
 		return context;
 	}

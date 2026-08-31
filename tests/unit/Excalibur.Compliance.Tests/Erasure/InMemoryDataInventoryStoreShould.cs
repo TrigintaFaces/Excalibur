@@ -1,12 +1,17 @@
 using Excalibur.Compliance.Erasure;
 
-using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
+using Excalibur.Compliance;
+using Excalibur.Dispatch;
+
+using Microsoft.Extensions.Options;
+
+namespace Excalibur.Compliance.Tests.Erasure;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
 public sealed class InMemoryDataInventoryStoreShould
 {
-    private readonly InMemoryDataInventoryStore _sut = new();
+    private readonly InMemoryDataInventoryStore _sut = new(UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
     private static DataLocationRegistration CreateRegistration(string? tableName = null, string? fieldName = null) => new()
     {

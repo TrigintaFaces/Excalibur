@@ -37,7 +37,7 @@ CREATE TABLE SagaTimeouts (
     -- that saga's identity: saga identity is (TenantId, SagaId), so a cancel-by-SagaId would delete
     -- another tenant's pending timeouts and a claimed batch would hand one tenant's TimeoutData to a
     -- processor operating for another.
-    TenantId NVARCHAR(200) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
+    TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
 
     CONSTRAINT PK_SagaTimeouts PRIMARY KEY (TimeoutId)
 );

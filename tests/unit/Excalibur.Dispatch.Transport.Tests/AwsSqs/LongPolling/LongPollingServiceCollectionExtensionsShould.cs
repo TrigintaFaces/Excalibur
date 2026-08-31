@@ -11,18 +11,6 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 public sealed class LongPollingServiceCollectionExtensionsShould
 {
 	[Fact]
-	public void ThrowWhenServicesIsNull_Configuration()
-	{
-		var config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
-
-		Should.Throw<ArgumentNullException>(() =>
-			LongPollingServiceCollectionExtensions.AddAwsLongPolling(null!, config));
-	}
-
-	[Fact]
 	public void ThrowWhenConfigurationIsNull()
 	{
 		var services = new ServiceCollection();
@@ -47,79 +35,4 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 			services.AddAwsLongPolling((Action<LongPollingOptions>)null!));
 	}
 
-	[Fact]
-	public void RegisterAdaptiveLongPollingServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
-		config.Adaptive.Enabled = true;
-
-		// Act
-		services.AddAwsLongPolling(config);
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingOptions));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ILongPollingStrategy));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IPollingMetricsCollector));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ILongPollingReceiver));
-		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingOptimizer));
-	}
-
-	[Fact]
-	public void RegisterFixedPollingWhenAdaptiveDisabled()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
-		config.Adaptive.Enabled = false;
-
-		// Act
-		services.AddAwsLongPolling(config);
-
-		// Assert
-		var strategyDescriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(ILongPollingStrategy));
-		strategyDescriptor.ShouldNotBeNull();
-		strategyDescriptor.ImplementationType.ShouldBe(typeof(FixedLongPollingStrategy));
-	}
-
-	[Fact]
-	public void RegisterWithConfigureAction()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddAwsLongPolling(opts =>
-		{
-			opts.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue");
-		});
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingOptions));
-	}
-
-	[Fact]
-	public void ReplaceStrategyWithCustomGeneric()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
-
-		// Act
-		services.AddAwsLongPolling<AdaptiveLongPollingStrategy>(config);
-
-		// Assert
-		var strategyDescriptor = services.Last(sd => sd.ServiceType == typeof(ILongPollingStrategy));
-		strategyDescriptor.ImplementationType.ShouldBe(typeof(AdaptiveLongPollingStrategy));
-	}
 }

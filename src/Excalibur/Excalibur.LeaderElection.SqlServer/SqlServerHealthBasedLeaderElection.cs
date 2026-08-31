@@ -193,7 +193,10 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 
 		var results = new List<CandidateHealth>();
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
-		var expirationThreshold = DateTimeOffset.UtcNow.AddSeconds(-_healthOptions.HealthExpirationSeconds);
+		// The expiry threshold is computed BY THE DATABASE, from the same clock that writes LastUpdated
+		// (SYSDATETIMEOFFSET(), and the column DEFAULT). Computing it here from the application clock
+		// compared a DB-written timestamp against an app-computed one: any skew between the two hosts read
+		// a live candidate as expired or a dead one as healthy. One clock makes that unexpressible.
 
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -201,14 +204,14 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 		// Schema and table names are validated by SafeIdentifierRegex at construction time
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
 		await using var command = new SqlCommand(
-			$"SELECT CandidateId, IsHealthy, HealthScore, LastUpdated, IsLeader, MetadataJson FROM {qualifiedTableName} WHERE LastUpdated >= @ExpirationThreshold",
+			$"SELECT CandidateId, IsHealthy, HealthScore, LastUpdated, IsLeader, MetadataJson FROM {qualifiedTableName} WHERE LastUpdated >= DATEADD(second, -@ExpirationSeconds, SYSDATETIMEOFFSET())",
 			connection)
 		{
 			CommandTimeout = _healthOptions.CommandTimeoutSeconds
 		};
 #pragma warning restore CA2100
 
-		_ = command.Parameters.AddWithValue("@ExpirationThreshold", expirationThreshold);
+		_ = command.Parameters.AddWithValue("@ExpirationSeconds", _healthOptions.HealthExpirationSeconds);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
@@ -299,7 +302,7 @@ END;";
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-MERGE {qualifiedTableName} AS target
+MERGE {qualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 USING (VALUES (@CandidateId, @IsHealthy, @HealthScore, SYSDATETIMEOFFSET(), @IsLeader, @MetadataJson))
     AS source (CandidateId, IsHealthy, HealthScore, LastUpdated, IsLeader, MetadataJson)
     ON target.CandidateId = source.CandidateId

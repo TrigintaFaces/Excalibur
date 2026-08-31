@@ -15,7 +15,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 
 	public InMemoryAuditStoreShould()
 	{
-		_store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		_store = AuditStoreTenantScope.Untenanted();
 	}
 
 	public void Dispose()
@@ -518,36 +518,6 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		results[0].TenantId.ShouldBe("tenant-a");
 	}
 
-	/// <summary>
-	/// SAFETY: naming another tenant in the query must NOT redirect the read to that tenant.
-	/// </summary>
-	/// <remarks>
-	/// This is the arm that would go green again if anyone "fixed" the store by honouring
-	/// <c>AuditQuery.TenantId</c>. It exists so that regression fails loudly rather than silently
-	/// re-opening the authorisation hole.
-	/// </remarks>
-	[Fact]
-	public async Task QueryAsync_IgnoresACallerSuppliedTenantAndCannotBeRedirected()
-	{
-		// Arrange
-		var store = StoreScopedTo("tenant-a");
-		_ = await store.StoreAsync(
-			CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
-		_ = await store.StoreAsync(
-			CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
-
-		// Act — a caller explicitly asking for someone else's tenant.
-		var results = await store.QueryAsync(
-			new AuditQuery { TenantId = "tenant-b" }, CancellationToken.None);
-
-		// Assert
-		results.Count.ShouldBe(1, "the caller's tenant field must not widen or redirect the read.");
-		results[0].TenantId.ShouldBe(
-			"tenant-a",
-			"the read stayed in the AMBIENT partition despite the query naming tenant-b. If this returns "
-			+ "tenant-b's event, query.TenantId is being consulted again and any caller can read any tenant.");
-	}
-
 	[Fact]
 	public async Task QueryAsync_SupportsPagination()
 	{
@@ -767,7 +737,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		_ = await _store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
 
 		// Act
-		var results = await _store.QueryAsync(new AuditQuery { TenantId = "non-existent" }, CancellationToken.None);
+		var results = await _store.QueryAsync(new AuditQuery(), CancellationToken.None);
 
 		// Assert
 		results.Count.ShouldBe(0);
@@ -1124,7 +1094,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		_ = await _store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
 
 		// Act
-		var count = await _store.CountAsync(new AuditQuery { TenantId = "non-existent" }, CancellationToken.None);
+		var count = await _store.CountAsync(new AuditQuery(), CancellationToken.None);
 
 		// Assert
 		count.ShouldBe(0);
@@ -1379,12 +1349,12 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 			new DateTimeOffset(2025, 1, 31, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(3);
 	}
 
 	[Fact]
-	public async Task VerifyChainIntegrityAsync_ReturnsValidForEmptyRange()
+	public async Task VerifyChainIntegrityAsync_ReportsNoEventsInScopeForEmptyRange()
 	{
 		// Act
 		var result = await _store.VerifyChainIntegrityAsync(
@@ -1392,7 +1362,9 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 			new DateTimeOffset(2025, 1, 31, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(
+			AuditIntegrityOutcome.NoEventsInScope,
+			"an empty window establishes nothing about chain integrity and must not be reported as a pass.");
 		result.EventsVerified.ShouldBe(0);
 	}
 
@@ -1434,7 +1406,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 			new DateTimeOffset(2025, 1, 20, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(1);
 	}
 
@@ -1468,7 +1440,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 			new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(1);
 	}
 
@@ -1505,7 +1477,7 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 			new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue("tenant A's own chain is intact.");
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified, "tenant A's own chain is intact.");
 		result.EventsVerified.ShouldBe(
 			1,
 			"verification must cover tenant A's event (liveness) and NOT tenant B's (safety). 2 would mean "
@@ -1659,8 +1631,8 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		_store.Clear();
 
 		// Assert - queries should return empty for all tenants
-		var resultsA = await _store.QueryAsync(new AuditQuery { TenantId = "tenant-a" }, CancellationToken.None);
-		var resultsB = await _store.QueryAsync(new AuditQuery { TenantId = "tenant-b" }, CancellationToken.None);
+		var resultsA = await _store.QueryAsync(new AuditQuery(), CancellationToken.None);
+		var resultsB = await _store.QueryAsync(new AuditQuery(), CancellationToken.None);
 		var lastEventA = await _store.GetLastEventAsync("tenant-a", CancellationToken.None);
 		var lastEventB = await _store.GetLastEventAsync("tenant-b", CancellationToken.None);
 

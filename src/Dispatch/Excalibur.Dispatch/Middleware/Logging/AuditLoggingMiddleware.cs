@@ -127,7 +127,7 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 		}
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.AuditLoggingMiddlewareExecuting, LogLevel.Information,
 		"AUDIT: Message processing started - MessageId: {MessageId}, MessageType: {MessageType}, UserId: {UserId}, CorrelationId: {CorrelationId}")]
 	private partial void LogMessageProcessingStarted(Guid messageId, string messageType, string? userId, string? correlationId);

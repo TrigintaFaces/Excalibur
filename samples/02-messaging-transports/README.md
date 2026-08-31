@@ -85,7 +85,8 @@ Each transport is registered directly on `IServiceCollection` with a named insta
 // RabbitMQ
 builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
-    _ = rmq.ConnectionString("amqp://guest:guest@localhost:5672");
+    _ = rmq.ConnectionString("amqp://guest:guest@localhost:5672")
+        .RequireTls(false);   // local plaintext broker; production uses an amqps:// string
 });
 
 // Kafka

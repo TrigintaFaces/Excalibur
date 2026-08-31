@@ -49,7 +49,7 @@ Each provider has a marker interface with zero additional methods:
 ### Shared Base Types (`Excalibur.Cdc`)
 
 - `CdcChangeType` — unified enum: None, Insert, Update, Delete, Replace, Truncate, Invalidate, Drop, DropDatabase, Rename
-- `CdcStalePositionException` — shared exception hierarchy with provider-specific subclasses
+- `CdcStalePositionException` — the stale-checkpoint exception every provider raises. SQL Server subclasses it (`SqlServerCdcStalePositionException`) to carry the capture instance; the other providers raise the base type directly.
 - `CdcDataChange` — column-level change record with OldValue/NewValue
 
 ### State Store Interface

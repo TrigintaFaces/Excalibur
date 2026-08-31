@@ -42,7 +42,7 @@ public enum CompressionLevel
 /// Each format is optimized for different use cases:
 /// </para>
 /// <list type="bullet">
-///   <item><description>PDF: Human-readable formatted report for distribution</description></item>
+///   <item><description>PDF: Human-readable formatted report for distribution (requires the Excalibur.Compliance.Pdf package)</description></item>
 ///   <item><description>Excel: Tabular data for analysis and manipulation</description></item>
 ///   <item><description>CSV: Raw data for import into other systems</description></item>
 ///   <item><description>JSON: Machine-readable structured data</description></item>
@@ -168,14 +168,10 @@ public record Soc2ReportExportOptions
 	public bool Compress { get; init; }
 
 	/// <summary>
-	/// PDF-specific options.
+	/// PDF-specific options. Honored when exporting to <see cref="ExportFormat.Pdf"/> and ignored by
+	/// every other format.
 	/// </summary>
 	public PdfExportOptions? PdfOptions { get; init; }
-
-	/// <summary>
-	/// Excel-specific options.
-	/// </summary>
-	public ExcelExportOptions? ExcelOptions { get; init; }
 }
 
 /// <summary>
@@ -220,37 +216,6 @@ public record PdfExportOptions
 }
 
 /// <summary>
-/// Excel-specific export options.
-/// </summary>
-public record ExcelExportOptions
-{
-	/// <summary>
-	/// Whether to include separate worksheets for each section.
-	/// </summary>
-	public bool SeparateWorksheets { get; init; } = true;
-
-	/// <summary>
-	/// Whether to include a summary worksheet.
-	/// </summary>
-	public bool IncludeSummarySheet { get; init; } = true;
-
-	/// <summary>
-	/// Whether to auto-fit column widths.
-	/// </summary>
-	public bool AutoFitColumns { get; init; } = true;
-
-	/// <summary>
-	/// Whether to freeze header rows.
-	/// </summary>
-	public bool FreezeHeaderRows { get; init; } = true;
-
-	/// <summary>
-	/// Whether to include charts/visualizations.
-	/// </summary>
-	public bool IncludeCharts { get; init; }
-}
-
-/// <summary>
 /// Options for evidence package exports.
 /// </summary>
 public record EvidencePackageOptions
@@ -258,7 +223,12 @@ public record EvidencePackageOptions
 	/// <summary>
 	/// Report formats to include in the package.
 	/// </summary>
-	public ExportFormat[] ReportFormats { get; init; } = [ExportFormat.Pdf, ExportFormat.Json];
+	/// <remarks>
+	/// <see cref="ExportFormat.Pdf"/> is not included by default because PDF export requires the
+	/// separate <c>Excalibur.Compliance.Pdf</c> package. Add it explicitly once that package is
+	/// installed and registered.
+	/// </remarks>
+	public ExportFormat[] ReportFormats { get; init; } = [ExportFormat.Json];
 
 	/// <summary>
 	/// Whether to include a manifest file.
@@ -271,13 +241,20 @@ public record EvidencePackageOptions
 	public bool IncludeChecksums { get; init; } = true;
 
 	/// <summary>
-	/// Maximum size for evidence items (bytes). Larger items are referenced instead of embedded.
+	/// Password to encrypt the package.
 	/// </summary>
-	public long MaxEvidenceItemSize { get; init; } = 10 * 1024 * 1024; // 10MB
-
-	/// <summary>
-	/// Password to encrypt the package (optional).
-	/// </summary>
+	/// <remarks>
+	/// <b>Not supported by the in-box exporter, and refused rather than ignored.</b> The package is a
+	/// standard ZIP archive written with <see cref="System.IO.Compression.ZipArchive"/>, which offers no
+	/// encryption of any kind, so a password given here cannot be applied. Setting it makes
+	/// <see cref="ISoc2ReportExporter.ExportWithEvidenceAsync"/> throw
+	/// <see cref="NotSupportedException"/> instead of returning an evidence package that is not
+	/// encrypted while the caller believes it is.
+	/// <para>
+	/// To deliver an encrypted package, leave this unset and encrypt
+	/// <see cref="ExportResult.Data"/> yourself before it leaves the process.
+	/// </para>
+	/// </remarks>
 	public string? EncryptionPassword { get; init; }
 
 	/// <summary>

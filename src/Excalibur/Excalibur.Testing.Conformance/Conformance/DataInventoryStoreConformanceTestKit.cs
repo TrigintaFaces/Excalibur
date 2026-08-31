@@ -35,20 +35,37 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
+/// // The kit resolves the store from a container built by the store's own registration
+/// // extension, so every arm runs against the object a consumer actually gets -- including
+/// // the ambient ITenantContext the extension registers. Constructing the store by hand
+/// // certifies an instance you assembled rather than the one your registration produces.
 /// public class SqlServerDataInventoryStoreConformanceTests : DataInventoryStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
-///
+///     private readonly ServiceProvider _provider;
+/// 
+///     public SqlServerDataInventoryStoreConformanceTests(SqlServerFixture fixture) =&gt;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSqlServerDataInventoryStore(o =&gt;
+///             {
+///                 o.ConnectionString = fixture.ConnectionString;
+///                 o.AutoCreateSchema = true;
+///             })
+///             .BuildServiceProvider();
+/// 
 ///     protected override IDataInventoryStore CreateStore() =&gt;
-///         new SqlServerDataInventoryStore(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =&gt;
-///         await _fixture.CleanupAsync();
+///         _provider.GetRequiredService&lt;IDataInventoryStore&gt;();
+/// 
+///     // Enter the ambient tenant the tenancy arms operate under. The store must resolve its
+///     // ITenantContext from ambient state for this to be observable -- AddMultiTenancy()
+///     // registers that context. Return null instead only if the store cannot be multi-tenant.
+///     protected override IDisposable? EnterTenant(string tenantId) =&gt;
+///         TenantContextHolder.BeginScope(tenantId);
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class DataInventoryStoreConformanceTestKit
+public abstract class DataInventoryStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh data inventory store instance for testing.
@@ -163,7 +180,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that SaveRegistrationAsync persists a registration retrievable via GetAllRegistrationsAsync.
 	/// </summary>
-	protected virtual async Task SaveRegistrationAsync_ShouldPersistRegistration()
+	public virtual async Task SaveRegistrationAsync_ShouldPersistRegistration()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -203,7 +220,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that SaveRegistrationAsync upserts (replaces) on duplicate TableName:FieldName key.
 	/// </summary>
-	protected virtual async Task SaveRegistrationAsync_DuplicateKey_ShouldUpsert()
+	public virtual async Task SaveRegistrationAsync_DuplicateKey_ShouldUpsert()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -244,7 +261,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that SaveRegistrationAsync throws ArgumentNullException on null registration.
 	/// </summary>
-	protected virtual async Task SaveRegistrationAsync_NullRegistration_ShouldThrowArgumentNullException()
+	public virtual async Task SaveRegistrationAsync_NullRegistration_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -281,7 +298,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that RemoveRegistrationAsync returns true when removing an existing registration.
 	/// </summary>
-	protected virtual async Task RemoveRegistrationAsync_ExistingRegistration_ShouldReturnTrue()
+	public virtual async Task RemoveRegistrationAsync_ExistingRegistration_ShouldReturnTrue()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -324,7 +341,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that RemoveRegistrationAsync returns false when registration does not exist.
 	/// </summary>
-	protected virtual async Task RemoveRegistrationAsync_NonExistent_ShouldReturnFalse()
+	public virtual async Task RemoveRegistrationAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -357,7 +374,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetAllRegistrationsAsync returns all registrations.
 	/// </summary>
-	protected virtual async Task GetAllRegistrationsAsync_ShouldReturnAllRegistrations()
+	public virtual async Task GetAllRegistrationsAsync_ShouldReturnAllRegistrations()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -404,7 +421,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// which carries the real SAFETY and LIVENESS arms. Do not re-assert tenancy here: one arm, one
 	/// property, so a failure names its own cause.
 	/// </remarks>
-	protected virtual async Task FindRegistrationsForDataSubjectAsync_ShouldFilterByIdType()
+	public virtual async Task FindRegistrationsForDataSubjectAsync_ShouldFilterByIdType()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -490,7 +507,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordDiscoveredLocationAsync persists location retrievable via GetDiscoveredLocationsAsync.
 	/// </summary>
-	protected virtual async Task RecordDiscoveredLocationAsync_ShouldPersistLocation()
+	public virtual async Task RecordDiscoveredLocationAsync_ShouldPersistLocation()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -524,7 +541,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordDiscoveredLocationAsync throws ArgumentNullException on null location.
 	/// </summary>
-	protected virtual async Task RecordDiscoveredLocationAsync_NullLocation_ShouldThrowArgumentNullException()
+	public virtual async Task RecordDiscoveredLocationAsync_NullLocation_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -558,7 +575,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordDiscoveredLocationAsync throws ArgumentException on null/whitespace dataSubjectId.
 	/// </summary>
-	protected virtual async Task RecordDiscoveredLocationAsync_NullDataSubjectId_ShouldThrowArgumentException()
+	public virtual async Task RecordDiscoveredLocationAsync_NullDataSubjectId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -609,7 +626,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordDiscoveredLocationAsync deduplicates by TableName+FieldName+RecordId.
 	/// </summary>
-	protected virtual async Task RecordDiscoveredLocationAsync_DuplicateLocation_ShouldDeduplicate()
+	public virtual async Task RecordDiscoveredLocationAsync_DuplicateLocation_ShouldDeduplicate()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -651,7 +668,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetDiscoveredLocationsAsync returns locations for an existing subject.
 	/// </summary>
-	protected virtual async Task GetDiscoveredLocationsAsync_ExistingSubject_ShouldReturnLocations()
+	public virtual async Task GetDiscoveredLocationsAsync_ExistingSubject_ShouldReturnLocations()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -683,7 +700,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetDiscoveredLocationsAsync returns empty list for non-existent subject.
 	/// </summary>
-	protected virtual async Task GetDiscoveredLocationsAsync_NonExistentSubject_ShouldReturnEmptyList()
+	public virtual async Task GetDiscoveredLocationsAsync_NonExistentSubject_ShouldReturnEmptyList()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -713,7 +730,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetDataMapEntriesAsync merges registrations and discovered locations.
 	/// </summary>
-	protected virtual async Task GetDataMapEntriesAsync_ShouldMergeRegistrationsAndDiscovered()
+	public virtual async Task GetDataMapEntriesAsync_ShouldMergeRegistrationsAndDiscovered()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -758,7 +775,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetDataMapEntriesAsync sets IsAutoDiscovered=false for registered locations.
 	/// </summary>
-	protected virtual async Task GetDataMapEntriesAsync_RegistrationsShouldSetIsAutoDiscoveredFalse()
+	public virtual async Task GetDataMapEntriesAsync_RegistrationsShouldSetIsAutoDiscoveredFalse()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -795,7 +812,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetDataMapEntriesAsync calculates record count from discovered locations.
 	/// </summary>
-	protected virtual async Task GetDataMapEntriesAsync_ShouldCalculateRecordCount()
+	public virtual async Task GetDataMapEntriesAsync_ShouldCalculateRecordCount()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -848,17 +865,27 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that FindRegistrationsForDataSubjectAsync filters by tenant correctly.
 	/// </summary>
-	protected virtual async Task FindRegistrationsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly()
+	public virtual async Task FindRegistrationsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var store = CreateStore();
 
-		// A store that cannot be multi-tenant cannot exhibit the property under test. Declining is
-		// stated by the implementor (EnterTenant is abstract), never inferred from a default.
+		// The fixture must be able to establish a tenant. IDataInventoryStore is a tenant-owned
+		// contract, so "this store cannot be multi-tenant" is not a state the contract admits and
+		// cannot be an accepted reason to pass.
+		//
+		// This previously RETURNED on a null probe. That is the failure mode the arm exists to prevent,
+		// one level up: returning early reports GREEN for the whole case, so the only cross-tenant
+		// safety assertion in this kit could be skipped entirely and the run would look identical to
+		// one in which it had passed. A skip must be louder than a pass, never quieter.
 		using var probe = EnterTenant("TenantA");
 		if (probe is null)
 		{
-			return;
+			throw new TestFixtureAssertionException(
+				"EnterTenant returned null, so the cross-tenant safety arm cannot run. This is a fixture "
+				+ "defect, not a passing case: IDataInventoryStore is tenant-owned, and a fixture that "
+				+ "cannot establish a tenant cannot demonstrate that registrations are confined to one. "
+				+ "Supply a real ambient-tenant scope for this store.");
 		}
 
 		probe.Dispose();
@@ -952,7 +979,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetDataMapEntriesAsync works with null tenant (returns all entries).
 	/// </summary>
-	protected virtual async Task GetDataMapEntriesAsync_NullTenant_ShouldReturnAllEntries()
+	public virtual async Task GetDataMapEntriesAsync_NullTenant_ShouldReturnAllEntries()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -983,7 +1010,7 @@ public abstract class DataInventoryStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that locations are isolated per data subject.
 	/// </summary>
-	protected virtual async Task GetDiscoveredLocationsAsync_ShouldIsolateByDataSubject()
+	public virtual async Task GetDiscoveredLocationsAsync_ShouldIsolateByDataSubject()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -1018,4 +1045,5 @@ public abstract class DataInventoryStoreConformanceTestKit
 	}
 
 	#endregion
+
 }

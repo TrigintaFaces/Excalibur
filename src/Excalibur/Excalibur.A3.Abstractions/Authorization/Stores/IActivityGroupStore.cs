@@ -45,12 +45,12 @@ public interface IActivityGroupStore
 	/// <summary>
 	/// Creates a new activity group entry.
 	/// </summary>
-	/// <param name="tenantId">Optional tenant identifier.</param>
+	/// <param name="tenantId">The tenant identifier. Required; must be non-empty.</param>
 	/// <param name="name">The activity group name.</param>
 	/// <param name="activityName">The activity name to associate.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Number of rows affected.</returns>
-	Task<int> CreateActivityGroupAsync(string? tenantId, string name,
+	Task<int> CreateActivityGroupAsync(string tenantId, string name,
 		string activityName, CancellationToken cancellationToken);
 
 	/// <summary>

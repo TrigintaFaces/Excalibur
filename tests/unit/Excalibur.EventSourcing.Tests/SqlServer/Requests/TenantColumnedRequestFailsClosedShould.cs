@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.Tests.SqlServer.Requests;
 
 // SQL SERVER half of the s7yc33 regression lock — INVERTED by the S902 keyed migration (FR-8).
 //
-// PREMISE CHANGE: the pre-migration lock asserted "TenantScope.None emits NO tenant reference," on the
+// PREMISE CHANGE: the pre-migration lock asserted "TenantScope.Untenanted emits NO tenant reference," on the
 // premise that a non-multi-tenant table has no TenantId column. FR-8 makes the event-store Events table a
 // KEYED tenant table (TenantId NOT NULL, always). Every tenant-columned request now routes its scope through
 // KeyedTenantPartition.FromScope, which has NO empty inhabitant: an unscoped (None) request binds the reserved
@@ -24,7 +24,7 @@ namespace Excalibur.EventSourcing.Tests.SqlServer.Requests;
 //
 // All four SqlServer event-store requests now emit the identical fail-closed predicate:
 //     AND COALESCE(TenantId, @UntenantedSentinel) = @TenantId
-//   * TenantScope.None            -> the predicate is present; @TenantId binds "__untenanted__" (never empty).
+//   * TenantScope.Untenanted            -> the predicate is present; @TenantId binds "__untenanted__" (never empty).
 //   * TenantScope.Scoped("t")     -> the predicate is present; @TenantId binds the real tenant "t".
 //   * TenantScope.Scoped(null/"") -> THROWS TenantRequiredException at construction (unsafe shape unrepresentable).
 //
@@ -76,7 +76,7 @@ public sealed class TenantColumnedRequestFailsClosedShould
 
         foreach (var (name, emit) in TenantColumnedRequests)
         {
-            var (sql, boundTenant) = emit(TenantScope.None);
+            var (sql, boundTenant) = emit(TenantScope.Untenanted);
             if (!sql.Contains(TenantPredicate, StringComparison.Ordinal) ||
                 !string.Equals(boundTenant, UntenantedSentinel, StringComparison.Ordinal))
             {

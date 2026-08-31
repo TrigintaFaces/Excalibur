@@ -10,13 +10,12 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// index-template endpoints (<c>_inner.Indices.*IndexTemplate*</c>) used by
 /// <see cref="IndexTemplateManager"/>. Companion seam:
 /// <see cref="IComponentTemplateStore"/> covers the
-/// <c>_inner.Cluster.*ComponentTemplate*</c> endpoints. Split per
-/// ADR-142 §D7 "Surface area" ≤5-method cap (S799 F1 remediation, OVERWATCH
-/// msg 1818).
+/// <c>_inner.Cluster.*ComponentTemplate*</c> endpoints. Split along the SDK
+/// sub-client boundary to keep each seam within a five-method surface.
 /// </summary>
 /// <remarks>
 /// Naming: <c>IIndexTemplateStore</c> uses the <c>Store</c> domain-role
-/// suffix per COMPASS msg 1799 precedent. Split along the SDK sub-client
+/// suffix. Split along the SDK sub-client
 /// boundary (Indices vs Cluster) keeps each seam focused on a single domain
 /// concept.
 /// </remarks>
@@ -46,7 +45,7 @@ internal interface IIndexTemplateStore
 	/// Lists index templates matching the given name pattern (glob). The adapter
 	/// projects the SDK response into framework-owned
 	/// <see cref="IndexTemplateDescriptor"/> values so SDK types never cross
-	/// this seam (S802-B).
+	/// this seam.
 	/// </summary>
 	Task<IReadOnlyList<IndexTemplateDescriptor>> ListAsync(
 		string namePattern,

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.IO.Compression;
@@ -41,7 +41,8 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 
 	private static InMemorySnapshotStore CreateInMemoryStore() =>
 		new(Microsoft.Extensions.Options.Options.Create(new InMemorySnapshotOptions()),
-			NullLogger<InMemorySnapshotStore>.Instance);
+			NullLogger<InMemorySnapshotStore>.Instance,
+			TestTenantContext.SingleTenantDefault);
 
 	[Fact]
 	public async Task BrotliCompression_ShouldRoundTrip()

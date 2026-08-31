@@ -54,20 +54,21 @@ public sealed class CircuitBreakerMiddlewareShould
     }
 
     [Fact]
-    public async Task RecordFailureOnException()
+    public async Task RecordFailureOnException_AndRethrowTheOriginal()
     {
         var sut = CreateSut(new CircuitBreakerOptions { FailureThreshold = 5 });
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
 
-        var result = await sut.InvokeAsync(
-            message, context,
-            (_, _, _) => throw new InvalidOperationException("test failure"),
-            CancellationToken.None);
+        // The breaker observes the fault and lets it through; the recording is proven by
+        // OpenCircuitAfterFailureThresholdExceeded below, which only opens if these were counted.
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(
+            () => sut.InvokeAsync(
+                message, context,
+                (_, _, _) => throw new InvalidOperationException("test failure"),
+                CancellationToken.None).AsTask());
 
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails.ShouldNotBeNull();
-        result.ProblemDetails!.Type.ShouldBe("CircuitBreakerFailure");
+        thrown.Message.ShouldBe("test failure");
     }
 
     [Fact]
@@ -81,13 +82,15 @@ public sealed class CircuitBreakerMiddlewareShould
         var sut = CreateSut(options);
         var message = A.Fake<IDispatchMessage>();
 
-        // Cause failures to exceed threshold
-        for (var i = 0; i < 3; i++)
+        // Reach the threshold. Each fault propagates and each one is still recorded; the call AFTER the
+        // threshold is the one the open circuit rejects, and it is asserted below rather than in this loop.
+        for (var i = 0; i < 2; i++)
         {
-            await sut.InvokeAsync(
-                message, new MessageContext(),
-                (_, _, _) => throw new InvalidOperationException("fail"),
-                CancellationToken.None);
+            _ = await Should.ThrowAsync<InvalidOperationException>(
+                () => sut.InvokeAsync(
+                    message, new MessageContext(),
+                    (_, _, _) => throw new InvalidOperationException("fail"),
+                    CancellationToken.None).AsTask());
         }
 
         // The circuit should now be open - next request should be rejected
@@ -97,7 +100,7 @@ public sealed class CircuitBreakerMiddlewareShould
             CancellationToken.None);
 
         result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails!.Type.ShouldBeOneOf("CircuitBreakerOpen", "CircuitBreakerFailure");
+        result.ProblemDetails!.Type.ShouldBe("CircuitBreakerOpen");
     }
 
     [Fact]

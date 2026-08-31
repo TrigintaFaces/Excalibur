@@ -22,25 +22,6 @@ public sealed class GooglePubSubOptions
 	/// </summary>
 	/// <value> The connection sub-options. Never null. </value>
 	public PubSubConnectionOptions Connection { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets a value indicating whether enables encryption when sending/receiving messages.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether enables encryption when sending/receiving messages.
-	/// </value>
-	public bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum number of concurrent messages to process in parallel. Default is 0, which means
-	/// Environment.ProcessorCount * 2.
-	/// </summary>
-	/// <value>
-	/// The maximum number of concurrent messages to process in parallel. Default is 0, which means
-	/// Environment.ProcessorCount * 2.
-	/// </value>
-	public int MaxConcurrentMessages { get; set; }
-
 	/// <summary>
 	/// Gets or sets subscriber configuration (pull, ack, dead letter).
 	/// </summary>
@@ -54,38 +35,10 @@ public sealed class GooglePubSubOptions
 	public PubSubTelemetryOptions Telemetry { get; set; } = new();
 
 	/// <summary>
-	/// Gets the compression options for Pub/Sub message payloads.
-	/// </summary>
-	/// <value>
-	/// The compression options. Never null.
-	/// </value>
-	/// <remarks>
-	/// <para>
-	/// Use compression to reduce message size and bandwidth costs. Snappy is recommended
-	/// for high-throughput scenarios (fastest), while Gzip provides better compression ratio.
-	/// </para>
-	/// <para>
-	/// Example:
-	/// <code>
-	/// options.Compression.Enabled = true;
-	/// options.Compression.Algorithm = CompressionAlgorithm.Snappy;
-	/// options.Compression.ThresholdBytes = 1024; // Only compress messages > 1KB
-	/// </code>
-	/// </para>
-	/// </remarks>
-	public PubSubCompressionOptions Compression { get; } = new();
-
-	/// <summary>
 	/// Gets the message-type → topic-id routing map used to resolve the destination topic per message type.
 	/// </summary>
 	/// <value> The routing map keyed by message CLR type. Never null. </value>
 	public Dictionary<Type, string> TopicMappings { get; } = new();
-
-	/// <summary>
-	/// Gets or sets the CloudEvents envelope options, or <see langword="null"/> to disable CloudEvents framing.
-	/// </summary>
-	/// <value> The CloudEvents options, or <see langword="null"/>. </value>
-	public GooglePubSubCloudEventOptions? CloudEvents { get; set; }
 }
 
 /// <summary>
@@ -137,23 +90,6 @@ public sealed class PubSubSubscriberOptions
 	/// </summary>
 	[Range(1, 1000)]
 	public int MaxPullMessages { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the acknowledgment deadline in seconds for pulled messages. Default is 60 seconds.
-	/// </summary>
-	[Range(10, 600)]
-	public int AckDeadlineSeconds { get; set; } = 60;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to automatically extend the acknowledgment deadline. Default is true.
-	/// </summary>
-	public bool EnableAutoAckExtension { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the number of concurrent acknowledgment operations allowed. Default is 10.
-	/// </summary>
-	[Range(1, 1000)]
-	public int MaxConcurrentAcks { get; set; } = 10;
 
 	/// <summary>
 	/// Gets or sets the maximum inbound payload length, in bytes, enforced at both Pub/Sub ingress surfaces
@@ -248,23 +184,8 @@ public sealed class PubSubTelemetryOptions
 	public int TelemetryExportIntervalSeconds { get; set; } = 60;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable distributed tracing propagation. Default is true.
-	/// </summary>
-	public bool EnableTracePropagation { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets custom resource labels for telemetry.
 	/// </summary>
 	public Dictionary<string, string> TelemetryResourceLabels { get; set; } = [];
 
-	/// <summary>
-	/// Gets or sets a value indicating whether to include message attributes in traces. Default is false for privacy.
-	/// </summary>
-	public bool IncludeMessageAttributesInTraces { get; set; }
-
-	/// <summary>
-	/// Gets or sets the sampling ratio for distributed tracing (0.0 to 1.0). Default is 0.1 (10% sampling).
-	/// </summary>
-	[Range(0.0, 1.0)]
-	public double TracingSamplingRatio { get; set; } = 0.1;
 }

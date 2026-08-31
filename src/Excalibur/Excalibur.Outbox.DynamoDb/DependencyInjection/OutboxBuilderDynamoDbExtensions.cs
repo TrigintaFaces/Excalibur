@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -123,8 +123,20 @@ public static class OutboxBuilderDynamoDbExtensions
 				new AmazonDynamoDBClient(region));
 		}
 
-		// Register store services
-		builder.Services.TryAddSingleton<DynamoDbOutboxStore>();
+		// Register store services. AddTenantAwareStore emits the
+		// ITenantPartitionedCapability<ICloudNativeOutboxStore> marker as part of THIS registration, so the
+		// marker cannot exist without the store it attests. It is the partitioned seam and not the scoped one
+		// because this store reads no ambient tenant on any path: it persists the tenant on the item it
+		// writes and hands that value back when the stream reads it, so the owning tenant is
+		// re-established from the row. That seam takes no ITenantContext, so there is no dependency here to be
+		// handed to the factory and silently discarded.
+		//
+		// Without this the contract is not merely unattested, it is INVISIBLE: this provider registers no
+		// IOutboxStore at all, so the outbox gate keyed on that contract never fires, and a host selecting
+		// row-discriminator multi-tenancy starts cleanly with an outbox nothing confines. An ungated store is
+		// silent where a refused one is loud.
+		builder.Services.AddTenantAwareStore<ICloudNativeOutboxStore, DynamoDbOutboxStore>(
+			static sp => ActivatorUtilities.CreateInstance<DynamoDbOutboxStore>(sp));
 		builder.Services.TryAddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<DynamoDbOutboxStore>());
 	}
 

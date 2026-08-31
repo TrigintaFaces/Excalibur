@@ -35,6 +35,30 @@ internal static class AuditStoreTenantScope
 		new(AuditIntegrityTestStrategy.Create(), new FixedTenantContext(tenantId));
 
 	/// <summary>
+	/// The partition the store writes an audit event carrying no tenant to.
+	/// </summary>
+	/// <remarks>
+	/// The store keys writes off <c>auditEvent.TenantId ?? UntenantedPartitionKey</c> and keys reads off the
+	/// ambient scope, so a store built for tenant-less events has to read as this exact partition or its
+	/// reads resolve a key nothing was written to. This is <see cref="TenantScope.UntenantedSentinel"/>, the
+	/// same reserved marker every store uses for "no tenant" — the store no longer carries a private label
+	/// of its own. It is deliberately NOT <c>TenantDefaults.DefaultTenantId</c>: that is a real single-tenant
+	/// identity and selects a different partition, so substituting it makes tenant-less events unreadable.
+	/// </remarks>
+	private static readonly string UntenantedPartition = TenantScope.UntenantedSentinel;
+
+	/// <summary>
+	/// Creates a store for a host with no tenancy, reading and writing the untenanted partition.
+	/// </summary>
+	/// <remarks>
+	/// This is the shape these arms previously expressed by omitting the tenant context entirely. The
+	/// context is now a required dependency, so the untenanted host has to be named rather than implied;
+	/// the partition each arm reads is unchanged.
+	/// </remarks>
+	/// <returns>A store confined to the untenanted partition.</returns>
+	public static InMemoryAuditStore Untenanted() => ScopedTo(UntenantedPartition);
+
+	/// <summary>
 	/// Implements <see cref="ITenantContext"/> DIRECTLY, inheriting no first-party base, so arms built on it
 	/// bind the interface's own requirement rather than re-testing an inherited convenience.
 	/// </summary>

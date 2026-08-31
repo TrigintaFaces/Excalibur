@@ -22,23 +22,6 @@ internal sealed class AzureServiceBusCloudEventOptionsValidator : IValidateOptio
 
 		var failures = new List<string>();
 
-		if (options.MaxMessageSizeBytes <= 0)
-		{
-			failures.Add($"{nameof(options.MaxMessageSizeBytes)} must be greater than zero.");
-		}
-
-		if (options.MaxDeliveryCount <= 0)
-		{
-			failures.Add($"{nameof(options.MaxDeliveryCount)} must be greater than zero.");
-		}
-
-		if (options.EnableDuplicateDetection && options.DuplicateDetectionWindow <= TimeSpan.Zero)
-		{
-			failures.Add(
-				$"{nameof(options.DuplicateDetectionWindow)} must be positive when " +
-				$"{nameof(options.EnableDuplicateDetection)} is enabled.");
-		}
-
 		if (options.TimeToLive is { } ttl && ttl <= TimeSpan.Zero)
 		{
 			failures.Add($"{nameof(options.TimeToLive)} must be positive when set.");

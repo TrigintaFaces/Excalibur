@@ -390,7 +390,7 @@ public sealed class KafkaDeadLetterQueueManager : IDeadLetterQueueManager
 		});
 	}
 
-	public Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		var count = _dlqMessages.Count;
 		_dlqMessages.Clear();

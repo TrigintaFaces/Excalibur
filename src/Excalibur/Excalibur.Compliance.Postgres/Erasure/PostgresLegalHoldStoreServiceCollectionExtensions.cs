@@ -45,15 +45,16 @@ public static class PostgresLegalHoldStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<ILegalHoldStore> marker in the same act, so a store that was never
-		// handed the context cannot carry a truthful-looking capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<ILegalHoldStore, PostgresLegalHoldStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<ILegalHoldStore> marker in the same act, so
+		// a store that was never handed the context cannot carry a truthful-looking capability and pass
+		// the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<ILegalHoldStore, PostgresLegalHoldStore>(sp =>
 			new PostgresLegalHoldStore(
 				sp.GetRequiredService<IOptions<PostgresLegalHoldStoreOptions>>(),
 				sp.GetRequiredService<ILogger<PostgresLegalHoldStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<PostgresLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<PostgresLegalHoldStore>());
 
@@ -86,10 +87,6 @@ public static class PostgresLegalHoldStoreServiceCollectionExtensions
 	/// <param name="connectionStringName">The connection string name from configuration.</param>
 	/// <param name="configure">Optional additional configuration.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresLegalHoldStoreFromConfiguration(
 		this IServiceCollection services,
 		string connectionStringName,
@@ -122,15 +119,16 @@ public static class PostgresLegalHoldStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<ILegalHoldStore> marker in the same act, so a store that was never
-		// handed the context cannot carry a truthful-looking capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<ILegalHoldStore, PostgresLegalHoldStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<ILegalHoldStore> marker in the same act, so
+		// a store that was never handed the context cannot carry a truthful-looking capability and pass
+		// the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<ILegalHoldStore, PostgresLegalHoldStore>(sp =>
 			new PostgresLegalHoldStore(
 				sp.GetRequiredService<IOptions<PostgresLegalHoldStoreOptions>>(),
 				sp.GetRequiredService<ILogger<PostgresLegalHoldStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<PostgresLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<PostgresLegalHoldStore>());
 

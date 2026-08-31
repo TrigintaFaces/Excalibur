@@ -263,7 +263,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		return errors;
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.ValidationMiddlewareExecuting, LogLevel.Debug,
 		"Validating message {MessageType}")]
 	private partial void LogValidatingMessage(string messageType);

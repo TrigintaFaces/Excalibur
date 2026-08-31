@@ -15,8 +15,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 // IDispatchTelemetryProvider moved to IDispatchTelemetryProvider.cs (MA0048 compliance).
 
 /// <summary>
-/// Service collection extensions for registering Dispatch telemetry and observability components. Implements R8.21 comprehensive telemetry
-/// integration and R7.17 performance monitoring setup.
+/// Service collection extensions for registering Dispatch telemetry and observability components, wiring telemetry
+/// integration and performance-monitoring setup.
 /// </summary>
 /// <remarks>
 /// Provides fluent API for configuring OpenTelemetry integration with Dispatch enhanced patterns. Supports both development and production
@@ -65,10 +65,6 @@ public static class DispatchTelemetryServiceCollectionExtensions
 	/// <param name="sectionName"> The configuration section name. Default is "DispatchTelemetry". </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "DispatchTelemetryOptions types are preserved through DI registration and have well-defined properties")]
-	[UnconditionalSuppressMessage("AotAnalysis", "IL3050:RequiresDynamicCode",
-		Justification = "DispatchTelemetryOptions has known serializable properties")]
 	public static IServiceCollection AddDispatchTelemetry(
 		this IServiceCollection services,
 		IConfiguration configuration,

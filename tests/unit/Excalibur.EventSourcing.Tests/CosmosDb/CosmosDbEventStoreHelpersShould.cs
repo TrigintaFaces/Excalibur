@@ -13,14 +13,61 @@ namespace Excalibur.EventSourcing.Tests.CosmosDb;
 [Trait("Component", "EventSourcing")]
 public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 {
+	/// <summary>
+	/// The stream identifier — which is the Cosmos partition key — carries the owning tenant, and two
+	/// tenants holding the same aggregate identifier compose to different partition keys.
+	/// </summary>
+	/// <remarks>
+	/// Asserting the exact composed value rather than merely that the two differ: a store that appended a
+	/// constant, or hashed the tenant into an unaddressable form, would satisfy "they differ" while making
+	/// the partition key unreadable.
+	/// </remarks>
 	[Fact]
-	public void BuildStreamId_CombineAggregateTypeAndId()
+	public void BuildStreamId_ComposeTheTenantIntoThePartitionKey()
 	{
-		var method = typeof(CosmosDbEventStore).GetMethod("BuildStreamId", BindingFlags.NonPublic | BindingFlags.Static);
+		var method = typeof(CosmosDbEventStore).GetMethod("BuildStreamId", BindingFlags.NonPublic | BindingFlags.Instance);
 		method.ShouldNotBeNull();
 
-		var streamId = method!.Invoke(null, ["Order", "agg-42"]);
-		streamId.ShouldBe("Order:agg-42");
+		method!.Invoke(StoreFor(UntenantedContext.Instance), ["Order", "agg-42"])
+			.ShouldBe($"t:{TenantScope.UntenantedSentinel}:Order:agg-42");
+		method.Invoke(StoreFor(new FixedTenantContext("tenant-a")), ["Order", "agg-42"])
+			.ShouldBe("t:tenant-a:Order:agg-42");
+		method.Invoke(StoreFor(new FixedTenantContext("tenant-b")), ["Order", "agg-42"])
+			.ShouldBe("t:tenant-b:Order:agg-42");
+	}
+
+	private static CosmosDbEventStore StoreFor(ITenantContext tenantContext)
+	{
+		var sut = (CosmosDbEventStore)RuntimeHelpers.GetUninitializedObject(typeof(CosmosDbEventStore));
+		var field = typeof(CosmosDbEventStore).GetField("_tenantContext", BindingFlags.Instance | BindingFlags.NonPublic);
+		field.ShouldNotBeNull();
+		field!.SetValue(sut, tenantContext);
+		return sut;
+	}
+
+	/// <summary>
+	/// Builds a store whose payload writer is present but carries no resolver -- the default reflection
+	/// path -- so document creation can be exercised without a Cosmos client.
+	/// </summary>
+	/// <remarks>
+	/// Resolving the writer's type from the field rather than naming it keeps this test off the internal
+	/// type, and asserts that the store still routes document creation through a payload writer at all.
+	/// </remarks>
+	/// <returns>An uninitialized store with its payload writer populated.</returns>
+	private static CosmosDbEventStore StoreWithPayloadWriter()
+	{
+		var sut = (CosmosDbEventStore)RuntimeHelpers.GetUninitializedObject(typeof(CosmosDbEventStore));
+		var writerField = typeof(CosmosDbEventStore).GetField("_payloadWriter", BindingFlags.Instance | BindingFlags.NonPublic);
+		writerField.ShouldNotBeNull();
+		writerField!.SetValue(sut, Activator.CreateInstance(writerField.FieldType, new object?[] { null }));
+		return sut;
+	}
+
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId => tenantId;
+
+		public bool HasTenant => true;
 	}
 
 	[Fact]
@@ -64,7 +111,10 @@ public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 	[Fact]
 	public void ConvertBetweenEventDocumentAndStoredEventShapes()
 	{
-		var createMethod = typeof(CosmosDbEventStore).GetMethod("CreateEventDocument", BindingFlags.NonPublic | BindingFlags.Static);
+		// CreateEventDocument is an INSTANCE method: the document's payload and metadata are written through
+		// the store's own payload writer, which carries the host's optional source-generated type-info
+		// resolver. That resolver is per-store configuration, so document creation cannot be static.
+		var createMethod = typeof(CosmosDbEventStore).GetMethod("CreateEventDocument", BindingFlags.NonPublic | BindingFlags.Instance);
 		var toCloudMethod = typeof(CosmosDbEventStore).GetMethod("ToCloudStoredEvent", BindingFlags.NonPublic | BindingFlags.Static);
 		var toStoredMethod = typeof(CosmosDbEventStore).GetMethod("ToStoredEvent", BindingFlags.NonPublic | BindingFlags.Static);
 		createMethod.ShouldNotBeNull();
@@ -72,7 +122,8 @@ public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 		toStoredMethod.ShouldNotBeNull();
 
 		var domainEvent = new TestDomainEvent("evt-1", new Dictionary<string, object> { ["key"] = "value" });
-		var document = createMethod!.Invoke(null, ["Order:agg-1", "agg-1", "Order", domainEvent, 8L]);
+		var document = createMethod!.Invoke(
+			StoreWithPayloadWriter(), ["Order:agg-1", "agg-1", "Order", domainEvent, 8L]);
 		document.ShouldNotBeNull();
 
 		var cloudEvent = toCloudMethod!.Invoke(null, [document!]);

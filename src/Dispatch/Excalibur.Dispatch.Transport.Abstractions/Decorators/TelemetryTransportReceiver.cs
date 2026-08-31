@@ -12,14 +12,13 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// <summary>
 /// Decorates an <see cref="ITransportReceiver"/> with OpenTelemetry metrics and distributed tracing.
 /// Records <c>dispatch.transport.messages.received</c>, <c>dispatch.transport.messages.acknowledged</c>,
-/// <c>dispatch.transport.messages.rejected</c>, and <c>dispatch.transport.receive.duration</c>.
+/// <c>dispatch.transport.messages.rejected</c>. Operation duration is recorded by the transport adapter itself, not here.
 /// </summary>
 internal sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
 {
 	private readonly Counter<long> _receivedCounter;
 	private readonly Counter<long> _acknowledgedCounter;
 	private readonly Counter<long> _rejectedCounter;
-	private readonly Histogram<double> _durationHistogram;
 	private readonly ActivitySource _activitySource;
 	private readonly string _transportName;
 	private readonly TagCardinalityGuard _sourceGuard;
@@ -44,23 +43,18 @@ internal sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
 
 		_receivedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesReceived,
-			"messages",
+			"{messages}",
 			"Total messages received");
 
 		_acknowledgedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesAcknowledged,
-			"messages",
+			"{messages}",
 			"Total messages acknowledged");
 
 		_rejectedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesRejected,
-			"messages",
+			"{messages}",
 			"Total messages rejected");
-
-		_durationHistogram = meter.CreateHistogram<double>(
-			TransportTelemetryConstants.MetricNames.ReceiveDuration,
-			"ms",
-			"Duration of receive operations in milliseconds");
 	}
 
 	/// <inheritdoc />
@@ -73,7 +67,6 @@ internal sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
 		activity?.SetTag(TransportTelemetryConstants.Tags.Source, guardedSource);
 		activity?.SetTag(TransportTelemetryConstants.Tags.Operation, "receive");
 
-		var stopwatch = ValueStopwatch.StartNew();
 		var messages = await base.ReceiveAsync(maxMessages, cancellationToken).ConfigureAwait(false);
 
 		if (messages.Count > 0)
@@ -85,14 +78,6 @@ internal sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
 			};
 			_receivedCounter.Add(messages.Count, tags);
 		}
-
-		var durationTags = new TagList
-		{
-			{ TransportTelemetryConstants.Tags.TransportName, _transportName },
-			{ TransportTelemetryConstants.Tags.Source, guardedSource },
-		};
-		_durationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, durationTags);
-
 		return messages;
 	}
 

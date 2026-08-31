@@ -200,9 +200,9 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 			headers["TenantId"] = outboxContext.TenantId;
 		}
 
-		// FR-A1 (kxksig): persist the W3C traceparent so the staged envelope carries the producer trace
+		// Persist the W3C traceparent so the staged envelope carries the producer trace
 		// context, symmetric with the Correlation/Causation/Tenant capture above. Additive and only written
-		// when present (EC-A1); caller-set precedence (FR-A4) is already applied by the caller.
+		// when present; caller-set precedence is already applied by the caller.
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			headers["traceparent"] = traceParent;
@@ -216,7 +216,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 			headers["tracestate"] = traceState;
 		}
 
-		// FR-B5 (r4nd4w): persist the W3C baggage so the staged envelope carries the producer's baggage
+		// persist the W3C baggage so the staged envelope carries the producer's baggage
 		// context, symmetric with the traceparent capture above. Additive and only written when present;
 		// no baggage => no header.
 		if (!string.IsNullOrEmpty(baggage))
@@ -230,7 +230,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	// Reconstructs the W3C "baggage" header from the in-context baggage items that DispatchContextInitializer
 	// captures from the ambient Activity (keyed "baggage.{name}"). Returns null when no baggage is present so
 	// no header is written (additive). Entries are ordered by key for a deterministic header value. Each member's
-	// name and value are W3C percent-encoded (7npc0q) so values containing the "," / "=" / "%" delimiters survive
+	// name and value are W3C percent-encoded so values containing the "," / "=" / "%" delimiters survive
 	// the round-trip — MessageBusOutboxPublisher.RestoreBaggage percent-decodes them symmetrically on the hop.
 	private static string? GetBaggageHeader(IMessageContext context)
 	{
@@ -295,9 +295,9 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 
 		LogStagingOutboundMessagesWithStore(outboxContext.OutboundMessages.Count);
 
-		// Capture the current W3C trace context once for this staging batch (FR-A1, kxksig): the caller-set
-		// traceparent (FR-A4) takes precedence, falling back to the ambient Activity's id. Null when neither
-		// is present, in which case no traceparent header is written (EC-A1).
+		// Capture the current W3C trace context once for this staging batch: the caller-set
+		// traceparent takes precedence, falling back to the ambient Activity's id. Null when neither
+		// is present, in which case no traceparent header is written.
 		var traceParent = context.GetTraceParent() ?? Activity.Current?.Id;
 
 		// Capture the current W3C tracestate once for this staging batch, symmetric with the traceparent
@@ -306,7 +306,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		// which case no tracestate header is written.
 		var traceState = context.GetItem<string>("tracestate") ?? Activity.Current?.TraceStateString;
 
-		// Capture the current baggage once for this staging batch (FR-B5, r4nd4w), symmetric with the
+		// Capture the current baggage once for this staging batch, symmetric with the
 		// traceparent capture above. Null when no baggage is present, in which case no baggage header is written.
 		var baggage = GetBaggageHeader(context);
 
@@ -356,7 +356,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		{
 			// Route the WRITE through the configured DispatchJsonSerializer so it shares the consumer's
 			// naming policy, string-enum representation, custom converters, and AOT TypeInfoResolver with the
-			// READ path (OutboxProcessor) — symmetric wire contract, no custom-converter drop, no AOT hole (15sf7a).
+			// READ path (OutboxProcessor) — symmetric wire contract, no custom-converter drop, no AOT hole.
 			using var result = _serializer.SerializeToPooledBuffer(message, message.GetType());
 			return result.WrittenSpan.ToArray();
 		}
@@ -380,7 +380,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		return OutboxStagingLogScope(_logger, message.GetType().Name, true);
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.OutboxMiddlewareExecuting, LogLevel.Debug,
 		"Processing message {MessageType} with outbox staging enabled")]
 	private partial void LogProcessingWithOutboxEnabled(string messageType);

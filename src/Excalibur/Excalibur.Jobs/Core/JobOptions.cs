@@ -9,39 +9,39 @@ namespace Excalibur.Jobs.Core;
 public abstract class JobOptions : IJobOptions
 {
 	/// <summary>
-	/// Gets the job name.
+	/// Gets or sets the job name.
 	/// </summary>
 	/// <value>
 	/// The job name.
 	/// </value>
-	public string JobName { get; init; } = string.Empty;
+	public string JobName { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets the job group.
+	/// Gets or sets the job group.
 	/// </summary>
 	/// <value>
 	/// The job group.
 	/// </value>
-	public string JobGroup { get; init; } = "Default";
+	public string JobGroup { get; set; } = "Default";
 
 	/// <summary>
-	/// Gets the cron expression that defines the job's schedule.
+	/// Gets or sets the cron expression that defines the job's schedule.
 	/// </summary>
 	/// <value>
 	/// The cron expression that defines the job's schedule.
 	/// </value>
-	public string CronSchedule { get; init; } = string.Empty;
+	public string CronSchedule { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets the threshold duration after which the job's state is considered degraded.
+	/// Gets or sets the threshold duration after which the job's state is considered degraded.
 	/// </summary>
 	/// <value>
 	/// The threshold duration after which the job's state is considered degraded.
 	/// </value>
-	public TimeSpan DegradedThreshold { get; init; } = TimeSpan.FromMinutes(5);
+	public TimeSpan DegradedThreshold { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
-	/// Gets a value indicating whether the job is disabled.
+	/// Gets or sets a value indicating whether the job is disabled.
 	/// </summary>
 	/// <value>
 	/// <see langword="true"/> if the job is disabled; otherwise, <see langword="false"/>.
@@ -63,13 +63,13 @@ public abstract class JobOptions : IJobOptions
 	/// store.
 	/// </para>
 	/// </remarks>
-	public bool Disabled { get; init; }
+	public bool Disabled { get; set; }
 
 	/// <summary>
-	/// Gets the threshold duration after which the job's state is considered unhealthy.
+	/// Gets or sets the threshold duration after which the job's state is considered unhealthy.
 	/// </summary>
 	/// <value>
 	/// The threshold duration after which the job's state is considered unhealthy.
 	/// </value>
-	public TimeSpan UnhealthyThreshold { get; init; } = TimeSpan.FromMinutes(10);
+	public TimeSpan UnhealthyThreshold { get; set; } = TimeSpan.FromMinutes(10);
 }

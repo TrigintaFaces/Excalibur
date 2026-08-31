@@ -21,7 +21,7 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 		var options = new CosmosDbOptions();
 
 		// Assert
-		options.Name.ShouldBe("CosmosDb");
+		options.Name.ShouldBe("cosmosdb");
 		options.Client.AccountEndpoint.ShouldBeNull();
 		options.Client.AccountKey.ShouldBeNull();
 		options.Client.ConnectionString.ShouldBeNull();

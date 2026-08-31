@@ -11,8 +11,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// Initializes a new instance of the <see cref="AutomatedResponseTriggeredEventArgs" /> class.
 /// </remarks>
 /// <param name="threatType"> The type of threat that triggered the automated response. </param>
-/// <param name="responseAction"> The description of the automated response action that was triggered. </param>
-public sealed class AutomatedResponseTriggeredEventArgs(ThreatType threatType, string responseAction) : EventArgs
+public sealed class AutomatedResponseTriggeredEventArgs(ThreatType threatType) : EventArgs
 {
 	/// <summary>
 	/// Gets the type of threat that triggered the automated response.
@@ -21,14 +20,6 @@ public sealed class AutomatedResponseTriggeredEventArgs(ThreatType threatType, s
 	/// A ThreatType enumeration value indicating the category of security threat that caused the automated response to be triggered.
 	/// </value>
 	public ThreatType ThreatType { get; } = threatType;
-
-	/// <summary>
-	/// Gets the description of the automated response action that was triggered.
-	/// </summary>
-	/// <value>
-	/// A string describing the specific automated response action taken by the security monitoring system in response to the detected threat.
-	/// </value>
-	public string ResponseAction { get; } = responseAction;
 
 	/// <summary>
 	/// Gets the timestamp when the automated response was triggered.

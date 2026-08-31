@@ -19,7 +19,7 @@ This package provides Azure messaging integration for Excalibur.Dispatch, enabli
 - **Azure Service Bus**: Enterprise messaging with queues, topics, and sessions
 - **Azure Event Hubs**: High-throughput event streaming with partitions
 - **Azure Storage Queues**: Simple, cost-effective queue storage
-- **CloudEvents Support**: Standards-compliant structured and binary event formatting
+- **CloudEvents Support**: Standards-compliant structured and binary event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
 - **Managed Identity**: Passwordless authentication with Azure AD
 - **Dead Letter Handling**: Built-in dead letter queue support
 
@@ -39,7 +39,7 @@ dotnet add package Excalibur.Dispatch.Transport.AzureServiceBus
 services.Configure<AzureServiceBusOptions>(options =>
 {
     options.ConnectionString = "Endpoint=sb://mynamespace.servicebus.windows.net/;SharedAccessKeyName=...";
-    options.QueueName = "my-queue";
+    options.Sender.DefaultEntityName = "my-queue";
 });
 ```
 
@@ -49,12 +49,14 @@ services.Configure<AzureServiceBusOptions>(options =>
 services.Configure<AzureServiceBusOptions>(options =>
 {
     options.Namespace = "mynamespace.servicebus.windows.net";
-    options.QueueName = "my-queue";
+    options.Sender.DefaultEntityName = "my-queue";
 });
+```
 
+```csharp
 services.Configure<AzureProviderOptions>(options =>
 {
-    options.UseManagedIdentity = true;
+    options.Authentication.UseManagedIdentity = true;
     options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
 });
 ```
@@ -75,23 +77,18 @@ services.Configure<AzureServiceBusOptions>(configuration.GetSection("Azure:Servi
 #### Connection String
 
 ```csharp
-services.Configure<AzureEventHubOptions>(options =>
-{
-    options.ConnectionString = "Endpoint=sb://mynamespace.servicebus.windows.net/;...";
-    options.EventHubName = "my-eventhub";
-    options.ConsumerGroup = "$Default";
-});
+services.AddAzureEventHubsTransport(eh => eh
+    .ConnectionString("Endpoint=sb://mynamespace.servicebus.windows.net/;...")
+    .EventHubName("my-eventhub"));
 ```
 
 #### Managed Identity
 
 ```csharp
-services.Configure<AzureEventHubOptions>(options =>
-{
-    options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
-    options.EventHubName = "my-eventhub";
-    options.ConsumerGroup = "my-consumer-group";
-});
+services.AddAzureEventHubsTransport(eh => eh
+    .FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
+    .UseManagedIdentity()
+    .EventHubName("my-eventhub"));
 ```
 
 ### Storage Queues
@@ -123,7 +120,7 @@ services.Configure<AzureStorageQueueOptions>(options =>
 ```csharp
 services.Configure<AzureProviderOptions>(options =>
 {
-    options.UseManagedIdentity = true;
+    options.Authentication.UseManagedIdentity = true;
     options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
 });
 ```
@@ -138,9 +135,9 @@ Required Azure RBAC roles:
 ```csharp
 services.Configure<AzureProviderOptions>(options =>
 {
-    options.TenantId = "your-tenant-id";
-    options.ClientId = "your-client-id";
-    options.ClientSecret = "your-client-secret";
+    options.Authentication.TenantId = "your-tenant-id";
+    options.Authentication.ClientId = "your-client-id";
+    options.Authentication.ClientSecret = "your-client-secret";
     options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
 });
 ```
@@ -151,7 +148,7 @@ services.Configure<AzureProviderOptions>(options =>
 services.Configure<AzureProviderOptions>(options =>
 {
     options.KeyVaultUrl = new Uri("https://mykeyvault.vault.azure.net/");
-    options.UseManagedIdentity = true;
+    options.Authentication.UseManagedIdentity = true;
 });
 ```
 
@@ -164,49 +161,29 @@ services.Configure<AzureServiceBusOptions>(options =>
 {
     // Connection
     options.Namespace = "mynamespace.servicebus.windows.net";
-    options.QueueName = "my-queue";
     options.TransportType = ServiceBusTransportType.AmqpTcp;  // or AmqpWebSockets
 
-    // Performance
-    options.MaxConcurrentCalls = 10;     // Concurrent message processing
-    options.PrefetchCount = 50;          // Messages to prefetch
+    // Sending
+    options.Sender.DefaultEntityName = "my-queue";
 
-    // CloudEvents
-    options.CloudEventsMode = CloudEventsMode.Structured;  // or Binary
-
-    // Error handling
-    options.DeadLetterOnRejection = true;  // Send rejected messages to DLQ
-
-    // Security
-    options.EnableEncryption = false;
+    // Receiving
+    options.Processor.MaxConcurrentCalls = 10;   // Concurrent message processing
+    options.Processor.PrefetchCount = 50;        // Messages to prefetch
 });
 ```
 
 #### Event Hubs Settings
 
 ```csharp
-services.Configure<AzureEventHubOptions>(options =>
-{
-    // Connection
-    options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
-    options.EventHubName = "my-eventhub";
-    options.ConsumerGroup = "$Default";
-
-    // Performance
-    options.PrefetchCount = 300;         // Events to prefetch
-    options.MaxBatchSize = 100;          // Max events per batch
-
-    // Processing
-    options.StartingPosition = EventHubStartingPosition.Latest;  // or Earliest
-
-    // Security
-    options.EnableEncryption = false;
-    options.EncryptionProviderName = null;
-
-    // Debugging
-    options.EnableVerboseLogging = false;
-});
+services.AddAzureEventHubsTransport("telemetry", eh => eh
+    .FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
+    .UseManagedIdentity()
+    .EventHubName("my-eventhub"));
 ```
+
+The Event Hubs transport publishes through `EventHubProducerClient`; connection and hub
+identity are the whole of its configuration surface. Consumer-side tuning (consumer group,
+prefetch, batch size, starting position) is not exposed by this transport.
 
 #### Storage Queue Settings
 
@@ -219,20 +196,20 @@ services.Configure<AzureStorageQueueOptions>(options =>
 
     // Processing
     options.MaxConcurrentMessages = 10;              // Concurrent processing
-    options.MaxMessages = 10;                        // Messages per poll (max 32)
-    options.PollingInterval = TimeSpan.FromSeconds(1);
-    options.VisibilityTimeout = TimeSpan.FromMinutes(5);
+    options.Polling.MaxMessages = 10;                // Messages per poll (max 32)
+    options.Polling.PollingInterval = TimeSpan.FromSeconds(1);
+    options.Polling.VisibilityTimeout = TimeSpan.FromMinutes(5);
 
     // Dead letter handling
     options.DeadLetterQueueName = "my-queue-dlq";
     options.MaxDequeueCount = 5;                     // Retries before DLQ
 
     // Security
-    options.EnableEncryption = false;
+    options.EncryptionProviderName = null;           // Named encryption provider, or null to disable
 
     // Debugging
-    options.EnableVerboseLogging = false;
-    options.EmptyQueueDelayMs = 1000;
+    options.Polling.EnableVerboseLogging = false;
+    options.Polling.EmptyQueueDelayMs = 1000;
 });
 ```
 
@@ -243,7 +220,7 @@ services.Configure<AzureProviderOptions>(options =>
 {
     options.RetryOptions = new AzureRetryOptions
     {
-        MaxRetries = 3,                              // Retry attempts
+        MaxRetryAttempts = 3,                        // Retry attempts
         Delay = TimeSpan.FromSeconds(1),             // Initial delay
         MaxDelay = TimeSpan.FromSeconds(10),         // Max delay
         Mode = RetryMode.Exponential                 // or Fixed
@@ -255,21 +232,25 @@ services.Configure<AzureProviderOptions>(options =>
 
 ### Registration
 
+The transport adapter implements `ITransportHealthChecker`, so the aggregate transport health check
+covers it without any transport-specific registration:
+
 ```csharp
 services.AddHealthChecks()
-    .AddAzureServiceBusQueue(
-        connectionString: "Endpoint=sb://...",
-        queueName: "my-queue",
+    .AddTransportHealthChecks(
         name: "servicebus",
-        tags: new[] { "ready", "messaging" });
+        tags: ["ready", "messaging"]);
 ```
 
 ### Custom Health Check
 
+To build your own check, inject the public `ITransportHealthChecker` rather than any transport-internal
+type:
+
 ```csharp
-public class ServiceBusHealthCheck : IHealthCheck
+public class ServiceBusHealthCheck(ITransportHealthChecker healthChecker) : IHealthCheck
 {
-    private readonly AzureServiceBusHealthChecker _healthChecker;
+    private readonly ITransportHealthChecker _healthChecker = healthChecker;
 
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -277,7 +258,7 @@ public class ServiceBusHealthCheck : IHealthCheck
     {
         try
         {
-            var result = await _healthChecker.CheckHealthAsync(cancellationToken);
+            var result = await _healthChecker.CheckQuickHealthAsync(cancellationToken);
             return result.IsHealthy
                 ? HealthCheckResult.Healthy()
                 : HealthCheckResult.Degraded(result.Description);
@@ -321,19 +302,9 @@ public class ServiceBusHealthCheck : IHealthCheck
 ```csharp
 services.Configure<AzureServiceBusOptions>(options =>
 {
-    options.MaxConcurrentCalls = 32;     // Increase concurrency
-    options.PrefetchCount = 100;         // More prefetch
+    options.Processor.MaxConcurrentCalls = 32;    // Increase concurrency
+    options.Processor.PrefetchCount = 100;        // More prefetch
     options.TransportType = ServiceBusTransportType.AmqpTcp;  // Faster than WebSockets
-});
-```
-
-#### Event Hubs High-Throughput
-
-```csharp
-services.Configure<AzureEventHubOptions>(options =>
-{
-    options.PrefetchCount = 500;         // More prefetch
-    options.MaxBatchSize = 100;          // Process in batches
 });
 ```
 
@@ -449,32 +420,27 @@ services.Configure<AzureServiceBusOptions>(options =>
 {
     // Connection
     options.Namespace = "mynamespace.servicebus.windows.net";
-    options.QueueName = "my-queue";
     options.ConnectionString = null;  // Or use connection string
     options.TransportType = ServiceBusTransportType.AmqpTcp;
 
-    // Performance
-    options.MaxConcurrentCalls = 10;
-    options.PrefetchCount = 50;
+    // Sending
+    options.Sender.DefaultEntityName = "my-queue";
 
-    // CloudEvents
-    options.CloudEventsMode = CloudEventsMode.Structured;
-
-    // Error handling
-    options.DeadLetterOnRejection = false;
-
-    // Security
-    options.EnableEncryption = false;
+    // Receiving
+    options.Processor.MaxConcurrentCalls = 10;
+    options.Processor.PrefetchCount = 50;
 });
+```
 
+```csharp
 services.Configure<AzureProviderOptions>(options =>
 {
     // Authentication
-    options.UseManagedIdentity = true;
+    options.Authentication.UseManagedIdentity = true;
     options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
-    options.TenantId = "";
-    options.ClientId = "";
-    options.ClientSecret = "";
+    options.Authentication.TenantId = "";
+    options.Authentication.ClientId = "";
+    options.Authentication.ClientSecret = "";
 
     // Azure metadata
     options.SubscriptionId = "";
@@ -484,9 +450,9 @@ services.Configure<AzureProviderOptions>(options =>
     options.KeyVaultUrl = null;
 
     // Storage (for checkpointing)
-    options.StorageAccountName = "";
-    options.StorageAccountKey = "";
-    options.StorageAccountUri = null;
+    options.Storage.StorageAccountName = "";
+    options.Storage.StorageAccountKey = "";
+    options.Storage.StorageAccountUri = null;
 
     // Settings
     options.MaxMessageSizeBytes = 262144;  // 256 KB
@@ -496,7 +462,7 @@ services.Configure<AzureProviderOptions>(options =>
     // Retry
     options.RetryOptions = new AzureRetryOptions
     {
-        MaxRetries = 3,
+        MaxRetryAttempts = 3,
         Delay = TimeSpan.FromSeconds(1),
         MaxDelay = TimeSpan.FromSeconds(10),
         Mode = RetryMode.Exponential
@@ -507,30 +473,21 @@ services.Configure<AzureProviderOptions>(options =>
 ### Event Hubs
 
 ```csharp
-services.Configure<AzureEventHubOptions>(options =>
-{
-    // Connection
-    options.ConnectionString = null;
-    options.FullyQualifiedNamespace = "mynamespace.servicebus.windows.net";
-    options.EventHubName = "my-eventhub";
-    options.ConsumerGroup = "$Default";
+// Connection string
+services.AddAzureEventHubsTransport("telemetry", eh => eh
+    .ConnectionString("Endpoint=sb://mynamespace.servicebus.windows.net/;...")
+    .EventHubName("my-eventhub"));
 
-    // Performance
-    options.PrefetchCount = 300;
-    options.MaxBatchSize = 100;
-
-    // Processing
-    options.StartingPosition = EventHubStartingPosition.Latest;
-
-    // Security
-    options.EnableEncryption = false;
-    options.EncryptionProviderName = null;
-
-    // Debugging
-    options.EnableVerboseLogging = false;
-    options.CustomProperties = new Dictionary<string, string>();
-});
+// Managed identity
+services.AddAzureEventHubsTransport("telemetry", eh => eh
+    .FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
+    .UseManagedIdentity()
+    .EventHubName("my-eventhub"));
 ```
+
+`AzureEventHubsTransportOptions` carries exactly these settings: `Name`, `ConnectionString`,
+`FullyQualifiedNamespace`, `UseManagedIdentity` and `EventHubName`. Reach them directly with
+`eh.ConfigureOptions(o => ...)` when binding from configuration.
 
 ### Storage Queues
 
@@ -544,22 +501,21 @@ services.Configure<AzureStorageQueueOptions>(options =>
 
     // Processing
     options.MaxConcurrentMessages = 10;
-    options.MaxMessages = 10;
-    options.PollingInterval = TimeSpan.FromSeconds(1);
-    options.VisibilityTimeout = TimeSpan.FromMinutes(5);
-    options.EmptyQueueDelayMs = 1000;
+    options.Polling.MaxMessages = 10;
+    options.Polling.PollingInterval = TimeSpan.FromSeconds(1);
+    options.Polling.VisibilityTimeout = TimeSpan.FromMinutes(5);
+    options.Polling.EmptyQueueDelayMs = 1000;
 
     // Dead letter
     options.DeadLetterQueueName = null;
     options.MaxDequeueCount = 5;
 
     // Security
-    options.EnableEncryption = false;
     options.EncryptionProviderName = null;
 
     // Debugging
-    options.EnableVerboseLogging = false;
-    options.CustomProperties = new Dictionary<string, string>();
+    options.Polling.EnableVerboseLogging = false;
+    options.Polling.CustomProperties["my-key"] = "my-value";
 });
 ```
 

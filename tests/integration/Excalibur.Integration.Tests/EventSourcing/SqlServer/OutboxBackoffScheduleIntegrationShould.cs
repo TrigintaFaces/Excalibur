@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -42,26 +43,26 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -89,10 +90,7 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task NotReclaimAFailedMessageUntilItsNextAttemptElapses()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 		var store = CreateOutboxStore();
@@ -136,10 +134,7 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task StillReclaimAFailedMessageWhoseNextAttemptHasElapsed()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 		var store = CreateOutboxStore();
@@ -200,7 +195,21 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 				OutboxTableName = "OutboxMessages",
 				TransportsTableName = "OutboxTransports",
 			},
-			Processing = { CommandTimeoutSeconds = 30 },
+			Processing =
+			{
+				CommandTimeoutSeconds = 30,
+				// These arms exercise the NextAttemptAt gate, so the floor is set to zero rather than
+				// left at its default, which would otherwise hold the message for 30s and mask what
+				// they assert. Note what zero does and does not do: it does NOT take a no-floor code
+				// path. The store always supplies this value, so the composed branch is always the one
+				// taken, and the column receives the later of the caller's delay and F. At F = 0 that
+				// resolves to "the later of the caller's delay and now", so an already-elapsed schedule
+				// yields exactly now on the server clock -- due immediately, which is what these arms
+				// need. Zero is also outside the option's documented range, and is used here only
+				// because a direct store construction bypasses options validation.
+				// The floor itself is covered by SqlServerOutboxBackoffFloorClampShould.
+				FailureBackoffFloorSeconds = 0,
+			},
 		};
 
 		return new SqlServerOutboxStore(Options.Create(options), NullLogger<SqlServerOutboxStore>.Instance);

@@ -73,6 +73,7 @@ public sealed class CachingMiddlewareFailOpenBoundaryShould : IDisposable
 		// InvalidOperationException. (HasExecuted + ShouldCache + non-null Value route into the deserialize path.)
 		var corruptHit = new CachedValue
 		{
+			ActionTypeName = CachingMiddleware.DescribeActionType(typeof(BoundaryCacheableMessage)),
 			HasExecuted = true,
 			ShouldCache = true,
 			Value = JsonDocument.Parse("null").RootElement.Clone(),
@@ -132,7 +133,13 @@ public sealed class CachingMiddlewareFailOpenBoundaryShould : IDisposable
 		A.CallTo(_fakeCache)
 			.Where(c => c.Method.Name == nameof(HybridCache.GetOrCreateAsync))
 			.WithReturnType<ValueTask<CachedValue>>()
-			.Returns(new ValueTask<CachedValue>(new CachedValue { HasExecuted = true, ShouldCache = true, Value = "ok" }));
+			.Returns(new ValueTask<CachedValue>(new CachedValue
+			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(TaggedCacheableMessage)),
+				HasExecuted = true,
+				ShouldCache = true,
+				Value = "ok",
+			}));
 
 		// The separate tag-store backend is DOWN — RegisterKeyAsync throws a non-cancellation error.
 		var tagTracker = A.Fake<ICacheTagTracker>();

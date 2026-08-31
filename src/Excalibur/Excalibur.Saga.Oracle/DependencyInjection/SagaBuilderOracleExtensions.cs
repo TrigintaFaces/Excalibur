@@ -89,6 +89,11 @@ public static class SagaBuilderOracleExtensions
 		Func<IServiceProvider, Func<OracleConnection>> connectionFactory,
 		bool hasBuilderConnection)
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = builder.Services.AddDefaultTenantContext();
+
 		_ = builder.Services.Configure<OracleSagaStoreOptions>(opt =>
 		{
 			opt.ConnectionString = options.ConnectionString;
@@ -116,13 +121,18 @@ public static class SagaBuilderOracleExtensions
 			new OracleSagaBuilderOptionsValidator { HasBuilderConnection = hasBuilderConnection });
 		builder.Services.AddOptions<OracleSagaStoreOptions>().ValidateOnStart();
 
-		builder.Services.TryAddSingleton(sp =>
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the
+		// store through THIS path, while the sibling entry point in the same package looks done.
+		_ = builder.Services.AddTenantAwareStore<ISagaStore, OracleSagaStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			var storeOptions = sp.GetRequiredService<IOptions<OracleSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OracleSagaStore>>();
 			var serializer = sp.GetRequiredService<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
-			return new OracleSagaStore(factory, storeOptions, logger, serializer, sp.GetService<ITenantContext>());
+			return new OracleSagaStore(factory, storeOptions, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		builder.Services.AddKeyedSingleton<ISagaStore>(
 			"oracle", (sp, _) => sp.GetRequiredService<OracleSagaStore>());
@@ -134,12 +144,17 @@ public static class SagaBuilderOracleExtensions
 		{
 			opt.ConnectionString = options.ConnectionString;
 		});
+		// The timeout store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton(sp =>
 		{
 			var factory = connectionFactory(sp);
 			var timeoutOptions = sp.GetRequiredService<IOptions<OracleSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OracleSagaTimeoutStore>>();
-			return new OracleSagaTimeoutStore(factory, timeoutOptions, logger);
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			return new OracleSagaTimeoutStore(factory, timeoutOptions, logger, tenantContext);
 		});
 		builder.Services.TryAddSingleton<ISagaTimeoutStore>(
 			sp => sp.GetRequiredService<OracleSagaTimeoutStore>());

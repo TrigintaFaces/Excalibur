@@ -49,6 +49,7 @@ services.AddDispatch(dispatch =>
     dispatch.UseKafka(kafka =>
     {
         kafka.BootstrapServers("localhost:9092")
+             .RequireTls(false) // local broker has no TLS listener -- see Security below
              .ConfigureConsumer(consumer => consumer.GroupId("order-service"))
              .MapTopic<OrderCreatedEvent>("dispatch.events");
     });
@@ -89,7 +90,8 @@ Configure producer, consumer, CloudEvents, and topic settings using the fluent b
 ```csharp
 services.AddKafkaTransport(kafka =>
 {
-    kafka.BootstrapServers("broker1:9092,broker2:9092")
+    kafka.BootstrapServers("broker1:9093,broker2:9093")
+         .UseSecurityProtocol(SecurityProtocol.SaslSsl)
          .ConfigureProducer(producer =>
          {
              producer.ClientId("dispatch-producer")
@@ -112,6 +114,61 @@ services.AddKafkaTransport(kafka =>
 });
 ```
 
+### Security
+
+The transport refuses to build any Kafka client -- producer, consumer, admin, or dead-letter client --
+whose security protocol would carry credentials and message payloads in the clear. This is the default:
+a deployment that configures nothing does not silently connect in plaintext, it fails where it is wired.
+
+```csharp
+services.AddKafkaTransport(kafka =>
+{
+    kafka.BootstrapServers("broker:9093")
+         .UseSecurityProtocol(SecurityProtocol.SaslSsl);
+});
+```
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `UseSecurityProtocol(protocol)` | unset | The protocol every client for this transport connects with. |
+| `RequireTls(bool)` | `true` | When set, a protocol that does not carry TLS is refused at client construction. |
+
+`SecurityProtocol.Ssl` and `SecurityProtocol.SaslSsl` carry TLS; `Plaintext` and `SaslPlaintext` do not.
+An unset protocol is plaintext at the wire and is treated as such.
+
+#### Connecting to a broker without TLS
+
+A local broker or a test container usually has no TLS listener. Turn the requirement off explicitly:
+
+```csharp
+kafka.BootstrapServers("localhost:9092").RequireTls(false);
+```
+
+:::warning
+`RequireTls(false)` permits credentials and message payloads to travel in the clear. Use it for local
+brokers and test fixtures, never for anything holding real data.
+:::
+
+#### Setting the protocol twice
+
+The protocol has two spellings: `UseSecurityProtocol(...)` and the raw `security.protocol` key in
+`AdditionalConfig`. Setting both to different values is **refused**, not resolved -- neither wins,
+because a silent winner between two spellings of a security control is how an intended TLS posture
+becomes a plaintext connection. Set one or the other. An unrecognized raw value is refused for the
+same reason.
+
+Credentials and certificate paths continue to travel through the raw configuration keys
+(`sasl.username`, `sasl.password`, `ssl.ca.location`, ...):
+
+```csharp
+kafka.BootstrapServers("broker:9093")
+     .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+     .ConfigureProducer(producer => producer
+         .WithConfig("sasl.mechanism", "PLAIN")
+         .WithConfig("sasl.username", username)
+         .WithConfig("sasl.password", password));
+```
+
 ### Consumer Options
 Configure the underlying Kafka client via `KafkaOptions`:
 
@@ -122,11 +179,11 @@ services.Configure<KafkaOptions>(options =>
     options.ConsumerGroup = "order-service";
     options.Topic = "dispatch.events";
 
-    options.EnableAutoCommit = false;
-    options.AutoCommitIntervalMs = 5000;
-    options.SessionTimeoutMs = 30000;
-    options.MaxPollIntervalMs = 300000;
-    options.AutoOffsetReset = "latest";
+    options.Consumer.EnableAutoCommit = false;
+    options.Consumer.AutoCommitIntervalMs = 5000;
+    options.Consumer.SessionTimeoutMs = 30000;
+    options.Consumer.MaxPollIntervalMs = 300000;
+    options.Consumer.AutoOffsetReset = "latest";
 
     options.AdditionalConfig["client.rack"] = "us-east-1";
 
@@ -163,6 +220,14 @@ services.AddKafkaTransport(kafka =>
 ```
 
 Alternatively, use the standalone extension method:
+
+:::note Trimming and Native AOT
+The CloudEvents mapper bundled with this transport serializes the message payload with
+reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
+call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+backed by a source-generated serializer.
+:::
 
 ```csharp
 services.AddCloudEventsForKafka(options =>
@@ -248,6 +313,7 @@ See **[Kafka Schema Registry](./kafka-schema-registry.md)** for the full referen
 - [ ] Set appropriate `CompatibilityMode` for schema evolution
 - [ ] Disable `AutoRegisterSchemas` in production (explicit schema management)
 - [ ] Configure SSL/TLS for Schema Registry in production environments
+- [ ] Set `UseSecurityProtocol()` to `Ssl` or `SaslSsl`, and leave `RequireTls` on
 
 ## Next Steps
 - [RabbitMQ Transport](rabbitmq.md) -- Flexible routing patterns

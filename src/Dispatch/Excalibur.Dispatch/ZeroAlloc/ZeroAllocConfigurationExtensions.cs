@@ -8,7 +8,6 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Pooling;
 using Excalibur.Dispatch.Serialization;
 
@@ -28,6 +27,8 @@ public static class ZeroAllocConfigurationExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
 	[RequiresUnreferencedCode("Registers serializers and handlers via reflection which may be trimmed.")]
+	[RequiresDynamicCode(
+		"Registers the expression-compiling handler invoker, which generates code at run time.")]
 	public static IDispatchBuilder UseZeroAllocation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -46,44 +47,17 @@ public static class ZeroAllocConfigurationExtensions
 		_ = builder.Services.Replace(ServiceDescriptor.Singleton<Delivery.IMessageContextFactory>(static sp =>
 			new PooledMessageContextFactory(sp.GetRequiredService<IMessageContextPool>())));
 
-		// Use optimized handler invoker (the standard HandlerInvoker is now the optimized implementation)
-		_ = builder.Services.Replace(ServiceDescriptor.Singleton<IHandlerInvoker, HandlerInvoker>());
+		// Use the optimized handler invoker, honoring the same runtime branch as ConfigureHandlerInvoker:
+		// the expression-compiling invoker cannot run where dynamic code is unsupported, so on that host
+		// the source-generated invoker stands. Enabling this throughput opt-in must not change the
+		// consumer's ahead-of-time story.
+		_ = System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported
+			? builder.Services.Replace(ServiceDescriptor.Singleton<IHandlerInvoker, HandlerInvoker>())
+			: builder.Services.Replace(ServiceDescriptor.Singleton<IHandlerInvoker, HandlerInvokerAot>());
 
 		// Add buffer pool if not already registered
 		builder.Services.TryAddSingleton<MessageBufferPool>();
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Adds the zero-allocation JSON serializer.
-	/// </summary>
-	/// <param name="builder"> The dispatch builder. </param>
-	/// <returns> The dispatch builder for chaining. </returns>
-	[RequiresUnreferencedCode("Registers serializers via reflection which may be trimmed.")]
-	public static IDispatchBuilder AddZeroAllocSerializer(this IDispatchBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		_ = builder.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures zero-allocation options.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> Action to configure options. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection ConfigureZeroAllocation(
-		this IServiceCollection services,
-		Action<ZeroAllocOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = services.Configure(configure);
-		return services;
 	}
 }

@@ -50,24 +50,6 @@ Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.DisposeAsync() -> System.Threading.T
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!>!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.CosmosDb.CosmosDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> bool
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.AutoRecreateProcessorOnInvalidToken.get -> bool
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.AutoRecreateProcessorOnInvalidToken.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.HandlePartitionSplitsGracefully.get -> bool
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.HandlePartitionSplitsGracefully.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.MaxRecoveryAttempts.get -> int
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.MaxRecoveryAttempts.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.OnPositionReset.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.RecoveryAttemptDelay.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.RecoveryStrategy.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.UseCurrentTimeOnResumeFailure.get -> bool
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.UseCurrentTimeOnResumeFailure.init -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcRecoveryOptions.Validate() -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry.CosmosDbCdcStateEntry() -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry.EventCount.get -> long
@@ -79,6 +61,7 @@ Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry.ProcessorName.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry.UpdatedAt.get -> System.DateTimeOffset
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry.UpdatedAt.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore
+Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore.CosmosDbCdcStateStore(Microsoft.Azure.Cosmos.CosmosClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore!>! logger) -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore.CosmosDbCdcStateStore(Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore!>! logger) -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStore.Dispose() -> void
@@ -143,16 +126,6 @@ Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType.Insert = 0 -> Excalibur.Cdc.Cosmos
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType.Update = 1 -> Excalibur.Cdc.CosmosDb.CosmosDbDataChangeType
 Excalibur.Cdc.CosmosDb.CosmosDbDataChangeTypeExtensions
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.ContainerName.get -> string?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException() -> void
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException(string! message) -> void
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException(string! message, System.Exception! innerException) -> void
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.DatabaseName.get -> string?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.HttpStatusCode.get -> int?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.PartitionKeyRangeId.get -> string?
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!

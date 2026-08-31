@@ -15,7 +15,7 @@ namespace Excalibur.Caching.Diagnostics;
 /// <item>151500-151999: Cache Statistics</item>
 /// </list>
 /// </remarks>
-public static class CachingEventId
+internal static class CachingEventId
 {
 	// ========================================
 	// 150000-150099: Cache Core

@@ -113,14 +113,5 @@ namespace Excalibur.Dispatch.Caching {
                 return ResourceManager.GetString("CachingMiddleware_MessageTypeNotDispatchActionFormat", resourceCulture);
             }
         }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Capacity must be greater than zero..
-        /// </summary>
-        internal static string LruCache_CapacityMustBeGreaterThanZero {
-            get {
-                return ResourceManager.GetString("LruCache_CapacityMustBeGreaterThanZero", resourceCulture);
-            }
-        }
     }
 }

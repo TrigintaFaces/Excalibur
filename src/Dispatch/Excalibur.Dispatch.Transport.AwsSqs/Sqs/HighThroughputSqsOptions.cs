@@ -18,14 +18,6 @@ public sealed class HighThroughputSqsOptions
 	public Uri? QueueUrl { get; set; }
 
 	/// <summary>
-	/// Gets or sets the maximum concurrency for message processing.
-	/// </summary>
-	/// <value>
-	/// The maximum concurrency for message processing.
-	/// </value>
-	public int MaxConcurrency { get; set; } = 10;
-
-	/// <summary>
 	/// Polling configuration.
 	/// </summary>
 	public HighThroughputSqsPollingOptions Polling { get; set; } = new();
@@ -39,28 +31,12 @@ public sealed class HighThroughputSqsOptions
 	public int ChannelCapacity { get; set; } = 1000;
 
 	/// <summary>
-	/// Gets or sets the maximum number of concurrent messages to process.
-	/// </summary>
-	/// <value>
-	/// The maximum number of concurrent messages to process.
-	/// </value>
-	public int MaxConcurrentMessages { get; set; } = 100;
-
-	/// <summary>
 	/// Gets or sets the batch delete interval in milliseconds.
 	/// </summary>
 	/// <value>
 	/// The batch delete interval in milliseconds.
 	/// </value>
 	public int BatchDeleteIntervalMs { get; set; } = 1000;
-
-	/// <summary>
-	/// Gets or sets the batch size for receiving messages.
-	/// </summary>
-	/// <value>
-	/// The batch size for receiving messages.
-	/// </value>
-	public int BatchSize { get; set; } = 10;
 
 	/// <summary>
 	/// Gets or sets the visibility timeout in seconds.
@@ -70,11 +46,4 @@ public sealed class HighThroughputSqsOptions
 	/// </value>
 	public int VisibilityTimeout { get; set; } = 30;
 
-	/// <summary>
-	/// Gets or sets a value indicating whether batching is enabled.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether batching is enabled.
-	/// </value>
-	public bool EnableBatching { get; set; } = true;
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -31,27 +32,26 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			Console.WriteLine(ex.ToString());
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -77,10 +77,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task AppendAndLoadEventsForAggregate()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -109,10 +106,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task DetectConcurrencyConflict()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -135,10 +129,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task LoadEventsFromVersion()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -166,10 +157,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReturnEmptyListForNonExistentAggregate()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -187,10 +175,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task IsolateEventsAcrossMultipleAggregates()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId1 = Guid.NewGuid().ToString();
@@ -228,10 +213,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task PreserveEventOrderInBatchAppend()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -263,7 +245,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	private IEventStore CreateEventStore()
 	{
 		var logger = NullLogger<SqlServerEventStore>.Instance;
-		return new SqlServerEventStore(_connectionString, logger);
+		return new SqlServerEventStore(_connectionString, logger, SingleTenantTestContext.Instance);
 	}
 
 	private async Task ClearAllEventsAsync()

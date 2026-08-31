@@ -94,12 +94,11 @@ public static class AccessReviewGovernanceBuilderExtensions
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<IAccessReviewStore, InMemoryAccessReviewStore>();
 
+		builder.Services.TryAddSingleton(TimeProvider.System);
+
 		// Background service for expired campaign processing
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, AccessReviewExpiryService>());
-
-		// Null notifier fallback (overridable)
-		builder.Services.TryAddSingleton<IAccessReviewNotifier, NullAccessReviewNotifier>();
 
 		return builder;
 	}

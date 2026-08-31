@@ -155,10 +155,14 @@ jobs:
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=1800000
 
-      # The counter check below cannot see this failure, and that is not a flaw in it — it is the shape
-      # of the data. A dynamically skipped test is recorded in the TRX as executed AND passed, with
-      # notExecuted zero, so every counter-based comparison, including executed-versus-expected, is
-      # satisfied by a run that executed nothing. Counting harder cannot fix a count that is wrong.
+      # The counter check below is a real check and it is kept, but it cannot see this failure on its
+      # own. A skipped test is recorded as NotExecuted and excluded from both executed and passed, so
+      # a fully-skipped suite reads executed=0 — which the executed==0 refusal below DOES catch. What
+      # it cannot catch is the shape that reports absent work as genuine work: a test whose body takes
+      # an early return on an availability guard actually ran, so it counts as executed AND passed and
+      # no counter distinguishes it from a real verification. (The notExecuted counter is no help
+      # either way: the VSTest trx logger writes zero into it regardless. Skips are total minus
+      # executed.)
       #
       # So this gate does not count test results at all. It reads records the suites append only on the
       # path where the emulator was genuinely reached, and refuses when a run reports success having
@@ -177,7 +181,7 @@ jobs:
             in
           GATE_EXIT=$?
           if [ "$GATE_EXIT" -ne 0 ]; then
-            echo "::error::The integration run produced no evidence of reaching the Cosmos emulator (exit $GATE_EXIT). A skipped suite reports as passed, so the test counters cannot show this. Treat any green from this job as unearned until this passes."
+            echo "::error::The integration run produced no evidence of reaching the Cosmos emulator (exit $GATE_EXIT). A suite that guards its tests with an early return reports them as executed and passed, so the counters cannot show this. Treat any green from this job as unearned until this passes."
             exit "$GATE_EXIT"
           fi
 

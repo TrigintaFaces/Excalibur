@@ -19,7 +19,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Execution order (R27.8 + R27.20):
+/// Execution order:
 /// <list type="number">
 /// <item>Phase 1: ALL inline projections via <c>Task.WhenAll</c> (concurrent across types,
 /// sequential events within each type).</item>
@@ -40,6 +40,8 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 	private readonly IOptions<EventNotificationOptions> _options;
 	private readonly ILogger<EventNotificationBroker> _logger;
 
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public EventNotificationBroker(
 		InlineProjectionProcessor processor,
 		IServiceScopeFactory scopeFactory,
@@ -91,7 +93,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 				events, context, opts.FailurePolicy, cancellationToken)
 			.ConfigureAwait(false);
 
-		// Phase 2: Notification handlers (sequential, after ALL projections complete -- R27.8)
+		// Notification handlers run sequentially, after ALL projections complete.
 		// Respects the same FailurePolicy as projections for consistency.
 		await InvokeNotificationHandlersAsync(events, context, opts.FailurePolicy, cancellationToken)
 			.ConfigureAwait(false);

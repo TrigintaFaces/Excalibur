@@ -18,4 +18,8 @@ internal sealed partial class SecurityMonitoringBackgroundService
 	[LoggerMessage(DataElasticsearchEventId.SecurityMonitoringStopped, LogLevel.Information,
 		"Security monitoring background service stopped")]
 	private partial void LogStopped();
+
+	[LoggerMessage(DataElasticsearchEventId.SecurityMonitoringDisabled, LogLevel.Information,
+		"Security monitoring background service is disabled by configuration and will not poll for alerts")]
+	private partial void LogDisabled();
 }

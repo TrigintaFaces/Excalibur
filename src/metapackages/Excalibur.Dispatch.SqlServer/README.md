@@ -5,10 +5,11 @@ Experience metapackage that bundles Excalibur.Dispatch with SQL Server event sou
 ## Quick Start
 
 ```csharp
-services.AddDispatchSqlServer(options =>
-{
-    options.ConnectionString = "Server=...";
-});
+// The metapackage bundles the dependencies; registration uses each package's own entry point.
+services.AddDispatch();
+services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es.UseSqlServer(sql => sql.ConnectionString("Server=...")))
+    .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString("Server=..."))));
 ```
 
 This registers: Dispatch core, SQL Server event store, snapshot store, outbox, and web hosting.

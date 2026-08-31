@@ -160,7 +160,7 @@ For the fastest setup, use the experience metapackages. Each bundles a transport
 // One line: transport + resilience + observability
 services.AddDispatchRabbitMQ(rmq =>
 {
-    rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+    rmq.ConnectionString("amqps://guest:guest@localhost:5671/");
 });
 ```
 
@@ -400,9 +400,11 @@ services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString))
-        .AddSagas(opts => opts.EnableTimeouts = true)
-        .AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString(connectionString)))
+        .AddSagas(saga => saga.WithCoordination().WithTimeouts())
+        .AddLeaderElection(le => le
+            .UseSqlServer(sql => sql.ConnectionString(connectionString))
+            .WithOptions(o => o.LeaseDuration = TimeSpan.FromSeconds(30)));
 });
 ```
 

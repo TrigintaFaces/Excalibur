@@ -47,14 +47,6 @@ public sealed class BatchProcessingOptionsShould
     }
 
     [Fact]
-    public void Should_Default_RetryPolicy_To_New_Instance()
-    {
-        var options = new BatchProcessingOptions();
-
-        options.RetryPolicy.ShouldNotBeNull();
-    }
-
-    [Fact]
     public void Should_Default_EnableMetrics_To_True()
     {
         var options = new BatchProcessingOptions();

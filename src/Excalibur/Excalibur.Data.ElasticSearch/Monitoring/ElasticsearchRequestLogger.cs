@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
@@ -18,11 +17,12 @@ namespace Excalibur.Data.ElasticSearch.Monitoring;
 /// <summary>
 /// Provides detailed logging of Elasticsearch requests and responses with configurable verbosity and data sanitization.
 /// </summary>
-public sealed partial class ElasticsearchRequestLogger
+internal sealed class ElasticsearchRequestLogger
 {
 	private readonly ILogger<ElasticsearchRequestLogger> _logger;
 	private readonly RequestLoggingOptions _settings;
 	private readonly JsonSerializerOptions _jsonOptions;
+	private readonly IReadOnlySet<string> _allowedBodyProperties;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticsearchRequestLogger" /> class.
@@ -37,6 +37,12 @@ public sealed partial class ElasticsearchRequestLogger
 		_settings = options?.Value?.RequestLogging ?? throw new ArgumentNullException(nameof(options));
 
 		_jsonOptions = new JsonSerializerOptions { WriteIndented = false, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+		// Copied so that later mutation of the caller's set cannot widen what is logged after construction.
+		var allowed = _settings.AllowedBodyProperties;
+		_allowedBodyProperties = allowed is null
+			? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+			: new HashSet<string>(allowed, StringComparer.OrdinalIgnoreCase);
 	}
 
 	/// <summary>
@@ -94,12 +100,10 @@ public sealed partial class ElasticsearchRequestLogger
 			// Add request body if enabled
 			if (_settings.LogRequestBody)
 			{
-				var requestBody = SerializeRequestBody(request);
+				var requestBody = RedactAndBound(SerializeRequestBody(request));
 				if (!string.IsNullOrEmpty(requestBody))
 				{
-					logData["RequestBody"] = _settings.SanitizeSensitiveData
-						? SanitizeContent(requestBody)
-						: requestBody;
+					logData["RequestBody"] = requestBody;
 				}
 			}
 
@@ -185,18 +189,16 @@ public sealed partial class ElasticsearchRequestLogger
 			// Add error details if response failed
 			if (!isValidResponse)
 			{
-				AddErrorDetails(logData, response);
+				AddErrorDetails(logData, response, _settings.LogTransportDebugInformation);
 			}
 
 			// Add response body if enabled
 			if (_settings.LogResponseBody && isValidResponse)
 			{
-				var responseBody = SerializeResponseBody(response);
+				var responseBody = RedactAndBound(SerializeResponseBody(response));
 				if (!string.IsNullOrEmpty(responseBody))
 				{
-					logData["ResponseBody"] = _settings.SanitizeSensitiveData
-						? SanitizeContent(responseBody)
-						: responseBody;
+					logData["ResponseBody"] = responseBody;
 				}
 			}
 
@@ -429,7 +431,11 @@ public sealed partial class ElasticsearchRequestLogger
 	/// </summary>
 	/// <param name="logData"> The log data dictionary to populate. </param>
 	/// <param name="response"> The failed Elasticsearch response. </param>
-	private static void AddErrorDetails(Dictionary<string, object> logData, TransportResponse response)
+	/// <param name="includeTransportDebugInformation"> Whether the transport's diagnostic dump may be logged. </param>
+	private static void AddErrorDetails(
+		Dictionary<string, object> logData,
+		TransportResponse response,
+		bool includeTransportDebugInformation)
 	{
 		try
 		{
@@ -451,8 +457,9 @@ public sealed partial class ElasticsearchRequestLogger
 				}
 			}
 
-			// Add debug information if available
-			if (response.ApiCallDetails?.DebugInformation != null)
+			// The transport composes this dump itself and it commonly embeds the full request and response bodies.
+			// It cannot be redacted structurally, so it is withheld unless the consumer asked for it by name.
+			if (includeTransportDebugInformation && response.ApiCallDetails?.DebugInformation != null)
 			{
 				logData["DebugInformation"] = response.ApiCallDetails.DebugInformation;
 			}
@@ -462,50 +469,6 @@ public sealed partial class ElasticsearchRequestLogger
 			// Ignore errors when extracting error details
 		}
 	}
-
-	/// <summary>
-	/// Sanitizes sensitive data from content based on common patterns.
-	/// </summary>
-	/// <param name="content"> The content to sanitize. </param>
-	/// <returns> The sanitized content with sensitive data masked. </returns>
-	private static string SanitizeContent(string content)
-	{
-		// Mask common sensitive patterns
-		content = PasswordRegex().Replace(content, """
-		                                           "password":"***"
-		                                           """);
-		content = ApiKeyRegex().Replace(content, """
-		                                         "apiKey":"***"
-		                                         """);
-		content = TokenRegex().Replace(content, """
-		                                        "token":"***"
-		                                        """);
-		content = AuthRegex().Replace(content, """
-		                                       "authorization":"***"
-		                                       """);
-
-		return content;
-	}
-
-	[GeneratedRegex("""
-	                "password"\s*:\s*"[^"]*"
-	                """, RegexOptions.IgnoreCase | RegexOptions.Compiled)]
-	private static partial Regex PasswordRegex();
-
-	[GeneratedRegex("""
-	                "api[_-]?key"\s*:\s*"[^"]*"
-	                """, RegexOptions.IgnoreCase | RegexOptions.Compiled)]
-	private static partial Regex ApiKeyRegex();
-
-	[GeneratedRegex("""
-	                "token"\s*:\s*"[^"]*"
-	                """, RegexOptions.IgnoreCase | RegexOptions.Compiled)]
-	private static partial Regex TokenRegex();
-
-	[GeneratedRegex("""
-	                "authorization"\s*:\s*"[^"]*"
-	                """, RegexOptions.IgnoreCase | RegexOptions.Compiled)]
-	private static partial Regex AuthRegex();
 
 	/// <summary>
 	/// Serializes a request object to JSON string.
@@ -519,7 +482,7 @@ public sealed partial class ElasticsearchRequestLogger
 		try
 		{
 			var json = JsonSerializer.Serialize(request, _jsonOptions);
-			return TruncateIfNeeded(json);
+			return json;
 		}
 		catch (Exception)
 		{
@@ -539,7 +502,7 @@ public sealed partial class ElasticsearchRequestLogger
 		try
 		{
 			var json = JsonSerializer.Serialize(response, _jsonOptions);
-			return TruncateIfNeeded(json);
+			return json;
 		}
 		catch (Exception)
 		{
@@ -548,17 +511,40 @@ public sealed partial class ElasticsearchRequestLogger
 	}
 
 	/// <summary>
+	/// Redacts a serialized body against the configured allow list and bounds it to the configured size.
+	/// </summary>
+	/// <param name="serializedBody"> The serialized body, or <see langword="null" /> when serialization failed. </param>
+	/// <returns> The redacted, size-bounded body, or an empty string when nothing remains to log. </returns>
+	private string RedactAndBound(string? serializedBody) =>
+		string.IsNullOrEmpty(serializedBody)
+			? string.Empty
+			: TruncateIfNeeded(LoggedBodyRedactor.Redact(serializedBody, _allowedBodyProperties));
+
+	/// <summary>
 	/// Truncates content if it exceeds the maximum body size.
 	/// </summary>
 	/// <param name="content"> The content to potentially truncate. </param>
-	/// <returns> The truncated content with indication if truncation occurred. </returns>
+	/// <returns>
+	/// The truncated content with indication if truncation occurred, or an empty string when the configured size leaves
+	/// no room for content.
+	/// </returns>
 	private string TruncateIfNeeded(string content)
 	{
-		if (content.Length <= _settings.MaxBodySizeBytes)
+		const string truncationMarker = "...[TRUNCATED]";
+
+		var limit = _settings.MaxBodySizeBytes;
+		if (limit <= 0)
+		{
+			return string.Empty;
+		}
+
+		if (content.Length <= limit)
 		{
 			return content;
 		}
 
-		return content[..(_settings.MaxBodySizeBytes - 20)] + "...[TRUNCATED]";
+		return limit <= truncationMarker.Length
+			? truncationMarker[..limit]
+			: content[..(limit - truncationMarker.Length)] + truncationMarker;
 	}
 }

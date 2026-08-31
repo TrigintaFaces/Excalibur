@@ -22,6 +22,11 @@ internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private static readonly ActivitySource s_activitySource = new("Excalibur.Dispatch.Extensions.Google.BatchProcessing");
 	private readonly BatchMetricsCollector _metricsCollector = metricsCollector ?? throw new ArgumentNullException(nameof(metricsCollector));
+
+	// Derived processors fan a batch out across concurrent workers, and every one of them records its
+	// outcome into the two caller-owned lists. List<T> is not safe for concurrent writers, so the
+	// append is serialised here rather than in each processor.
+	private readonly Lock _resultsLock = new();
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -211,22 +216,32 @@ internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector
 		{
 			var result = await ProcessMessageCoreAsync(message, cancellationToken).ConfigureAwait(false);
 
-			successfulMessages.Add(new ProcessedMessage(
+			var processed = new ProcessedMessage(
 				message.Message.MessageId,
 				message.AckId,
 				result,
-				messageStopwatch.Elapsed));
+				messageStopwatch.Elapsed);
+
+			lock (_resultsLock)
+			{
+				successfulMessages.Add(processed);
+			}
 		}
 		catch (Exception ex)
 		{
 			var shouldRetry = DetermineRetryPolicy(ex);
 
-			failedMessages.Add(new FailedMessage(
+			var failed = new FailedMessage(
 				message.Message.MessageId,
 				message.AckId,
 				ex,
 				shouldRetry,
-				shouldRetry ? GetRetryDelay(ex) : null));
+				shouldRetry ? GetRetryDelay(ex) : null);
+
+			lock (_resultsLock)
+			{
+				failedMessages.Add(failed);
+			}
 
 			Logger.LogError(
 				ex,

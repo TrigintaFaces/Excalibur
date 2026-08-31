@@ -34,7 +34,17 @@ public static class InMemoryInboxExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<InMemoryInboxOptions>, InMemoryInboxOptionsValidator>());
 
-		services.TryAddSingleton<InMemoryInboxStore>();
+		// TryAdd, so a host that established its own tenancy keeps it and a single-tenant host still gets a
+		// context. AddTenantAwareStore resolves ITenantContext with GetRequiredService, so without this the
+		// registration is not self-sufficient.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore builds the store injecting ITenantContext -- so the dedup key and every keyed
+		// read scope per tenant, since this store's constructor declares one -- AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably from that wiring. Registering the store
+		// and the marker separately is what lets an unwired store carry a truthful-looking marker, which a
+		// capability requirement then passes on.
+		_ = services.AddTenantAwareStore<IInboxStore, InMemoryInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("inmemory"));

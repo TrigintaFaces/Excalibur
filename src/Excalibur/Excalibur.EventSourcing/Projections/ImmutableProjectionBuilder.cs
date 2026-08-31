@@ -154,6 +154,8 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	/// <summary>
 	/// Builds and registers the immutable projection in the specified registry.
 	/// </summary>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	internal void Build(IProjectionRegistry registry)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
@@ -178,6 +180,8 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	/// Creates the inline apply delegate for immutable projections.
 	/// Handles factory (WhenCreating), transform (WhenTransforming), and DI handlers.
 	/// </summary>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private ProjectionRegistration.InlineApplyDelegate CreateImmutableInlineApplyDelegate()
 	{
 		var projection = _projection;

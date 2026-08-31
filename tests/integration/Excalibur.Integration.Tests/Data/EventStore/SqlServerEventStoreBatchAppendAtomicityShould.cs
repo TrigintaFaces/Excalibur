@@ -43,7 +43,7 @@ public sealed class SqlServerEventStoreBatchAppendAtomicityShould : IClassFixtur
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"SQL Server EventStore batch-append atomicity runs against real infrastructure and is never skipped.");
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
-		return new SqlServerEventStore(_fixture.ConnectionString, NullLogger<SqlServerEventStore>.Instance);
+		return new SqlServerEventStore(_fixture.ConnectionString, NullLogger<SqlServerEventStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	private static List<TestDomainEvent> NewBatch(string aggregateId, int count) =>

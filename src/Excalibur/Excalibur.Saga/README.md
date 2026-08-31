@@ -45,7 +45,8 @@ services.AddExcalibur(x => x.AddSagas(options =>
 }));
 
 // Add SQL Server persistence (optional)
-services.AddExcaliburSagaSqlServer(connectionString);
+services.AddExcalibur(excalibur => excalibur.AddSagas(saga =>
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 ```
 
 ### 2. Define Saga State
@@ -434,28 +435,40 @@ public class OrderSagaEventHandler : IEventHandler<OrderPlaced>
 For production use, add SQL Server persistence:
 
 ```csharp
-services.AddExcaliburSagaSqlServer(options =>
-{
-    options.ConnectionString = connectionString;
-    options.SchemaName = "saga";
-    options.TableName = "SagaState";
-});
+services.AddExcalibur(excalibur => excalibur.AddSagas(saga =>
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))));
+
+// Optional. These are the defaults, and they must match the table you provisioned:
+//   sql.SchemaName("dispatch")
+//   sql.TableName("sagas")
 ```
 
-This creates a table to store saga state:
+### Provisioning the schema
 
-```sql
-CREATE TABLE [saga].[SagaState] (
-    [SagaId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    [SagaType] NVARCHAR(256) NOT NULL,
-    [State] NVARCHAR(MAX) NOT NULL,
-    [Status] INT NOT NULL,
-    [CurrentStep] INT NOT NULL,
-    [StartedAt] DATETIMEOFFSET NOT NULL,
-    [CompletedAt] DATETIMEOFFSET NULL,
-    [Version] INT NOT NULL
-);
+The store does **not** create its table at runtime. Provision it before the first saga is
+started, by running the script shipped inside the `Excalibur.Saga.SqlServer` package:
+
+```text
+scripts/01-SagaSchema.sql
 ```
+
+That script creates `dispatch.sagas` and its indexes, and it is the authoritative definition
+of the table's shape. It is safe to re-run: each statement is guarded, and it also upgrades a
+table created by an earlier version.
+
+The DDL is deliberately not reproduced here. A copy in a README drifts out of step with the
+script the moment a column is added, and a consumer who follows the drifted copy gets a table
+the store cannot read.
+
+Two properties of that schema are worth knowing before you provision it, because they affect
+how you operate the table:
+
+- **The tenant discriminator is part of the primary key**, which is `(TenantId, SagaId)`. Sagas
+  are correlated by a business key such as an order id, so two tenants can legitimately hold
+  the same `SagaId`; keyed on `SagaId` alone, one tenant's saga would overwrite the other's. A
+  row that is genuinely not tenant-scoped stores a reserved sentinel rather than `NULL`.
+- **`CompletedAt` drives retention.** The purge deletes on that column, so it is indexed, and
+  it is stored with its UTC offset.
 
 ## Monitoring
 
@@ -475,11 +488,11 @@ public class MonitoredSaga : Saga<OrderFulfillmentState>
         try
         {
             await base.HandleAsync(eventMessage, cancellationToken);
-            SagaMetrics.EventsProcessed.Inc();
+            SagaMetrics.RecordSagaCompleted(nameof(MonitoredSaga));
         }
         catch (Exception ex)
         {
-            SagaMetrics.EventsFailed.Inc();
+            SagaMetrics.RecordSagaFailed(nameof(MonitoredSaga));
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
@@ -523,4 +536,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

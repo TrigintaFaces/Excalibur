@@ -11,11 +11,9 @@ services.AddExcalibur(x => x.AddEventSourcing(es =>
     {
         options.MaxAge = TimeSpan.FromDays(90);
     });
-    es.UseAzureBlobColdStore(options =>
-    {
-        options.ConnectionString = "UseDevelopmentStorage=true";
-        options.ContainerName = "cold-events";
-    });
+    es.UseAzureBlobColdEventStore(blob => blob
+        .ConnectionString("UseDevelopmentStorage=true")
+        .ContainerName("cold-events"));
 }));
 ```
 

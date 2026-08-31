@@ -25,15 +25,15 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	private readonly string _resourceName;
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<InMemoryLeaderElection> _logger;
-	private readonly Timer _leaseRenewalTimer;
+	private readonly ITimer _leaseRenewalTimer;
 	private readonly CancellationTokenSource _cancellationTokenSource = new();
 	private volatile int _state; // 0 = stopped, 1 = running
 	private volatile bool _disposed;
-	// 3g58kl: UTC ticks of the instant this candidate most recently acquired leadership, accessed via
+	// UTC ticks of the instant this candidate most recently acquired leadership, accessed via
 	// Interlocked lock-free. No fencing-token provider exists for this single-process implementation, so
 	// CurrentLeadership always carries a null fencing token (fencing is genuinely unavailable here — there
 	// is no distributed store to mint a monotonic token against). null, never an in-band 0: a 0 would read
-	// as a valid low token and could be presented to a fencing store, defeating split-brain (4cyuud).
+	// as a valid low token and could be presented to a fencing store, defeating split-brain.
 	private long _leadershipAcquiredAtTicks;
 
 	/// <summary>
@@ -64,7 +64,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 		CandidateId = _options.InstanceId;
 
-		_leaseRenewalTimer = new Timer(RenewLeaseCallback, state: null, Timeout.Infinite, Timeout.Infinite);
+		_leaseRenewalTimer = _timeProvider.CreateTimer(RenewLeaseCallback, state: null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
 		// Initialize candidate tracking
 		_ = _candidates.TryAdd(_resourceName, new ConcurrentDictionary<string, CandidateHealth>(StringComparer.Ordinal));
@@ -156,13 +156,14 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 		}
 
 		// Stop lease renewal
-		_ = _leaseRenewalTimer.Change(Timeout.Infinite, Timeout.Infinite);
+		_ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
-		// Release leadership if we have it
-		var wasLeader = IsLeader;
+		// Release leadership if we still hold it. Reading IsLeader and then removing by key alone is two
+		// steps: another candidate can acquire in between, and the removal would then delete *its*
+		// leadership record. ReleaseLeadershipIfHeld collapses both into one compare-and-remove.
+		var wasLeader = ReleaseLeadershipIfHeld();
 		if (wasLeader)
 		{
-			_ = _leaders.TryRemove(_resourceName, out _);
 			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
 			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
 		}
@@ -220,20 +221,23 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 			LogHealthUpdated(CandidateId, isHealthy);
 
 			// If we're unhealthy and configured to step down, release leadership.
-			// Guard the IsLeader check + TryRemove with a lock to prevent TOCTOU race.
-			if (!isHealthy && _options.StepDownWhenUnhealthy)
+			// The step-down is a single compare-and-remove, so it can only ever remove OUR OWN record.
+			// A lock here would be false comfort: three of the four release sites (start, stop, dispose)
+			// never took it, so it never excluded the writer that actually mattered.
+			//
+			// ORDERING INVARIANT -- the health record is written above, BEFORE this release, and the
+			// renewal callback reads the leader slot BEFORE the candidate map. That is what stops a
+			// step-down being undone by the very next renewal tick: a callback that observes the slot
+			// empty must have observed the write that preceded the release, so it sees this candidate
+			// unhealthy and declines to reacquire. Swap either pair -- release before the health write,
+			// or read the candidate map before the leader slot -- and the step-down becomes a step-down
+			// followed immediately by a reacquisition.
+			if (!isHealthy && _options.StepDownWhenUnhealthy && ReleaseLeadershipIfHeld())
 			{
-				lock (_leaders)
-				{
-					if (IsLeader)
-					{
-						_ = _leaders.TryRemove(_resourceName, out _);
-						LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-						LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
 
-						LogSteppedDownUnhealthy();
-					}
-				}
+				LogSteppedDownUnhealthy();
 			}
 		}
 
@@ -281,12 +285,11 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 		// Release leadership synchronously (mirrors StopAsync behavior)
 		Interlocked.Exchange(ref _state, 0);
-		_ = _leaseRenewalTimer.Change(Timeout.Infinite, Timeout.Infinite);
+		_ = _leaseRenewalTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
-		var wasLeader = IsLeader;
+		var wasLeader = ReleaseLeadershipIfHeld();
 		if (wasLeader)
 		{
-			_ = _leaders.TryRemove(_resourceName, out _);
 			LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
 			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
 		}
@@ -302,6 +305,50 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 		GC.SuppressFinalize(this);
 	}
 
+	/// <summary>
+	/// Relinquishes leadership of this resource if — and only if — this candidate still holds it.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> if this candidate held leadership and it was released by this call;
+	/// otherwise <see langword="false"/>.
+	/// </returns>
+	/// <remarks>
+	/// The check and the removal are one atomic compare-and-remove, so a candidate can never delete a
+	/// leadership record belonging to a successor. Splitting them into a read followed by a remove-by-key
+	/// would let a candidate that observed itself leader, and then lost the resource to a successor,
+	/// delete the successor's record — leaving that successor believing it still leads while the
+	/// resource is free for a third candidate to acquire. This provider has no lease expiry, so nothing
+	/// downstream would ever correct that.
+	/// </remarks>
+	private bool ReleaseLeadershipIfHeld() =>
+		_leaders.TryRemove(new KeyValuePair<string, string?>(_resourceName, CandidateId));
+
+	/// <summary>
+	/// Attempts to take the resource for this candidate, and gives it straight back if this candidate
+	/// is no longer running by the time it has it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The invariant: <b>a candidate holds the resource only while it is running.</b> Both callers can
+	/// be racing a shutdown -- the renewal callback because a callback already dispatched to the thread
+	/// pool keeps running after <c>Timer.Change(Timeout.Infinite, ...)</c>, and <c>StartAsync</c>
+	/// because a host may start and stop concurrently -- so an entry check cannot establish it. The
+	/// state can go stopped between the check and the <c>TryAdd</c>, and the acquisition would then
+	/// place a stopped candidate on the resource: <c>StopAsync</c> has already run its release and found
+	/// nothing to release, and this provider has no lease expiry, so no later event corrects it. The
+	/// candidate is deregistered and every other candidate fails forever.
+	/// </para>
+	/// <para>
+	/// The re-check therefore comes <b>after</b> the acquisition, and the interleaving is closed by the
+	/// order on both sides. Shutdown writes <c>_state = 0</c> and then releases; acquisition adds and
+	/// then reads <c>_state</c>. Either the add lands before the shutdown's release -- which is a
+	/// compare-and-remove, so it takes this candidate's own record away -- or it lands after, in which
+	/// case the shutdown's <c>_state</c> write preceded its release and so precedes the add, and the
+	/// read here sees the stopped state and hands the resource back. <b>Swapping either pair reopens
+	/// the window.</b> The <c>Interlocked</c> exchange on <c>_state</c> and the dictionary mutation are
+	/// both full fences, so neither pair can be reordered.
+	/// </para>
+	/// </remarks>
 	private Task TryAcquireLeadershipAsync()
 	{
 		var wasLeader = IsLeader;
@@ -309,6 +356,16 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 		// Simple first-come-first-served election for in-memory implementation
 		var acquired = _leaders.TryAdd(_resourceName, CandidateId);
+
+		if (acquired && (_state == 0 || _disposed))
+		{
+			// Won the resource after this candidate stopped. Give it back with the same
+			// compare-and-remove every other release path uses, so a successor that has already taken
+			// it keeps it, and say nothing: a tenure that never legitimately began has no loss to
+			// announce.
+			_ = ReleaseLeadershipIfHeld();
+			return Task.CompletedTask;
+		}
 
 		if (acquired && !wasLeader)
 		{

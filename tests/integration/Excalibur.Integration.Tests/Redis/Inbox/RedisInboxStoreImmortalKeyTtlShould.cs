@@ -57,7 +57,7 @@ public sealed class RedisInboxStoreImmortalKeyTtlShould
 			SyncTimeoutMs = 5000,
 			AbortOnConnectFail = false,
 		});
-		return (new RedisInboxStore(connection, options, NullLogger<RedisInboxStore>.Instance), keyPrefix);
+		return (new RedisInboxStore(connection, options, NullLogger<RedisInboxStore>.Instance, SingleTenantTestContext.Instance), keyPrefix);
 	}
 
 	[Fact]
@@ -68,7 +68,10 @@ public sealed class RedisInboxStoreImmortalKeyTtlShould
 		var db = connection.GetDatabase();
 
 		const string messageId = "msg-immortal-key";
-		var key = $"{keyPrefix}:{messageId}:{HandlerType}"; // RedisInboxStore key format
+		// RedisInboxStore key format. The store composes its resolved tenant into the key, and every
+		// constructible context resolves one, so the locator carries the tenant segment. This is the
+		// key the store writes for the context above — the property asserted below is unchanged.
+		var key = $"{keyPrefix}:{TenantDefaults.DefaultTenantId}:{messageId}:{HandlerType}";
 
 		// Terminal first-writer-wins finalize: value + retention TTL must be set together (atomic SET ... EX NX).
 		(await store.TryMarkAsProcessedAsync(messageId, HandlerType, CancellationToken.None)).ShouldBeTrue();

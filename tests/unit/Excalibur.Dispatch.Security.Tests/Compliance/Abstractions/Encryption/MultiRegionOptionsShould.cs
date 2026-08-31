@@ -58,25 +58,4 @@ public sealed class MultiRegionOptionsShould
         region.MaxAcceptableLatency.ShouldBe(TimeSpan.FromMilliseconds(500));
         region.Enabled.ShouldBeTrue();
     }
-
-    [Fact]
-    public void ConfigureFailoverOptionsDefaults()
-    {
-        var options = new FailoverOptions();
-
-        options.Strategy.ShouldBe(FailoverStrategy.GracePeriod);
-        options.GracePeriod.ShouldBe(TimeSpan.FromSeconds(30));
-        options.EnableNotifications.ShouldBeTrue();
-        options.FailoverCooldown.ShouldBe(TimeSpan.FromMinutes(5));
-    }
-
-    [Theory]
-    [InlineData(FailoverStrategy.Immediate)]
-    [InlineData(FailoverStrategy.GracePeriod)]
-    [InlineData(FailoverStrategy.Quorum)]
-    public void SupportAllFailoverStrategies(FailoverStrategy strategy)
-    {
-        var options = new FailoverOptions { Strategy = strategy };
-        options.Strategy.ShouldBe(strategy);
-    }
 }

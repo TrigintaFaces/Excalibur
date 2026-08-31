@@ -197,11 +197,9 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 			return string.Empty;
 		}
 
-		return contentType?.ToUpperInvariant() switch
-		{
-			"APPLICATION/JSON" => JsonDocument.Parse(body).RootElement.Clone(),
-			_ => body.ToString(),
-		};
+		return CloudEventContentType.IsJson(contentType)
+			? JsonDocument.Parse(body).RootElement.Clone()
+			: body.ToString();
 	}
 
 	private static bool IsStructuredMode(ServiceBusMessage message) =>

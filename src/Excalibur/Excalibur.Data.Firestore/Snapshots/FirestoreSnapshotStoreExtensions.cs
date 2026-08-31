@@ -5,6 +5,9 @@
 using Excalibur.Data.Firestore.Snapshots;
 using Excalibur.EventSourcing;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -34,8 +37,18 @@ public static class FirestoreSnapshotStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		_ = services.AddDefaultTenantContext();
 		_ = services.Configure(configure);
-		_ = services.AddSingleton<ISnapshotStore, FirestoreSnapshotStore>();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreSnapshotStoreOptions>, FirestoreSnapshotStoreOptionsValidator>());
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructors
+		// declare one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably. A bare
+		// AddSingleton here registered a store that honors the ambient tenant while attesting nothing, so
+		// RowDiscriminator rejected a snapshot store that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, FirestoreSnapshotStore>();
+
+		// The seam registers the store under its own concrete type, so the contract needs an alias to stay
+		// resolvable, at the same singleton lifetime it had before.
+		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<FirestoreSnapshotStore>());
 
 		return services;
 	}
@@ -56,8 +69,18 @@ public static class FirestoreSnapshotStoreExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		_ = services.AddDefaultTenantContext();
 		_ = services.Configure(name, configure);
-		_ = services.AddSingleton<ISnapshotStore, FirestoreSnapshotStore>();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreSnapshotStoreOptions>, FirestoreSnapshotStoreOptionsValidator>());
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructors
+		// declare one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably. A bare
+		// AddSingleton here registered a store that honors the ambient tenant while attesting nothing, so
+		// RowDiscriminator rejected a snapshot store that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, FirestoreSnapshotStore>();
+
+		// The seam registers the store under its own concrete type, so the contract needs an alias to stay
+		// resolvable, at the same singleton lifetime it had before.
+		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<FirestoreSnapshotStore>());
 
 		return services;
 	}

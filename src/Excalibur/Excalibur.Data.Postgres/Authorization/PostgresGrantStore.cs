@@ -316,7 +316,7 @@ public sealed class PostgresGrantStore : IGrantStore, IDurableGrantStore, IGrant
 
 	/// <inheritdoc />
 	public async Task<int> InsertActivityGroupGrantAsync(string userId, string fullName,
-		string? tenantId, string grantType, string qualifier,
+		string tenantId, string grantType, string qualifier,
 		DateTimeOffset? expiresOn, string grantedBy, CancellationToken cancellationToken)
 	{
 		const string sql = """

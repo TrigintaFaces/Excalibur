@@ -39,9 +39,11 @@ namespace Excalibur.Dispatch.Tests.Tenancy;
 //     ValidateOnStart forces this at host start, resolving .Value forces it here).
 //
 // SAFETY + LIVENESS (a fail-closed guard is trivially satisfied by one that rejects EVERYTHING):
-//   - SAFETY  : the unsafe pairing (resolving context + single-tenant mode) is REJECTED at startup.
-//   - LIVENESS: the two SANCTIONED pairings still start clean — (a) the framework single-tenant default
-//               in single-tenant mode, and (b) a resolving context in multi-tenant mode.
+//   - SAFETY  : the unsafe pairings are REJECTED at startup — a consumer's resolving context, and the
+//               framework's own shipped untenanted context, each paired with single-tenant mode.
+//   - LIVENESS: the SANCTIONED pairings still start clean — (a) the framework single-tenant default in
+//               single-tenant mode, (b) a resolving context in multi-tenant mode, and (c) the untenanted
+//               context in multi-tenant mode, where the untenanted partition is live.
 //
 // NON-VACUITY: the SAFETY arm is RED on the pre-fix (convention-only) code, where the unsafe pairing
 // starts clean; it goes GREEN once the composition-time guard lands. The LIVENESS arms are GREEN in both.
@@ -103,6 +105,55 @@ public sealed class TenantContextConsistencyGuardShould
             () => TriggerStartupValidation(provider),
             "a resolving context paired with multi-tenant mode is the sanctioned multi-tenant configuration " +
             "(mode and context agree). If this throws, the guard is rejecting a legitimate multi-tenant host.");
+    }
+
+    [Fact]
+    public void RejectStartup_WhenTheFrameworkUntenantedContextIsRegisteredWithoutMultiTenantMode()
+    {
+        // SAFETY, on the framework's OWN public untenanted context. UntenantedContext is shipped so that
+        // "explicitly untenanted" is something a caller can SAY; it names the untenanted partition, which is
+        // a live partition only while multi-tenancy is active. Registered on a single-tenant deployment it is
+        // the same disagreement between mode and context as a consumer's resolving context above, and it has
+        // a second, quieter consequence: a store whose startup schema handshake reads the mode converges rows
+        // anchored to the untenanted term onto the single-tenant identity, so a context pinned to the
+        // untenanted term goes on reading a partition its own rows were migrated out of. Refuse it at
+        // startup instead of reaching that state.
+        using var provider = new ServiceCollection()
+            .AddOptions()
+            .AddSingleton<ITenantContext>(UntenantedContext.Instance)
+            .AddDefaultTenantContext()                           // TryAdd -> the untenanted context above wins
+            .BuildServiceProvider();
+
+        Should.Throw<OptionsValidationException>(
+            () => TriggerStartupValidation(provider),
+            "the framework's own untenanted context paired with single-tenant mode must be refused like any " +
+            "other non-default context. It is a SHIPPED public type, so a consumer can reach this pairing by " +
+            "following its documentation; if this stops throwing, that consumer's rows are converged onto the " +
+            "single-tenant identity while their context keeps reading the untenanted one, and nothing errors.");
+    }
+
+    [Fact]
+    public void StartCleanly_WhenTheFrameworkUntenantedContextIsPairedWithMultiTenantMode()
+    {
+        // LIVENESS (c): the untenanted context in multi-tenant mode -- the pairing it exists for, and the one
+        // the shipped conformance kits build. Multi-tenancy active keeps the untenanted partition live (the
+        // startup handshake leaves it alone), so mode and context agree and the guard must not fire. Without
+        // this arm the two SAFETY arms above are satisfied by a guard that refuses every context that is not
+        // the single-tenant default, in every mode -- which would leave the untenanted partition unusable and
+        // unreachable by the type shipped to address it.
+        using var provider = new ServiceCollection()
+            .AddOptions()
+            .AddSingleton<ITenantContext>(UntenantedContext.Instance)
+            .AddDefaultTenantContext()
+            .Configure<TenantContextOptions>(o => o.RequireTenant = true)
+            .BuildServiceProvider();
+
+        Should.NotThrow(
+            () => TriggerStartupValidation(provider),
+            "a context naming the untenanted partition paired with multi-tenant mode is a sanctioned " +
+            "configuration: the partition is live, mode and context agree, and it is what the shipped " +
+            "conformance kits register. If this throws, the guard is over-broad and the untenanted partition " +
+            "has no context that can address it.");
     }
 
     // Force the eager options validation the startup guard performs. Accessing IOptions<T>.Value runs every

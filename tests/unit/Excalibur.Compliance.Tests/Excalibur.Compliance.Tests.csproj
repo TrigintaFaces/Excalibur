@@ -14,12 +14,24 @@
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
+    <!-- Reads back the generated SOC 2 PDF so the export-option locks assert on the rendered
+         artifact (page count, page geometry, extracted text). -->
+    <PackageReference Include="PdfPig" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Pdf\Excalibur.Compliance.Pdf.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.MongoDb\Excalibur.Compliance.MongoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Excalibur.Compliance.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Excalibur.Compliance.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Aws\Excalibur.Compliance.Aws.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Azure\Excalibur.Compliance.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Vault\Excalibur.Compliance.Vault.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox\Excalibur.Inbox.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

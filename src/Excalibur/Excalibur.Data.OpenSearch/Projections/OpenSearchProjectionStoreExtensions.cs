@@ -30,6 +30,10 @@ public static class OpenSearchProjectionStoreExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Action to configure projection store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// If an <see cref="IOpenSearchClient" /> is registered in the service collection, the store uses it.
+	/// Otherwise the store connects to <see cref="OpenSearchProjectionStoreOptions.NodeUri" />.
+	/// </remarks>
 	public static IServiceCollection AddOpenSearchProjectionStore<TProjection>(
 		this IServiceCollection services,
 		Action<OpenSearchProjectionStoreOptions> configureOptions)
@@ -41,11 +45,29 @@ public static class OpenSearchProjectionStoreExtensions
 		var optionsName = typeof(TProjection).Name;
 		_ = services.Configure(optionsName, configureOptions);
 
+		// The validator existed and was registered by nothing, so an invalid NodeUri or a
+		// non-positive timeout reached the client instead of failing at resolve time.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<OpenSearchProjectionStoreOptions>, OpenSearchProjectionStoreOptionsValidator>());
+
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<OpenSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OpenSearchProjectionStore<TProjection>>>();
-			return new OpenSearchProjectionStore<TProjection>(optionsMonitor, logger);
+
+			// Prefer a client the consumer registered. Building one from NodeUri regardless would make a
+			// deliberate registration appear to take effect while the store talked to somewhere else
+			// entirely — and the default node is a local address, so that failure surfaces only if nothing
+			// happens to be listening on it.
+			// Accept either registration shape. A consumer may register the interface, or -- more commonly,
+			// since nothing in this framework registers a client for them -- the concrete OpenSearchClient.
+			// Resolving only the interface would leave the concrete registration silently unused and fall
+			// back to NodeUri, which is the very substitution this lookup exists to prevent.
+			var client = sp.GetService<IOpenSearchClient>() ?? sp.GetService<OpenSearchClient>();
+
+			return client is not null
+				? new OpenSearchProjectionStore<TProjection>(client, optionsMonitor, logger)
+				: new OpenSearchProjectionStore<TProjection>(optionsMonitor, logger);
 		});
 
 		return services;
@@ -85,7 +107,7 @@ public static class OpenSearchProjectionStoreExtensions
 	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddOpenSearchProjectionStore<TProjection>(
 		this IServiceCollection services,
-		Func<IServiceProvider, OpenSearchClient> clientFactory,
+		Func<IServiceProvider, IOpenSearchClient> clientFactory,
 		Action<OpenSearchProjectionStoreOptions> configureOptions)
 		where TProjection : class
 	{
@@ -95,6 +117,11 @@ public static class OpenSearchProjectionStoreExtensions
 
 		var optionsName = typeof(TProjection).Name;
 		_ = services.Configure(optionsName, configureOptions);
+
+		// The validator existed and was registered by nothing, so an invalid NodeUri or a
+		// non-positive timeout reached the client instead of failing at resolve time.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<OpenSearchProjectionStoreOptions>, OpenSearchProjectionStoreOptionsValidator>());
 
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{

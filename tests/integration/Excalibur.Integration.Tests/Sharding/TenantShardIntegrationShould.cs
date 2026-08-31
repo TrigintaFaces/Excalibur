@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Data.Sharding;
 using Excalibur.Dispatch;
@@ -43,6 +44,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
@@ -239,7 +241,10 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 				AggregateId NVARCHAR(255) NOT NULL,
 				AggregateType NVARCHAR(255) NOT NULL,
 				EventType NVARCHAR(500) NOT NULL,
-				EventData VARBINARY(MAX) NOT NULL,
+				-- Nullable, matching shipped 001: erasure tombstones an event by setting EventData
+				-- to NULL. A fixture that restates this column NOT NULL drifts from the schema the
+				-- package ships and would reject any erase exercised against it.
+				EventData VARBINARY(MAX) NULL,
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,

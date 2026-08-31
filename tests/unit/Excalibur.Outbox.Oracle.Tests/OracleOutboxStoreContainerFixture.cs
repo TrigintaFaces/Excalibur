@@ -10,6 +10,7 @@ using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -29,7 +30,7 @@ namespace Excalibur.Outbox.Oracle.Tests;
 public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 {
 	private OracleContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	static OracleOutboxStoreContainerFixture()
 	{
@@ -68,74 +69,37 @@ public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 	}
 
 	/// <summary>Ensures the outbox store schema is initialized.</summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Oracle has no "CREATE TABLE IF NOT EXISTS"; swallow ORA-00955 (name already used) for idempotence.
-		var outboxDdl = $"""
-			CREATE TABLE {OutboxTableName} (
-				message_id          VARCHAR2(100)                   NOT NULL,
-				message_type        VARCHAR2(500),
-				message_metadata    CLOB,
-				message_body        BLOB,
-				tenant_id           VARCHAR2(255),
-				destination         VARCHAR2(500),
-				correlation_id      VARCHAR2(255),
-				causation_id        VARCHAR2(255),
-				occurred_on         TIMESTAMP(7) WITH TIME ZONE     DEFAULT SYSTIMESTAMP NOT NULL,
-				attempts            NUMBER(10)     DEFAULT 0        NOT NULL,
-				error_message       CLOB,
-				priority            NUMBER(10)     DEFAULT 0        NOT NULL,
-				dispatcher_id       VARCHAR2(100),
-				dispatcher_timeout  TIMESTAMP(7) WITH TIME ZONE,
-				next_attempt_at     TIMESTAMP(7) WITH TIME ZONE,
-				scheduled_at        TIMESTAMP(7) WITH TIME ZONE,
-				partition_key       VARCHAR2(255),
-				group_key           VARCHAR2(255),
-				sequence_number     NUMBER(19)     DEFAULT 0        NOT NULL,
-				target_transports   VARCHAR2(1000),
-				is_multi_transport  NUMBER(1)      DEFAULT 0        NOT NULL,
-				CONSTRAINT UQ_OUTBOX_MESSAGE_ID UNIQUE (message_id)
-			)
-			""";
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. This
+		// fixture used to restate the DDL, and a restatement can drift permissively -- a nullable column
+		// where the script says NOT NULL -- leaving every arm running against it structurally unable to
+		// detect the divergence it exists to catch, while still reporting green. Oracle has no container
+		// in CI, so unlike the Postgres and SqlServer fixtures there is no integration shard to catch the
+		// drift later: provisioning from the script is the only thing standing in for it.
+		//
+		// The table names below are the script defaults, which is why it can be applied unmodified.
+		var units = new[]
+		{
+			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/001_CreateOutboxSchema.sql",
+			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/002_MakeOutboxTenantTotal.sql",
+			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/003_CarryTenantOnDeadLetters.sql",
+		}.SelectMany(ShippedSchemaScript.ReadOracleUnits);
 
-		var deadLetterDdl = $"""
-			CREATE TABLE {DeadLetterTableName} (
-				message_id          VARCHAR2(100)                   NOT NULL,
-				message_type        VARCHAR2(500),
-				message_metadata    CLOB,
-				message_body        BLOB,
-				occurred_on         TIMESTAMP(7) WITH TIME ZONE     DEFAULT SYSTIMESTAMP NOT NULL,
-				attempts            NUMBER(10)     DEFAULT 0        NOT NULL,
-				error_message       CLOB,
-				moved_on            TIMESTAMP(7) WITH TIME ZONE     DEFAULT SYSTIMESTAMP NOT NULL,
-				CONSTRAINT UQ_OUTBOX_DLQ_MESSAGE_ID UNIQUE (message_id)
-			)
-			""";
-
-		// Leadership-fencing high-water control table (one durable row per scope). The delete-on-sent
-		// outbox deletes the winning rows, so the fence high-water cannot live in the outbox rows; this
-		// dedicated table survives the drain. Matches the fenced-claim high-water enforcement in OracleOutboxStore.
-		var fenceDdl = $"""
-			CREATE TABLE {FenceTableName} (
-				scope_key           VARCHAR2(600)                   NOT NULL,
-				high_water_token    NUMBER(19)                      NOT NULL,
-				CONSTRAINT PK_OUTBOX_FENCE PRIMARY KEY (scope_key)
-			)
-			""";
-
-		await CreateTableIfAbsentAsync(connection, outboxDdl).ConfigureAwait(false);
-		await CreateTableIfAbsentAsync(connection, deadLetterDdl).ConfigureAwait(false);
-		await CreateTableIfAbsentAsync(connection, fenceDdl).ConfigureAwait(false);
-
-		_initialized = true;
+		foreach (var unit in units)
+		{
+			await CreateTableIfAbsentAsync(connection, unit).ConfigureAwait(false);
+		}
 	}
 
 	private static async Task CreateTableIfAbsentAsync(OracleConnection connection, string ddl)

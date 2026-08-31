@@ -141,7 +141,7 @@ public sealed partial class SecureCredentialProvider(
 
 		// Generate new credential
 		// CA2000: newCredential is properly cached and disposed by the credential provider
-		// R0.8: Dispose objects before losing scope
+		// Dispose objects before losing scope
 #pragma warning disable CA2000
 		var newCredential = GenerateSecureCredential();
 #pragma warning restore CA2000 // Dispose objects before losing scope

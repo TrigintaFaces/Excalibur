@@ -36,6 +36,7 @@ Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions.ReplicaRegions.set -> void
 Excalibur.Compliance.Aws.AwsKmsOptions
 Excalibur.Compliance.Aws.AwsKmsOptions.AwsKmsOptions() -> void
 Excalibur.Compliance.Aws.AwsKmsOptions.BuildKeyAlias(string! keyId) -> string!
+Excalibur.Compliance.Aws.AwsKmsOptions.BuildVersionAlias(string! keyId, int version) -> string!
 Excalibur.Compliance.Aws.AwsKmsOptions.Cache.get -> Excalibur.Compliance.Aws.AwsKmsCacheOptions!
 Excalibur.Compliance.Aws.AwsKmsOptions.Cache.set -> void
 Excalibur.Compliance.Aws.AwsKmsOptions.Environment.get -> string?
@@ -61,6 +62,8 @@ Excalibur.Compliance.Aws.AwsKmsProvider.ListKeysAsync(Excalibur.Compliance.KeySt
 Excalibur.Compliance.Aws.AwsKmsProvider.ReactivateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Aws.AwsKmsProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
 Excalibur.Compliance.Aws.AwsKmsProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Aws.AwsKmsProvider.UnwrapDataKeyAsync(string! keyId, int version, Excalibur.Compliance.WrappedDataKey! wrappedKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Compliance.Aws.AwsKmsProvider.WrapDataKeyAsync(string! keyId, int version, byte[]! dataKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.WrappedDataKey!>!
 Excalibur.Compliance.Aws.IComplianceAwsBuilder
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.Environment(string! environment) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!

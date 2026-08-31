@@ -32,8 +32,8 @@ public sealed class MultiTransportOutboxStoreContractShould
 		var methods = typeof(IMultiTransportOutboxStoreAdmin)
 			.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
 
-		methods.Length.ShouldBe(4,
-			"IMultiTransportOutboxStoreAdmin should have exactly 4 admin methods");
+		methods.Length.ShouldBe(5,
+			"IMultiTransportOutboxStoreAdmin should have exactly 5 admin methods");
 	}
 
 	[Fact]
@@ -73,7 +73,7 @@ public sealed class MultiTransportOutboxStoreContractShould
 	{
 		// Arrange
 		var store = A.Fake<IMultiTransportOutboxStore>();
-		A.CallTo(() => store.GetTransportDeliveriesAsync("msg-1", CancellationToken.None))
+		A.CallTo(() => store.GetTransportDeliveriesAsync("msg-1", "tenant-a", CancellationToken.None))
 			.Returns(Task.FromResult<IEnumerable<OutboundMessageTransport>>(new[]
 			{
 				new OutboundMessageTransport { TransportName = "rabbitmq" },
@@ -81,7 +81,7 @@ public sealed class MultiTransportOutboxStoreContractShould
 			}));
 
 		// Act
-		var deliveries = (await store.GetTransportDeliveriesAsync("msg-1", CancellationToken.None)).ToList();
+		var deliveries = (await store.GetTransportDeliveriesAsync("msg-1", "tenant-a", CancellationToken.None)).ToList();
 
 		// Assert
 		deliveries.Count.ShouldBe(2);

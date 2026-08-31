@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -12,6 +12,9 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Diagnostics.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Azure" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.ClaimCheck.InMemory" />
   </ItemGroup>
   <ItemGroup>
     <!-- Core Dispatch references -->
@@ -35,9 +38,7 @@
     <!-- Cloud Native & Orchestration -->
     <!-- Resilience -->
     <PackageReference Include="Polly" />
-    <!-- Benchmarking (for adaptive concurrency tuning) -->
-    <PackageReference Include="BenchmarkDotNet" />
-    <!-- Note: Azure.Storage.Blobs removed - now in Excalibur.Dispatch.Patterns.Azure provider package (R0.3, R23.1) -->
+    <!-- Note: Azure.Storage.Blobs removed - now in Excalibur.Dispatch.Patterns.Azure provider package -->
     <!-- Note: Caching packages removed - Excalibur.Dispatch.Caching provides these (Week 5 Task 006) -->
     <!-- Note: DistributedLocks packages removed - feature deleted as AOT-incompatible (Week 5 Task 008) -->
   </ItemGroup>

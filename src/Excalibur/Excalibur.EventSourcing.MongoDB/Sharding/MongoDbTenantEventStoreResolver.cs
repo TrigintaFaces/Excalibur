@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ internal sealed class MongoDbTenantEventStoreResolver : ITenantStoreResolver<IEv
 	private readonly MongoDbEventStoreOptions _defaultOptions;
 	private readonly ISerializer? _serializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
+	private readonly ITenantContext _tenantContext;
 	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, IMongoClient> _clientCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
@@ -35,13 +37,16 @@ internal sealed class MongoDbTenantEventStoreResolver : ITenantStoreResolver<IEv
 		ITenantShardMap shardMap,
 		ILoggerFactory loggerFactory,
 		IOptions<MongoDbEventStoreOptions> defaultOptions,
+		ITenantContext tenantContext,
 		ISerializer? serializer,
 		IPayloadSerializer? payloadSerializer)
 	{
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
 		ArgumentNullException.ThrowIfNull(defaultOptions);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
+		_tenantContext = tenantContext;
 		_shardMap = shardMap;
 		_loggerFactory = loggerFactory;
 		_defaultOptions = defaultOptions.Value;
@@ -101,14 +106,18 @@ internal sealed class MongoDbTenantEventStoreResolver : ITenantStoreResolver<IEv
 		var options = Options.Create(new MongoDbEventStoreOptions
 		{
 			ConnectionString = shardInfo.ConnectionString,
-			DatabaseName = shardInfo.DatabaseName ?? _defaultOptions.DatabaseName,
+			DatabaseName = shardInfo.RequireCoordinate(shardInfo.DatabaseName, nameof(ShardInfo.DatabaseName)),
 			CollectionName = _defaultOptions.CollectionName,
 		});
 
+		// A shard may host more than one tenant, so the store still composes the ambient tenant into its
+		// stored stream id. Routing to a shard is the physical half of confinement; the key is the logical
+		// half, and a co-located pair of tenants needs both.
 		return new MongoDbEventStore(
 			client,
 			options,
 			_loggerFactory.CreateLogger<MongoDbEventStore>(),
+			_tenantContext,
 			_serializer,
 			_payloadSerializer);
 	}

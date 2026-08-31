@@ -51,6 +51,98 @@ public static class EventSerializationDefaults
 	/// <value>The frozen canonical serializer options for event payloads and metadata.</value>
 	public static JsonSerializerOptions Canonical { get; } = CreateFrozenCanonicalOptions();
 
+
+	/// <summary>
+	/// Attaches a host-supplied source-generated type-info resolver to canonical event serializer options
+	/// and freezes them.
+	/// </summary>
+	/// <remarks>
+	/// The resolver supplies type METADATA only. It is attached to the canonical options rather than
+	/// replacing them, so the naming policy, string-enum representation and null handling that fix the
+	/// stored wire format stay canonical and apply to whichever resolver is in use -- events written with a
+	/// resolver are byte-identical to events written without one.
+	/// </remarks>
+	/// <param name="jsonOptions">The canonical serializer options to attach the resolver to.</param>
+	/// <param name="resolver">The host's resolver, or <see langword="null"/> to keep the reflection path.</param>
+	/// <returns><see langword="true"/> when a resolver was attached.</returns>
+	public static bool TryApplyTypeInfoResolver(
+		JsonSerializerOptions jsonOptions,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? resolver)
+	{
+		ArgumentNullException.ThrowIfNull(jsonOptions);
+
+		if (resolver is null)
+		{
+			return false;
+		}
+
+		jsonOptions.TypeInfoResolver = resolver;
+		jsonOptions.MakeReadOnly();
+		return true;
+	}
+
+	/// <summary>
+	/// Writes event metadata a property at a time, resolving each value against its own runtime type through
+	/// the resolver carried by the supplied options.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Metadata is an <c>IDictionary&lt;string, object&gt;</c>, and the reflection serializer writes each
+	/// value as its runtime type. Source generation resolves nothing at run time, so the dictionary cannot
+	/// simply be handed to the resolver: the honest form of "each value as its runtime type" is to write the
+	/// object here and look up <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo"/> per value.
+	/// Declaring <c>Dictionary&lt;string, object&gt;</c> on a context instead would compile and then throw on
+	/// the very values it appeared to cover.
+	/// </para>
+	/// <para>
+	/// The output is byte-identical to the reflection path. Keys are written verbatim (no dictionary key
+	/// policy is configured), the writer inherits the encoder and indentation from the same options, and a
+	/// null value is written as an explicit <c>null</c> -- <see cref="JsonIgnoreCondition.WhenWritingNull"/>
+	/// governs object properties, not dictionary entries, so the reflection path emits it too.
+	/// </para>
+	/// <para>
+	/// Call this only when <see cref="TryApplyTypeInfoResolver"/> reported that a resolver was attached; with
+	/// no resolver the reflection path (<c>JsonSerializer.SerializeToUtf8Bytes(metadata, jsonOptions)</c>) is
+	/// the equivalent and cheaper form.
+	/// </para>
+	/// </remarks>
+	/// <param name="metadata">The event metadata to write.</param>
+	/// <param name="jsonOptions">The canonical serializer options carrying the host's resolver.</param>
+	/// <returns>The UTF-8 encoded metadata object.</returns>
+	public static byte[] SerializeMetadataWithResolver(
+		IDictionary<string, object> metadata,
+		JsonSerializerOptions jsonOptions)
+	{
+		ArgumentNullException.ThrowIfNull(metadata);
+		ArgumentNullException.ThrowIfNull(jsonOptions);
+
+		var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+
+		using (var writer = new Utf8JsonWriter(
+			buffer,
+			new JsonWriterOptions { Encoder = jsonOptions.Encoder, Indented = jsonOptions.WriteIndented }))
+		{
+			writer.WriteStartObject();
+
+			foreach (var entry in metadata)
+			{
+				writer.WritePropertyName(entry.Key);
+
+				if (entry.Value is null)
+				{
+					writer.WriteNullValue();
+					continue;
+				}
+
+				JsonSerializer.Serialize(writer, entry.Value, jsonOptions.GetTypeInfo(entry.Value.GetType()));
+			}
+
+			writer.WriteEndObject();
+		}
+
+		return buffer.WrittenSpan.ToArray();
+	}
+
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Canonical is the reflection-based event-serialization contract (matching CreateCanonicalOptions); the AOT opt-in is enforced where the reflection serializer is constructed.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",

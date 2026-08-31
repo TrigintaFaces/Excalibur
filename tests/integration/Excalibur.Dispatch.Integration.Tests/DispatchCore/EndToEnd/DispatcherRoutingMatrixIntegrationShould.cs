@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using Tests.Shared;
+using Tests.Shared.Helpers;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 
@@ -241,9 +242,8 @@ public sealed class DispatcherRoutingMatrixIntegrationShould : IntegrationTestBa
 	private sealed class MatrixRemoteTransportBus : IMessageBus, IAsyncDisposable
 	{
 		private readonly InMemoryMessageBusAdapter _adapter;
-		private readonly SemaphoreSlim _initGate = new(1, 1);
+		private readonly OneTimeInitializer _initializer = new();
 		private readonly ConcurrentDictionary<Guid, byte> _delivered = new();
-		private volatile bool _initialized;
 
 		public MatrixRemoteTransportBus(ILogger<InMemoryMessageBusAdapter> logger)
 		{
@@ -266,7 +266,6 @@ public sealed class DispatcherRoutingMatrixIntegrationShould : IntegrationTestBa
 		public async ValueTask DisposeAsync()
 		{
 			await _adapter.DisposeAsync().ConfigureAwait(false);
-			_initGate.Dispose();
 		}
 
 		private async Task PublishInternalAsync(
@@ -282,36 +281,23 @@ public sealed class DispatcherRoutingMatrixIntegrationShould : IntegrationTestBa
 			}
 		}
 
-		private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
+		// Memoising the task rather than a bool latches BOTH outcomes: a failed start-up is rethrown to
+		// every later publisher with its original stack, instead of leaving the flag false so the next
+		// publisher re-subscribes over a transport this call already half-started.
+		private Task EnsureInitializedAsync(CancellationToken cancellationToken)
+			=> _initializer.RunAsync(() => InitializeAdapterAsync(cancellationToken));
+
+		private async Task InitializeAdapterAsync(CancellationToken cancellationToken)
 		{
-			if (_initialized)
-			{
-				return;
-			}
-
-			await _initGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-			try
-			{
-				if (_initialized)
-				{
-					return;
-				}
-
-				await _adapter.InitializeAsync(new MatrixRemoteBusOptions { Name = MatrixDispatchRouter.RemoteTransportName }, cancellationToken)
-					.ConfigureAwait(false);
-				await _adapter.StartAsync(cancellationToken).ConfigureAwait(false);
-				await _adapter.SubscribeAsync(
-						"matrix-capture",
-						CaptureAsync,
-						options: null,
-						cancellationToken)
-					.ConfigureAwait(false);
-				_initialized = true;
-			}
-			finally
-			{
-				_ = _initGate.Release();
-			}
+			await _adapter.InitializeAsync(new MatrixRemoteBusOptions { Name = MatrixDispatchRouter.RemoteTransportName }, cancellationToken)
+				.ConfigureAwait(false);
+			await _adapter.StartAsync(cancellationToken).ConfigureAwait(false);
+			await _adapter.SubscribeAsync(
+					"matrix-capture",
+					CaptureAsync,
+					options: null,
+					cancellationToken)
+				.ConfigureAwait(false);
 		}
 
 		private Task<IMessageResult> CaptureAsync(

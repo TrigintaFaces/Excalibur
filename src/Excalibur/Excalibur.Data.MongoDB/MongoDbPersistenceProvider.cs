@@ -22,7 +22,7 @@ namespace Excalibur.Data.MongoDB;
 /// <summary>
 /// MongoDB implementation of the persistence provider.
 /// </summary>
-public sealed partial class MongoDbPersistenceProvider : IDocumentPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction
+public sealed partial class MongoDbPersistenceProvider : IDocumentPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction, IPersistenceProviderConnection
 {
 	private readonly IMongoClient? _client;
 	private readonly IMongoDatabase? _database;
@@ -38,7 +38,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 	public MongoDbPersistenceProvider(ILogger<MongoDbPersistenceProvider> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_options = new MongoDbProviderOptions { ConnectionString = "mongodb://localhost:27017", DatabaseName = "test", Name = "MongoDB" };
+		_options = new MongoDbProviderOptions { ConnectionString = "mongodb://localhost:27017", DatabaseName = "test", Name = "mongodb" };
 
 		// Initialize with default values for testing
 		_retryPolicy = Policy
@@ -48,7 +48,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 				static retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 
 		RetryPolicy = new MongoDbRetryPolicy(3, _logger);
-		Name = "MongoDB";
+		Name = "mongodb";
 	}
 
 	/// <summary>
@@ -101,7 +101,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		// Initialize data request retry policy
 		RetryPolicy = new MongoDbRetryPolicy(_options.RetryCount, _logger);
 
-		Name = _options.Name ?? "mongodb";
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "mongodb" : _options.Name;
 	}
 
 	/// <inheritdoc />
@@ -122,35 +122,6 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 	/// <inheritdoc />
 	public IDataRequestRetryPolicy RetryPolicy { get; }
 
-	/// <inheritdoc />
-	public async Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		ArgumentNullException.ThrowIfNull(request);
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		LogExecutingDataRequest(request.GetType().Name);
-
-		try
-		{
-			if (_database == null)
-			{
-				throw new InvalidOperationException("MongoDB database not initialized.");
-			}
-
-			// For MongoDB, we pass the database as the connection
-			var connection = (TConnection)_database;
-			return await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			LogFailedToExecuteDataRequest(request.GetType().Name, ex);
-			throw;
-		}
-	}
-
 	/// <summary>
 	/// Executes a MongoDB-specific document data request within a transaction scope with automatic commit/rollback handling.
 	/// </summary>
@@ -166,7 +137,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 	/// <exception cref="ArgumentException"> Thrown when <paramref name="transactionScope" /> is not a <see cref="MongoDbTransactionScope" />. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when the MongoDB database is not initialized. </exception>
 	/// <exception cref="ObjectDisposedException"> Thrown when this provider has been disposed. </exception>
-	// R0.8: Remove unused parameter - parameter is part of public API
+	// Remove unused parameter - parameter is part of public API
 
 	public async Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
 		IDocumentDataRequest<TConnection, TResult> request,
@@ -259,7 +230,10 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 						throw new InvalidOperationException("MongoDB database not initialized.");
 					}
 
-					_ = await _database.RunCommandAsync<object>( /*lang=json*/ "{ ping: 1 }", cancellationToken: ct).ConfigureAwait(false);
+					// BsonDocument, not object: a command reply has no type discriminator, so the driver cannot
+					// deserialise it into object and throws -- which this method catches and reports as an
+					// unreachable database. Every other RunCommandAsync in this repository uses BsonDocument.
+					_ = await _database.RunCommandAsync<BsonDocument>( /*lang=json*/ "{ ping: 1 }", cancellationToken: ct).ConfigureAwait(false);
 				}, cancellationToken).ConfigureAwait(false);
 
 			LogConnectionTestSuccessful(_options.DatabaseName);
@@ -329,31 +303,6 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 
 		// MongoDB doesn't require special initialization beyond connection setup But we could perform any database-specific setup here if needed
 		return Task.CompletedTask;
-	}
-
-	/// <inheritdoc />
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			var stats = new Dictionary<string, object>(StringComparer.Ordinal)
-			{
-				["MaxPoolSize"] = _options.Pooling.MaxPoolSize,
-				["MinPoolSize"] = _options.Pooling.MinPoolSize,
-				["ServerSelectionTimeout"] = _options.ServerSelectionTimeout,
-				["ConnectTimeout"] = _options.ConnectTimeout,
-				["ActiveConnections"] = 0, // MongoDB driver doesn't expose this directly
-				["AvailableConnections"] = 0, // MongoDB driver doesn't expose this directly
-				["TotalConnections"] = 0, // MongoDB driver doesn't expose this directly
-			};
-
-			return Task.FromResult<IDictionary<string, object>?>(stats);
-		}
-		catch (Exception ex)
-		{
-			LogFailedToRetrieveConnectionPoolStats(ex);
-			return Task.FromResult<IDictionary<string, object>?>(null);
-		}
 	}
 
 	/// <summary>
@@ -459,7 +408,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		ArgumentNullException.ThrowIfNull(documentRequest);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (!IsAvailable || _database == null)
+		if (_database == null)
 		{
 			throw new InvalidOperationException("MongoDB provider not initialized.");
 		}
@@ -588,7 +537,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 			["connection.available"] = IsAvailable,
 		};
 
-		if (!IsAvailable || _database == null)
+		if (_database == null)
 		{
 			return stats;
 		}
@@ -625,7 +574,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 
 		var info = new Dictionary<string, object>(StringComparer.Ordinal) { ["collection_name"] = collectionName, ["exists"] = false };
 
-		if (!IsAvailable || _database == null)
+		if (_database == null)
 		{
 			return info;
 		}
@@ -675,6 +624,11 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		ArgumentNullException.ThrowIfNull(serviceType);
 
 		if (serviceType == typeof(IPersistenceProviderHealth))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
@@ -762,9 +716,6 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		"Initializing MongoDB persistence provider '{Name}' for database '{Database}'")]
 	private partial void LogInitializingProvider(string name, string database);
 
-	[LoggerMessage(DataMongoDbEventId.FailedToRetrieveConnectionPoolStats, LogLevel.Warning,
-		"Failed to retrieve MongoDB connection pool statistics")]
-	private partial void LogFailedToRetrieveConnectionPoolStats(Exception ex);
 
 	[LoggerMessage(DataMongoDbEventId.ExecutingDocumentRequest, LogLevel.Debug,
 		"Executing MongoDB document request: {OperationType} on {Collection}")]

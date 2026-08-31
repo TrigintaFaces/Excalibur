@@ -30,20 +30,6 @@ public sealed class GrantItemShould
 	}
 
 	#region Constant Value Tests
-
-	[Fact]
-	public void NullTenantPartitionKey_Equals__null__()
-	{
-		// Arrange
-		var field = _itemType.GetField("NullTenantPartitionKey", BindingFlags.NonPublic | BindingFlags.Static);
-
-		// Act
-		var value = (string)field!.GetValue(null)!;
-
-		// Assert
-		value.ShouldBe("__null__");
-	}
-
 	[Fact]
 	public void PartitionKeyAttribute_Equals_tenant_id()
 	{
@@ -150,36 +136,6 @@ public sealed class GrantItemShould
 
 	#endregion
 
-	#region CreatePK Tests
-
-	[Fact]
-	public void CreatePK_ReturnsTenantId_WhenProvided()
-	{
-		// Arrange
-		var method = _itemType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)method!.Invoke(null, new object?[] { "tenant-123" })!;
-
-		// Assert
-		result.ShouldBe("tenant-123");
-	}
-
-	[Fact]
-	public void CreatePK_ReturnsNullTenantPartitionKey_WhenNull()
-	{
-		// Arrange
-		var method = _itemType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)method!.Invoke(null, new object?[] { null })!;
-
-		// Assert
-		result.ShouldBe("__null__");
-	}
-
-	#endregion
-
 	#region CreateSK Tests
 
 	[Fact]
@@ -211,20 +167,6 @@ public sealed class GrantItemShould
 		// Assert
 		result.ShouldBe("tenant-123#GRANT#Role#Admin");
 	}
-
-	[Fact]
-	public void CreateGsiSK_ReturnsCorrectKey_WithNullTenantId()
-	{
-		// Arrange
-		var method = _itemType.GetMethod("CreateGsiSK", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)method!.Invoke(null, new object?[] { null, "Role", "Admin" })!;
-
-		// Assert
-		result.ShouldBe("null#GRANT#Role#Admin");
-	}
-
 	#endregion
 
 	#region Type Tests

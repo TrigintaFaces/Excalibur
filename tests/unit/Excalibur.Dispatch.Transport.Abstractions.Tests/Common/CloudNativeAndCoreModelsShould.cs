@@ -7,28 +7,6 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Common;
 public sealed class CloudNativeAndCoreModelsShould
 {
 	[Fact]
-	public void CloudNativeOptions_HaveExpectedDefaults_AndSupportOverrides()
-	{
-		var options = new CloudNativeOptions();
-
-		options.Enabled.ShouldBeTrue();
-		options.UseCloudLogging.ShouldBeTrue();
-		options.UseCloudMetrics.ShouldBeTrue();
-		options.UseCloudTracing.ShouldBeTrue();
-		options.Environment.ShouldBe("production");
-		options.MetricsFlushInterval.ShouldBe(TimeSpan.FromSeconds(60));
-		options.Tags.ShouldNotBeNull();
-
-		options.Provider = "aws";
-		options.Region = "us-east-1";
-		options.Tags["Project"] = "Dispatch";
-
-		options.Provider.ShouldBe("aws");
-		options.Region.ShouldBe("us-east-1");
-		options.Tags["Project"].ShouldBe("Dispatch");
-	}
-
-	[Fact]
 	public void AccessRule_StoresPrincipalAndPermissions()
 	{
 		var rule = new AccessRule

@@ -552,7 +552,7 @@ builder.Services.AddScoped<IProjectionStore<OrderReadModel>,
 ```csharp
 builder.Services.Configure<CosmosDbProjectionStoreOptions>(options =>
 {
-    options.ConnectionString = "AccountEndpoint=https://...";
+    options.Client.ConnectionString = "AccountEndpoint=https://...";
     options.DatabaseName = "Projections";
     options.ContainerName = "read-models";
 });

@@ -115,6 +115,25 @@ public sealed class EncryptingEventStoreDecoratorShould
 	}
 
 	[Fact]
+	public async Task LoadAsync_ShouldPassAnErasedEventThroughUntouched()
+	{
+		// A GDPR-erased row is tombstoned by clearing its payload, and the decorator sits on the LOAD path
+		// AHEAD of every tombstone check in the projection and replay hosts. It read the payload
+		// unconditionally, so loading an aggregate whose stream contained an erased event dereferenced an
+		// absent payload — the read path failed on data the erasure was supposed to make safely readable.
+		var decorator = CreateDecorator(EncryptionMode.EncryptAndDecrypt);
+		var tombstone = new StoredEvent(
+			"evt-erased", "agg-1", "Order", ErasedEventMarker.EventType, null, null, 1, DateTimeOffset.UtcNow);
+		A.CallTo(() => _innerStore.LoadAsync("agg-1", "Order", _ct))
+			.Returns(new List<StoredEvent> { tombstone });
+
+		var result = await decorator.LoadAsync("agg-1", "Order", _ct);
+
+		result.Count.ShouldBe(1, "the tombstone stays in the stream — it is a real, permanent entry");
+		result[0].EventData.ShouldBeNull("there is nothing to decrypt, so the tombstone passes through unchanged");
+	}
+
+	[Fact]
 	public async Task LoadAsync_ShouldPassthroughPlaintextEvents_WhenNotEncrypted()
 	{
 		// Arrange

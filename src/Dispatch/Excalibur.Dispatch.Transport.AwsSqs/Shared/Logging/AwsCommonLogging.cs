@@ -31,19 +31,11 @@ internal static partial class AwsCommonLogging
 	public static partial void LogConnectionPoolExhausted(this ILogger logger, string poolName, int waitingRequests);
 
 	/// <summary>
-	/// Retry and circuit breaker logs.
+	/// Retry logs.
 	/// </summary>
 	[LoggerMessage(AwsSqsEventId.RetryAttempt, LogLevel.Debug,
 		"Retry attempt {Attempt}/{MaxAttempts} for operation {Operation}")]
 	public static partial void LogRetryAttempt(this ILogger logger, string operation, int attempt, int maxAttempts);
-
-	[LoggerMessage(AwsSqsEventId.CircuitBreakerOpened, LogLevel.Warning,
-		"Circuit breaker opened for {ServiceName}")]
-	public static partial void LogCircuitBreakerOpened(this ILogger logger, string serviceName);
-
-	[LoggerMessage(AwsSqsEventId.CircuitBreakerClosed, LogLevel.Information,
-		"Circuit breaker closed for {ServiceName}")]
-	public static partial void LogCircuitBreakerClosed(this ILogger logger, string serviceName);
 
 	/// <summary>
 	/// Batch operation logs.

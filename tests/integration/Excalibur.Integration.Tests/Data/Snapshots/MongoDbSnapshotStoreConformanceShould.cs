@@ -69,7 +69,7 @@ public sealed class MongoDbSnapshotStoreConformanceShould : SnapshotConformanceT
 				options,
 				NullLogger<MongoDbSnapshotStore>.Instance,
 				// Ambient context, not the default null: the tenant-isolation arms establish tenants with
-				// TenantContextHolder.BeginScope, and FromContext(null) collapses all of them onto the
+				// TenantContextHolder.BeginScope, and CurrentTenantScope collapses all of them onto the
 				// untenanted sentinel so they overwrite one another's snapshots.
 				new AmbientTenantContext()));
 	}

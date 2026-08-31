@@ -72,16 +72,6 @@ internal static class TransportTelemetryConstants
 		public const string MessagesDeadLettered = "dispatch.transport.messages.dead_lettered";
 
 		/// <summary>
-		/// Histogram: duration of send operations in milliseconds.
-		/// </summary>
-		public const string SendDuration = "dispatch.transport.send.duration";
-
-		/// <summary>
-		/// Histogram: duration of receive operations in milliseconds.
-		/// </summary>
-		public const string ReceiveDuration = "dispatch.transport.receive.duration";
-
-		/// <summary>
 		/// Histogram: number of messages in a batch operation.
 		/// </summary>
 		public const string BatchSize = "dispatch.transport.batch.size";

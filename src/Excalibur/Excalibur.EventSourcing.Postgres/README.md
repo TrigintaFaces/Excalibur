@@ -24,8 +24,8 @@ dotnet add package Excalibur.EventSourcing.Postgres
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddPostgresEventStore(dataSource);
-services.AddPostgresSnapshotStore(dataSource);
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UsePostgres(pg => pg.DataSource(dataSource))));
 ```
 
 ## Features
@@ -40,11 +40,11 @@ services.AddPostgresSnapshotStore(dataSource);
 ## Configuration
 
 ```csharp
-services.AddPostgresEventStore(dataSource, options =>
-{
-    options.SchemaName = "events";
-    options.TableName = "event_store";
-});
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UsePostgres(pg => pg
+        .DataSource(dataSource)
+        .EventStoreSchema("events")
+        .EventStoreTable("event_store"))));
 ```
 
 ## Documentation
@@ -53,4 +53,25 @@ See the [Postgres data provider guide](https://github.com/TrigintaFaces/Excalibu
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.
+
+## Schema
+
+**This package never creates its tables at runtime.** Provision them before the first append —
+`PostgresMigrator` is not a provisioning path, it runs migrations from an assembly you supply.
+
+The canonical DDL ships in the package:
+
+| script | creates |
+| --- | --- |
+| `scripts/001_CreateSnapshotSchema.sql` | `public.event_store_snapshots` |
+| `scripts/004_CreateEventStoreSchema.sql` | `public.events` |
+
+Defaults: schema `public`, tables `events` and `event_store_snapshots`, all configurable via
+`PostgresEventSourcingOptions`. Without the event-store table the first append fails with
+`42P01: relation "events" does not exist`.
+
+Both scripts are re-runnable and only ever create missing objects; neither alters an existing
+table. `scripts/002_…` and `scripts/003_…` are migrations for databases provisioned by earlier
+versions — read their headers before running them, as one is order-dependent with the package
+release that introduced it.

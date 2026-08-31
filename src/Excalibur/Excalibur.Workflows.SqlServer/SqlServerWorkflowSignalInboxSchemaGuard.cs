@@ -11,7 +11,7 @@ namespace Excalibur.Workflows.SqlServer;
 
 /// <summary>
 /// Verifies at startup that the signal-inbox table carries a UNIQUE constraint over
-/// (InstanceId, SignalId), and refuses to start when it does not.
+/// (TenantId, InstanceId, SignalId), and refuses to start when it does not.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -65,10 +65,10 @@ internal sealed partial class SqlServerWorkflowSignalInboxSchemaGuard : IHostedS
 			    ON c.object_id = ic.object_id AND c.column_id = ic.column_id
 			WHERE i.object_id = OBJECT_ID(@QualifiedTable)
 			  AND i.is_unique = 1
-			  AND c.name IN (N'InstanceId', N'SignalId')
+			  AND c.name IN (N'TenantId', N'InstanceId', N'SignalId')
 			GROUP BY i.index_id
-			HAVING COUNT(DISTINCT c.name) = 2
-			   AND COUNT(*) = 2;
+			HAVING COUNT(DISTINCT c.name) = 3
+			   AND COUNT(*) = 3;
 			""";
 
 		var qualifiedTable = $"[{_options.SchemaName}].[{_options.TableName}]";
@@ -76,9 +76,18 @@ internal sealed partial class SqlServerWorkflowSignalInboxSchemaGuard : IHostedS
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		// A unique index over EXACTLY these two columns, in either order. A unique index over a SUPERSET
-		// would not give the guarantee — (InstanceId, SignalId, ReceivedAt) permits the duplicate this
-		// check exists to prevent — so the column count is asserted, not just the presence of both.
+		// A unique index over EXACTLY these three columns, in any order. A unique index over a SUPERSET
+		// would not give the guarantee — (TenantId, InstanceId, SignalId, ReceivedAt) permits the duplicate
+		// this check exists to prevent — so the column count is asserted, not just the presence of each.
+		//
+		// TenantId is in the required set rather than tolerated as a superset column, and the distinction
+		// is the whole point of this guard. A non-identity column such as ReceivedAt widens the key and
+		// ADMITS duplicates, which is the failure above. TenantId widens it and admits only signals that
+		// were never duplicates of each other: two tenants presenting the same (InstanceId, SignalId) are
+		// two distinct signals, and under the narrower key the second was refused admission and silently
+		// dropped. So a table still carrying the old two-column constraint is not merely out of date — it
+		// is actively losing one tenant's signals — and this guard must refuse it rather than accept it as
+		// a subset that "at least dedupes".
 		var matching = await connection.QueryFirstOrDefaultAsync<int?>(
 			new CommandDefinition(
 				ConstraintQuery,
@@ -94,10 +103,13 @@ internal sealed partial class SqlServerWorkflowSignalInboxSchemaGuard : IHostedS
 
 		throw new InvalidOperationException(
 			$"The workflow signal inbox table '{qualifiedTable}' has no UNIQUE constraint over "
-			+ "(InstanceId, SignalId). That constraint is how duplicate signal delivery is rejected, so "
-			+ "without it a redelivered signal is applied to the workflow more than once and nothing "
-			+ "reports an error. Apply the shipped signal-inbox creation script, or add a unique index "
-			+ "over exactly those two columns, before starting the host.");
+			+ "(TenantId, InstanceId, SignalId). That constraint is how duplicate signal delivery is "
+			+ "rejected, so without it a redelivered signal is applied to the workflow more than once and "
+			+ "nothing reports an error. A table carrying the earlier (InstanceId, SignalId) constraint "
+			+ "fails this check deliberately: under that key two tenants presenting the same signal "
+			+ "collide, and the second tenant's signal is refused admission and silently discarded. Apply "
+			+ "the shipped signal-inbox creation script, or the shipped migration if the table already "
+			+ "exists, before starting the host.");
 	}
 
 	/// <inheritdoc />
@@ -107,6 +119,6 @@ internal sealed partial class SqlServerWorkflowSignalInboxSchemaGuard : IHostedS
 	// picking an arbitrary number risks colliding with a range reserved for another subsystem.
 	[LoggerMessage(
 		Level = LogLevel.Debug,
-		Message = "Workflow signal inbox table {QualifiedTable} carries the required UNIQUE (InstanceId, SignalId) constraint.")]
+		Message = "Workflow signal inbox table {QualifiedTable} carries the required UNIQUE (TenantId, InstanceId, SignalId) constraint.")]
 	private partial void LogConstraintVerified(string qualifiedTable);
 }

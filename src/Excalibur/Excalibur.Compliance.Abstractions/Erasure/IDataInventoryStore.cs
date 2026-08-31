@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance;
 
 /// <summary>
@@ -18,7 +20,21 @@ namespace Excalibur.Compliance;
 /// Query operations (FindRegistrationsForDataSubject, GetDiscoveredLocations, GetDataMapEntries)
 /// are available via <see cref="IDataInventoryQueryStore"/>, accessed through <see cref="GetService"/>.
 /// </para>
+/// <para>
+/// <b>Tenant confinement — contract, not yet a shipped guarantee.</b> Every member here is specified to
+/// be confined to the ambient tenant established for this store instance, the same way as every other
+/// <see cref="TenantOwnedAttribute"/>-declaring contract: a confined read returns none of another
+/// tenant's registrations and every one of the caller's own, and a confined write can neither be
+/// overwritten by, nor overwrite, another tenant's record. <see cref="GetAllRegistrationsAsync"/> is
+/// confined by this same rule, not estate-wide — its name predates the framework's convention that an
+/// estate-wide operation says so explicitly, and it should not be read as an exception. As of this
+/// writing, no provider shipped with the framework attests either <see cref="ITenantScopingCapability{TContract}"/>
+/// or <see cref="ITenantPartitionedCapability{TContract}"/> for this contract, so no shipped
+/// implementation is confined by the framework yet; conformance against a real provider, once one exists,
+/// is what will bind an implementation to this specification.
+/// </para>
 /// </remarks>
+[TenantOwned]
 public interface IDataInventoryStore
 {
 	/// <summary>

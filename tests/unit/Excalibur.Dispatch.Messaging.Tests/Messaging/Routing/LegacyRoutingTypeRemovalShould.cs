@@ -103,7 +103,6 @@ public sealed class LegacyRoutingTypeRemovalShould
 	[Theory]
 	[InlineData("RoutingContext")]
 	[InlineData("RouteDefinition")]
-	[InlineData("IRoutingContext")]
 	public void StillContainKeptTier3Types_InAbstractions(string typeName)
 	{
 		// Assert - Tier 3 types should still be present (needed by load balancers)

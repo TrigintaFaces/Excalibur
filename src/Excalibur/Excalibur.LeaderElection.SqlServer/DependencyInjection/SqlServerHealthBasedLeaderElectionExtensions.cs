@@ -110,7 +110,7 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			var healthOptions = sp.GetRequiredService<IOptions<SqlServerHealthBasedLeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerHealthBasedLeaderElection>>();
 			var innerLogger = sp.GetRequiredService<ILogger<SqlServerLeaderElection>>();
-			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+			// optional classifier-accelerated self-demotion (null when none registered → grace-only).
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
 			return new SqlServerHealthBasedLeaderElection(electionOptions, healthOptions, logger, innerLogger, failureClassifier);
 		});
@@ -135,6 +135,14 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 		// TryAdd, so a consumer's own unkeyed registration still wins.
 		services.TryAddSingleton<ILeaderElection>(sp =>
 			sp.GetRequiredKeyedService<ILeaderElection>("default"));
+
+		// Fencing is default-ON for a framework-protected outbox: registering a leader election is the
+		// multi-instance signal, so the outbox drain is gated automatically rather than through an
+		// easily-forgotten second opt-in. Without this, a host that wires its election here resolves no
+		// gate and every instance drains concurrently — the coordination guarantee the election was added
+		// to provide, silently absent. Idempotent via TryAdd, so an explicit outbox.WithLeaderElection()
+		// composes with it. A single-active-writer topology opts the outbox out with AsSingleWriter().
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
 
 		return services;
 	}

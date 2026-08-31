@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using MsOptions = Microsoft.Extensions.Options.Options;
 using System.Text.Json;
 using System.Net;
@@ -197,7 +198,8 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 		return new CosmosDbEventStore(
 			_cosmosClient,
 			options,
-			NullLogger<CosmosDbEventStore>.Instance);
+			NullLogger<CosmosDbEventStore>.Instance,
+			UntenantedContext.Instance);
 	}
 
 	/// <summary>

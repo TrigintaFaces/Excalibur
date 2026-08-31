@@ -19,20 +19,18 @@ dotnet add package Excalibur.Outbox.CosmosDb
 ## Configuration
 
 ```csharp
-services.AddCosmosDbOutboxStore(options =>
-{
-    options.ConnectionString = "AccountEndpoint=...;AccountKey=...";
-    options.DatabaseName = "mydb";
-    options.ContainerName = "outbox";
-    options.DefaultTimeToLiveSeconds = 604800; // 7 days
-    options.CreateContainerIfNotExists = true;
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseCosmosDb(cosmos => cosmos
+        .ConnectionString("AccountEndpoint=...;AccountKey=...")
+        .DatabaseName("mydb")
+        .ContainerName("outbox"))));
 ```
 
 Or via configuration:
 
 ```csharp
-services.AddCosmosDbOutboxStore(configuration.GetSection("CosmosDbOutbox"));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseCosmosDb(cosmos => cosmos.BindConfiguration("CosmosDbOutbox"))));
 ```
 
 ## Usage

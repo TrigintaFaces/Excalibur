@@ -9,6 +9,7 @@ using Excalibur.AuditLogging.Annotation;
 using Excalibur.AuditLogging.Encryption;
 using Excalibur.AuditLogging.Retention;
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -60,7 +61,7 @@ public static class AuditLoggingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider (qa71t5).
+		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider.
 		// Every audit store depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
 
@@ -69,7 +70,19 @@ public static class AuditLoggingServiceCollectionExtensions
 		// survive a restart. A host that needs the trail to outlive the process must register a durable
 		// store explicitly; nothing currently refuses this default at startup, so the obligation is the
 		// host's own.
-		services.TryAddSingleton<InMemoryAuditStore>();
+		_ = services.AddDefaultTenantContext();
+		// Registered through the capability seam rather than a bare TryAddSingleton. InMemoryAuditStore takes
+		// ITenantContext, and every read it builds binds the ambient tenant term (the query filter is a
+		// scope, not a caller-supplied filter), so the seam derives the ambient-scoping mechanism from the
+		// constructor and emits ITenantScopingCapability<IAuditStore> as part of the same act. Without that
+		// marker a host wiring this store alongside the row discriminator is refused at startup, because
+		// IAuditStore carries [TenantOwned] and nothing attested the store honours it.
+		//
+		// The estate-wide scope recorded for this provider in ARCHITECTURE.md is chain VERIFICATION only,
+		// enumerated per partition. It is not the store's tenancy mechanism, and the partitioned marker
+		// would be the wrong attestation here: that one states the tenant is re-established from the row
+		// and never inferred from ambient state, which is the opposite of what this store does.
+		_ = services.AddTenantAwareStore<IAuditStore, InMemoryAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<InMemoryAuditStore>());
 
 		// Register audit logger as scoped (allows for request-scoped context)
@@ -216,7 +229,7 @@ public static class AuditLoggingServiceCollectionExtensions
 		// Remove the existing registration
 		_ = services.Remove(existingDescriptor);
 
-		// ybem93: read implementation members through the keyed-safe accessors once into locals
+		// read implementation members through the keyed-safe accessors once into locals
 		// (raw reads throw on keyed descriptors on .NET 8+; locals also preserve null-flow analysis).
 		var implementationType = existingDescriptor.GetImplementationType();
 		var implementationInstance = existingDescriptor.GetImplementationInstance();
@@ -243,10 +256,8 @@ public static class AuditLoggingServiceCollectionExtensions
 				typeof(IAuditStore),
 				sp => new RbacAuditStore(
 					(IAuditStore)implementationFactory(sp),
-					sp.GetRequiredService<IAuditRoleProvider>(),
-					sp.GetRequiredService<IAuditLogger>(),
-					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>(),
-					sp.GetService<IAuditActorProvider>()),
+					sp.GetRequiredService<IServiceScopeFactory>(),
+					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>()),
 				existingDescriptor.Lifetime));
 
 			return services;
@@ -265,12 +276,15 @@ public static class AuditLoggingServiceCollectionExtensions
 						: throw new InvalidOperationException(
 							Resources.AuditLoggingServiceCollectionExtensions_InnerAuditStoreResolutionFailed);
 
+				// The role, actor and meta-audit logger are NOT resolved here. This descriptor inherits the
+				// wrapped store's lifetime, which is a singleton, so resolving them at this point binds them
+				// from the root: the decorator would answer with one caller's role and identity for the life
+				// of the container, and a host with scope validation on would refuse to start. The store
+				// opens a scope per operation instead.
 				return new RbacAuditStore(
 					innerStore,
-					sp.GetRequiredService<IAuditRoleProvider>(),
-					sp.GetRequiredService<IAuditLogger>(),
-					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>(),
-					sp.GetService<IAuditActorProvider>());
+					sp.GetRequiredService<IServiceScopeFactory>(),
+					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>());
 			},
 			existingDescriptor.Lifetime));
 
@@ -389,7 +403,7 @@ public static class AuditLoggingServiceCollectionExtensions
 		// trail you are willing to lose on restart. Install the startup gate so a volatile audit store FAILS
 		// CLOSED here unless the host opted in (AllowVolatileAuditStore = true) or registered a durable store.
 		// The bare AddAuditLogging() default stays gate-free (dev/MediatR-replacement) — retention is the
-		// distinct "I require a durable trail" composition, per the S900 audit-funnel finding.
+		// distinct "I require a durable trail" composition, per the audit-funnel finding.
 		_ = services.AddAuditDurabilityGate();
 
 		return services;
@@ -425,7 +439,7 @@ public static class AuditLoggingServiceCollectionExtensions
 		// trail you are willing to lose on restart. Install the startup gate so a volatile audit store FAILS
 		// CLOSED here unless the host opted in (AllowVolatileAuditStore = true) or registered a durable store.
 		// The bare AddAuditLogging() default stays gate-free (dev/MediatR-replacement) — retention is the
-		// distinct "I require a durable trail" composition, per the S900 audit-funnel finding.
+		// distinct "I require a durable trail" composition, per the audit-funnel finding.
 		_ = services.AddAuditDurabilityGate();
 
 		return services;
@@ -549,6 +563,7 @@ public static class AuditLoggingServiceCollectionExtensions
 		// provider registers its store under this key with AddKeyedSingleton and wins over this default in
 		// BOTH orders (verified against the container, not assumed: a later keyed registration supersedes an
 		// earlier TryAdd of the same key, and TryAdd declines when the key is already taken).
+		_ = services.AddDefaultTenantContext();
 		services.TryAddKeyedSingleton<IAuditAnnotationStore, InMemoryAuditAnnotationStore>(InnerAuditAnnotationStoreKey);
 
 		// Resolving IAuditAnnotationStore always yields the access-checking decorator, so "I forgot to add the
@@ -559,11 +574,15 @@ public static class AuditLoggingServiceCollectionExtensions
 		// GetRequiredKeyedService is the fail-loud arm and it is free: a host that registered no inner store
 		// fails at first resolution with a container error naming the missing service, rather than silently
 		// resolving to nothing.
+		//
+		// The role, actor and meta-audit logger are NOT resolved here. This is a singleton, so resolving
+		// them at this point binds them from the root: the decorator would answer with one caller's role
+		// and identity for the life of the container -- and since the actor identity decides which
+		// annotations a read returns, that hands the first caller's private notes to everyone after them.
+		// A host with scope validation on would refuse to start. The store opens a scope per operation.
 		services.TryAddSingleton<IAuditAnnotationStore>(sp => new RbacAuditAnnotationStore(
 			sp.GetRequiredKeyedService<IAuditAnnotationStore>(InnerAuditAnnotationStoreKey),
-			sp.GetRequiredService<IAuditRoleProvider>(),
-			sp.GetService<IAuditActorProvider>(),
-			sp.GetService<IAuditLogger>(),
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()));
 
 		// The role provider cannot be defaulted, so its absence fails the host at startup rather than at the
@@ -571,6 +590,7 @@ public static class AuditLoggingServiceCollectionExtensions
 		// ordering dependence it exists to remove.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, AuditAnnotationRoleProviderValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AuditAnnotationRoleProviderValidator>());
 
 		return services;
 	}
@@ -638,12 +658,20 @@ public static class AuditLoggingServiceCollectionExtensions
 	/// <list type="bullet">
 	/// <item><see cref="IAuditContext"/> as <see cref="DefaultAuditContext"/> (scoped)</item>
 	/// <item><see cref="AuditContextOptions"/> with <c>ValidateOnStart</c></item>
+	/// <item>the dispatch middleware that initializes that context per message</item>
 	/// </list>
 	/// </para>
 	/// <para>
 	/// Requires <see cref="IAuditLogger"/> registration (from <see cref="AddAuditLogging(IServiceCollection)"/>).
-	/// The <c>AuditContextMiddleware</c> initializes the context scope with pipeline data
-	/// before handler execution.
+	/// The registered middleware fills the context with the message's correlation id, tenant and actor
+	/// before the handler runs, so a handler that injects <see cref="IAuditContext"/> records entries
+	/// attributed to the caller rather than to an uninitialized scope.
+	/// </para>
+	/// <para>
+	/// The context is per-request state, so it is initialized only for a message dispatched with a request
+	/// scope. A message dispatched without one is passed through and the gap is logged: the audit context
+	/// its handler receives belongs to a scope created for the handler, and reaching for the root provider
+	/// instead would share one instance across every message in the process.
 	/// </para>
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
@@ -660,6 +688,15 @@ public static class AuditLoggingServiceCollectionExtensions
 		services.TryAddSingleton(TimeProvider.System);
 		services.TryAddScoped<DefaultAuditContext>();
 		services.TryAddScoped<IAuditContext>(sp => sp.GetRequiredService<DefaultAuditContext>());
+
+		// The middleware that fills the context. Without it every entry a handler records through
+		// IAuditContext carries no correlation id, no tenant and an "unknown" actor, while this method
+		// documents the opposite. It holds no per-request state — the context and the actor provider are
+		// resolved from the message's own scope on every invocation — so a singleton descriptor is the
+		// truthful lifetime for its dependency subtree. TryAddEnumerable avoids double-registration when
+		// this extension is called more than once.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IDispatchMiddleware, AuditContextMiddleware>());
 
 		return services;
 	}
@@ -692,7 +729,7 @@ public static class AuditLoggingServiceCollectionExtensions
 
 		_ = services.Remove(existingDescriptor);
 
-		// Re-add the inner store under a keyed or typed registration. ybem93: read implementation
+		// Re-add the inner store under a keyed or typed registration.: read implementation
 		// members through the keyed-safe accessors once into locals (preserves null-flow analysis).
 		var implementationType = existingDescriptor.GetImplementationType();
 		var implementationInstance = existingDescriptor.GetImplementationInstance();

@@ -15,16 +15,6 @@ public enum EncryptionKeyType
 	Aes = 0,
 
 	/// <summary>
-	/// RSA asymmetric key pair.
-	/// </summary>
-	Rsa = 1,
-
-	/// <summary>
-	/// Elliptic Curve Cryptography (ECC) key pair.
-	/// </summary>
-	Ecc = 2,
-
-	/// <summary>
 	/// HMAC key for message authentication.
 	/// </summary>
 	Hmac = 3,

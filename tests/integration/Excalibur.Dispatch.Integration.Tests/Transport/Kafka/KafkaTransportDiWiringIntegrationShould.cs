@@ -50,12 +50,6 @@ public sealed class KafkaTransportDiWiringIntegrationShould
 {
 	private static readonly TimeSpan SubscriptionTimeout = TimeSpan.FromSeconds(30);
 
-	private const string MapResolvesConsumerTest =
-		nameof(AddKafkaTransport_RegistersResolvableConsumerAndSubscriber);
-
-	private const string DeliversEndToEndTest =
-		nameof(DiWiredSubscriber_ReceivesMessagePublishedToTopic_EndToEnd);
-
 	private readonly KafkaContainerFixture _fixture;
 
 	public KafkaTransportDiWiringIntegrationShould(KafkaContainerFixture fixture)
@@ -78,6 +72,9 @@ public sealed class KafkaTransportDiWiringIntegrationShould
 		_ = services.AddLogging();
 		_ = services.AddKafkaTransport(transportName, kafka =>
 			kafka.BootstrapServers(_fixture.BootstrapServers)
+				// The test container has no TLS listener; opt out explicitly rather than have the
+				// transport connect in the clear under a posture that says it will not.
+				.RequireTls(false)
 				.ConfigureConsumer(consumer => consumer
 					.GroupId(groupId)
 					.AutoOffsetReset(KafkaOffsetReset.Earliest)
@@ -113,6 +110,8 @@ public sealed class KafkaTransportDiWiringIntegrationShould
 		_ = services.AddLogging();
 		_ = services.AddKafkaTransport(transportName, kafka =>
 			kafka.BootstrapServers(_fixture.BootstrapServers)
+				// The test container has no TLS listener; opt out explicitly.
+				.RequireTls(false)
 				.ConfigureConsumer(consumer => consumer
 					.GroupId(topic)
 					.AutoOffsetReset(KafkaOffsetReset.Earliest)

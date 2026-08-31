@@ -3,8 +3,8 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Hosting.HealthChecks</PackageId>
-    <Description>Health check UI and monitoring integration for Excalibur hosting, including readiness/liveness endpoints and health check dashboard.</Description>
-    <PackageTags>excalibur;hosting;healthchecks;monitoring;health-ui;aot</PackageTags>
+    <Description>Health check and monitoring integration for Excalibur hosting, including readiness/liveness endpoints and memory health checks. Contains no ORM or database dependency.</Description>
+    <PackageTags>excalibur;hosting;healthchecks;monitoring;readiness;liveness;aot</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
@@ -15,9 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AspNetCore.HealthChecks.System" />
-    <PackageReference Include="AspNetCore.HealthChecks.UI" />
-    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" />
-    <PackageReference Include="AspNetCore.HealthChecks.Uris" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
   </ItemGroup>
 </Project>

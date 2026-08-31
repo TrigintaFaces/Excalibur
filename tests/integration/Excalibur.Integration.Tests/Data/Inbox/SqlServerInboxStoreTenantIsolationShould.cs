@@ -15,7 +15,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// <summary>
 /// bd-b1g4o0 — independent (author≠impl, TestsDeveloper) NON-SKIPPED real-SQL-Server tenant-isolation lock
 /// for the row-discriminator dedup CAS. The atomic first-writer claim
-/// (<c>TryMarkAsProcessedAsync(messageId, handlerType, ct)</c>) is a <c>MERGE … WITH (HOLDLOCK)</c> whose
+/// (<c>TryMarkAsProcessedAsync(messageId, handlerType, ct)</c>) is a <c>MERGE … WITH (UPDLOCK, HOLDLOCK)</c> whose
 /// composite key is <b>(MessageId, HandlerType, TenantId)</b>: the ambient <see cref="ITenantContext"/> is
 /// woven into the MERGE source, the <c>ON</c> conflict-target, and the <c>INSERT</c>. Two different tenants
 /// claiming the SAME <c>MessageId</c>+<c>HandlerType</c> MUST each win exactly once — dedup is per-tenant,

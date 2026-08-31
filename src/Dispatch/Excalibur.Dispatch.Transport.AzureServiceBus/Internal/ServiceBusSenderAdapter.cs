@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// to a real <see cref="ServiceBusSender"/>. This adapter is the only place
 /// in the transport sender path that touches the live Azure Service Bus SDK
 /// sender type — tests substitute at the seam, never at the SDK type
-/// directly (ADR-142 §D7).
+/// directly.
 /// </summary>
 internal sealed class ServiceBusSenderAdapter : IServiceBusSenderSeam
 {

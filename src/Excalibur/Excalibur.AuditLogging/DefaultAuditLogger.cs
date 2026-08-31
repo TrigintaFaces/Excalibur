@@ -101,15 +101,24 @@ public sealed partial class DefaultAuditLogger : IAuditLogger
 			var result = await _auditStore.VerifyChainIntegrityAsync(startDate, endDate, cancellationToken)
 				.ConfigureAwait(false);
 
-			if (result.IsValid)
+			switch (result.Outcome)
 			{
-				LogIntegrityVerificationCompleted(result.EventsVerified);
-			}
-			else
-			{
-				LogIntegrityVerificationFailed(
+				case AuditIntegrityOutcome.Verified:
+					LogIntegrityVerificationCompleted(result.EventsVerified);
+					break;
+
+				case AuditIntegrityOutcome.ViolationsDetected:
+					LogIntegrityVerificationFailed(
 						result.FirstViolationEventId,
 						result.ViolationDescription);
+					break;
+
+				// An empty window is neither. Logging it as a completed verification would put the same
+				// unearned assurance in the operator's log that it used to put in the compliance evidence.
+				case AuditIntegrityOutcome.NoEventsInScope:
+				default:
+					LogIntegrityVerificationNotExercised(startDate, endDate);
+					break;
 			}
 
 			return result;
@@ -164,6 +173,10 @@ public sealed partial class DefaultAuditLogger : IAuditLogger
 	[LoggerMessage(AuditLoggingEventId.AuditIntegrityVerificationFailed, LogLevel.Warning,
 			"Audit integrity verification FAILED. First violation at event {EventId}: {Description}")]
 	private partial void LogIntegrityVerificationFailed(string? eventId, string? description);
+
+	[LoggerMessage(AuditLoggingEventId.AuditIntegrityVerificationNotExercised, LogLevel.Information,
+			"Audit integrity verification was not exercised: no audit events were recorded from {StartDate:O} to {EndDate:O}, so the audit log was not checked.")]
+	private partial void LogIntegrityVerificationNotExercised(DateTimeOffset startDate, DateTimeOffset endDate);
 
 	[LoggerMessage(AuditLoggingEventId.AuditIntegrityVerificationError, LogLevel.Error,
 			"Error during audit integrity verification from {StartDate:O} to {EndDate:O}")]

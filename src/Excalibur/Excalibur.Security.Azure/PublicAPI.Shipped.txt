@@ -17,26 +17,10 @@ Excalibur.Security.Azure.AzureKeyVaultKeyProviderOptions.SecretNamePrefix.get ->
 Excalibur.Security.Azure.AzureKeyVaultKeyProviderOptions.SecretNamePrefix.set -> void
 Excalibur.Security.Azure.AzureKeyVaultKeyProviderOptions.VaultUri.get -> string?
 Excalibur.Security.Azure.AzureKeyVaultKeyProviderOptions.VaultUri.set -> void
-Excalibur.Security.Azure.AzureSecurityEventId
 Excalibur.Security.Azure.ISecurityAzureBuilder
 Excalibur.Security.Azure.ISecurityAzureBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Security.Azure.ISecurityAzureBuilder!
-Excalibur.Security.Azure.ISecurityAzureBuilder.EnableServiceBusValidation(bool enable = true) -> Excalibur.Security.Azure.ISecurityAzureBuilder!
 Excalibur.Security.Azure.ISecurityAzureBuilder.KeyPrefix(string! keyPrefix) -> Excalibur.Security.Azure.ISecurityAzureBuilder!
 Excalibur.Security.Azure.ISecurityAzureBuilder.VaultUri(string! vaultUri) -> Excalibur.Security.Azure.ISecurityAzureBuilder!
 Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultCredentialStoreCreated = 70900 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultKeyCacheHit = 70914 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultKeyNotFound = 70915 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultKeyOperationFailed = 70918 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultKeyRetrieved = 70913 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultKeyRotated = 70917 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultKeyStored = 70916 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultRequestFailed = 70909 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieveFailed = 70910 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieved = 70908 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieving = 70906 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultSecretNotFound = 70907 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultStored = 70912 -> int
-const Excalibur.Security.Azure.AzureSecurityEventId.AzureKeyVaultStoring = 70911 -> int
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddAzureKeyVaultKeyProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Azure.AzureKeyVaultKeyProviderOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddDispatchSecurityAzure(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Azure.ISecurityAzureBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

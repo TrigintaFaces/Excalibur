@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
+using System.Data.Common;
 using System.Runtime.CompilerServices;
 
 using Dapper;
@@ -17,69 +18,46 @@ namespace Excalibur.Cdc.SqlServer;
 /// </summary>
 public class CdcStateStore : ISqlServerCdcStateStore
 {
-	private readonly IDbConnection _connection;
+	private readonly Func<IDbConnection> _connectionFactory;
 	private readonly SqlServerCdcStateStoreOptions _options;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="CdcStateStore" /> class using an <see cref="IDbConnection" />.
+	/// Initializes a new instance of the <see cref="CdcStateStore" /> class.
 	/// </summary>
-	/// <param name="connection"> The database connection to use. </param>
-	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="connection" /> is <c> null </c>. </exception>
-	public CdcStateStore(IDbConnection connection)
-		: this(connection, new SqlServerCdcStateStoreOptions())
+	/// <param name="connectionFactory">
+	/// Supplies a connection for each operation. The store opens the connection it is given, uses it for
+	/// one statement, and disposes it, so pooled connections are returned promptly and two overlapping
+	/// operations never share one.
+	/// </param>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="connectionFactory" /> is <c> null </c>. </exception>
+	public CdcStateStore(Func<IDbConnection> connectionFactory)
+		: this(connectionFactory, new SqlServerCdcStateStoreOptions())
 	{
 	}
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="CdcStateStore" /> class using an <see cref="IDbConnection" /> and options.
+	/// Initializes a new instance of the <see cref="CdcStateStore" /> class with options.
 	/// </summary>
-	/// <param name="connection">The database connection to use.</param>
-	/// <param name="options">The CDC state store options.</param>
+	/// <param name="connectionFactory"> Supplies a connection for each operation. </param>
+	/// <param name="options"> The CDC state store options. </param>
 	public CdcStateStore(
-		IDbConnection connection,
+		Func<IDbConnection> connectionFactory,
 		IOptions<SqlServerCdcStateStoreOptions> options)
-		: this(connection, options?.Value ?? throw new ArgumentNullException(nameof(options)))
+		: this(connectionFactory, options?.Value ?? throw new ArgumentNullException(nameof(options)))
 	{
 	}
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CdcStateStore" /> class using a database abstraction <see cref="IDb" />.
-	/// </summary>
-	/// <param name="db"> The database abstraction providing the connection. </param>
-	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="db" /> is <c> null </c>. </exception>
-	public CdcStateStore(IDb db)
-		: this(db, new SqlServerCdcStateStoreOptions())
+	private CdcStateStore(Func<IDbConnection> connectionFactory, SqlServerCdcStateStoreOptions options)
 	{
-	}
+		ArgumentNullException.ThrowIfNull(connectionFactory);
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CdcStateStore" /> class using a database abstraction <see cref="IDb" /> and options.
-	/// </summary>
-	/// <param name="db">The database abstraction providing the connection.</param>
-	/// <param name="options">The CDC state store options.</param>
-	public CdcStateStore(
-		IDb db,
-		IOptions<SqlServerCdcStateStoreOptions> options)
-		: this(db, options?.Value ?? throw new ArgumentNullException(nameof(options)))
-	{
-	}
-
-	private CdcStateStore(IDbConnection connection, SqlServerCdcStateStoreOptions options)
-	{
-		ArgumentNullException.ThrowIfNull(connection);
-
-		_connection = connection;
+		_connectionFactory = connectionFactory;
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_options.Validate();
 	}
 
-	private CdcStateStore(IDb db, SqlServerCdcStateStoreOptions options)
-		: this(db?.Connection ?? throw new ArgumentNullException(nameof(db)), options)
-	{
-	}
-
 	/// <inheritdoc />
-	public Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
+	public async Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		CancellationToken cancellationToken)
@@ -113,11 +91,12 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return _connection.Ready().QueryAsync<CdcProcessingState>(command);
+		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await connection.QueryAsync<CdcProcessingState>(command).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public Task<int> UpdateLastProcessedPositionAsync(
+	public async Task<int> UpdateLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		string tableName,
@@ -137,7 +116,7 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		// unfenced write leaves the stored token untouched.
 		var commandText = $"""
 		                                 MERGE
-		                                      {_options.QualifiedTableName} AS target
+		                                      {_options.QualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 		                                 USING ( VALUES
 		                                      (@databaseConnectionIdentifier, @databaseName, @tableName, @position, @sequenceValue, @commitTime)) AS source
 		                                      (DatabaseConnectionIdentifier,
@@ -183,7 +162,8 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return _connection.Ready().ExecuteAsync(command);
+		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await connection.ExecuteAsync(command).ConfigureAwait(false);
 	}
 
 	// --- Generic ICdcStateStore adapter -------------------------------------------------------
@@ -218,7 +198,8 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var row = await _connection.Ready()
+		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		var row = await connection
 			.QuerySingleOrDefaultAsync<(byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)?>(command)
 			.ConfigureAwait(false);
 
@@ -272,7 +253,8 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var affected = await _connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
 		return affected > 0;
 	}
 
@@ -296,9 +278,13 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var rows = await _connection.Ready()
-			.QueryAsync<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)>(command)
-			.ConfigureAwait(false);
+		IEnumerable<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)> rows;
+		using (var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
+		{
+			rows = await connection
+				.QueryAsync<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)>(command)
+				.ConfigureAwait(false);
+		}
 
 		foreach (var row in rows)
 		{
@@ -335,15 +321,44 @@ public class CdcStateStore : ISqlServerCdcStateStore
 	/// <param name="disposing"> True if disposing managed resources; otherwise, false. </param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (disposing)
-		{
-			_connection.Dispose();
-		}
+		// Nothing to release: each operation opens and disposes its own connection. The disposal members
+		// remain because the interface declares them.
 	}
 
 	/// <summary>
 	/// Core asynchronous disposal implementation.
 	/// </summary>
 	/// <returns> A value task that represents the asynchronous disposal operation. </returns>
-	protected virtual async ValueTask DisposeCoreAsync() => await CdcDisposalHelper.SafeDisposeAsync(_connection).ConfigureAwait(false);
+	protected virtual ValueTask DisposeCoreAsync() => ValueTask.CompletedTask;
+
+	/// <summary>
+	/// Opens a connection for a single operation.
+	/// </summary>
+	/// <param name="cancellationToken"> A token to cancel the open. </param>
+	/// <returns> An open connection that the caller owns and must dispose. </returns>
+	private async Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+	{
+		var connection = _connectionFactory();
+
+		try
+		{
+			// DbConnection is the common case and opens without blocking a thread; the IDbConnection
+			// fallback exists because the factory's type does not promise one.
+			if (connection is DbConnection dbConnection)
+			{
+				await dbConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				_ = connection.Ready();
+			}
+
+			return connection;
+		}
+		catch
+		{
+			connection.Dispose();
+			throw;
+		}
+	}
 }

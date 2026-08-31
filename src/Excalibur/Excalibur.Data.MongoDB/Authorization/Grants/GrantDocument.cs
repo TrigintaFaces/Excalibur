@@ -43,7 +43,7 @@ internal sealed class GrantDocument
 	/// </summary>
 	[BsonElement("tenantId")]
 	[BsonIgnoreIfNull]
-	public string? TenantId { get; set; }
+	public string TenantId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the grant type (e.g., role, activity-group).
@@ -62,6 +62,7 @@ internal sealed class GrantDocument
 	/// </summary>
 	[BsonElement("expiresOn")]
 	[BsonIgnoreIfNull]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset? ExpiresOn { get; set; }
 
 	/// <summary>
@@ -74,6 +75,7 @@ internal sealed class GrantDocument
 	/// Gets or sets the timestamp when the grant was issued.
 	/// </summary>
 	[BsonElement("grantedOn")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset GrantedOn { get; set; }
 
 	/// <summary>
@@ -94,6 +96,7 @@ internal sealed class GrantDocument
 	/// </summary>
 	[BsonElement("revokedOn")]
 	[BsonIgnoreIfNull]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset? RevokedOn { get; set; }
 
 	/// <summary>
@@ -104,8 +107,8 @@ internal sealed class GrantDocument
 	/// <param name="grantType">The grant type.</param>
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The composite ID string.</returns>
-	public static string CreateId(string userId, string? tenantId, string grantType, string qualifier) =>
-		$"{userId}:{tenantId ?? "null"}:{grantType}:{qualifier}";
+	public static string CreateId(string userId, string tenantId, string grantType, string qualifier) =>
+		$"{userId}:{tenantId}:{grantType}:{qualifier}";
 
 	/// <summary>
 	/// Converts a <see cref="Grant"/> to a <see cref="GrantDocument"/>.

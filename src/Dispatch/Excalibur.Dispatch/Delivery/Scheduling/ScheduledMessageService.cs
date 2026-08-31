@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// Background service that processes scheduled messages with timezone-aware cron support.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ScheduledMessageService" /> class. </remarks>
-public partial class ScheduledMessageService(
+internal sealed partial class ScheduledMessageService(
 	IScheduleStore scheduleStore,
 	IDispatcher dispatcher,
 	DispatchJsonSerializer serializer,
@@ -36,7 +36,7 @@ public partial class ScheduledMessageService(
 	private readonly SchedulerOptions _schedulerOptions = options.Value;
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
 
-	// ywodwj — due-check, missed-execution replay, and Last/NextExecutionUtc reads go through TimeProvider so
+	// due-check, missed-execution replay, and Last/NextExecutionUtc reads go through TimeProvider so
 	// the scheduling boundaries are deterministic under test (default TimeProvider.System is transparent to
 	// existing DI and callers).
 	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
@@ -88,18 +88,56 @@ public partial class ScheduledMessageService(
 
 					hadWork = true;
 
-					// Check for missed executions
-					if (ShouldHandleMissedExecution(item))
+					// One schedule row must never be able to stop the others. A row whose type no longer exists, whose body no
+					// longer deserializes, or whose handler throws is the expected steady state for a durable scheduler -- rows
+					// outlive the code that created them. Letting that escape the loop aborts the scan before
+					// UpdateNextExecutionTimeAsync runs, so the same row is still due on the next poll and every later row is
+					// starved permanently, for every message and tenant, with no path back.
+					try
 					{
-						await HandleMissedExecutionsAsync(item, stoppingToken).ConfigureAwait(false);
+						// Check for missed executions
+						if (ShouldHandleMissedExecution(item))
+						{
+							await HandleMissedExecutionsAsync(item, stoppingToken).ConfigureAwait(false);
+						}
+
+						// Process the current execution with optional timeout.
+						//
+						// CA2000 is suppressed here, and only here, as a measured false positive: the token
+						// source below IS disposed on every path by the `using var` (the compiler emits the
+						// try/finally), exactly as the sibling `retrievalCts` above is -- which the analyzer
+						// does not flag. What changed is that the callee now owns a disposable of its own
+						// (the tenant scope), and that costs CA2000's interprocedural dataflow enough
+						// precision to report this call site conservatively. Four alternative shapes were
+						// built and measured against it -- `using var` at the callee's top, an explicit
+						// try/finally in the callee, the scope pushed one call deeper, and a `using` block --
+						// and all four reproduce it; so does rewriting this statement into the explicit
+						// try/finally with a null-out that the diagnostic's own message recommends. There is
+						// no code shape that satisfies the rule, so the alternative to suppressing is
+						// dropping a tenant-correctness fix for an analyzer artifact.
+#pragma warning disable CA2000 // Dispose objects before losing scope
+						using var processCts = CreateTimeoutToken(TimeoutOperationType.Handler, stoppingToken);
+#pragma warning restore CA2000
+						await ProcessScheduledMessageAsync(item, processCts.Token).ConfigureAwait(false);
+
+						// Calculate next execution time
+						await UpdateNextExecutionTimeAsync(item, stoppingToken).ConfigureAwait(false);
 					}
+					catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+					{
+						throw;
+					}
+					catch (Exception ex)
+					{
+						LogErrorProcessingMessages(ex);
 
-					// Process the current execution with optional timeout
-					using var processCts = CreateTimeoutToken(TimeoutOperationType.Handler, stoppingToken);
-					await ProcessScheduledMessageAsync(item, processCts.Token).ConfigureAwait(false);
-
-					// Calculate next execution time
-					await UpdateNextExecutionTimeAsync(item, stoppingToken).ConfigureAwait(false);
+						// A row that failed must still ADVANCE. Without this it stays due, so it is
+						// re-processed and re-logged on every poll for the life of the process: unbounded
+						// log volume and wasted work from a row that can never succeed. Durable rows
+						// outliving the code that created them is the expected steady state for a
+						// scheduler, so this is reachable in normal operation, not an exceptional path.
+						await AdvanceOrDisableAsync(item, stoppingToken).ConfigureAwait(false);
+					}
 				}
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -221,8 +259,22 @@ public partial class ScheduledMessageService(
 	[RequiresDynamicCode("Calls DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task ProcessScheduledMessageAsync(IScheduledMessage item, CancellationToken cancellationToken)
 	{
-		var type = MessageTypeRegistry.GetType(item.MessageName);
-		if (type is null)
+		// Establish the schedule's tenant as ambient for the whole dispatch, at the point of use. Stamping
+		// the identity feature alone is not enough: it is read from the message context, whereas every
+		// ITenantContext-reading store a handler touches reads the ambient holder, and nothing on this path
+		// wrote it. A scheduled message therefore ran with the poller's ambient tenant -- normally none --
+		// so a handler's writes landed untenanted while the context claimed the right tenant. Establishing
+		// it here rather than at the caller makes the caller's scope irrelevant, so no future caller can
+		// reintroduce the gap.
+		//
+		// The term is read back off a stored schedule, so it goes through the total store-read conversion.
+		// A raw null CLEARS the ambient, and a cleared ambient means "no tenant was established" -- which a
+		// multi-tenant store fails closed on. An untenanted schedule is a different state and binds the
+		// reserved untenanted term.
+		using var tenantScope = TenantContextHolder.BeginScope(
+			KeyedTenantPartition.FromStoredValue(item.TenantId).TenantId);
+
+		if (!MessageTypeRegistry.TryGetType(item.MessageName, out var type))
 		{
 			LogUnknownMessageType(item.MessageName);
 			return;
@@ -266,6 +318,48 @@ public partial class ScheduledMessageService(
 
 		// Update last execution time
 		item.LastExecutionUtc = _timeProvider.GetUtcNow();
+	}
+
+	/// <summary>
+	/// Moves a failed row off the current poll: to its next scheduled occurrence if the schedule can be
+	/// advanced, otherwise disabled so it stops being due at all.
+	/// </summary>
+	/// <remarks>
+	/// The give-up is logged ONCE, at the point the row is disabled. A row whose schedule cannot be
+	/// computed (an unparseable cron, for instance) would otherwise remain due forever and re-log on
+	/// every poll, which is the volume this exists to bound.
+	/// </remarks>
+	private async Task AdvanceOrDisableAsync(IScheduledMessage item, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await UpdateNextExecutionTimeAsync(item, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			LogScheduleDisabledAfterFailure(item.Id, ex);
+		}
+
+		try
+		{
+			item.Enabled = false;
+			await scheduleStore.StoreAsync(item, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			// The store itself is unavailable. Nothing further can be done from here; the row stays due
+			// and the next poll will try again, which is correct while the store is down.
+			LogErrorProcessingMessages(ex);
+		}
 	}
 
 	private async Task UpdateNextExecutionTimeAsync(IScheduledMessage item, CancellationToken cancellationToken)
@@ -329,7 +423,7 @@ public partial class ScheduledMessageService(
 		return cts;
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(DeliveryEventId.ScheduledUnknownMessageType, LogLevel.Warning,
 		"Unknown scheduled message type {Type}")]
 	private partial void LogUnknownMessageType(string type);
@@ -373,6 +467,11 @@ public partial class ScheduledMessageService(
 	[LoggerMessage(DeliveryEventId.ScheduledNextExecution, LogLevel.Debug,
 		"Next execution for schedule {MessageId} calculated as {NextRun} in timezone {TimeZone}")]
 	private partial void LogNextExecutionCalculated(Guid messageId, DateTimeOffset? nextRun, string timeZone);
+
+	[LoggerMessage(DeliveryEventId.ScheduledDisabledAfterFailure, LogLevel.Warning,
+		"Schedule {ScheduleId} failed and its next execution could not be advanced, so it has been disabled; "
+		+ "it will not be retried until it is re-enabled")]
+	private partial void LogScheduleDisabledAfterFailure(Guid scheduleId, Exception exception);
 
 	[LoggerMessage(DeliveryEventId.ScheduledTimezoneLookupFailed, LogLevel.Warning,
 		"Failed to find timezone {TimeZoneId}, using default")]

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
@@ -31,8 +33,9 @@ public interface IMessageMappingConventions
 	/// <summary>
 	/// Registers a custom message mapper with a factory.
 	/// </summary>
-	/// <typeparam name="TMapper">The type of mapper to register.</typeparam>
-	void RegisterMapper<TMapper>()
+	/// <typeparam name="TMapper">The type of mapper to register. Its public constructors are
+	/// preserved under trimming so the container can activate it.</typeparam>
+	void RegisterMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMapper>()
 		where TMapper : class, IMessageMapper;
 
 	/// <summary>

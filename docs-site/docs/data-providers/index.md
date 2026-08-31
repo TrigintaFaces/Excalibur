@@ -32,6 +32,7 @@ Excalibur provides a **unified data access abstraction** across SQL, document, a
 │  IDb · IUnitOfWork · IDocumentDb                    │
 │  IPersistenceProvider (5 core members)              │
 │    ├─ IPersistenceProviderHealth (via GetService)   │
+│    ├─ IPersistenceProviderConnection (via GetSvc)   │
 │    └─ IPersistenceProviderTransaction (via GetSvc)  │
 │  ISqlPersistenceProvider · IDocumentPersProvider     │
 │  DelegatingPersistenceProvider · Builder             │
@@ -137,38 +138,51 @@ public interface IDataRequest<TConnection, TModel>
 
 ### IPersistenceProvider
 
-Core provider abstraction — focused on data request execution with optional capabilities via sub-interfaces:
+Core provider abstraction — identity and lifecycle, with everything optional reached through `GetService`:
 
 ```csharp
 public interface IPersistenceProvider : IAsyncDisposable, IDisposable
 {
-    string Name { get; }
-    string ProviderType { get; }
-    Task<TResult> ExecuteAsync<TConnection, TResult>(
-        IDataRequest<TConnection, TResult> request,
-        CancellationToken cancellationToken) where TConnection : IDisposable;
+    string Name { get; }        // this configured instance
+    string ProviderType { get; } // the family: "SQL", "Document", "KeyValue"
     Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken);
     object? GetService(Type serviceType) => null; // Escape hatch for sub-interfaces
+}
+```
+
+Executing a data request is one of those optional capabilities, because it requires the store to be
+reachable through an `IDbConnection` — document, key-value and search stores are not:
+
+```csharp
+public interface IDataRequestExecutor
+{
+    Task<TResult> ExecuteAsync<TResult>(
+        IDataRequest<IDbConnection, TResult> request,
+        CancellationToken cancellationToken);
 }
 ```
 
 Optional capabilities are accessed via `GetService(Type)`:
 
 ```csharp
-// Health and diagnostics (health checks, metrics, pool stats)
+// Health and diagnostics (health checks, metrics)
 public interface IPersistenceProviderHealth
 {
     bool IsAvailable { get; }
     Task<bool> TestConnectionAsync(CancellationToken cancellationToken);
     Task<IDictionary<string, object>> GetMetricsAsync(CancellationToken cancellationToken);
-    Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken);
 }
 
-// Transaction coordination (connection string, retry, transactions)
-public interface IPersistenceProviderTransaction
+// How the store is reached, and what happens on transient failure
+public interface IPersistenceProviderConnection
 {
     string ConnectionString { get; }
     IDataRequestRetryPolicy RetryPolicy { get; }
+}
+
+// Ambient multi-statement transactions
+public interface IPersistenceProviderTransaction
+{
     Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
         IDataRequest<TConnection, TResult> request,
         ITransactionScope transactionScope,
@@ -178,6 +192,42 @@ public interface IPersistenceProviderTransaction
         TimeSpan? timeout = null);
 }
 
+```
+
+:::note Connection pool statistics
+
+Pool occupancy is reported by the database drivers themselves, not by this interface. The drivers
+publish it as .NET metrics for the pool your process actually owns — Npgsql emits
+`db.client.connection.count` following the OpenTelemetry database conventions, `Microsoft.Data.SqlClient`
+exposes its pool counters through `Microsoft.Data.SqlClient.EventSource`, and MySqlConnector ships its
+own meter. Subscribe to those with `IMeterFactory` or `dotnet-counters` alongside the rest of your
+telemetry.
+
+A provider cannot report this honestly on its own behalf: the server-side views a query can reach
+(`pg_stat_activity`, `sys.dm_exec_connections`) count every client of that server, including other
+applications, which is a different quantity from your pool's occupancy.
+
+:::
+
+
+Connection metadata and transactions are separate capabilities because the sets of providers that can
+honour them differ. Every provider holding a connection can describe it and describe its retry policy.
+Only stores with an ambient, open-ended transaction model can honour a transaction scope: SQL Server,
+PostgreSQL, MySQL and MongoDB do; the document and key-value providers (Cosmos DB, DynamoDB, Firestore,
+Redis) do not, and decline it.
+
+Declining means `GetService` answers `null`, which is the documented way to say no. A provider will not
+hand you a transaction capability and then throw when you use it, so you can branch on the answer
+before building a workflow around a scope. Stores whose atomicity has a different shape expose it
+through their own surface instead -- for the cloud document providers, `ExecuteBatchAsync`, whose
+signature states the partition-key and write-set constraints that an ambient scope cannot express.
+
+`GetMetricsAsync` must return a dictionary containing a `"Provider"` entry naming the implementation
+that answered, so metrics gathered from several providers can be told apart. Keys are compared
+ordinally, so the casing is part of the contract -- `"provider"` is a different key. Remaining keys are
+provider-specific and use PascalCase by convention.
+
+```csharp
 // Usage:
 var health = provider.GetService(typeof(IPersistenceProviderHealth))
     as IPersistenceProviderHealth;
@@ -316,10 +366,9 @@ Each provider uses sensible defaults for table/collection/container names. You c
 | **SQL Server** | Event Store | `EventStoreEvents` | `EventStoreTable` |
 | **SQL Server** | Snapshots | `EventStoreSnapshots` | `SnapshotStoreTable` |
 | **SQL Server** | Outbox (unified) | `OutboxMessages` | `OutboxTableName` (via `services.AddExcalibur(x => x.AddOutbox(...))`) |
-| **SQL Server** | Schema | `dbo` | `EventStoreSchema` / `SnapshotStoreSchema` / `OutboxSchema` |
-| **PostgreSQL** | Event Store | `event_store_events` | `EventStoreTable` |
+| **SQL Server** | Schema | `dbo` | `EventStoreSchema` / `SnapshotStoreSchema` |
+| **PostgreSQL** | Event Store | `events` | `EventStoreTable` |
 | **PostgreSQL** | Snapshots | `event_store_snapshots` | `SnapshotStoreTable` |
-| **PostgreSQL** | Outbox | `event_sourced_outbox` | `OutboxTable` |
 | **MongoDB** | Snapshots | `snapshots` | `CollectionName` |
 | **Cosmos DB** | Snapshots | `snapshots` | `ContainerName` |
 | **DynamoDB** | Snapshots | `Snapshots` | `TableName` |

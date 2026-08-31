@@ -72,7 +72,9 @@ public interface IInMemoryDataBuilder
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// When enabled, data is persisted to disk on dispose and loaded on initialization.
+	/// When enabled, data is loaded from disk on initialization. Writing is an explicit act:
+	/// call <see cref="Excalibur.Data.InMemory.InMemoryPersistenceProvider.PersistToDiskAsync"/>
+	/// to flush. Disposing the provider does not persist.
 	/// Useful for maintaining state across restarts during development.
 	/// </para>
 	/// </remarks>

@@ -53,3 +53,80 @@ p0-classify.py
 # A generator, not a gate: it renders release notes from git history. It has no --check mode, so
 # there is no verdict for a caller to enforce. If it ever grows one, wire it and delete this line.
 generate-changelog.ps1
+
+# --- conformance-arm census: real reports, not yet wireable without a false failure ---
+# Censuses every shipped conformance kit and reports, per deriver, which arms are not wired to a
+# runner -- a real gap, since an unwired arm never runs and its suite is still green. Its own
+# self-test passes and its findings are accurate.
+#
+# Not wired yet for two reasons, both of which must be resolved together rather than papered over.
+# First, its default mode always exits 0 and its --check mode currently fails on a suite that is
+# CORRECT: a focused tenancy suite deliberately wires 4 of 20 arms alongside a full suite wiring
+# 20 of 20, so a blocking gate would red the build on working code. That needs an explicit
+# opt-out marker on such a suite rather than an inference. Second, this gate reads tests/, and the
+# battery that would host it runs where CI runs; a gate whose inputs are absent there finds nothing
+# and reds the battery for a non-defect, which is the second condition documented on that
+# enumeration. Confirm the input is present before wiring rather than assuming.
+#
+# Recorded here so the meta-gate stays live rather than red. Tracked to closure.
+conformance-arm-census.sh
+
+# The census program behind conformance-arm-skip-gate.sh, which invokes it by name on every run. It is
+# a library, not a gate: it renders no verdict at all -- it emits tab-separated records and the gate
+# decides. There is nothing here for a workflow to enforce, and the enumeration of caller surfaces does
+# not include sibling gate scripts, so the program it is called by cannot register as its caller. Same
+# shape as the doc-surface extractor above. If it ever grows its own verdict, wire it and delete this.
+conformance-arm-skip-census.py
+
+# a real committed-content enforcement gate that currently FAILS (exit 1) on ten live findings: methods
+# that write a durable mark -- a done-flag, a status, a completion timestamp or a past-tense log line --
+# on a path that skipped the work the mark attests. Its --self-test passes with seventeen arms, four of
+# which fail the gate and four of which name the record that fired, so it is non-vacuous today. Wiring it
+# blocking before those ten are dispositioned would red every commit for a defect the tree already
+# carries; wrapping it in `|| true` would convert a genuine FAIL into a false green, which is the exact
+# class this gate exists to detect, committed by its own installation. Baselined as explicit tracked debt
+# until the ten sites either fail loudly when the work did not happen or stop writing the receipt, then
+# wired blocking and both lines here deleted. The census is listed with it because it is unreachable
+# while its only caller is unwired.
+receipt-without-work-gate.sh
+receipt-without-work-census.py
+
+# build-lock.sh is NOT a gate and has no CI caller by design. It is a mutex wrapper agents put in
+# front of their own build and test commands so concurrent work in one tree stops racing bin/obj —
+# it takes a lock, runs whatever it was handed, and passes that command's exit code through
+# unchanged. Nothing invokes it on a schedule because it has no verdict of its own to report.
+#
+# It appears here because this census enumerates every script in eng/ci/ and treats an uncalled one
+# as an orphan gate. That is the correct default: a real gate with no caller is inert, which is the
+# failure this census exists to catch, and loosening the enumeration to recognise "wrappers" would
+# hand every future orphan an excuse. So the category error is recorded here rather than fixed by
+# weakening the detector.
+#
+# If this file ever grows a verdict — an exit code meaning something other than the wrapped
+# command's — it becomes a gate, and this entry must be deleted and the gate wired.
+build-lock.sh
+
+# config-binder-completeness-gate.{sh,py} — REAL gate, deliberately not wired yet, and the
+# reason is cost rather than doubt about its value.
+#
+# What it detects is genuine and silent: the Configuration Binding Source Generator emits
+# BindCore to populate an already-constructed instance (instance.Property = value), which is
+# legal for `set` and illegal for `init` — so for an init-only property it emits NO assignment
+# at all. No diagnostic, no warning, no runtime error: a binder that exists, runs, validates
+# its keys and assigns nothing. That shipped, and cost a P0 whose every signal read green.
+# The gate counts assignments in each generated BindCore against the type's settable-property
+# count and fails on a shortfall. It is proven non-vacuous against a real planted mutant.
+#
+# WHY NOT WIRED: it requires a full build with EmitCompilerGeneratedFiles, and it was measured
+# producing ZERO BYTES of output across two separate 10-minute runs. Its cost is therefore
+# unknown, and a CI step that is silent for ten minutes is indistinguishable from a hung one.
+# Wiring a gate whose runtime nobody has measured, in front of everyone's build, trades one
+# silent failure for another.
+#
+# TO WIRE IT, in order: (1) make it stream progress so a long run is distinguishable from a
+# stuck one, (2) measure its actual runtime to completion, (3) put it where that cost fits —
+# a scheduled or pre-release job rather than per-commit, if that is what the number says.
+# Until then it is a sweep tool that is run deliberately, and this entry says so rather than
+# letting it read as coverage nobody notices is absent.
+config-binder-completeness-gate.sh
+config-binder-completeness-gate.py

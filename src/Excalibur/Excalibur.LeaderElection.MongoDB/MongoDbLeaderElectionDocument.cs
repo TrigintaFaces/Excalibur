@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Excalibur.LeaderElection.MongoDB;
@@ -30,6 +31,7 @@ internal sealed class MongoDbLeaderElectionDocument
 	/// Gets or sets when the lease was acquired.
 	/// </summary>
 	[BsonElement("acquiredAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime AcquiredAt { get; set; }
 
 	/// <summary>
@@ -39,12 +41,14 @@ internal sealed class MongoDbLeaderElectionDocument
 	/// This field has a TTL index so MongoDB automatically removes expired documents.
 	/// </remarks>
 	[BsonElement("expiresAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime ExpiresAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the lease was last renewed.
 	/// </summary>
 	[BsonElement("lastRenewedAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime LastRenewedAt { get; set; }
 
 	/// <summary>

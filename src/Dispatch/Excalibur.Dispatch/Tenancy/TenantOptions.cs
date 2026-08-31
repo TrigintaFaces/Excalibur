@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch;
@@ -10,7 +12,8 @@ namespace Excalibur.Dispatch;
 /// ambient tenant via <see cref="IOptionsMonitor{TOptions}"/>, keyed by the tenant id.
 /// </summary>
 /// <typeparam name="TOptions">The options type.</typeparam>
-internal sealed class TenantOptions<TOptions> : ITenantOptions<TOptions>
+internal sealed class TenantOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>
+	: ITenantOptions<TOptions>
 	where TOptions : class
 {
 	private readonly ITenantContext _tenantContext;

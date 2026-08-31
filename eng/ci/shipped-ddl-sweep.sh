@@ -111,7 +111,11 @@ SHIPPED_DDL_MAP_FILE="${SHIPPED_DDL_MAP_FILE:-}"
 # IsErasedRequest.cs and GetCurrentVersionRequest.cs target Events but do not contain
 # "Event" in the filename, so they are listed explicitly (the glob field is word-split).
 MAP_ROWS=(
-    'outbox|src/Excalibur/Excalibur.Outbox.Postgres/**|outboxTableName|postgres outbox'
+    # The docs spell these schema-qualified (public.outbox); the write path and the older docs
+    # spell them bare. Matching is anchored (^re$), so an unqualified pattern silently stops
+    # matching the moment a doc gains its schema prefix -- which is how these three entered the
+    # REFUSE set as 'NEW gaps' without any schema actually changing. Accept either spelling.
+    '(public[.])?outbox|src/Excalibur/Excalibur.Outbox.Postgres/**|outboxTableName|postgres outbox'
     'dbo[.]OutboxMessages|src/Excalibur/Excalibur.Outbox.SqlServer/Requests/*Outbox*.cs|tableName|sqlserver outbox'
     # The fence is a SEPARATE control table from OutboxMessages, written through its OWN variable
     # (fenceTableName) by exactly ONE file. Scoped to that file deliberately: a `Requests/*Outbox*.cs`
@@ -145,8 +149,8 @@ MAP_ROWS=(
     'dbo[.]inbox_messages|src/Excalibur/Excalibur.Inbox.SqlServer/SqlServerInboxStore.cs|_options[.]QualifiedTableName|sqlserver inbox'
     'dbo[.]DeadLetterQueue|src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs|_options[.]QualifiedTableName|sqlserver dead-letter queue'
     'dbo[.]OutboxMessageTransports|src/Excalibur/Excalibur.Outbox.SqlServer/Requests/*Transport*.cs|tableName|sqlserver outbox transports'
-    'outbox_dead_letters|src/Excalibur/Excalibur.Outbox.Postgres/**|deadLetterTableName|postgres dead-letter'
-    'outbox_fence|src/Excalibur/Excalibur.Outbox.Postgres/**|fenceTableName|postgres outbox fence'
+    '(public[.])?outbox_dead_letters|src/Excalibur/Excalibur.Outbox.Postgres/**|deadLetterTableName|postgres dead-letter'
+    '(public[.])?outbox_fence|src/Excalibur/Excalibur.Outbox.Postgres/**|fenceTableName|postgres outbox fence'
 
     # ── audit / compliance / data-access / cdc ────────────────────────────────────────────
     'audit[.]AuditEvents|src/Excalibur/Excalibur.AuditLogging.SqlServer/SqlServerAuditStore.cs|_options[.]FullyQualifiedTableName|sqlserver audit events'

@@ -18,6 +18,7 @@ using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -50,17 +51,18 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull).
-		services.AddTenantScopedStore<IEventStore, SqlServerEventStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably.
+		services.AddTenantAwareStore<IEventStore, SqlServerEventStore>(sp =>
 			new SqlServerEventStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>(),
-				schema,
-				table,
-				tenantContext));
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				internalSerializer: sp.GetService<ISerializer>(),
+				payloadSerializer: sp.GetService<IPayloadSerializer>(),
+				schema: schema,
+				table: table,
+				eventTypeInfoResolver: sp.GetService<IOptions<SqlServerEventSourcingOptions>>()?.Value.EventTypeInfoResolver));
 
 		RegisterEventStoreTelemetryWrapper(services);
 
@@ -146,22 +148,26 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		string schema = "dbo",
 		string table = "EventStoreSnapshots")
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
-		services.TryAddSingleton(sp =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably, the same
+		// way the event store above is registered. A bare TryAddSingleton here registered a store that
+		// honors the ambient tenant while attesting nothing, so RowDiscriminator rejected a snapshot store
+		// that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, SqlServerSnapshotStore>(sp =>
 			new SqlServerSnapshotStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
-				schema,
-				table,
-				// Resolve the ambient tenant context. Omitting it left the store's optional parameter at
-				// null, so TenantScope.FromContext(null) returned None and EVERY tenant's snapshot was
-				// written under the reserved untenanted sentinel -- one row per aggregate id shared across
-				// all tenants, so a later tenant's save silently overwrote an earlier tenant's snapshot.
-				// GetService, not GetRequiredService: single-tenant hosts register no ITenantContext and
-				// must keep working, and that case is the untenanted scope by design.
-				sp.GetService<ITenantContext>()));
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				schema: schema,
+				table: table));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
 
@@ -398,10 +404,16 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
+		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves
+		// for a host that never registered multi-tenancy. A multi-tenant host registers its own first and
+		// TryAdd leaves it alone.
+		services.AddDefaultTenantContext();
+
 		services.TryAddSingleton<IMaterializedViewStore>(sp =>
 			new SqlServerMaterializedViewStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
+				sp.GetRequiredService<ITenantContext>(),
 				viewTableName,
 				positionTableName));
 
@@ -531,17 +543,18 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull).
-		services.AddTenantScopedStore<IEventStore, SqlServerEventStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably.
+		services.AddTenantAwareStore<IEventStore, SqlServerEventStore>(sp =>
 			new SqlServerEventStore(
 				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>(),
-				schema,
-				table,
-				tenantContext));
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				internalSerializer: sp.GetService<ISerializer>(),
+				payloadSerializer: sp.GetService<IPayloadSerializer>(),
+				schema: schema,
+				table: table,
+				eventTypeInfoResolver: sp.GetService<IOptions<SqlServerEventSourcingOptions>>()?.Value.EventTypeInfoResolver));
 
 		RegisterEventStoreTelemetryWrapper(services);
 
@@ -562,17 +575,23 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		string table = "EventStoreSnapshots")
 		where TDb : class, Excalibur.Data.IDb
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton(sp =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably, matching
+		// the connection-factory overload and the event store on this same typed-IDb path.
+		_ = services.AddTenantAwareStore<ISnapshotStore, SqlServerSnapshotStore>(sp =>
 			new SqlServerSnapshotStore(
 				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
-				schema,
-				table,
-				// See the sibling registration above: omitting this collapsed every tenant onto the
-				// untenanted sentinel and allowed cross-tenant snapshot overwrites.
-				sp.GetService<ITenantContext>()));
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				schema: schema,
+				table: table));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
 
@@ -617,8 +636,13 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 
 	internal static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
-		// NOTE: the ITenantScopingCapability<IEventStore> marker is emitted by AddTenantScopedStore at each
-		// concrete SqlServerEventStore registration, inseparably from the store wiring (S886 rw2ull) — not
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
+		// NOTE: the ITenantScopingCapability<IEventStore> marker is emitted by AddTenantAwareStore at each
+		// concrete SqlServerEventStore registration, inseparably from the store wiring — not
 		// here, where it was decoupled from the store that must honor the tenant.
 		services.AddKeyedSingleton<IEventStore>("sqlserver", (sp, _) =>
 		{

@@ -12,31 +12,4 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus;
 /// </summary>
 public static class AzureEventHubsTransportBuilderExtensions
 {
-	/// <summary>Sets the consumer group name.</summary>
-	public static IAzureEventHubsTransportBuilder ConsumerGroup(this IAzureEventHubsTransportBuilder builder, string consumerGroup)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return ((AzureEventHubsTransportBuilder)builder).ConsumerGroup(consumerGroup);
-	}
-
-	/// <summary>Sets the prefetch count for receivers.</summary>
-	public static IAzureEventHubsTransportBuilder PrefetchCount(this IAzureEventHubsTransportBuilder builder, int prefetchCount)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return ((AzureEventHubsTransportBuilder)builder).PrefetchCount(prefetchCount);
-	}
-
-	/// <summary>Sets the maximum batch size for batch operations.</summary>
-	public static IAzureEventHubsTransportBuilder MaxBatchSize(this IAzureEventHubsTransportBuilder builder, int maxBatchSize)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return ((AzureEventHubsTransportBuilder)builder).MaxBatchSize(maxBatchSize);
-	}
-
-	/// <summary>Sets the starting position for event processing.</summary>
-	public static IAzureEventHubsTransportBuilder StartingPosition(this IAzureEventHubsTransportBuilder builder, EventHubStartingPosition startingPosition)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return ((AzureEventHubsTransportBuilder)builder).StartingPosition(startingPosition);
-	}
 }

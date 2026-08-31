@@ -56,14 +56,11 @@ app.Run();
 ```csharp title="Excalibur.Dispatch"
 var builder = Host.CreateApplicationBuilder();
 
-// Azure Storage Queue - fluent builder with polling, visibility timeout, DLQ
+// Azure Storage Queue - fluent builder
 builder.Services.AddAzureStorageQueueTransport("orders", sq =>
 {
     sq.ConnectionString(builder.Configuration["AzureStorage:ConnectionString"]!)
-      .QueueName("orders")
-      .PollingInterval(TimeSpan.FromSeconds(1))
-      .MaxConcurrentMessages(10)
-      .EnableDeadLetterQueue("orders-dlq", maxDequeueCount: 3);
+      .QueueName("orders");
 });
 
 // Cron timer - scheduled message generation with typed routing

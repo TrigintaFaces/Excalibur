@@ -279,7 +279,7 @@ public sealed class MySqlPersistenceProviderShould
 	{
 		using var provider = CreateProvider();
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			provider.ExecuteAsync<System.IDisposable, int>(null!, CancellationToken.None));
+			provider.ExecuteAsync<int>(null!, CancellationToken.None));
 	}
 
 	[Fact]
@@ -288,7 +288,7 @@ public sealed class MySqlPersistenceProviderShould
 		var provider = CreateProvider();
 		await provider.DisposeAsync();
 
-		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.Data.IDbConnection, int>>();
 		await Should.ThrowAsync<ObjectDisposedException>(() =>
 			provider.ExecuteAsync(request, CancellationToken.None));
 	}
@@ -387,20 +387,6 @@ public sealed class MySqlPersistenceProviderShould
 	}
 
 	[Fact]
-	public async Task GetConnectionPoolStatsAsync_ReturnsNullWhenConnectionFails()
-	{
-		using var provider = CreateProvider(options =>
-		{
-			options.ConnectionString = "Server=127.0.0.1;Port=1;Database=test;User ID=test;Password=test;";
-			options.ConnectTimeout = 1;
-			options.MaxRetryCount = 0;
-		});
-
-		var stats = await provider.GetConnectionPoolStatsAsync(CancellationToken.None);
-		stats.ShouldBeNull();
-	}
-
-	[Fact]
 	public async Task InitializeAsync_ThrowsWhenConnectionTestFails()
 	{
 		using var provider = CreateProvider(options =>
@@ -425,8 +411,8 @@ public sealed class MySqlPersistenceProviderShould
 			options.MaxRetryCount = 0;
 		});
 
-		var request = A.Fake<Excalibur.Data.IDataRequest<System.IDisposable, int>>();
-		A.CallTo(() => request.ResolveAsync).Returns(new Func<System.IDisposable, Task<int>>(_ => Task.FromResult(1)));
+		var request = A.Fake<Excalibur.Data.IDataRequest<System.Data.IDbConnection, int>>();
+		A.CallTo(() => request.ResolveAsync).Returns(new Func<System.Data.IDbConnection, Task<int>>(_ => Task.FromResult(1)));
 
 		await Should.ThrowAsync<Exception>(() =>
 			provider.ExecuteAsync(request, CancellationToken.None));

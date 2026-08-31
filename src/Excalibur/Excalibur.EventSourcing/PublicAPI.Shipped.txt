@@ -65,7 +65,6 @@ Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder
 Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder.EnableAutoUpgradeOnLoad(bool enable = true) -> Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!
 Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder.RegisterUpgrader(Excalibur.EventSourcing.ISnapshotUpgrader! upgrader) -> Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!
 Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder.SetCurrentVersion(int version) -> Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!
-Excalibur.EventSourcing.Diagnostics.EventSourcingEventId
 Excalibur.EventSourcing.Diagnostics.EventStoreThroughputMetrics
 Excalibur.EventSourcing.Diagnostics.EventStoreThroughputMetrics.EventStoreThroughputMetrics(Excalibur.EventSourcing.IEventStore! inner, System.Diagnostics.Metrics.Meter! meter, string! providerName) -> void
 Excalibur.EventSourcing.Diagnostics.MaterializedViewMetrics
@@ -83,19 +82,9 @@ Excalibur.EventSourcing.Diagnostics.TelemetryEventStore.TelemetryEventStore(Exca
 Excalibur.EventSourcing.Diagnostics.TelemetrySnapshotStore
 Excalibur.EventSourcing.Diagnostics.TelemetrySnapshotStore.TelemetrySnapshotStore(Excalibur.EventSourcing.ISnapshotStore! inner, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource, string! providerName) -> void
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.EncryptingEventStoreDecorator(Excalibur.EventSourcing.IEventStore! inner, Excalibur.Compliance.IEncryptionProviderRegistry! registry, Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor! subjectFieldCryptor, Excalibur.Dispatch.IEventSerializer! eventSerializer, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Configuration.EncryptionOptions!>! options) -> void
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.EncryptingProjectionStoreDecorator(Excalibur.EventSourcing.IProjectionStore<TProjection!>! inner, Excalibur.Compliance.IEncryptionProviderRegistry! registry, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Configuration.EncryptionOptions!>! options) -> void
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Erasure.AggregateReference
 Excalibur.EventSourcing.Erasure.AggregateReference.AggregateId.get -> string!
 Excalibur.EventSourcing.Erasure.AggregateReference.AggregateId.init -> void
@@ -109,12 +98,6 @@ Excalibur.EventSourcing.Erasure.EventStoreErasureContributor.EventStoreErasureCo
 Excalibur.EventSourcing.Erasure.EventStoreErasureContributor.Name.get -> string!
 Excalibur.EventSourcing.Erasure.IAggregateDataSubjectMapping
 Excalibur.EventSourcing.Erasure.IAggregateDataSubjectMapping.GetAggregatesForDataSubjectAsync(string! dataSubjectIdHash, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Erasure.AggregateReference!>!>!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.AggregateId.get -> string!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.AggregateType.get -> string!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.CommittedVersion.get -> long
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.FailedProjectionType.get -> System.Type!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.InlineProjectionException(long committedVersion, string! aggregateId, string! aggregateType, System.Type! failedProjectionType, System.Exception! innerException) -> void
 Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions
 Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.FailureRateThresholdPercent.get -> double
 Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.FailureRateThresholdPercent.set -> void
@@ -296,9 +279,6 @@ Excalibur.EventSourcing.Queries.GlobalStreamPosition.Position.get -> long
 Excalibur.EventSourcing.Queries.GlobalStreamPosition.Position.init -> void
 Excalibur.EventSourcing.Queries.GlobalStreamPosition.Timestamp.get -> System.DateTimeOffset
 Excalibur.EventSourcing.Queries.GlobalStreamPosition.Timestamp.init -> void
-Excalibur.EventSourcing.Queries.ICategoryStreamQuery
-Excalibur.EventSourcing.Queries.ICategoryStreamQuery.GetCategoriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
-Excalibur.EventSourcing.Queries.ICategoryStreamQuery.ReadCategoryAsync(string! category, long fromPosition, int maxCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>!
 Excalibur.EventSourcing.Queries.IGlobalStreamQuery
 Excalibur.EventSourcing.Queries.IGlobalStreamQuery.GetHeadPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 Excalibur.EventSourcing.Queries.IGlobalStreamQuery.ReadAllAsync(Excalibur.EventSourcing.Queries.GlobalStreamPosition! position, int maxCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
@@ -331,12 +311,7 @@ Excalibur.EventSourcing.Sharding.ShardMapOptionsValidator.Validate(string? name,
 Excalibur.EventSourcing.Sharding.TenantScopedEventStore
 Excalibur.EventSourcing.Sharding.TenantScopedEventStore.TenantScopedEventStore(Excalibur.EventSourcing.IEventStore! inner, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
 Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>
-Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
 Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.TenantScopedProjectionStore(Excalibur.EventSourcing.IProjectionStore<TProjection!>! inner, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
-Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Sharding.TenantScopedSagaStore
 Excalibur.EventSourcing.Sharding.TenantScopedSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
 Excalibur.EventSourcing.Sharding.TenantScopedSagaStore.PurgeAllTenantsCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -563,122 +538,6 @@ abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.EventType.g
 abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.FromVersion.get -> int
 abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.ToVersion.get -> int
 abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.UpgradeEvent(TFrom! oldEvent) -> TTo!
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateCreated = 111004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateHydrated = 111102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateLoaded = 111001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateNotFound = 111003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateRepositoryCreated = 111000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateSaved = 111002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateStateReconstructed = 111103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateVersionChecked = 111005 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionBatchProcessed = 113202 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionCheckpointSaved = 113203 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionDispatchError = 113207 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionEventError = 113204 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostError = 113205 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStarted = 113200 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionHostStopped = 113201 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AsyncProjectionNoGlobalStreamQuery = 113206 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreAppendingEvents = 114300 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreConcurrencyConflict = 114302 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreEventsAppended = 114301 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreInitializing = 114304 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLargeAppendChunked = 114306 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLoadedEvents = 114305 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLoadingEvents = 114303 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ConcurrencyConflict = 111104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CosmosDbEventStoreCreated = 110101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DomainEventApplied = 111100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DomainEventsCleared = 111101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DynamoDbEventStoreCreated = 110102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateAlreadyErased = 114503 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateCompleted = 114504 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateFailed = 114506 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregatesResolved = 114502 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureContributorCompleted = 114507 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureContributorStarting = 114500 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureNoAggregatesFound = 114501 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureSnapshotsDeleted = 114505 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventDeserialized = 110201 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrated = 114102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationCompleted = 114101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationFailed = 114103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationStarted = 114100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventSerializationFailed = 110202 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventSerialized = 110200 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventStoreCreated = 110000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventTypeResolved = 110203 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpcasted = 114001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpgraderRegistered = 114200 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpgrading = 114201 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventsAppended = 110001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventsLoaded = 110002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.FirestoreEventStoreCreated = 110103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.GlobalPositionRetrieved = 110006 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.InMemoryEventStoreCreated = 110104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationApplied = 114404 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationCompleted = 114402 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationFailed = 114403 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationHistoryCreated = 114413 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockAcquired = 114410 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockFailed = 114412 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockReleased = 114411 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationStarted = 114401 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigratorCreated = 114400 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.NoPendingMigrations = 114415 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.PendingMigrationsFound = 114414 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionBatchProcessed = 113104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionBehind = 113102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionCaughtUp = 113101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionCheckpointSaved = 113004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionError = 113103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionEventProcessed = 113003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionManagerCreated = 113000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildAlreadyInProgress = 113108 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildEventError = 113105 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildNoStore = 113107 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildPersisted = 113106 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuilt = 113100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStarted = 113001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStopped = 113002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackCompleted = 114406 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackFailed = 114407 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackStarted = 114405 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SchemaVersionUpdated = 114104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotCreationTriggered = 112102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotDeleted = 112004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotLoaded = 112002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotNotFound = 112003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotSaved = 112001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotSkipped = 112103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotStoreCreated = 112000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotStrategyEvaluated = 112100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotThresholdReached = 112101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotUpgraderRegistered = 114250 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotUpgrading = 114251 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SqlServerEventStoreCreated = 110100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamCreated = 110003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamDeleted = 110005 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamRead = 110004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionDeserializationFailed = 114604 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionEventsDelivered = 114602 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionPollingError = 114603 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionStarted = 114600 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionStopped = 114601 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterChainExecuted = 114002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistered = 114003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistryCreated = 114000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcastingSkipped = 114004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorBatchProcessed = 113301 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorBuilderRegistered = 113308 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorCatchUpCompleted = 113305 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorCatchUpStarting = 113304 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorEventError = 113306 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorEventProcessed = 113300 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorRebuildCompleted = 113303 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorRebuildStarting = 113302 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorRoutingMapsBuilt = 113309 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ViewProcessorViewNotFound = 113307 -> int
 const Excalibur.EventSourcing.Diagnostics.MaterializedViewMetrics.MeterName = "Excalibur.EventSourcing.MaterializedViews" -> string!
 const Excalibur.EventSourcing.Observability.EventSourcingActivities.Append = "EventStore.Append" -> string!
 const Excalibur.EventSourcing.Observability.EventSourcingActivities.DeleteSnapshots = "SnapshotStore.Delete" -> string!
@@ -822,3 +681,49 @@ virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.DeleteSnapsho
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+abstract Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+abstract Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+abstract Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Decorators.EventStoreCapabilityView
+Excalibur.EventSourcing.Decorators.EventStoreCapabilityView.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
+Excalibur.EventSourcing.Decorators.EventStoreCapabilityView.EventStoreCapabilityView(Excalibur.EventSourcing.IEventStore! outer) -> void
+Excalibur.EventSourcing.Decorators.EventStoreCapabilityView.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
+Excalibur.EventSourcing.Decorators.EventStoreCapabilityView.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
+Excalibur.EventSourcing.Decorators.EventStoreCapabilityView.Outer.get -> Excalibur.EventSourcing.IEventStore!
+Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator
+Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.IsolatingEventStoreDecorator(Excalibur.EventSourcing.IEventStore! inner) -> void
+Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>
+Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.GetService(System.Type! serviceType) -> object?
+Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.Inner.get -> Excalibur.EventSourcing.IProjectionStore<TProjection!>!
+Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.IsolatingProjectionStoreDecorator(Excalibur.EventSourcing.IProjectionStore<TProjection!>! inner) -> void
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.Outer.get -> Excalibur.EventSourcing.IProjectionStore<TProjection!>!
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.ProjectionStoreCapabilityView(Excalibur.EventSourcing.IProjectionStore<TProjection!>! outer) -> void
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.EventSourcing.Decorators.ProjectionStoreCapabilityView<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate>.EventSourcedRepository(Excalibur.EventSourcing.IEventStore! eventStore, Excalibur.Dispatch.IEventSerializer! eventSerializer, System.Func<string!, TAggregate!>! aggregateFactory, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions!>! options, Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.EventSourcing.AutoSnapshotOptions!>? autoSnapshotOptions = null, Excalibur.Dispatch.IUpcastingPipeline? upcastingPipeline = null, Excalibur.EventSourcing.ISnapshotManager? snapshotManager = null, Excalibur.EventSourcing.ISnapshotStrategy? snapshotStrategy = null, Excalibur.Dispatch.ITransactionalOutboxWriter? transactionalOutboxWriter = null, Excalibur.Dispatch.IOutboxStore? outboxStore = null, Excalibur.EventSourcing.Snapshots.SnapshotVersionManager? snapshotVersionManager = null, Excalibur.EventSourcing.IEventNotificationBroker? eventNotificationBroker = null, System.TimeProvider? timeProvider = null, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate!, string!>!>? logger = null) -> void
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+override Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+override Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+override Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+override Excalibur.EventSourcing.Sharding.TenantScopedProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override sealed Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.GetService(System.Type! serviceType) -> object?
+virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.GetService(System.Type! serviceType) -> object?
+virtual Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.ForwardableCapabilities.get -> System.Collections.Generic.IReadOnlySet<System.Type!>!
+virtual Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.WrapCapability(System.Type! serviceType) -> object?
+virtual Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.WrapCapability(System.Type! serviceType) -> object?

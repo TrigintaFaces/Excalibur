@@ -38,7 +38,15 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 	private readonly ILogger<SqlServerSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
 	private readonly SqlServerSagaStoreOptions _options;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerSagaStore"/> class.
@@ -47,11 +55,9 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
-	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
-	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
-	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
-	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
@@ -62,7 +68,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		string connectionString,
 		ILogger<SqlServerSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString),
 			new SqlServerSagaStoreOptions(),
 			logger,
@@ -79,18 +85,16 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
-	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
-	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
-	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
-	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public SqlServerSagaStore(
 		string connectionString,
 		IOptions<SqlServerSagaStoreOptions> options,
 		ILogger<SqlServerSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString),
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
@@ -109,11 +113,9 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
-	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
-	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
-	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
-	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// <para>
@@ -138,7 +140,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(connectionFactory,
 			new SqlServerSagaStoreOptions(),
 			logger,
@@ -158,18 +160,16 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
-	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
-	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
-	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
-	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public SqlServerSagaStore(
 		Func<SqlConnection> connectionFactory,
 		IOptions<SqlServerSagaStoreOptions> options,
 		ILogger<SqlServerSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(connectionFactory,
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
@@ -183,13 +183,14 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		SqlServerSagaStoreOptions options,
 		ILogger<SqlServerSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_options.Validate();
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -205,7 +206,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 					sagaId,
 					_serializer,
 					_options.QualifiedTableName,
-					TenantScope.FromContext(_tenantContext),
+					CurrentTenantScope,
 					cancellationToken))
 			.ConfigureAwait(false);
 
@@ -233,7 +234,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 					sagaState,
 					_serializer,
 					_options.QualifiedTableName,
-					TenantScope.FromContext(_tenantContext),
+					CurrentTenantScope,
 					cancellationToken))
 			.ConfigureAwait(false);
 
@@ -241,14 +242,14 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		{
 			// The version-gated MERGE matched no row: the persisted Version no longer equals the expected
 			// (loaded) version, i.e. a concurrent handler advanced this saga between our load and save.
-			// Surface it as a ConcurrencyException instead of silently losing the write (bd-eszc06).
+			// Surface it as a ConcurrencyException instead of silently losing the write.
 			var expectedVersion = sagaState.Version;
 			var current = await connection.ResolveAsync(
 					new LoadSagaRequest<TSagaState>(
 						sagaState.SagaId,
 						_serializer,
 						_options.QualifiedTableName,
-						TenantScope.FromContext(_tenantContext),
+						CurrentTenantScope,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -259,7 +260,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 				current?.Version ?? -1L);
 		}
 
-		// Optimistic-concurrency write-back (EF-style; store-owns-increment, bd-eszc06): on a successful save,
+		// Optimistic-concurrency write-back (EF-style; store-owns-increment,): on a successful save,
 		// advance the in-memory token to the persisted version so a subsequent save on the SAME object
 		// (create -> save -> mutate -> save) uses the new loaded version rather than re-conflicting on the stale one.
 		sagaState.Version += 1;
@@ -283,7 +284,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 					threshold,
 					_options.QualifiedTableName,
 					cancellationToken,
-					TenantScope.FromContext(_tenantContext)))
+					CurrentTenantScope))
 			.ConfigureAwait(false);
 
 		_logger.LogDebug("Purged {Count} completed sagas older than {Threshold}", removed, threshold);
@@ -322,7 +323,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new QuerySagaSummariesRequest(filter, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new QuerySagaSummariesRequest(filter, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 	}
 
@@ -333,7 +334,7 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new GetSagaSummaryRequest(sagaId, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new GetSagaSummaryRequest(sagaId, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 	}
 
@@ -344,7 +345,21 @@ public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new GetSagaStatisticsRequest(_options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new GetSagaStatisticsRequest(_options.QualifiedTableName, CurrentTenantScope, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<SagaStoreStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// No tenant discriminator: this counts every tenant's sagas. The ambient scope is passed through
+		// unchanged and deliberately ignored by the request when allTenants is set -- the estate-wide intent
+		// is spelled at the call site, never reached by an absent or permissive scope.
+		return await connection.ResolveAsync(
+				new GetSagaStatisticsRequest(_options.QualifiedTableName, CurrentTenantScope, cancellationToken, allTenants: true))
 			.ConfigureAwait(false);
 	}
 

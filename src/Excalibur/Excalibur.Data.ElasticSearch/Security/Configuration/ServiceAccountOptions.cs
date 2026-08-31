@@ -20,22 +20,4 @@ public sealed class ServiceAccountOptions
 	/// </summary>
 	/// <value> The unique identifier for the service account. </value>
 	public string? AccountId { get; init; }
-
-	/// <summary>
-	/// Gets the service account Excalibur.Dispatch.Transport.Aws.Advanced.SessionManagement.
-	/// </summary>
-	/// <value> The namespace or tenant scope for the service account. </value>
-	public string? Namespace { get; init; }
-
-	/// <summary>
-	/// Gets the token expiration time.
-	/// </summary>
-	/// <value> The maximum lifetime for service account tokens. Defaults to 1 hour. </value>
-	public TimeSpan TokenExpiration { get; init; } = TimeSpan.FromHours(1);
-
-	/// <summary>
-	/// Gets the token refresh threshold.
-	/// </summary>
-	/// <value> The time before expiration to refresh the token. Defaults to 10 minutes. </value>
-	public TimeSpan RefreshThreshold { get; init; } = TimeSpan.FromMinutes(10);
 }

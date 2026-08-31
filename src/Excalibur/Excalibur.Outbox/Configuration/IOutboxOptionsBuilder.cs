@@ -37,7 +37,7 @@ namespace Excalibur.Outbox;
 ///     .Build();
 /// </code>
 /// </example>
-public interface IOutboxOptionsBuilder : IOutboxOptionsCoreBuilder, IOutboxOptionsReliabilityBuilder
+internal interface IOutboxOptionsBuilder : IOutboxOptionsCoreBuilder, IOutboxOptionsReliabilityBuilder
 {
 	/// <summary>
 	/// Builds the immutable <see cref="OutboxOptions"/> instance.

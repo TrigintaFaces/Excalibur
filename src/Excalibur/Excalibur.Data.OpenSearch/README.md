@@ -13,3 +13,15 @@ services.AddOpenSearchProjectionStore<OrderSummary>(options =>
 ```
 
 Each projection type gets a dedicated OpenSearch index (`{prefix}-{typename}`).
+
+## Index state management
+
+Opt in with `AddOpenSearchIndexManagement()` after registering a client. It makes
+`IIndexLifecycleManager` (ISM policies), `IIndexTemplateManager`, `IIndexOperationsManager` and
+`IIndexAliasManager` resolvable from the container.
+
+```csharp
+services.AddOpenSearchServices("https://localhost:9200");
+services.AddOpenSearchIndexManagement();
+```
+

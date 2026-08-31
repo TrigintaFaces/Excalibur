@@ -12,6 +12,7 @@ using Amazon.SQS.Model;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ObjectPool;
 
 namespace Excalibur.Dispatch.Transport.Aws;
 
@@ -43,10 +44,10 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 	/// <summary>
 	/// Object pools.
 	/// </summary>
-	private readonly SimpleObjectPool<ReceiveMessageRequest> _receiveRequestPool;
+	private readonly ObjectPool<ReceiveMessageRequest> _receiveRequestPool;
 
-	private readonly SimpleObjectPool<SendMessageBatchRequest> _sendRequestPool;
-	private readonly SimpleObjectPool<DeleteMessageBatchRequest> _deleteRequestPool;
+	private readonly ObjectPool<SendMessageBatchRequest> _sendRequestPool;
+	private readonly ObjectPool<DeleteMessageBatchRequest> _deleteRequestPool;
 
 	// Metrics
 
@@ -75,7 +76,7 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 		_sendSemaphore = new SemaphoreSlim(_options.MaxConcurrentSendBatches);
 
 		// Initialize object pools
-		_receiveRequestPool = new SimpleObjectPool<ReceiveMessageRequest>(
+		_receiveRequestPool = new DefaultObjectPool<ReceiveMessageRequest>(new DelegatePooledObjectPolicy<ReceiveMessageRequest>(
 			() => new ReceiveMessageRequest
 			{
 				QueueUrl = _options.QueueUrl?.ToString() ?? throw new InvalidOperationException("Queue URL is not configured"),
@@ -85,21 +86,21 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 				MessageSystemAttributeNames = ["All"],
 				MessageAttributeNames = ["All"],
 			},
-			_ => { });
+			_ => { }));
 
-		_sendRequestPool = new SimpleObjectPool<SendMessageBatchRequest>(
+		_sendRequestPool = new DefaultObjectPool<SendMessageBatchRequest>(new DelegatePooledObjectPolicy<SendMessageBatchRequest>(
 			() => new SendMessageBatchRequest
 			{
 				QueueUrl = _options.QueueUrl?.ToString() ?? throw new InvalidOperationException("Queue URL is not configured"),
 			},
-			request => request.Entries.Clear());
+			request => request.Entries.Clear()));
 
-		_deleteRequestPool = new SimpleObjectPool<DeleteMessageBatchRequest>(
+		_deleteRequestPool = new DefaultObjectPool<DeleteMessageBatchRequest>(new DelegatePooledObjectPolicy<DeleteMessageBatchRequest>(
 			() => new DeleteMessageBatchRequest
 			{
 				QueueUrl = _options.QueueUrl?.ToString() ?? throw new InvalidOperationException("Queue URL is not configured"),
 			},
-			request => request.Entries.Clear());
+			request => request.Entries.Clear()));
 
 		// Initialize metrics
 		Metrics = new BatchProcessorMetrics();
@@ -130,7 +131,7 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 
 		try
 		{
-			var request = _receiveRequestPool.Rent();
+			var request = _receiveRequestPool.Get();
 
 			try
 			{
@@ -272,7 +273,7 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 
 	private async Task SendBatchInternalAsync(List<SendMessageRequest> messages, CancellationToken cancellationToken)
 	{
-		var request = _sendRequestPool.Rent();
+		var request = _sendRequestPool.Get();
 
 		try
 		{
@@ -317,7 +318,7 @@ internal sealed class SqsBatchProcessor : IAsyncDisposable
 
 	private async Task DeleteBatchInternalAsync(List<DeleteMessageRequest> messages, CancellationToken cancellationToken)
 	{
-		var request = _deleteRequestPool.Rent();
+		var request = _deleteRequestPool.Get();
 
 		try
 		{

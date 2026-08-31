@@ -11,7 +11,7 @@ Demonstrates all capabilities of the `Excalibur.Data.MySql` package.
 | **Connection Pooling** | `MySqlPoolingOptions` -- min/max pool size, enable/disable, clear-on-dispose |
 | **SSL Configuration** | `UseSsl` option sets `MySqlSslMode.Required` on the connection |
 | **Retry Policy** | Polly-based exponential backoff for transient MySQL errors (deadlock, timeout, connection lost) |
-| **Health Check** | `IPersistenceProviderHealth` -- connection test, server metrics, pool statistics |
+| **Health Check** | `IPersistenceProviderHealth` -- connection test, server metrics, provider metrics |
 | **Transaction Support** | `IPersistenceProviderTransaction` -- `CreateTransactionScope` with isolation level and timeout |
 
 ## Prerequisites

@@ -55,7 +55,12 @@ public sealed class ManualArchiveRunner
 		_hotStore = hotStore;
 		_coldStore = coldStore;
 		_policyMonitor = policyMonitor;
-		_tenant = KeyedTenantPartition.FromContext(tenantContext);
+		// No ambient context means this host is not multi-tenant, so every archived row belongs to the
+		// reserved untenanted partition. The framework will not make that call for you: the conversion
+		// requires a context, so the fallback is written here where it can be seen and reviewed.
+		_tenant = tenantContext is null
+			? KeyedTenantPartition.Untenanted
+			: KeyedTenantPartition.FromContext(tenantContext);
 		_logger = logger;
 	}
 

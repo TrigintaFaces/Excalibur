@@ -26,6 +26,8 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 	private readonly IMeterFactory _meterFactory = new TestMeterFactory();
 	private readonly IMemoryCache _fakeMemoryCache = A.Fake<IMemoryCache>();
 	private readonly HybridCache _fakeHybridCache = A.Fake<HybridCache>();
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "This fake is never handed to the middleware under test, so no test in this class exercises tag-based invalidation through the tracker. Held until one injects it.")]
 	private readonly ICacheTagTracker _fakeTagTracker = A.Fake<ICacheTagTracker>();
 	private readonly ICacheKeyBuilder _keyBuilder = A.Fake<ICacheKeyBuilder>();
 

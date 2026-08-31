@@ -90,7 +90,7 @@ public sealed class MediatRUsingDirectiveCodeFixProvider : CodeFixProvider
 		SyntaxNode newRoot;
 		if (compatAlreadyImported)
 		{
-			// Avoid a duplicate import: drop the now-redundant 'using MediatR;' (EC-8).
+			// Avoid a duplicate import: drop the now-redundant 'using MediatR;'.
 			newRoot = root.RemoveNode(usingDirective, SyntaxRemoveOptions.KeepNoTrivia)!;
 		}
 		else

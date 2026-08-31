@@ -191,15 +191,19 @@ public sealed class DynamoDbPersistenceProviderShould : UnitTestBase
 		provider.IsAvailable.ShouldBeFalse();
 	}
 
+	/// <summary>
+	/// A client supplied by the consumer belongs to the consumer. Disposing the provider must leave it
+	/// usable, or every other holder of that shared instance is broken by our disposal.
+	/// </summary>
 	[Fact]
-	public async Task DisposeAsync_WithClient_DisposesClient()
+	public async Task DisposeAsync_WithConsumerSuppliedClient_DoesNotDisposeClient()
 	{
 		var fakeClient = A.Fake<IAmazonDynamoDB>();
 		var provider = new DynamoDbPersistenceProvider(fakeClient, _validOptions, _logger);
 
 		await provider.DisposeAsync().ConfigureAwait(false);
 
-		A.CallTo(() => fakeClient.Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => fakeClient.Dispose()).MustNotHaveHappened();
 	}
 
 	#endregion Dispose Tests
@@ -236,12 +240,26 @@ public sealed class DynamoDbPersistenceProviderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void GetService_WithTransactionType_ReturnsSelf()
+	public void GetService_WithTransactionType_ReturnsNull()
 	{
 		var fakeClient = A.Fake<IAmazonDynamoDB>();
 		var provider = new DynamoDbPersistenceProvider(fakeClient, _validOptions, _logger);
 
 		var service = provider.GetService(typeof(IPersistenceProviderTransaction));
+
+		service.ShouldBeNull(
+			"DynamoDB cannot honour an ambient transaction scope, so it declines the capability at "
+			+ "discovery. Advertising it and throwing at the point of use tells the caller only after "
+			+ "they have committed to a design that cannot work.");
+	}
+
+	[Fact]
+	public void GetService_WithConnectionType_ReturnsSelf()
+	{
+		var fakeClient = A.Fake<IAmazonDynamoDB>();
+		var provider = new DynamoDbPersistenceProvider(fakeClient, _validOptions, _logger);
+
+		var service = provider.GetService(typeof(IPersistenceProviderConnection));
 
 		service.ShouldBeSameAs(provider);
 	}

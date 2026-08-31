@@ -25,6 +25,15 @@
       INSTALLED a clean project restores and COMPILES against the entry-point packages, from an
                 EMPTY package cache. Expensive, so it covers a subset.
 
+    A GUARD RUNS BEFORE ANYTHING IS PUSHED, and it exists because the push has to be idempotent.
+    A resumed release must not fail merely because the feed already holds the version. That same
+    idempotency is a hole when a version is RE-TAGGED onto a different commit: the feed keeps the
+    bytes it already had, both tiers below then measure THOSE, and the release publishes different
+    ones. The verdict would be about an artifact nobody is shipping -- a verdict decoupled from the
+    thing it claims to measure, which is the one failure this file exists to prevent. So any version
+    the feed already holds is compared BY CONTENT against the local artifact first: identical bytes
+    is a resume and proceeds, different bytes is refused.
+
     The empty cache is what makes the INSTALLED tier mean anything. With a warm cache a restore can
     succeed having never contacted the feed, and would then pass while the feed served nothing at
     all. NUGET_PACKAGES is redirected to a fresh directory for exactly that reason -- it is the
@@ -58,7 +67,8 @@
     EXIT CODES -- distinct on purpose.
       0  staged and validated
       1  a validation arm FAILED (a package did not serve, or did not install)
-      3  REFUSE: the inputs make validation impossible (no packages, no feed, no version)
+      3  REFUSE: the inputs make validation impossible (no packages, no feed, no version, a feed
+         that cannot be interrogated, or a version the feed already holds under different bytes)
 #>
 [CmdletBinding()]
 param(
@@ -122,19 +132,41 @@ function Get-PackageBaseAddress($serviceIndex) {
     return $null
 }
 
-# Pure. Is $want present in $versions? NuGet normalises to lower case on the wire, so the comparison
-# is case-insensitive.
+# Pure. Returns the FEED'S OWN spelling of $want when the feed holds that version, else $null.
 #
-# An EMPTY or absent version list returns $false, deliberately and load-bearingly. "The feed listed
+# The feed's spelling is returned rather than ours because the caller puts it in a URL. The wire form
+# is lower case, but a feed is free to echo back whatever it was given, and guessing at the casing
+# would aim the content download at an address the feed does not serve -- which arrives as "cannot
+# measure" and would be blamed on the package.
+#
+# An EMPTY or absent version list returns $null, deliberately and load-bearingly. "The feed listed
 # nothing" and "the feed listed our version" must never reach the same verdict; treating an empty
 # list as satisfaction is precisely the vacuous pass this gate is built to make impossible.
-function Test-VersionServed([string[]]$versions, [string]$want) {
-    if ($null -eq $versions -or $versions.Count -eq 0) { return $false }
-    if ([string]::IsNullOrWhiteSpace($want)) { return $false }
+function Get-ServedVersion([string[]]$versions, [string]$want) {
+    if ($null -eq $versions -or $versions.Count -eq 0) { return $null }
+    if ([string]::IsNullOrWhiteSpace($want)) { return $null }
     foreach ($v in $versions) {
-        if ($null -ne $v -and $v.Trim().ToLowerInvariant() -eq $want.Trim().ToLowerInvariant()) { return $true }
+        if ($null -ne $v -and $v.Trim().ToLowerInvariant() -eq $want.Trim().ToLowerInvariant()) { return $v.Trim() }
     }
-    return $false
+    return $null
+}
+
+# Pure. Is $want present in $versions? One matching rule, two callers: the served tier asks whether,
+# the re-stage guard asks which. Two spellings of "the same version" that could drift apart would be
+# a place for the guard to say "absent" while the tier says "present".
+function Test-VersionServed([string[]]$versions, [string]$want) {
+    return ($null -ne (Get-ServedVersion $versions $want))
+}
+
+# Pure. Are the local artifact and the copy the feed already serves the same content?
+#
+# A MISSING hash on either side is NOT a match, deliberately. "I could not hash one of them" and
+# "they are identical" must never reach the same verdict -- an unanswerable comparison read as
+# agreement is how this guard would come to certify the very substitution it is here to catch.
+# Case-insensitive because hash formatting differs by producer, not because the value does.
+function Test-ContentIdentical([string]$localHash, [string]$servedHash) {
+    if ([string]::IsNullOrWhiteSpace($localHash) -or [string]::IsNullOrWhiteSpace($servedHash)) { return $false }
+    return ($localHash.Trim().ToLowerInvariant() -eq $servedHash.Trim().ToLowerInvariant())
 }
 
 # ---------------------------------------------------------------- self-test (safety AND liveness)
@@ -224,6 +256,47 @@ if ($SelfTest) {
         Write-Host 'SELF-TEST: PASS -- an empty version list is not a pass (safety)'
     }
 
+    # ---- the re-stage guard's decision core, exercised in BOTH directions ----
+    #
+    # The guard's job is to notice that the copy the feed already serves is not the copy about to be
+    # published. Everything below the HTTP call is locked here.
+
+    # LIVENESS: the same content, however the two hashes happen to be spelled, is a match -- so a
+    # genuine resumed release is NOT blocked. Without this arm a comparator that never matches would
+    # satisfy every safety arm below and refuse every retry.
+    if (-not (Test-ContentIdentical 'A1B2C3' 'a1b2c3')) {
+        $failures += 'identical content was not recognised as identical; a resumed release would be refused'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- identical content is recognised, so a resume proceeds (liveness)'
+    }
+
+    # SAFETY: THE RE-TAG DETECTOR. Different bytes under the same version must never compare equal.
+    # This is the arm that fails first if anyone ever makes this comparison lenient to get a red
+    # release moving.
+    if (Test-ContentIdentical 'A1B2C3' 'D4E5F6') {
+        $failures += 'DIFFERENT content compared as identical -- the feed could serve one artifact while the release publishes another'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- different content is not mistaken for the same content (safety)'
+    }
+
+    # SAFETY: a hash we could not compute is not agreement. An unanswerable comparison read as a match
+    # is precisely how this guard would come to bless the substitution it exists to catch.
+    if ((Test-ContentIdentical '' 'D4E5F6') -or (Test-ContentIdentical 'A1B2C3' '') -or (Test-ContentIdentical $null $null)) {
+        $failures += 'a MISSING hash satisfied the content comparison'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- a missing hash is not a match (safety)'
+    }
+
+    # LIVENESS: the guard needs the FEED's spelling of the version to build a content URL, not ours.
+    if ((Get-ServedVersion @('9.0.0', '10.0.0-Alpha.1') '10.0.0-alpha.1') -ne '10.0.0-Alpha.1') {
+        $failures += "the feed's own spelling of a held version was not returned; the content URL would be guessed"
+    } else {
+        Write-Host "SELF-TEST: PASS -- the feed's own spelling of a held version is returned (liveness)"
+    }
+    if ($null -ne (Get-ServedVersion @('9.0.0') '10.0.0-alpha.1')) {
+        $failures += 'a version the feed does not hold produced a spelling anyway'
+    }
+
     # SAFETY: empty inputs must REFUSE, never pass. A gate that validates nothing and reports success
     # is the exact defect this whole effort exists to remove.
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("staging-selftest-" + [guid]::NewGuid())
@@ -237,6 +310,109 @@ if ($SelfTest) {
             Write-Host 'SELF-TEST: PASS -- an empty package set REFUSES rather than reporting success (safety)'
         }
     } finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
+
+    # ---- the re-stage guard, END TO END, against a feed that really answers over HTTP ----
+    #
+    # The arms above lock the comparison. They cannot show that it is WIRED: a guard whose comparator
+    # is perfect and whose caller never consults it is the same release as no guard at all. So a real
+    # HTTP feed is stood up on the loopback interface, and the whole script is run against it.
+    #
+    # The two runs differ in ONE variable -- the bytes the feed serves for a version it already holds.
+    # A test that re-stages identical bytes passes even with the guard removed, which is why the RED
+    # arm is the one that carries the proof.
+
+    function Get-FreeLoopbackPort {
+        $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+        $probe.Start()
+        $port = $probe.LocalEndpoint.Port
+        $probe.Stop()
+        return $port
+    }
+
+    # A minimal NuGet v3 flat-container feed: a service index, a version index, and package content.
+    # Routes it does not know return 404, which is the same answer a real feed gives.
+    function Start-FakeFeed([int]$port, [hashtable]$routes) {
+        $listener = [System.Net.HttpListener]::new()
+        $listener.Prefixes.Add("http://localhost:$port/")
+        $listener.Start()
+        $job = Start-ThreadJob -ScriptBlock {
+            param($l, $r)
+            try {
+                while ($l.IsListening) {
+                    $ctx = $l.GetContext()
+                    $path = $ctx.Request.Url.AbsolutePath
+                    if ($r.ContainsKey($path)) {
+                        $body = [byte[]]$r[$path]
+                        $ctx.Response.StatusCode = 200
+                        $ctx.Response.ContentLength64 = $body.Length
+                        $ctx.Response.OutputStream.Write($body, 0, $body.Length)
+                    } else {
+                        $ctx.Response.StatusCode = 404
+                    }
+                    $ctx.Response.Close()
+                }
+            } catch { }
+        } -ArgumentList $listener, $routes
+        return [pscustomobject]@{ Listener = $listener; Job = $job }
+    }
+
+    # Stages ONE package whose version the feed already holds, and returns what this script did about
+    # it. $servedBytes is the copy the feed already has; $localBytes is the copy about to be published.
+    function Invoke-RestageScenario([byte[]]$localBytes, [byte[]]$servedBytes) {
+        $port = Get-FreeLoopbackPort
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ("staging-e2e-" + [guid]::NewGuid())
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path $dir 'Excalibur.Dispatch.9.9.9-selftest.nupkg'), $localBytes)
+
+        $routes = @{
+            '/index.json' = [Text.Encoding]::UTF8.GetBytes(
+                '{"resources":[{"@type":"PackageBaseAddress/3.0.0","@id":"http://localhost:' + $port + '/flat/"}]}')
+            '/flat/excalibur.dispatch/index.json' = [Text.Encoding]::UTF8.GetBytes('{"versions":["9.9.9-selftest"]}')
+            '/flat/excalibur.dispatch/9.9.9-selftest/excalibur.dispatch.9.9.9-selftest.nupkg' = $servedBytes
+        }
+        $feed = Start-FakeFeed $port $routes
+        try {
+            # ALL streams, not just stderr. Write-Host writes to the information stream, so a 2>&1
+            # capture comes back EMPTY -- and an assertion against empty output silently degrades to
+            # "the message was not found", which reads as a failure of the guard rather than of the
+            # capture. Caught by these arms failing while the guard behind them was working.
+            $text = & $PSCommandPath -PackagesPath $dir -FeedUrl "http://localhost:$port/index.json" -Version '9.9.9-selftest' *>&1 | Out-String
+            $code = $LASTEXITCODE
+            return [pscustomobject]@{ Code = $code; Output = $text }
+        } finally {
+            $feed.Listener.Stop()
+            $feed.Listener.Close()
+            Remove-Job $feed.Job -Force -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
+        }
+    }
+
+    # SAFETY: THE DEFECT ITSELF. A version the feed already holds, re-staged from different bytes --
+    # which is what a re-tag onto another commit produces. Under the old behaviour the push skipped the
+    # duplicate, every check passed against the feed's older copy, and the release published the newer
+    # one. It must REFUSE, and it must refuse for THIS reason: a REFUSE earned by some unrelated
+    # failure would pass an exit-code assertion while proving nothing.
+    $red = Invoke-RestageScenario ([Text.Encoding]::UTF8.GetBytes('BYTES BUILT FROM COMMIT B')) ([Text.Encoding]::UTF8.GetBytes('BYTES BUILT FROM COMMIT A'))
+    if ($red.Code -ne $EXIT_REFUSE) {
+        $failures += "a re-stage with DIFFERENT bytes exited $($red.Code), expected $EXIT_REFUSE -- the release would have published bytes the feed never validated"
+    } elseif ($red.Output -notmatch 'built from DIFFERENT bytes') {
+        $failures += 'a re-stage with different bytes refused, but not for the substitution -- the arm proves nothing about the guard'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- re-staging a held version from DIFFERENT bytes is caught and refused (safety)'
+    }
+
+    # LIVENESS: the same scenario with the SAME bytes -- an ordinary resumed release. It must get past
+    # the guard. Without this arm a guard that refused every re-stage would satisfy the arm above and
+    # make every retry unreleasable, turning one broken gate into another.
+    $sameBytes = [Text.Encoding]::UTF8.GetBytes('BYTES BUILT FROM COMMIT A')
+    $green = Invoke-RestageScenario $sameBytes $sameBytes
+    if ($green.Output -match 'built from DIFFERENT bytes') {
+        $failures += 'a resumed release re-staging IDENTICAL bytes was refused as a substitution'
+    } elseif ($green.Output -notmatch '1 already present and byte-identical') {
+        $failures += 'a resumed release re-staging identical bytes did not reach the guard, so the guard was not exercised'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- re-staging a held version from IDENTICAL bytes is recognised as a resume (liveness)'
+    }
 
     if ($failures.Count -gt 0) {
         $failures | ForEach-Object { Write-Host "SELF-TEST: FAIL -- $_" }
@@ -268,10 +444,133 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 Write-Section "Staging $($nupkgs.Count) package(s) to $FeedName"
 
+# ---------------------------------------------------------------- the feed handshake
+# Done BEFORE the push, not after it, for two reasons. The guard below needs it; and a feed we cannot
+# interrogate should stop the release before 195 artifacts have been uploaded to it, not after.
+$authHeader = @{}
+if (-not [string]::IsNullOrWhiteSpace($FeedToken)) {
+    $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${FeedUser}:${FeedToken}"))
+    $authHeader = @{ Authorization = "Basic $basic" }
+}
+
+# Resolve the address from the feed rather than assuming one. A hard-coded URL would silently target
+# the wrong host the moment the staging feed changes, and every miss would be reported as a missing
+# package instead of as our own misconfiguration.
+$baseAddress = $null
+try {
+    $serviceIndex = Invoke-RestMethod -Uri $FeedUrl -Headers $authHeader -Method Get -ErrorAction Stop
+    $baseAddress = Get-PackageBaseAddress $serviceIndex
+} catch {
+    Write-Host "::error::REFUSE: the staging feed's service index at '$FeedUrl' could not be read: $($_.Exception.Message)"
+    Write-Host '::error::Nothing was measured. This is NOT a statement about the packages.'
+    exit $EXIT_REFUSE
+}
+if ([string]::IsNullOrWhiteSpace($baseAddress)) {
+    Write-Host "::error::REFUSE: the staging feed advertises no PackageBaseAddress resource, so package presence cannot be established here."
+    Write-Host '::error::A feed that cannot be interrogated is UNMEASURED. Reporting these packages as served would be a verdict with no evidence under it.'
+    exit $EXIT_REFUSE
+}
+Write-Host "base address: $baseAddress"
+
+# ---------------------------------------------------------------- GUARD: no silent substitution
+Write-Section 'GUARD - a version the feed already holds must be the bytes we are about to publish'
+
+# The push below is deliberately idempotent, and that idempotency has a blind spot. When a version is
+# re-tagged onto a different commit, the official build packs the NEW bytes under the OLD version, the
+# feed silently keeps the copy it already had, and every check after this point measures the copy the
+# feed kept. Staging would then certify one artifact while the release publishes another.
+#
+# The comparison has to happen BEFORE the push, because afterwards the two are indistinguishable from
+# the outside: a skipped duplicate and an accepted upload look identical from here.
+#
+# WHY THIS DOES NOT TRY TO DETECT A RE-TAG. It asks the only question that actually matters -- are the
+# bytes the feed will serve the bytes we are about to make permanent? A re-tag is one way for those to
+# differ; a rebuild that does not reproduce is another. Both leave everything downstream measuring an
+# artifact nobody is shipping, so both must stop here. Naming the cause would be guessing; naming the
+# consequence is what the evidence supports.
+$freshToFeed = 0
+$resumed = 0
+$divergent = @()
+$unmeasuredGuard = @()
+
+$guardTmp = Join-Path ([System.IO.Path]::GetTempPath()) ("staging-restage-" + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $guardTmp -Force | Out-Null
+try {
+    foreach ($pkg in $nupkgs) {
+        $identity = Get-PackageIdentity $pkg.Name
+        if ($null -eq $identity) {
+            $unmeasuredGuard += "$($pkg.Name) (could not parse an id/version from the file name)"
+            continue
+        }
+        $idLower = $identity.Id.ToLowerInvariant()
+
+        $versions = $null
+        try {
+            $index = Invoke-RestMethod -Uri "$baseAddress/$idLower/index.json" -Headers $authHeader -Method Get -ErrorAction Stop
+            $versions = @($index.versions)
+        } catch {
+            # A 404 here is the ORDINARY case, not a fault: the feed has never seen this package, so
+            # there is nothing that could be substituted for it. Anything else means the question went
+            # unanswered, and an unanswered question must not be read as "nothing to worry about".
+            $status = $null
+            if ($null -ne $_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
+            if ($status -eq 404) { $freshToFeed++ } else {
+                $unmeasuredGuard += "$($identity.Id) $($identity.Version) (the feed would not answer: $($_.Exception.Message))"
+            }
+            continue
+        }
+
+        $servedVersion = Get-ServedVersion $versions $identity.Version
+        if ($null -eq $servedVersion) { $freshToFeed++; continue }
+
+        # The feed already holds this exact version. Fetch what it would serve, and compare.
+        $verLower = $servedVersion.ToLowerInvariant()
+        $dest = Join-Path $guardTmp "$idLower.$verLower.nupkg"
+        try {
+            Invoke-WebRequest -Uri "$baseAddress/$idLower/$verLower/$idLower.$verLower.nupkg" -Headers $authHeader -OutFile $dest -ErrorAction Stop | Out-Null
+        } catch {
+            # The feed LISTED this version and then would not hand it over. That is neither a clean
+            # bill of health nor a missing package -- it is a comparison that could not be made, on the
+            # one path where being unable to compare is the entire risk.
+            $unmeasuredGuard += "$($identity.Id) $($identity.Version) (listed by the feed, but its content could not be fetched to compare: $($_.Exception.Message))"
+            continue
+        }
+
+        $servedHash = (Get-FileHash -Path $dest -Algorithm SHA256).Hash
+        $localHash = (Get-FileHash -Path $pkg.FullName -Algorithm SHA256).Hash
+        Remove-Item -Force $dest -ErrorAction SilentlyContinue
+
+        if (Test-ContentIdentical $localHash $servedHash) {
+            $resumed++
+        } else {
+            $divergent += "$($identity.Id) $($identity.Version): about to publish sha256 $localHash, feed already serves sha256 $servedHash"
+        }
+    }
+}
+finally { Remove-Item -Recurse -Force $guardTmp -ErrorAction SilentlyContinue }
+
+if ($unmeasuredGuard.Count -gt 0) {
+    Write-Host "::error::REFUSE: $($unmeasuredGuard.Count) of $($nupkgs.Count) package(s) could not be compared against the copy the feed already holds:"
+    $unmeasuredGuard | Select-Object -First 20 | ForEach-Object { Write-Host "    $_" }
+    Write-Host '::error::Nothing was pushed. A package that could not be compared is UNMEASURED, not clean.'
+    exit $EXIT_REFUSE
+}
+if ($divergent.Count -gt 0) {
+    Write-Host "::error::REFUSE: the feed already holds this version built from DIFFERENT bytes, for $($divergent.Count) of $($nupkgs.Count) package(s):"
+    $divergent | Select-Object -First 20 | ForEach-Object { Write-Host "    $_" }
+    Write-Host '::error::Nothing was pushed. The feed keeps the copy it already has, so every check below would'
+    Write-Host '::error::validate THAT copy while the release publishes the local one -- a pass earned by the wrong artifact.'
+    Write-Host '::error::This version number has already been spent on this feed. Release a new version instead.'
+    exit $EXIT_REFUSE
+}
+Write-Host "re-stage guard: $freshToFeed new to the feed, $resumed already present and byte-identical (a resume)"
+
 # ---------------------------------------------------------------- push
 # --skip-duplicate is REQUIRED, not convenience: a resumed release re-runs this job, and a feed that
 # already holds the version must not turn a retry into a failure. It is the same idempotency the
-# release itself is required to have.
+# release itself is required to have. What makes that idempotency safe rather than merely
+# convenient is the guard above: every version the feed already holds has just been proven to be
+# the same bytes, so a skipped duplicate is genuinely a no-op and not a substitution.
 #
 # THE OUTPUT IS KEPT, NOT DISCARDED. A failing push reports WHY -- a rejected package, an auth
 # refusal, a rate limit and a transient 5xx are four different problems with four different fixes,
@@ -308,31 +607,6 @@ Write-Host "pushed: $pushed package(s)"
 
 # ---------------------------------------------------------------- TIER 1: served
 Write-Section 'TIER 1 - every staged package is served by the feed'
-
-$authHeader = @{}
-if (-not [string]::IsNullOrWhiteSpace($FeedToken)) {
-    $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${FeedUser}:${FeedToken}"))
-    $authHeader = @{ Authorization = "Basic $basic" }
-}
-
-# Resolve the address from the feed rather than assuming one. A hard-coded URL would silently target
-# the wrong host the moment the staging feed changes, and every miss would be reported as a missing
-# package instead of as our own misconfiguration.
-$baseAddress = $null
-try {
-    $serviceIndex = Invoke-RestMethod -Uri $FeedUrl -Headers $authHeader -Method Get -ErrorAction Stop
-    $baseAddress = Get-PackageBaseAddress $serviceIndex
-} catch {
-    Write-Host "::error::REFUSE: the staging feed's service index at '$FeedUrl' could not be read: $($_.Exception.Message)"
-    Write-Host '::error::Nothing was measured. This is NOT a statement about the packages.'
-    exit $EXIT_REFUSE
-}
-if ([string]::IsNullOrWhiteSpace($baseAddress)) {
-    Write-Host "::error::REFUSE: the staging feed advertises no PackageBaseAddress resource, so package presence cannot be established here."
-    Write-Host '::error::A feed that cannot be interrogated is UNMEASURED. Reporting these packages as served would be a verdict with no evidence under it.'
-    exit $EXIT_REFUSE
-}
-Write-Host "base address: $baseAddress"
 
 $served = 0
 $notServed = @()
@@ -475,12 +749,14 @@ finally {
 
 # ---------------------------------------------------------------- verdict, scoped to what was measured
 Write-Section 'RESULT'
+Write-Host "  bytes on the feed : $freshToFeed new, $resumed already held and byte-identical"
 Write-Host "  staged and served : $served/$($nupkgs.Count) package(s)"
 Write-Host "  install-tested    : $($InstallTest.Count) entry-point package(s) ($($InstallTest -join ', '))"
 Write-Host ''
-Write-Host "  Scope, stated so this does not read wider than it is: every staged package was proven"
-Write-Host "  SERVED by the feed, and the entry-point packages above were proven to RESTORE and"
-Write-Host "  COMPILE from it against an empty cache. The remaining $($nupkgs.Count - $InstallTest.Count) package(s) were not"
+Write-Host "  Scope, stated so this does not read wider than it is: the bytes the feed serves for"
+Write-Host "  every staged version are the bytes about to be published, every staged package was"
+Write-Host "  proven SERVED by the feed, and the entry-point packages above were proven to RESTORE"
+Write-Host "  and COMPILE from it against an empty cache. The remaining $($nupkgs.Count - $InstallTest.Count) package(s) were not"
 Write-Host "  individually install-tested, though those in the entry points' dependency closure were"
 Write-Host "  exercised transitively."
 exit 0

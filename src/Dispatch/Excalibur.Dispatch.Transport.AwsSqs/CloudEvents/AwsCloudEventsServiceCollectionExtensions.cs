@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Amazon.EventBridge.Model;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS.Model;
@@ -40,7 +42,15 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// - Binary mode (CE attributes in SQS message attributes)
 	/// - DoD envelope property preservation (MessageId, CorrelationId, TenantId, UserId, TraceId, etc.)
 	/// - Round-trip conversion with no attribute loss.
+	/// <para>
+	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
+	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// backed by a source-generated serializer to compose without the requirement.
+	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
 	public static IServiceCollection UseCloudEvents(
 		this IServiceCollection services,
 		Action<CloudEventOptions>? configureOptions = null)
@@ -92,6 +102,16 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// <param name="configureSqs"> Action to configure SQS-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// <para>
+	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
+	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// backed by a source-generated serializer to compose without the requirement.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForSqs(
 		this IServiceCollection services,
 		Action<AwsSqsCloudEventOptions>? configureSqs = null,
@@ -119,6 +139,16 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// <param name="configureSns"> Action to configure SNS-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// <para>
+	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
+	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// backed by a source-generated serializer to compose without the requirement.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForSns(
 		this IServiceCollection services,
 		Action<AwsSnsCloudEventOptions>? configureSns = null,
@@ -146,6 +176,16 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// <param name="configureEventBridge"> Action to configure EventBridge-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// <para>
+	/// Trimming and ahead-of-time compilation: the CloudEvents mapper bundled with this transport
+	/// serializes the message payload with reflection-based JSON, so a host that trims or compiles
+	/// ahead of time warns at this call. Register your own <see cref="ICloudEventMapper{TTransportMessage}"/>
+	/// backed by a source-generated serializer to compose without the requirement.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, so a trimmed host may lose types it needs. Register your own ICloudEventMapper over a source-generated serializer instead.")]
+	[RequiresDynamicCode("The bundled CloudEvents mapper serializes the message payload through reflection-based JSON, which needs run-time code generation. Register your own ICloudEventMapper over a source-generated serializer instead.")]
 	public static IServiceCollection AddCloudEventsForEventBridge(
 		this IServiceCollection services,
 		Action<AwsEventBridgeCloudEventOptions>? configureEventBridge = null,

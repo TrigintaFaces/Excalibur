@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Npgsql;
 
 using Testcontainers.PostgreSql;
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - table name is a constant in test fixture
 
@@ -20,8 +21,8 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// </remarks>
 public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 {
+	private readonly OneTimeInitializer _initializer = new();
 	private PostgreSqlContainer? _container;
-	private bool _initialized;
 
 	/// <summary>
 	/// Gets the connection string for the Postgres container.
@@ -54,52 +55,28 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the event store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Create event store table with required schema
-		// Must match PostgresEventStore SQL: position BIGSERIAL, event_id UUID, RETURNING position
-		var createTableSql = $"""
-			CREATE TABLE IF NOT EXISTS public.{TableName} (
-				position BIGSERIAL PRIMARY KEY,
-				event_id VARCHAR(255) NOT NULL UNIQUE,
-				aggregate_id VARCHAR(255) NOT NULL,
-				aggregate_type VARCHAR(255) NOT NULL,
-				event_type VARCHAR(255) NOT NULL,
-				-- Nullable: GDPR erasure tombstones an event by setting event_data to NULL while keeping
-				-- its position in the stream. Declaring it NOT NULL makes every erasure fail with
-				-- `23502: null value in column "event_data" violates not-null constraint`, which is what
-				-- this fixture did until the erasure path was first exercised against a real engine.
-				event_data BYTEA NULL,
-				metadata BYTEA,
-				version BIGINT NOT NULL,
-				timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				is_dispatched BOOLEAN NOT NULL DEFAULT FALSE,
-				tenant_id VARCHAR(255),
-				UNIQUE (aggregate_id, aggregate_type, version)
-			);
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. A
+		// fixture that restated it could drift permissively -- a NOT NULL column made nullable, a
+		// narrower key -- and every arm running against it would then be structurally unable to detect
+		// the violation it exists to catch, while still reporting green. A fixture that holds no schema
+		// cannot drift from one.
+		var scripts = ShippedSchemaScript.ReadAll(
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/004_CreateEventStoreSchema.sql",
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/005_MakeEventStreamIdentityTenantScoped.sql",
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/006_ConvergeUntenantedToDefaultTenant.sql");
 
-			CREATE INDEX IF NOT EXISTS idx_events_aggregate
-				ON public.{TableName}(aggregate_id, aggregate_type, version);
-
-			CREATE INDEX IF NOT EXISTS idx_events_undispatched
-				ON public.{TableName}(is_dispatched, position) WHERE is_dispatched = false;
-
-			CREATE INDEX IF NOT EXISTS idx_events_type
-				ON public.{TableName}(event_type);
-			""";
-
-		await using var command = new NpgsqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
+		foreach (var script in scripts)
+		{
+			await using var command = new NpgsqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

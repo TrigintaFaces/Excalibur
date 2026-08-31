@@ -29,11 +29,11 @@ public static class WriteStoreTelemetry
 
 	private static readonly Counter<long> OperationCounter = Meter.CreateCounter<long>(
 		"dispatch.write_store.operations_total",
-		unit: "operations",
+		unit: "{operations}",
 		description: "Total number of write-side store operations");
 
 	private static readonly Histogram<double> OperationDuration = Meter.CreateHistogram<double>(
-		"dispatch.write_store.operation_duration_ms",
+		"dispatch.write_store.operation_duration",
 		unit: "ms",
 		description: "Duration of write-side store operations in milliseconds");
 

@@ -259,6 +259,34 @@ public sealed class ScheduledMessageServiceTimeoutShould
 		await service.StartAsync(CancellationToken.None);
 		try
 		{
+			// Surface the loop's own fault, exactly as ExecuteAsync_WithNoTimePolicy_ProcessesNormally
+			// does. THIS is the test that failed on Windows CI, and it was the one that could not say
+			// why: it reported only "Timed out waiting for signal after 00:00:30" against a 50ms poll
+			// interval -- roughly 600 missed cycles, which is not slowness. BackgroundService swallows an
+			// ExecuteAsync fault into ExecuteTask, so a loop that died on or before its first poll is
+			// indistinguishable from one that is merely slow, and this arm is the likelier place for that
+			// to happen because its first poll throws by design. Awaiting ExecuteTask when it finishes
+			// first re-throws the real exception. This does NOT widen the timeout and does not make a
+			// failing run pass; it turns an unactionable flake into a diagnosable one.
+			var loop = service.ExecuteTask;
+			if (loop is null)
+			{
+				throw new InvalidOperationException(
+					"ExecuteTask was null after StartAsync: the background loop was never started.");
+			}
+
+			var finished = await Task.WhenAny(recoveredAfterException.Task, loop);
+			if (!ReferenceEquals(finished, recoveredAfterException.Task))
+			{
+				// Re-throws the real fault if ExecuteAsync threw.
+				await loop;
+
+				throw new InvalidOperationException(
+					"The scheduler loop ended without polling the store a second time. ExecuteAsync "
+					+ $"completed without faulting after {Volatile.Read(ref callCount)} poll(s), so the "
+					+ "transient exception ended the loop rather than being absorbed by it.");
+			}
+
 			await WaitHelpers.AwaitSignalAsync(recoveredAfterException.Task, TimeSpan.FromSeconds(30));
 		}
 		finally

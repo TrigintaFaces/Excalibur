@@ -192,10 +192,6 @@ public static class TransportHealthChecksBuilderExtensions
 	/// Optional timeout for the health check execution.
 	/// </param>
 	/// <returns>The <see cref="IHealthChecksBuilder"/> for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IHealthChecksBuilder AddTransportHealthChecks(
 		this IHealthChecksBuilder builder,
 		IConfiguration configuration,

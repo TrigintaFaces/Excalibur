@@ -57,4 +57,20 @@ public sealed class InMemoryStreamingHandlerConformanceTests : StreamingHandlerC
 			}
 		}
 	}
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail - in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

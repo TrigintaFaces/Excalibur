@@ -54,7 +54,6 @@ public sealed class DistributedCircuitBreakerCrossInstanceRecoveryShould
 		// single t=0 background sync before mutating it.
 		const string breakerName = "0snskv-cross-instance-recovery";
 		var stateKey = $"circuit-breaker:{breakerName}:state";
-		var metricsKey = $"circuit-breaker:{breakerName}:metrics";
 
 		var cache = new CountingDistributedCache(
 			new MemoryDistributedCache(MsOptions.Create(new MemoryDistributedCacheOptions())),
@@ -63,9 +62,8 @@ public sealed class DistributedCircuitBreakerCrossInstanceRecoveryShould
 		var options = new DistributedCircuitBreakerOptions
 		{
 			ConsecutiveFailureThreshold = 100,            // irrelevant here; keep failures from tripping anything
-			SuccessThresholdToClose = 2,                  // require 2 consecutive successes (seed 1, +1 here)
+			SuccessThresholdToClose = 1,                  // the single success below reaches the close gate
 			SyncInterval = System.Threading.Timeout.InfiniteTimeSpan, // only the single t=0 fire remains; no periodic re-sync
-			MetricsRetention = TimeSpan.FromMinutes(5),
 		};
 
 		await using var breaker = new DistributedCircuitBreaker(
@@ -85,20 +83,15 @@ public sealed class DistributedCircuitBreakerCrossInstanceRecoveryShould
 			1,
 			"the t=0 background sync must have read the (empty/Closed) store before we flip it to HalfOpen");
 
-		// Act 1 — another instance has moved the SHARED store to HalfOpen with the success count one short
-		// of the close threshold. This breaker never executed through ExecuteAsync, so its local view is a
-		// stale Closed; with SyncInterval=Infinite no further sync will correct it.
+		// Act 1 — another instance has moved the SHARED store to HalfOpen. This breaker never executed
+		// through ExecuteAsync, so its local view is a stale Closed; with SyncInterval=Infinite no further
+		// sync will correct it.
 		await SeedAsync(cache, stateKey, new DistributedCircuitState
 		{
 			State = CircuitState.HalfOpen,
 			TransitionedAt = DateTimeOffset.UtcNow,
 			InstanceId = "other-instance",
 		});
-		await SeedAsync(cache, metricsKey, new DistributedCircuitMetrics
-		{
-			ConsecutiveSuccesses = options.SuccessThresholdToClose - 1, // 1 — the next success reaches the gate
-		});
-
 		// Act 2 — operator drives recovery via the MANUAL record path (NOT ExecuteAsync).
 		await breaker.RecordSuccessAsync(CancellationToken.None);
 
@@ -116,12 +109,6 @@ public sealed class DistributedCircuitBreakerCrossInstanceRecoveryShould
 		cache.SetStringAsync(
 			key,
 			JsonSerializer.Serialize(state, DistributedCircuitJsonContext.Default.DistributedCircuitState),
-			CancellationToken.None);
-
-	private static Task SeedAsync(IDistributedCache cache, string key, DistributedCircuitMetrics metrics) =>
-		cache.SetStringAsync(
-			key,
-			JsonSerializer.Serialize(metrics, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics),
 			CancellationToken.None);
 
 	/// <summary>

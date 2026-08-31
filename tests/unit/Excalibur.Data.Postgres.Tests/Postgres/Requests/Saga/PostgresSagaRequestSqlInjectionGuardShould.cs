@@ -62,10 +62,10 @@ public sealed class PostgresSagaRequestSqlInjectionGuardShould
 		var options = OptionsWith(schema, tableName);
 
 		_ = Should.Throw<ArgumentException>(() =>
-			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, TenantScope.None, CancellationToken.None));
+			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, TenantScope.Untenanted, CancellationToken.None));
 
 		_ = Should.Throw<ArgumentException>(() =>
-			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, TenantScope.None, CancellationToken.None));
+			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, TenantScope.Untenanted, CancellationToken.None));
 	}
 
 	[Theory]
@@ -76,10 +76,10 @@ public sealed class PostgresSagaRequestSqlInjectionGuardShould
 		var options = OptionsWith(schema, tableName);
 
 		Should.NotThrow(() =>
-			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, TenantScope.None, CancellationToken.None));
+			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, TenantScope.Untenanted, CancellationToken.None));
 
 		Should.NotThrow(() =>
-			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, TenantScope.None, CancellationToken.None));
+			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, TenantScope.Untenanted, CancellationToken.None));
 	}
 
 	private static TestSagaState CreateTestState() => new()

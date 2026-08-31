@@ -21,14 +21,14 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 	public InMemoryEventStoreShould()
 	{
-		_store = new InMemoryEventStore();
+		_store = new InMemoryEventStore(UntenantedContext.Instance);
 	}
 
 	[Fact]
 	public void Constructor_CreatesEmptyStore()
 	{
 		// Arrange & Act
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Assert
 		store.GetEventCount().ShouldBe(0);

@@ -89,8 +89,14 @@ public sealed partial class EventStoreErasureContributor : IErasureContributor
 
 		// Erasure runs from a background scheduler with no ambient tenant. Establish the data subject's
 		// tenant scope explicitly so every event-store call below (IsErased/EraseEvents) applies the tenant
-		// discriminator for the correct tenant, rather than a null tenant that would widen the erase across
-		// every tenant on the shard. The event store reads this ambient tenant per query.
+		// discriminator for the correct tenant. The event store reads this ambient tenant per query.
+		//
+		// A null tenant here does NOT widen the erase across the shard: an unresolved ambient tenant fails
+		// closed at TenantScope.FromContext, so a store call would raise TenantRequiredException rather than
+		// emit a predicate-less statement. The term is deliberately passed raw rather than folded onto the
+		// untenanted sentinel: this one is the erasure REQUEST's tenant, not a value read back off a stored
+		// row, so a missing value means "the request named no tenant" -- undecided, not untenanted -- and
+		// failing closed is the correct answer to it.
 		using var tenantScope = TenantContextHolder.BeginScope(context.TenantId);
 
 		var totalErased = 0;

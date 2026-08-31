@@ -102,33 +102,33 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 		// Initialize metrics
 		_messagesReceived = _meter.CreateCounter<long>(
 			"dispatch.pubsub.messages",
-			"messages",
+			"{messages}",
 			"Total number of messages received");
 
 		_messagesAcknowledged = _meter.CreateCounter<long>(
 			"dispatch.pubsub.messages.acknowledged",
-			"messages",
+			"{messages}",
 			"Total number of messages acknowledged");
 
 		_messagesNacked = _meter.CreateCounter<long>(
 			"dispatch.pubsub.messages.nacked",
-			"messages",
+			"{messages}",
 			"Total number of messages nacked");
 
 		_messageAge = _meter.CreateHistogram<double>(
 			"dispatch.pubsub.message_age",
-			"seconds",
+			"s",
 			"Age of messages when received");
 
 		_ackLatency = _meter.CreateHistogram<double>(
 			"dispatch.pubsub.ack_latency",
-			"milliseconds",
+			"ms",
 			"Time taken to acknowledge messages");
 
 		_activeStreams = _meter.CreateObservableGauge(
 			"dispatch.pubsub.active_streams",
 			() => _currentActiveStreams,
-			"streams",
+			"{streams}",
 			"Number of active streaming pull connections");
 
 		_throughput = _meter.CreateObservableGauge(

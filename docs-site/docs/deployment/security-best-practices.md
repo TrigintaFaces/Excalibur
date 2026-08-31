@@ -663,19 +663,21 @@ public class AuthenticationEventsHandler
 {
     private readonly IAuditLogger _auditLogger;
 
-    public async Task OnAuthenticationFailed(AuthenticationFailedContext context)
+    public async Task OnAuthenticationFailed(
+        AuthenticationFailedContext context,
+        CancellationToken ct)
     {
         await _auditLogger.LogAsync(new AuditEvent
         {
-            EventType = "AuthenticationFailed",
-            Timestamp = DateTime.UtcNow,
-            Outcome = "Failure",
-            ClientIp = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
-            Metadata = new Dictionary<string, string>
-            {
-                ["Reason"] = context.Exception.Message
-            }
-        });
+            EventId = Guid.NewGuid().ToString(),
+            EventType = AuditEventType.Authentication,
+            Action = "Authentication.Failed",
+            ActorId = context.HttpContext.User.Identity?.Name ?? "anonymous",
+            Outcome = AuditOutcome.Failure,
+            Timestamp = DateTimeOffset.UtcNow,
+            IpAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
+            Reason = context.Exception.Message
+        }, ct);
     }
 }
 ```
@@ -867,7 +869,10 @@ public class SecurityIncidentLogger
     private readonly IAuditLogger _auditLogger;
     private readonly ILogger<SecurityIncidentLogger> _logger;
 
-    public async Task LogSecurityIncidentAsync(string incidentType, string description)
+    public async Task LogSecurityIncidentAsync(
+        string incidentType,
+        string description,
+        CancellationToken ct)
     {
         _logger.LogCritical(
             "SECURITY INCIDENT: {IncidentType} - {Description}",
@@ -876,18 +881,22 @@ public class SecurityIncidentLogger
 
         await _auditLogger.LogAsync(new AuditEvent
         {
-            EventType = $"SecurityIncident.{incidentType}",
-            Timestamp = DateTime.UtcNow,
-            Outcome = "Alert",
+            EventId = Guid.NewGuid().ToString(),
+            EventType = AuditEventType.Security,
+            Action = $"SecurityIncident.{incidentType}",
+            ActorId = "system",
+            Outcome = AuditOutcome.Failure,
+            Timestamp = DateTimeOffset.UtcNow,
+            Reason = description,
             Metadata = new Dictionary<string, string>
             {
-                ["Description"] = description,
                 ["Severity"] = "Critical"
             }
-        });
+        }, ct);
 
-        // Trigger alerts (PagerDuty, OpsGenie, etc.)
-        await SendAlertAsync(incidentType, description);
+        // Escalation is yours to build -- the framework records the event, it does not
+        // page anyone. Route to PagerDuty, OpsGenie or your own on-call system here.
+        await SendAlertAsync(incidentType, description, ct);
     }
 }
 ```

@@ -37,15 +37,23 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 	/// <summary>JSON property name for the <see cref="CachedValue.Value"/> field.</summary>
 	internal const string ValuePropertyName = "Value";
 
+	/// <summary>JSON property name for the <see cref="CachedValue.ActionTypeName"/> field.</summary>
+	/// <remarks>
+	/// Persisted because the read side uses it to decline an entry stored by a different action type.
+	/// A converter that drops it makes every entry unattributable, which reads as a permanent cache
+	/// miss rather than as an error.
+	/// </remarks>
+	internal const string ActionTypeNamePropertyName = "ActionTypeName";
+
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage(
 		"Trimming",
 		"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Cached value serialization is optional and guarded with runtime type checks.")]
+		Justification = "Reconstructing a cached value by its stored type name is what this converter is for, so the requirement cannot be removed here. It is not hidden from the consumer: a converter runs only inside a JsonSerializer call, and those overloads carry the same annotation at the consumer's own call site.")]
 	[UnconditionalSuppressMessage(
 		"Aot",
 		"IL3050:Calling members annotated with RequiresDynamicCodeAttribute may break functionality when AOT compiling.",
-		Justification = "Cached value serialization uses System.Text.Json for diagnostics.")]
+		Justification = "Serializing a cached value by its runtime type is what this converter is for, so the requirement cannot be removed here. It is not hidden from the consumer: a converter runs only inside a JsonSerializer call, and those overloads carry the same annotation at the consumer's own call site.")]
 	public override CachedValue? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{
 		if (reader.TokenType != JsonTokenType.StartObject)
@@ -57,6 +65,7 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		var shouldCache = false;
 		var hasExecuted = false;
 		string? typeName = null;
+		string? actionTypeName = null;
 
 		while (reader.Read())
 		{
@@ -83,6 +92,9 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 					break;
 				case TypeNamePropertyName:
 					typeName = reader.GetString();
+					break;
+				case ActionTypeNamePropertyName:
+					actionTypeName = reader.GetString();
 					break;
 				case ValuePropertyName:
 					if (reader.TokenType == JsonTokenType.Null)
@@ -122,18 +134,25 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 			}
 		}
 
-		return new CachedValue { Value = value, ShouldCache = shouldCache, HasExecuted = hasExecuted, TypeName = typeName };
+		return new CachedValue
+		{
+			Value = value,
+			ShouldCache = shouldCache,
+			HasExecuted = hasExecuted,
+			TypeName = typeName,
+			ActionTypeName = actionTypeName,
+		};
 	}
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage(
 		"Trimming",
 		"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Cached value serialization is optional and guarded with runtime type checks.")]
+		Justification = "Reconstructing a cached value by its stored type name is what this converter is for, so the requirement cannot be removed here. It is not hidden from the consumer: a converter runs only inside a JsonSerializer call, and those overloads carry the same annotation at the consumer's own call site.")]
 	[UnconditionalSuppressMessage(
 		"Aot",
 		"IL3050:Calling members annotated with RequiresDynamicCodeAttribute may break functionality when AOT compiling.",
-		Justification = "Cached value serialization uses System.Text.Json for diagnostics.")]
+		Justification = "Serializing a cached value by its runtime type is what this converter is for, so the requirement cannot be removed here. It is not hidden from the consumer: a converter runs only inside a JsonSerializer call, and those overloads carry the same annotation at the consumer's own call site.")]
 	public override void Write(Utf8JsonWriter writer, CachedValue value, JsonSerializerOptions options)
 	{
 		writer.WriteStartObject();
@@ -144,6 +163,11 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		if (value.TypeName != null)
 		{
 			writer.WriteString(TypeNamePropertyName, value.TypeName);
+		}
+
+		if (value.ActionTypeName != null)
+		{
+			writer.WriteString(ActionTypeNamePropertyName, value.ActionTypeName);
 		}
 
 		writer.WritePropertyName(ValuePropertyName);

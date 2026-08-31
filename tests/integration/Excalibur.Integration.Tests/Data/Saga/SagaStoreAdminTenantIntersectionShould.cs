@@ -42,9 +42,20 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// </para>
 /// <para>
 /// <b>Both arms (testing-patterns §3):</b> SAFETY — a caller scoped to tenant A supplying tenant B's filter
-/// id receives zero rows; LIVENESS — the same scoped caller still receives its <em>own</em> tenant's rows,
-/// and an unscoped operator still receives estate-wide statistics. A store that returned nothing to anyone
-/// would pass SAFETY but fail LIVENESS.
+/// id receives zero rows, and a caller with no tenant established counts only the untenanted partition;
+/// LIVENESS — the same scoped caller still receives its <em>own</em> tenant's rows, and an operator calling
+/// the explicit estate-wide operation still receives every tenant's counts. A store that returned nothing to
+/// anyone would pass every SAFETY arm and fail LIVENESS.
+/// </para>
+/// <para>
+/// <b>Estate-wide is a named operation, not an absent scope.</b> The statistics arm previously asserted that
+/// an <em>unscoped</em> <c>GetStatisticsAsync</c> returned estate-wide counts. That branch was written as
+/// <c>scope.IsScoped ? predicate : string.Empty</c> and became unreachable when the tenant context became a
+/// required dependency — a scope resolved from an <c>ITenantContext</c> is always scoped — so the operator
+/// diagnostic had no caller and an unscoped operator silently counted only the untenanted partition. The
+/// contract is now the one the interface already used for deletion: estate-wide reach is spelled at the call
+/// site (<c>GetAllTenantsStatisticsAsync</c>), never inferred from a scope nobody established. That shape
+/// fails closed when a host forgets to establish one.
 /// </para>
 /// <para>
 /// <b>RED-on-mutant:</b> restore the substitution (make the caller filter <em>replace</em> the ambient scope,
@@ -167,6 +178,13 @@ public abstract class SagaStoreAdminTenantIntersectionTestBase
         {
             await SeedTwoTenantsAsync(ct).ConfigureAwait(false);
 
+            // A fourth row in the UNTENANTED partition, seeded only here. It makes the three partitions
+            // mutually distinguishable by count — tenant A 2, tenant B 1, untenanted 1, estate 4 — so every
+            // arm below fails with a different number and none of them can be satisfied by an inert store
+            // returning zero to everybody.
+            var (untenantedStore, adminUntenanted) = Create(tenantId: null);
+            await untenantedStore.SaveAsync(NewSaga(completed: true, tenantId: null), ct).ConfigureAwait(false);
+
             // SAFETY — a scoped operator's statistics reflect only their own tenant (2 = tenant A's rows), not
             // the estate. RED if statistics dropped the ambient predicate.
             var (_, adminA) = Create(TenantA);
@@ -174,23 +192,27 @@ public abstract class SagaStoreAdminTenantIntersectionTestBase
             scopedStats.TotalCount.ShouldBe(2, "a caller scoped to tenant A counts only tenant A's 2 sagas.");
             scopedStats.CompletedCount.ShouldBe(1, "tenant A has exactly 1 completed saga.");
 
-            // LIVENESS — an UNSCOPED operator still receives estate-wide statistics (all 3). Scoping this
-            // away would break the legitimate operator diagnostic rather than secure it.
-            //
-            // Statistics and summaries diverge here ON PURPOSE, and the two requests sit in one file
-            // saying opposite things: the summaries query makes the ambient term unconditional, because
-            // dropping it when no scope was set handed a multi-tenant deployment every tenant's saga ids
-            // and types; statistics keeps it conditional, because counts alone are the operator's
-            // estate-wide diagnostic. Only the identifying data is closed off.
-            //
-            // Worth settling rather than inheriting: the interface already carries an explicit
-            // PurgeAllTenantsCompletedBeforeAsync, so "estate-wide" is expressible as its own operation
-            // instead of being inferred from an unset scope — which is the shape that fails open when a
-            // host forgets to establish one. That is a contract decision, not a test fix.
-            var (_, adminAll) = Create(tenantId: null);
-            var estateStats = await adminAll.GetStatisticsAsync(ct).ConfigureAwait(false);
-            estateStats.TotalCount.ShouldBe(3, "an unscoped operator still sees the estate-wide total (3 sagas).");
-            estateStats.CompletedCount.ShouldBe(1, "and the estate's single completed saga.");
+            // SAFETY — a caller with NO tenant established is not an operator wildcard. It owns the untenanted
+            // partition and counts exactly that: 1, never the estate's 4. This is the arm that RED-detects a
+            // return to the old `scope.IsScoped ? predicate : string.Empty` shape, in which forgetting to
+            // establish a tenant silently widened a read to every tenant's rows.
+            var untenantedStats = await adminUntenanted.GetStatisticsAsync(ct).ConfigureAwait(false);
+            untenantedStats.TotalCount.ShouldBe(
+                1,
+                "a caller with no tenant established counts the untenanted partition only, not the estate.");
+            untenantedStats.CompletedCount.ShouldBe(1, "the single untenanted saga is completed.");
+
+            // LIVENESS — the explicit estate-wide operation still returns every tenant's counts (all 4). This
+            // is the arm that fails if the operator diagnostic goes inert; the three SAFETY arms above are all
+            // satisfied by a store that has stopped counting anything, and this one is not.
+            var estateStats = await adminUntenanted.GetAllTenantsStatisticsAsync(ct).ConfigureAwait(false);
+            estateStats.TotalCount.ShouldBe(4, "the estate-wide operation sees every tenant's sagas (2+1+1).");
+            estateStats.CompletedCount.ShouldBe(2, "the estate's two completed sagas (tenant A's and the untenanted one).");
+
+            // LIVENESS — and it is reachable from a SCOPED caller too: the operation's reach comes from its
+            // name, not from the absence of a scope. RED if the ambient scope leaked back into it.
+            var estateFromA = await adminA.GetAllTenantsStatisticsAsync(ct).ConfigureAwait(false);
+            estateFromA.TotalCount.ShouldBe(4, "the estate-wide operation ignores the ambient scope by design.");
         }
         finally
         {
@@ -230,7 +252,7 @@ public sealed class SqlServerSagaStoreAdminTenantIntersectionShould
             _fixture.ConnectionString,
             NullLogger<SqlServerSagaStore>.Instance,
             new DispatchJsonSerializer(),
-            tenantId is null ? null : new FixedTenant(tenantId));
+            tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
         return (store, (ISagaStoreAdmin)store);
     }
 }
@@ -273,7 +295,7 @@ public sealed class PostgresSagaStoreAdminTenantIntersectionShould : SagaStoreAd
             options,
             NullLogger<PostgresSagaStore>.Instance,
             new DispatchJsonSerializer(),
-            tenantId is null ? null : new FixedTenant(tenantId));
+            tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
         return (store, (ISagaStoreAdmin)store);
     }
 }

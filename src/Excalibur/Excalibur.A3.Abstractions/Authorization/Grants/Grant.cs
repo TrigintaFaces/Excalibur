@@ -9,7 +9,7 @@ namespace Excalibur.A3.Authorization;
 /// </summary>
 /// <param name="UserId">The user/subject identifier.</param>
 /// <param name="FullName">Optional display name.</param>
-/// <param name="TenantId">Optional tenant identifier.</param>
+/// <param name="TenantId">The tenant identifier. Required; a grant always belongs to exactly one tenant.</param>
 /// <param name="GrantType">The type of grant (e.g., role, activity-group).</param>
 /// <param name="Qualifier">The qualifier or scope for the grant.</param>
 /// <param name="ExpiresOn">Optional expiration timestamp (UTC).</param>
@@ -18,7 +18,7 @@ namespace Excalibur.A3.Authorization;
 public sealed record Grant(
 	string UserId,
 	string? FullName,
-	string? TenantId,
+	string TenantId,
 	string GrantType,
 	string Qualifier,
 	DateTimeOffset? ExpiresOn,

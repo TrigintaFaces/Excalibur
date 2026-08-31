@@ -86,7 +86,6 @@ public sealed class MiddlewareOptionsShould
 		options.EnableCaching.ShouldBeTrue();
 		options.CacheDuration.ShouldBe(TimeSpan.FromMinutes(5));
 		options.MaxCacheSize.ShouldBe(1000);
-		options.ValidApiKeys.ShouldBeNull();
 		options.AllowAnonymousForTypes.ShouldBeNull();
 	}
 
@@ -291,7 +290,7 @@ public sealed class MiddlewareOptionsShould
 		options.TenantRegionHeader.ShouldBe("X-Tenant-Region");
 		options.DefaultTenantId.ShouldBe(TenantDefaults.DefaultTenantId);
 		options.MinTenantIdLength.ShouldBe(1);
-		options.MaxTenantIdLength.ShouldBe(100);
+		options.MaxTenantIdLength.ShouldBe(Excalibur.Dispatch.TenantId.MaxLength);
 		options.TenantIdPattern.ShouldBeNull();
 	}
 

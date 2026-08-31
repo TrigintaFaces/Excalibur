@@ -320,7 +320,7 @@ public sealed partial class OrderingKeyManager : IDisposable
 		}
 	}
 
-	// Source-generated logging methods (Sprint 363 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(GooglePubSubEventId.OrderingManagerInitialized, LogLevel.Information,
 		"Ordering key manager initialized with timeout {Timeout} and max keys {MaxKeys}")]
 	private partial void LogManagerInitialized(TimeSpan timeout, int maxKeys);

@@ -167,7 +167,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetTransportDeliveriesRequest(null!, TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None));
+			new GetTransportDeliveriesRequest(null!, TestMessageId, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -175,7 +175,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetTransportDeliveriesRequest("", TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None));
+			new GetTransportDeliveriesRequest("", TestMessageId, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -183,7 +183,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetTransportDeliveriesRequest("   ", TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None));
+			new GetTransportDeliveriesRequest("   ", TestMessageId, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -191,7 +191,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetTransportDeliveriesRequest(TestTableName, null!, KeyedTenantPartition.Untenanted, 30, CancellationToken.None));
+			new GetTransportDeliveriesRequest(TestTableName, null!, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -199,7 +199,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetTransportDeliveriesRequest(TestTableName, "", KeyedTenantPartition.Untenanted, 30, CancellationToken.None));
+			new GetTransportDeliveriesRequest(TestTableName, "", 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -207,7 +207,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetTransportDeliveriesRequest(TestTableName, "   ", KeyedTenantPartition.Untenanted, 30, CancellationToken.None));
+			new GetTransportDeliveriesRequest(TestTableName, "   ", 30, CancellationToken.None));
 	}
 
 	#endregion
@@ -218,7 +218,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	public void CreateCommandWithValidParameters()
 	{
 		// Act
-		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None);
+		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -230,7 +230,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	public void CreateCommandThatSelectsAllColumns()
 	{
 		// Act
-		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None);
+		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldContain("Id");
@@ -250,7 +250,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	public void CreateCommandWithWhereClause()
 	{
 		// Act
-		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None);
+		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldContain("WHERE MessageId = @MessageId");
@@ -263,7 +263,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 		const int timeout = 60;
 
 		// Act
-		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, KeyedTenantPartition.Untenanted, timeout, CancellationToken.None);
+		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, timeout, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(timeout);
@@ -273,7 +273,7 @@ public sealed class GetTransportDeliveriesRequestShould : UnitTestBase
 	public void SetResolveAsyncDelegate()
 	{
 		// Act
-		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None);
+		var request = new GetTransportDeliveriesRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
 
 		// Assert
 		_ = request.ResolveAsync.ShouldNotBeNull();

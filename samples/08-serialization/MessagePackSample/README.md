@@ -45,11 +45,10 @@ public interface IOrderEvent : IDispatchEvent
 ### LZ4 Compression
 
 ```csharp
-// Configuration via DI
-builder.Services.AddMessagePackSerialization(options =>
-{
-    options.UseLz4Compression = true;
-});
+// Configuration via DI -- pass the MessagePack options the serializer should use.
+builder.Services.AddMessagePackSerializer(
+    MessagePackSerializerOptions.Standard
+        .WithCompression(MessagePackCompression.Lz4BlockArray));
 
 // Direct usage
 var lz4Options = MessagePackSerializerOptions.Standard

@@ -41,7 +41,7 @@ internal sealed class QuerySagaSummariesRequest : DataRequestBase<IDbConnection,
 
 		// Cast the nullable filter params to their concrete PG types: an untyped NULL parameter used only
 		// in "@p IS NULL OR col = @p" is indeterminate to the planner (SQLSTATE 42P08). The explicit
-		// ::boolean / ::text lets Postgres determine the type even when the bound value is NULL. [bd-64b73f]
+		// ::boolean / ::text lets Postgres determine the type even when the bound value is NULL.
 		var sql = $"""
 			SELECT saga_id, saga_type, is_completed, completed_at, tenant_id, version
 			FROM {options.QualifiedTableName}
@@ -126,16 +126,25 @@ internal sealed class GetSagaStatisticsRequest : DataRequestBase<IDbConnection, 
 	public GetSagaStatisticsRequest(
 		PostgresSagaOptions options,
 		TenantScope scope,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		bool allTenants = false)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(options.QualifiedTableName);
 
-		// The ambient tenant predicate is unconditional: a scoped caller's counts reflect only their own
-		// tenant. There is no caller input to compose with here, so scope is emitted directly rather than
-		// intersected. An unscoped store emits no predicate and still returns estate-wide counts, which is
-		// the legitimate operator diagnostic — scoping it away would break that use rather than secure it.
-		var tenantPredicate = scope.IsScoped ? " WHERE tenant_id = @TenantId" : string.Empty;
+		// Two intents, neither reachable from the other by omission:
+		//
+		//   allTenants    no discriminator          the operator diagnostic -- named at the call site
+		//   otherwise     tenant_id = @TenantId    exactly the ambient partition
+		//
+		// The scoped predicate is UNCONDITIONAL. It used to be emitted only when scope.IsScoped, on the belief
+		// that an unscoped store would fall through to estate-wide counts -- but a scope resolved from an
+		// ITenantContext is always scoped, so that branch could never be taken and the estate-wide read had no
+		// reachable caller at all. The untenanted partition is a real partition addressed by the same equality
+		// predicate as a real tenant (the column is NOT NULL and an untenanted row carries the reserved
+		// sentinel), so routing through KeyedTenantPartition makes one predicate serve both.
+		var partition = KeyedTenantPartition.FromScope(scope);
+		var tenantPredicate = allTenants ? string.Empty : " WHERE tenant_id = @TenantId";
 
 		var sql = $"""
 			SELECT COUNT(*) AS total,
@@ -143,9 +152,9 @@ internal sealed class GetSagaStatisticsRequest : DataRequestBase<IDbConnection, 
 			FROM {options.QualifiedTableName}{tenantPredicate};
 			""";
 
-		if (scope.IsScoped)
+		if (!allTenants)
 		{
-			Parameters.Add("TenantId", scope.TenantId);
+			Parameters.Add("TenantId", partition.TenantId);
 		}
 
 		Command = CreateCommand(sql, commandTimeout: options.CommandTimeoutSeconds, cancellationToken: cancellationToken);

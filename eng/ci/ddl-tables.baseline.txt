@@ -1,0 +1,98 @@
+# ddl-tables baseline — KNOWN tables with no obtainable CREATE TABLE, tracked, not forgiven.
+#
+# Each line is "<package>:<table>" for a table the package writes to by default, where the
+# package's own shipped .sql contains no CREATE TABLE for it. The package may ship plenty of
+# other schema — that is exactly why this check exists. The packing check asks "does this
+# package ship its .sql" and the parity check asks "does it ship any at all"; a package can
+# pass both while a table it writes to has no schema a consumer can obtain. That gap does not
+# surface until the first write, which for a recovery-shaped feature is the worst moment.
+#
+# This file lets the table check go live against a tree that already has gaps, without either
+# (a) failing every commit until the DDL is authored, or (b) being softened into a warning.
+# A listed gap is ALLOWED. Any gap NOT listed FAILS.
+#
+# CHECKED IN BOTH DIRECTIONS: a line here that is no longer a gap FAILS as STALE, so the file
+# cannot quietly accumulate entries that forgive nothing. The set only shrinks.
+#
+# Removing a line is what "fixed" looks like.
+
+# KNOWN LIMITATION OF THE CHECK, worth reading before triaging a new line here. The population is
+# "table names an options type declares", which is derived from the artifact rather than a
+# hand-listed inventory -- but it cannot distinguish a table the store actually writes to from one
+# named by an option nothing reads. A dead option therefore appears as a missing table. Before
+# treating a new entry as a DDL gap, confirm the declaring property is actually READ to build a
+# query; if it is not, the defect is the dead option and authoring DDL for it would be wrong.
+# Counting occurrences of the property name does NOT settle this -- builders, copy-extensions,
+# validators and PublicAPI entries all mention it without reading it.
+
+# ---------------------------------------------------------------------------------------------
+# GROUP 1 — no CREATE TABLE for this table ANYWHERE in the package, in .sql or in C#.
+# A consumer has no way to create these at all.
+#
+# EMPTY. The three entries that were here — Cdc.SqlServer:CdcProcessedEvents,
+# Data.Postgres:dead_letter_messages and Data.SqlServer:DeadLetterMessages — now ship packed DDL
+# from the package that owns each store, so the gate no longer reports them and a line for any of
+# them would be stale.
+#
+# Worth keeping in mind for the next entry that lands here: two of those three LOOKED covered.
+# A definition for both dead-letter tables existed in Excalibur.Dispatch, a package that contains
+# no SQL store — and the PostgreSQL half of it sat inside a /* ... */ comment, in a SQL Server
+# dialect file separated by GO, so it could never have executed. A table-keyed census found them;
+# reading for a nearby CREATE TABLE would not have.
+# ---------------------------------------------------------------------------------------------
+
+# RESOLVED, and the entry is gone rather than reworded. This slot held
+# Excalibur.Outbox.SqlServer:OutboxDeadLetters, which was never a DDL gap: the shipped script
+# creates [dbo].[DeadLetterQueue] and SqlServerDeadLetterQueue writes to exactly that table, so a
+# consumer running the script got a working table all along.
+#
+# The real defect was the one this file's own KNOWN LIMITATION note warns about — a table name
+# declared by an options property that nothing reads. SqlServerOutboxTableOptions.DeadLetterTableName
+# defaulted to "OutboxDeadLetters", was shipped public API, was settable through a fluent builder
+# method and was validated at startup, while QualifiedDeadLetterTableName had zero consumers. A
+# consumer who set it passed validation and kept writing to DeadLetterQueue: we accepted an
+# instruction and discarded it, which is worse than a missing table because the consumer had
+# explicit evidence it was accepted.
+#
+# The property, its builder method, its validator arm and its public API entries have been removed,
+# so the declaration the check keys on no longer exists and the finding is gone with it.
+
+# ---------------------------------------------------------------------------------------------
+# GROUP 2 — the package contains C#-authored CREATE TABLE, so some of these may be created at
+# runtime rather than from a script. Whether the C# covers THIS table cannot be settled by static
+# search: the table name is interpolated into the statement (`CREATE TABLE IF NOT EXISTS
+# {_fullTableName}`), so it never literally follows CREATE TABLE and no grep can resolve it.
+#
+# EMPTY. Auto-creation is a convenience, not a substitute for obtainable schema — an operator who
+# provisions separately, and runs without table-creation rights, has nothing to run — so these were
+# closed by shipping the DDL rather than by arguing the auto-create path was enough:
+#
+#   SQLite event store + snapshots      derived from SqliteTableInitializer
+#   both leader-election health tables  derived from the two HealthBasedLeaderElection stores
+#   Postgres CDC state                  derived from PostgresCdcStateStore
+#   Postgres events                     no auto-create path existed at all, so it was derived from
+#                                       the store's own INSERT, read, version-probe and erasure
+#                                       statements
+#
+# Each script reproduces what the code does, so a script-provisioned database and an
+# auto-provisioned one have the same shape. The rule that produced all six: the code that uses the
+# table is the specification, not an excuse for shipping nothing.
+#
+# TWO FORMER ENTRIES WERE NOT DDL GAPS AT ALL, and authoring DDL for them would have been wrong.
+# They were the case the KNOWN LIMITATION note above describes — a table name declared by an option
+# nothing reads. PostgresEventSourcingOptions and SqlServerEventSourcingOptions each carried
+# OutboxTable (and OutboxSchema, which existed only to qualify it): public, settable, copied
+# options-to-options in the builder extensions, and read by nothing that builds a query. The
+# positive control was the sibling EventStoreTable on an adjacent line, which reaches
+# RegisterEventStore and has a full Requests/ directory behind it. The partitioned-outbox managers
+# behind the options were constructed nowhere, tests included, and built partitions named
+# {base}_0 rather than the base table in any case — so they could not have created these tables
+# even if they had run. Same shape as DeadLetterTableName above, same fix: the properties, their
+# public API entries and the dead managers were removed, the declaration this check keys on went
+# with them, and the lines became stale.
+#
+# This file is now EMPTY, which is the intended end state rather than a milestone. The check keys
+# on option declarations, so a line appears here only when a NEW table is declared without
+# obtainable DDL. Add one only after confirming the declaring property is actually read to build a
+# query — otherwise the defect is the dead option, and the fix is a deletion, not a script.
+# ---------------------------------------------------------------------------------------------

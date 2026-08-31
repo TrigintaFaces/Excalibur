@@ -38,7 +38,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 // Outbox - configure storage and processing via fluent builder
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.MaxRetryCount(5)
                                 .RetryDelay(TimeSpan.FromMinutes(5)))
           .EnableBackgroundProcessing();
@@ -65,31 +65,51 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 
 ### PostgreSQL
 
-The `PostgresRetryPolicy` handles PostgreSQL-specific transient failures automatically:
+`PostgresDataRequestRetryPolicy` retries PostgreSQL data requests that fail transiently. It is the policy the Postgres persistence provider uses unless you supply your own, so it is what you get from the registration below without any extra configuration:
 
 ```csharp
 // Event sourcing with PostgreSQL - configure storage options
-services.AddPostgresEventStore(options =>
-{
-    options.ConnectionString = connectionString;
-    options.SchemaName = "public";
-    options.EventsTableName = "event_store_events";
-});
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UsePostgres(pg => pg
+        .ConnectionString(connectionString)
+        .EventStoreSchema("public")
+        .EventStoreTable("event_store_events"))));
 ```
 
-**Transient Error Codes:**
+**How a failure is classified as transient:**
 
-| Error Code | Description | Impact |
-|------------|-------------|--------|
-| 08xxx | Connection exceptions | All connection failures |
-| 08007 | Connection failure during transaction | Transaction rollback |
-| 40001, 40P01 | Serialization/deadlock | Concurrent conflicts |
-| 53xxx | Insufficient resources | Memory/disk pressure |
-| 57P01-57P04 | Admin/crash shutdown | Server unavailable |
-| 58000, 58030 | System/IO errors | Infrastructure issues |
-| 25P02, 25006 | Failed/readonly transaction | Transaction state |
-| 55P03 | Lock not available | Advisory lock contention |
-| XX000 | Internal errors | Unexpected failures |
+`PostgresDataRequestRetryPolicy` does **not** classify by SQLSTATE. It asks two questions, in order:
+
+| Exception | Retried? | Decided by |
+|-----------|----------|------------|
+| `NpgsqlException` with `IsTransient == true` | Yes | **Npgsql**, not this framework |
+| Any other `DbException` (including a non-transient `NpgsqlException`) | Only if its **message** contains one of `TIMEOUT`, `CONNECTION`, `NETWORK`, `DEADLOCK`, `LOCK TIMEOUT`, `CONNECTION RESET`, `BROKEN PIPE` (case-insensitive) | This framework |
+| `TimeoutException`, `SocketException`, `IOException` | Yes | This framework |
+| `OperationCanceledException` | No — cancellation is never retried | This framework |
+| Everything else | No | This framework |
+
+:::caution Two limits worth knowing before you rely on this
+
+**The SQLSTATE set is Npgsql's, and it is not reproduced here.** Which server error codes make
+`NpgsqlException.IsTransient` return `true` is decided entirely by the Npgsql driver version you
+have referenced, and it can change between driver releases. Consult Npgsql's own documentation for
+the authoritative list — a copy published here would be a snapshot of one driver version presented as
+a framework contract.
+
+**The second rule matches on the exception *message*, not on an error code.** A `DbException` that
+is not an `NpgsqlException` — or an `NpgsqlException` that Npgsql does not consider transient — is
+retried only when its message text contains one of the substrings above. Message text is not part of
+any stable contract: it varies with server locale and can be reworded by a server or driver upgrade,
+so a genuinely transient failure whose message does not contain one of those words is **not**
+retried, and an unrelated failure that happens to contain one **is**. Do not depend on this second
+rule for correctness — make the operation idempotent and treat retry as an optimisation.
+:::
+
+**Recovery behaviour:** up to `MaxRetryAttempts` retries (default **3**) with exponential backoff
+from `RetryDelayMilliseconds` (default **1000 ms**) — so 1s, 2s, 4s — capped by
+`MaxRetryDelayMilliseconds` (default **30000 ms**), plus up to 10% random jitter. A fresh connection
+is obtained on every attempt. All three values are configurable through the persistence options'
+`Resilience` section.
 
 ### Cloud Providers
 
@@ -149,10 +169,12 @@ services.AddPostgresCdc(options =>
     options.ConnectionString = connectionString;
     options.PublicationName = "excalibur_cdc_publication";  // Default
     options.ReplicationSlotName = "excalibur_cdc_slot";     // Default
-    options.RecoveryOptions = new PostgresCdcRecoveryOptions
-    {
-        // Configure recovery behavior for stale WAL positions
-    };
+});
+
+// Stale-position recovery is configured once for all CDC providers:
+services.AddCdc(cdc =>
+{
+    cdc.RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest;
 });
 ```
 
@@ -232,7 +254,7 @@ NpgsqlConnection.ClearAllPools();
 All retry operations emit metrics via OpenTelemetry:
 
 - `dispatch.write_store.operations_total` - Total number of write-side store operations (tagged by store, provider, operation, result)
-- `dispatch.write_store.operation_duration_ms` - Duration of write-side store operations in milliseconds
+- `dispatch.write_store.operation_duration` - Duration of write-side store operations in milliseconds
 
 ### Logging
 

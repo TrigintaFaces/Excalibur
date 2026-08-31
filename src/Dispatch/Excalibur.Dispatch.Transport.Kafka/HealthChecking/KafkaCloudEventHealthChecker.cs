@@ -68,7 +68,13 @@ internal sealed partial class KafkaCloudEventHealthChecker : ITransportHealthChe
 				BootstrapServers = _kafkaOptions.BootstrapServers
 			};
 
-			using var adminClient = new AdminClientBuilder(adminConfig).Build();
+			foreach (var kvp in _kafkaOptions.AdditionalConfig)
+			{
+				adminConfig.Set(kvp.Key, kvp.Value);
+			}
+
+			using var adminClient = new AdminClientBuilder(
+				KafkaSecurityPosture.Apply(adminConfig, _kafkaOptions)).Build();
 
 			var metadataTimeout = context.Timeout < TimeSpan.FromSeconds(30)
 				? context.Timeout

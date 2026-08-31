@@ -369,6 +369,8 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'migration/from-aspnet-eventing-proposal' },
             { type: 'doc', id: 'migration/messagecontext-v1' },
             { type: 'doc', id: 'migration/version-upgrades' },
+            { type: 'doc', id: 'migration/authorization-tenant-required' },
+            { type: 'doc', id: 'migration/inbox-document-id-rekey' },
           ],
         },
       ],

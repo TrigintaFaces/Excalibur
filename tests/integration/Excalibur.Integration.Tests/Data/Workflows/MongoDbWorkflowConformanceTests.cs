@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.MongoDB;
 using Excalibur.Integration.Tests.Data.EventStore;
@@ -50,7 +51,7 @@ public sealed class MongoDbWorkflowConformanceTests
             DatabaseName = _fixture.DatabaseName,
         });
 
-        return new MongoDbEventStore(options, NullLogger<MongoDbEventStore>.Instance);
+        return new MongoDbEventStore(options, NullLogger<MongoDbEventStore>.Instance, UntenantedContext.Instance);
     }
 
     /// <inheritdoc/>
@@ -70,4 +71,8 @@ public sealed class MongoDbWorkflowConformanceTests
     [Fact]
     public override Task DelayedRestart_ResumesAndCompletesExactlyOnce() =>
         base.DelayedRestart_ResumesAndCompletesExactlyOnce();
+
+    [Fact]
+    public override Task ConformanceSuite_ShouldWireEveryArm() =>
+    	base.ConformanceSuite_ShouldWireEveryArm();
 }

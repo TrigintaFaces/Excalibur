@@ -25,6 +25,8 @@ public static class MediatRCompatServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configures assembly registration, handler lifetime, and behavior order.</param>
     /// <returns>The same <see cref="IServiceCollection"/>, for chaining.</returns>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
     public static IServiceCollection AddMediatRCompat(
         this IServiceCollection services,
         Action<MediatRCompatOptions> configure)
@@ -32,15 +34,22 @@ public static class MediatRCompatServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        // Swap-only self-containment (nd76b5): MediatR's AddMediatR is self-contained, so AddMediatRCompat
-        // must bootstrap the Dispatch core the facade routes through. AddDispatch is TryAdd-idempotent, so
-        // a consumer that also calls AddDispatch() explicitly is unaffected.
-        services.AddDispatch();
+        // Swap-only self-containment: MediatR's AddMediatR is self-contained, so AddMediatRCompat
+        // must bootstrap the Dispatch core the facade routes through. AddDispatchPipeline is
+        // TryAdd-idempotent, so a consumer that also calls AddDispatch() explicitly is unaffected.
+        //
+        // The pipeline entry point, NOT the zero-argument AddDispatch(): that one resolves to the assembly
+        // overload, which scans the consumer's entry assembly for handlers. This facade's handlers come from
+        // the source-generated registrations below, filtered to the assemblies the consumer named on the
+        // options -- so an implicit scan of a fourth, unnamed assembly contradicts the contract the consumer
+        // just configured. AddDispatchPipeline registers the primitives and the handler registry, and scans
+        // nothing.
+        services.AddDispatchPipeline();
 
         // Invoke the consumer's 'configure' delegate exactly once, on a probe. The registry build below
         // needs the resolved options at registration time, and the DI options instance is populated by
         // copying the probe (not by re-running 'configure') — so a delegate with observable side effects
-        // (logging, counters) runs once, matching MediatR's single-invocation behavior (d2kokz).
+        // (logging, counters) runs once, matching MediatR's single-invocation behavior.
         var probe = new MediatRCompatOptions();
         configure(probe);
 

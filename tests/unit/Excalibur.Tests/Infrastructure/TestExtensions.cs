@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text;
+
 using DeduplicationOptions = Excalibur.Dispatch.Options.Delivery.DeduplicationOptions;
 
 namespace Excalibur.Tests.Infrastructure;
@@ -25,7 +27,9 @@ public static class DeduplicationExtensions
 			["MessageType"] = message.MessageType ?? string.Empty,
 		};
 
-		return strategy.GenerateDeduplicationId(message.MessageBody ?? string.Empty, attributes);
+		return strategy.GenerateDeduplicationId(
+			message.MessageBody is { Length: > 0 } body ? Encoding.UTF8.GetString(body) : string.Empty,
+			attributes);
 	}
 
 	/// <summary>
@@ -43,7 +47,9 @@ public static class DeduplicationExtensions
 			["MessageType"] = message.MessageType ?? string.Empty,
 		};
 
-		return strategy.GenerateDeduplicationId(message.MessageBody ?? string.Empty, attributes);
+		return strategy.GenerateDeduplicationId(
+			message.MessageBody is { Length: > 0 } body ? Encoding.UTF8.GetString(body) : string.Empty,
+			attributes);
 	}
 
 	/// <summary>
@@ -61,7 +67,9 @@ public static class DeduplicationExtensions
 			["MessageType"] = message.MessageType ?? string.Empty,
 		};
 
-		return strategy.GenerateDeduplicationId(message.MessageBody ?? string.Empty, attributes);
+		return strategy.GenerateDeduplicationId(
+			message.MessageBody is { Length: > 0 } body ? Encoding.UTF8.GetString(body) : string.Empty,
+			attributes);
 	}
 }
 

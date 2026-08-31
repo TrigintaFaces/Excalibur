@@ -138,11 +138,6 @@ public sealed partial class BreachNotificationService : IBreachNotificationServi
 		"Breach {BreachId} reported. Affected subjects: {AffectedSubjectCount}. Notification deadline: {Deadline}")]
 	private partial void LogBreachNotificationReported(string breachId, int affectedSubjectCount, DateTimeOffset deadline);
 
-	[LoggerMessage(
-		ComplianceEventId.BreachNotificationSent,
-		LogLevel.Information,
-		"Breach {BreachId} notification sent to affected subjects")]
-	private partial void LogBreachNotificationSent(string breachId);
 
 	[LoggerMessage(
 		ComplianceEventId.BreachNotificationFailed,

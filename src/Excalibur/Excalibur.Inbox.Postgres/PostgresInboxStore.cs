@@ -3,6 +3,7 @@
 
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 
 using Dapper;
@@ -32,7 +33,7 @@ namespace Excalibur.Inbox.Postgres;
 /// using Postgres's INSERT ... ON CONFLICT DO NOTHING for proper isolation.
 /// </para>
 /// </remarks>
-public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, ITransactionalInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxSchemaValidator
+public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, ILeasedInboxStore, IInboxStoreAdmin, ITransactionalInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxSchemaValidator
 {
 	/// <inheritdoc/>
 	public async ValueTask ValidateSchemaAsync(CancellationToken cancellationToken)
@@ -42,19 +43,51 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	public bool SupportsClaim => true;
 
 	/// <inheritdoc/>
+	public bool SupportsLeasedClaim => true;
+
+	/// <inheritdoc/>
 	public bool SupportsProcessingTracking => true;
 
 	/// <inheritdoc/>
 	public bool SupportsTransactional => true;
 
+	/// <inheritdoc />
+	/// <remarks>This store implements both transactional seams, so it offers the scoped one too.</remarks>
+	public bool SupportsScopedTransactional => true;
+
+	/// <inheritdoc/>
+	/// <remarks>This store records no per-entry next-attempt time.</remarks>
+	public bool SupportsBackoffScheduling => false;
+
 	private readonly Func<NpgsqlConnection> _connectionFactory;
 	private readonly PostgresInboxOptions _options;
 	private readonly ILogger<PostgresInboxStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
-	/// Gets the tenant term bound to every inbox row, for both the write and the match.
+	/// A tenant term that has already been resolved. Holding it in a distinct type is what makes the
+	/// fail-closed check structural rather than positional: every tenant-facing connection open and schema
+	/// read takes one, so the term is resolved before any SQL exists on that path by construction, not by
+	/// where a statement happens to sit in the method body.
+	/// </summary>
+	private readonly struct ResolvedTenantTerm(string term)
+	{
+		/// <summary>Gets the resolved term bound to every keyed statement on this path.</summary>
+		public string Term { get; } = term;
+	}
+
+	/// <summary>
+	/// Resolves the tenant term bound to every inbox row, for both the write and the match, refusing a
+	/// multi-tenant deployment whose ambient tenant is unresolved.
 	/// </summary>
 	/// <remarks>
 	/// Always a concrete, non-null term: an unscoped host resolves to the reserved untenanted sentinel
@@ -63,12 +96,11 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	/// equality, and NULL never equals NULL in SQL. The row was written and then unreachable, so the
 	/// entry stayed unprocessed forever and neither side raised an error.
 	/// <para>
-	/// Routing every site through one property is what makes that inexpressible: there is no per-call-site
+	/// Routing every site through one method is what makes that inexpressible: there is no per-call-site
 	/// opportunity left to bind the nullable value by hand.
 	/// </para>
 	/// </remarks>
-	private string TenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+	private ResolvedTenantTerm ResolveTenantTerm() => new(CurrentTenantPartition.TenantId);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresInboxStore"/> class.
@@ -76,16 +108,9 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// Ambient tenant context. The write/dedup/claim paths and keyed reads scope on the composite key
-	/// (<c>tenant_id</c>, message_id, handler_type) so two tenants carrying the same message id never dedup
-	/// against each other. Tenant-facing paths fail closed: if the resolved tenant is null they throw rather
-	/// than silently running cross-tenant. The registration path composes the store with a non-null context
-	/// (a single-tenant default or the ambient multi-tenant context), so a null resolved tenant means "ambient
-	/// scope not established." The <c>IInboxStoreAdmin</c> operator surface (<c>GetAllEntries</c>,
-	/// <c>GetFailedEntries</c>, <c>GetStatistics</c>, <c>Cleanup</c>) is estate-wide by design: it serves
-	/// operators and background services (dashboards, retention, retry processors) and is not resolved on the
-	/// per-tenant request path — a message handler depends on <c>IInboxStore</c>, which does not expose these
-	/// methods, so a per-tenant caller cannot reach a cross-tenant read or delete.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options; its <see cref="TenantContextOptions.RequireTenant"/> (set by
@@ -94,8 +119,8 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	public PostgresInboxStore(
 		IOptions<PostgresInboxOptions> options,
 		ILogger<PostgresInboxStore> logger,
-		ITenantContext? tenantContext = null,
-		IOptions<TenantContextOptions>? tenantContextOptions = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 		: this(CreateConnectionFactory(options?.Value!), options!.Value, logger, tenantContext, tenantContextOptions)
 	{
 	}
@@ -107,7 +132,9 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context for row-level tenant scoping (see the options-based constructor's remarks).
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options; its <see cref="TenantContextOptions.RequireTenant"/> selects the deployment
@@ -117,8 +144,8 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		Func<NpgsqlConnection> connectionFactory,
 		PostgresInboxOptions options,
 		ILogger<PostgresInboxStore> logger,
-		ITenantContext? tenantContext = null,
-		IOptions<TenantContextOptions>? tenantContextOptions = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -127,10 +154,12 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		_connectionFactory = connectionFactory;
 		_options = options;
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		// Deployment mode: multi-tenant iff the consumer opted in via AddMultiTenancy() (which sets
 		// TenantContextOptions.RequireTenant) — NOT "is an ITenantContext present". Drives the leak-check.
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 		// Canonical event-serialization contract (camelCase + enum-as-string + omit-null), shared with every
 		// store and the default serializer, so persisted inbox metadata round-trips byte-for-byte.
 		_jsonOptions = EventSerializationDefaults.Canonical;
@@ -143,7 +172,10 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	private volatile bool _schemaContractVerified;
 	private bool _hasTenantColumn;
 
-	private async ValueTask<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+	// The UNTENANTED opener. Named to make its use a deliberate declaration of cross-tenant intent: only the
+	// estate-wide admin drains and the schema read call it directly. Tenant-facing callers cannot reach it
+	// except through the overload below, which demands a term that has already been resolved.
+	private async ValueTask<NpgsqlConnection> OpenUntenantedConnectionAsync(CancellationToken cancellationToken)
 	{
 		var connection = _connectionFactory();
 		try
@@ -158,6 +190,28 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		}
 	}
 
+	/// <summary>
+	/// Opens a connection for a TENANT-FACING statement. The resolved term is a required argument, so it
+	/// cannot be evaluated after the connection exists: a caller that has not resolved a tenant has nothing
+	/// to pass and does not compile. This is what replaces the hand-placed ordering the guard used to rely on.
+	/// </summary>
+	private ValueTask<NpgsqlConnection> OpenConnectionAsync(ResolvedTenantTerm tenant, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenant.Term);
+		return OpenUntenantedConnectionAsync(cancellationToken);
+	}
+
+	/// <summary>
+	/// Reads the schema for a TENANT-FACING statement. Overload of the untenanted read that demands the
+	/// resolved term, because that read opens a connection of its own and so is also past the point of no
+	/// return for an unresolved tenant.
+	/// </summary>
+	private ValueTask<bool> EnsureSchemaAsync(ResolvedTenantTerm tenant, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(tenant.Term);
+		return EnsureSchemaAsync(cancellationToken);
+	}
+
 	// The (b) fail-closed floor + emission driver: reads the physical schema once, verifies the deployment-
 	// mode ↔ schema contract (fail-fast on mismatch), caches whether the tenant column is in the key, and
 	// returns it so the caller emits the tenant term iff the column exists. Benign-idempotent — no lock. The
@@ -169,7 +223,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 			return _hasTenantColumn;
 		}
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenUntenantedConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var primaryKeyColumns = (await connection.QueryAsync<string>(
 			new CommandDefinition(
@@ -226,16 +280,17 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 
 		// Tenant scope derives ONLY from the ambient context, never the row's own value. Deployment mode
-		// decides the shape: FromContext(null) => None — a non-multi-tenant deployment has no tenant_id column,
+		// decides the shape: CurrentTenantScope => None — a non-multi-tenant deployment has no tenant_id column,
 		// so the column and parameter are omitted entirely (zero bloat). A registered ITenantContext =>
 		// Scoped — the tenant_id column is written and the tenant term rides every keyed path. A context that
 		// resolves no tenant fails closed (throws) rather than reaching a predicate-less query.
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantColumn = hasTenantColumn ? ", tenant_id" : string.Empty;
 		var tenantValue = hasTenantColumn ? ", @TenantId" : string.Empty;
 
@@ -246,7 +301,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           	(@MessageId, @HandlerType, @MessageType, @Payload, @Metadata::jsonb, @ReceivedAt, @Status, @RetryCount, @CorrelationId, @Source{tenantValue})
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -261,7 +316,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				Status = (int)entry.Status,
 				entry.RetryCount,
 				entry.CorrelationId,
-				TenantId = TenantTerm,
+				TenantId = tenant.Term,
 				entry.Source
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
@@ -288,12 +343,13 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 
 		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
@@ -301,7 +357,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           WHERE message_id = @MessageId AND handler_type = @HandlerType AND status != @ProcessedStatus{tenantPredicate}
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -311,7 +367,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				HandlerType = handlerType,
 				ProcessedStatus = (int)InboxStatus.Processed,
 				ProcessedAt = DateTimeOffset.UtcNow,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
@@ -346,20 +402,21 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		// at-least-once and idempotent dedup makes processing effectively-once. Handler writes are atomic with
 		// the mark ONLY when the handler routes them through the passed transaction (its Dapper calls pass
 		// transaction: tx).
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-		await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
 
 		// Composite tenant key on the claim/dedup path, by deployment mode. Multi-tenant (an ITenantContext is
 		// registered) → the resolved tenant joins the read predicate + the synthesized INSERT + the ON CONFLICT
 		// target (the triple), so two tenants sharing a message id never dedup against each other. Non-MT →
-		// FromContext(null)=None: no tenant column/param/predicate and the ON CONFLICT target degrades to the
+		// CurrentTenantScope=None: no tenant column/param/predicate and the ON CONFLICT target degrades to the
 		// pair (message_id, handler_type). An MT-active-but-unresolved context fails closed.
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
+		await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
 		var insertTenantCol = hasTenantColumn ? ", tenant_id" : string.Empty;
 		var insertTenantVal = hasTenantColumn ? ", @TenantId" : string.Empty;
@@ -379,7 +436,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				  	(@MessageId, @HandlerType, '', ''::bytea, '{}'::jsonb, @Now, NULL, @ProcessingStatus, 0{{insertTenantVal}})
 				  ON CONFLICT {{conflictTarget}} DO NOTHING
 				  """,
-				new { MessageId = messageId, HandlerType = handlerType, ProcessingStatus = (int)InboxStatus.Processing, Now = now, TenantId = TenantTerm },
+				new { MessageId = messageId, HandlerType = handlerType, ProcessingStatus = (int)InboxStatus.Processing, Now = now, TenantId = tenant.Term },
 				transaction: transaction,
 				commandTimeout: _options.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -388,7 +445,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 			// caller blocks here until this transaction commits/rolls back.
 			var existingStatus = await connection.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
 				$"SELECT status FROM {_options.QualifiedTableName} WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate} FOR UPDATE",
-				new { MessageId = messageId, HandlerType = handlerType, TenantId = TenantTerm },
+				new { MessageId = messageId, HandlerType = handlerType, TenantId = tenant.Term },
 				transaction: transaction,
 				commandTimeout: _options.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -407,7 +464,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 			// Mark processed on the SAME transaction — atomic with the handler's writes.
 			_ = await connection.ExecuteAsync(new CommandDefinition(
 				$"UPDATE {_options.QualifiedTableName} SET status = @ProcessedStatus, processed_at = @Now, last_attempt_at = @Now, last_error = NULL WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}",
-				new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed, Now = now, TenantId = TenantTerm },
+				new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed, Now = now, TenantId = tenant.Term },
 				transaction: transaction,
 				commandTimeout: _options.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -453,20 +510,28 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
+		// Processed is absorbing: refuse rather than demote a finalized entry back to Processing, which
+		// would re-admit the message and run the handler again. The guard sits in SET rather than in
+		// WHERE (where MarkFailedAsync carries it) because this method reports a missing row by throwing
+		// off the affected count, and a WHERE-side guard would make a refused Processed entry
+		// indistinguishable from an absent one. Guarding the assignment leaves affected = 0 meaning
+		// exactly "no such row" while the transition is still evaluated atomically under the row lock.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET status = @ProcessingStatus, last_attempt_at = @LastAttemptAt
+		           SET status = CASE WHEN status = @ProcessedStatus THEN status ELSE @ProcessingStatus END,
+		               last_attempt_at = CASE WHEN status = @ProcessedStatus THEN last_attempt_at ELSE @LastAttemptAt END
 		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -475,8 +540,9 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				MessageId = messageId,
 				HandlerType = handlerType,
 				ProcessingStatus = (int)InboxStatus.Processing,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastAttemptAt = DateTimeOffset.UtcNow,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
@@ -500,12 +566,13 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 
 		// Atomic "first writer wins" using INSERT ... ON CONFLICT DO NOTHING
 		// Returns true if row was inserted (first processor), false if conflict (duplicate)
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var insertTenantCol = hasTenantColumn ? ", tenant_id" : string.Empty;
 		var insertTenantVal = hasTenantColumn ? ", @TenantId" : string.Empty;
 		var conflictTarget = hasTenantColumn ? "(message_id, handler_type, tenant_id)" : "(message_id, handler_type)";
@@ -517,7 +584,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		            ON CONFLICT {{conflictTarget}} DO NOTHING
 		            """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -527,7 +594,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				HandlerType = handlerType,
 				Now = DateTimeOffset.UtcNow,
 				ProcessedStatus = (int)InboxStatus.Processed,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
@@ -556,12 +623,13 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		// Atomic "first writer wins" claim into the NON-TERMINAL Processing state using
 		// INSERT ... ON CONFLICT DO NOTHING. Returns true if the row was inserted (claim acquired),
 		// false on conflict (already claimed/processed). Finalized via MarkProcessedAsync, removed via ReleaseAsync.
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var insertTenantCol = hasTenantColumn ? ", tenant_id" : string.Empty;
 		var insertTenantVal = hasTenantColumn ? ", @TenantId" : string.Empty;
 		var conflictTarget = hasTenantColumn ? "(message_id, handler_type, tenant_id)" : "(message_id, handler_type)";
@@ -573,7 +641,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		            ON CONFLICT {{conflictTarget}} DO NOTHING
 		            """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -583,7 +651,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				HandlerType = handlerType,
 				Now = DateTimeOffset.UtcNow,
 				ProcessingStatus = (int)InboxStatus.Processing,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
@@ -604,7 +672,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<bool> TryClaimAsync(
+	public async ValueTask<LeaseToken?> TryAcquireLeaseAsync(
 		string messageId,
 		string handlerType,
 		TimeSpan leaseDuration,
@@ -621,12 +689,13 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		// fails the DO UPDATE WHERE -> no row updated -> RETURNING yields nothing -> false. The lease-expiry
 		// comparison uses the SERVER clock (now()) inside the statement so competing app instances never
 		// decide expiry with a skewed local clock.
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var insertTenantCol = hasTenantColumn ? ", tenant_id" : string.Empty;
 		var insertTenantVal = hasTenantColumn ? ", @TenantId" : string.Empty;
 		var conflictTarget = hasTenantColumn ? "(message_id, handler_type, tenant_id)" : "(message_id, handler_type)";
@@ -643,10 +712,10 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		            		OR {{_options.QualifiedTableName}}.status = @FailedStatus
 		            		OR ({{_options.QualifiedTableName}}.status = @ProcessingStatus
 		            			AND {{_options.QualifiedTableName}}.lease_expires_at < now())
-		            RETURNING 1 AS claimed
+		            RETURNING lease_expires_at
 		            """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -658,15 +727,18 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				ProcessingStatus = (int)InboxStatus.Processing,
 				ReceivedStatus = (int)InboxStatus.Received,
 				FailedStatus = (int)InboxStatus.Failed,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var claimedRow = await connection.QuerySingleOrDefaultAsync<int?>(command).ConfigureAwait(false);
-		var claimed = claimedRow is not null;
+		// The term is the expiry the SERVER resolved inside this statement (now() + @Lease), read back via
+		// RETURNING — never recomputed app-side, so it is byte-identical to what CompleteAsync/FailAsync must
+		// later match.
+		var leaseExpiresAt = await connection.QuerySingleOrDefaultAsync<DateTimeOffset?>(command).ConfigureAwait(false);
+		var lease = leaseExpiresAt is { } expiresAt ? ToLeaseToken(expiresAt) : (LeaseToken?)null;
 
-		if (claimed)
+		if (lease is not null)
 		{
 			_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 		}
@@ -675,7 +747,125 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 			_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 		}
 
-		return claimed;
+		return lease;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> CompleteAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
+		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
+		// The term is ADDITIONAL to the tenant/existence predicates, never a replacement: a caller whose
+		// lease lapsed presents the term it lost, which matches no row (the row's term has already moved
+		// on to whoever reclaimed it), so this UPDATE affects 0 rows and CompleteAsync reports false.
+		var sql = $"""
+		           UPDATE {_options.QualifiedTableName}
+		           SET status = @ProcessedStatus, processed_at = @ProcessedAt, last_attempt_at = @ProcessedAt, last_error = NULL
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType AND lease_expires_at = @Lease{tenantPredicate}
+		           """;
+
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				ProcessedStatus = (int)InboxStatus.Processed,
+				ProcessedAt = DateTimeOffset.UtcNow,
+				Lease = FromLeaseToken(lease),
+				TenantId = tenant.Term
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		if (affected > 0)
+		{
+			_logger.LogDebug("Completed leased inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug("Lease-complete denied (stale term) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return affected > 0;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> FailAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		string errorMessage,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
+		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
+		// Clears the term on success: a failed entry has no holder, so it must not keep a term a later
+		// comparison could match. Processed is absorbing: the predicate refuses the transition rather than
+		// demoting a finalized entry to Failed, which would make it re-admittable and run the handler again.
+		var sql = $"""
+		           UPDATE {_options.QualifiedTableName}
+		           SET status = @FailedStatus, last_error = @LastError, retry_count = retry_count + 1, last_attempt_at = @LastAttemptAt, lease_expires_at = NULL
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType AND lease_expires_at = @Lease{tenantPredicate} AND status <> @ProcessedStatus
+		           """;
+
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
+				LastError = errorMessage,
+				LastAttemptAt = DateTimeOffset.UtcNow,
+				Lease = FromLeaseToken(lease),
+				TenantId = tenant.Term
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		if (affected > 0)
+		{
+			_logger.LogDebug("Recorded failure for leased inbox entry {MessageId}/{HandlerType}: {Error}", messageId, handlerType, errorMessage);
+		}
+		else
+		{
+			_logger.LogDebug("Lease-fail denied (stale term) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return affected > 0;
 	}
 
 	/// <inheritdoc/>
@@ -686,23 +876,24 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 
 		// Remove the non-terminal claim so a redelivery can re-admit. Restricted to non-Processed rows so a
 		// concurrently-finalized entry is never deleted. No-op if already removed or never claimed.
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
 		var sql = $"""
 		           DELETE FROM {_options.QualifiedTableName}
 		           WHERE message_id = @MessageId AND handler_type = @HandlerType AND status <> @ProcessedStatus{tenantPredicate}
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
-			new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed, TenantId = TenantTerm },
+			new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed, TenantId = tenant.Term },
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -720,12 +911,13 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 
 		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
 
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
 		var sql = $"""
 		           SELECT EXISTS (
@@ -734,11 +926,11 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           )
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
-			new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed, TenantId = TenantTerm },
+			new { MessageId = messageId, HandlerType = handlerType, ProcessedStatus = (int)InboxStatus.Processed, TenantId = tenant.Term },
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -751,12 +943,13 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
 		var tenantSelectColumn = hasTenantColumn ? ", tenant_id" : string.Empty;
 		var sql = $"""
@@ -766,11 +959,11 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
-			new { MessageId = messageId, HandlerType = handlerType, TenantId = TenantTerm },
+			new { MessageId = messageId, HandlerType = handlerType, TenantId = tenant.Term },
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -787,20 +980,23 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
+		// Processed is absorbing: the predicate refuses the transition rather than demoting a
+		// finalized entry to Failed, which would make it re-admittable and run the handler again.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET status = @FailedStatus, last_error = @LastError, retry_count = retry_count + 1, last_attempt_at = @LastAttemptAt
-		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}
+		           SET status = @FailedStatus, last_error = @LastError, retry_count = retry_count + 1, last_attempt_at = @LastAttemptAt, lease_expires_at = NULL
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate} AND status <> @ProcessedStatus
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -809,9 +1005,10 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				MessageId = messageId,
 				HandlerType = handlerType,
 				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastError = errorMessage,
 				LastAttemptAt = DateTimeOffset.UtcNow,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
@@ -831,22 +1028,25 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		// Set retry_count EXACTLY (no +1) so a transient short-circuit leaves the entry re-admittable
-		// without consuming a delivery attempt (FR-4). UPDATE-only: same existence semantics as the
+		// without consuming a delivery attempt. UPDATE-only: same existence semantics as the
 		// incrementing overload (a missing row affects 0 rows).
-		// FAIL-CLOSED BEFORE ANY CONNECTION. EnsureSchemaAsync opens one, so evaluating the tenant
-		// afterwards let a null ambient tenant reach the database before the guard could refuse it —
-		// the scope resolves inside TenantTerm and throws there, which is too late once SQL is live.
-		// The drain methods deliberately omit this: they are cross-tenant by contract.
-		_ = TenantTerm;
-		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		// FAIL-CLOSED BEFORE ANY CONNECTION, structurally. The resolved term is a REQUIRED ARGUMENT of
+		// every tenant-facing connection open and schema read below, so it is evaluated — and refuses an
+		// unresolved ambient tenant — before a connection can exist, whatever order the statements are in.
+		// Moving or deleting this line does not compile. The drain methods take the untenanted overloads:
+		// they are cross-tenant by contract.
+		var tenant = ResolveTenantTerm();
+		var hasTenantColumn = await EnsureSchemaAsync(tenant, cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND tenant_id = @TenantId" : string.Empty;
+		// Processed is absorbing: the predicate refuses the transition rather than demoting a
+		// finalized entry to Failed, which would make it re-admittable and run the handler again.
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
-		           SET status = @FailedStatus, last_error = @LastError, retry_count = @RetryCount, last_attempt_at = @LastAttemptAt
-		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate}
+		           SET status = @FailedStatus, last_error = @LastError, retry_count = @RetryCount, last_attempt_at = @LastAttemptAt, lease_expires_at = NULL
+		           WHERE message_id = @MessageId AND handler_type = @HandlerType{tenantPredicate} AND status <> @ProcessedStatus
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenConnectionAsync(tenant, cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -855,10 +1055,11 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 				MessageId = messageId,
 				HandlerType = handlerType,
 				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastError = errorMessage,
 				RetryCount = retryCount,
 				LastAttemptAt = DateTimeOffset.UtcNow,
-				TenantId = TenantTerm
+				TenantId = tenant.Term
 			},
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
@@ -869,7 +1070,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -881,18 +1082,19 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           SELECT message_id, handler_type, message_type, payload, metadata, received_at, processed_at,
 		           	   status, last_error, retry_count, last_attempt_at, correlation_id, source{tenantSelectColumn}
 		           FROM {_options.QualifiedTableName}
-		           WHERE status = @FailedStatus
+		           WHERE (status = @FailedStatus
+		           		OR (status = @ProcessingStatus AND lease_expires_at IS NOT NULL AND lease_expires_at < NOW()))
 		           	AND retry_count < @MaxRetries
 		           	AND (@OlderThan IS NULL OR last_attempt_at < @OlderThan)
 		           ORDER BY retry_count ASC, last_attempt_at ASC
 		           LIMIT @BatchSize
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenUntenantedConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
-			new { BatchSize = batchSize, FailedStatus = (int)InboxStatus.Failed, MaxRetries = maxRetries, OlderThan = olderThan },
+			new { BatchSize = batchSize, FailedStatus = (int)InboxStatus.Failed, ProcessingStatus = (int)InboxStatus.Processing, MaxRetries = maxRetries, OlderThan = olderThan },
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
@@ -901,7 +1103,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantSelectColumn = hasTenantColumn ? ", tenant_id" : string.Empty;
@@ -912,7 +1114,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           ORDER BY received_at DESC
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenUntenantedConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -924,7 +1126,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		var sql = $"""
 		           SELECT
@@ -935,7 +1137,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           FROM {_options.QualifiedTableName}
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenUntenantedConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -953,7 +1155,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
@@ -962,7 +1164,7 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 		           WHERE status = @ProcessedStatus AND processed_at < @CutoffDate
 		           """;
 
-		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var connection = await OpenUntenantedConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var command = new CommandDefinition(
 			sql,
@@ -992,6 +1194,17 @@ public sealed class PostgresInboxStore : IInboxStore, IProcessingTrackingInboxSt
 	{
 		return JsonSerializer.Serialize(metadata, _jsonOptions);
 	}
+
+	// Round-trip the lease term through the exact "O" (round-trip) format. lease_expires_at is TIMESTAMPTZ,
+	// which Postgres stores at MICROSECOND resolution (6 fractional digits); Npgsql populates the resulting
+	// DateTimeOffset's Ticks as an exact multiple of 10, so the 7th ("O"-format) fractional digit is always
+	// 0 and round-trips losslessly through ParseExact back to the identical DateTimeOffset — the value
+	// re-sent to Postgres on CompleteAsync/FailAsync is byte-identical to the one the server wrote.
+	private static LeaseToken ToLeaseToken(DateTimeOffset leaseExpiresAt)
+		=> new(leaseExpiresAt.ToString("O", CultureInfo.InvariantCulture));
+
+	private static DateTimeOffset FromLeaseToken(LeaseToken lease)
+		=> DateTimeOffset.ParseExact(lease.Value, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
 
 	private InboxEntry MapRowToEntry(InboxEntryRow row)
 	{

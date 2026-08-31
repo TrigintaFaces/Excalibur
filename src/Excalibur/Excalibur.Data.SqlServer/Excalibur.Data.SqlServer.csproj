@@ -33,6 +33,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- The store does not create its table at runtime, so a consumer who does not receive this
+         script cannot obtain the DDL. Pack must sit on the .sql item itself. -->
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">

@@ -58,7 +58,7 @@ public abstract class DispatchMiddlewareBase : IDispatchMiddleware
 		}
 		catch (Exception ex)
 		{
-			// Cooperative cancellation (qkvslo) and fail-closed denials (e.g. an ordering rejection) are
+			// Cooperative cancellation () and fail-closed denials (e.g. an ordering rejection) are
 			// both INTENTIONAL control flow, not unexpected errors — rethrow them unwrapped (preserving the
 			// original stack trace) so the typed exception reaches the caller intact, bypassing OnErrorAsync
 			// and the diagnostic wrap. Wrapping an OperationCanceledException in InvalidOperationException

@@ -227,12 +227,18 @@ CREATE TABLE [dbo].[Events] (
     [Metadata] VARBINARY(MAX) NULL,
     [Version] BIGINT NOT NULL,
     [Timestamp] DATETIMEOFFSET NOT NULL,
-    -- Nullable: the unscoped path emits neither this column nor its parameter.
+    -- NOT NULL, and part of the stream key below: an unscoped host stores the reserved
+    -- '__untenanted__' sentinel rather than omitting the column.
     -- Binary collation: the server default is typically case-insensitive, so without it a
     -- scoped read matches another tenant whose identifier differs only by case.
-    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
+    [TenantId] NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
     CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
-    CONSTRAINT [UQ_Events_AggregateVersion] UNIQUE ([AggregateId], [AggregateType], [Version])
+    -- The tenant is part of stream identity, so optimistic concurrency is per-tenant. Without
+    -- it two tenants cannot use the same natural aggregate id: the second one's tenant-scoped
+    -- version probe reports -1 while its insert collides, producing a retryable conflict that
+    -- can never converge.
+    CONSTRAINT [UQ_Events_AggregateVersion]
+        UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
 
 CREATE INDEX [IX_Events_Aggregate] ON [dbo].[Events] ([AggregateId], [AggregateType], [Version]);
@@ -255,9 +261,15 @@ CREATE TABLE events (
     metadata BYTEA NULL,
     version BIGINT NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
-    -- Nullable: the unscoped path emits neither this column nor its parameter.
-    tenant_id VARCHAR(256) NULL,
-    CONSTRAINT uq_events_aggregate_version UNIQUE (aggregate_id, aggregate_type, version)
+    -- NOT NULL, and part of the stream key below: an unscoped host stores the reserved
+    -- '__untenanted__' sentinel rather than omitting the column.
+    tenant_id VARCHAR(64) NOT NULL,
+    -- The tenant is part of stream identity, so optimistic concurrency is per-tenant. On
+    -- PostgreSQL the NOT NULL is load-bearing rather than cosmetic: NULLs in a unique
+    -- constraint are distinct from each other, so a nullable tenant column would stop this
+    -- key constraining untenanted rows at all, silently removing the concurrency check.
+    CONSTRAINT uq_events_aggregate_version
+        UNIQUE (aggregate_id, aggregate_type, version, tenant_id)
 );
 
 CREATE INDEX ix_events_aggregate ON events (aggregate_id, aggregate_type, version);
@@ -392,7 +404,8 @@ services.Configure<SqlServerMigratorOptions>(options =>
 ### PostgreSQL
 
 ```csharp
-services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UsePostgres(pg => pg.ConnectionString(connectionString))));
 services.AddHostedService<PostgresMigrationHostedService>();
 
 services.Configure<PostgresMigratorOptions>(options =>
@@ -401,6 +414,66 @@ services.Configure<PostgresMigratorOptions>(options =>
     options.MigrationNamespace = "MyApp.Migrations";
 });
 ```
+
+## Migration Integrity
+
+When a migration is applied, the migrator records a checksum of the script alongside the migration id.
+Before applying anything, **every subsequent run re-checks that checksum against the script carrying that
+id today, and refuses the whole run if they disagree.**
+
+:::danger A numbered migration's body is fixed once it has been applied
+
+A migration id identifies a *body*, not just a position in the order. Once a database has run
+`20260101_001_CreateEventStore.sql`, that database's shape is a consequence of the script that ran. Edit
+the file afterwards and you have two populations that both claim to be at `..._001` and are not in the
+same state — and every migration you write next has to assume one of them.
+
+**Correct a shipped migration by adding a new numbered migration, never by editing the old one.**
+
+:::
+
+### What a refusal looks like
+
+`MigrateAsync` returns a failed `MigrationResult` naming every migration whose script no longer matches,
+and applies nothing — the database is left exactly as it was found. Under
+`AutoMigrateOnStartup`, the hosted service turns that into an exception and **the application does not
+start**. That is deliberate: a process that starts against a schema it cannot account for fails later, in
+production, from the wrong end.
+
+```text
+Refusing to migrate. 1 migration(s) recorded as applied no longer match the script now carrying
+that id in the migration assembly: 20260101_001_CreateEventStore. ...
+```
+
+### If you hit this on upgrade
+
+Establish which of the two bodies your database actually ran, then:
+
+| Situation | What to do |
+| --- | --- |
+| The database ran the **older** body | Restore that body under its original id, and ship the correction as a **new** numbered migration. |
+| The database already has the **current** body's effect (for example it was applied by hand) | `down` past the affected migration, then `up` to re-record it against the current script. |
+
+Rolling back only removes history rows — it does not undo schema changes — so the second route is only
+correct when the schema already matches the script you are re-recording.
+
+### What is not treated as a change
+
+Line endings. The same committed script is checked out with CRLF on Windows and LF elsewhere, so a
+package built on one platform and a package built on the other embed different bytes for one script.
+Both are accepted as the same script. Checksums recorded by earlier releases, before this comparison
+existed, are also accepted where the script is unchanged — upgrading does not require you to re-baseline.
+
+Everything else counts, including whitespace and comments. The comparison cannot tell a reworded comment
+from a reworded `WHERE` clause, and guessing in the direction of "probably harmless" is the failure this
+check exists to prevent.
+
+### Migrations that cannot be checked
+
+Two states are reported and skipped rather than refused, because neither is evidence of drift:
+a history row with no recorded checksum (written before this comparison existed), and an applied
+migration whose script is no longer in the migration assembly (moved, renamed, or split out). Both are
+logged so they are visible; neither blocks a run.
 
 ## Best Practices
 

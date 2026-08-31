@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
+using System.Globalization;
 using System.Text.Json;
 
 using Dapper;
@@ -10,10 +11,12 @@ using Excalibur.Dispatch;
 
 using Excalibur.Inbox.Observability;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
 
 namespace Excalibur.Inbox.Oracle;
 
@@ -39,7 +42,7 @@ namespace Excalibur.Inbox.Oracle;
 /// positionally by default; distinct names keep parameter order unambiguous).
 /// </para>
 /// </remarks>
-public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, ITransactionalInboxStore, IInboxStoreCapabilities, IInboxSchemaValidator
+public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, ILeasedInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, ITransactionalInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxSchemaValidator
 {
 	// ORA-00001: unique constraint violated.
 	private const int OracleUniqueViolation = 1;
@@ -52,16 +55,35 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	public bool SupportsClaim => true;
 
 	/// <inheritdoc/>
+	public bool SupportsLeasedClaim => true;
+
+	/// <inheritdoc/>
 	public bool SupportsProcessingTracking => true;
 
 	/// <inheritdoc/>
 	public bool SupportsTransactional => true;
 
+	/// <inheritdoc />
+	/// <remarks>This store implements both transactional seams, so it offers the scoped one too.</remarks>
+	public bool SupportsScopedTransactional => true;
+
+	/// <inheritdoc/>
+	/// <remarks>This store implements IBackoffSchedulableInboxStore and persists NextAttemptAt.</remarks>
+	public bool SupportsBackoffScheduling => true;
+
 	private readonly Func<OracleConnection> _connectionFactory;
 	private readonly OracleInboxOptions _options;
 	private readonly ILogger<OracleInboxStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Gets the tenant term bound to every inbox row, for both the write and the match.
@@ -78,7 +100,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	/// </para>
 	/// </remarks>
 	private string TenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	private string Table => _options.QualifiedTableName;
 
@@ -88,26 +110,23 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// Ambient tenant context. The write/dedup/claim paths and keyed reads scope on the composite key
-	/// (<c>TenantId</c>, MessageId, HandlerType) so two tenants carrying the same message id never dedup
-	/// against each other. Tenant-facing paths fail closed: if the resolved tenant is null they throw rather
-	/// than silently running cross-tenant. The registration path composes the store with a non-null context
-	/// (a single-tenant default or the ambient multi-tenant context), so a null resolved tenant means "ambient
-	/// scope not established." The <c>IInboxStoreAdmin</c> operator surface (<c>GetAllEntries</c>,
-	/// <c>GetFailedEntries</c>, <c>GetStatistics</c>, <c>Cleanup</c>) is estate-wide by design: it serves
-	/// operators and background services (dashboards, retention, retry processors) and is not resolved on the
-	/// per-tenant request path — a message handler depends on <c>IInboxStore</c>, which does not expose these
-	/// methods, so a per-tenant caller cannot reach a cross-tenant read or delete.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options; its <see cref="TenantContextOptions.RequireTenant"/> (set by
 	/// <c>AddMultiTenancy()</c>) selects the deployment mode for the startup schema handshake.
 	/// </param>
+	// Deterministic DI construction: the advanced constructor below also accepts an ITenantContext, so
+	// without this marker ActivatorUtilities' selection depends on which services happen to be
+	// registered, and reports a missing dependency as a constructor ambiguity.
+	[ActivatorUtilitiesConstructor]
 	public OracleInboxStore(
 		IOptions<OracleInboxOptions> options,
 		ILogger<OracleInboxStore> logger,
-		ITenantContext? tenantContext = null,
-		IOptions<TenantContextOptions>? tenantContextOptions = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 		: this(CreateConnectionFactory(options!.Value), options.Value, logger, tenantContext, tenantContextOptions)
 	{
 	}
@@ -119,7 +138,9 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context for row-level tenant scoping (see the options-based constructor's remarks).
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options; its <see cref="TenantContextOptions.RequireTenant"/> selects the deployment
@@ -129,8 +150,8 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		Func<OracleConnection> connectionFactory,
 		OracleInboxOptions options,
 		ILogger<OracleInboxStore> logger,
-		ITenantContext? tenantContext = null,
-		IOptions<TenantContextOptions>? tenantContextOptions = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -139,10 +160,12 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		_connectionFactory = connectionFactory;
 		_options = options;
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		// Deployment mode: multi-tenant iff the consumer opted in via AddMultiTenancy() (which sets
 		// TenantContextOptions.RequireTenant) — NOT "is an ITenantContext present". Drives the leak-check.
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 		// Canonical event-serialization contract shared with every store and the default serializer.
 		_jsonOptions = EventSerializationDefaults.Canonical;
 	}
@@ -249,7 +272,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 
 		// Tenant scope derives ONLY from the ambient context, never the row's own value. Deployment mode
-		// decides the shape: FromContext(null) => None — a non-multi-tenant deployment has no TenantId column,
+		// decides the shape: CurrentTenantScope => None — a non-multi-tenant deployment has no TenantId column,
 		// so the column and parameter are omitted entirely (zero bloat). A registered ITenantContext =>
 		// Scoped — the TenantId column is written and the tenant term rides every keyed path. A context that
 		// resolves no tenant fails closed (throws) rather than reaching a predicate-less query.
@@ -362,7 +385,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		// Composite tenant key on the claim/dedup path, by deployment mode. Multi-tenant (an ITenantContext is
 		// registered) → the resolved tenant joins the placeholder INSERT + the FOR UPDATE read predicate + the
 		// processed-mark UPDATE (the triple), so two tenants sharing a message id never dedup against each
-		// other. Non-MT → FromContext(null)=None: no tenant column/param/predicate emitted. An
+		// other. Non-MT → CurrentTenantScope=None: no tenant column/param/predicate emitted. An
 		// MT-active-but-unresolved context fails closed.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
@@ -414,6 +437,30 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		}
 	}
 
+	/// <inheritdoc cref="IScopedTransactionalInboxStore.TryProcessTransactionallyAsync" />
+	/// <remarks>
+	/// Wires the inbox middleware's scoped exactly-once seam onto the relational implementation above. The
+	/// middleware selects the atomic path by type-testing for the scoped interface, so without this bridge an
+	/// undecorated Oracle store advertises <see cref="SupportsTransactional"/> and still falls through to the
+	/// at-least-once claim protocol. The active BCL <see cref="IDbTransaction"/> is wrapped in the opaque
+	/// <see cref="IInboxTransactionScope"/> so a handler enlists its own writes via <c>scope.AsSqlTransaction()</c>,
+	/// committing atomically with the processed-mark. Guarantees are inherited unchanged from the overload above.
+	/// </remarks>
+	public ValueTask<bool> TryProcessTransactionallyAsync(
+		string messageId,
+		string handlerType,
+		Func<IInboxTransactionScope, CancellationToken, ValueTask> handler,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(handler);
+
+		return TryProcessTransactionallyAsync(
+			messageId,
+			handlerType,
+			(tx, ct) => handler(new SqlInboxTransactionScope(tx), ct),
+			cancellationToken);
+	}
+
 	/// <inheritdoc/>
 	public async ValueTask MarkProcessingAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
@@ -422,9 +469,16 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
+		// Processed is absorbing: refuse rather than demote a finalized entry back to Processing, which
+		// would re-admit the message and run the handler again. The guard sits in SET rather than in
+		// WHERE (where MarkFailedAsync carries it) because this method reports a missing row by throwing
+		// off the affected count, and a WHERE-side guard would make a refused Processed entry
+		// indistinguishable from an absent one. Guarding the assignment leaves affected = 0 meaning
+		// exactly "no such row" while the transition is still evaluated atomically under the row lock.
 		var sql = $"""
 		           UPDATE {Table}
-		           SET Status = :ProcessingStatus, LastAttemptAt = :LastAttemptAt
+		           SET Status = CASE WHEN Status = :ProcessedStatus THEN Status ELSE :ProcessingStatus END,
+		               LastAttemptAt = CASE WHEN Status = :ProcessedStatus THEN LastAttemptAt ELSE :LastAttemptAt END
 		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
 		           """;
 
@@ -435,6 +489,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 			new
 			{
 				ProcessingStatus = (int)InboxStatus.Processing,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastAttemptAt = DateTimeOffset.UtcNow,
 				MessageId = messageId,
 				HandlerType = handlerType,
@@ -541,7 +596,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<bool> TryClaimAsync(
+	public async ValueTask<LeaseToken?> TryAcquireLeaseAsync(
 		string messageId,
 		string handlerType,
 		TimeSpan leaseDuration,
@@ -558,6 +613,13 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		//       lease or a terminal Processed row matches no predicate => 0 => not claimed.
 		// The lease-expiry comparison uses the SERVER clock (SYS_EXTRACT_UTC(SYSTIMESTAMP)) so competing app
 		// instances never decide expiry with a skewed local clock.
+		//
+		// Both statements append RETURNING LeaseExpiresAtUtc INTO an output parameter so the term returned to
+		// the caller is read back from the SAME DML that wrote it — no separate SELECT, so there is no window
+		// in which another writer could interleave between the write and the read (Oracle has no `MERGE ...
+		// OUTPUT`/multi-row RETURNING equivalent, so a plain Dapper CommandDefinition can't express this; a
+		// raw OracleCommand with an output OracleParameter is the mechanism, mirroring
+		// InsertEventsBatchRequest's identical INSERT ... RETURNING POSITION INTO need).
 		var leaseSeconds = leaseDuration.TotalSeconds;
 
 		// When scoped, the ambient tenant joins the composite key on the INSERT (so two tenants sharing a
@@ -574,20 +636,37 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		                 VALUES
 		                 	(:MessageId, :HandlerType, NULL, EMPTY_BLOB(), :EmptyJson, SYS_EXTRACT_UTC(SYSTIMESTAMP), NULL, :ProcessingStatus, 0,
 		                 	 SYS_EXTRACT_UTC(SYSTIMESTAMP) + NUMTODSINTERVAL(:LeaseSeconds, 'SECOND'){insertTenantVal})
+		                 RETURNING LeaseExpiresAtUtc INTO :OutLease
 		                 """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		try
 		{
-			_ = await connection.ExecuteAsync(new CommandDefinition(
-				insertSql,
-				new { MessageId = messageId, HandlerType = handlerType, ProcessingStatus = (int)InboxStatus.Processing, LeaseSeconds = leaseSeconds, EmptyJson = "{}", TenantId = TenantTerm },
-				commandTimeout: _options.CommandTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+			await using var insertCommand = connection.CreateCommand();
+#pragma warning disable CA2100 // insertSql is built from the configured Table/tenant-column shape; no user input.
+			insertCommand.CommandText = insertSql;
+#pragma warning restore CA2100
+			insertCommand.BindByName = true;
+			insertCommand.CommandTimeout = _options.CommandTimeoutSeconds;
+
+			_ = insertCommand.Parameters.Add(new OracleParameter("MessageId", messageId));
+			_ = insertCommand.Parameters.Add(new OracleParameter("HandlerType", handlerType));
+			_ = insertCommand.Parameters.Add(new OracleParameter("EmptyJson", "{}"));
+			_ = insertCommand.Parameters.Add(IntParameter("ProcessingStatus", (int)InboxStatus.Processing));
+			_ = insertCommand.Parameters.Add(new OracleParameter("LeaseSeconds", leaseSeconds));
+			if (hasTenantColumn)
+			{
+				_ = insertCommand.Parameters.Add(new OracleParameter("TenantId", TenantTerm));
+			}
+
+			var insertOutLease = new OracleParameter("OutLease", OracleDbType.TimeStampTZ) { Direction = ParameterDirection.Output };
+			_ = insertCommand.Parameters.Add(insertOutLease);
+
+			_ = await insertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
 			_logger.LogDebug("Lease-claimed (new) inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
-			return true;
+			return ToLeaseToken(ReadLeaseTimestamp(insertOutLease.Value));
 		}
 		catch (OracleException ex) when (ex.Number == OracleUniqueViolation)
 		{
@@ -600,37 +679,220 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 			                 	AND (Status = :ReceivedStatus
 			                 		OR Status = :FailedStatus
 			                 		OR (Status = :ProcessingStatusFilter AND LeaseExpiresAtUtc < SYS_EXTRACT_UTC(SYSTIMESTAMP)))
+			                 RETURNING LeaseExpiresAtUtc INTO :OutLease
 			                 """;
 
-			var affected = await connection.ExecuteAsync(new CommandDefinition(
-				updateSql,
-				new
-				{
-					NewStatus = (int)InboxStatus.Processing,
-					LeaseSeconds = leaseSeconds,
-					MessageId = messageId,
-					HandlerType = handlerType,
-					ReceivedStatus = (int)InboxStatus.Received,
-					FailedStatus = (int)InboxStatus.Failed,
-					ProcessingStatusFilter = (int)InboxStatus.Processing,
-					TenantId = TenantTerm
-				},
-				commandTimeout: _options.CommandTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+			await using var updateCommand = connection.CreateCommand();
+#pragma warning disable CA2100 // updateSql is built from the configured Table/tenant-column shape; no user input.
+			updateCommand.CommandText = updateSql;
+#pragma warning restore CA2100
+			updateCommand.BindByName = true;
+			updateCommand.CommandTimeout = _options.CommandTimeoutSeconds;
 
-			var claimed = affected > 0;
-			if (claimed)
+			_ = updateCommand.Parameters.Add(IntParameter("NewStatus", (int)InboxStatus.Processing));
+			_ = updateCommand.Parameters.Add(new OracleParameter("LeaseSeconds", leaseSeconds));
+			_ = updateCommand.Parameters.Add(new OracleParameter("MessageId", messageId));
+			_ = updateCommand.Parameters.Add(new OracleParameter("HandlerType", handlerType));
+			_ = updateCommand.Parameters.Add(IntParameter("ReceivedStatus", (int)InboxStatus.Received));
+			_ = updateCommand.Parameters.Add(IntParameter("FailedStatus", (int)InboxStatus.Failed));
+			_ = updateCommand.Parameters.Add(IntParameter("ProcessingStatusFilter", (int)InboxStatus.Processing));
+			if (hasTenantColumn)
 			{
-				_logger.LogDebug("Lease-claimed (reclaimed) inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+				_ = updateCommand.Parameters.Add(new OracleParameter("TenantId", TenantTerm));
 			}
-			else
+
+			var updateOutLease = new OracleParameter("OutLease", OracleDbType.TimeStampTZ) { Direction = ParameterDirection.Output };
+			_ = updateCommand.Parameters.Add(updateOutLease);
+
+			var affected = await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+			if (affected == 0)
 			{
 				_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+				return null;
 			}
 
-			return claimed;
+			_logger.LogDebug("Lease-claimed (reclaimed) inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return ToLeaseToken(ReadLeaseTimestamp(updateOutLease.Value));
 		}
 	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> CompleteAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
+
+		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
+		// The term is ADDITIONAL to the tenant/existence/status predicates, never a replacement: a caller
+		// whose lease lapsed presents the term it lost, which matches no row (the row's term has already
+		// moved on to whoever reclaimed it), so this UPDATE affects 0 rows and CompleteAsync reports false.
+		var sql = $"""
+		           UPDATE {Table}
+		           SET Status = :ProcessedStatus, ProcessedAt = :ProcessedAt, LastAttemptAt = :LastAttemptAt, LastError = NULL
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           	AND Status <> :ProcessedStatusFilter AND LeaseExpiresAtUtc = :Lease
+		           """;
+
+		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		var now = DateTimeOffset.UtcNow;
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				ProcessedStatus = (int)InboxStatus.Processed,
+				ProcessedAt = now,
+				LastAttemptAt = now,
+				MessageId = messageId,
+				HandlerType = handlerType,
+				ProcessedStatusFilter = (int)InboxStatus.Processed,
+				TenantId = TenantTerm,
+				Lease = FromLeaseToken(lease)
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		if (affected > 0)
+		{
+			_logger.LogDebug("Completed leased inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug("Lease-complete denied (stale term) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return affected > 0;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> FailAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		string errorMessage,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
+		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
+		// Clears the term on success: a failed entry has no holder, so it must not keep a term a later
+		// lease comparison (CompleteAsync/FailAsync) could match. Processed is absorbing: the predicate
+		// refuses the transition rather than demoting a finalized entry to Failed, which would make it
+		// re-admittable and run the handler again. The term is ADDITIONAL to that guard.
+		var sql = $"""
+		           UPDATE {Table}
+		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = RetryCount + 1, LastAttemptAt = :LastAttemptAt, LeaseExpiresAtUtc = NULL
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           	AND Status <> :ProcessedStatus AND LeaseExpiresAtUtc = :Lease
+		           """;
+
+		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		var command = new CommandDefinition(
+			sql,
+			new
+			{
+				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
+				LastError = NormalizeError(errorMessage),
+				LastAttemptAt = DateTimeOffset.UtcNow,
+				MessageId = messageId,
+				HandlerType = handlerType,
+				TenantId = TenantTerm,
+				Lease = FromLeaseToken(lease)
+			},
+			commandTimeout: _options.CommandTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await connection.ExecuteAsync(command).ConfigureAwait(false);
+
+		if (affected > 0)
+		{
+			_logger.LogWarning("Marked leased inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
+				messageId, handlerType, errorMessage);
+		}
+		else
+		{
+			_logger.LogDebug("Lease-fail denied (stale term) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return affected > 0;
+	}
+
+	/// <summary>
+	/// Binds an integer value as an explicit <see cref="OracleDbType.Int32"/> parameter.
+	/// </summary>
+	/// <remarks>
+	/// Never write <c>new OracleParameter(name, someInt)</c> for a status or enum value. ODP.NET offers
+	/// both <c>OracleParameter(string, object)</c> and <c>OracleParameter(string, OracleDbType)</c>, and a
+	/// compile-time constant <c>0</c> converts implicitly to any enum — so an argument that is
+	/// <i>constant zero</i> silently binds the <c>OracleDbType</c> overload as <c>(OracleDbType)0</c>,
+	/// which is not a defined member, and the constructor throws
+	/// <see cref="ArgumentOutOfRangeException"/> before a single statement is issued. Every other value
+	/// picks the intended <c>object</c> overload, so the trap fires only for the one status that happens
+	/// to be numbered zero and is invisible everywhere else. Stating the type makes the wrong overload
+	/// unreachable rather than merely unlikely.
+	/// </remarks>
+	/// <param name="name">The bind variable name.</param>
+	/// <param name="value">The integer value to bind.</param>
+	/// <returns>A parameter bound as <see cref="OracleDbType.Int32"/>.</returns>
+	private static OracleParameter IntParameter(string name, int value)
+		=> new(name, OracleDbType.Int32) { Value = value };
+
+	/// <summary>
+	/// Encodes the server-written <c>LeaseExpiresAtUtc</c> value as the opaque <see cref="LeaseToken"/> term,
+	/// via <see cref="DateTimeOffset"/>'s round-trip (<c>"O"</c>) format.
+	/// </summary>
+	/// <remarks>
+	/// The column is <c>TIMESTAMP(7) WITH TIME ZONE</c> — 100-nanosecond precision, exactly matching
+	/// <see cref="DateTimeOffset"/>'s tick resolution — so the round trip through <c>"O"</c> (7 fractional
+	/// digits) loses nothing.
+	/// </remarks>
+	private static LeaseToken ToLeaseToken(DateTimeOffset leaseExpiresAtUtc)
+		=> new(leaseExpiresAtUtc.ToString("O", CultureInfo.InvariantCulture));
+
+	/// <summary>
+	/// Decodes a <see cref="LeaseToken"/> back to the <c>DateTimeOffset</c> it was minted from, for binding
+	/// as a real timestamp parameter so Oracle compares it as <c>TIMESTAMP WITH TIME ZONE</c>, never as text.
+	/// </summary>
+	private static DateTimeOffset FromLeaseToken(LeaseToken lease)
+		=> DateTimeOffset.ParseExact(lease.Value, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+
+	/// <summary>
+	/// Converts a <c>RETURNING LeaseExpiresAtUtc INTO</c> output parameter's value to the CLR
+	/// <see cref="DateTimeOffset"/> the lease-token encoding uses.
+	/// </summary>
+	/// <remarks>
+	/// ODP.NET surfaces a <c>TIMESTAMP WITH TIME ZONE</c> RETURNING-INTO output as an
+	/// <see cref="OracleTimeStampTZ"/>. Built component-wise — never via <c>ToString</c>/<c>Parse</c> — so
+	/// the column's 100-nanosecond precision transfers exactly: <see cref="OracleTimeStampTZ.Nanosecond"/> is
+	/// always a multiple of 100 for a <c>TIMESTAMP(7)</c> column, so dividing by 100 is an exact tick count
+	/// with no rounding.
+	/// </remarks>
+	private static DateTimeOffset ReadLeaseTimestamp(object? value) => value switch
+	{
+		OracleTimeStampTZ tz => new DateTimeOffset(tz.Year, tz.Month, tz.Day, tz.Hour, tz.Minute, tz.Second, tz.GetTimeZoneOffset())
+			.AddTicks(tz.Nanosecond / 100),
+		DateTimeOffset dto => dto,
+		DateTime dt => new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc)),
+		null => throw new InvalidOperationException("Lease acquisition's RETURNING LeaseExpiresAtUtc produced no value."),
+		_ => throw new InvalidOperationException($"Unexpected lease timestamp value type '{value.GetType()}'.")
+	};
 
 	/// <inheritdoc/>
 	public async ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
@@ -727,10 +989,14 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
+		// Processed is absorbing: the predicate refuses the transition rather than demoting a
+		// finalized entry to Failed, which would make it re-admittable and run the handler again.
+		// Also clears any lease term: a failed entry has no holder, so it must not keep a term a
+		// later lease comparison (CompleteAsync/FailAsync) could match.
 		var sql = $"""
 		           UPDATE {Table}
-		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = RetryCount + 1, LastAttemptAt = :LastAttemptAt
-		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = RetryCount + 1, LastAttemptAt = :LastAttemptAt, LeaseExpiresAtUtc = NULL
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate} AND Status <> :ProcessedStatus
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -740,6 +1006,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 			new
 			{
 				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastError = NormalizeError(errorMessage),
 				LastAttemptAt = DateTimeOffset.UtcNow,
 				MessageId = messageId,
@@ -767,10 +1034,14 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		// without consuming a delivery attempt.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
+		// Processed is absorbing: the predicate refuses the transition rather than demoting a
+		// finalized entry to Failed, which would make it re-admittable and run the handler again.
+		// Also clears any lease term: a failed entry has no holder, so it must not keep a term a
+		// later lease comparison (CompleteAsync/FailAsync) could match.
 		var sql = $"""
 		           UPDATE {Table}
-		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = :RetryCount, LastAttemptAt = :LastAttemptAt
-		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = :RetryCount, LastAttemptAt = :LastAttemptAt, LeaseExpiresAtUtc = NULL
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate} AND Status <> :ProcessedStatus
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -780,6 +1051,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 			new
 			{
 				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastError = NormalizeError(errorMessage),
 				RetryCount = retryCount,
 				LastAttemptAt = DateTimeOffset.UtcNow,
@@ -810,13 +1082,22 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
+		// Deliberately does NOT clear LeaseExpiresAtUtc, unlike the two MarkFailedAsync overloads above.
+		// This method belongs to IBackoffSchedulableInboxStore, a separate capability from the leased-claim
+		// protocol (ILeasedInboxStore) — it schedules a NextAttemptAt for the non-lease claim/processing-
+		// tracking paths, which never populate the lease column in the first place. Left untouched to keep
+		// this store consistent with SqlServerInboxStore.MarkFailedWithBackoffAsync, which makes the same
+		// scope call for the same reason.
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantPredicate = hasTenantColumn ? " AND TenantId = :TenantId" : string.Empty;
+		// Processed is absorbing, as on the two MarkFailedAsync overloads above: the predicate refuses the
+		// transition rather than demoting a finalized entry to Failed, which would re-admit it for retry
+		// and run the handler again on side effects already committed.
 		var sql = $"""
 		           UPDATE {Table}
 		           SET Status = :FailedStatus, LastError = :LastError, RetryCount = :RetryCount,
 		           	LastAttemptAt = :LastAttemptAt, NextAttemptAt = :NextAttemptAt
-		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate}
+		           WHERE MessageId = :MessageId AND HandlerType = :HandlerType{tenantPredicate} AND Status <> :ProcessedStatus
 		           """;
 
 		await using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -826,6 +1107,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 			new
 			{
 				FailedStatus = (int)InboxStatus.Failed,
+				ProcessedStatus = (int)InboxStatus.Processed,
 				LastError = NormalizeError(errorMessage),
 				RetryCount = retryCount,
 				LastAttemptAt = DateTimeOffset.UtcNow,
@@ -844,7 +1126,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -856,7 +1138,9 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 		           SELECT MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt,
 		           	Status, LastError, RetryCount, LastAttemptAt, NextAttemptAt, CorrelationId, Source{tenantSelectColumn}
 		           FROM {Table}
-		           WHERE Status = :FailedStatus
+		           WHERE (Status = :FailedStatus
+		           		OR (Status = :ProcessingStatus AND LeaseExpiresAtUtc IS NOT NULL
+		           			AND LeaseExpiresAtUtc < SYS_EXTRACT_UTC(SYSTIMESTAMP)))
 		           	AND RetryCount < :MaxRetries
 		           	AND (:OlderThan IS NULL OR LastAttemptAt < :OlderThanFilter)
 		           	AND (NextAttemptAt IS NULL OR NextAttemptAt <= :Now)
@@ -871,6 +1155,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 			new
 			{
 				FailedStatus = (int)InboxStatus.Failed,
+				ProcessingStatus = (int)InboxStatus.Processing,
 				MaxRetries = maxRetries,
 				OlderThan = olderThan,
 				OlderThanFilter = olderThan,
@@ -885,7 +1170,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		var hasTenantColumn = await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 		var tenantSelectColumn = hasTenantColumn ? ", TenantId" : string.Empty;
@@ -908,7 +1193,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		var sql = $"""
 		           SELECT
@@ -937,7 +1222,7 @@ public sealed class OracleInboxStore : IInboxStore, IProcessingTrackingInboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 

@@ -10,7 +10,7 @@ internal sealed class IncrementalSnapshotOptions
 {
 	/// <summary>
 	/// Gets or sets the number of deltas before a full snapshot compaction is triggered.
-	/// Default is 10 (R27.64).
+	/// Default is 10.
 	/// </summary>
 	public int CompactionThreshold { get; set; } = 10;
 }

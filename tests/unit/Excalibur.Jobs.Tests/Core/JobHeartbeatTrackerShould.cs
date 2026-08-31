@@ -3,6 +3,8 @@
 
 using Excalibur.Jobs.Core;
 
+using Microsoft.Extensions.Time.Testing;
+
 namespace Excalibur.Jobs.Tests.Core;
 
 /// <summary>
@@ -46,30 +48,34 @@ public sealed class JobHeartbeatTrackerShould
 	public void UpdateHeartbeatOnSubsequentCalls()
 	{
 		// Arrange
-		var tracker = new JobHeartbeatTracker();
+		var clock = new FakeTimeProvider();
+		var tracker = new JobHeartbeatTracker(clock);
 
 		// Act
 		tracker.RecordHeartbeat("my-job");
 		var first = tracker.GetLastHeartbeat("my-job");
 
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
+		clock.Advance(TimeSpan.FromSeconds(10));
 
 		tracker.RecordHeartbeat("my-job");
 		var second = tracker.GetLastHeartbeat("my-job");
 
-		// Assert
-		second!.Value.ShouldBeGreaterThanOrEqualTo(first!.Value);
+		// Assert. Driving the clock rather than sleeping lets this be a strict comparison: with a real
+		// sleep the two stamps could land in the same tick, so the assertion had to be >= and would have
+		// passed even if the second call had not updated anything.
+		second!.Value.ShouldBeGreaterThan(first!.Value);
 	}
 
 	[Fact]
 	public void TrackMultipleJobsIndependently()
 	{
 		// Arrange
-		var tracker = new JobHeartbeatTracker();
+		var clock = new FakeTimeProvider();
+		var tracker = new JobHeartbeatTracker(clock);
 
 		// Act
 		tracker.RecordHeartbeat("job-a");
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
+		clock.Advance(TimeSpan.FromSeconds(10));
 		tracker.RecordHeartbeat("job-b");
 
 		// Assert
@@ -78,6 +84,6 @@ public sealed class JobHeartbeatTrackerShould
 
 		a.ShouldNotBeNull();
 		b.ShouldNotBeNull();
-		b.Value.ShouldBeGreaterThanOrEqualTo(a.Value);
+		b.Value.ShouldBeGreaterThan(a.Value);
 	}
 }

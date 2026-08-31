@@ -78,6 +78,11 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         // brings the rest of the compliance persistence contracts under classification, which is how the
         // audit-store and consent-store gaps below became visible rather than assumed absent.
         "Excalibur.Compliance",
+
+        // Added when the dead-letter queue was manifested. Same direction as the compliance widening
+        // above: the population must stay a superset of the manifest, or this guard cannot bound the
+        // manifest's completeness — and the guard's own failure message prescribes widening here.
+        "Excalibur.Dispatch.ErrorHandling",
     };
 
     /// <summary>The declared set of tenant-owned contracts — the manifest whose completeness this bounds.</summary>
@@ -104,24 +109,9 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
     private static readonly IReadOnlyDictionary<string, string> Exclusions = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         // --- Excalibur.EventSourcing -------------------------------------------------------------------
-        ["ITenantFilteredEventStore"] =
-            "The tenant-filtering mechanism itself (adds WHERE TenantId to a shared-shard event store), " +
-            "discovered via GetService and applied by the routing layer. It is part of the isolation " +
-            "apparatus, not a subject of it; decorating it would be circular.",
         ["ICursorMapStore"] =
             "Coordination state: maps projection/subscription cursors to stream positions. Framework " +
             "bookkeeping, not tenant-owned domain rows.",
-        ["IColdEventStore"] =
-            "KNOWN OPEN cross-tenant cold-read isolation gap: read through tiered storage, no tenant in the " +
-            "cold key; the row-discriminator-MT + tiered + cold combination is gated UNSUPPORTED at startup " +
-            "(fails fast — cold emits no tenant-scoping capability); real tenant-partitioned-cold fix carried.",
-        ["ISnapshotStore"] =
-            "AMBIGUOUS (flagged for review). Aggregate-state snapshots derived from a tenant's events, " +
-            "keyed by aggregate id and loaded on the same path as the manifested IEventStore, so tenant " +
-            "isolation is enforced upstream at the event store. Excluded pending review.",
-        ["IIncrementalSnapshotStore"] =
-            "AMBIGUOUS (flagged for review). Incremental variant of ISnapshotStore; same reasoning — " +
-            "tenant scope inherited from the aggregate/event store that produced it.",
         ["IMaterializedViewStore"] =
             "KNOWN OPEN cross-tenant read-model isolation gap (view rows keyed by (ViewName,ViewId), no " +
             "tenant); real fix carried.",
@@ -130,6 +120,10 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
             "tenant); real fix carried.",
 
         // --- Excalibur.Dispatch (inbox/outbox capability facets + CDC state) ---------------------------
+        ["ITenantPartitionedStore"] =
+            "Not a store contract: a capability DECLARATION a provider implements to state that it carries " +
+            "the tenant on the row rather than reading it from ambient scope. It stores nothing itself, so " +
+            "it has no rows to isolate; the stores that declare it are manifested on their own contracts.",
         ["IDeadLetterableOutboxStore"] =
             "Segregated capability facet of the manifested IOutboxStore (composition, not inheritance): " +
             "dead-letter operations over the same outbox rows already gated via IOutboxStore. Not a " +
@@ -141,6 +135,15 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
             "Segregated capability facet of the manifested IInboxStore (explicitly composition, not " +
             "inheritance — see its remarks): atomic claim-before-execute over the same inbox rows. Not a " +
             "distinct store.",
+        ["ILeasedInboxStore"] =
+            "Segregated capability facet of the manifested IInboxStore (composition, not inheritance, " +
+            "exactly like IClaimableInboxStore above): the self-expiring lease protocol over the same " +
+            "inbox rows. It is never a DI service type anywhere in the tree -- the middleware holds an " +
+            "IInboxStore and reaches the protocol by casting it -- so the object whose lease methods run " +
+            "is the one AddTenantAwareStore<IInboxStore, ..> already registered, and the marker that seam " +
+            "derives from that store's constructor attests the very same object. A requirement of its own " +
+            "could only be satisfied by registering a capability interface as a service type that nothing " +
+            "resolves. Not a distinct store.",
         ["IScopedTransactionalInboxStore"] =
             "Segregated capability facet of the manifested IInboxStore: scoped-transactional operations " +
             "over the same inbox rows. Not a distinct store.",
@@ -179,24 +182,12 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         ["IDataInventoryQueryStore"] =
             "AMBIGUOUS (flagged for review). Query facet of IDataInventoryStore on the same instance; same " +
             "reasoning, and it inherits whatever classification that contract is given.",
-        ["IAuditStore"] =
-            "KNOWN OPEN tenant-classification gap. Audit events are tenant-derived and the provider stores " +
-            "do thread the ambient ITenantContext, but the contract is neither manifested nor gated, so no " +
-            "capability assertion rejects a tenant-unaware audit provider at startup. Surfaced by widening " +
-            "this guard's namespace oracle; carried as its own work rather than silently manifested here, " +
-            "because gating it without first auditing the provider read paths would fail hosts closed " +
-            "without proving isolation.",
         ["IDurableAuditStore"] =
-            "Capability facet of IAuditStore (durable-write guarantees over the same audit rows); inherits " +
-            "that contract's classification and its KNOWN OPEN gap above.",
+            "Segregated capability facet of the manifested IAuditStore: durable-write guarantees over the " +
+            "same audit rows. Not a distinct store.",
         ["IAuditAnnotationStore"] =
-            "Annotations attached to audit events by event id, stored alongside them and reached on the " +
-            "same provider; inherits IAuditStore's classification and its KNOWN OPEN gap above.",
-        ["IComplianceStore"] =
-            "KNOWN OPEN tenant-classification gap. Holds consent records and subject-access-request " +
-            "tracking, which are tenant-owned by the same argument as erasure requests, but the contract is " +
-            "neither manifested nor gated. Surfaced by widening this guard's namespace oracle and carried " +
-            "as its own work.",
+            "Segregated annotation facet of the manifested IAuditStore: annotations attached to audit " +
+            "events by event id, stored alongside them on the same provider. Not a distinct store.",
         ["ISoc2ReportStore"] =
             "Estate-level, not tenant-owned: SOC 2 reports describe the service organisation's own control " +
             "environment over a reporting period, which is a property of the deployment rather than of any " +
@@ -434,12 +425,17 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         ReadPopulation().Select(SimpleName).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
-    /// A persistence-store contract's simple name ends in <c>Store</c> or <c>Erasure</c>. The second
-    /// suffix admits the manifested IEventStoreErasure (a store capability that does not end in "Store").
+    /// A persistence-store contract's simple name ends in <c>Store</c>, <c>Erasure</c>, or <c>Queue</c>.
+    /// The second suffix admits the manifested IEventStoreErasure (a store capability that does not end in
+    /// "Store"); the third admits the manifested IDeadLetterQueue, which persists tenant-owned rows under a
+    /// name that says queue. Within the scanned namespaces the third suffix admits exactly the two
+    /// dead-letter contracts -- every other Queue-suffixed interface lives in a transport namespace this
+    /// oracle does not scan.
     /// </summary>
     private static bool HasStoreContractSuffix(string simpleName) =>
         simpleName.EndsWith("Store", StringComparison.Ordinal)
-        || simpleName.EndsWith("Erasure", StringComparison.Ordinal);
+        || simpleName.EndsWith("Erasure", StringComparison.Ordinal)
+        || simpleName.EndsWith("Queue", StringComparison.Ordinal);
 
     /// <summary>Reduces a type to its simple name without generic arity (<c>IProjectionStore`1</c> &#8594; <c>IProjectionStore</c>).</summary>
     private static string SimpleName(Type type)

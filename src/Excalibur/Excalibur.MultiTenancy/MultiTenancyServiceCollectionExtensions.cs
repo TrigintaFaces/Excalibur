@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Compliance;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Erasure;
 using Excalibur.EventSourcing.Sharding;
@@ -13,6 +14,7 @@ using Excalibur.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -41,14 +43,21 @@ public static class MultiTenancyServiceCollectionExtensions
 	///     <description>
 	///     <see cref="TenantIsolationStrategy.RowDiscriminator"/> — wraps each registered
 	///     <see cref="IEventStore"/>, <see cref="IProjectionStore{TProjection}"/>, and <see cref="ISagaStore"/>
-	///     with its fail-closed tenant-scoping decorator. Fails fast when none of those stores is registered.
+	///     with its fail-closed tenant-scoping decorator, and refuses to start when any registered contract
+	///     declaring <see cref="TenantOwnedAttribute"/> presents neither
+	///     <see cref="ITenantScopingCapability{TContract}"/> nor
+	///     <see cref="ITenantPartitionedCapability{TContract}"/> - so a store the framework cannot
+	///     confine is rejected here rather than returning another tenant rows at runtime. Fails fast
+	///     when no tenant-owned store is registered at all.
 	///     </description>
 	///   </item>
 	///   <item>
 	///     <description>
 	///     <see cref="TenantIsolationStrategy.Sharding"/> — requires tenant-aware routing to have been enabled
 	///     on the event-sourcing builder (<c>AddEventSourcing(es =&gt; es.EnableTenantSharding(...))</c>) and
-	///     asserts it is present.
+	///     asserts it is present. Also routes <see cref="ISagaStore"/> to the correct tenant's shard when a
+	///     saga provider is registered — sagas are optional under sharding, so a host with no saga provider
+	///     is unaffected.
 	///     </description>
 	///   </item>
 	/// </list>
@@ -113,21 +122,52 @@ public static class MultiTenancyServiceCollectionExtensions
 				break;
 		}
 
+		// Order-independent half of the tenant-capability gate, registered for EVERY multi-tenant host and
+		// deliberately OUTSIDE the strategy switch above. The composition-time sweep asks the same question of
+		// the same registrations, but only of those present at this instant, and only under row discrimination:
+		// a store registered after this call is never seen, and a sharding host never reaches the sweep at all.
+		// Re-asserting against the completed collection at host start makes the outcome independent of both.
+		// Keep it here, not inside a branch, or each bypass it closes comes straight back.
+		services.TryAddSingleton(_ => new TenantOwnedCapabilityStartupValidator(services, options.Strategy));
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TenantOwnedCapabilityStartupValidator>(
+			static sp => sp.GetRequiredService<TenantOwnedCapabilityStartupValidator>()));
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, TenantOwnedCapabilityStartupValidator>(
+			static sp => sp.GetRequiredService<TenantOwnedCapabilityStartupValidator>()));
+
 		services.AddSingleton<MultiTenancyMarker>();
 		return services;
 	}
 
 	private static void ApplyRowDiscriminator(IServiceCollection services)
 	{
+		// PRESENCE IS ASKED VIA HasStoreRegistrationFor, NEVER services.Any(d => d.ServiceType == T).
+		// Read this before changing any gate below back to the plain predicate.
+		//
+		// A contract can hold a descriptor that PROMISES it without PROVIDING it: the core event-sourcing
+		// and inbox registrations emit a non-keyed alias forwarding to the keyed "default" store, and they
+		// must emit it unconditionally, because registering the store afterwards is a supported ordering.
+		// The plain predicate counts that alias, so a host that registered an event store and no snapshot
+		// store - snapshots being optional - was told its ISnapshotStore provider is not tenant-capable,
+		// naming a store it never registered and could not fix.
+		//
+		// The narrowing is bounded by the type system, not by judgement: HasStoreRegistrationFor skips only
+		// descriptors carrying the alias seam's internal forwarder marker, which no registration outside
+		// that seam can present. A consumer's own store - keyed or not, factory or type or instance - is
+		// still counted, so nothing the gate used to catch escapes it. And a forwarder resolves only when a
+		// keyed "default" descriptor exists, which is itself counted, so skipping forwarders removes
+		// exactly the descriptors that back no store.
+		// Every specific-marker requirement, evaluated before anything is wrapped so a tenant-unaware provider
+		// is refused with its registration still in view. The same list runs again against the finished
+		// collection at host start, which is what makes the outcome independent of registration order.
+		var gatedAny = AssertPerContractCapabilities(services);
+
 		var decoratedAny = false;
 
-
-		if (services.Any(static d => d.ServiceType == typeof(IEventStore)))
+		if (services.HasStoreRegistrationFor(typeof(IEventStore)))
 		{
-			// A store is present: only wrap it when its provider proved (at registration) that it honors
-			// the tenant discriminator. Wrapping a tenant-unaware store would pass the decorator's
+			// The capability assertion for this contract ran in AssertPerContractCapabilities above, so a
+			// tenant-unaware provider has already been refused. Wrapping one would pass the decorator's
 			// fail-closed presence check yet leak every tenant's data from the inner store.
-			RequireTenantScopingCapability<IEventStore>(services, nameof(IEventStore));
 
 			// Shape-robust key-targeted decoration. Providers register IEventStore as several descriptors — a
 			// provider-keyed terminal, a keyed "default" alias, and a non-keyed forwarding alias — so the generic
@@ -197,21 +237,15 @@ public static class MultiTenancyServiceCollectionExtensions
 		// does put the cold store first, it fails at the AddMultiTenancy call site with the registration in
 		// view, which is a far better diagnostic than a failure at host start. Fail early when we can, fail
 		// always via the guard.
-		if (services.Any(static d => d.ServiceType == typeof(IColdEventStore)))
-		{
-			RequireTenantScopingCapability<IColdEventStore>(services, nameof(IColdEventStore));
-		}
-
 		// Registered for every row-discriminator host, whether or not a cold tier is visible AT THIS INSTANT.
 		// TryAddEnumerable keeps repeat AddMultiTenancy calls idempotent. The guard no-ops when no cold tier is
 		// resolvable, so the cost to a host that never uses tiered storage is one type check at start.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, ColdStoreTenantScopingValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ColdStoreTenantScopingValidator>());
 
-		if (services.Any(static d => d.ServiceType == typeof(ISagaStore)))
+		if (services.HasStoreRegistrationFor(typeof(ISagaStore)))
 		{
-			RequireTenantScopingCapability<ISagaStore>(services, nameof(ISagaStore));
-
 			// Same shape-robust rule as the event store: saga providers register a provider-keyed terminal plus a
 			// keyed "default" forwarder, so wrap the terminal(s) and leave the aliases forwarding.
 			_ = services.DecorateKeyedStores<ISagaStore>(
@@ -240,17 +274,103 @@ public static class MultiTenancyServiceCollectionExtensions
 		// What both contracts need is the registration-time capability assertion: a provider that does not
 		// honor the ambient tenant must be rejected at startup rather than silently deduplicating one tenant's
 		// message against another tenant's inbox row, or draining one tenant's outbox into another's transport.
+		// Every specific-marker requirement for this strategy ran in AssertPerContractCapabilities at the top
+		// of this method, and runs again against the finished collection at host start. Its result is carried
+		// here because a deployment whose only tenant-owned stores are gated (not decorated) is a COVERED
+		// deployment, not an empty one.
+		gatedAny |= RequireEveryTenantOwnedContractPresentsACapability(services);
+
+		if (!decoratedAny && !gatedAny)
+		{
+			// Enumerating contracts here would go stale the moment one is added, and the set is no longer
+			// fixed: any contract declaring TenantOwnedAttribute counts. Describe the condition instead.
+			throw new InvalidOperationException(
+				$"{nameof(TenantIsolationStrategy.RowDiscriminator)} was selected but no tenant-owned store "
+				+ "is registered, so there is nothing for it to scope. Register your "
+				+ "persistence stores before calling AddMultiTenancy, or select a different tenant-isolation "
+				+ "strategy.");
+		}
+	}
+
+	/// <summary>
+	/// Asserts, for every store contract present in <paramref name="services"/>, that its provider presented
+	/// the specific tenancy capability that contract requires.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Extracted so there is exactly ONE list of per-contract requirements and two callers of it:
+	/// <c>ApplyRowDiscriminator</c>, which runs it at composition time because a failure there carries the
+	/// registration in view and is a far better diagnostic; and the startup validator, which runs it again
+	/// against the completed collection. A service collection is a mutable list, so the composition-time run
+	/// alone makes the gate a statement about one instant -- a store registered afterwards is never in the
+	/// enumeration and reaches a started host unchecked. Reversing two registration calls must not change
+	/// whether a safety gate runs.
+	/// </para>
+	/// <para>
+	/// The attribute sweep is a floor and does not replace this: it accepts EITHER capability, whereas WHICH
+	/// marker a contract must present is a property of that contract. For the outbox the two are not
+	/// interchangeable -- an outbox attesting ambient scoping is making a claim that would be a defect if it
+	/// were true -- so the floor cannot carry that contract at all, and only replaying this list can.
+	/// </para>
+	/// <para>
+	/// It mutates nothing. Every condition is a descriptor predicate and every body either throws or does
+	/// not, which is what makes it safe to evaluate a second time against a collection that has already been
+	/// decorated.
+	/// </para>
+	/// </remarks>
+	/// <param name="services"> The collection to assert over. </param>
+	/// <returns>
+	/// <see langword="true"/> when at least one gated-but-undecorated contract was present, which
+	/// <c>ApplyRowDiscriminator</c> uses to tell a covered deployment from an empty one.
+	/// </returns>
+	internal static bool AssertPerContractCapabilities(IServiceCollection services)
+	{
+		// Decorated contracts first, in the order the decoration blocks used to assert them, so a host with
+		// more than one fault still fails on the same contract it failed on before.
+		if (services.HasStoreRegistrationFor(typeof(IEventStore)))
+		{
+			RequireTenantScopingCapability<IEventStore>(services, nameof(IEventStore));
+		}
+
+		// The cold tier gates and neither decorates nor counts toward coverage: a cold store that cannot scope
+		// tenants cannot present the marker, so this exists to refuse the (row-discriminator + tiered +
+		// non-tenant-aware cold) triple rather than to protect a store it wraps.
+		if (services.HasStoreRegistrationFor(typeof(IColdEventStore)))
+		{
+			RequireTenantScopingCapability<IColdEventStore>(services, nameof(IColdEventStore));
+		}
+
+		if (services.HasStoreRegistrationFor(typeof(ISagaStore)))
+		{
+			RequireTenantScopingCapability<ISagaStore>(services, nameof(ISagaStore));
+		}
+
+		if (HasDecoratableProjectionStore(services))
+		{
+			RequireTenantScopingCapability<IProjectionStore<object>>(services, $"{nameof(IProjectionStore<>)}");
+		}
+
 		var gatedAny = false;
 
-		if (services.Any(static d => d.ServiceType == typeof(IInboxStore)))
+		if (services.HasStoreRegistrationFor(typeof(IInboxStore)))
 		{
 			RequireTenantScopingCapability<IInboxStore>(services, nameof(IInboxStore));
 			gatedAny = true;
 		}
 
-		if (services.Any(static d => d.ServiceType == typeof(IOutboxStore)))
+		// The outbox is gated on a DIFFERENT capability from every other contract here, and the difference is
+		// the whole point. ITenantScopingCapability attests that a store applies the AMBIENT tenant to every
+		// operation. An outbox store that did that would read the ambient tenant as absent at drain time and
+		// claim the empty set - the permanent stall described above - so ambient scoping is not merely absent
+		// from these stores, it is behaviour that would be a defect if present. Requiring the ambient marker
+		// here therefore demanded an attestation no correct outbox can truthfully make, and the three relational
+		// providers made it anyway, through a seam that handed them a tenant context they discarded.
+		// ITenantPartitionedCapability attests the mechanism a correct outbox does implement: the tenant
+		// discriminator is persisted on each row and handed back on drain, so the owning tenant is
+		// re-established from the row rather than from ambient state.
+		if (services.HasStoreRegistrationFor(typeof(IOutboxStore)))
 		{
-			RequireTenantScopingCapability<IOutboxStore>(services, nameof(IOutboxStore));
+			RequireTenantPartitionedCapability<IOutboxStore>(services, nameof(IOutboxStore));
 			gatedAny = true;
 		}
 
@@ -267,7 +387,7 @@ public static class MultiTenancyServiceCollectionExtensions
 		// error, not a missing marker. Gate on the erasure FEATURE instead: opting into event-store erasure
 		// registers IAggregateDataSubjectMapping, which is a real service type and is what a host that can
 		// erase actually has.
-		if (services.Any(static d => d.ServiceType == typeof(IAggregateDataSubjectMapping)))
+		if (services.HasStoreRegistrationFor(typeof(IAggregateDataSubjectMapping)))
 		{
 			RequireTenantScopingCapability<IEventStoreErasure>(services, nameof(IEventStoreErasure));
 			gatedAny = true;
@@ -284,50 +404,108 @@ public static class MultiTenancyServiceCollectionExtensions
 		// What both contracts need is the registration-time assertion: a provider that does not thread the
 		// ambient tenant must be rejected at startup rather than returning another tenant's erasure history,
 		// or another tenant's legal holds, to whoever asks.
-		if (services.Any(static d => d.ServiceType == typeof(IErasureStore)))
+		if (services.HasStoreRegistrationFor(typeof(IErasureStore)))
 		{
 			RequireTenantScopingCapability<IErasureStore>(services, nameof(IErasureStore));
 			gatedAny = true;
 		}
 
-		if (services.Any(static d => d.ServiceType == typeof(ILegalHoldStore)))
+		if (services.HasStoreRegistrationFor(typeof(ILegalHoldStore)))
 		{
 			RequireTenantScopingCapability<ILegalHoldStore>(services, nameof(ILegalHoldStore));
 			gatedAny = true;
 		}
 
-		// There is NO runtime exhaustiveness assertion here, deliberately, and the reason is worth the comment.
-		//
-		// An earlier revision of this method built a HashSet of "gated" contracts by calling gated.Add(typeof(T))
-		// alongside each RequireTenantScopingCapability<T> call, then threw when TenantOwnedContracts.All was not
-		// a subset of it. That assertion was TAUTOLOGICAL. The Add and the Require were independent statements:
-		// deleting the Require left the Add in place, the set stayed complete, and the check passed while the
-		// contract went ungated. It proved that a line had been TYPED, not that a gate EXISTED — a check
-		// satisfied by the checked thing doing less.
-		//
-		// "Every contract in the manifest has a RequireTenantScopingCapability<T> call site in this method" is a
-		// STATIC property of this source file. It cannot be established by a runtime counter that this same file
-		// maintains, because the oracle would be the artifact under test. It belongs in a boundary guard that
-		// scans this file for those call sites and compares them against TenantOwnedContracts.All — an oracle
-		// that survives any edit made here.
-		//
-		// The manifest's own completeness is NOT bounded by anything today. This is a known, unclosed gap, and
-		// the reader should not infer a control that does not exist. An omission from TenantOwnedContracts.All is
-		// invisible to every check that takes the manifest as its expected set — including the boundary guard,
-		// whose arms all read the manifest as their oracle. Closing it requires a guard whose oracle is the
-		// namespace rather than the manifest: every persistence contract storing tenant-owned rows must appear in
-		// the manifest or on an explicit exclusion list naming a reason. Until that guard exists, the only thing
-		// standing between a new tenant-owned contract and a silent cross-tenant leak is a person reading this
-		// array. That is exactly how the IEventStoreErasure omission was found, and it is not a control.
-
-		if (!decoratedAny && !gatedAny)
+		// Explicit gate blocks for three contracts the attribute sweep below already covered. They add no new
+		// rejection -- HasStoreRegistrationFor skips the keyed-"default" forwarding aliases exactly as the
+		// sweep does, so the set of refused hosts is unchanged -- but they name the contract in the failure,
+		// and "ISnapshotStore is registered but its provider is not tenant-scoping-capable" is actionable
+		// where the sweep's generic message is not. Manifesting them without gating them here would fail the
+		// boundary guard, which requires the manifest to be a subset of the gated set.
+		if (services.HasStoreRegistrationFor(typeof(ISnapshotStore)))
 		{
-			throw new InvalidOperationException(
-				$"{nameof(TenantIsolationStrategy.RowDiscriminator)} was selected but no tenant-owned store "
-				+ $"({nameof(IEventStore)}, {nameof(IProjectionStore<>)}, {nameof(ISagaStore)}, "
-				+ $"{nameof(IInboxStore)}, or {nameof(IOutboxStore)}) is "
-				+ "registered. Register your persistence stores before calling AddMultiTenancy.");
+			RequireTenantScopingCapability<ISnapshotStore>(services, nameof(ISnapshotStore));
+			gatedAny = true;
 		}
+
+		if (services.HasStoreRegistrationFor(typeof(IDeadLetterQueue)))
+		{
+			RequireTenantScopingCapability<IDeadLetterQueue>(services, nameof(IDeadLetterQueue));
+			gatedAny = true;
+		}
+
+		// The poison-message dead-letter STORE, distinct from the queue above and gated for a sharper
+		// reason: its entries carry the failed message body, so an estate-wide read hands one tenant
+		// another tenant's message content verbatim. Scoping is the correct assertion because every shipped
+		// provider -- in-memory, PostgreSQL and SQL Server -- stamps the ambient term on write and binds it
+		// on read, taking the tenant from context rather than from a filter the caller supplies. The
+		// requirement bites only on a consumer's own store: all three shipped providers register through
+		// the tenant-aware seam, which supplies the context and emits the attestation as one act, so the
+		// attestation cannot be present for a store that never received the context.
+		if (services.HasStoreRegistrationFor(typeof(IDeadLetterStore)))
+		{
+			RequireTenantScopingCapability<IDeadLetterStore>(services, nameof(IDeadLetterStore));
+			gatedAny = true;
+		}
+
+		// Audit rows are tenant-derived, and all three shipped providers bind the ambient tenant term on
+		// every query they build -- a scope taken from context, never a filter the caller supplies, so a
+		// caller cannot widen it by omitting AuditQuery.TenantId. Scoping capability is therefore the
+		// correct assertion: the partitioned one states the tenant is re-established from the row and never
+		// inferred from ambient state, which is the opposite of what these stores do. A consumer supplying
+		// its own audit store through AddAuditLogging<TAuditStore>() attests for it the same way any other
+		// provider does, and is refused here if it does not.
+		if (services.HasStoreRegistrationFor(typeof(IAuditStore)))
+		{
+			RequireTenantScopingCapability<IAuditStore>(services, nameof(IAuditStore));
+			gatedAny = true;
+		}
+
+		// Consent records and subject-access-request tracking. Gated and NOT decorated, for the same reason as
+		// erasure and legal hold: each provider binds the ambient tenant term inside its own store -- the Mongo
+		// store composes it into the upsert key -- so a wrapper would add a second filter without repairing the
+		// first.
+		//
+		// This block adds a rejection the attribute sweep below does not make, which is why it is worth its
+		// lines. IComplianceStore carries [TenantOwned], so the sweep already refuses a provider presenting NO
+		// capability -- but the sweep accepts EITHER capability, and only one of them is true here. Both shipped
+		// providers read the ambient tenant, so a provider presenting the row-partitioned marker would pass the
+		// sweep while attesting that it re-establishes the tenant from the row and never infers it from ambient
+		// state -- the opposite of what these stores do. Demanding the scoping capability specifically is the
+		// assertion that matches the mechanism, and it names the contract in the failure.
+		if (services.HasStoreRegistrationFor(typeof(IComplianceStore)))
+		{
+			RequireTenantScopingCapability<IComplianceStore>(services, nameof(IComplianceStore));
+			gatedAny = true;
+		}
+
+		// Runtime exhaustiveness IS asserted below, and its oracle is deliberately NOT a list this file keeps.
+		//
+		// An earlier revision built a HashSet of "gated" contracts by calling gated.Add(typeof(T)) alongside each
+		// RequireTenantScopingCapability<T> call, then threw when TenantOwnedContracts.All was not a subset of it.
+		// That assertion was TAUTOLOGICAL. The Add and the Require were independent statements: deleting the
+		// Require left the Add in place, the set stayed complete, and the check passed while the contract went
+		// ungated. It proved that a line had been TYPED, not that a gate EXISTED -- a check satisfied by the
+		// checked thing doing less.
+		//
+		// The sweep below does not share that defect, because neither half of its oracle is maintained here. It
+		// asks the REGISTRATION what is present, and it asks each CONTRACT whether it is tenant-owned -- the
+		// [TenantOwned] attribute at the point of declaration. No edit to this method can hide a registered
+		// tenant-owned contract from it, and a contract nobody remembered to name above is still caught. That is
+		// the failure this coverage check actually suffered: a manifest cannot detect its own omission, because
+		// the manifest IS the expected set.
+		//
+		// It is a FLOOR, not a replacement for the gates above. It accepts EITHER capability, asserting only that
+		// the provider attested something. WHICH marker a contract must present is a property of that contract
+		// and stays with the specific gates above -- widening those into one accept-either check is precisely the
+		// failure mode they were split apart to remove.
+		//
+		// Its result feeds gatedAny: a deployment whose only tenant-owned stores are ones the explicit gates
+		// above never name is a COVERED deployment, not an empty one. Without this, registering (say) only an
+		// audit store -- correctly marked and correctly capable -- would fall through to the "no tenant-owned
+		// store is registered" throw below and reject a configuration that is entirely valid.
+
+		return gatedAny;
 	}
 
 	/// <summary>
@@ -356,6 +534,167 @@ public static class MultiTenancyServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Fails closed when a contract whose tenancy is carried on the row - the outbox - is registered by a
+	/// provider that does not present <see cref="ITenantPartitionedCapability{TContract}"/>.
+	/// </summary>
+	/// <remarks>
+	/// Deliberately a separate gate from <c>RequireTenantScopingCapability</c> rather than a second accepted
+	/// marker on the same one. The two capabilities attest different mechanisms, and for this contract only
+	/// one of them can be true: a store applying the ambient discriminator would stall the cross-tenant
+	/// drain. Accepting either marker here would let a store attest ambient scoping it cannot correctly
+	/// perform, which is the state this gate was split to remove.
+	/// </remarks>
+	private static void RequireTenantPartitionedCapability<TContract>(IServiceCollection services, string contractName)
+	{
+		if (!services.Any(static d => d.ServiceType == typeof(ITenantPartitionedCapability<TContract>)))
+		{
+			throw new InvalidOperationException(
+				$"{contractName} is registered but its provider does not persist the tenant discriminator on "
+				+ $"each row, which {nameof(TenantIsolationStrategy.RowDiscriminator)} requires. This contract's "
+				+ "reads are deliberately estate-wide - one drain pass carries every tenant's messages and the "
+				+ "owning tenant is re-established from the row - so it is NOT scoped to the ambient tenant, and "
+				+ "a provider presents the capability by registering its store through the tenant-partitioned "
+				+ "store registration seam, which emits the capability in the same act. Register this store "
+				+ "through a provider that carries the tenant on the row, or select a different tenant-isolation "
+				+ "strategy.");
+		}
+	}
+
+	/// <summary>
+	/// Fails closed when any registered contract declared <see cref="TenantOwnedAttribute"/> presents neither
+	/// <see cref="ITenantScopingCapability{TContract}"/> nor <see cref="ITenantPartitionedCapability{TContract}"/>.
+	/// </summary>
+	/// <remarks>
+	/// Open-world by construction: coverage is derived from the registration and from the contract's own
+	/// declaration, never from a list maintained beside the gates. A tenant-owned contract added to the
+	/// framework, or declared by a consumer, is covered the moment it is declared.
+	/// </remarks>
+	/// <returns>
+	/// <see langword="true"/> when at least one tenant-owned contract was registered, so the caller can treat
+	/// such a deployment as covered rather than as one with no tenant-owned store at all.
+	/// </returns>
+	internal static bool RequireEveryTenantOwnedContractPresentsACapability(IServiceCollection services)
+	{
+		var sawTenantOwnedContract = false;
+
+		// Forwarding aliases are skipped for the same reason the explicit gates above skip them: a
+		// keyed-default alias promises a contract without providing a store for it, so counting one as a
+		// registration makes this sweep demand a capability of a store the host never registered. That is
+		// not hypothetical - the core event-sourcing registration emits an ISnapshotStore alias
+		// unconditionally, and snapshots are optional, so an event store with no snapshot store was
+		// refused here. The skip cannot weaken the sweep: an alias is resolvable only alongside a keyed
+		// "default" descriptor, which this loop still sees, and no registration outside the alias seam can
+		// present the forwarder marker.
+		foreach (var serviceType in services
+			.Where(static d => !d.IsKeyedDefaultForwardingAlias())
+			.Select(static d => d.ServiceType)
+			.Distinct())
+		{
+			var contract = ResolveTenantOwnedContract(serviceType);
+
+			if (contract is null)
+			{
+				continue;
+			}
+
+			sawTenantOwnedContract = true;
+
+			if (PresentsEitherCapability(services, contract))
+			{
+				continue;
+			}
+
+			// Names the offending contract, and separately the registration it was found on. Both, because they
+			// are not always the same type and only one of them is actionable: a provider that registers its
+			// concrete store type puts THAT type in the collection, while the requirement belongs to the
+			// tenant-owned interface it implements. Naming only the registration tells a consumer a class name
+			// and leaves them to guess which capability to satisfy; naming only the contract leaves them to
+			// find which of their registrations produced it. "Some store is unscoped" is not actionable when
+			// the container holds a hundred registrations, and neither is half of this.
+			var registrationNote = serviceType == contract
+				? string.Empty
+				: $" It was found on the registration of {serviceType.Name}, which implements it.";
+
+			throw new InvalidOperationException(
+				$"{contract.Name} holds tenant-owned rows but its provider presents no tenant capability, "
+				+ "which multi-tenancy requires. A provider presents one by "
+				+ "registering the store through a tenant-aware registration seam, which supplies the ambient "
+				+ "tenant and emits the capability in the same act: the tenant-scoped seam for a store whose reads "
+				+ "are confined to the ambient tenant, or the tenant-partitioned seam for one whose reads are "
+				+ "deliberately estate-wide and re-establish the owning tenant from the row. Register this store "
+				+ "through such a seam, or select a different tenant-isolation strategy."
+				+ registrationNote);
+		}
+
+		return sawTenantOwnedContract;
+	}
+
+	/// <summary>
+	/// Returns the capability contract to look for when <paramref name="serviceType"/> is tenant-owned, or
+	/// <see langword="null"/> when it is not.
+	/// </summary>
+	/// <remarks>
+	/// Checks the service type and the interfaces it implements, so a consumer's own interface extending a
+	/// tenant-owned contract is covered rather than slipping through on the attribute not being inherited.
+	/// Generic contracts collapse to the family discriminator (the definition closed over <see cref="object"/>),
+	/// which is the shape the capability markers are registered under.
+	/// </remarks>
+	// Both suppressions are scoped to this one startup-time sweep and are earned, not convenient.
+	//
+	// IL2070: the types examined here come from the service collection, so the container already holds a
+	// reference to each one and its interface metadata is reachable for the same reason the registration is.
+	// Annotating the parameter instead pushes the requirement into a LINQ chain, where IEnumerator.Current
+	// cannot carry it -- which relocates the warning rather than answering it.
+	//
+	// IL2055: the constructed type is a comparison key. It is never instantiated and no member of it is
+	// accessed, so nothing about it has to survive trimming, and the registration side constructs the same
+	// key the same way.
+	//
+	// If either assumption were wrong the failure mode is a sweep that under-reports at startup, not a
+	// crash in a request path.
+	[UnconditionalSuppressMessage("AOT", "IL2070:UnrecognizedReflectionPattern",
+		Justification = "Types come from the service collection, which roots them and their interface metadata.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:MakeGenericType", Justification = "The constructed type is only a comparison key; it is never instantiated and no member is accessed. The type argument is a reference type, so the runtime reuses the shared canonical instantiation and generates no new code.")]
+	[UnconditionalSuppressMessage("AOT", "IL2055:MakeGenericType",
+		Justification = "The constructed type is only a comparison key; it is never instantiated and no member is accessed.")]
+	private static Type? ResolveTenantOwnedContract(Type serviceType)
+	{
+		foreach (var candidate in new[] { serviceType }.Concat(serviceType.GetInterfaces()))
+		{
+			var definition = candidate.IsGenericType && !candidate.IsGenericTypeDefinition
+				? candidate.GetGenericTypeDefinition()
+				: candidate;
+
+			if (!definition.IsDefined(typeof(TenantOwnedAttribute), inherit: false))
+			{
+				continue;
+			}
+
+			return definition.IsGenericTypeDefinition
+				? definition.MakeGenericType(typeof(object))
+				: definition;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Reports whether the collection carries either capability marker for <paramref name="contract"/>.
+	/// </summary>
+	/// <remarks>
+	/// Accepting either is correct HERE and only here: this is the floor asserting that the provider attested a
+	/// mechanism at all. The per-contract gates above continue to demand the specific correct marker.
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL3050:MakeGenericType", Justification = "The constructed types are comparison keys matched against registered service types; neither is instantiated and no member of either is accessed. Both type arguments are reference types, so the runtime reuses the shared canonical instantiation and generates no new code.")]
+	private static bool PresentsEitherCapability(IServiceCollection services, Type contract)
+	{
+		var scoping = typeof(ITenantScopingCapability<>).MakeGenericType(contract);
+		var partitioned = typeof(ITenantPartitionedCapability<>).MakeGenericType(contract);
+
+		return services.Any(d => d.ServiceType == scoping || d.ServiceType == partitioned);
+	}
+
+	/// <summary>
 	/// Wraps every registered closed-generic <see cref="IProjectionStore{TProjection}"/> with
 	/// <see cref="TenantScopedProjectionStore{TProjection}"/>, preserving the original registration's lifetime.
 	/// </summary>
@@ -365,11 +704,6 @@ public static class MultiTenancyServiceCollectionExtensions
 		// tenant-scoped is registered. Require the projection-store-family capability marker before wrapping
 		// anything, so a tenant-unaware projection provider is rejected at registration rather than leaking
 		// cross-tenant rows through the fail-closed decorator.
-		if (HasDecoratableProjectionStore(services))
-		{
-			RequireTenantScopingCapability<IProjectionStore<object>>(services, $"{nameof(IProjectionStore<>)}");
-		}
-
 		var decoratedAny = false;
 
 		for (var i = services.Count - 1; i >= 0; i--)

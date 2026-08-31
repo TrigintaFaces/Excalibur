@@ -20,13 +20,59 @@ public sealed class InMemoryGrantStoreShould : UnitTestBase
 
 	private Grant CreateGrant(
 		string userId = "user-1",
-		string? tenantId = "tenant-1",
+		string tenantId = "tenant-1",
 		string grantType = "role",
 		string qualifier = "admin",
 		string? fullName = null,
 		DateTimeOffset? expiresOn = null,
 		string grantedBy = "system") =>
 		new(userId, fullName, tenantId, grantType, qualifier, expiresOn, grantedBy, _now);
+
+	#region Tenant isolation
+
+	[Fact]
+	public async Task ReturnAGrantToTheTenantThatOwnsIt()
+	{
+		// Liveness. Stated separately from the safety arm below because a store that returns nothing to
+		// anybody satisfies "no foreign tenant sees it" perfectly.
+		await _sut.SaveGrantAsync(CreateGrant(tenantId: "tenant-A"), _ct);
+
+		var result = await _sut.GetGrantAsync("user-1", "tenant-A", "role", "admin", _ct);
+
+		result.ShouldNotBeNull();
+		result.TenantId.ShouldBe("tenant-A");
+	}
+
+	[Fact]
+	public async Task NotReturnOneTenantsGrantToAnother()
+	{
+		// Safety.
+		await _sut.SaveGrantAsync(CreateGrant(tenantId: "tenant-A"), _ct);
+
+		(await _sut.GetGrantAsync("user-1", "tenant-B", "role", "admin", _ct)).ShouldBeNull();
+		(await _sut.GrantExistsAsync("user-1", "tenant-B", "role", "admin", _ct)).ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task KeepTenantsNamedLikeReservedValuesApartFromEachOtherAndFromOrdinaryTenants()
+	{
+		// The adversarial pair. "__null__" was the reserved sentinel these stores used for an absent
+		// tenant, and "__untenanted__" is the framework's reserved value. Both are now ordinary tenant
+		// names, and a store that still treated either as special would hand one tenant another's grant.
+		await _sut.SaveGrantAsync(CreateGrant(tenantId: "__null__", qualifier: "admin"), _ct);
+		await _sut.SaveGrantAsync(CreateGrant(tenantId: "__untenanted__", qualifier: "admin"), _ct);
+		await _sut.SaveGrantAsync(CreateGrant(tenantId: "tenant-A", qualifier: "admin"), _ct);
+
+		// Liveness: each of the three gets its own grant back, so none is being dropped.
+		(await _sut.GetGrantAsync("user-1", "__null__", "role", "admin", _ct))!.TenantId.ShouldBe("__null__");
+		(await _sut.GetGrantAsync("user-1", "__untenanted__", "role", "admin", _ct))!.TenantId.ShouldBe("__untenanted__");
+		(await _sut.GetGrantAsync("user-1", "tenant-A", "role", "admin", _ct))!.TenantId.ShouldBe("tenant-A");
+
+		// Safety: three separate grants, not one shared row.
+		(await _sut.GetAllGrantsAsync("user-1", _ct)).Count.ShouldBe(3);
+	}
+
+	#endregion
 
 	#region IGrantStore -- SaveGrantAsync
 
@@ -73,24 +119,6 @@ public sealed class InMemoryGrantStoreShould : UnitTestBase
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => _sut.SaveGrantAsync(null!, _ct));
 	}
-
-	[Fact]
-	public async Task SaveGrant_NullTenantId_UsesEmptyStringInKey()
-	{
-		// Arrange
-		var grant = CreateGrant(tenantId: null);
-
-		// Act
-		await _sut.SaveGrantAsync(grant, _ct);
-
-		// TenantId is null but key uses empty string -- retrieve with empty string
-		var result = await _sut.GetGrantAsync("user-1", string.Empty, "role", "admin", _ct);
-
-		// Assert
-		result.ShouldNotBeNull();
-		result.TenantId.ShouldBeNull();
-	}
-
 	#endregion
 
 	#region IGrantStore -- GetGrantAsync

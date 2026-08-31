@@ -41,7 +41,7 @@ public interface IOutboxMessageMapper
 	/// <summary>
 	/// Gets the target transports for a given message type.
 	/// </summary>
-	/// <param name="messageType">The fully qualified message type name.</param>
+	/// <param name="messageType">A type name for the message that the message type registry can resolve — its simple name, its assembly-qualified name, or "Namespace.TypeName, AssemblyName".</param>
 	/// <returns>A collection of target transport names, or empty if using default routing.</returns>
 	IReadOnlyCollection<string> GetTargetTransports(string messageType);
 }

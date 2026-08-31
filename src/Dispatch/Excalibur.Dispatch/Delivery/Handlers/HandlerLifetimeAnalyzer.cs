@@ -58,7 +58,7 @@ internal static class HandlerLifetimeAnalyzer
 				continue;
 			}
 
-			// ybem93: keyed-safe accessor handles the keyed/non-keyed distinction (wl9s4v).
+			// keyed-safe accessor handles the keyed/non-keyed distinction.
 			var implType = descriptor.GetImplementationType();
 			if (implType is null || implType.IsAbstract || implType.IsInterface)
 			{
@@ -70,7 +70,7 @@ internal static class HandlerLifetimeAnalyzer
 				continue;
 			}
 
-			// Replace with singleton registration, preserving the service key for keyed handlers (wl9s4v).
+			// Replace with singleton registration, preserving the service key for keyed handlers.
 			services[i] = descriptor.IsKeyedService
 				? ServiceDescriptor.KeyedSingleton(descriptor.ServiceType, descriptor.ServiceKey, implType)
 				: ServiceDescriptor.Singleton(descriptor.ServiceType, implType);
@@ -84,7 +84,7 @@ internal static class HandlerLifetimeAnalyzer
 					continue;
 				}
 
-				// ybem93: keyed-safe accessor handles the keyed/non-keyed distinction (wl9s4v).
+				// keyed-safe accessor handles the keyed/non-keyed distinction.
 				var candidateImplType = candidate.GetImplementationType();
 				if (candidate.ServiceType == implType && candidateImplType == implType)
 				{
@@ -103,10 +103,11 @@ internal static class HandlerLifetimeAnalyzer
 
 	/// <summary>
 	/// Determines if a handler type can be safely promoted to singleton.
-	/// A handler is eligible if:
-	/// - It has a parameterless constructor, OR
-	/// - All constructor parameters are registered as singletons
-	/// - It has no mutable instance fields (heuristic: no non-readonly fields)
+	/// A handler is eligible only if BOTH of the following hold:
+	/// - It has a parameterless constructor, OR all constructor parameters are registered as singletons; AND
+	/// - It has no mutable instance fields (heuristic: no non-readonly fields, auto-property backing fields
+	///   included). This second condition applies to EVERY branch — a parameterless constructor means
+	///   nothing is injected, not that the type is stateless.
 	/// </summary>
 	private static bool CanBePromotedToSingleton(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.NonPublicFields)] Type handlerType,
@@ -115,7 +116,9 @@ internal static class HandlerLifetimeAnalyzer
 		var constructors = handlerType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 		if (constructors.Length == 0)
 		{
-			return true; // No public constructors = can be singleton
+			// No public constructor, so nothing can be injected — but the type can still carry mutable
+			// instance state, which a shared instance would leak between dispatches.
+			return !HasMutableInstanceFields(handlerType);
 		}
 
 		// Use the constructor with the most parameters (DI convention)
@@ -124,7 +127,12 @@ internal static class HandlerLifetimeAnalyzer
 
 		if (parameters.Length == 0)
 		{
-			return true; // Parameterless constructor = stateless = safe singleton
+			// A parameterless constructor means nothing is INJECTED. It does not mean the handler is
+			// stateless: a type with no constructor arguments can still declare a mutable counter, and a
+			// shared instance would then leak that state across every dispatch and race under concurrency.
+			// This branch previously returned true unconditionally, skipping the mutable-state gate below
+			// that the method's own summary promises. The gate has to apply here too.
+			return !HasMutableInstanceFields(handlerType);
 		}
 
 		// Check all constructor parameters are registered as singletons

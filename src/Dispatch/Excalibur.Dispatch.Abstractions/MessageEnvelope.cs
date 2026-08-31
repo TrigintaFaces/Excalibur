@@ -31,7 +31,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	private readonly ConcurrentDictionary<string, object> _items = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<Type, object> _features = new();
 	private readonly ConcurrentDictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
-	private readonly ConcurrentDictionary<string, object> _providerMetadata = new(StringComparer.Ordinal);
 	private IValidationResult _validationResult = new DefaultValidationResult();
 	private IAuthorizationResult _authorizationResult = new DefaultAuthorizationResult();
 	private RoutingDecision? _routingDecision = DefaultRoutingDecisionValue;
@@ -121,12 +120,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	public string? TenantId { get; set; }
 
 	/// <summary>
-	/// Gets or sets the message source.
-	/// </summary>
-	[JsonPropertyName("source")]
-	public string? Source { get; set; }
-
-	/// <summary>
 	/// Gets or sets the message type.
 	/// </summary>
 	[JsonPropertyName("messageType")]
@@ -157,52 +150,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonPropertyName("body")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? Body { get; set; }
-
-	/// <summary>
-	/// Gets or sets the trace identifier for legacy compatibility.
-	/// </summary>
-	[JsonIgnore]
-	public string? TraceId
-	{
-		get => TraceParent;
-		set => TraceParent = value;
-	}
-
-	/// <summary>
-	/// Gets or sets the retry count for legacy compatibility.
-	/// </summary>
-	[JsonIgnore]
-	public int? RetryCount
-	{
-		get => DeliveryCount == 0 ? null : DeliveryCount;
-		set => DeliveryCount = value ?? 0;
-	}
-
-	/// <summary>
-	/// Gets or sets the message timestamp for legacy compatibility.
-	/// </summary>
-	[JsonIgnore]
-	public DateTimeOffset Timestamp
-	{
-		get => ReceivedTimestampUtc;
-		set => ReceivedTimestampUtc = value;
-	}
-
-	/// <summary>
-	/// Gets or sets the scheduled time for legacy compatibility.
-	/// </summary>
-	[JsonIgnore]
-	public DateTimeOffset? ScheduledTime
-	{
-		get => SentTimestampUtc;
-		set => SentTimestampUtc = value;
-	}
-
-	/// <summary>
-	/// Gets or sets the partition key.
-	/// </summary>
-	[JsonPropertyName("partitionKey")]
-	public string? PartitionKey { get; set; }
 
 	/// <summary>
 	/// Gets or sets the reply-to address for response messages.
@@ -276,41 +223,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	// These compose the envelope's flat fields into focused (<=10 property) value-type views without
 	// changing the pooled storage layout; Reset()/Clone() continue to operate on the flat fields.
 
-	/// <summary>
-	/// Gets a focused read-only view of the message identity fields.
-	/// </summary>
-	/// <value> A zero-allocation <see cref="EnvelopeIdentity"/> facade over the envelope's flat fields. </value>
-	[JsonIgnore]
-	public EnvelopeIdentity Identity => new(this);
-
-	/// <summary>
-	/// Gets a focused read-only view of the message routing fields.
-	/// </summary>
-	/// <value> A zero-allocation <see cref="EnvelopeRouting"/> facade over the envelope's flat fields. </value>
-	[JsonIgnore]
-	public EnvelopeRouting Routing => new(this);
-
-	/// <summary>
-	/// Gets a focused read-only view of the message timing fields.
-	/// </summary>
-	/// <value> A zero-allocation <see cref="EnvelopeTiming"/> facade over the envelope's flat fields. </value>
-	[JsonIgnore]
-	public EnvelopeTiming Timing => new(this);
-
-	/// <summary>
-	/// Gets a focused read-only view of the message observability fields.
-	/// </summary>
-	/// <value> A zero-allocation <see cref="EnvelopeObservability"/> facade over the envelope's flat fields. </value>
-	[JsonIgnore]
-	public EnvelopeObservability Observability => new(this);
-
-	/// <summary>
-	/// Gets a focused read-only view of the message transport and delivery fields.
-	/// </summary>
-	/// <value> A zero-allocation <see cref="EnvelopeTransport"/> facade over the envelope's flat fields. </value>
-	[JsonIgnore]
-	public EnvelopeTransport Transport => new(this);
-
 	#endregion Core Message Properties
 
 	#region Extended Properties
@@ -327,13 +239,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonPropertyName("headers")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 	public IDictionary<string, string> Headers => _headers;
-
-	/// <summary>
-	/// Gets the complete provider-specific metadata dictionary.
-	/// </summary>
-	[JsonPropertyName("providerMetadata")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-	public IDictionary<string, object> AllProviderMetadata => _providerMetadata;
 
 	/// <inheritdoc />
 	[JsonIgnore]
@@ -355,50 +260,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	// These properties are retained on the concrete class but are no longer part of IMessageContext.
 	// Consumers should use the Features dictionary with typed feature interfaces instead.
 
-	/// <summary>Gets or sets processing attempts.</summary>
-	[JsonIgnore]
-	public int ProcessingAttempts { get; set; }
-
-	/// <summary>Gets or sets the first attempt time.</summary>
-	[JsonIgnore]
-	public DateTimeOffset? FirstAttemptTime { get; set; }
-
-	/// <summary>Gets or sets whether this is a retry.</summary>
-	[JsonIgnore]
-	public bool IsRetry { get; set; }
-
-	/// <summary>Gets or sets whether validation passed.</summary>
-	[JsonIgnore]
-	public bool ValidationPassed { get; set; }
-
-	/// <summary>Gets or sets the validation timestamp.</summary>
-	[JsonIgnore]
-	public DateTimeOffset? ValidationTimestamp { get; set; }
-
-	/// <summary>Gets or sets the transaction.</summary>
-	[JsonIgnore]
-	public object? Transaction { get; set; }
-
-	/// <summary>Gets or sets the transaction ID.</summary>
-	[JsonIgnore]
-	public string? TransactionId { get; set; }
-
-	/// <summary>Gets or sets whether timeout was exceeded.</summary>
-	[JsonIgnore]
-	public bool TimeoutExceeded { get; set; }
-
-	/// <summary>Gets or sets the timeout elapsed time.</summary>
-	[JsonIgnore]
-	public TimeSpan? TimeoutElapsed { get; set; }
-
-	/// <summary>Gets or sets whether rate limit was exceeded.</summary>
-	[JsonIgnore]
-	public bool RateLimitExceeded { get; set; }
-
-	/// <summary>Gets or sets the rate limit retry-after duration.</summary>
-	[JsonIgnore]
-	public TimeSpan? RateLimitRetryAfter { get; set; }
-
 	#endregion Extended Properties
 
 	#region Cloud Provider Properties
@@ -418,13 +279,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	public DateTimeOffset? VisibilityTimeout { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether this message came from a dead letter queue.
-	/// </summary>
-	[JsonPropertyName("isDeadLettered")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-	public bool IsDeadLettered { get; set; }
-
-	/// <summary>
 	/// Gets or sets the dead letter reason.
 	/// </summary>
 	[JsonPropertyName("deadLetterReason")]
@@ -437,20 +291,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonPropertyName("deadLetterErrorDescription")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? DeadLetterErrorDescription { get; set; }
-
-	/// <summary>
-	/// Gets or sets the session ID for session-enabled messaging.
-	/// </summary>
-	[JsonPropertyName("sessionId")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? SessionId { get; set; }
-
-	/// <summary>
-	/// Gets or sets the workflow identifier for saga orchestration.
-	/// </summary>
-	[JsonPropertyName("workflowId")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? WorkflowId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the message group ID for FIFO queues.
@@ -469,41 +309,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	#endregion Cloud Provider Properties
 
 	#region Serverless Properties
-
-	/// <summary>
-	/// Gets or sets the serverless function request ID.
-	/// </summary>
-	[JsonPropertyName("requestId")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? RequestId { get; set; }
-
-	/// <summary>
-	/// Gets or sets the serverless function name.
-	/// </summary>
-	[JsonPropertyName("functionName")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? FunctionName { get; set; }
-
-	/// <summary>
-	/// Gets or sets the serverless function version.
-	/// </summary>
-	[JsonPropertyName("functionVersion")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? FunctionVersion { get; set; }
-
-	/// <summary>
-	/// Gets or sets the cloud provider name.
-	/// </summary>
-	[JsonPropertyName("cloudProvider")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? CloudProvider { get; set; }
-
-	/// <summary>
-	/// Gets or sets the cloud region.
-	/// </summary>
-	[JsonPropertyName("region")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-	public string? Region { get; set; }
 
 	#endregion Serverless Properties
 
@@ -605,11 +410,9 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		ContractVersion = null;
 		DesiredVersion = null;
 		TenantId = null;
-		Source = null;
 		MessageType = null;
 		ContentType = null;
 		DeliveryCount = 0;
-		PartitionKey = null;
 		ReplyTo = null;
 
 		// Reset timestamps
@@ -617,8 +420,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		SentTimestampUtc = null;
 
 		// Clear cloud provider and serverless properties
-		ResetCloudProviderProperties();
-		ResetServerlessProperties();
 
 		// Clear channel callbacks
 		AcknowledgeAsync = null;
@@ -637,20 +438,8 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		_items.Clear();
 		_features.Clear();
 		_headers.Clear();
-		_providerMetadata.Clear();
 
 		// Reset legacy properties
-		ProcessingAttempts = 0;
-		FirstAttemptTime = null;
-		IsRetry = false;
-		ValidationPassed = false;
-		ValidationTimestamp = null;
-		Transaction = null;
-		TransactionId = null;
-		TimeoutExceeded = false;
-		TimeoutElapsed = null;
-		RateLimitExceeded = false;
-		RateLimitRetryAfter = null;
 
 		// Note: RequestServices is not cleared as it's typically managed externally
 		RequestServices = null!;
@@ -679,28 +468,18 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 			ContractVersion = ContractVersion,
 			DesiredVersion = DesiredVersion,
 			TenantId = TenantId,
-			Source = Source,
 			MessageType = MessageType,
 			ContentType = ContentType,
 			DeliveryCount = DeliveryCount,
-			PartitionKey = PartitionKey,
 			ReplyTo = ReplyTo,
 			ReceivedTimestampUtc = ReceivedTimestampUtc,
 			SentTimestampUtc = SentTimestampUtc,
 			ReceiptHandle = ReceiptHandle,
 			VisibilityTimeout = VisibilityTimeout,
-			IsDeadLettered = IsDeadLettered,
 			DeadLetterReason = DeadLetterReason,
 			DeadLetterErrorDescription = DeadLetterErrorDescription,
-			SessionId = SessionId,
-			WorkflowId = WorkflowId,
 			MessageGroupId = MessageGroupId,
 			MessageDeduplicationId = MessageDeduplicationId,
-			RequestId = RequestId,
-			FunctionName = FunctionName,
-			FunctionVersion = FunctionVersion,
-			CloudProvider = CloudProvider,
-			Region = Region,
 			Message = Message,
 			RequestServices = RequestServices,
 			VersionMetadata = VersionMetadata,
@@ -743,35 +522,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		}
 	}
 
-	/// <summary>
-	/// Gets provider-specific metadata.
-	/// </summary>
-	/// <typeparam name="T"> The type of metadata. </typeparam>
-	/// <param name="key"> The metadata key. </param>
-	/// <returns> The metadata value or default if not found. </returns>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public T? GetProviderMetadata<T>(string key) =>
-		_providerMetadata.TryGetValue(key, out var value) && value is T typedValue ? typedValue : default;
-
-	/// <summary>
-	/// Sets provider-specific metadata.
-	/// </summary>
-	/// <typeparam name="T"> The type of metadata. </typeparam>
-	/// <param name="key"> The metadata key. </param>
-	/// <param name="value"> The metadata value. </param>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public void SetProviderMetadata<T>(string key, T? value)
-	{
-		if (value is null)
-		{
-			_ = _providerMetadata.TryRemove(key, out _);
-		}
-		else
-		{
-			_providerMetadata[key] = value;
-		}
-	}
-
 	#endregion Helper Methods
 
 	#region IDisposable
@@ -806,7 +556,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		_items.Clear();
 		_features.Clear();
 		_headers.Clear();
-		_providerMetadata.Clear();
 
 		// Note: We don't dispose RequestServices as it's managed externally
 	}
@@ -814,34 +563,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	#endregion IDisposable
 
 	#region Private Helper Methods
-
-	/// <summary>
-	/// Resets cloud provider-specific properties.
-	/// </summary>
-	private void ResetCloudProviderProperties()
-	{
-		ReceiptHandle = null;
-		VisibilityTimeout = null;
-		IsDeadLettered = false;
-		DeadLetterReason = null;
-		DeadLetterErrorDescription = null;
-		SessionId = null;
-		WorkflowId = null;
-		MessageGroupId = null;
-		MessageDeduplicationId = null;
-	}
-
-	/// <summary>
-	/// Resets serverless execution context properties.
-	/// </summary>
-	private void ResetServerlessProperties()
-	{
-		RequestId = null;
-		FunctionName = null;
-		FunctionVersion = null;
-		CloudProvider = null;
-		Region = null;
-	}
 
 	/// <summary>
 	/// Copies collection data to the cloned envelope.
@@ -864,10 +585,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 			clone._headers[header.Key] = header.Value;
 		}
 
-		foreach (var metadata in _providerMetadata)
-		{
-			clone._providerMetadata[metadata.Key] = metadata.Value;
-		}
 	}
 
 	#endregion Private Helper Methods

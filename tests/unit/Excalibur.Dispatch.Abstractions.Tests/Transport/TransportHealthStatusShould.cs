@@ -36,6 +36,13 @@ public sealed class TransportHealthStatusShould
 		((int)TransportHealthStatus.Unhealthy).ShouldBe(2);
 	}
 
+	[Fact]
+	public void Unknown_HasExpectedValue()
+	{
+		// Assert
+		((int)TransportHealthStatus.Unknown).ShouldBe(3);
+	}
+
 	#endregion
 
 	#region Enum Membership Tests
@@ -50,16 +57,25 @@ public sealed class TransportHealthStatusShould
 		values.ShouldContain(TransportHealthStatus.Healthy);
 		values.ShouldContain(TransportHealthStatus.Degraded);
 		values.ShouldContain(TransportHealthStatus.Unhealthy);
+		values.ShouldContain(TransportHealthStatus.Unknown);
 	}
 
 	[Fact]
-	public void HasExactlyThreeValues()
+	public void HasExactlyFourValues()
 	{
 		// Arrange
 		var values = Enum.GetValues<TransportHealthStatus>();
 
-		// Assert
-		values.Length.ShouldBe(3);
+		// Assert -- named, not just counted, so the next addition fails loudly rather than
+		// silently passing a widened count.
+		values.ShouldBe(
+			[
+				TransportHealthStatus.Healthy,
+				TransportHealthStatus.Degraded,
+				TransportHealthStatus.Unhealthy,
+				TransportHealthStatus.Unknown,
+			],
+			ignoreOrder: true);
 	}
 
 	#endregion
@@ -70,6 +86,7 @@ public sealed class TransportHealthStatusShould
 	[InlineData(TransportHealthStatus.Healthy, "Healthy")]
 	[InlineData(TransportHealthStatus.Degraded, "Degraded")]
 	[InlineData(TransportHealthStatus.Unhealthy, "Unhealthy")]
+	[InlineData(TransportHealthStatus.Unknown, "Unknown")]
 	public void ToString_ReturnsExpectedValue(TransportHealthStatus status, string expected)
 	{
 		// Act & Assert
@@ -84,6 +101,7 @@ public sealed class TransportHealthStatusShould
 	[InlineData("Healthy", TransportHealthStatus.Healthy)]
 	[InlineData("Degraded", TransportHealthStatus.Degraded)]
 	[InlineData("Unhealthy", TransportHealthStatus.Unhealthy)]
+	[InlineData("Unknown", TransportHealthStatus.Unknown)]
 	public void Parse_WithValidString_ReturnsExpectedValue(string value, TransportHealthStatus expected)
 	{
 		// Act
@@ -123,6 +141,13 @@ public sealed class TransportHealthStatusShould
 	{
 		// Assert
 		(TransportHealthStatus.Degraded < TransportHealthStatus.Unhealthy).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void Unhealthy_IsLessThanUnknown()
+	{
+		// Assert
+		(TransportHealthStatus.Unhealthy < TransportHealthStatus.Unknown).ShouldBeTrue();
 	}
 
 	#endregion

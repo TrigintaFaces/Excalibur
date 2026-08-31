@@ -66,6 +66,8 @@ internal sealed partial class AwsSqsProvisioner
 			await ApplyRedrivePolicyAsync(options, cancellationToken).ConfigureAwait(false);
 		}
 
+		await ApplyQueueAttributesAsync(options, cancellationToken).ConfigureAwait(false);
+
 		if (provisioning.CreateSnsSubscriptions && options.HasSnsOptions)
 		{
 			await CreateSnsSubscriptionsAsync(options.SnsOptions!, cancellationToken).ConfigureAwait(false);
@@ -130,6 +132,62 @@ internal sealed partial class AwsSqsProvisioner
 		catch (Exception ex)
 		{
 			LogRedrivePolicyFailed(sourceQueueUrl, ex);
+		}
+	}
+
+	/// <summary>
+	/// Applies the declared queue attributes — delivery delay and message retention — to the source
+	/// queue, so a value configured through <c>ConfigureQueue</c> reaches SQS rather than staying in
+	/// the options object.
+	/// </summary>
+	private async Task ApplyQueueAttributesAsync(
+		AwsSqsTransportAdapterOptions options,
+		CancellationToken cancellationToken)
+	{
+		var queueOptions = options.QueueOptions;
+		if (queueOptions is null)
+		{
+			return;
+		}
+
+		var sourceQueueUrl = options.HasQueueMappings
+			? options.QueueMappings.Values.First()
+			: options.Name;
+
+		if (string.IsNullOrWhiteSpace(sourceQueueUrl) ||
+			!Uri.TryCreate(sourceQueueUrl, UriKind.Absolute, out _))
+		{
+			LogProvisioningSkipped("queue attributes", "source queue URL is not an absolute SQS queue URL");
+			return;
+		}
+
+		var request = new SetQueueAttributesRequest
+		{
+			QueueUrl = sourceQueueUrl,
+			Attributes = new Dictionary<string, string>(StringComparer.Ordinal)
+			{
+				["DelaySeconds"] = queueOptions.DelaySeconds.ToString(CultureInfo.InvariantCulture),
+				["MessageRetentionPeriod"] = ((int)queueOptions.MessageRetentionPeriod.TotalSeconds)
+					.ToString(CultureInfo.InvariantCulture),
+				["ReceiveMessageWaitTimeSeconds"] = queueOptions.ReceiveWaitTimeSeconds
+					.ToString(CultureInfo.InvariantCulture),
+				["VisibilityTimeout"] = ((int)queueOptions.VisibilityTimeout.TotalSeconds)
+					.ToString(CultureInfo.InvariantCulture),
+			},
+		};
+
+		try
+		{
+			_ = await _sqsClient.SetQueueAttributesAsync(request, cancellationToken).ConfigureAwait(false);
+			LogQueueAttributesApplied(sourceQueueUrl);
+		}
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			LogQueueAttributesFailed(sourceQueueUrl, ex);
 		}
 	}
 
@@ -268,6 +326,14 @@ internal sealed partial class AwsSqsProvisioner
 	[LoggerMessage(AwsSqsEventId.ProvisioningRedrivePolicyFailed, LogLevel.Warning,
 		"AWS SQS provisioning: failed to apply redrive policy to {QueueUrl}")]
 	private partial void LogRedrivePolicyFailed(string queueUrl, Exception exception);
+
+	[LoggerMessage(AwsSqsEventId.ProvisioningQueueAttributesApplied, LogLevel.Information,
+		"AWS SQS: declared queue attributes applied to queue {QueueUrl}")]
+	private partial void LogQueueAttributesApplied(string queueUrl);
+
+	[LoggerMessage(AwsSqsEventId.ProvisioningQueueAttributesFailed, LogLevel.Warning,
+		"AWS SQS: failed to apply the declared queue attributes to queue {QueueUrl}")]
+	private partial void LogQueueAttributesFailed(string queueUrl, Exception exception);
 
 	[LoggerMessage(AwsSqsEventId.ProvisioningSubscriptionCreating, LogLevel.Information,
 		"AWS SQS provisioning: subscribing queue {QueueArn} to topic {TopicArn}")]

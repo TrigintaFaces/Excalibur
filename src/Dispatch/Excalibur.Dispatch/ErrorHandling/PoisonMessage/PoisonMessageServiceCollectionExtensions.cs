@@ -29,10 +29,6 @@ public static class PoisonMessageServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPoisonMessageHandling(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -95,12 +91,13 @@ public static class PoisonMessageServiceCollectionExtensions
 		var adminFacetAvailable = ImplementsAdminFacet(services);
 
 		// Register default in-memory store if no store is registered.
-		// Built by an explicit factory rather than by type activation: the store's ITenantContext is
-		// OPTIONAL, and type activation demands every constructor parameter be resolvable, so a
-		// single-tenant host — which is exactly the host that takes this default — would fail at resolve.
-		services.TryAddSingleton<IDeadLetterStore>(sp => new InMemoryDeadLetterStore(
-			sp.GetService<ITenantContext>(),
-			sp.GetRequiredService<ILogger<InMemoryDeadLetterStore>>()));
+		// AddTenantAwareStore constructs the store (injecting ITenantContext, since its constructor
+		// requires one) AND emits the ITenantScopingCapability<IDeadLetterStore> marker inseparably. The
+		// TryAdd semantics match this call site exactly: a consumer's own IDeadLetterStore, registered
+		// before AddPoisonMessageHandling(), still wins.
+		_ = services.AddDefaultTenantContext();
+		_ = services.AddTenantAwareStore<IDeadLetterStore, InMemoryDeadLetterStore>();
+		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
 
 		// The admin facet is an OPTIONAL capability, not part of the store contract: a consumer-supplied
 		// IDeadLetterStore is a supported extension point (TryAdd = consumer wins) and is not required to
@@ -163,18 +160,32 @@ public static class PoisonMessageServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// This method's contract is an unconditional override -- REPLACE whatever store is currently
+		// registered, and hand the caller a FRESH instance every time it is called. AddTenantAwareStore
+		// registers the concrete store via TryAddSingleton, which is first-wins by design, so a second
+		// call would otherwise resolve back to the FIRST instance and silently keep whatever state had
+		// accumulated. Clearing the concrete descriptor first restores the fresh-per-call semantics
+		// WITHOUT hand-rolling the construction: the seam still builds the store from the resolved
+		// ITenantContext and emits ITenantScopingCapability<IDeadLetterStore> as one inseparable act.
+		//
+		// Hand-rolling it here was a real hole rather than a style choice, and it only became reachable
+		// once IDeadLetterStore was marked tenant-owned. This override path emitted no capability marker
+		// at all, so a host that called it and then composed row-discriminator multi-tenancy would be
+		// refused at startup for a store that does scope correctly -- and, worse, the shape invited the
+		// opposite repair of registering the marker beside the store, which is exactly the marker that
+		// can be true while the property is false.
 		_ = services.RemoveAll<IDeadLetterStore>();
 		_ = services.RemoveAll<IDeadLetterStoreAdmin>();
-		_ = services.AddSingleton(sp => new InMemoryDeadLetterStore(
-			sp.GetService<ITenantContext>(),
-			sp.GetRequiredService<ILogger<InMemoryDeadLetterStore>>()));
+		_ = services.RemoveAll<InMemoryDeadLetterStore>();
+		_ = services.AddDefaultTenantContext();
+		_ = services.AddTenantAwareStore<IDeadLetterStore, InMemoryDeadLetterStore>();
 		_ = services.AddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
 		_ = services.AddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
 
 		return services;
 	}
 
-	// NOTE: SQL dead letter store moved to Excalibur.Data.SqlServer.AddSqlServerDeadLetterStore() (Sprint 306)
+	// NOTE: SQL dead letter store moved to Excalibur.Data.SqlServer.AddSqlServerDeadLetterStore()
 
 	/// <summary>
 	/// Determines whether the <see cref="IDeadLetterStore"/> currently in effect is known to implement the

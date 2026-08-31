@@ -239,9 +239,9 @@ public static class SqlServerLeaderElectionBuilderExtensions
 			// Resolve the connection string from the factory.
 			using var connection = createConnection();
 			var connStr = connection.ConnectionString;
-			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+			// optional classifier-accelerated self-demotion (null when none registered → grace-only).
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
-			// nxmjpm/ADR-339: optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			// optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
 			return new SqlServerLeaderElection(connStr, resolvedLockResource, leOptions, logger, failureClassifier, fencingTokenProvider);
 		});

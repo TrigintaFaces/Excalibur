@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Postgres.Erasure;
 using Excalibur.Testing.Conformance;
@@ -33,7 +34,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Postgres;
 /// kit, not of this class, and is not asserted here.
 /// </para>
 /// <para>
-/// <b>Every arm is surfaced deliberately.</b> All 19 kit arms are wrapped as <c>[Fact]</c> below —
+/// <b>Every arm is surfaced deliberately.</b> All 22 kit arms are wrapped as <c>[Fact]</c> below —
 /// verified by extracting the kit's arm signatures and diffing them against the invocations in this file,
 /// the same check applied to the SqlServer binding. Adding an arm to the kit therefore does not silently
 /// skip this provider: an un-wrapped arm becomes a visible omission in this file rather than an absence
@@ -78,7 +79,9 @@ public sealed class PostgresLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		// Fully qualified: this file's namespace makes a bare `Options` bind to Excalibur.Dispatch.Options.
 		return new PostgresLegalHoldStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			EnabledTestLogger.Create<PostgresLegalHoldStore>());
+			EnabledTestLogger.Create<PostgresLegalHoldStore>(),
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 	}
 
 	#region Save
@@ -137,8 +140,20 @@ public sealed class PostgresLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly();
 
 	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped_Test() =>
+		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped();
+
+	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() =>
+		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
+
+	[Fact]
 	public Task GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching_Test() =>
 		GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching();
+
+	[Fact]
+	public Task GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() =>
+		GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 
 	[Fact]
 	public Task GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException_Test() =>
@@ -173,4 +188,20 @@ public sealed class PostgresLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		GetExpiredHoldsAsync_ShouldExcludeReleasedHolds();
 
 	#endregion Expiry
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail - in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

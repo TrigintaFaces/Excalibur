@@ -8,6 +8,7 @@ using Excalibur.Domain.Model;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.Sqlite;
 
@@ -23,7 +24,21 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 	private readonly string _connectionString;
 	private readonly string _table;
 	private readonly ILogger<SqliteSnapshotStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+
+	// The DEPLOYMENT MODE (TenantContextOptions.RequireTenant, set by AddMultiTenancy()) -- NOT "is a
+	// context present", which is now always true. Only a single-tenant deployment may have its legacy
+	// untenanted rows converged onto the single-tenant identity; doing that in a multi-tenant deployment
+	// would move that host's genuinely-untenanted system rows into the default tenant's partition.
+	private readonly bool _requireTenant;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqliteSnapshotStore"/> class.
@@ -31,17 +46,27 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 	/// <param name="connectionString">The SQLite connection string.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="table">The snapshot table name. Default: "Snapshots".</param>
+	/// <param name="tenantContextOptions">
+	/// The tenant-context options; its <see cref="TenantContextOptions.RequireTenant"/> (set by
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode for the startup schema handshake, which decides
+	/// whether legacy untenanted rows may be converged onto the single-tenant identity.
+	/// </param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, every
-	/// read, save, and delete is restricted to the resolved tenant's own rows.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public SqliteSnapshotStore(
 		string connectionString,
 		ILogger<SqliteSnapshotStore> logger,
-		string table = "Snapshots",
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions,
+		string table = "Snapshots")
 	{
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(logger);
 
@@ -58,10 +83,10 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, cancellationToken)
+		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, _requireTenant, cancellationToken)
 			.ConfigureAwait(false);
 
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 		// UNCONDITIONAL, and it must stay that way. The write stores every row under
 		// the reserved '__untenanted__' sentinel and keys ON CONFLICT(AggregateId, AggregateType, TenantId),
 		// so a single-tenant row lives under that sentinel rather than outside the key. A conditional
@@ -107,10 +132,10 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 
 		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, cancellationToken)
+		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, _requireTenant, cancellationToken)
 			.ConfigureAwait(false);
 
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 		// The write needs no predicate: the tenant is written into the row and IS part of the
 		// ON CONFLICT key below, so the upsert already discriminates by tenant unconditionally.
 		// The read and delete paths carry the matching unconditional predicate — see them for why.
@@ -123,6 +148,17 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 				Version = @Version,
 				Data = @Data,
 				CreatedAt = @CreatedAt
+			-- Only ever move the snapshot FORWARD. Without this the upsert was last-writer-wins, so a
+			-- slower write carrying an older version overwrote a newer snapshot and GetLatestSnapshot
+			-- then returned the older one. Concurrent saves are ordinary here: several instances can
+			-- snapshot the same aggregate at once, and their writes land in no guaranteed order.
+			-- Replaying from a stale snapshot is not corruption, but "latest" that goes backwards is a
+			-- broken contract, and the rest of the family already enforces it -- SQL Server guards
+			-- WHEN MATCHED AND source.Version > target.Version, Postgres guards
+			-- WHERE existing.version < EXCLUDED.version, and Oracle guards its MERGE the same way.
+			-- SQLite was the last outlier.
+			-- A losing write updates no row, which the caller already tolerates: it discards the count.
+			WHERE [{_table}].Version < excluded.Version
 			""";
 
 		await connection.ExecuteAsync(
@@ -153,10 +189,10 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, cancellationToken)
+		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, _requireTenant, cancellationToken)
 			.ConfigureAwait(false);
 
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 		// UNCONDITIONAL, and it must stay that way. The write stores every row under
 		// the reserved '__untenanted__' sentinel and keys ON CONFLICT(AggregateId, AggregateType, TenantId),
 		// so a single-tenant row lives under that sentinel rather than outside the key. A conditional
@@ -181,10 +217,10 @@ public sealed class SqliteSnapshotStore : ISnapshotStore
 	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, cancellationToken)
+		await SqliteTableInitializer.EnsureSnapshotsTableAsync(connection, _table, _requireTenant, cancellationToken)
 			.ConfigureAwait(false);
 
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 		// UNCONDITIONAL, and it must stay that way. The write stores every row under
 		// the reserved '__untenanted__' sentinel and keys ON CONFLICT(AggregateId, AggregateType, TenantId),
 		// so a single-tenant row lives under that sentinel rather than outside the key. A conditional

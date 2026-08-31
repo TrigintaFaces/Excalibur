@@ -177,46 +177,8 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 	#endregion
 
-	#region DeadLetterTableName Tests
-
-	[Theory]
-	[InlineData("OutboxDeadLetters")]
-	[InlineData("DeadLetters")]
-	[InlineData("FailedMessages")]
-	public void DeadLetterTableName_AcceptsValidValues(string tableName)
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(outbox =>
-		{
-			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).DeadLetterTableName(tableName));
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.Tables.DeadLetterTableName.ShouldBe(tableName);
-	}
-
-	[Fact]
-	public void DeadLetterTableName_ThrowsOnNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddExcaliburOutbox(outbox =>
-			{
-				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).DeadLetterTableName(null!));
-			}));
-	}
-
-	#endregion
-
 	#region CommandTimeout Tests
+
 
 	[Theory]
 	[InlineData(1)]
@@ -406,7 +368,6 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 				.SchemaName("messaging")
 				.TableName("Messages")
 				.TransportsTableName("Deliveries")
-				.DeadLetterTableName("FailedMessages")
 				.CommandTimeout(TimeSpan.FromSeconds(60))
 				.UseRowLocking(true)
 				.DefaultBatchSize(200));
@@ -418,7 +379,6 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		options.Tables.SchemaName.ShouldBe("messaging");
 		options.Tables.OutboxTableName.ShouldBe("Messages");
 		options.Tables.TransportsTableName.ShouldBe("Deliveries");
-		options.Tables.DeadLetterTableName.ShouldBe("FailedMessages");
 		options.Processing.CommandTimeoutSeconds.ShouldBe(60);
 		options.Processing.UseRowLocking.ShouldBeTrue();
 		options.Processing.DefaultBatchSize.ShouldBe(200);

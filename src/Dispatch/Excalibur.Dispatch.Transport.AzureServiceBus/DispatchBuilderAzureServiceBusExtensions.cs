@@ -27,7 +27,7 @@ public static class DispatchBuilderAzureServiceBusExtensions
 	///     dispatch.UseAzureServiceBus(sb =>
 	///     {
 	///         sb.ConnectionString("Endpoint=sb://...")
-	///           .ConfigureProcessor(processor => processor.MaxConcurrentCalls(20));
+	///           .ConfigureProcessor(processor => processor.MaxConcurrentCalls = 20);
 	///     });
 	/// });
 	/// </code>

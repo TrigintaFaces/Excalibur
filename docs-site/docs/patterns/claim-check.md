@@ -142,13 +142,13 @@ public class ReportGeneratorService
         {
             reference = await _claimCheck.StoreAsync(
                 reportData,
+                ct,
                 new ClaimCheckMetadata
                 {
                     ContentType = "application/pdf",
                     MessageId = reportId,
                     MessageType = "Report"
-                },
-                ct);
+                });
         }
 
         // Dispatch event with reference (not full payload)
@@ -214,6 +214,11 @@ public record ProcessReportAction(
 
 ## Configuration Options
 
+Every setting below is read by the shipped providers. `ClaimCheckOptions` groups storage,
+compression and cleanup settings into sub-options (`Storage`, `Compression`, `Cleanup`); the
+frequently-used ones are also surfaced at the top level and delegate to the same field, so
+`options.DefaultTtl` and `options.Cleanup.DefaultTtl` are one setting, not two.
+
 ```csharp
 builder.Services.AddInMemoryClaimCheck(options =>
 {
@@ -226,41 +231,44 @@ builder.Services.AddInMemoryClaimCheck(options =>
     options.CompressionLevel = CompressionLevel.Optimal;
     options.MinCompressionRatio = 0.8; // Only keep compressed if 20%+ smaller
 
-    // Retention and cleanup
+    // Retention and cleanup.
+    // DefaultTtl and RetentionPeriod are the same setting. TimeSpan.Zero disables expiry
+    // and keeps payloads until they are deleted explicitly.
     options.DefaultTtl = TimeSpan.FromDays(7);
     options.RetentionPeriod = TimeSpan.FromDays(7);
     options.EnableCleanup = true;
     options.CleanupInterval = TimeSpan.FromHours(1);
-    options.CleanupBatchSize = 1000;
 
-    // Integrity
+    // Max expired payloads removed per cleanup cycle (sub-option, no top-level alias)
+    options.Cleanup.CleanupBatchSize = 1000;
+
+    // Integrity: verify the stored payload against its checksum on retrieval
     options.ValidateChecksum = true;
-    options.EnableChecksumValidation = true;
-
-    // Performance
-    options.MaxConcurrency = Environment.ProcessorCount;
-    options.ChunkSize = 1024 * 1024; // 1MB chunks
-    options.BufferPoolSize = 100;
-
-    // Resilience
-    options.MaxRetries = 3;
-    options.RetryCount = 3;
-    options.RetryDelay = TimeSpan.FromSeconds(1);
-    options.OperationTimeout = TimeSpan.FromSeconds(30);
 
     // Storage organization
     options.ContainerName = "claim-checks";
     options.IdPrefix = "cc-";
     options.BlobNamePrefix = "claims";
-
-    // Advanced
-    options.UseHierarchicalStorage = false; // Hot/cold tiers
-    options.ColdStorageThreshold = TimeSpan.FromDays(30);
-    options.EnableEncryption = false;
-    options.EnableMetrics = true;
-    options.EnableDetailedMetrics = false;
 });
 ```
+
+:::caution Retries, timeouts and concurrency are the storage client's job
+
+Claim check has no retry, timeout, chunking or concurrency setting of its own. The shipped
+providers issue one store, retrieve or delete call and let the storage SDK's own default policy
+govern it -- for Azure Blob Storage that is the SDK's built-in retry policy. If you need to tune
+those, implement `IClaimCheckProvider` over a client you have configured yourself and register it
+with `AddClaimCheck<TProvider>()` (see [Custom Provider Implementation](#custom-provider-implementation)).
+
+:::
+
+### Encrypting stored payloads
+
+Claim check has no encryption setting, because it holds no key. Encrypt payloads where the key lives:
+turn on server-side encryption for the bucket or container (the default on Azure Blob Storage, Amazon S3
+and Google Cloud Storage), or implement `IClaimCheckProvider` over a client you have already configured
+with a key-encryption key. Either way the payload is encrypted before it reaches disk, and the key stays
+under your control rather than the framework's.
 
 ## Supported Providers
 
@@ -290,10 +298,11 @@ public class CustomClaimCheckProvider : IClaimCheckProvider
 
     public async Task<ClaimCheckReference> StoreAsync(
         byte[] payload,
-        ClaimCheckMetadata? metadata,
-        CancellationToken ct)
+        CancellationToken ct,
+        ClaimCheckMetadata? metadata = null)
     {
         var id = $"{_options.IdPrefix}{Guid.NewGuid()}";
+        var storedAt = DateTimeOffset.UtcNow;
 
         await _storage.UploadAsync(id, payload, ct);
 
@@ -301,8 +310,10 @@ public class CustomClaimCheckProvider : IClaimCheckProvider
         {
             Id = id,
             Size = payload.Length,
-            StoredAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.Add(_options.DefaultTtl),
+            StoredAt = storedAt,
+            // Resolve expiry through the options rather than adding the TTL yourself: a zero TTL
+            // means "never expires", and adding it would mark the payload expired on write.
+            ExpiresAt = _options.ResolveExpiresAt(storedAt),
             Metadata = metadata
         };
     }
@@ -311,6 +322,13 @@ public class CustomClaimCheckProvider : IClaimCheckProvider
         ClaimCheckReference reference,
         CancellationToken ct)
     {
+        // An expired payload is a form of missing payload: report it the same way a deleted or
+        // never-stored one is reported.
+        if (reference.IsExpired(DateTimeOffset.UtcNow))
+        {
+            throw new KeyNotFoundException($"Claim check {reference.Id} has expired");
+        }
+
         var payload = await _storage.DownloadAsync(reference.Id, ct);
 
         // Validate size if needed
@@ -352,6 +370,9 @@ await _claimCheck.DeleteAsync(reference, ct);
 
 // Or keep for audit purposes
 options.RetentionPeriod = TimeSpan.FromDays(30);
+
+// Or disable expiry entirely - payloads are kept until deleted explicitly
+options.RetentionPeriod = TimeSpan.Zero;
 ```
 
 ### Error Handling
@@ -363,7 +384,8 @@ try
 }
 catch (KeyNotFoundException)
 {
-    // Payload expired or already deleted
+    // Payload expired, was deleted, or was never stored. Expiry is not distinguished from
+    // absence: an expired payload is simply no longer retrievable.
     _logger.LogWarning("Claim check {Id} not found", reference.Id);
 }
 catch (InvalidOperationException ex) when (ex.Message.Contains("size mismatch"))

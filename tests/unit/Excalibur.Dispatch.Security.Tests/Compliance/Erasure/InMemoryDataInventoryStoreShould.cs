@@ -1,4 +1,5 @@
 using Excalibur.Compliance.Erasure;
+using Microsoft.Extensions.Options;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -16,7 +17,7 @@ public sealed class InMemoryDataInventoryStoreShould
 
 	public InMemoryDataInventoryStoreShould()
 	{
-		_sut = new InMemoryDataInventoryStore();
+		_sut = new InMemoryDataInventoryStore(new MovableTenantContext(), Microsoft.Extensions.Options.Options.Create(new TenantContextOptions()));
 	}
 
 	#region SaveRegistrationAsync Tests
@@ -214,13 +215,51 @@ public sealed class InMemoryDataInventoryStoreShould
 	}
 
 	[Fact]
+	public async Task BindTheSameTermRegardlessOfWhichContextIsRegistered_WhenTheHostIsSingleTenant()
+	{
+		// SAFETY, and the arm is about the STORED TERM, not about isolation. The store used to resolve its
+		// partition as "is an ITenantContext registered?", so a single-tenant host filed its rows under the
+		// untenanted sentinel or under the default-tenant identity depending on whether some -- possibly
+		// unrelated -- registration had supplied a context. Two hosts with identical inventory configuration
+		// got different data, and a row written in one state was unreadable in the other.
+		//
+		// Deployment mode is now read from TenantContextOptions.RequireTenant, so a host that has not opted
+		// into multi-tenancy binds one term whatever context is present. The property is asserted the way a
+		// caller can observe it: a row written while the ambient context named one tenant is still readable
+		// while it names another, because in single-tenant mode neither name reaches the term.
+		//
+		// NON-VACUITY: against the previous resolution this is RED. There the write bound "tenant-b" and the
+		// read bound "tenant-a", so the registration was invisible and ShouldContain fails.
+		var tenant = new MovableTenantContext { TenantId = "tenant-b" };
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions()));
+
+		await store.SaveRegistrationAsync(
+			CreateRegistration("SingleTenantTable", "Email"),
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-a";
+
+		var result = await store.FindRegistrationsForDataSubjectAsync(
+			"test@example.com",
+			DataSubjectIdType.Email,
+			tenantId: null,
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		result.ShouldContain(
+			r => r.TableName == "SingleTenantTable",
+			"a single-tenant host bound a different tenant term on the read than it did on the write, so the "
+			+ "deployment mode is still being inferred from the ambient context rather than read from "
+			+ "TenantContextOptions.RequireTenant -- the row is now unreachable");
+	}
+
+	[Fact]
 	public async Task FindRegistrationsForDataSubjectAsync_NotDiscloseAnotherTenantsRegistration()
 	{
 		// SAFETY. Tenant-b writes under its own scope; tenant-a then reads under its own. The question is
 		// the property -- "can tenant-a's read observe tenant-b's row?" -- never the mechanism that answers
 		// it, because a lock written from an assumed mechanism is how the previous one went blind.
 		var tenant = new MovableTenantContext();
-		var store = new InMemoryDataInventoryStore(tenant);
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		tenant.TenantId = "tenant-b";
 		await store.SaveRegistrationAsync(
@@ -252,7 +291,7 @@ public sealed class InMemoryDataInventoryStoreShould
 		// store that returns nothing to anybody, and inaction is the cheapest way to look safe. This arm is
 		// the one that fails if a fix over-corrects into a filter that excludes everything.
 		var tenant = new MovableTenantContext();
-		var store = new InMemoryDataInventoryStore(tenant);
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		tenant.TenantId = "tenant-b";
 		await store.SaveRegistrationAsync(
@@ -283,7 +322,7 @@ public sealed class InMemoryDataInventoryStoreShould
 		// close by binding ambient scope and discarding the argument. Naming tenant-b while scoped to
 		// tenant-a must return tenant-a's view -- the parameter is inert, not a selector.
 		var tenant = new MovableTenantContext();
-		var store = new InMemoryDataInventoryStore(tenant);
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		tenant.TenantId = "tenant-b";
 		await store.SaveRegistrationAsync(
@@ -311,7 +350,7 @@ public sealed class InMemoryDataInventoryStoreShould
 		// still lose a tenant's data on write, so the disclosure arm above cannot detect this -- nothing
 		// throws, and the loss is visible only to the tenant whose row is already gone.
 		var tenant = new MovableTenantContext();
-		var store = new InMemoryDataInventoryStore(tenant);
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		tenant.TenantId = "tenant-a";
 		await store.SaveRegistrationAsync(
@@ -352,7 +391,7 @@ public sealed class InMemoryDataInventoryStoreShould
 		// not surface inside a tenant's view. This is the arm that separates the two semantics; a fix that
 		// widened locations the way registrations are widened would pass every other arm in this file.
 		var tenant = new MovableTenantContext();
-		var store = new InMemoryDataInventoryStore(tenant);
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		// The reserved sentinel, NOT null. A present context resolving null means "multi-tenancy is active
 		// but no tenant was resolved", which fails closed by design; the sentinel is the storage encoding
@@ -395,7 +434,7 @@ public sealed class InMemoryDataInventoryStoreShould
 		// holds are subject-linked and bind strict tenant equality, where a broader read IS a disclosure.
 		// Same predicate shape, opposite correct answer, decided by what the row is about.
 		var tenant = new MovableTenantContext();
-		var store = new InMemoryDataInventoryStore(tenant);
+		var store = new InMemoryDataInventoryStore(tenant, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		// The reserved sentinel, NOT null. A present context resolving null means "multi-tenancy is active
 		// but no tenant was resolved", which fails closed by design; the sentinel is the storage encoding

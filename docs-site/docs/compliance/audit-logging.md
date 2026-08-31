@@ -61,8 +61,15 @@ services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
     options.SchemaName = "compliance";
-    options.Retention.RetentionPeriod = TimeSpan.FromDays(7 * 365); // 7 years for SOC2
     options.EnableHashChain = true;
+});
+
+// Scheduled deletion is a SEPARATE registration. Registering the store alone
+// stores audit events forever — see Retention below.
+services.AddAuditRetention(options =>
+{
+    options.RetentionPeriod = TimeSpan.FromDays(7 * 365); // 7 years for SOC2
+    options.CleanupInterval = TimeSpan.FromDays(1);
 });
 
 // Custom store — implement IAuditStore and register the type
@@ -211,6 +218,13 @@ var query = new AuditQuery
 var userActivity = await _auditStore.QueryAsync(query, ct);
 ```
 
+:::warning This query is refused if you encrypt `ActorId`
+`UseAuditLogEncryption()` encrypts `ActorId` by default, and an encrypted `ActorId` cannot be filtered
+on — the call throws `NotSupportedException` rather than returning an empty list. The same applies to
+`IpAddress`. See [Encryption costs you the ability to query by that
+field](#encryption-costs-you-the-ability-to-query-by-that-field).
+:::
+
 ### Filter by Application
 
 In shared audit backends, filter events by the producing application:
@@ -281,7 +295,7 @@ Audit queries are optimized for indexed fields:
 | Field | Indexed | Recommended Use |
 |-------|---------|-----------------|
 | StartDate/EndDate | Yes | Always include time range |
-| ActorId | Yes | User activity reports |
+| ActorId | Yes | User activity reports — **unavailable if you encrypt it**, see below |
 | TenantId | Yes | Backs the ambient tenant predicate applied to every search |
 | ApplicationName | Yes | Multi-app shared backends |
 | ResourceId | Yes | Resource history |
@@ -306,6 +320,74 @@ var query = new AuditQuery
 var events = await _auditStore.QueryAsync(query, ct);
 ```
 
+## Encryption costs you the ability to query by that field
+
+`UseAuditLogEncryption()` decorates your audit store so chosen fields are encrypted before they reach it.
+**Encrypting a field costs you the ability to filter on it, and the framework tells you so rather than
+answering nothing.**
+
+```csharp
+services.AddAuditLogging()
+    .UseAuditLogEncryption(options =>
+    {
+        options.EncryptActorId  = true;   // default
+        options.EncryptIpAddress = true;  // default
+        options.EncryptReason    = false; // default
+        options.EncryptUserAgent = false; // default
+    });
+```
+
+### Why a filter cannot work
+
+The cipher is **randomized** authenticated encryption. Two records holding the same actor id hold
+*different* ciphertext, so a server-side `=` against the plaintext you supplied matches neither of them.
+There is no index that fixes this and no query rewrite that recovers it — the property that makes the
+value unreadable to someone holding your database is the same property that makes it unmatchable.
+
+### What happens instead of an empty result
+
+`QueryAsync` and `CountAsync` throw `NotSupportedException`, naming the field and the option that governs
+it, **before** the query reaches the store:
+
+```
+The audit store cannot filter by 'ActorId' because that field is encrypted at rest.
+Encryption here is randomized, so two records holding the same value hold different
+ciphertext and no comparison against the plaintext you supplied can match either of them.
+Answering this query would return an empty result set that reads as 'no such events'
+while the events are present. Set AuditEncryptionOptions.EncryptActorId to false to store
+'ActorId' in the clear and keep it searchable, or filter on a field that is not encrypted.
+```
+
+The alternative was an empty list — and an empty list from an audit trail reads as *"this actor did
+nothing"* while the records sit present and unmatchable. A zero from `CountAsync` is worse still: it
+carries no hint that anything was withheld. **Silence is the one answer an audit trail must never give.**
+You may be told no; you may not be told a falsehood.
+
+### Which fields cost you what
+
+| Option | Default | Matching query filter | What you lose while it is on |
+| --- | --- | --- | --- |
+| `EncryptActorId` | `true` | `AuditQuery.ActorId` | **Actor-scoped query** — *"what did this user do?"* |
+| `EncryptIpAddress` | `true` | `AuditQuery.IpAddress` | **Address-scoped query** — *"what came from this address?"* |
+| `EncryptReason` | `false` | none | Nothing. There is no filter over it to lose. |
+| `EncryptUserAgent` | `false` | none | Nothing. There is no filter over it to lose. |
+
+**Read the first two rows carefully before you enable encryption.** On the shipped defaults, turning
+encryption on removes actor-scoped and address-scoped audit query outright — it does not degrade them.
+If *"what did this actor do"* is a question your trail has to answer — and for most access-review,
+incident-response, and regulator-facing workflows it is — set `EncryptActorId = false`. That field is
+then stored in the clear and readable by anyone with database access. Both halves of that trade are
+real; pick per field, with the question you will actually be asked in mind.
+
+Encrypted values are still **decrypted on read**, so events you retrieve by any other filter come back
+with readable `ActorId` and `IpAddress`. It is only the *server-side comparison* that is impossible.
+
+:::tip This mirrors what your database engine already offers
+It is the same distinction an engine draws between a deterministically-encrypted column — searchable,
+and equal values are visibly equal to anyone holding the ciphertext — and a randomized one, which is not
+searchable and whose queries fail. Nothing here is unusual; it is just made explicit rather than silent.
+:::
+
 ## Integrity Verification
 
 ### Verify Hash Chain
@@ -316,36 +398,158 @@ var result = await _auditStore.VerifyChainIntegrityAsync(
     endDate: DateTimeOffset.UtcNow,
     ct);
 
-if (result.IsValid)
+switch (result.Outcome)
 {
-    _logger.LogInformation(
-        "Audit chain verified: {TotalEventsValidated} events, no tampering detected",
-        result.TotalEventsValidated);
-}
-else
-{
-    _logger.LogCritical(
-        "AUDIT TAMPERING DETECTED: {CorruptedEvents} corrupted events found. {Message}",
-        result.CorruptedEvents,
-        result.Message);
+    case AuditIntegrityOutcome.Verified:
+        _logger.LogInformation(
+            "Audit chain verified: {EventsVerified} events, no tampering detected",
+            result.EventsVerified);
+        break;
+
+    case AuditIntegrityOutcome.ViolationsDetected:
+        _logger.LogCritical(
+            "AUDIT TAMPERING DETECTED: {CompromisedChainCount} compromised chain(s), first at event {FirstViolationEventId}. {ViolationDescription}",
+            result.CompromisedChainCount,
+            result.FirstViolationEventId,
+            result.ViolationDescription);
+        break;
+
+    case AuditIntegrityOutcome.NoEventsInScope:
+        // Nothing was examined, so nothing is attested. This is not a pass: an empty window
+        // may simply mean no activity, or it may mean audit events are not reaching the store.
+        _logger.LogWarning(
+            "Audit chain verification examined no events in the requested window; this period "
+            + "provides no evidence of integrity.");
+        break;
 }
 ```
 
 ### Integrity Result
 
 ```csharp
+public enum AuditIntegrityOutcome
+{
+    // The default is the non-claiming value, so a defaulted result can never read as Verified.
+    NoEventsInScope = 0,
+    Verified = 1,
+    ViolationsDetected = 2,
+}
+
 public sealed record AuditIntegrityResult
 {
-    public required string ValidationId { get; init; }
-    public required bool IsValid { get; init; }
-    public required long TotalEventsValidated { get; init; }
-    public required long CorruptedEvents { get; init; }
-    public required DateTimeOffset ValidatedAt { get; init; }
-    public required long ExecutionTimeMs { get; init; }
-    public string? Message { get; init; }
-    public IReadOnlyList<string> CorruptedEventIds { get; init; }
-    public IReadOnlyDictionary<string, string>? Details { get; init; }
-    public IReadOnlyList<string>? Errors { get; init; }
+    public AuditIntegrityOutcome Outcome { get; }
+    public long EventsVerified { get; }
+    public DateTimeOffset StartDate { get; }
+    public DateTimeOffset EndDate { get; }
+    public DateTimeOffset VerifiedAt { get; }
+
+    // Populated only when Outcome is ViolationsDetected.
+    public string? FirstViolationEventId { get; }
+    public string? ViolationDescription { get; }
+
+    // The store's chaining units that failed, one per unit however many records within it are
+    // affected. Read it with IsHashChained, which says what the unit is: with chaining on a unit is
+    // a chain; with chaining off the store chains nothing and each record is its own unit.
+    public int CompromisedChainCount { get; }
+
+    // False means only each record's own content integrity was tested. Deletion, insertion and
+    // reordering are undetectable while chaining is off, so a zero count is not evidence against them.
+    public bool IsHashChained { get; }
+}
+```
+
+## Duplicate event IDs
+
+Storing an event whose `EventId` already exists raises `InvalidOperationException`, consistently
+across the in-memory, SQL Server, and PostgreSQL stores:
+
+```csharp
+try
+{
+    await auditStore.StoreAsync(auditEvent, cancellationToken);
+}
+catch (InvalidOperationException)
+{
+    // The event id was already stored. A retrying publisher is the usual way to hit
+    // this: the retry re-stores an event the first attempt already committed.
+}
+```
+
+The SQL providers translate their driver's unique-constraint violation
+(`Microsoft.Data.SqlClient.SqlException` / `Npgsql.PostgresException`) into this exception rather
+than letting it escape, so catching `InvalidOperationException` is sufficient — you do not need to
+also reference either database driver's exception types.
+
+## Retention
+
+### What deletes, and when
+
+Registering an audit store does **not** schedule any deletion. Nothing is ever removed until you
+also call `AddAuditRetention(...)`, which is what registers the background service that performs
+the sweep:
+
+```csharp
+services.AddSqlServerAuditStore(options => { /* … */ });   // stores events. Deletes nothing.
+
+services.AddAuditRetention(options =>                      // this is what deletes.
+{
+    options.RetentionPeriod = TimeSpan.FromDays(7 * 365);
+    options.CleanupInterval = TimeSpan.FromDays(1);
+});
+```
+
+Once retention is registered, automatic enforcement is **on by default** and you do not have to
+call anything: the background service wakes on `CleanupInterval` and deletes every event older
+than `RetentionPeriod`. Setting `EnableRetentionEnforcement = false` genuinely prevents that
+scheduled deletion — the service returns without deleting and logs that enforcement is disabled.
+It does not merely stop reporting.
+
+The manual purge remains available regardless of that flag, so a host that disables the schedule
+can still purge on its own trigger — a maintenance window, an operator action, or a job it
+controls.
+
+### Which options the sweep actually reads
+
+`AddAuditRetention` binds `AuditRetentionOptions`, and that is the type the enforcing service
+reads. `SqlServerAuditOptions.Retention` is a different type with overlapping property names, and
+only some of its properties reach the sweep. Set the retention window on `AuditRetentionOptions`:
+
+| Property you set | Effect |
+|------------------|--------|
+| `AuditRetentionOptions.RetentionPeriod` | The cutoff the scheduled sweep deletes behind. |
+| `AuditRetentionOptions.CleanupInterval` | How often the sweep runs. |
+| `AuditRetentionOptions.EnableRetentionEnforcement` | Honoured; `true` by default. |
+| `AuditRetentionOptions.BatchSize` | Reported by `GetRetentionPolicyAsync`; not passed to the store's delete. |
+| `SqlServerAuditOptions.Retention.EnableRetentionEnforcement` | Projected onto the option above, so setting either works. |
+| `SqlServerAuditOptions.Retention.CleanupBatchSize` | The SQL Server store's own delete batch size. |
+| `SqlServerAuditOptions.Retention.RetentionPeriod` | **No effect.** Set `AuditRetentionOptions.RetentionPeriod` instead. |
+| `SqlServerAuditOptions.Retention.CleanupInterval` | **No effect.** Set `AuditRetentionOptions.CleanupInterval` instead. |
+
+The last two rows are the trap: they sit in the provider options block next to the connection
+string, which is where a retention window looks like it belongs, and the sweep never reads them.
+A host that sets only those keeps every audit event for the built-in default of seven years.
+
+### A store that cannot delete fails loudly
+
+The sweep resolves `IAuditPurgeCapability` from the registered store. A store that does not provide
+it causes enforcement to throw rather than log a completed pass, because a retention control that
+reports success while deleting nothing is a worse outcome than one that stops. SQL Server is
+currently the only audit store that provides this capability; the Postgres audit store does not, so
+scheduled retention against it fails on every sweep. `AddAuditRetention`
+additionally installs a startup gate that fails closed on a volatile (in-memory) audit store,
+unless the host opts in with `AuditLoggingOptions.AllowVolatileAuditStore = true`.
+
+### Manual purge
+
+```csharp
+// Manual retention cleanup — available whether or not the schedule is enabled
+var store = serviceProvider.GetRequiredService<IAuditStore>();
+
+if (store.GetService(typeof(IAuditPurgeCapability)) is IAuditPurgeCapability purge)
+{
+    var cutoffDate = DateTimeOffset.UtcNow.AddYears(-7);
+    var deleted = await purge.PurgeExpiredAsync(cutoffDate, cancellationToken);
+    Console.WriteLine($"Deleted {deleted} audit events");
 }
 ```
 
@@ -462,8 +666,8 @@ CREATE TABLE [audit].[AuditEvents] (
     [Metadata] NVARCHAR(MAX) NULL, -- JSON
 
     -- Hash chain integrity
-    [PreviousEventHash] NVARCHAR(64) NULL, -- SHA-256 hex
-    [EventHash] NVARCHAR(64) NOT NULL, -- SHA-256 hex
+    [PreviousEventHash] NVARCHAR(512) NULL, -- keyed integrity tag: v1:{keyId}:{base64-hmac}
+    [EventHash] NVARCHAR(512) NOT NULL, -- keyed integrity tag: v1:{keyId}:{base64-hmac}
 
     CONSTRAINT [PK_AuditEvents] PRIMARY KEY CLUSTERED ([SequenceNumber] ASC),
     CONSTRAINT [UQ_AuditEvents_EventId] UNIQUE NONCLUSTERED ([EventId])
@@ -478,9 +682,13 @@ CREATE INDEX [IX_AuditEvents_ActorId_Timestamp]
 ON [audit].[AuditEvents] ([ActorId], [Timestamp] DESC)
 INCLUDE ([EventType], [Action], [ResourceId]);
 
+-- Deliberately unfiltered, unlike the indexes below it. [TenantId] is NOT NULL and untenanted rows
+-- carry the '__untenanted__' sentinel, so a WHERE [TenantId] IS NOT NULL filter would exclude no
+-- row while making the index unusable for the untenanted partition's own scoped reads. If you
+-- provisioned this table from an earlier version of this page, drop and recreate this index without
+-- the filter.
 CREATE INDEX [IX_AuditEvents_TenantId_Timestamp]
-ON [audit].[AuditEvents] ([TenantId], [Timestamp] DESC)
-WHERE [TenantId] IS NOT NULL;
+ON [audit].[AuditEvents] ([TenantId], [Timestamp] DESC);
 
 CREATE INDEX [IX_AuditEvents_ApplicationName_Timestamp]
 ON [audit].[AuditEvents] ([ApplicationName], [Timestamp] DESC)
@@ -494,6 +702,31 @@ CREATE INDEX [IX_AuditEvents_CorrelationId]
 ON [audit].[AuditEvents] ([CorrelationId])
 WHERE [CorrelationId] IS NOT NULL;
 ```
+
+:::warning `PreviousEventHash` and `EventHash` are not SHA-256 hex digests
+
+They hold a versioned, keyed tag of the form `v1:{keyId}:{base64-encoded HMAC-SHA256}` — at minimum
+52 characters, and unbounded on the high end because `{keyId}` is supplied by your key provider (a
+KMS key ARN or Key Vault URI can run well past 100 characters). `NVARCHAR(512)` is the width the
+shipped provisioning script (`Excalibur.AuditLogging.SqlServer/Scripts/001_CreateAuditSchema.sql`)
+actually uses.
+
+**If you provisioned this table by copying an earlier version of this page**, the columns may still
+be `NVARCHAR(64)`, in which case every tag longer than 64 characters is truncated or rejected on
+write depending on your `ANSI_WARNINGS` setting. Widen them before writing any more events:
+
+```sql
+ALTER TABLE [audit].[AuditEvents] ALTER COLUMN [PreviousEventHash] NVARCHAR(512) NULL;
+ALTER TABLE [audit].[AuditEvents] ALTER COLUMN [EventHash] NVARCHAR(512) NOT NULL;
+```
+
+Widening the column does **not** repair events already written while it was too narrow. A truncated
+tag cannot be recomputed after the fact — the signing key is used only at write time, and neither the
+truncated value nor anything else on the row can reconstruct what the full tag would have been. Rows
+written before the widening remain unverifiable; treat any chain verification spanning them as
+covering an unrepaired gap, not a clean trail.
+
+:::
 
 ## Integration Patterns
 
@@ -623,7 +856,7 @@ public async Task Should_Detect_Tampering()
         startDate, endDate, CancellationToken.None);
 
     // Assert
-    result.IsValid.ShouldBeFalse();
+    result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
 }
 ```
 
@@ -632,7 +865,7 @@ public async Task Should_Detect_Tampering()
 | Practice | Recommendation |
 |----------|----------------|
 | Time range | Always include StartDate/EndDate in queries |
-| Retention | Match regulatory requirements (7 years for SOX) |
+| Retention | Call `AddAuditRetention(...)`; registering a store alone deletes nothing |
 | Integrity checks | Run daily verification of hash chain |
 | Sensitive data | Mask PII/PHI before logging |
 | Performance | Use indexed fields for queries |
@@ -675,15 +908,15 @@ Only backends that can guarantee monotonic sequencing, document immutability, an
 ```mermaid
 flowchart LR
     AE[Audit Events] --> SQL["SqlServerAuditStore<br/>(compliance, hash-chained)"]
-    AE --> ES["ElasticsearchAuditSink<br/>(search, dashboards)"]
-    AE --> OS["OpenSearchAuditSink<br/>(search, dashboards)"]
+    AE --> ES["ElasticsearchAuditExporter<br/>(search, dashboards)"]
+    AE --> OS["OpenSearchAuditExporter<br/>(search, dashboards)"]
 
     SQL --> V[Verify Chain Integrity]
     ES --> K[Kibana / Dashboards]
     OS --> OSD[OpenSearch Dashboards]
 ```
 
-Consumers who need both compliance **and** search should register SQL as their `IAuditStore` and ES/OS as an audit sink. The sink receives copies for fast full-text search, dashboards, and alerting. SQL is the source of truth for chain verification and regulatory compliance.
+Consumers who need both compliance **and** search should register SQL as their `IAuditStore` and ES/OS as an `IAuditLogExporter`. The exporter receives copies for fast full-text search, dashboards, and alerting. SQL is the source of truth for chain verification and regulatory compliance.
 
 ## Audit Event Annotations
 

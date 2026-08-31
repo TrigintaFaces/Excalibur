@@ -56,16 +56,16 @@ public sealed class SqlServerSnapshotStoreConformanceShould : SnapshotConformanc
 
 		// The tenant-isolation arms establish tenants with TenantContextHolder.BeginScope, so the store
 		// must be able to SEE that ambient tenant. The connection-string constructor takes no tenant
-		// context at all, leaving TenantScope.FromContext(null) == None: every tenant then wrote the
+		// context at all, leaving CurrentTenantScope == None: every tenant then wrote the
 		// reserved untenanted sentinel, all tenants collided on one row per aggregate id, and a later
 		// tenant's save silently overwrote an earlier tenant's snapshot. Binding the ambient context is
 		// what the shipped DI registrations now do too.
 		return new SqlServerSnapshotStore(
 			() => new SqlConnection(_fixture.ConnectionString),
 			logger,
-			"dbo",
-			"EventStoreSnapshots",
-			new AmbientTenantContext());
+			tenantContext: new AmbientTenantContext(),
+			schema: "dbo",
+			table: "EventStoreSnapshots");
 	}
 
 	/// <inheritdoc/>

@@ -7,6 +7,7 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience;
@@ -20,7 +21,12 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// <summary>
 /// Middleware that implements circuit breaker pattern to prevent cascading failures.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="CircuitBreakerMiddleware" /> class. </remarks>
+/// <remarks>
+/// A fault from downstream is recorded against the circuit and then propagates unchanged, so an exception
+/// mapper or typed exception handler registered above still sees the original exception. The one failure
+/// this middleware produces itself is the rejection it returns while the circuit is open, which is its own
+/// outcome rather than a restatement of somebody else's fault.
+/// </remarks>
 /// <param name="options"> The circuit breaker options. </param>
 /// <param name="sanitizer"> The telemetry sanitizer for PII protection. </param>
 /// <param name="timeProvider">
@@ -34,17 +40,17 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware, "1.0.0");
 
-	// Static library Meter (ADR-142 lifecycle) — process-lifetime, fixed name mirroring ActivitySource (p9w9vk).
+	// Static library Meter — process-lifetime, fixed name mirroring ActivitySource.
 	private static readonly Meter Meter = new(DispatchTelemetryConstants.Meters.CircuitBreakerMiddleware, "1.0.0");
 
 	private static readonly Counter<long> TransitionsCounter = Meter.CreateCounter<long>(
 		"dispatch.circuit_breaker.transitions",
-		unit: "transitions",
+		unit: "{transitions}",
 		description: "Number of circuit breaker state transitions, tagged with circuit.key, from_state and to_state.");
 
 	private static readonly Counter<long> RejectionsCounter = Meter.CreateCounter<long>(
 		"dispatch.circuit_breaker.rejections",
-		unit: "rejections",
+		unit: "{rejections}",
 		description: "Number of requests rejected because the circuit breaker was open, tagged with circuit.key.");
 
 	private readonly CircuitBreakerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -161,6 +167,12 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 			_ = (activity?.SetStatus(ActivityStatusCode.Ok));
 			return result;
 		}
+		catch (HandlerNotRegisteredException)
+		{
+			// A missing handler registration is a configuration fault. Recording it as a circuit failure would trip the breaker on
+			// an omission no downstream dependency can recover from, and mask it behind an open-circuit result.
+			throw;
+		}
 		catch (Exception ex)
 		{
 			var fromException = state.State;
@@ -177,16 +189,13 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 
 			LogCircuitBreakerException(circuitKey, context.MessageId ?? string.Empty, ex);
 
-			var sanitizedDetail = ex.GetSanitizedErrorDescription(_sanitizer);
-			return MessageResult.Failed(new MessageProblemDetails
-			{
-				Type = "CircuitBreakerFailure",
-				Title = "Circuit Breaker Failure",
-				ErrorCode = 500,
-				Status = 500,
-				Detail = $"Circuit breaker recorded failure: {sanitizedDetail}",
-				Instance = context.MessageId ?? string.Empty,
-			});
+			// The failure is recorded, then the exception PROPAGATES. Observing a fault is all this
+			// middleware does with it; converting it to a failure result would replace the consumer's own
+			// exception with a breaker-shaped one and hide it from the mapping and typed-handler middleware
+			// above, which match on the original type. The one result this middleware does synthesize is
+			// the open-circuit rejection above — that outcome is the breaker's own, not somebody else's
+			// fault restated.
+			throw;
 		}
 	}
 
@@ -220,7 +229,7 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 		_ => "unknown",
 	};
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.CircuitBreakerStateOpen, LogLevel.Warning,
 		"Circuit breaker is open for {CircuitKey}, rejecting message {MessageId}")]
 	private partial void LogCircuitBreakerOpen(string circuitKey, string messageId);

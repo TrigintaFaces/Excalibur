@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 using Grpc.Core;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Cdc.Firestore;
 
@@ -136,6 +137,8 @@ public static class FirestoreStalePositionDetector
 	/// <param name="collectionPath">The affected collection path, if known.</param>
 	/// <param name="documentId">The affected document ID, if known.</param>
 	/// <returns>A populated <see cref="CdcPositionResetEventArgs"/> instance.</returns>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static CdcPositionResetEventArgs CreateEventArgs(
 		Exception exception,
 		string processorId,
@@ -172,7 +175,6 @@ public static class FirestoreStalePositionDetector
 			additionalContext["DocumentId"] = documentId;
 		}
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		return new CdcPositionResetEventArgs
 		{
 			ProcessorId = processorId,
@@ -187,7 +189,6 @@ public static class FirestoreStalePositionDetector
 			DetectedAt = DateTimeOffset.UtcNow,
 			AdditionalContext = additionalContext.Count > 0 ? additionalContext : null
 		};
-#pragma warning restore IL2026
 	}
 
 	/// <summary>

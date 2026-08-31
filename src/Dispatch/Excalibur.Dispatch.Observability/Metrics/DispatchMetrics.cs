@@ -6,7 +6,6 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Diagnostics;
 
-using TagCardinalityGuard = Excalibur.Dispatch.Observability.Diagnostics.TagCardinalityGuard;
 
 namespace Excalibur.Dispatch.Observability.Metrics;
 
@@ -142,10 +141,10 @@ public sealed class DispatchMetrics : IDispatchMetrics, IDispatchMetricsAdmin, I
 
 	private void InitializeInstruments()
 	{
-		_messagesProcessed = Meter.CreateCounter<long>("dispatch.messages.processed", "count", "Total number of messages processed");
+		_messagesProcessed = Meter.CreateCounter<long>("dispatch.messages.processed", "{messages}", "Total number of messages processed");
 		_processingDuration = Meter.CreateHistogram<double>("dispatch.messages.duration", "ms", "Message processing duration");
-		_messagesPublished = Meter.CreateCounter<long>("dispatch.messages.published", "count", "Total number of messages published");
-		_messagesFailed = Meter.CreateCounter<long>("dispatch.messages.failed", "count", "Total number of messages failed");
-		_activeSessions = Meter.CreateUpDownCounter<int>("dispatch.sessions.active", "count", "Number of active sessions");
+		_messagesPublished = Meter.CreateCounter<long>("dispatch.messages.published", "{messages}", "Total number of messages published");
+		_messagesFailed = Meter.CreateCounter<long>("dispatch.messages.failed", "{messages}", "Total number of messages failed");
+		_activeSessions = Meter.CreateUpDownCounter<int>("dispatch.sessions.active", "{sessions}", "Number of active sessions");
 	}
 }

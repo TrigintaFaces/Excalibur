@@ -234,7 +234,9 @@ public class OrderController : ControllerBase
         var result = await _dispatcher.DispatchAsync(
             new CreateOrderAction(request.CustomerId, request.Items), ct);
 
-        return result.IsSuccess ? Ok() : BadRequest(result.ErrorMessage);
+        return result.IsSuccess
+            ? Ok()
+            : Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
     }
 }
 
@@ -260,6 +262,20 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
     }
 }
 ```
+
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `BadRequest(...)` reports a server-side fault to the
+caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Problem(...)`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+:::
 
 ### What Gets Propagated
 
@@ -494,7 +510,6 @@ Use `IDispatchHandler` when you need to:
 - Return `MessageResult.SuccessFromCache()` with `CacheHit = true`
 - Set `ValidationResult` or `AuthorizationResult` on success
 - Return failure without throwing an exception
-- Implement batch processing (`IBatchableHandler`)
 
 ### Streaming Handlers
 
@@ -547,12 +562,12 @@ Handlers support full dependency injection:
 ```csharp
 public class ComplexHandler : IActionHandler<ComplexAction>
 {
-    private readonly IRepository _repository;
+    private readonly IOrderRepository _repository;
     private readonly IValidator _validator;
     private readonly ILogger<ComplexHandler> _logger;
 
     public ComplexHandler(
-        IRepository repository,
+        IOrderRepository repository,
         IValidator validator,
         ILogger<ComplexHandler> logger)
     {

@@ -167,11 +167,16 @@ services.AddDispatch(dispatch =>
 
 ### Handler Lifetime
 
-By default, handlers are registered as **scoped** services. This means:
+By default, handlers are registered as **transient** services. This means:
 
-- A new instance is created per HTTP request (in ASP.NET Core)
-- Handlers can safely depend on scoped services like `IUnitOfWork` or `IDb`
-- State is not shared between requests
+- Handlers can safely depend on scoped services like `IUnitOfWork` or `IDb` — this does **not** require
+  registering the handler itself as scoped. Dispatch decides whether a dependency-injection scope is
+  needed by inspecting the handler's constructor dependency graph, so a transient handler that reaches a
+  scoped service still gets a scope, in every host: ASP.NET Core, worker, console or serverless.
+- A handler that reaches no scoped dependency does not pay for a scope at all.
+- State is not shared between dispatches, because a transient handler is a fresh instance each time.
+  A stateless handler with no dependencies may be promoted to a shared instance as an optimisation; that
+  promotion applies only to handlers with no instance state, so it is not observable.
 
 To change the lifetime:
 
@@ -365,7 +370,6 @@ Use `IDispatchHandler` only when you need capabilities not available with specia
 | Set `AuthorizationResult` on success | ❌ | ✅ |
 | Return failure without throwing exception | ❌ | ✅ |
 | Access `IMessageContext` in handler | ❌ | ✅ |
-| Batch processing (`IBatchableHandler`) | ❌ | ✅ |
 
 :::tip When in doubt, use specialized handlers
 

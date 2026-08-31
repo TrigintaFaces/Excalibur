@@ -25,8 +25,7 @@ internal sealed class ParallelBatchProcessor(
 	ILogger<ParallelBatchProcessor> logger,
 	BatchMetricsCollector metricsCollector) : BatchProcessorBase(logger, metricsCollector)
 {
-	// Retain options for future use (e.g., max parallelism, timeout configuration).
-	private readonly IOptions<BatchOptions> _options = options;
+	private readonly IOptions<BatchOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
 
 	private readonly Func<ReceivedMessage, CancellationToken, Task<object>> _messageProcessor =
 		messageProcessor ?? throw new ArgumentNullException(nameof(messageProcessor));
@@ -38,20 +37,28 @@ internal sealed class ParallelBatchProcessor(
 		List<FailedMessage> failedMessages,
 		CancellationToken cancellationToken)
 	{
-		Logger.LogDebug(
-			"Processing batch of {MessageCount} messages in parallel",
-			batch.Count);
+		var maxConcurrency = _options.Value.ConcurrentBatchProcessors;
 
-		// Create tasks for parallel processing
-		var tasks = batch.Messages.Select(message =>
-			ProcessMessageAsync(
+		Logger.LogDebug(
+			"Processing batch of {MessageCount} messages in parallel, at most {MaxConcurrency} at a time",
+			batch.Count,
+			maxConcurrency);
+
+		// Fan out over the batch, but never start more than the configured number of concurrent
+		// message processors: a batch may hold up to MaxMessagesPerBatch messages, and an
+		// unbounded fan-out would aim all of them at the consumer's downstream at once.
+		await Parallel.ForEachAsync(
+			batch.Messages,
+			new ParallelOptions
+			{
+				MaxDegreeOfParallelism = maxConcurrency,
+				CancellationToken = cancellationToken,
+			},
+			async (message, ct) => await ProcessMessageAsync(
 				message,
 				successfulMessages,
 				failedMessages,
-				cancellationToken));
-
-		// Wait for all messages to be processed
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+				ct).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />

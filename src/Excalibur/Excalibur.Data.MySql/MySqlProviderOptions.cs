@@ -40,8 +40,14 @@ public sealed class MySqlProviderOptions
 	/// <summary>
 	/// Gets or sets the maximum number of retry attempts for transient failures.
 	/// </summary>
+	/// <remarks>
+	/// Bounded, because the attempt budget is what bounds the total time a single data request can spend
+	/// retrying: the backoff delay is capped at thirty seconds, so the worst case is this many attempts of
+	/// thirty seconds. An unbounded budget left that worst case unbounded too, and a caller observes an
+	/// unbounded retry as a hung request rather than a failure.
+	/// </remarks>
 	/// <value>The maximum number of retry attempts.</value>
-	[Range(0, int.MaxValue)]
+	[Range(0, 10)]
 	public int MaxRetryCount { get; set; } = 3;
 
 	/// <summary>

@@ -17,7 +17,9 @@ namespace Excalibur.Dispatch.Tests.Conformance.Snapshot;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>TenantScope.FromContext</c> has three outcomes, and every one is load-bearing:
+/// A store's scope resolution has three outcomes, and every one is load-bearing. Only the last two come
+/// from <c>TenantScope.FromContext</c>, which requires a context; the first is the store's own stated
+/// fallback, written at its accessor rather than invented by the conversion:
 /// </para>
 /// <list type="table">
 ///   <item>
@@ -103,13 +105,19 @@ public sealed class SnapshotStoreTenantFailClosedShould
 	}
 
 	/// <summary>
-	/// LIVENESS for the single-tenant path. A store built with NO context must remain fully usable and
-	/// must not fail closed — this is a supported deployment shape, not a degraded one.
+	/// LIVENESS for the single-tenant path. A single-tenant deployment must remain fully usable and must
+	/// not fail closed — this is a supported deployment shape, not a degraded one.
+	/// </summary>
+	/// <remarks>
+	/// The deployment being modelled is unchanged; only how it is expressed is. A single-tenant host used to
+	/// register no tenant context at all, and now receives the framework single-tenant identity, because a
+	/// store that partitions by tenant takes its context as a required dependency. The property under test is
+	/// the same one: this host must be able to write and read its own data.
 	/// </summary>
 	[Fact]
 	public async Task Operate_Unscoped_When_No_Tenant_Context_Is_Supplied()
 	{
-		var store = CreateStore(tenantContext: null);
+		var store = CreateStore(new SingleTenantHostContext());
 		var aggregateId = Guid.NewGuid().ToString();
 
 		await store.SaveSnapshotAsync(
@@ -159,8 +167,8 @@ public sealed class SnapshotStoreTenantFailClosedShould
 				CancellationToken.None).ConfigureAwait(false);
 		}
 
-		// A single-tenant deployment reading the same aggregate id: no context, no ambient tenant.
-		var unscopedStore = CreateStore(tenantContext: null);
+		// A single-tenant deployment reading the same aggregate id: its own identity, never tenant A's.
+		var unscopedStore = CreateStore(new SingleTenantHostContext());
 		var leaked = await unscopedStore.GetLatestSnapshotAsync(
 			aggregateId,
 			"TestAggregate",
@@ -171,7 +179,15 @@ public sealed class SnapshotStoreTenantFailClosedShould
 			"or predicate has stopped depending on the resolved scope");
 	}
 
-	private static ISnapshotStore CreateStore(ITenantContext? tenantContext) =>
+	/// <summary>The framework single-tenant identity — what a host that never enabled tenancy resolves.</summary>
+	private sealed class SingleTenantHostContext : ITenantContext
+	{
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
+	}
+
+	private static ISnapshotStore CreateStore(ITenantContext tenantContext) =>
 		new InMemorySnapshotStore(
 			Microsoft.Extensions.Options.Options.Create(new InMemorySnapshotOptions()),
 			NullLogger<InMemorySnapshotStore>.Instance,

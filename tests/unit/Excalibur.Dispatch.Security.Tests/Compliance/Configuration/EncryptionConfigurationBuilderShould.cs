@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,7 +20,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	#region UseInMemoryKeyManagement Tests
 
 	[Fact]
-	public void UseInMemoryKeyManagement_RegisterProviderSuccessfully()
+	public async Task UseInMemoryKeyManagement_RegisterProviderSuccessfully()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -35,13 +36,13 @@ public sealed class EncryptionConfigurationBuilderShould
 
 		// Resolve encryption providers to trigger registration callbacks
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		_ = registry.GetProvider("test-inmemory").ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void UseInMemoryKeyManagement_SetFirstProviderAsPrimary()
+	public async Task UseInMemoryKeyManagement_SetFirstProviderAsPrimary()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -57,13 +58,13 @@ public sealed class EncryptionConfigurationBuilderShould
 
 		// Resolve all encryption providers to trigger registration
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		_ = registry.GetPrimary().ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void UseInMemoryKeyManagement_GenerateUniqueIdWhenNotProvided()
+	public async Task UseInMemoryKeyManagement_GenerateUniqueIdWhenNotProvided()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -77,7 +78,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<IEncryptionProviderRegistry>();
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		registry.GetAll().Count.ShouldBeGreaterThanOrEqualTo(1);
 	}
@@ -108,7 +109,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	#region UseKeyManagement<T> Tests
 
 	[Fact]
-	public void UseKeyManagement_RegisterCustomProviderType()
+	public async Task UseKeyManagement_RegisterCustomProviderType()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -124,7 +125,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<IEncryptionProviderRegistry>();
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		_ = registry.GetProvider("custom-aes").ShouldNotBeNull();
 	}
@@ -134,7 +135,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	#region UseProvider Tests
 
 	[Fact]
-	public void UseProvider_RegisterInstanceSuccessfully()
+	public async Task UseProvider_RegisterInstanceSuccessfully()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -149,7 +150,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<IEncryptionProviderRegistry>();
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		registry.GetProvider("instance-provider").ShouldBe(mockProvider);
 	}
@@ -184,7 +185,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	#region SetAsPrimary Tests
 
 	[Fact]
-	public void SetAsPrimary_ChangePrimaryProvider()
+	public async Task SetAsPrimary_ChangePrimaryProvider()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -202,7 +203,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<IEncryptionProviderRegistry>();
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		registry.GetPrimary().ShouldBe(mockProvider2);
 	}
@@ -243,7 +244,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	#region AddLegacy Tests
 
 	[Fact]
-	public void AddLegacy_MarkProviderAsLegacy()
+	public async Task AddLegacy_MarkProviderAsLegacy()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -261,7 +262,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		var provider = services.BuildServiceProvider();
 		var registry = provider.GetRequiredService<IEncryptionProviderRegistry>();
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		registry.GetLegacyProviders().ShouldContain(legacyProvider);
 	}
@@ -392,7 +393,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	#region Integration Tests
 
 	[Fact]
-	public void FullConfiguration_WorksEndToEnd()
+	public async Task FullConfiguration_WorksEndToEnd()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -420,7 +421,7 @@ public sealed class EncryptionConfigurationBuilderShould
 
 		// Resolve all providers to trigger registration
 		_ = provider.GetServices<IEncryptionProvider>().ToList();
-		_ = provider.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(provider);
 
 		// Verify providers are registered
 		_ = registry.GetProvider("primary-provider").ShouldNotBeNull();
@@ -439,7 +440,7 @@ public sealed class EncryptionConfigurationBuilderShould
 	}
 
 	[Fact]
-	public void MultipleProviders_AllRegistered()
+	public async Task MultipleProviders_AllRegistered()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -458,7 +459,7 @@ public sealed class EncryptionConfigurationBuilderShould
 		var sp = services.BuildServiceProvider();
 		var registry = sp.GetRequiredService<IEncryptionProviderRegistry>();
 		_ = sp.GetServices<IEncryptionProvider>().ToList();
-		_ = sp.GetService<IEncryptionProviderInitializer>();
+		await StartHostedServicesAsync(sp);
 
 		registry.GetAll().Count.ShouldBe(3);
 		registry.GetProvider("provider-1").ShouldBe(provider1);
@@ -477,6 +478,19 @@ public sealed class EncryptionConfigurationBuilderShould
 	{
 		_ = services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
 		_ = services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+	}
+
+	/// <summary>
+	/// Starts every registered <see cref="IHostedService"/> -- the primary-provider setup
+	/// (<c>EncryptionPrimaryProviderInitializer</c>) is one, since a real Generic Host would start it too.
+	/// A bare <see cref="IServiceProvider"/> never does this on its own.
+	/// </summary>
+	private static async Task StartHostedServicesAsync(IServiceProvider provider)
+	{
+		foreach (var hostedService in provider.GetServices<IHostedService>())
+		{
+			await hostedService.StartAsync(CancellationToken.None);
+		}
 	}
 
 	#endregion Helpers

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Compliance.MongoDb</PackageId>
+    <Description>MongoDB implementation of the GDPR compliance store for the Excalibur framework. Provides durable consent records, erasure logs, and subject-access request tracking on MongoDB. Install this package only if you store compliance records in MongoDB: it is the only package that brings MongoDB.Driver into a consumer's graph.</Description>
+    <PackageTags>compliance;mongodb;gdpr;consent;erasure;subject-access</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- The Add*(IConfiguration) overloads in this assembly call OptionsBuilder<T>.Bind/BindConfiguration.
+         The source-generated configuration binder rewrites those call sites, at this assembly's own compile
+         time, into generated reflection-free code instead of ConfigurationBinder's reflection path. Enabling
+         it here, rather than relying on a consumer to opt in, is what makes the IConfiguration overloads
+         genuinely trim- and AOT-safe. -->
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Compliance.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.MongoDB.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Driver" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Compliance.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+</Project>

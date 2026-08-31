@@ -27,16 +27,13 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// exhausted — <b>on BOTH exhaustion code paths</b> (transient-failed-result AND retryable-exception).
 /// </summary>
 /// <remarks>
-/// Authored independently of the implementer (BackendDeveloper) against the committed seam. The
-/// jj9gon/qu3182 (S852) restructure converges both exhaustion paths on the SINGLE reachable post-loop
-/// <c>RetryExhausted</c> terminal (<c>RetryMiddleware.cs:212-241</c>), which emits the exhausted counter
-/// exactly once. Before it, the retryable-EXCEPTION path returned <c>RetryError</c> and emitted nothing —
-/// the qu3182 undercount.
-/// A <see cref="MeterListener"/> captures the <c>Excalibur.Dispatch.RetryMiddleware</c> meter.
+/// Authored independently of the implementer (BackendDeveloper) against the committed seam. Both exhaustion
+/// paths converge on the single post-loop exhaustion terminal, which emits the exhausted counter exactly
+/// once — and emits it BEFORE the terminal leaves, which matters because the exception path leaves by
+/// rethrowing. A <see cref="MeterListener"/> captures the <c>Excalibur.Dispatch.RetryMiddleware</c> meter.
 /// <b>RED mutants:</b> remove <c>RetryAttemptsCounter.Add</c> ⇒ attempts fact RED; remove
-/// <c>RetryExhaustionsCounter.Add</c> ⇒ both exhausted facts RED; revert the retryable-exception path to
-/// return <c>RetryError</c> instead of breaking to the terminal ⇒ the EXCEPTION-exhaustion fact RED
-/// (the qu3182 regression).
+/// <c>RetryExhaustionsCounter.Add</c> ⇒ both exhausted facts RED; move the exhausted counter AFTER the
+/// rethrow ⇒ unreachable on the exception path ⇒ the EXCEPTION-exhaustion fact RED.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -84,11 +81,10 @@ public sealed class RetryMiddlewareMetricsShould
 	[Fact]
 	public async Task RecordRetryExhausted_OnRetryableExceptionExhaustion()
 	{
-		// qu3182 (the dual-code-path other half): a retryable EXCEPTION (TimeoutException → classifier
-		// Transient) thrown on every attempt is retried to the cap, then converges on the SAME single
-		// post-loop RetryExhausted terminal — which emits dispatch.retry.exhausted exactly once. Before the
-		// restructure this path returned RetryError and emitted NOTHING (the undercount). RED mutant:
-		// revert the retryable-exception-at-cap path to return RetryError ⇒ exhausted == 0 here ⇒ RED.
+		// The dual-code-path other half: a retryable EXCEPTION (TimeoutException → classifier Transient)
+		// thrown on every attempt is retried to the cap, then converges on the SAME single post-loop
+		// exhaustion terminal — which emits dispatch.retry.exhausted exactly once and then rethrows the
+		// original. RED mutant: move the counter below the rethrow ⇒ unreachable ⇒ exhausted == 0 here.
 		var recorded = await CaptureAsync(
 			(_, _, _) => throw new TimeoutException("transient — never recovers"),
 			new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) });
@@ -126,8 +122,17 @@ public sealed class RetryMiddlewareMetricsShould
 		});
 		listener.Start();
 
-		_ = await CreateSut(options).InvokeAsync(
-			new RetryMetricProbeMessage(), CreateContext(), next, CancellationToken.None);
+		try
+		{
+			_ = await CreateSut(options).InvokeAsync(
+				new RetryMetricProbeMessage(), CreateContext(), next, CancellationToken.None);
+		}
+		catch (TimeoutException)
+		{
+			// Exhaustion by exception rethrows the original. Swallowing it here is what makes the
+			// exception-path assertion load-bearing: the counter must already have been emitted by the time
+			// the terminal throws, so a counter moved below the rethrow leaves this list empty.
+		}
 
 		return recorded;
 	}

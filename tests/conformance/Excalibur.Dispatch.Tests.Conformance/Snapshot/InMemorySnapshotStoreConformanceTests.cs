@@ -30,7 +30,7 @@ public sealed class InMemorySnapshotStoreConformanceTests : SnapshotConformanceT
 	/// <remarks>
 	/// <para>
 	/// Deliberately passes NO <c>ITenantContext</c>. An earlier revision of this fixture supplied one, on
-	/// the reasoning that a store built without it leaves <c>TenantScope.FromContext(null)</c> ==
+	/// the reasoning that a store built without it leaves <c>CurrentTenantScope</c> ==
 	/// <c>None</c> — key omits the tenant, every tenant collides on one entry — so the suite proves the
 	/// untenanted path while claiming to prove the tenanted one. That reasoning is correct and the remedy
 	/// was still wrong.

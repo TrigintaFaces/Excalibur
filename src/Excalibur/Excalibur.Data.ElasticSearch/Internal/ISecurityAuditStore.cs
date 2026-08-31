@@ -15,18 +15,9 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// abstraction; do not make this public.
 /// </summary>
 /// <remarks>
-/// <para>
-/// First of the 6 γ seams per COMPASS S798 msg 1746 ruling + S799 msg 1799
-/// naming ACK. Follows the ADR-142 §D7 canonical template set by
-/// <c>Excalibur.Security.Azure.Internal.ISecretClient</c> (S797,
-/// <c>bd-wy56o5</c>) and <c>Excalibur.Dispatch.Transport.AzureServiceBus.Internal.IServiceBusClient</c>
-/// (S798, <c>f5c960341</c> + <c>f151edda7</c>).
-/// </para>
-/// <para>
-/// Naming test: the suffix <c>Store</c> describes the consumer's domain role
-/// (audit event persistence) rather than an SDK sub-client — matches the
-/// "describes the work, not the wire" rubric COMPASS set in msg 1746.
-/// </para>
+/// The suffix <c>Store</c> describes the consumer's domain role (audit event
+/// persistence) rather than an SDK sub-client: the seam is named for the work
+/// it does, not for the wire it happens to use.
 /// </remarks>
 internal interface ISecurityAuditStore
 {

@@ -10,6 +10,7 @@ using Azure.Messaging.ServiceBus;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;
+using Excalibur.Dispatch.Transport.AzureServiceBus;
 using Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
@@ -37,8 +38,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// services.AddAzureServiceBusTransport("orders", sb =>
 /// {
 ///     sb.ConnectionString("Endpoint=sb://...")
-///       .ConfigureSender(sender => sender.EnableBatching(true))
-///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls(20))
+///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls = 20)
 ///       .MapEntity&lt;OrderCreated&gt;("orders-topic");
 /// });
 /// </code>
@@ -79,7 +79,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	/// services.AddAzureServiceBusTransport("orders", sb =>
 	/// {
 	///     sb.ConnectionString("Endpoint=sb://orders.servicebus.windows.net/;...")
-	///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls(20))
+	///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls = 20)
 	///       .MapEntity&lt;OrderCreated&gt;("orders-topic");
 	/// });
 	///
@@ -99,8 +99,14 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Create and configure options via builder
-		var transportOptions = new AzureServiceBusTransportOptions { Name = name };
+		// Several registrations branch on configuration (which client credential, which receiver, whether
+		// CloudEvents options are registered at all), so the values are needed eagerly, before the
+		// container is built. The consumer's delegate is therefore applied twice, to two instances of the
+		// SAME model: once here to decide the registrations, and once inside Configure below against the
+		// instance the options system owns, which is what every resolved component reads. Applying one
+		// delegate twice is not a copy — there is no field list to fall out of date. Options-configuration
+		// delegates are already required to be re-runnable.
+		var transportOptions = new AzureServiceBusOptions { Name = name };
 		var builder = new AzureServiceBusTransportBuilder(transportOptions);
 		configure(builder);
 
@@ -117,10 +123,10 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		}
 
 		// Register core Azure Service Bus services
-		RegisterAzureServiceBusServices(services, transportOptions);
+		RegisterAzureServiceBusServices(services, name, transportOptions);
 
 		// Register Azure Service Bus options
-		RegisterOptions(services, transportOptions);
+		RegisterOptions(services, name, configure, builder.CloudEventsConfigure);
 
 		// Register the transport adapter
 		RegisterTransportAdapter(services, name);
@@ -129,8 +135,8 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		RegisterSubscriber(services, name, transportOptions);
 
 		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
-		// reachable on the AddAzureServiceBusTransport path instead of orphaned (kek7vm shared-seam
-		// wiring). Session-ordered consumption is layered by the ne79ro child on this wired seam.
+		// reachable on the AddAzureServiceBusTransport path instead of orphaned (shared-seam
+		// wiring). Session-ordered consumption is layered by the child on this wired seam.
 		RegisterTransportSenderReceiver(services, name, transportOptions);
 
 		return services;
@@ -157,7 +163,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	/// services.AddAzureServiceBusTransport(sb =>
 	/// {
 	///     sb.ConnectionString("Endpoint=sb://...")
-	///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls(20));
+	///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls = 20);
 	/// });
 	/// </code>
 	/// </example>
@@ -173,10 +179,13 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterAzureServiceBusServices(
 		IServiceCollection services,
-		AzureServiceBusTransportOptions transportOptions)
+		string name,
+		AzureServiceBusOptions transportOptions)
 	{
-		// Register ServiceBusClient
-		services.TryAddSingleton(sp =>
+		// Keyed by transport name: TryAddSingleton-by-type de-duplicates, so a second named Service
+		// Bus transport contributed no registration and both names resolved the first transport's
+		// client/bus, silently sending every named transport to the first transport's namespace.
+		services.TryAddKeyedSingleton<ServiceBusClient>(name, (_, _) =>
 		{
 			if (!string.IsNullOrEmpty(transportOptions.ConnectionString))
 			{
@@ -187,29 +196,34 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 				return new ServiceBusClient(transportOptions.ConnectionString, clientOptions);
 			}
 
-			if (!string.IsNullOrEmpty(transportOptions.FullyQualifiedNamespace) && transportOptions.UseManagedIdentity)
+			if (!string.IsNullOrEmpty(transportOptions.Namespace) && transportOptions.UseManagedIdentity)
 			{
 				var clientOptions = new ServiceBusClientOptions
 				{
 					TransportType = transportOptions.TransportType
 				};
-				return new ServiceBusClient(transportOptions.FullyQualifiedNamespace, new DefaultAzureCredential(), clientOptions);
+				return new ServiceBusClient(transportOptions.Namespace, new DefaultAzureCredential(), clientOptions);
 			}
 
 			throw new InvalidOperationException(
-				"Azure Service Bus requires either a ConnectionString or FullyQualifiedNamespace with managed identity.");
+				"Azure Service Bus requires either a connection string or a fully-qualified namespace with managed identity.");
 		});
 
-		// Register AzureServiceBusMessageBus
-		services.TryAddSingleton(sp =>
+		services.TryAddKeyedSingleton<AzureServiceBusMessageBus>(name, (sp, key) =>
 		{
-			var client = sp.GetRequiredService<ServiceBusClient>();
+			var client = sp.GetRequiredKeyedService<ServiceBusClient>(key);
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
-			var options = sp.GetRequiredService<IOptions<AzureServiceBusOptions>>().Value;
+			var options = sp.GetRequiredService<IOptionsMonitor<AzureServiceBusOptions>>().Get(transportOptions.Name);
 			var logger = sp.GetRequiredService<ILogger<AzureServiceBusMessageBus>>();
 
 			return new AzureServiceBusMessageBus(client, serializer, options, logger);
 		});
+
+		// Unkeyed convenience registrations for the single-transport host. TryAdd*, so the
+		// first-registered named transport wins -- a multi-transport host must resolve the keyed
+		// client/bus by name instead.
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<ServiceBusClient>(name));
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AzureServiceBusMessageBus>(name));
 	}
 
 	/// <summary>
@@ -217,36 +231,32 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterOptions(
 		IServiceCollection services,
-		AzureServiceBusTransportOptions transportOptions)
+		string name,
+		Action<IAzureServiceBusTransportBuilder> configure,
+		Action<AzureServiceBusCloudEventOptions>? configureCloudEvents)
 	{
-		// Map AzureServiceBusTransportOptions to existing AzureServiceBusOptions
-		_ = services.AddOptions<AzureServiceBusOptions>()
+		// NAMED, so two transports of the same type no longer overwrite one another's configuration.
+		// The builder is a view over the instance the options system owns: the consumer's own delegate
+		// IS the configure delegate, so there is no second model and nothing to carry between them.
+		_ = services.AddOptions<AzureServiceBusOptions>(name)
 			.Configure(options =>
 			{
-				options.ConnectionString = transportOptions.ConnectionString;
-				options.Namespace = transportOptions.FullyQualifiedNamespace ?? string.Empty;
-				options.QueueName = transportOptions.Sender.DefaultEntityName ?? string.Empty;
-				options.TransportType = transportOptions.TransportType;
-				options.MaxConcurrentCalls = transportOptions.Processor.MaxConcurrentCalls;
-				options.PrefetchCount = transportOptions.Processor.PrefetchCount;
+				options.Name = name;
+				configure(new AzureServiceBusTransportBuilder(options));
 			})
 			.ValidateOnStart();
 
-		// Map to CloudEvent options
-		_ = services.AddOptions<AzureServiceBusCloudEventOptions>()
-			.Configure(options =>
-			{
-				options.EnableDuplicateDetection = transportOptions.CloudEvents.EnableDuplicateDetection;
-				options.DuplicateDetectionWindow = transportOptions.CloudEvents.DuplicateDetectionWindow;
-				options.MaxDeliveryCount = transportOptions.CloudEvents.MaxDeliveryCount;
-				options.EnableDeadLetterQueue = transportOptions.CloudEvents.EnableDeadLetterQueue;
-				options.TimeToLive = transportOptions.CloudEvents.TimeToLive;
-				options.UseSessionsForOrdering = transportOptions.CloudEvents.UseSessionsForOrdering;
-				options.UsePartitionKeys = transportOptions.CloudEvents.UsePartitionKeys;
-				options.MaxMessageSizeBytes = transportOptions.CloudEvents.MaxMessageSizeBytes;
-				options.EnableScheduledDelivery = transportOptions.CloudEvents.EnableScheduledDelivery;
-			})
-			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureServiceBusOptions>, AzureServiceBusOptionsValidator>());
+
+		// CloudEvents options are a separate registration with their own entry point, so the consumer's
+		// delegate is handed straight to it rather than its values being copied through a nested duplicate.
+		if (configureCloudEvents is not null)
+		{
+			_ = services.AddOptions<AzureServiceBusCloudEventOptions>(name)
+				.Configure(configureCloudEvents)
+				.ValidateOnStart();
+		}
 	}
 
 	/// <summary>
@@ -263,7 +273,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AzureServiceBusTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AzureServiceBusMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AzureServiceBusMessageBus>(name);
 			return new AzureServiceBusTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -271,7 +281,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AzureServiceBusTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AzureServiceBusMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AzureServiceBusMessageBus>(name);
 			return new AzureServiceBusTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -303,7 +313,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	private static void RegisterTransportSenderReceiver(
 		IServiceCollection services,
 		string name,
-		AzureServiceBusTransportOptions transportOptions)
+		AzureServiceBusOptions transportOptions)
 	{
 		// The sender publishes to its own entity; the receiver/session consume the PROCESSOR's entity
 		// when one is configured, so a send/receive entity split is honored. Falling back to the
@@ -315,7 +325,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 
 		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
 		{
-			var client = sp.GetRequiredService<ServiceBusClient>();
+			var client = sp.GetRequiredKeyedService<ServiceBusClient>(name);
 			var sender = client.CreateSender(senderEntityName);
 			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportSender>>();
 			return new ServiceBusTransportSender(sender, senderEntityName, logger);
@@ -323,15 +333,15 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 		{
-			var client = sp.GetRequiredService<ServiceBusClient>();
+			var client = sp.GetRequiredKeyedService<ServiceBusClient>(name);
 			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportReceiver>>();
 
 			if (transportOptions.Processor.RequiresSession)
 			{
-				// ne79ro (FR-A2): consume session-enabled entities with per-session FIFO ordering. The
+				//: consume session-enabled entities with per-session FIFO ordering. The
 				// session-aware seam accepts one session at a time (AcceptNextSessionAsync) so messages
 				// sharing a SessionId are delivered in order; the base receiver/ack/reject path is
-				// unchanged (kek7vm seam). Non-session consumers keep the plain receiver below.
+				// unchanged (seam). Non-session consumers keep the plain receiver below.
 				var sessionOptions = new ServiceBusSessionReceiverOptions
 				{
 					PrefetchCount = transportOptions.Processor.PrefetchCount,
@@ -355,11 +365,11 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 	private static void RegisterSubscriber(
 		IServiceCollection services,
 		string name,
-		AzureServiceBusTransportOptions transportOptions)
+		AzureServiceBusOptions transportOptions)
 	{
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
-			var client = sp.GetRequiredService<ServiceBusClient>();
+			var client = sp.GetRequiredKeyedService<ServiceBusClient>(name);
 			// Subscriber consumes the processor's entity when configured (send/receive split),
 			// falling back to the sender entity then the transport name.
 			var entityName = transportOptions.Processor.DefaultEntityName

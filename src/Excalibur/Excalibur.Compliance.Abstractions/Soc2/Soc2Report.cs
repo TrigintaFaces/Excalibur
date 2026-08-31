@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Compliance;
@@ -98,32 +99,37 @@ public record SystemDescription
 	/// <summary>
 	/// System name.
 	/// </summary>
-	public required string Name { get; init; }
+	[Required]
+	public string Name { get; set; } = string.Empty;
 
 	/// <summary>
 	/// System purpose and scope.
 	/// </summary>
-	public required string Description { get; init; }
+	[Required]
+	public string Description { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Services provided.
 	/// </summary>
-	public required IReadOnlyList<string> Services { get; init; }
+	[Required]
+	public IReadOnlyList<string> Services { get; set; } = [];
 
 	/// <summary>
 	/// Infrastructure components.
 	/// </summary>
-	public required IReadOnlyList<string> Infrastructure { get; init; }
+	[Required]
+	public IReadOnlyList<string> Infrastructure { get; set; } = [];
 
 	/// <summary>
 	/// Data types processed.
 	/// </summary>
-	public required IReadOnlyList<string> DataTypes { get; init; }
+	[Required]
+	public IReadOnlyList<string> DataTypes { get; set; } = [];
 
 	/// <summary>
 	/// Third-party dependencies.
 	/// </summary>
-	public IReadOnlyList<string> ThirdParties { get; init; } = [];
+	public IReadOnlyList<string> ThirdParties { get; set; } = [];
 }
 
 /// <summary>

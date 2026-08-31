@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using Excalibur.Data.CosmosDb.Projections;
 using Excalibur.EventSourcing;
 
@@ -10,8 +9,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection; consumer types are preserved by the store contract
-#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback
-#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -37,6 +34,7 @@ public static class CosmosDbProjectionStoreExtensions
 
 		// Configure options
 		_ = services.Configure(configureOptions);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbProjectionStoreOptions>, CosmosDbProjectionStoreOptionsValidator>());
 
 		// Register projection store
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>

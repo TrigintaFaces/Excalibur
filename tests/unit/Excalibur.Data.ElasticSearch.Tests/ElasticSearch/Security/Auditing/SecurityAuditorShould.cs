@@ -445,38 +445,6 @@ public sealed class SecurityAuditorShould : IDisposable
 	#region AuditOptions Configuration Tests
 
 	[Fact]
-	public void AcceptCustomRetentionPeriod_InConfiguration()
-	{
-		// Arrange
-		var auditSettings = new AuditOptions
-		{
-			RetentionPeriod = TimeSpan.FromDays(365) // 1 year
-		};
-		var options = Options.Create(auditSettings);
-
-		// Act
-		_sut = new SecurityAuditor(_fakeClient, options, _monitoringOptions, _logger);
-
-		// Assert
-		_sut.Configuration.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
-	}
-
-	[Fact]
-	public void AcceptDefaultRetentionPeriod_WhenNotSpecified()
-	{
-		// Arrange
-		var auditSettings = new AuditOptions();
-		var options = Options.Create(auditSettings);
-
-		// Act
-		_sut = new SecurityAuditor(_fakeClient, options, _monitoringOptions, _logger);
-
-		// Assert
-		// Default is 7 years (2555 days)
-		_sut.Configuration.RetentionPeriod.ShouldBe(TimeSpan.FromDays(2555));
-	}
-
-	[Fact]
 	public void AcceptDisabledAuditConfiguration()
 	{
 		// Arrange
@@ -510,9 +478,6 @@ public sealed class SecurityAuditorShould : IDisposable
 		var monitoringSettings = new SecurityMonitoringOptions
 		{
 			Enabled = true,
-			DetectAnomalies = true,
-			MonitorAuthenticationAttacks = true,
-			DetectDataExfiltration = true,
 			AutomatedResponseEnabled = true
 		};
 		var options = Options.Create(monitoringSettings);
@@ -531,9 +496,6 @@ public sealed class SecurityAuditorShould : IDisposable
 		var monitoringSettings = new SecurityMonitoringOptions
 		{
 			Enabled = false,
-			DetectAnomalies = false,
-			MonitorAuthenticationAttacks = false,
-			DetectDataExfiltration = false,
 			AutomatedResponseEnabled = false
 		};
 		var options = Options.Create(monitoringSettings);

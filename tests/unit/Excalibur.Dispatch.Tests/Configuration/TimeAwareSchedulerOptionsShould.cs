@@ -42,7 +42,6 @@ public sealed class TimeAwareSchedulerOptionsShould
 		var options = new TimeAwareSchedulerOptions();
 
 		// Act
-		options.Timeouts.EnableTimeoutPolicies = false;
 		options.Timeouts.ScheduleRetrievalTimeout = TimeSpan.FromSeconds(60);
 		options.Timeouts.DeserializationTimeout = TimeSpan.FromSeconds(20);
 		options.Timeouts.DispatchTimeout = TimeSpan.FromMinutes(5);
@@ -51,10 +50,8 @@ public sealed class TimeAwareSchedulerOptionsShould
 		options.Timeouts.EnableCronTimeouts = false;
 		options.Timeouts.EnableTimezoneTimeouts = false;
 		options.Timeouts.LogSchedulingTimeouts = false;
-		options.Timeouts.IncludeTimeoutMetrics = false;
 
 		// Assert
-		options.Timeouts.EnableTimeoutPolicies.ShouldBeFalse();
 		options.Timeouts.ScheduleRetrievalTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 		options.Timeouts.DeserializationTimeout.ShouldBe(TimeSpan.FromSeconds(20));
 		options.Timeouts.DispatchTimeout.ShouldBe(TimeSpan.FromMinutes(5));
@@ -63,7 +60,6 @@ public sealed class TimeAwareSchedulerOptionsShould
 		options.Timeouts.EnableCronTimeouts.ShouldBeFalse();
 		options.Timeouts.EnableTimezoneTimeouts.ShouldBeFalse();
 		options.Timeouts.LogSchedulingTimeouts.ShouldBeFalse();
-		options.Timeouts.IncludeTimeoutMetrics.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -380,7 +376,6 @@ public sealed class TimeAwareSchedulerOptionsShould
 		var options = new SchedulerTimeoutOptions();
 
 		// Assert
-		options.EnableTimeoutPolicies.ShouldBeTrue();
 		options.ScheduleRetrievalTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.DeserializationTimeout.ShouldBe(TimeSpan.FromSeconds(10));
 		options.DispatchTimeout.ShouldBe(TimeSpan.FromMinutes(2));
@@ -389,7 +384,6 @@ public sealed class TimeAwareSchedulerOptionsShould
 		options.EnableCronTimeouts.ShouldBeTrue();
 		options.EnableTimezoneTimeouts.ShouldBeTrue();
 		options.LogSchedulingTimeouts.ShouldBeTrue();
-		options.IncludeTimeoutMetrics.ShouldBeTrue();
 	}
 
 	// --- SchedulerAdaptiveOptions ---

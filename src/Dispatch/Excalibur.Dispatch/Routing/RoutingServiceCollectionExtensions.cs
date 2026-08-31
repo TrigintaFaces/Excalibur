@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Routing.Builder;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -39,6 +40,8 @@ public static class RoutingServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RoutingOptions>, RoutingOptionsValidator>());
 
 		RegisterRoutingServices(services);
 
@@ -51,10 +54,6 @@ public static class RoutingServiceCollectionExtensions
 	/// <param name="services">The service collection to add routing services to.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="RoutingOptions"/>.</param>
 	/// <returns>The same service collection instance for method chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -62,6 +61,8 @@ public static class RoutingServiceCollectionExtensions
 		_ = services.AddOptions<RoutingOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RoutingOptions>, RoutingOptionsValidator>());
 
 		RegisterRoutingServices(services);
 

@@ -158,20 +158,6 @@ public interface IChangeFeedSubscription<TDocument> : IAsyncDisposable
 }
 
 /// <summary>
-/// Provides diagnostics capabilities for change feed subscriptions including checkpoint
-/// token tracking. This is an ISP sub-interface of <see cref="IChangeFeedSubscription{TDocument}"/>
-/// for consumers that need to inspect or persist continuation tokens.
-/// </summary>
-/// <typeparam name="TDocument">The type of documents in the feed.</typeparam>
-public interface IChangeFeedSubscriptionDiagnostics<TDocument>
-{
-	/// <summary>
-	/// Gets the current continuation token for checkpointing.
-	/// </summary>
-	string? CurrentContinuationToken { get; }
-}
-
-/// <summary>
 /// Defines options for configuring a change feed subscription.
 /// </summary>
 public interface IChangeFeedOptions

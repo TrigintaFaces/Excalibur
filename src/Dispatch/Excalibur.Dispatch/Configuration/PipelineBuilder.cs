@@ -300,13 +300,13 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 				continue;
 			}
 
-			// Override stage if specified in registration
-			if (registration.Stage.HasValue && middleware is IConfigurableMiddleware configurable)
-			{
-				configurable.Stage = registration.Stage.Value;
-			}
-
-			resolvedMiddleware.Add(middleware);
+			// Apply a registration-time stage override (UseAt<T>(stage)) by decoration. It must not be
+			// written onto the middleware instance: middleware is typically a DI singleton shared by every
+			// pipeline, so assigning its stage would leak this registration's ordering into all of them.
+			resolvedMiddleware.Add(
+				registration.Stage.HasValue
+					? new StageOverrideMiddleware(middleware, registration.Stage.Value)
+					: middleware);
 		}
 
 		// Fail closed once, naming every Required middleware that could not be materialized

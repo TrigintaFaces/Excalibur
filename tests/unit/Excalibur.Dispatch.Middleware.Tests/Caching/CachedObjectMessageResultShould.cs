@@ -26,6 +26,33 @@ public sealed class CachedObjectMessageResultShould : UnitTestBase
 		result.CacheHit.ShouldBeTrue();
 	}
 
+	/// <summary>
+	/// The ahead-of-time path returns this wrapper through the non-generic result contract, whose untyped
+	/// accessor defaults to null. Without an explicit forward a caller reading the result through the
+	/// interface sees nothing, and the cached value is unreachable on exactly the runtime where this
+	/// wrapper is the only one used.
+	/// </summary>
+	[Fact]
+	public void ExposeTheValueThroughTheUntypedAccessor()
+	{
+		var value = new { Name = "test", Count = 42 };
+
+		IMessageResult result = new CachedObjectMessageResult(value);
+
+		result.UntypedReturnValue.ShouldBeSameAs(
+			value,
+			"a caller reading the result through the interface must see the cached value");
+	}
+
+	/// <summary>A genuinely null cached value still reads as null, so the forward does not fabricate one.</summary>
+	[Fact]
+	public void ReportNullThroughTheUntypedAccessorForANullValue()
+	{
+		IMessageResult result = new CachedObjectMessageResult(null);
+
+		result.UntypedReturnValue.ShouldBeNull();
+	}
+
 	[Fact]
 	public void StoreReturnValue()
 	{

@@ -58,7 +58,9 @@ Excalibur.Compliance.Vault.VaultKeyProvider.ListKeysAsync(Excalibur.Compliance.K
 Excalibur.Compliance.Vault.VaultKeyProvider.ReactivateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Vault.VaultKeyProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
 Excalibur.Compliance.Vault.VaultKeyProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Vault.VaultKeyProvider.UnwrapDataKeyAsync(string! keyId, int version, Excalibur.Compliance.WrappedDataKey! wrappedKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Compliance.Vault.VaultKeyProvider.VaultKeyProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Vault.VaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Vault.VaultKeyProvider!>! logger) -> void
+Excalibur.Compliance.Vault.VaultKeyProvider.WrapDataKeyAsync(string! keyId, int version, byte[]! dataKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.WrappedDataKey!>!
 Excalibur.Compliance.Vault.VaultOptions
 Excalibur.Compliance.Vault.VaultOptions.Auth.get -> Excalibur.Compliance.Vault.VaultAuthOptions!
 Excalibur.Compliance.Vault.VaultOptions.Auth.set -> void
@@ -92,6 +94,8 @@ Excalibur.Compliance.Vault.VaultSuspensionOptions.MountPath.get -> string!
 Excalibur.Compliance.Vault.VaultSuspensionOptions.MountPath.set -> void
 Excalibur.Compliance.Vault.VaultSuspensionOptions.Path.get -> string!
 Excalibur.Compliance.Vault.VaultSuspensionOptions.Path.set -> void
+Excalibur.Compliance.Vault.VaultSuspensionOptions.PurposePath.get -> string!
+Excalibur.Compliance.Vault.VaultSuspensionOptions.PurposePath.set -> void
 Excalibur.Compliance.Vault.VaultSuspensionOptions.VaultSuspensionOptions() -> void
 Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Vault.IComplianceVaultBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

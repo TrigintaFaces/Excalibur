@@ -44,7 +44,7 @@ internal sealed class OutboxDeliveryOptionsValidator : IValidateOptions<OutboxDe
 		}
 
 		// MaxPayloadBytes is null = opt-out (unbounded). When set it must be >= 1: a non-positive maximum
-		// makes the ingress guard reject EVERY payload (length > 0 > max), silently bricking all delivery (887vwl).
+		// makes the ingress guard reject EVERY payload (length > 0 > max), silently bricking all delivery.
 		if (options.MaxPayloadBytes is int maxPayloadBytes && maxPayloadBytes < 1)
 		{
 			failures.Add(

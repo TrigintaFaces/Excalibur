@@ -40,12 +40,12 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 {
 	private static readonly Counter<long> EventsFailedCounter = AuditTelemetryConstants.Meter.CreateCounter<long>(
 		AuditTelemetryConstants.MetricNames.EventsFailed,
-		"events",
+		"{events}",
 		"Total audit event recording failures");
 
 	private static readonly Histogram<int> BulkStoreSizeHistogram = AuditTelemetryConstants.Meter.CreateHistogram<int>(
 		AuditTelemetryConstants.MetricNames.BulkStoreSize,
-		"events",
+		"{events}",
 		"Number of events in a bulk store batch");
 
 	private readonly ElasticsearchClient _elasticsearchClient;
@@ -54,7 +54,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly SemaphoreSlim _auditSemaphore;
 	private readonly Timer? _complianceReportTimer;
 	private readonly Dictionary<ComplianceFramework, ComplianceReporter> _complianceReporters;
-	// vbv0at-B: bounded in-memory audit buffers. FullMode.Wait applies producer backpressure (callers
+	// Bounded in-memory audit buffers. FullMode.Wait applies producer backpressure (callers
 	// await when full) so a slow/failed audit sink throttles rather than dropping. The drain NEVER writes
 	// back into these channels (that would deadlock against its own full channel — SA ruling); flush-failed
 	// events are held in _retryBuffer and re-attempted on the next drain tick.
@@ -65,7 +65,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly Timer _auditEventProcessor;
 	private ConcurrentBag<Task> _trackedTasks = [];
 
-	// d0f69o: flush backoff. When a flush fails (e.g. EnsureLogIntegrity=true with a missing signing key,
+	// flush backoff. When a flush fails (e.g. EnsureLogIntegrity=true with a missing signing key,
 	// where ComputeIntegrityHashAsync fails closed), the failed batch is re-queued. Without backoff the
 	// timer immediately re-dequeues and re-fails — a busy hot-loop pegging CPU. These fields gate the flush
 	// body so retries are spaced by a capped exponential backoff. The deadline is stored as a UTC tick count
@@ -73,7 +73,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private const int FlushBackoffBaseMs = 1_000;
 	private const int FlushBackoffMaxMs = 30_000;
 
-	// vbv0at-B: consecutive flush failures at/above this mark the audit flush degraded (observable to a
+	// Consecutive flush failures at/above this mark the audit flush degraded (observable to a
 	// health check) — a sustained sink outage while the retry buffer accumulates and producers backpressure.
 	private const int AuditFlushDegradedThreshold = 3;
 	private long _flushBackoffUntilUtcTicks;
@@ -221,7 +221,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		_complianceReporters = InitializeComplianceReporters();
 		SupportedComplianceFrameworks = [.. Configuration.ComplianceFrameworks];
 
-		// vbv0at-B: bounded channels sized from options; producers wait (never drop) when full.
+		// Bounded channels sized from options; producers wait (never drop) when full.
 		var channelCapacity = Configuration.MaxPendingAuditEvents > 0 ? Configuration.MaxPendingAuditEvents : 10_000;
 		var channelOptions = new BoundedChannelOptions(channelCapacity)
 		{
@@ -268,7 +268,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	public event EventHandler<SecurityEventRecordedEventArgs>? SecurityEventRecorded;
 
 	/// <inheritdoc />
-	// R0.8: Event is never used - keeping for future extensibility
+	// Event is never used - keeping for future extensibility
 #pragma warning disable CS0067
 
 	public event EventHandler<AuditIntegrityViolationEventArgs>? IntegrityViolationDetected;
@@ -547,7 +547,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			return;
 		}
 
-		// d0f69o: while a prior flush is in its failure backoff window, skip this attempt so a persistently
+		// while a prior flush is in its failure backoff window, skip this attempt so a persistently
 		// failing flush (e.g. missing integrity signing key) does not busy-loop re-dequeue/re-fail/re-queue.
 		if (DateTimeOffset.UtcNow.UtcTicks < Volatile.Read(ref _flushBackoffUntilUtcTicks))
 		{
@@ -603,6 +603,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 			if (!result.Success)
 			{
+				EventsFailedCounter.Add(eventsToProcess.Count);
 				_logger.LogError(
 					"Failed to store audit events in Elasticsearch: {Error}",
 					result.ErrorDetails);
@@ -620,15 +621,16 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		}
 		catch (Exception ex)
 		{
+			EventsFailedCounter.Add(eventsToProcess.Count);
 			_logger.LogError(ex, "Error processing audit event queue");
 
-			// vbv0at-B: hold un-flushed events in the LOCAL retry buffer (never write back into the bounded
+			// Hold un-flushed events in the LOCAL retry buffer (never write back into the bounded
 			// channel — the single-reader drain would deadlock against its own full channel). They are
 			// re-attempted on the next drain tick; producers keep applying backpressure so nothing is lost.
 			_retryBuffer.AddRange(eventsToProcess);
 			_hasPendingRetry = true;
 
-			// d0f69o: space out retries with a capped exponential backoff so a persistent failure
+			// space out retries with a capped exponential backoff so a persistent failure
 			// (e.g. EnsureLogIntegrity=true with no signing key) does not hot-loop. The events remain
 			// queued for retry; only the retry cadence is throttled.
 			var failures = Interlocked.Increment(ref _consecutiveFlushFailures);

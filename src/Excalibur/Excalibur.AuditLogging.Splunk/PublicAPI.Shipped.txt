@@ -11,7 +11,6 @@ Excalibur.AuditLogging.Splunk.SplunkAuditExporter.ExportAsync(Excalibur.Complian
 Excalibur.AuditLogging.Splunk.SplunkAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
 Excalibur.AuditLogging.Splunk.SplunkAuditExporter.Name.get -> string!
 Excalibur.AuditLogging.Splunk.SplunkAuditExporter.SplunkAuditExporter(System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.Splunk.SplunkExporterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.Splunk.SplunkAuditExporter!>! logger) -> void
-Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId
 Excalibur.AuditLogging.Splunk.SplunkBatchOptions
 Excalibur.AuditLogging.Splunk.SplunkBatchOptions.MaxBatchSize.get -> int
 Excalibur.AuditLogging.Splunk.SplunkBatchOptions.MaxBatchSize.set -> void
@@ -51,12 +50,4 @@ Excalibur.AuditLogging.Splunk.SplunkExporterOptions.SplunkExporterOptions() -> v
 Excalibur.AuditLogging.Splunk.SplunkExporterOptions.UseAck.get -> bool
 Excalibur.AuditLogging.Splunk.SplunkExporterOptions.UseAck.set -> void
 Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.BatchForwarded = 93402 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.EventForwarded = 93401 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedBatchChunk = 93410 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedHttpError = 93408 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedStatus = 93405 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedTimeout = 93409 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardRetried = 93406 -> int
-const Excalibur.AuditLogging.Splunk.SplunkAuditLoggingEventId.HealthCheckFailed = 93407 -> int
 static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

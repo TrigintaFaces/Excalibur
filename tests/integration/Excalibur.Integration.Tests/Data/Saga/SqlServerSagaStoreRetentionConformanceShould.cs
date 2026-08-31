@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -48,7 +49,7 @@ public sealed class SqlServerSagaStoreRetentionConformanceShould
 	}
 
 	/// <inheritdoc/>
-	protected override async Task<ISagaStore> CreateStoreAsync()
+	protected override async Task<ISagaStore> CreateStoreAsync(ITenantContext ambientTenant)
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"SQL Server container must be available — this real-infra retention lock is never skipped. "
@@ -59,7 +60,8 @@ public sealed class SqlServerSagaStoreRetentionConformanceShould
 		return new SqlServerSagaStore(
 			_fixture.ConnectionString,
 			NullLogger<SqlServerSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			ambientTenant);
 	}
 
 	/// <inheritdoc/>

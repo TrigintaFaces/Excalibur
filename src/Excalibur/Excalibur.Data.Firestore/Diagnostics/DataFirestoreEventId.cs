@@ -18,7 +18,7 @@ namespace Excalibur.Data.Firestore.Diagnostics;
 /// <item>105600-105699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataFirestoreEventId
+internal static class DataFirestoreEventId
 {
 	// ========================================
 	// 105000-105099: Client Management
@@ -258,6 +258,9 @@ public static class DataFirestoreEventId
 
 	/// <summary>Snapshots deleted older than version.</summary>
 	public const int SnapshotsDeletedOlderThan = 106004;
+
+	/// <summary>A contended snapshot write lost its conditional write and is being re-attempted.</summary>
+	public const int SnapshotWriteRetried = 106005;
 
 	// ========================================
 	// 106100-106199: Grant Service

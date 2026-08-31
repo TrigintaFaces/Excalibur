@@ -121,7 +121,7 @@ internal sealed class Dispatcher(
 	private readonly Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>? _finalHandlerDelegate =
 		finalHandler is null ? null : finalHandler.HandleAsync;
 
-	// ec132p: lazily-computed guard that surfaces (loudly, once) any pipeline middleware the streaming
+	// lazily-computed guard that surfaces (loudly, once) any pipeline middleware the streaming
 	// dispatch paths bypass. The bypassed set is invariant for the container, so it is computed on first use.
 	private StreamingPipelineBypassGuard? _streamingBypassGuard;
 
@@ -140,9 +140,9 @@ internal sealed class Dispatcher(
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
 	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	public Task<IMessageResult> DispatchAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -305,10 +305,6 @@ internal sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
 	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
 	internal Task<IMessageResult> DispatchAsync<TMessage>(
 		TMessage message,
 		MessageContext context,
@@ -466,9 +462,9 @@ internal sealed class Dispatcher(
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
 	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -554,9 +550,9 @@ internal sealed class Dispatcher(
 	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	public ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction
 	{
@@ -604,7 +600,7 @@ internal sealed class Dispatcher(
 		}
 
 		var messageType = message.GetType();
-		return ValueTask.FromException(CreateMissingLocalHandlerException(messageType));
+		return ValueTask.FromException(LocalMessageBus.CreateMissingHandlerException(messageType));
 	}
 
 	/// <inheritdoc />
@@ -612,9 +608,9 @@ internal sealed class Dispatcher(
 	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
 	public ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(
 		TMessage message,
 		CancellationToken cancellationToken)
@@ -673,7 +669,7 @@ internal sealed class Dispatcher(
 		}
 
 		var messageType = message.GetType();
-		return ValueTask.FromException<TResponse?>(CreateMissingLocalHandlerException(messageType));
+		return ValueTask.FromException<TResponse?>(LocalMessageBus.CreateMissingHandlerException(messageType));
 	}
 
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
@@ -1129,11 +1125,6 @@ internal sealed class Dispatcher(
 		}
 	}
 
-	private static InvalidOperationException CreateMissingLocalHandlerException(Type actionType)
-	{
-		return new InvalidOperationException($"No handler registered for action {actionType.Name}");
-	}
-
 	/// <summary>
 	/// Optimized dispatch path using cached type metadata and minimal allocations.
 	/// Sets the ambient context at the Dispatcher level to ensure it's always available,
@@ -1501,6 +1492,42 @@ internal sealed class Dispatcher(
 
 		return MR.Failed<TResponse>(problem?.Detail, problem);
 	}
+
+	/// <summary>
+	/// Gets a value indicating whether dispatching <paramref name="messageType"/> may skip the middleware
+	/// pipeline without changing observable behaviour.
+	/// </summary>
+	/// <param name="messageType">The message type about to be dispatched.</param>
+	/// <returns><see langword="true"/> only when no configured middleware applies to that type.</returns>
+	/// <remarks>
+	/// Exists so the context-less dispatch extensions can ask the question this class already answers for
+	/// its own fast path, rather than skipping the pipeline on the strength of the CALLER's shape alone.
+	/// Cached per message type, so asking is not a per-dispatch cost.
+	/// </remarks>
+	[UnconditionalSuppressMessage(
+		"Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Reads a bool cached per message type; no member is resolved by this call.")]
+	[UnconditionalSuppressMessage(
+		"AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Reads a bool cached per message type; no type is constructed by this call.")]
+	public bool CanBypassMiddlewareFor(Type messageType)
+	{
+		ArgumentNullException.ThrowIfNull(messageType);
+
+		return GetMessageDispatchInfo(messageType).CanBypassMiddleware;
+	}
+
+	/// <summary>
+	/// Determines whether a local action would reach the local bus with no handler registered for it.
+	/// </summary>
+	/// <param name="messageType"> The message type about to be dispatched. </param>
+	/// <returns>
+	/// <see langword="true" /> only when a local bus is present and has no handler for <paramref name="messageType" />; otherwise
+	/// <see langword="false" />, including when no local bus is configured and the question cannot be answered here.
+	/// </returns>
+	internal bool IsMissingLocalHandler(Type messageType) =>
+		localMessageBus is { } bus && !bus.HasHandlerFor(messageType);
+
 
 	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
@@ -2407,7 +2434,7 @@ internal sealed class Dispatcher(
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
 
-		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		// surface (loudly, once) any pipeline middleware this streaming path bypasses.
 		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchStreamingAsync));
 
 		// Resolve the streaming handler from DI
@@ -2479,7 +2506,7 @@ internal sealed class Dispatcher(
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
 
-		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		// surface (loudly, once) any pipeline middleware this streaming path bypasses.
 		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchStreamAsync));
 
 		// Resolve the stream consumer handler from DI
@@ -2543,7 +2570,7 @@ internal sealed class Dispatcher(
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
 
-		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		// surface (loudly, once) any pipeline middleware this streaming path bypasses.
 		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchTransformStreamAsync));
 
 		// Resolve the transform handler from DI
@@ -2614,7 +2641,7 @@ internal sealed class Dispatcher(
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
 		}
 
-		// ec132p: surface (loudly, once) any pipeline middleware this streaming path bypasses.
+		// surface (loudly, once) any pipeline middleware this streaming path bypasses.
 		StreamingBypassGuard.WarnIfBypassed(nameof(DispatchWithProgressAsync));
 
 		// Resolve the progress handler from DI

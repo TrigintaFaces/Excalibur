@@ -10,17 +10,6 @@ using Excalibur.Data.Resilience;
 namespace Excalibur.Tests.Infrastructure;
 
 /// <summary>
-/// Persistence provider type enum stub.
-/// </summary>
-public enum PersistenceProviderType
-{
-	SqlServer,
-	Postgres,
-	MongoDB,
-	ElasticSearch,
-}
-
-/// <summary>
 /// Stub for MongoDB IMongoDatabase.
 /// </summary>
 public interface IMongoDatabase
@@ -207,52 +196,6 @@ public static class Job
 }
 
 /// <summary>
-/// Default persistence provider factory stub.
-/// </summary>
-public class DefaultPersistenceProviderFactory : IPersistenceProviderFactory
-{
-	private readonly Dictionary<string, IPersistenceProvider> _providers = [];
-
-	TProvider IPersistenceProviderFactory.CreateProvider<TProvider>(string name)
-	{
-		var provider = new TestPersistenceProvider();
-		_providers[name] = provider;
-		return (TProvider)(object)provider;
-	}
-
-	TProvider IPersistenceProviderFactory.CreateProvider<TProvider>()
-	{
-		var provider = new TestPersistenceProvider();
-		var key = typeof(TProvider).Name + "_default";
-		_providers[key] = provider;
-		return (TProvider)(object)provider;
-	}
-
-	/// <inheritdoc />
-	public IPersistenceProvider? GetProvider(string name)
-	{
-		_ = _providers.TryGetValue(name, out var provider);
-		return provider;
-	}
-
-	/// <inheritdoc />
-	public IEnumerable<string> GetProviderNames() => _providers.Keys;
-
-	/// <inheritdoc />
-	public void RegisterProvider(string name, IPersistenceProvider provider) => _providers[name] = provider;
-
-	/// <inheritdoc />
-	public bool UnregisterProvider(string name) => _providers.Remove(name);
-
-	/// <inheritdoc />
-	public Task DisposeAllProvidersAsync()
-	{
-		_providers.Clear();
-		return Task.CompletedTask;
-	}
-}
-
-/// <summary>
 /// Test persistence provider implementation.
 /// </summary>
 public class TestPersistenceProvider : IPersistenceProvider
@@ -271,13 +214,6 @@ public class TestPersistenceProvider : IPersistenceProvider
 
 	/// <inheritdoc />
 	public IDataRequestRetryPolicy RetryPolicy { get; } = null!;
-
-	/// <inheritdoc />
-	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken = default)
-		where TConnection : IDisposable =>
-		Task.FromResult(default(TResult)!);
 
 	/// <inheritdoc />
 	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
@@ -299,10 +235,6 @@ public class TestPersistenceProvider : IPersistenceProvider
 
 	/// <inheritdoc />
 	public Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-	/// <inheritdoc />
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken = default) =>
-		Task.FromResult<IDictionary<string, object>?>(null);
 
 	/// <inheritdoc />
 	public ValueTask DisposeAsync()

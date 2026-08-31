@@ -8,6 +8,7 @@ using Npgsql;
 using Testcontainers.PostgreSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -29,7 +30,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 public sealed class PostgresInboxStoreContainerFixture : ContainerFixtureBase
 {
 	private PostgreSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Static constructor to configure Npgsql and Dapper before any connection opens.
@@ -77,41 +78,27 @@ public sealed class PostgresInboxStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the inbox store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Mirrors the columns the PostgresInboxStore Insert/Update/Select requests reference.
-		var createTableSql = $"""
-			CREATE TABLE IF NOT EXISTS "{SchemaName}"."{TableName}" (
-				message_id      VARCHAR(255)  NOT NULL,
-				handler_type    VARCHAR(500)  NOT NULL,
-				message_type    VARCHAR(500)  NOT NULL,
-				payload         BYTEA         NOT NULL,
-				metadata        JSONB         NULL,
-				received_at     TIMESTAMPTZ   NOT NULL,
-				processed_at    TIMESTAMPTZ   NULL,
-				status          INT           NOT NULL DEFAULT 0,
-				last_error      TEXT          NULL,
-				retry_count     INT           NOT NULL DEFAULT 0,
-				last_attempt_at TIMESTAMPTZ   NULL,
-				correlation_id  VARCHAR(255)  NULL,
-				tenant_id       VARCHAR(255)  NOT NULL,
-				source          VARCHAR(255)  NULL,
-				CONSTRAINT pk_inbox_messages PRIMARY KEY (message_id, handler_type, tenant_id)
-			);
-			""";
+		// The MULTI-TENANT schema the package SHIPS -- these tests exercise tenant isolation, and the
+		// store fails fast at startup if the physical schema does not match the registered mode. A
+		// hand-written copy omitted lease_expires_at entirely; a fixture that holds no schema cannot
+		// drift from one.
+		var script = ShippedSchemaScript.Read(
+			"src/Excalibur/Excalibur.Inbox.Postgres/Scripts/001_CreateInboxSchema.MultiTenant.sql");
 
-		await using var command = new NpgsqlCommand(createTableSql, connection);
+		await using var command = new NpgsqlCommand(script, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
 	}
 
 	/// <summary>

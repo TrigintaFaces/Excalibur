@@ -28,7 +28,7 @@ namespace Excalibur.Saga.DependencyInjection;
 /// reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class SagaPrerequisiteValidator : IHostedService
+internal sealed class SagaPrerequisiteValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -38,6 +38,12 @@ internal sealed class SagaPrerequisiteValidator : IHostedService
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		// All saga stores register ISagaStore as the keyed "default" singleton (a non-keyed forwarding
 		// alias also exists but depends on the keyed "default"), so we probe the keyed registration.
@@ -50,8 +56,6 @@ internal sealed class SagaPrerequisiteValidator : IHostedService
 				"startup. The in-memory store is never the silent default because it loses all in-flight " +
 				"saga state on restart or scale-out.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

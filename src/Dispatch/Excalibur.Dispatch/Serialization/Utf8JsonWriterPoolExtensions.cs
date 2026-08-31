@@ -13,52 +13,6 @@ namespace Excalibur.Dispatch.Serialization;
 internal static class Utf8JsonWriterPoolExtensions
 {
 	/// <summary>
-	/// Gets the total number of writers rented from the pool.
-	/// </summary>
-	/// <param name="pool">The writer pool.</param>
-	/// <returns>The total number of rented writers, or 0 if the pool does not support diagnostics.</returns>
-	public static long TotalRented(this IUtf8JsonWriterPool pool)
-	{
-		ArgumentNullException.ThrowIfNull(pool);
-		if (pool is IUtf8JsonWriterPoolDiagnostics diag)
-		{
-			return diag.TotalRented;
-		}
-
-		return 0;
-	}
-
-	/// <summary>
-	/// Gets the total number of writers returned to the pool.
-	/// </summary>
-	/// <param name="pool">The writer pool.</param>
-	/// <returns>The total number of returned writers, or 0 if the pool does not support diagnostics.</returns>
-	public static long TotalReturned(this IUtf8JsonWriterPool pool)
-	{
-		ArgumentNullException.ThrowIfNull(pool);
-		if (pool is IUtf8JsonWriterPoolDiagnostics diag)
-		{
-			return diag.TotalReturned;
-		}
-
-		return 0;
-	}
-
-	/// <summary>
-	/// Pre-warms the pool by creating the specified number of writers.
-	/// </summary>
-	/// <param name="pool">The writer pool.</param>
-	/// <param name="count">The number of writers to pre-create.</param>
-	public static void PreWarm(this IUtf8JsonWriterPool pool, int count)
-	{
-		ArgumentNullException.ThrowIfNull(pool);
-		if (pool is IUtf8JsonWriterPoolDiagnostics diag)
-		{
-			diag.PreWarm(count);
-		}
-	}
-
-	/// <summary>
 	/// Rents a <see cref="Utf8JsonWriter" /> from the pool wrapped in a <see cref="PooledUtf8JsonWriter" /> that automatically returns to
 	/// the pool when disposed.
 	/// </summary>

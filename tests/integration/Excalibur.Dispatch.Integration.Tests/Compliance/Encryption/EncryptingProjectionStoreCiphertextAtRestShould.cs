@@ -153,7 +153,7 @@ public sealed class EncryptingProjectionStoreCiphertextAtRestShould : IClassFixt
 		_ = A.CallTo(() => tenantContext.TenantId).Returns(TestTenant);
 
 		var inner = new PostgresProjectionStore<EncryptedTestProjection>(
-			_fixture.ConnectionString, _logger, TableName, tenantContext: tenantContext);
+			_fixture.ConnectionString, _logger, tenantContext: tenantContext, tableName: TableName);
 		var registry = encryptionServices.GetRequiredService<IEncryptionProviderRegistry>();
 		var options = Microsoft.Extensions.Options.Options.Create(new EncryptionOptions { Mode = mode });
 		return new EncryptingProjectionStoreDecorator<EncryptedTestProjection>(inner, registry, options);

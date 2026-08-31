@@ -34,6 +34,9 @@ public sealed class AwsKmsProviderShould : IDisposable
 	private readonly AwsKmsProvider _sut;
 	private readonly AwsKmsOptions _options;
 
+	// Aliases the fake KMS reports, accumulated by StubPurposedKey so several keys can be staged.
+	private readonly List<AliasListEntry> _stubbedAliases = [];
+
 	public AwsKmsProviderShould()
 	{
 		_mockKmsClient = A.Fake<IAmazonKeyManagementService>();
@@ -58,6 +61,46 @@ public sealed class AwsKmsProviderShould : IDisposable
 		_sut.Dispose();
 		_memoryCache.Dispose();
 		(_mockKmsClient as IDisposable)?.Dispose();
+	}
+
+	/// <summary>
+	/// Stages one logical key the fake KMS will report: its alias, an enabled key behind that alias, and
+	/// the purpose recorded as a TAG ON THE KEY, which is where a key's purpose lives. Callable more than
+	/// once; every key staged so far is returned from ListAliases.
+	/// </summary>
+	private void StubPurposedKey(string keyId, string kmsKeyId, string purpose)
+	{
+		_stubbedAliases.Add(new AliasListEntry
+		{
+			AliasName = _options.BuildKeyAlias(keyId),
+			TargetKeyId = kmsKeyId
+		});
+
+		_ = A.CallTo(() => _mockKmsClient.ListAliasesAsync(
+			A<ListAliasesRequest>._,
+			A<CancellationToken>._))
+			.Returns(new ListAliasesResponse { Aliases = [.. _stubbedAliases], Truncated = false });
+
+		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
+			A<DescribeKeyRequest>.That.Matches(r => r.KeyId == kmsKeyId),
+			A<CancellationToken>._))
+			.Returns(new DescribeKeyResponse
+			{
+				KeyMetadata = new AwsKeyMetadata
+				{
+					KeyId = kmsKeyId,
+					KeyState = KeyState.Enabled,
+					CreationDate = DateTime.UtcNow
+				}
+			});
+
+		_ = A.CallTo(() => _mockKmsClient.ListResourceTagsAsync(
+			A<ListResourceTagsRequest>.That.Matches(r => r.KeyId == kmsKeyId),
+			A<CancellationToken>._))
+			.Returns(new ListResourceTagsResponse
+			{
+				Tags = [new() { TagKey = "Purpose", TagValue = purpose }]
+			});
 	}
 
 	#region Constructor Tests
@@ -331,14 +374,20 @@ public sealed class AwsKmsProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GetKeyVersionAsync_ReturnsNull_WhenVersionDoesNotMatch()
+	public async Task GetKeyVersionAsync_ReturnsNull_WhenThatVersionWasNeverCreated()
 	{
-		// Arrange
+		// Arrange - each version is addressed by a durable alias of its own, so "version 2 does not exist"
+		// is expressed by that version's alias not resolving. Only v1 was ever created here.
 		const string keyId = "version-key";
 		var kmsKeyId = Guid.NewGuid().ToString();
 
 		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
 			A<DescribeKeyRequest>._,
+			A<CancellationToken>._))
+			.Throws(new NotFoundException("Key not found"));
+
+		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
+			A<DescribeKeyRequest>.That.Matches(r => r.KeyId == _options.BuildVersionAlias(keyId, 1)),
 			A<CancellationToken>._))
 			.Returns(new DescribeKeyResponse
 			{
@@ -350,11 +399,16 @@ public sealed class AwsKmsProviderShould : IDisposable
 				}
 			});
 
-		// Act - Request version 2, but AWS KMS only has version 1
-		var result = await _sut.GetKeyVersionAsync(keyId, 2, CancellationToken.None).ConfigureAwait(false);
+		// Act
+		var missing = await _sut.GetKeyVersionAsync(keyId, 2, CancellationToken.None).ConfigureAwait(false);
+		var present = await _sut.GetKeyVersionAsync(keyId, 1, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		result.ShouldBeNull();
+		// Assert - the version that was never created answers null...
+		missing.ShouldBeNull();
+
+		// ...and the one that was is still retrievable by version, which is the point of the per-version
+		// alias. Without this arm, a provider that answered null to every version would pass.
+		_ = present.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -492,40 +546,19 @@ public sealed class AwsKmsProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task ListKeysAsync_FiltersBy_Purpose()
+	public async Task ListKeysAsync_FiltersBy_RecordedPurposeTag_NotKeyIdSubstring()
 	{
-		// Arrange
-		_ = A.CallTo(() => _mockKmsClient.ListAliasesAsync(
-			A<ListAliasesRequest>._,
-			A<CancellationToken>._))
-			.Returns(new ListAliasesResponse
-			{
-				Aliases =
-				[
-					new() { AliasName = "alias/test-dispatch-test-encryption", TargetKeyId = "key-1" },
-					new() { AliasName = "alias/test-dispatch-test-signing", TargetKeyId = "key-2" }
-				],
-				Truncated = false
-			});
-
-		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
-			A<DescribeKeyRequest>.That.Matches(r => r.KeyId == "key-1"),
-			A<CancellationToken>._))
-			.Returns(new DescribeKeyResponse
-			{
-				KeyMetadata = new AwsKeyMetadata
-				{
-					KeyId = "key-1",
-					KeyState = KeyState.Enabled,
-					CreationDate = DateTime.UtcNow
-				}
-			});
+		// Arrange - the key id and the recorded purpose disagree in both directions, so a filter that
+		// matched the purpose against the key id would return exactly the wrong one of these two.
+		StubPurposedKey("payments-encryption", kmsKeyId: "key-1", purpose: "signing");
+		StubPurposedKey("vouchers", kmsKeyId: "key-2", purpose: "encryption");
 
 		// Act
 		var result = await _sut.ListKeysAsync(null, "encryption", CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.Count.ShouldBe(1);
+		result[0].KeyId.ShouldBe("vouchers");
 	}
 
 	[Fact]
@@ -893,7 +926,8 @@ public sealed class AwsKmsProviderShould : IDisposable
 			A<CancellationToken>._))
 			.Returns(new UpdateAliasResponse());
 
-		// Disable old key
+		// Available, so that a rotation which disabled the superseded key would succeed rather than error —
+		// this arm has to be able to observe the call, not be prevented from making it.
 		_ = A.CallTo(() => _mockKmsClient.DisableKeyAsync(
 			A<DisableKeyRequest>._,
 			A<CancellationToken>._))
@@ -910,6 +944,22 @@ public sealed class AwsKmsProviderShould : IDisposable
 		_ = result.NewKey.ShouldNotBeNull();
 		_ = result.PreviousKey.ShouldNotBeNull();
 		result.PreviousKey.Status.ShouldBe(KeyStatus.DecryptOnly);
+
+		// The superseded key must stay ENABLED. A disabled key is unusable for every cryptographic
+		// operation including Decrypt, so disabling here renders all ciphertext written under the previous
+		// key undecryptable until an operator manually re-enables it.
+		A.CallTo(() => _mockKmsClient.DisableKeyAsync(
+			A<DisableKeyRequest>._,
+			A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		// Liveness twin: it is marked instead, so it is reported decrypt-only rather than merely looking
+		// active. "Nothing was disabled" alone is also satisfied by a rotation that records nothing at all.
+		A.CallTo(() => _mockKmsClient.TagResourceAsync(
+			A<TagResourceRequest>.That.Matches(r =>
+				r.KeyId == oldKmsKeyId && r.Tags.Any(t => t.TagKey == "ExcaliburSupersededAt")),
+			A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -1871,10 +1921,10 @@ public sealed class AwsKmsProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task SuspendKeyAsync_SkipsTagging_WhenKeyIdMappingNotFound()
+	public async Task SuspendKeyAsync_SkipsTagging_WhenKeyCannotBeResolved()
 	{
-		// Arrange - Key is suspended but we haven't populated the alias mapping
-		// (no prior GetKeyAsync call)
+		// Arrange - suspension now resolves the key to sweep its prior versions, so the alias mapping is
+		// absent only when the key itself does not resolve. That is the case staged here.
 		var freshOptions = new AwsKmsOptions
 		{
 			KeyAliasPrefix = "test-dispatch",
@@ -1889,7 +1939,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 			freshCache);
 
 		const string keyId = "suspend-no-mapping";
-		const string reason = "Test suspend without prior GetKeyAsync";
+		const string reason = "Test suspend without a resolvable key";
 
 		// DisableKey succeeds
 		_ = A.CallTo(() => _mockKmsClient.DisableKeyAsync(
@@ -1897,11 +1947,24 @@ public sealed class AwsKmsProviderShould : IDisposable
 			A<CancellationToken>._))
 			.Returns(new DisableKeyResponse());
 
+		// The key does not resolve, so no alias->keyId mapping is ever recorded.
+		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
+			A<DescribeKeyRequest>._,
+			A<CancellationToken>._))
+			.Throws(new NotFoundException("Key not found"));
+
 		// Act
 		var result = await freshProvider.SuspendKeyAsync(keyId, reason, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBeTrue();
+
+		// Liveness: the current version is still disabled — an unresolvable key must not turn suspension
+		// into a no-op, which is what a bare "TagResource was not called" assertion would also accept.
+		A.CallTo(() => _mockKmsClient.DisableKeyAsync(
+			A<DisableKeyRequest>.That.Matches(r => r.KeyId == freshOptions.BuildKeyAlias(keyId)),
+			A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 
 		// TagResource should NOT be called since we don't have the kmsKeyId mapping
 		A.CallTo(() => _mockKmsClient.TagResourceAsync(
@@ -1914,14 +1977,26 @@ public sealed class AwsKmsProviderShould : IDisposable
 
 	#region GetActiveKeyAsync Tests
 
+	// Liveness twin of GetActiveKeyAsync_ReturnsNull_AndCreatesNothing_WhenNoActiveKeyExists below: a
+	// provider that answered null to everything would satisfy that arm and fail this one.
 	[Fact]
 	public async Task GetActiveKeyAsync_ReturnsActiveKey_WhenExists()
 	{
-		// Arrange
-		var kmsKeyId = Guid.NewGuid().ToString();
+		// Arrange - the active key is discovered by enumerating our aliases, not by treating the purpose as
+		// a key identifier.
+		const string kmsKeyId = "kms-orders";
+
+		_ = A.CallTo(() => _mockKmsClient.ListAliasesAsync(
+			A<ListAliasesRequest>._,
+			A<CancellationToken>._))
+			.Returns(new ListAliasesResponse
+			{
+				Aliases = [new() { AliasName = "alias/test-dispatch-test-orders", TargetKeyId = kmsKeyId }],
+				Truncated = false
+			});
 
 		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
-			A<DescribeKeyRequest>._,
+			A<DescribeKeyRequest>.That.Matches(r => r.KeyId == kmsKeyId),
 			A<CancellationToken>._))
 			.Returns(new DescribeKeyResponse
 			{
@@ -1933,12 +2008,24 @@ public sealed class AwsKmsProviderShould : IDisposable
 				}
 			});
 
+		_ = A.CallTo(() => _mockKmsClient.ListResourceTagsAsync(
+			A<ListResourceTagsRequest>.That.Matches(r => r.KeyId == kmsKeyId),
+			A<CancellationToken>._))
+			.Returns(new ListResourceTagsResponse
+			{
+				Tags = [new() { TagKey = "ExcaliburKeyVersion", TagValue = "3" }]
+			});
+
 		// Act
 		var result = await _sut.GetActiveKeyAsync(null, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
+		result.KeyId.ShouldBe("orders");
 		result.Status.ShouldBe(KeyStatus.Active);
+
+		// The version is read off the key, not assumed to be 1.
+		result.Version.ShouldBe(3);
 	}
 
 	[Fact]
@@ -1968,76 +2055,50 @@ public sealed class AwsKmsProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GetActiveKeyAsync_CreatesDefaultKey_WhenNoKeyExistsAndNoPurpose()
+	public async Task GetActiveKeyAsync_ReturnsNull_AndCreatesNothing_WhenNoActiveKeyExists()
 	{
-		// Arrange
-		var kmsKeyId = Guid.NewGuid().ToString();
-		var expectedAlias = _options.BuildKeyAlias("default");
-
-		// Key doesn't exist initially
-		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
-			A<DescribeKeyRequest>.That.Matches(r => r.KeyId == expectedAlias),
+		// Arrange - no aliases at all, so there is no active key to return.
+		_ = A.CallTo(() => _mockKmsClient.ListAliasesAsync(
+			A<ListAliasesRequest>._,
 			A<CancellationToken>._))
-			.Throws(new NotFoundException("Key not found"));
-
-		// Create key
-		_ = A.CallTo(() => _mockKmsClient.CreateKeyAsync(
-			A<CreateKeyRequest>._,
-			A<CancellationToken>._))
-			.Returns(new CreateKeyResponse
-			{
-				KeyMetadata = new AwsKeyMetadata
-				{
-					KeyId = kmsKeyId,
-					KeyState = KeyState.Enabled,
-					CreationDate = DateTime.UtcNow
-				}
-			});
-
-		_ = A.CallTo(() => _mockKmsClient.CreateAliasAsync(
-			A<CreateAliasRequest>._,
-			A<CancellationToken>._))
-			.Returns(new CreateAliasResponse());
-
-		_ = A.CallTo(() => _mockKmsClient.EnableKeyRotationAsync(
-			A<EnableKeyRotationRequest>._,
-			A<CancellationToken>._))
-			.Returns(new EnableKeyRotationResponse());
+			.Returns(new ListAliasesResponse { Aliases = [], Truncated = false });
 
 		// Act
 		var result = await _sut.GetActiveKeyAsync(null, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		_ = result.ShouldNotBeNull();
-		result.Status.ShouldBe(KeyStatus.Active);
+		// Assert - the documented "or null" answer, which was previously unreachable on this path because
+		// the getter provisioned a customer master key instead.
+		result.ShouldBeNull();
+
+		// A getter must not have a durable, billable, security-relevant side effect. Creating a key is
+		// something a caller asks for explicitly, through RotateKeyAsync.
+		A.CallTo(() => _mockKmsClient.CreateKeyAsync(
+			A<CreateKeyRequest>._,
+			A<CancellationToken>._))
+			.MustNotHaveHappened();
+
+		A.CallTo(() => _mockKmsClient.CreateAliasAsync(
+			A<CreateAliasRequest>._,
+			A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
-	public async Task GetActiveKeyAsync_UsesPurposeForKeyId()
+	public async Task GetActiveKeyAsync_MatchesRecordedPurposeTag_NotKeyIdSubstring()
 	{
-		// Arrange
-		const string purpose = "signing";
-		var kmsKeyId = Guid.NewGuid().ToString();
-		var expectedAlias = _options.BuildKeyAlias(purpose);
-
-		_ = A.CallTo(() => _mockKmsClient.DescribeKeyAsync(
-			A<DescribeKeyRequest>.That.Matches(r => r.KeyId == expectedAlias),
-			A<CancellationToken>._))
-			.Returns(new DescribeKeyResponse
-			{
-				KeyMetadata = new AwsKeyMetadata
-				{
-					KeyId = kmsKeyId,
-					KeyState = KeyState.Enabled,
-					CreationDate = DateTime.UtcNow
-				}
-			});
+		// Arrange - two keys chosen so that the key id and the recorded purpose disagree in both
+		// directions. "payments-encryption" contains the requested word but is tagged for signing;
+		// "vouchers" contains none of it but is the key actually recorded as being for encryption.
+		StubPurposedKey("payments-encryption", kmsKeyId: "kms-payments", purpose: "signing");
+		StubPurposedKey("vouchers", kmsKeyId: "kms-vouchers", purpose: "encryption");
 
 		// Act
-		var result = await _sut.GetActiveKeyAsync(purpose: purpose, CancellationToken.None).ConfigureAwait(false);
+		var result = await _sut.GetActiveKeyAsync(purpose: "encryption", CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
+		// Assert - the correctly-purposed key is found (it would previously have been missed) and the
+		// coincidentally-named one is not returned (it would previously have satisfied the query).
 		_ = result.ShouldNotBeNull();
+		result.KeyId.ShouldBe("vouchers");
 	}
 
 	[Fact]

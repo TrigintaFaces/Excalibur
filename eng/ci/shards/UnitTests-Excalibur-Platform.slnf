@@ -14,6 +14,7 @@
       "tests\\unit\\Excalibur.Hosting.Tests\\Excalibur.Hosting.Tests.csproj",
       "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
       "tests\\unit\\Excalibur.LeaderElection.Tests\\Excalibur.LeaderElection.Tests.csproj",
+      "tests\\unit\\Excalibur.Metapackages.Tests\\Excalibur.Metapackages.Tests.csproj",
       "tests\\unit\\Excalibur.MultiTenancy.Tests\\Excalibur.MultiTenancy.Tests.csproj",
       "tests\\unit\\Excalibur.Operations.Dashboard.Tests\\Excalibur.Operations.Dashboard.Tests.csproj",
       "tests\\unit\\Excalibur.Security.Tests\\Excalibur.Security.Tests.csproj",

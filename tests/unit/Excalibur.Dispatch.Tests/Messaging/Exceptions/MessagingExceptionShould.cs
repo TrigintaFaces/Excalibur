@@ -78,17 +78,6 @@ public sealed class MessagingExceptionShould
 	}
 
 	[Fact]
-	public void CreateHandlerNotFoundExceptionFromType()
-	{
-		var ex = MessagingException.HandlerNotFound(typeof(string));
-
-		ex.ShouldBeOfType<MessagingException>();
-		ex.Message.ShouldContain("String");
-		ex.MessageType.ShouldBe(typeof(string).FullName);
-		ex.DispatchStatusCode.ShouldBe(500);
-	}
-
-	[Fact]
 	public void CreateRoutingFailedException()
 	{
 		var ex = MessagingException.RoutingFailed("msg-456", "No route found");

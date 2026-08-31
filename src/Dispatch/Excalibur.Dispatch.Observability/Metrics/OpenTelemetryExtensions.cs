@@ -118,7 +118,6 @@ public static class OpenTelemetryExtensions
 		// Excalibur Data (external packages)
 		"Excalibur.Data.Cdc",                                                      // CdcTelemetryConstants.ActivitySourceName
 		"Excalibur.Data.Audit",                                                    // AuditTelemetryConstants.ActivitySourceName
-		"Excalibur.Data.Persistence",                                              // PersistenceTelemetryConstants.SourceName
 
 		// Excalibur EventSourcing
 		"Excalibur.EventSourcing.EventStore",                                      // EventSourcingActivitySources.EventStore
@@ -208,8 +207,8 @@ public static class OpenTelemetryExtensions
 	/// <item><description><c>dispatch.transport.messages_sent_total</c> - Counter of messages sent</description></item>
 	/// <item><description><c>dispatch.transport.messages_received_total</c> - Counter of messages received</description></item>
 	/// <item><description><c>dispatch.transport.errors_total</c> - Counter of transport errors</description></item>
-	/// <item><description><c>dispatch.transport.send_duration_ms</c> - Histogram of send durations</description></item>
-	/// <item><description><c>dispatch.transport.receive_duration_ms</c> - Histogram of receive durations</description></item>
+	/// <item><description><c>dispatch.transport.send.duration</c> - Histogram of send durations</description></item>
+	/// <item><description><c>dispatch.transport.receive.duration</c> - Histogram of receive durations</description></item>
 	/// <item><description><c>dispatch.transport.starts_total</c> - Counter of transport starts</description></item>
 	/// <item><description><c>dispatch.transport.stops_total</c> - Counter of transport stops</description></item>
 	/// <item><description><c>dispatch.transport.connection_status</c> - Gauge of connection status</description></item>

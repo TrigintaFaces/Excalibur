@@ -10,27 +10,49 @@ Operational guide for running the comparative benchmark suite. Captures lessons 
 ## TL;DR — the canonical run
 
 ```bash
-# 1. Kill any orphaned dotnet hosts (they skew measurements)
-taskkill /F /IM dotnet.exe 2>&1 || true   # Windows
-pkill -9 dotnet 2>&1 || true               # Linux/macOS
+# 0. VERIFY THE FILTER MATCHES BEFORE RUNNING ANYTHING.
+# A filter that matches nothing exits in seconds and prints the available-benchmark
+# list plus usage help -- which reads like output. This runbook previously carried a
+# pipe-joined filter that returned 0 benchmarks; the run "completed" with an empty
+# artifacts directory and nothing said so.
+./.dotnet/dotnet.exe run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks --no-build --   --list flat --filter "*Comparative*" | grep -c Comparative     # expect a non-zero count
 
-# 2. Build (Release, no diagnostics, no examples)
-dotnet build benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj -c Release --nologo
+# 1. Reap orphaned hosts (they skew measurements). Parent-gone only -- do NOT blanket-kill
+#    dotnet.exe, which also kills whatever else is running on this box.
+pwsh -NoProfile -File eng/ci/Reap-OrphanTestHosts.ps1
 
-# 3. Run BOTH configs in one pass (detached so shell reaper can't kill child)
-nohup dotnet run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks -- \
-  --filter "*Comparative.*ComparisonBenchmarks*|*Comparative.*ParityBenchmarks" \
-  --artifacts benchmarks/runs/$(date +%Y%m%d)-artifacts \
-  > benchmarks/runs/$(date +%Y%m%d)-run.log 2>&1 &
+# 2. Build (Release). Use the REPO-LOCAL SDK: global.json pins a version that a bare
+#    `dotnet` on PATH does not have, and bare `dotnet` fails with "A compatible .NET SDK
+#    was not found" before any benchmark runs.
+./.dotnet/dotnet.exe build benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj -c Release --nologo
+
+# 3. Run detached. ONE --filter: BenchmarkDotNet does not treat '|' as alternation, and
+#    repeating --filter did not match either. "*Comparative*" selects the whole
+#    comparative suite (268 benchmarks at time of writing).
+nohup ./.dotnet/dotnet.exe run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks --   --filter "*Comparative*"   --artifacts benchmarks/runs/$(date +%Y%m%d)-artifacts   > benchmarks/runs/$(date +%Y%m%d)-run.log 2>&1 &
 disown
 
-# 4. Post-run cleanup
-taskkill /F /IM dotnet.exe 2>&1 || true
+# 4. CONFIRM IT IS ACTUALLY RUNNING -- the launcher's exit code is nohup's, not the run's.
+head -3 benchmarks/runs/$(date +%Y%m%d)-run.log     # "returned 0 benchmarks" = it did NOT start
 
-# 5. Snapshot into baseline
+# 5. READ THE RIGHT REPORT. "*Comparative*" matches the NAMESPACE, so this one run
+#    produces BOTH configs, and their means differ by ~1000x for the same operation
+#    (9.2 us cold vs 0.074 us warm, measured). One report file per CLASS:
+#      *.MediatRComparisonBenchmarks-report.csv          <- COLD. CI regression gate.
+#      *.MediatRWarmPathComparisonBenchmarks-report.csv  <- WARM. Publish from THIS one.
+#    The warm subclass INHERITS every method from the cold class, so the two files share
+#    identical method names. Extracting by benchmark name across files silently blends
+#    them. Always select the file first, or key on the 'Job' column
+#    (comparative-inproc vs warmpath-inproc).
+
+# 6. Snapshot into a DATED baseline (never overwrite a prior one -- the series is what
+#    makes a later regression visible).
 mkdir -p benchmarks/baselines/net10.0/dispatch-comparative-$(date +%Y%m%d)/results
-cp benchmarks/runs/$(date +%Y%m%d)-artifacts/results/*.{md,csv,html} \
-   benchmarks/baselines/net10.0/dispatch-comparative-$(date +%Y%m%d)/results/
+cp benchmarks/runs/$(date +%Y%m%d)-artifacts/results/*.{md,csv,html}    benchmarks/baselines/net10.0/dispatch-comparative-$(date +%Y%m%d)/results/
+
+# NOTE: local numbers update DOCUMENTATION and baselines. They must NOT tighten the
+# thresholds in tests/performance/** -- those are deliberately loose because CI runs on
+# shared GitHub runners alongside other jobs and will never reach these numbers.
 ```
 
 Expected runtime on i9-14900K: **30-90 min** depending on class count and auto-tune warmup depth.
@@ -47,6 +69,51 @@ The suite contains classes built on two different BDN configs. **Both must run**
 | `WarmPathBenchmarkConfig` | ns per-call (auto-tuned InvocationCount, amortized) | **Published throughput numbers** — what `docs/benchmarks/results/current/performance-report.md` and `docs/performance/framework-performance-review-spec-sheet.md` cite | `*WarmPath*` variants |
 
 **If you skip WarmPath**, the DOCS phase of your sprint can only refresh `competitor-benchmarks.md` — the headline ns-scale numbers in `performance-report.md` will be stale. S812 IMPLEMENT had to be amended mid-sprint because WarmPath was scoped out.
+
+> ### ⚠️ WIDE ERROR BARS ON THE COLD CONFIG ARE THE DESIGN, NOT A DEFECT — DO NOT CHASE THEM
+>
+> `ComparativeBenchmarkConfig` pins `InvocationCount=1, UnrollFactor=1`, so **each iteration
+> measures ONE call**. At ~50-150 ns of real work per call, a single Gen0 collection or one
+> scheduler slice lands inside a measurement window and dominates it. Measured on the same
+> host, same commit, same benchmarks:
+>
+> ```
+> COLD (ComparativeBenchmarkConfig)   error 11.9% - 36.1%   <- normal. Not noise to fix.
+> WARM (WarmPathBenchmarkConfig)      error  0.6% -  2.0%   <- publication quality
+> ```
+>
+> **The cold config is a regression gate: it answers "did this get materially slower",
+> not "what is the number".** Trying to tighten it by re-running on an idle host, reaping
+> harder, or running benchmarks solo does not work and cannot work — the variance is
+> structural.
+>
+> **Allocation is the exception — but ONLY on the warm config.** On `WarmPathBenchmarkConfig`,
+> `Allocated` is effectively deterministic: measured across a loaded host and an idle host it was
+> **byte-identical on all 17 rows** while means moved ±7%, and across a code change it moved on
+> exactly the rows the change touched. That makes it the one property in this suite strong enough
+> to gate on.
+>
+> **On the cold config it is NOT deterministic, and an earlier revision of this file said it was.**
+> With `InvocationCount=1` each iteration is a single call, so one-time costs — first-call JIT,
+> lazy init, cache population, connection setup — land inside the measurement window
+> unpredictably. Measured over a full 266-row comparative sweep, same commit pair:
+>
+> ```
+> WARM  121 rows   112 unchanged    7 changed    2 moved by +7 B and +3 B
+> COLD  145 rows    40 unchanged   105 changed   swings into the hundreds of KB
+> ```
+>
+> **The proof that this is the instrument and not the code: 41 of the changed rows are
+> COMPETITOR-ONLY benchmarks** — NServiceBus, Wolverine, MassTransit — measuring third-party code
+> paths that no change of ours can reach. `NServiceBus: 100 concurrent commands` moved 4,830,800 →
+> 5,104,800 B between two runs of the same unmodified library.
+>
+> **So: gate on warm-config allocation. Never read a cold-config allocation delta as a finding
+> without a warm-config confirmation.**
+>
+> *Cost of not knowing this: a full session spent diagnosing "query benchmark instability"
+> that was the cold config behaving exactly as documented, while the publishable warm
+> numbers sat in the same artifacts directory the whole time.*
 
 **Canonical filter that catches everything** (both configs, all 15+ classes):
 

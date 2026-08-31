@@ -8,6 +8,7 @@ using Excalibur.EventSourcing.Views;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using System.Linq;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,7 @@ public static class MaterializedViewsServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<MaterializedViewOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MaterializedViewOptions>, MaterializedViewOptionsValidator>());
 
 		// Register default processor (consumers can override via UseProcessor<T>)
 		services.TryAddSingleton<IMaterializedViewProcessor, MaterializedViewProcessor>();
@@ -46,6 +48,7 @@ public static class MaterializedViewsServiceCollectionExtensions
 		// logs — so that throw never reaches an operator. This puts the same check in the startup pipeline.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, AtomicMaterializedViewStoreValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AtomicMaterializedViewStoreValidator>());
 
 		return services;
 	}
@@ -85,6 +88,7 @@ public static class MaterializedViewsServiceCollectionExtensions
 		// Register options (but NOT the default processor yet — let configure run first)
 		_ = services.AddOptions<MaterializedViewOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MaterializedViewOptions>, MaterializedViewOptionsValidator>());
 
 		// Configure using the builder pattern — consumer may call UseProcessor<T>()
 		var builder = new MaterializedViewsBuilder(services);
@@ -99,6 +103,7 @@ public static class MaterializedViewsServiceCollectionExtensions
 		// logs — so that throw never reaches an operator. This puts the same check in the startup pipeline.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, AtomicMaterializedViewStoreValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, AtomicMaterializedViewStoreValidator>());
 
 		return services;
 	}

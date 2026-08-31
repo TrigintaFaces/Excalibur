@@ -238,7 +238,7 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 
 	private RateLimiter GetOrCreateRateLimiter(string key, IDispatchMessage message)
 	{
-		// Bounded cache pattern (S543): skip caching when full to prevent unbounded memory growth.
+		// Bounded cache pattern: skip caching when full to prevent unbounded memory growth.
 		// Falls through to the global rate limiter only for uncached keys.
 		if (_rateLimiters.Count >= MaxPerKeyLimiters && !_rateLimiters.ContainsKey(key))
 		{

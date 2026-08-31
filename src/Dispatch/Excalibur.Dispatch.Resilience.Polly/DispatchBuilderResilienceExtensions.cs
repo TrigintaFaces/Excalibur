@@ -158,7 +158,7 @@ public static class DispatchBuilderResilienceExtensions
 		{
 			var retryOpts = options.RetryOptions ?? new RetryOptions();
 			var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<PollyRetryPolicyAdapter>>();
-			return new PollyRetryPolicyAdapter(retryOpts, logger);
+			return new PollyRetryPolicyAdapter(Microsoft.Extensions.Options.Options.Create(retryOpts), logger);
 		});
 
 		_ = services.RemoveAll<ICircuitBreakerPolicy>();

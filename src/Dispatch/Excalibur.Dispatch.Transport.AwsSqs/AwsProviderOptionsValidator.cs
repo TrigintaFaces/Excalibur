@@ -12,12 +12,20 @@ namespace Excalibur.Dispatch.Transport.AwsSqs;
 /// </summary>
 internal sealed class AwsProviderOptionsValidator : IValidateOptions<AwsProviderOptions>
 {
+	private static readonly ProviderOptionsValidator SharedProviderRules = new();
+
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, AwsProviderOptions options)
 	{
 		if (options is null)
 		{
 			return ValidateOptionsResult.Fail("AWS provider options cannot be null.");
+		}
+
+		var shared = SharedProviderRules.Validate(name, options);
+		if (shared.Failed)
+		{
+			return shared;
 		}
 
 		if (string.IsNullOrWhiteSpace(options.Region))

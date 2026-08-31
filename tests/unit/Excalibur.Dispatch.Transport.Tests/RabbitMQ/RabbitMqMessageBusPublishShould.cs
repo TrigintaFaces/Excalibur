@@ -88,7 +88,7 @@ public sealed class RabbitMqMessageBusPublishShould : UnitTestBase
 		var bus = new RabbitMqMessageBus(
 				channel,
 				serializer,
-				options,
+				Microsoft.Extensions.Options.Options.Create(options),
 				logger,
 				cloudEventBridge: null,
 				cloudEventMapper: null,

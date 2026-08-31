@@ -85,7 +85,7 @@ public sealed class CosmosDbInboxDocumentShould
 	}
 
 	[Fact]
-	public void CreateId_PreservesColonInValues()
+	public void CreateId_EscapesColonInValues()
 	{
 		// Arrange
 		var messageId = "msg:123";
@@ -99,7 +99,16 @@ public sealed class CosmosDbInboxDocumentShould
 		var result = (string)createIdMethod!.Invoke(null, new object?[] { messageId, handlerType, null })!;
 
 		// Assert
-		result.ShouldBe("msg:123:Order:Handler");
+		// The ':' joining the segments is escaped to %3A inside each term, so a term containing the
+		// separator can no longer shift across the segment boundary. Previously this rendered
+		// "msg:123:Order:Handler", which a different (messageId, handlerType) pair could also produce.
+		result.ShouldBe("msg%3A123:Order%3AHandler");
+
+		// Strengthened: the encoding is reversible, so two distinct inputs that collided under the
+		// old bare join now differ. Without this the arm above would still pass for an encoding
+		// that mapped every colon-bearing term onto one value.
+		var shifted = (string)createIdMethod.Invoke(null, new object?[] { "msg", "123:Order:Handler", null })!;
+		result.ShouldNotBe(shifted);
 	}
 
 	#endregion
@@ -291,6 +300,47 @@ public sealed class CosmosDbInboxDocumentShould
 		// Assert
 		attribute.ShouldNotBeNull();
 		attribute.Name.ShouldBe("retry_count");
+	}
+
+	#endregion
+
+	#region Newtonsoft (Cosmos SDK-v3 default) emitted-key lock
+
+	// CosmosDbInboxDocument is written through a consumer-supplied CosmosClient (the client is registered
+	// TryAddSingleton, so a consumer's own registration wins) and the Cosmos SDK-v3 DEFAULT serializer is
+	// Newtonsoft.Json -- System.Text.Json is opt-in, and Newtonsoft IGNORES [JsonPropertyName]. The
+	// attribute-presence tests above are necessary but VACUOUS for a default client: they prove the STJ
+	// attribute exists, not that Newtonsoft emits the keys the store's queries and point reads name. This
+	// lock asserts the EMITTED JSON under the default serializer. It reds on an STJ-only document
+	// (Newtonsoft emits PascalCase 'Id'/'TenantId') and greens with the dual STJ + Newtonsoft attributes.
+	[Fact]
+	public void SerializeRequiredLowercaseKeysUnderTheDefaultNewtonsoftSerializer()
+	{
+		var document = Activator.CreateInstance(_documentType)!;
+		_documentType.GetProperty("Id")!.SetValue(document, "tenant-a:msg-1:HandlerX");
+		_documentType.GetProperty("TenantId")!.SetValue(document, "tenant-a");
+
+		// JsonConvert with default settings == exactly what the Cosmos SDK-v3 default client emits.
+		var json = Newtonsoft.Json.JsonConvert.SerializeObject(document);
+
+		using var parsed = System.Text.Json.JsonDocument.Parse(json);
+		var root = parsed.RootElement;
+
+		root.TryGetProperty("id", out _).ShouldBeTrue(
+			$"CosmosDbInboxDocument.Id must serialize to lowercase 'id' under the DEFAULT (Newtonsoft) "
+			+ $"serializer -- Cosmos point-reads the dedup record by 'id'. Emitted JSON: {json}");
+		root.TryGetProperty("tenant_id", out _).ShouldBeTrue(
+			$"CosmosDbInboxDocument.TenantId must serialize to 'tenant_id' under the DEFAULT (Newtonsoft) "
+			+ $"serializer -- it is the tenant discriminator persisted alongside the dedup key. "
+			+ $"Emitted JSON: {json}");
+
+		// The PascalCase fallbacks (the STJ-only defect) must NOT appear.
+		root.TryGetProperty("Id", out _).ShouldBeFalse(
+			"A PascalCase 'Id' under the default Newtonsoft serializer means the dedup point read returns "
+			+ "NotFound, so an already-processed message is processed again.");
+		root.TryGetProperty("TenantId", out _).ShouldBeFalse(
+			"A PascalCase 'TenantId' means the persisted tenant discriminator changes key between clients, "
+			+ "so a document written by one serializer is unreadable as tenant-scoped by the other.");
 	}
 
 	#endregion

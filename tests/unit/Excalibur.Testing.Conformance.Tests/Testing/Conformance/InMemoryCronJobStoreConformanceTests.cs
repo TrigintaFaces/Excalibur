@@ -157,4 +157,7 @@ public sealed class InMemoryCronJobStoreConformanceTests : CronJobStoreConforman
 		GetJobHistoryAsync_ShouldReturnRecentWithLimit();
 
 	#endregion Execution Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

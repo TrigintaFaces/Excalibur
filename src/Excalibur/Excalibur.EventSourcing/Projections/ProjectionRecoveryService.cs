@@ -76,6 +76,16 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		// Deserialize and apply all events through the same handlers
 		foreach (var storedEvent in storedEvents)
 		{
+			// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a nulled
+			// payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any deserialization
+			// attempt, and skip it. Recovering a fully erased aggregate therefore rebuilds its projection to
+			// the empty initial state, carrying none of the subject's data forward -- rather than throwing and
+			// leaving the projection permanently unrecoverable. Only the reserved marker is skipped.
+			if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+			{
+				continue;
+			}
+
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
 			var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
 

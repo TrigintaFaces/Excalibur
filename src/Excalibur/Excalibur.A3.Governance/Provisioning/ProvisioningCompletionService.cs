@@ -58,10 +58,19 @@ internal sealed partial class ProvisioningCompletionService(
 			return false;
 		}
 
+		// A provisioning request can only become a grant if it names the tenant the grant will belong to.
+		if (string.IsNullOrEmpty(request.TenantId))
+		{
+			LogProvisioningCompletionFailed(logger, requestId, "Request does not specify a tenant.");
+			return false;
+		}
+
+		var tenantId = request.TenantId;
+
 		// 2. Idempotency check: does the grant already exist?
 		var grantExists = await grantStore.GrantExistsAsync(
 			request.UserId,
-			request.TenantId ?? string.Empty,
+			tenantId,
 			request.GrantType,
 			request.GrantScope,
 			cancellationToken).ConfigureAwait(false);
@@ -102,7 +111,7 @@ internal sealed partial class ProvisioningCompletionService(
 		var grant = new Grant(
 			UserId: request.UserId,
 			FullName: null,
-			TenantId: request.TenantId,
+			TenantId: tenantId,
 			GrantType: request.GrantType,
 			Qualifier: request.GrantScope,
 			ExpiresOn: request.RequestedExpiry,

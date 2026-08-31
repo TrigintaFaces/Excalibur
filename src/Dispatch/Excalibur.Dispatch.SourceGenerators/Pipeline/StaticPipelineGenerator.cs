@@ -113,7 +113,7 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 			var containingNamespace = containingTypeSymbol?.ContainingNamespace?.ToDisplayString() ?? string.Empty;
 
 			// Skip call sites within Excalibur.Dispatch.* namespaces to avoid conflicts
-			// with DispatchInterceptorGenerator (Sprint 454)
+			// with DispatchInterceptorGenerator
 			if (containingNamespace.StartsWith("Excalibur.Dispatch.", StringComparison.Ordinal) ||
 				containingNamespace == "Excalibur.Dispatch")
 			{
@@ -347,7 +347,6 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine();
 
 		_ = sb.AppendLine("using System;");
-		_ = sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
 		_ = sb.AppendLine("using System.Runtime.CompilerServices;");
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
@@ -452,10 +451,10 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		// InterceptsLocation attribute
 		_ = sb.AppendLine($"        {callSite.InterceptableLocationData}");
 
-		// Suppress AOT warnings -- static pipelines call through IDispatcher which uses reflection-based
-		// handler resolution. The DI entry point (AddDispatchPipeline) already suppresses these warnings.
-		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL2026:RequiresUnreferencedCode\", Justification = \"Static pipelines call IDispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
-		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL3050:RequiresDynamicCode\", Justification = \"Static pipelines call IDispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
+		// No ahead-of-time suppression is emitted. These methods call IDispatcher.DispatchAsync, and that
+		// interface carries no reflection annotation: the requirement is declared on the registration that
+		// has it, never pushed onto the dispatch contract a consumer implements. A suppression here would
+		// silence nothing, and would tell the next reader that generated pipelines hide a warning.
 
 		// Method signature
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)

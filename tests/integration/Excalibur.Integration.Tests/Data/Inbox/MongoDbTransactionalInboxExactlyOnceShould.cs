@@ -61,7 +61,7 @@ public sealed class MongoDbTransactionalInboxExactlyOnceShould : IClassFixture<M
 			DatabaseName = _fixture.DatabaseName,
 			EnableTransactions = true,
 		});
-		return new MongoDbInboxStore(options, NullLogger<MongoDbInboxStore>.Instance);
+		return new MongoDbInboxStore(options, NullLogger<MongoDbInboxStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	// Counts committed side-effect docs for a marker on a FRESH client (outside any test session/transaction),

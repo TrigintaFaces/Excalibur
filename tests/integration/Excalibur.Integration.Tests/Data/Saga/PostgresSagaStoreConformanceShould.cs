@@ -53,7 +53,8 @@ public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 		_sagaStore = new PostgresSagaStore(
 			options,
 			NullLogger<PostgresSagaStore>.Instance,
-			serializer);
+			serializer,
+			SingleTenantTestContext.Instance);
 	}
 
 	/// <inheritdoc/>

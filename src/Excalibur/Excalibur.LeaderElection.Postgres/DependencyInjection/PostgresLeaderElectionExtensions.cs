@@ -88,7 +88,7 @@ public static class PostgresLeaderElectionExtensions
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			// y6tatp/ADR-339: optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			// optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
 			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider);
 		});
@@ -110,6 +110,14 @@ public static class PostgresLeaderElectionExtensions
 		// TryAdd, so a consumer's own unkeyed registration still wins.
 		services.TryAddSingleton<ILeaderElection>(sp =>
 			sp.GetRequiredKeyedService<ILeaderElection>("default"));
+
+		// Fencing is default-ON for a framework-protected outbox: registering a leader election is the
+		// multi-instance signal, so the outbox drain is gated automatically rather than through an
+		// easily-forgotten second opt-in. Without this, a host that wires its election here resolves no
+		// gate and every instance drains concurrently — the coordination guarantee the election was added
+		// to provide, silently absent. Idempotent via TryAdd, so an explicit outbox.WithLeaderElection()
+		// composes with it. A single-active-writer topology opts the outbox out with AsSingleWriter().
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
 
 		return services;
 	}

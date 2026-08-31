@@ -51,7 +51,7 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 
 	private static readonly Counter<long> MessageProcessedCounter = Meter.CreateCounter<long>(
 		name: "dispatch.messaging.messages.processed",
-		unit: "message",
+		unit: "{messages}",
 		description: "Total number of messages processed");
 
 	private static readonly Histogram<double> MessageProcessingDuration = Meter.CreateHistogram<double>(
@@ -61,7 +61,7 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 
 	private static readonly Counter<long> MessageErrorCounter = Meter.CreateCounter<long>(
 		name: "dispatch.messaging.messages.errors",
-		unit: "error",
+		unit: "{errors}",
 		description: "Total number of message processing errors");
 
 	private static readonly JsonSerializerOptions MessageSizeSerializerOptions = new();
@@ -208,7 +208,7 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 		return result;
 	}
 
-	// High-performance LoggerMessage implementations for metrics middleware hot paths (Sprint 360 - EventId Migration Phase 1)
+	// High-performance LoggerMessage implementations for metrics middleware hot paths
 	[LoggerMessage(MiddlewareEventId.MetricsLoggingMiddlewareExecuting, LogLevel.Debug,
 		"Starting metrics collection for message {MessageType}")]
 	private static partial void LogMetricsCollectionStart(ILogger logger, string messageType);

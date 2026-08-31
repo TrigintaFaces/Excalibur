@@ -250,7 +250,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 			return string.Empty;
 		}
 
-		if (string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase))
+		if (CloudEventContentType.IsJson(contentType))
 		{
 			return JsonDocument.Parse(body).RootElement.Clone();
 		}

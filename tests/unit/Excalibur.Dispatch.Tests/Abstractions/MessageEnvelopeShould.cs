@@ -110,13 +110,11 @@ public sealed class MessageEnvelopeShould : IDisposable
 		envelope.ContractVersion = "3.0";
 		envelope.DesiredVersion = 5;
 		envelope.TenantId = "tenant-xyz";
-		envelope.Source = "source-app";
 		envelope.MessageType = "TestMessage";
 		envelope.ContentType = "application/json";
 		envelope.DeliveryCount = 3;
 		envelope.Subject = "Test Subject";
 		envelope.Body = "Test Body";
-		envelope.PartitionKey = "partition-1";
 		envelope.ReplyTo = "reply-queue";
 		envelope.ReceivedTimestampUtc = timestamp;
 		envelope.SentTimestampUtc = timestamp.AddMinutes(-5);
@@ -133,82 +131,14 @@ public sealed class MessageEnvelopeShould : IDisposable
 		envelope.ContractVersion.ShouldBe("3.0");
 		envelope.DesiredVersion.ShouldBe(5);
 		envelope.TenantId.ShouldBe("tenant-xyz");
-		envelope.Source.ShouldBe("source-app");
 		envelope.MessageType.ShouldBe("TestMessage");
 		envelope.ContentType.ShouldBe("application/json");
 		envelope.DeliveryCount.ShouldBe(3);
 		envelope.Subject.ShouldBe("Test Subject");
 		envelope.Body.ShouldBe("Test Body");
-		envelope.PartitionKey.ShouldBe("partition-1");
 		envelope.ReplyTo.ShouldBe("reply-queue");
 		envelope.ReceivedTimestampUtc.ShouldBe(timestamp);
 		envelope.SentTimestampUtc.ShouldBe(timestamp.AddMinutes(-5));
-	}
-
-	[Fact]
-	public void Legacy_TraceId_Should_Map_To_TraceParent()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-
-		// Act
-		envelope.TraceId = "trace-123";
-
-		// Assert
-		envelope.TraceId.ShouldBe("trace-123");
-		envelope.TraceParent.ShouldBe("trace-123");
-
-		// And reverse
-		envelope.TraceParent = "trace-456";
-		envelope.TraceId.ShouldBe("trace-456");
-	}
-
-	[Fact]
-	public void Legacy_RetryCount_Should_Map_To_DeliveryCount()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-
-		// Act
-		envelope.RetryCount = 5;
-
-		// Assert
-		envelope.RetryCount.ShouldBe(5);
-		envelope.DeliveryCount.ShouldBe(5);
-
-		// Null returns null when DeliveryCount is 0
-		envelope.DeliveryCount = 0;
-		envelope.RetryCount.ShouldBeNull();
-	}
-
-	[Fact]
-	public void Legacy_Timestamp_Should_Map_To_ReceivedTimestampUtc()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-		var time = DateTimeOffset.UtcNow;
-
-		// Act
-		envelope.Timestamp = time;
-
-		// Assert
-		envelope.Timestamp.ShouldBe(time);
-		envelope.ReceivedTimestampUtc.ShouldBe(time);
-	}
-
-	[Fact]
-	public void Legacy_ScheduledTime_Should_Map_To_SentTimestampUtc()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-		var time = DateTimeOffset.UtcNow.AddHours(1);
-
-		// Act
-		envelope.ScheduledTime = time;
-
-		// Assert
-		envelope.ScheduledTime.ShouldBe(time);
-		envelope.SentTimestampUtc.ShouldBe(time);
 	}
 
 	#endregion
@@ -216,7 +146,7 @@ public sealed class MessageEnvelopeShould : IDisposable
 	#region Cloud Provider Property Tests
 
 	[Fact]
-	public void Should_Get_And_Set_CloudProvider_Properties()
+	public void Should_Get_And_Set_TransportProperties()
 	{
 		// Arrange
 		var envelope = CreateEnvelope();
@@ -225,22 +155,16 @@ public sealed class MessageEnvelopeShould : IDisposable
 		// Act
 		envelope.ReceiptHandle = "receipt-123";
 		envelope.VisibilityTimeout = timeout;
-		envelope.IsDeadLettered = true;
 		envelope.DeadLetterReason = "MaxRetries";
 		envelope.DeadLetterErrorDescription = "Too many failures";
-		envelope.SessionId = "session-456";
-		envelope.WorkflowId = "workflow-789";
 		envelope.MessageGroupId = "group-abc";
 		envelope.MessageDeduplicationId = "dedup-def";
 
 		// Assert
 		envelope.ReceiptHandle.ShouldBe("receipt-123");
 		envelope.VisibilityTimeout.ShouldBe(timeout);
-		envelope.IsDeadLettered.ShouldBeTrue();
 		envelope.DeadLetterReason.ShouldBe("MaxRetries");
 		envelope.DeadLetterErrorDescription.ShouldBe("Too many failures");
-		envelope.SessionId.ShouldBe("session-456");
-		envelope.WorkflowId.ShouldBe("workflow-789");
 		envelope.MessageGroupId.ShouldBe("group-abc");
 		envelope.MessageDeduplicationId.ShouldBe("dedup-def");
 	}
@@ -256,58 +180,13 @@ public sealed class MessageEnvelopeShould : IDisposable
 		var envelope = CreateEnvelope();
 
 		// Act
-		envelope.RequestId = "req-123";
-		envelope.FunctionName = "MyFunction";
-		envelope.FunctionVersion = "1.0.0";
-		envelope.CloudProvider = "AWS";
-		envelope.Region = "us-east-1";
 
 		// Assert
-		envelope.RequestId.ShouldBe("req-123");
-		envelope.FunctionName.ShouldBe("MyFunction");
-		envelope.FunctionVersion.ShouldBe("1.0.0");
-		envelope.CloudProvider.ShouldBe("AWS");
-		envelope.Region.ShouldBe("us-east-1");
 	}
 
 	#endregion
 
 	#region Hot-Path Property Tests
-
-	[Fact]
-	public void Should_Get_And_Set_HotPath_Properties()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-		var firstAttempt = DateTimeOffset.UtcNow;
-		var validationTime = DateTimeOffset.UtcNow;
-
-		// Act
-		envelope.ProcessingAttempts = 3;
-		envelope.FirstAttemptTime = firstAttempt;
-		envelope.IsRetry = true;
-		envelope.ValidationPassed = true;
-		envelope.ValidationTimestamp = validationTime;
-		envelope.Transaction = new object();
-		envelope.TransactionId = "txn-123";
-		envelope.TimeoutExceeded = true;
-		envelope.TimeoutElapsed = TimeSpan.FromSeconds(30);
-		envelope.RateLimitExceeded = true;
-		envelope.RateLimitRetryAfter = TimeSpan.FromMinutes(1);
-
-		// Assert
-		envelope.ProcessingAttempts.ShouldBe(3);
-		envelope.FirstAttemptTime.ShouldBe(firstAttempt);
-		envelope.IsRetry.ShouldBeTrue();
-		envelope.ValidationPassed.ShouldBeTrue();
-		envelope.ValidationTimestamp.ShouldBe(validationTime);
-		_ = envelope.Transaction.ShouldNotBeNull();
-		envelope.TransactionId.ShouldBe("txn-123");
-		envelope.TimeoutExceeded.ShouldBeTrue();
-		envelope.TimeoutElapsed.ShouldBe(TimeSpan.FromSeconds(30));
-		envelope.RateLimitExceeded.ShouldBeTrue();
-		envelope.RateLimitRetryAfter.ShouldBe(TimeSpan.FromMinutes(1));
-	}
 
 	#endregion
 
@@ -554,61 +433,6 @@ public sealed class MessageEnvelopeShould : IDisposable
 	#endregion
 
 	#region Provider Metadata Tests
-
-	[Fact]
-	public void SetProviderMetadata_Should_Add_Metadata()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-
-		// Act
-		envelope.SetProviderMetadata("aws.region", "us-east-1");
-
-		// Assert
-		envelope.AllProviderMetadata.ShouldContainKey("aws.region");
-		envelope.AllProviderMetadata["aws.region"].ShouldBe("us-east-1");
-	}
-
-	[Fact]
-	public void SetProviderMetadata_With_Null_Should_Remove_Metadata()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-		envelope.SetProviderMetadata("aws.region", "us-east-1");
-
-		// Act
-		envelope.SetProviderMetadata<string?>("aws.region", null);
-
-		// Assert
-		envelope.AllProviderMetadata.ShouldNotContainKey("aws.region");
-	}
-
-	[Fact]
-	public void GetProviderMetadata_Should_Return_Value_When_Exists()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-		envelope.SetProviderMetadata("count", 42);
-
-		// Act
-		var result = envelope.GetProviderMetadata<int>("count");
-
-		// Assert
-		result.ShouldBe(42);
-	}
-
-	[Fact]
-	public void GetProviderMetadata_Should_Return_Default_When_Not_Exists()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-
-		// Act
-		var result = envelope.GetProviderMetadata<int>("missing");
-
-		// Assert
-		result.ShouldBe(0);
-	}
 
 	#endregion
 
@@ -891,21 +715,6 @@ public sealed class MessageEnvelopeShould : IDisposable
 	}
 
 	[Fact]
-	public void Clone_Should_Copy_ProviderMetadata_Dictionary()
-	{
-		// Arrange
-		var original = CreateEnvelope();
-		original.SetProviderMetadata("aws.region", "us-west-2");
-
-		// Act
-		var clone = original.Clone();
-		_envelopes.Add(clone);
-
-		// Assert
-		clone.GetProviderMetadata<string>("aws.region").ShouldBe("us-west-2");
-	}
-
-	[Fact]
 	public void Clone_Modifications_Should_Not_Affect_Original()
 	{
 		// Arrange
@@ -992,20 +801,6 @@ public sealed class MessageEnvelopeShould : IDisposable
 	}
 
 	[Fact]
-	public void Reset_Should_Clear_ProviderMetadata_Dictionary()
-	{
-		// Arrange
-		var envelope = CreateEnvelope();
-		envelope.SetProviderMetadata("key", "value");
-
-		// Act
-		envelope.Reset();
-
-		// Assert
-		envelope.AllProviderMetadata.ShouldBeEmpty();
-	}
-
-	[Fact]
 	public void Reset_Should_Reset_DeliveryCount_To_Zero()
 	{
 		// Arrange
@@ -1024,21 +819,11 @@ public sealed class MessageEnvelopeShould : IDisposable
 	{
 		// Arrange
 		var envelope = CreateEnvelope();
-		envelope.ProcessingAttempts = 3;
-		envelope.IsRetry = true;
-		envelope.ValidationPassed = true;
-		envelope.TimeoutExceeded = true;
-		envelope.RateLimitExceeded = true;
 
 		// Act
 		envelope.Reset();
 
 		// Assert
-		envelope.ProcessingAttempts.ShouldBe(0);
-		envelope.IsRetry.ShouldBeFalse();
-		envelope.ValidationPassed.ShouldBeFalse();
-		envelope.TimeoutExceeded.ShouldBeFalse();
-		envelope.RateLimitExceeded.ShouldBeFalse();
 	}
 
 	#endregion
@@ -1052,7 +837,6 @@ public sealed class MessageEnvelopeShould : IDisposable
 		var envelope = new MessageEnvelope();
 		envelope.SetItem("key1", "value1");
 		envelope.SetHeader("X-Custom", "value");
-		envelope.SetProviderMetadata("meta", "data");
 
 		// Act
 		envelope.Dispose();
@@ -1060,7 +844,6 @@ public sealed class MessageEnvelopeShould : IDisposable
 		// Assert
 		envelope.Items.ShouldBeEmpty();
 		envelope.Headers.ShouldBeEmpty();
-		envelope.AllProviderMetadata.ShouldBeEmpty();
 	}
 
 	[Fact]

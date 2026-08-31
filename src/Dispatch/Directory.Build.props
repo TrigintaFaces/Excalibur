@@ -3,7 +3,7 @@
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
   <!--
-    T2.4: Dependency Direction Enforcement (AD-304-2)
+    T2.4: Dependency Direction Enforcement
     Prevents Dispatch packages from referencing Excalibur packages.
     The allowed direction is: Excalibur → Dispatch (not the reverse).
 

@@ -10,6 +10,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -31,10 +32,19 @@ namespace Excalibur.Outbox.SqlServer;
 /// </list>
 /// </para>
 /// <para>
-/// <strong>Tenancy.</strong> The dead-letter queue is an <em>operator</em> surface (it implements
-/// <see cref="IDeadLetterQueueAdmin"/>): a platform operator inspects, replays, and purges failed messages
-/// across the whole estate, so the inspection and purge operations are deliberately estate-wide and never
-/// filtered by the ambient tenant. Each entry still carries its originating tenant as provenance:
+/// <strong>Tenancy.</strong> This type implements two interfaces and they are scoped differently, so
+/// "the dead-letter queue is estate-wide" is true of only one of them. The tenant-facing surface is
+/// <see cref="IDeadLetterQueue"/> — reading entries, counting them, and replaying a single entry — and each
+/// of those operations is narrowed to the ambient tenant whenever a tenant context is registered, so an
+/// entry belonging to another tenant is not merely hidden from them but unaddressable by them. The operator
+/// surface is <see cref="IDeadLetterQueueAdmin"/> — batch replay, entry purge, and the age-based retention
+/// sweep — and each of those operations is deliberately estate-wide, because a platform operator must be
+/// able to reach a failed message in whichever tenant holds it. Which reach a caller gets is therefore a
+/// registration decision, not an ambient one: a host that does not want estate-wide reach must not inject
+/// the admin interface into tenant-facing code.
+/// </para>
+/// <para>
+/// Each entry carries its originating tenant as provenance:
 /// <see cref="EnqueueAsync{T}"/> stamps the ambient tenant (or the reserved untenanted sentinel when no
 /// tenant is in scope) into the <c>TenantId</c> column, and <see cref="ReplayAsync"/> re-enters that
 /// <em>stored</em> tenant — never the caller's — so an operator replaying tenant A's dead letter cannot
@@ -50,7 +60,15 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 	private readonly SqlServerDeadLetterQueueOptions _options;
 	private readonly ILogger<SqlServerDeadLetterQueue> _logger;
 	private readonly Func<object, Task>? _replayHandler;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 	private readonly JsonSerializerOptions _jsonOptions;
 
 	/// <summary>
@@ -60,26 +78,30 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="replayHandler">Optional handler for replaying messages.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Used to
-	/// stamp the originating tenant onto each dead-lettered entry (provenance) and to re-enter that tenant
-	/// on replay; inspection and purge remain estate-wide.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerDeadLetterQueue(Func{SqlConnection}, SqlServerDeadLetterQueueOptions, ILogger{SqlServerDeadLetterQueue}, Func{object, Task}?, ITenantContext?)"/>
+	/// Use <see cref="SqlServerDeadLetterQueue(Func{SqlConnection}, SqlServerDeadLetterQueueOptions, ILogger{SqlServerDeadLetterQueue}, ITenantContext, Func{object, Task}?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
+	// Deterministic DI construction: the advanced constructor below also accepts an ITenantContext, so
+	// without this marker ActivatorUtilities' selection depends on which services happen to be
+	// registered, and reports a missing dependency as a constructor ambiguity.
+	[ActivatorUtilitiesConstructor]
 	public SqlServerDeadLetterQueue(
 		IOptions<SqlServerDeadLetterQueueOptions> options,
 		ILogger<SqlServerDeadLetterQueue> logger,
-		Func<object, Task>? replayHandler = null,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext,
+		Func<object, Task>? replayHandler = null)
 		: this(
 			CreateConnectionFactory((options ?? throw new ArgumentNullException(nameof(options))).Value),
 			options.Value,
 			logger,
-			replayHandler,
-			tenantContext)
+			tenantContext,
+			replayHandler)
 	{
 	}
 
@@ -94,9 +116,9 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="replayHandler">Optional handler for replaying messages.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Used to
-	/// stamp the originating tenant onto each dead-lettered entry (provenance) and to re-enter that tenant
-	/// on replay; inspection and purge remain estate-wide.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// <para>
@@ -112,8 +134,8 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		Func<SqlConnection> connectionFactory,
 		SqlServerDeadLetterQueueOptions options,
 		ILogger<SqlServerDeadLetterQueue> logger,
-		Func<object, Task>? replayHandler = null,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext,
+		Func<object, Task>? replayHandler = null)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -123,6 +145,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		_options = options;
 		_logger = logger;
 		_replayHandler = replayHandler;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 	}
@@ -143,7 +166,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		// the keyed partition always yields a concrete, non-null term: the ambient tenant when one is in
 		// scope, or the reserved untenanted sentinel when none is — never NULL, so the keyed TenantId column
 		// (NOT NULL) always has a value and the untenanted partition never collides with a real tenant.
-		var tenantId = KeyedTenantPartition.FromContext(_tenantContext).TenantId;
+		var tenantId = CurrentTenantPartition.TenantId;
 
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, _jsonOptions);
@@ -251,6 +274,35 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 	public Task<bool> ReplayAsync(Guid entryId, CancellationToken cancellationToken)
 		=> ReplayCoreAsync(entryId, AmbientScope(), cancellationToken);
 
+	/// <inheritdoc />
+	/// <remarks>
+	/// Passes a null scope, which the core treats as estate-wide: no tenant predicate is emitted. The null
+	/// is written here, at the operation the caller named, and is not obtainable from
+	/// <see cref="AmbientScope"/>.
+	/// </remarks>
+	public Task<IReadOnlyList<DeadLetterEntry>> GetAllTenantsEntriesAsync(
+		DeadLetterQueryFilter? filter,
+		CancellationToken cancellationToken)
+		=> GetEntriesCoreAsync(filter, filter?.Take ?? new DeadLetterQueryFilter().Take, scope: null, cancellationToken);
+
+	/// <inheritdoc />
+	/// <remarks>Passes a null scope, so the entry is resolved in whichever tenant holds it.</remarks>
+	public async Task<DeadLetterEntry?> GetAllTenantsEntryAsync(Guid entryId, CancellationToken cancellationToken)
+	{
+		var row = await GetRowAsync(entryId, scope: null, cancellationToken).ConfigureAwait(false);
+
+		return row is null ? null : MapRowToEntry(row);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Passes a null scope, so the entry is resolved in whichever tenant holds it. The replay itself still
+	/// restores the tenant the entry was stored under — the core reads that tenant off the row — so this
+	/// widens which entries may be addressed, never where a replayed message lands.
+	/// </remarks>
+	public Task<bool> ReplayAllTenantsEntryAsync(Guid entryId, CancellationToken cancellationToken)
+		=> ReplayCoreAsync(entryId, scope: null, cancellationToken);
+
 	/// <summary>
 	/// Replays a single entry, resolving it within <paramref name="scope"/> when one is supplied.
 	/// </summary>
@@ -297,11 +349,17 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 					// A scope is entered UNCONDITIONALLY, including for an untenanted entry. Entering no scope
 					// would not replay "with no tenant" — it would INHERIT the caller's, so an operator working
 					// inside tenant B's scope would replay an untenanted entry as B's data: a wrong-tenant
-					// write by a privileged caller. Passing null clears the ambient tenant for the duration of
-					// the handler and restores the caller's on dispose, which is what "no tenant" has to mean.
-					var reenterStoredTenant = !string.IsNullOrEmpty(storedTenant)
-						&& !string.Equals(storedTenant, KeyedTenantPartition.Untenanted.TenantId, StringComparison.Ordinal);
-					using var tenantScope = TenantContextHolder.BeginScope(reenterStoredTenant ? storedTenant : null);
+					// write by a privileged caller. The scope binds the entry's OWN partition term -- the reserved
+					// untenanted term for an untenanted entry, never null. Clearing the ambient does not mean
+					// "no tenant"; it means "no tenant was established", which a multi-tenant store fails
+					// closed on, so replaying a legacy untenanted entry on a multi-tenant host would throw
+					// instead of replaying.
+					// One canonicalisation, shared with the audit chain key: FromStoredValue is the same
+					// predicate ToSignedTenantId is written in terms of, so every spelling of untenanted
+					// (null, empty, whitespace, the sentinel) reaches the partition the signing side called
+					// untenanted.
+					using var tenantScope = TenantContextHolder.BeginScope(
+						KeyedTenantPartition.FromStoredValue(storedTenant).TenantId);
 
 					await _replayHandler(message).ConfigureAwait(false);
 				}
@@ -409,7 +467,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 	}
 
 	/// <inheritdoc />
-	public async Task<int> PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken)
+	public async Task<int> PurgeAllTenantsEntriesOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken)
 	{
 		var cutoff = DateTimeOffset.UtcNow - olderThan;
 
@@ -577,30 +635,22 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 	/// the moment of the call rather than the one present when the instance was constructed.
 	/// </para>
 	/// <para>
-	/// A <see langword="null"/> tenant context means no tenancy is registered at all, which is the
-	/// operator case this type is built for — it implements <see cref="IDeadLetterQueueAdmin"/>, whose
-	/// inspection, replay and purge are documented as estate-wide. Null is returned so those reads carry
-	/// no tenant predicate, which is what every path here already expects: each takes a nullable scope and
-	/// treats null as estate-wide.
+	/// <b>Always a real partition, never null.</b> A host with no tenant context resolves the untenanted
+	/// partition — a real term matching the entries that carry the sentinel — rather than a
+	/// predicate-less query. Forgetting to establish a tenant therefore narrows what the caller can
+	/// address instead of widening it, which is the direction this has to fail in: the entries carry the
+	/// failed message body.
 	/// </para>
 	/// <para>
-	/// It previously returned <c>KeyedTenantPartition.FromContext</c> directly, which never yields null —
-	/// an absent context maps to the untenanted PARTITION, a real term that matches only entries carrying
-	/// the sentinel. Every entry point passes this, so the operator path the surrounding design describes
-	/// could not be reached from anywhere: an operator inspecting or replaying another tenant's dead
-	/// letter got "not found", and the capability existed only in the documentation.
-	/// </para>
-	/// <para>
-	/// This does not widen a multi-tenant deployment. A host with tenancy registered resolves a real
-	/// tenant and stays scoped, and one whose context resolves nothing still fails closed rather than
-	/// emitting a predicate-less query. The only case that changes is a host with no tenant context, where
-	/// every entry is stamped with the untenanted sentinel anyway — so estate-wide and untenanted select
-	/// the same rows.
+	/// The estate-wide operator reads are not reached from here and cannot be reached by omitting a scope.
+	/// They are the separately named <c>GetAllTenantsEntriesAsync</c>, <c>GetAllTenantsEntryAsync</c> and
+	/// <c>ReplayAllTenantsEntryAsync</c> on <see cref="IDeadLetterQueueAdmin"/>, each of which passes a
+	/// null scope explicitly. The cores below take a nullable scope and treat null as estate-wide; this
+	/// method is simply never the thing that supplies the null.
 	/// </para>
 	/// </remarks>
-	/// <returns>The caller's partition, or <see langword="null"/> for an estate-wide operator.</returns>
-	private KeyedTenantPartition? AmbientScope()
-		=> _tenantContext is null ? null : KeyedTenantPartition.FromContext(_tenantContext);
+	/// <returns>The caller's own partition. Never estate-wide.</returns>
+	private KeyedTenantPartition AmbientScope() => CurrentTenantPartition;
 
 	/// <summary>
 	/// Reads the row for <paramref name="entryId"/>, including its owning tenant. Selecting the tenant here
@@ -662,9 +712,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		IDictionary<string, string>? metadata = null;
 		if (!string.IsNullOrEmpty(row.Metadata))
 		{
-#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-			metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(row.Metadata, _jsonOptions);
-#pragma warning restore IL2026, IL3050
+			metadata = JsonSerializer.Deserialize(row.Metadata, OutboxInternalJsonContext.Default.DictionaryStringString);
 		}
 
 		return new DeadLetterEntry

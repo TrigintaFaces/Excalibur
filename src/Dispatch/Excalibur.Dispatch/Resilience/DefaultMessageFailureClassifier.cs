@@ -38,7 +38,7 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
 
         return ex switch
         {
-            // EC-1: cancellation is never poison and never dead-lettered — consumers honour the
+            // cancellation is never poison and never dead-lettered — consumers honour the
             // cancellation token before this is reached. Classify transient so it is never routed
             // to the DLQ if it ever does surface here (TaskCanceledException derives from this).
             OperationCanceledException => MessageFailureKind.Transient,
@@ -71,7 +71,7 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
             System.Net.Http.HttpRequestException => MessageFailureKind.Transient,
             System.IO.IOException => MessageFailureKind.Transient,
 
-            // EC-3: anything unrecognised is treated as transient so it gets a bounded retry —
+            // anything unrecognised is treated as transient so it gets a bounded retry —
             // never an infinite loop, never a silent drop. The attempt cap is the safety net.
             _ => ClassifyUnrecognized(ex),
         };

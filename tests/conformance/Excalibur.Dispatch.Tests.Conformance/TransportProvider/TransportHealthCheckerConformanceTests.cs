@@ -228,11 +228,12 @@ public abstract class TransportHealthCheckerConformanceTests
 
 		// Assert
 		_ = metrics.ShouldNotBeNull();
-		metrics.LastCheckTimestamp.ShouldBeGreaterThan(DateTimeOffset.MinValue);
+		metrics.LastCheckTimestamp.ShouldBeGreaterThanOrEqualTo(DateTimeOffset.MinValue);
 		metrics.LastStatus.ShouldBeOneOf(
 			TransportHealthStatus.Healthy,
 			TransportHealthStatus.Degraded,
-			TransportHealthStatus.Unhealthy);
+			TransportHealthStatus.Unhealthy,
+			TransportHealthStatus.Unknown);
 		metrics.ConsecutiveFailures.ShouldBeGreaterThanOrEqualTo(0);
 		metrics.TotalChecks.ShouldBeGreaterThanOrEqualTo(0);
 		metrics.SuccessRate.ShouldBeInRange(0.0, 1.0);
@@ -273,6 +274,9 @@ public abstract class TransportHealthCheckerConformanceTests
 		// Metrics should be updated after a health check
 		updatedMetrics.LastCheckTimestamp.ShouldBeGreaterThanOrEqualTo(initialMetrics.LastCheckTimestamp);
 		updatedMetrics.TotalChecks.ShouldBeGreaterThanOrEqualTo(initialMetrics.TotalChecks);
+
+		// A completed probe establishes a real answer, so "not yet known" must be gone.
+		updatedMetrics.LastStatus.ShouldNotBe(TransportHealthStatus.Unknown);
 	}
 
 	[Fact]

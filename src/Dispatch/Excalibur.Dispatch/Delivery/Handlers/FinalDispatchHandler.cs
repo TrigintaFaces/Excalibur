@@ -71,11 +71,17 @@ public sealed partial class FinalDispatchHandler(
 	[UnconditionalSuppressMessage(
 		"Trimming",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Result typing relies on known message types registered at startup.")]
+		Justification =
+			"Result construction is guarded at runtime: CreateTypedResult branches on RuntimeFeature.IsDynamicCodeSupported "
+			+ "and, when dynamic code is unavailable, builds the result from the source-generated factory registry.")]
 	[UnconditionalSuppressMessage(
 		"AotAnalysis",
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Result typing relies on reflection and is not supported in AOT scenarios.")]
+		Justification =
+			"Ahead-of-time compilation IS supported on this path: CreateTypedResult branches on "
+			+ "RuntimeFeature.IsDynamicCodeSupported and builds the result from the source-generated factory "
+			+ "registry, failing fast when the result type has no generated factory. Only the dynamic-code "
+			+ "branch reflects, and it is unreachable without runtime code generation.")]
 	[SuppressMessage(
 		"Design",
 		"CA1506:AvoidExcessiveClassCoupling",
@@ -255,6 +261,19 @@ public sealed partial class FinalDispatchHandler(
 	private static IMessageResult CreateTypedResult(
 		IMessageContext context,
 		Type? actionResultType)
+		=> CreateTypedResult(context, actionResultType, RuntimeFeature.IsDynamicCodeSupported);
+
+	/// <summary>
+	/// Builds the typed dispatch result. <paramref name="dynamicCodeSupported"/> is a parameter rather
+	/// than a direct <see cref="RuntimeFeature.IsDynamicCodeSupported"/> read so the AOT path can be
+	/// exercised on a JIT test host.
+	/// </summary>
+	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
+	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
+	internal static IMessageResult CreateTypedResult(
+		IMessageContext context,
+		Type? actionResultType,
+		bool dynamicCodeSupported)
 	{
 		var result = TryGetContextResult(context);
 
@@ -286,25 +305,19 @@ public sealed partial class FinalDispatchHandler(
 		var validation = GetValidationResultFast(context);
 		var authorization = GetAuthorizationResultFast(context);
 
-		if (routing is null && validation is null && authorization is null)
+		var lean = routing is null && validation is null && authorization is null;
+
+		// AOT path: source-generated factory registry only. Checked before the lean path, because the
+		// lean path compiles an expression tree and so is unreachable without runtime code generation.
+		if (!dynamicCodeSupported)
+		{
+			return CreateAotResult(resultType, result, routing, validation, authorization, cacheHit, lean);
+		}
+
+		if (lean)
 		{
 			var leanFactory = ResultFactoryCache.GetOrCreateLeanFactory(resultType);
 			return leanFactory(result, cacheHit);
-		}
-
-		// AOT path: Use source-generated factory registry (no reflection/MakeGenericMethod)
-		if (!RuntimeFeature.IsDynamicCodeSupported)
-		{
-			var aotFactory = ResultFactoryRegistry.GetFactory(resultType);
-			if (aotFactory != null)
-			{
-				return aotFactory(
-					result,
-					routing,
-					validation,
-					authorization as IAuthorizationResult,
-					cacheHit);
-			}
 		}
 
 		// Use cached factory delegate instead of per-dispatch reflection
@@ -315,6 +328,59 @@ public sealed partial class FinalDispatchHandler(
 			validation,
 			authorization,
 			cacheHit);
+	}
+
+	/// <summary>
+	/// Builds a dispatch result in an AOT environment using only source-generated factory
+	/// registrations, and fails fast when the result type has none.
+	/// </summary>
+	private static IMessageResult CreateAotResult(
+		Type resultType,
+		object? result,
+		RoutingDecision? routing,
+		object? validation,
+		object? authorization,
+		bool cacheHit,
+		bool lean)
+	{
+		if (lean)
+		{
+			var leanFactory = ResultFactoryRegistry.GetLeanFactory(resultType);
+			if (leanFactory is null)
+			{
+				ThrowForAotWithoutRegisteredResultFactory(resultType);
+			}
+
+			return leanFactory(result, cacheHit);
+		}
+
+		var factory = ResultFactoryRegistry.GetFactory(resultType);
+		if (factory is null)
+		{
+			ThrowForAotWithoutRegisteredResultFactory(resultType);
+		}
+
+		return factory(result, routing, validation, authorization as IAuthorizationResult, cacheHit);
+	}
+
+	/// <summary>
+	/// Throws <see cref="InvalidOperationException"/> when a dispatch result must be constructed in an
+	/// AOT environment but no factory is registered for the result type.
+	/// </summary>
+	/// <remarks>
+	/// Falling back to the reflective factory here would succeed or fail depending on whether the
+	/// runtime happened to retain a usable instantiation for the type, so it fails fast instead.
+	/// </remarks>
+	[DoesNotReturn]
+	private static void ThrowForAotWithoutRegisteredResultFactory(Type resultType)
+	{
+		throw new InvalidOperationException(
+			$"FinalDispatchHandler cannot construct a dispatch result for result type '{resultType.FullName ?? resultType.Name}' " +
+			"in an AOT environment because no factory is registered for it, and building one requires runtime " +
+			"code generation (MakeGenericType, Expression.Compile). " +
+			"Reference the Excalibur.Dispatch.SourceGenerators package as an Analyzer to generate factories for the " +
+			"result types your project declares, or register the type explicitly during startup with " +
+			$"ResultFactoryRegistry.RegisterFactory<{resultType.Name}>().");
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -526,7 +592,7 @@ public sealed partial class FinalDispatchHandler(
 					return CreateTypedResult(action, context);
 				}
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (primary.Bus is not LocalMessageBus)
 			{
 				LogUnhandledExceptionDuringDispatch(_logger, message.GetType().Name, ex);
 				primary.Route.DeliveryStatus = RouteDeliveryStatus.Failed;
@@ -581,6 +647,10 @@ public sealed partial class FinalDispatchHandler(
 					target.Route.DeliveryStatus = RouteDeliveryStatus.Succeeded;
 					target.Route.Failure = null;
 				}
+				// Unconditional, including the in-process bus. A publish to N buses is a fan-out, not a call: its
+				// outcome is per-route, which is what DeliveryStatus and Failure above record. Letting one route's
+				// fault escape the loop would leave every later route unpublished, and which routes those are
+				// depends on the order the endpoints happen to be listed in.
 				catch (Exception ex)
 				{
 					target.Route.DeliveryStatus = RouteDeliveryStatus.Failed;
@@ -627,8 +697,21 @@ public sealed partial class FinalDispatchHandler(
 			return new ValueTask<IMessageResult>(CreateNoLocalBusResult(routingDecision, context));
 		}
 
-		var actionResultType = GetActionResultType(action.GetType());
+		var actionType = action.GetType();
 
+		// An unregistered handler is a configuration fault, not a dispatch outcome. Raise it here, outside the try below, so it reaches
+		// the caller instead of being reported as a message-level failure the caller cannot distinguish from a handler that threw.
+		// Only when this dispatch would actually reach the bus: a cache hit is served from the context and needs no handler at all.
+		if (!HasContextResult(context) && localBus is LocalMessageBus localActionBus && !localActionBus.HasHandlerFor(actionType))
+		{
+			throw LocalMessageBus.CreateMissingHandlerException(actionType);
+		}
+
+		var actionResultType = GetActionResultType(actionType);
+
+		// The bus registered under the local name is not always the in-process one: a consumer can claim that
+		// name first, and registration is first-wins. When they have, this is a transport dispatch wearing a
+		// local name, and its fault is a delivery outcome rather than a handler's.
 		try
 		{
 			if (!_localRetriesEnabled)
@@ -641,7 +724,7 @@ public sealed partial class FinalDispatchHandler(
 					{
 						return HandleLocalActionFastPathSlowAsync(
 							publishTask,
-							action,
+							localBus,
 							context,
 							routingDecision,
 							actionResultType);
@@ -663,9 +746,9 @@ public sealed partial class FinalDispatchHandler(
 				actionResultType,
 				cancellationToken);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return new ValueTask<IMessageResult>(CreateHandlerErrorResult(ex, action, routingDecision, context));
+			return new ValueTask<IMessageResult>(CreateSingleTargetErrorResult(ex, context, routingDecision));
 		}
 	}
 
@@ -673,7 +756,7 @@ public sealed partial class FinalDispatchHandler(
 	[RequiresDynamicCode("Action fast-path dispatch uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleLocalActionFastPathSlowAsync(
 		Task publishTask,
-		IDispatchAction action,
+		IMessageBus localBus,
 		IMessageContext context,
 		RoutingDecision? routingDecision,
 		Type? actionResultType)
@@ -687,9 +770,9 @@ public sealed partial class FinalDispatchHandler(
 				actionResultType,
 				hadContextResultBeforeDispatch: false);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return CreateHandlerErrorResult(ex, action, routingDecision, context);
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
 	}
 
@@ -722,9 +805,9 @@ public sealed partial class FinalDispatchHandler(
 					hasContextResult);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return CreateHandlerErrorResult(ex, action, routingDecision, context);
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
 	}
 
@@ -740,6 +823,7 @@ public sealed partial class FinalDispatchHandler(
 			return new ValueTask<IMessageResult>(CreateNoLocalBusResult(routingDecision, context));
 		}
 
+		// Same reason as the action path above: the local name does not guarantee the in-process bus.
 		try
 		{
 			if (!_localRetriesEnabled)
@@ -747,7 +831,7 @@ public sealed partial class FinalDispatchHandler(
 				var publishTask = localBus.PublishAsync(dispatchEvent, context, cancellationToken);
 				if (!publishTask.IsCompletedSuccessfully)
 				{
-					return HandleLocalEventFastPathSlowAsync(publishTask, context, routingDecision);
+					return HandleLocalEventFastPathSlowAsync(publishTask, localBus, context, routingDecision);
 				}
 
 				return new ValueTask<IMessageResult>(CreateSuccessResult(context, routingDecision));
@@ -755,14 +839,15 @@ public sealed partial class FinalDispatchHandler(
 
 			return HandleLocalEventFastPathWithRetryAsync(localBus, dispatchEvent, context, routingDecision, cancellationToken);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return new ValueTask<IMessageResult>(CreateEventHandlerErrorResult(ex, dispatchEvent, routingDecision, context));
+			return new ValueTask<IMessageResult>(CreateSingleTargetErrorResult(ex, context, routingDecision));
 		}
 	}
 
 	private async ValueTask<IMessageResult> HandleLocalEventFastPathSlowAsync(
 		Task publishTask,
+		IMessageBus localBus,
 		IMessageContext context,
 		RoutingDecision? routingDecision)
 	{
@@ -771,9 +856,9 @@ public sealed partial class FinalDispatchHandler(
 			await publishTask.ConfigureAwait(false);
 			return CreateSuccessResult(context, routingDecision);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return CreateEventHandlerErrorResult(ex, null, routingDecision, context);
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
 	}
 
@@ -794,13 +879,19 @@ public sealed partial class FinalDispatchHandler(
 				return CreateSuccessResult(context, routingDecision);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return CreateEventHandlerErrorResult(ex, dispatchEvent, routingDecision, context);
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
 	}
 
 	// PERF-7: Non-async wrapper avoids state machine allocation when handler completes synchronously.
+	[UnconditionalSuppressMessage(
+		"Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Only CreateMissingHandlerException is called here, which formats a message and resolves no member.")]
+	[UnconditionalSuppressMessage(
+		"AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Only CreateMissingHandlerException is called here, which formats a message and constructs no type.")]
 	private ValueTask<IMessageResult> HandleLocalDocumentFastPathAsync(
 		IDispatchDocument document,
 		IMessageContext context,
@@ -812,6 +903,15 @@ public sealed partial class FinalDispatchHandler(
 			return new ValueTask<IMessageResult>(CreateNoLocalBusResult(routingDecision, context));
 		}
 
+		var documentType = document.GetType();
+
+		// Same fault, same treatment as the action path above: raised outside the try, so it is not reported as a handler failure.
+		if (localBus is LocalMessageBus localDocumentBus && !localDocumentBus.HasHandlerFor(documentType))
+		{
+			throw LocalMessageBus.CreateMissingHandlerException(documentType);
+		}
+
+		// Same reason as the action path above: the local name does not guarantee the in-process bus.
 		try
 		{
 			if (!_localRetriesEnabled)
@@ -819,7 +919,7 @@ public sealed partial class FinalDispatchHandler(
 				var publishTask = localBus.PublishAsync(document, context, cancellationToken);
 				if (!publishTask.IsCompletedSuccessfully)
 				{
-					return HandleLocalDocumentFastPathSlowAsync(publishTask, context, routingDecision);
+					return HandleLocalDocumentFastPathSlowAsync(publishTask, localBus, context, routingDecision);
 				}
 
 				return new ValueTask<IMessageResult>(CreateSuccessResult(context, routingDecision));
@@ -827,14 +927,15 @@ public sealed partial class FinalDispatchHandler(
 
 			return HandleLocalDocumentFastPathWithRetryAsync(localBus, document, context, routingDecision, cancellationToken);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return new ValueTask<IMessageResult>(CreateDocumentHandlerErrorResult(ex, document, routingDecision, context));
+			return new ValueTask<IMessageResult>(CreateSingleTargetErrorResult(ex, context, routingDecision));
 		}
 	}
 
 	private async ValueTask<IMessageResult> HandleLocalDocumentFastPathSlowAsync(
 		Task publishTask,
+		IMessageBus localBus,
 		IMessageContext context,
 		RoutingDecision? routingDecision)
 	{
@@ -843,9 +944,9 @@ public sealed partial class FinalDispatchHandler(
 			await publishTask.ConfigureAwait(false);
 			return CreateSuccessResult(context, routingDecision);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return CreateDocumentHandlerErrorResult(ex, null, routingDecision, context);
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
 	}
 
@@ -866,9 +967,9 @@ public sealed partial class FinalDispatchHandler(
 				return CreateSuccessResult(context, routingDecision);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (localBus is not LocalMessageBus)
 		{
-			return CreateDocumentHandlerErrorResult(ex, document, routingDecision, context);
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
 	}
 
@@ -948,7 +1049,7 @@ public sealed partial class FinalDispatchHandler(
 						if (!publishTask.IsCompletedSuccessfully)
 						{
 							return HandleSingleTargetActionSlowAsync(
-								publishTask, context, routingDecision, actionResultType);
+								publishTask, resolvedBus, context, routingDecision, actionResultType);
 						}
 					}
 
@@ -970,7 +1071,7 @@ public sealed partial class FinalDispatchHandler(
 					var publishTask = resolvedBus.PublishAsync(dispatchEvent, context, cancellationToken);
 					if (!publishTask.IsCompletedSuccessfully)
 					{
-						return HandleSingleTargetEventSlowAsync(publishTask, context, routingDecision);
+						return HandleSingleTargetEventSlowAsync(publishTask, resolvedBus, context, routingDecision);
 					}
 
 					return new ValueTask<IMessageResult>(CreateSuccessResult(context, routingDecision));
@@ -987,7 +1088,7 @@ public sealed partial class FinalDispatchHandler(
 					var publishTask = resolvedBus.PublishAsync(document, context, cancellationToken);
 					if (!publishTask.IsCompletedSuccessfully)
 					{
-						return HandleSingleTargetDocumentSlowAsync(publishTask, context, routingDecision);
+						return HandleSingleTargetDocumentSlowAsync(publishTask, resolvedBus, context, routingDecision);
 					}
 
 					return new ValueTask<IMessageResult>(CreateSuccessResult(context, routingDecision));
@@ -997,7 +1098,7 @@ public sealed partial class FinalDispatchHandler(
 					resolvedBus, document, context, routingDecision, retryPolicy!, cancellationToken);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			LogUnhandledExceptionDuringDispatch(_logger, message.GetType().Name, ex);
 
@@ -1036,6 +1137,7 @@ public sealed partial class FinalDispatchHandler(
 	[RequiresDynamicCode("Action dispatch result uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleSingleTargetActionSlowAsync(
 		Task publishTask,
+		IMessageBus resolvedBus,
 		IMessageContext context,
 		RoutingDecision? routingDecision,
 		Type? actionResultType)
@@ -1045,7 +1147,7 @@ public sealed partial class FinalDispatchHandler(
 			await publishTask.ConfigureAwait(false);
 			return CreateActionDispatchResult(context, routingDecision, actionResultType, hadContextResultBeforeDispatch: false);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
@@ -1077,7 +1179,7 @@ public sealed partial class FinalDispatchHandler(
 				return CreateActionDispatchResult(context, routingDecision, actionResultType, hasContextResult);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
@@ -1085,6 +1187,7 @@ public sealed partial class FinalDispatchHandler(
 
 	private async ValueTask<IMessageResult> HandleSingleTargetEventSlowAsync(
 		Task publishTask,
+		IMessageBus resolvedBus,
 		IMessageContext context,
 		RoutingDecision? routingDecision)
 	{
@@ -1093,7 +1196,7 @@ public sealed partial class FinalDispatchHandler(
 			await publishTask.ConfigureAwait(false);
 			return CreateSuccessResult(context, routingDecision);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
@@ -1114,7 +1217,7 @@ public sealed partial class FinalDispatchHandler(
 				cancellationToken).ConfigureAwait(false);
 			return CreateSuccessResult(context, routingDecision);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
@@ -1122,6 +1225,7 @@ public sealed partial class FinalDispatchHandler(
 
 	private async ValueTask<IMessageResult> HandleSingleTargetDocumentSlowAsync(
 		Task publishTask,
+		IMessageBus resolvedBus,
 		IMessageContext context,
 		RoutingDecision? routingDecision)
 	{
@@ -1130,7 +1234,7 @@ public sealed partial class FinalDispatchHandler(
 			await publishTask.ConfigureAwait(false);
 			return CreateSuccessResult(context, routingDecision);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
@@ -1151,7 +1255,7 @@ public sealed partial class FinalDispatchHandler(
 				cancellationToken).ConfigureAwait(false);
 			return CreateSuccessResult(context, routingDecision);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (resolvedBus is not LocalMessageBus)
 		{
 			return CreateSingleTargetErrorResult(ex, context, routingDecision);
 		}
@@ -1194,87 +1298,6 @@ public sealed partial class FinalDispatchHandler(
 			Title = "Routing failed",
 			Status = 404,
 			Detail = $"No message bus registered for '{LocalBusName}'",
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MR.Failed(
-			problemDetails,
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
-	}
-
-	private IMessageResult CreateHandlerErrorResult(
-		Exception ex,
-		IDispatchAction? action,
-		RoutingDecision? routingDecision,
-		IMessageContext context)
-	{
-		_ = routingDecision; // No longer carried on IMessageResult
-		if (action is not null)
-		{
-			LogUnhandledExceptionDuringDispatch(_logger, action.GetType().Name, ex);
-		}
-
-		var problemDetails = new MessageProblemDetails
-		{
-			Type = ProblemDetailsTypes.HandlerError,
-			Title = "Final dispatch failed",
-			Status = 500,
-			Detail = ex.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MR.Failed(
-			problemDetails,
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
-	}
-
-	private IMessageResult CreateEventHandlerErrorResult(
-		Exception ex,
-		IDispatchEvent? dispatchEvent,
-		RoutingDecision? routingDecision,
-		IMessageContext context)
-	{
-		_ = routingDecision; // No longer carried on IMessageResult
-		if (dispatchEvent is not null)
-		{
-			LogUnhandledExceptionDuringDispatch(_logger, dispatchEvent.GetType().Name, ex);
-		}
-
-		var problemDetails = new MessageProblemDetails
-		{
-			Type = ProblemDetailsTypes.HandlerError,
-			Title = "Final dispatch failed",
-			Status = 500,
-			Detail = ex.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MR.Failed(
-			problemDetails,
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
-	}
-
-	private IMessageResult CreateDocumentHandlerErrorResult(
-		Exception ex,
-		IDispatchDocument? document,
-		RoutingDecision? routingDecision,
-		IMessageContext context)
-	{
-		_ = routingDecision; // No longer carried on IMessageResult
-		if (document is not null)
-		{
-			LogUnhandledExceptionDuringDispatch(_logger, document.GetType().Name, ex);
-		}
-
-		var problemDetails = new MessageProblemDetails
-		{
-			Type = ProblemDetailsTypes.HandlerError,
-			Title = "Final dispatch failed",
-			Status = 500,
-			Detail = ex.Message,
 			Instance = Guid.NewGuid().ToString(),
 		};
 

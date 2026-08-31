@@ -31,6 +31,7 @@ public static class ElasticsearchInboxExtensions
 		_ = services.AddOptions<ElasticsearchInboxOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		_ = services.AddDefaultTenantContext();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchInboxOptions>, ElasticsearchInboxOptionsValidator>());
 		services.TryAddSingleton<ElasticsearchInboxStore>();

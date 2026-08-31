@@ -26,7 +26,7 @@ public sealed class MongoDbComplianceStoreShould
 		Should.Throw<ArgumentNullException>(
 			() => new MongoDbComplianceStore(
 				(IOptions<MongoDbComplianceOptions>)null!,
-				null,
+				TenantContextFixture.SingleTenant,
 				_logger));
 	}
 
@@ -38,7 +38,7 @@ public sealed class MongoDbComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new MongoDbComplianceStore(options, null, null!));
+			() => new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, null!));
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class MongoDbComplianceStoreShould
 			() => new MongoDbComplianceStore(
 				(IMongoClient)null!,
 				options,
-				null,
+				TenantContextFixture.SingleTenant,
 				_logger));
 	}
 
@@ -67,7 +67,7 @@ public sealed class MongoDbComplianceStoreShould
 			() => new MongoDbComplianceStore(
 				client,
 				(IOptions<MongoDbComplianceOptions>)null!,
-				null,
+				TenantContextFixture.SingleTenant,
 				_logger));
 	}
 
@@ -80,7 +80,7 @@ public sealed class MongoDbComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new MongoDbComplianceStore(client, options, null, null!));
+			() => new MongoDbComplianceStore(client, options, TenantContextFixture.SingleTenant, null!));
 	}
 
 	[Fact]
@@ -90,7 +90,7 @@ public sealed class MongoDbComplianceStoreShould
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
 
 		// Act
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -109,7 +109,7 @@ public sealed class MongoDbComplianceStoreShould
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
 
 		// Act
-		var store = new MongoDbComplianceStore(client, options, null, _logger);
+		var store = new MongoDbComplianceStore(client, options, TenantContextFixture.SingleTenant, _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -120,7 +120,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -135,7 +135,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -150,7 +150,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -165,7 +165,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -177,7 +177,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -189,7 +189,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange -- options with no connection string, no client injected
 		var options = MsOptions.Create(new MongoDbComplianceOptions { ConnectionString = null });
-		var store = new MongoDbComplianceStore(options, null, _logger);
+		var store = new MongoDbComplianceStore(options, TenantContextFixture.SingleTenant, _logger);
 		var record = new ConsentRecord
 		{
 			SubjectId = "subject-1",
@@ -371,5 +371,19 @@ public sealed class MongoDbComplianceStoreShould
 		doc.Status.ShouldBe((int)SubjectAccessRequestStatus.Pending);
 		doc.Deadline.ShouldBeNull();
 		doc.FulfilledAt.ShouldBeNull();
+	}
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store requires a context rather than accepting
+	/// <see langword="null"/>, so every arm here supplies one: a store handed nothing could not attest that
+	/// it scopes by tenant, and these tests would be exercising a shape the container can no longer produce.
+	/// </summary>
+	private sealed class TenantContextFixture : Excalibur.Dispatch.ITenantContext
+	{
+		public static Excalibur.Dispatch.ITenantContext SingleTenant { get; } = new TenantContextFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
 	}
 }

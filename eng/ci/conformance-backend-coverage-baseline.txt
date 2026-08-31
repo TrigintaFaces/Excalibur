@@ -1,0 +1,120 @@
+# Backends that implement a published store contract and that no conformance suite verifies against
+# that contract's published kit.
+#
+# Read eng/ci/conformance-backend-coverage-gate.sh for why this file exists. In short: every arm in a
+# kit published by Excalibur.Testing.Conformance is a contract we impose on any consumer who writes
+# their own provider. A backend of ours that no suite derives that kit against ships verified by
+# nothing that speaks the contract, and the arms we require of a consumer are arms we do not run
+# ourselves.
+#
+# THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
+#   - A backend NOT listed here is a FAIL on its first appearance.
+#   - A line here that no longer names a live uncovered backend is ALSO a FAIL -- remove it. An entry
+#     goes stale when the backend becomes covered, is renamed, is deleted, or stops declaring the
+#     contract.
+# So the list can only shrink. Removing a line is the fix; adding one should be argued, not assumed.
+#
+# Format: one `IContract:TypeName` per line, matching the gate's own output exactly. Blank lines and
+# #-comments are ignored.
+#
+# A NOTE ON A CLAIM THIS FILE USED TO MAKE, because the way it was wrong is the whole point of the gate.
+#
+# It said: "the outbox family is deliberately ABSENT: all FIVE of its backends are bound." Five was the
+# number the gate could SEE, not the number that exists. It matched a contract by name in the base list,
+# and the outbox contract is refined before it is implemented -- the durable backends declare
+# IFencedOutboxStore or IMultiTransportOutboxStore and never spell IOutboxStore. Eleven backends, of
+# which six were absent from the census entirely. They were not reported uncovered; they were not
+# reported at all, and the total they were missing from read as a complete survey.
+#
+# That is this gate's own defect class turned on itself: certifying a population it could not see. The
+# census now computes the interface closure, and the per-contract counts are the real ones.
+#
+# What the corrected census actually found, recorded because the alarming reading was the wrong one: the
+# three durable outbox backends that had been invisible (SqlServer, MongoDB, InMemory) are COVERED. The
+# blindness was hiding coverage as well as gaps. The real gap it was hiding is in leader election.
+#
+# ---------------------------------------------------------------------------------------------
+# CATEGORY A -- DURABLE BACKENDS WITH NO DERIVER. The defect class undiluted: a real provider a
+# consumer selects and runs in production, against which the published contract has never been
+# exercised. These are the entries that should leave this file first.
+# ---------------------------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------------------------
+# CATEGORY B -- CROSS-CUTTING WRAPPERS. Each implements the contract in order to decorate another
+# implementation: telemetry, encryption, RBAC redaction, tenant routing or scoping, tiered storage.
+#
+# They are listed rather than excluded because the exclusion cannot be made honestly. A wrapper is a
+# concrete type a consumer really is handed, it sits ON the read and write path, and the arms it would
+# have to pass are exactly the ones it is most capable of breaking -- a decorator that drops a tenant
+# predicate, loses an authoritative version, or swallows a concurrency failure is invisible to every
+# test of the store it wraps. Whether the kit is the right instrument for them is a judgement call this
+# gate cannot make; what it can say is that today nobody runs the published contract against them.
+# ---------------------------------------------------------------------------------------------
+ISagaStore:TelemetrySagaStoreDecorator
+ISagaStore:TenantRoutingSagaStore
+ISagaStore:TenantScopedSagaStore
+IInboxStore:EncryptingInboxStoreDecorator
+IInboxStore:TelemetryInboxStoreDecorator
+IAuditStore:RbacAuditStore
+ILeaderElection:TelemetryLeaderElection
+IEventStore:TenantRoutingEventStore
+IEventStore:TieredEventStoreDecorator
+#
+# ---------------------------------------------------------------------------------------------
+# CATEGORY C -- CLOSED. All four durable leader-election backends that declare
+# IHealthBasedLeaderElection (which refines ILeaderElection, so a census matching the contract name
+# in the base list never saw them until the census learned to follow the interface closure) now
+# derive the published kit: PostgresHealthBasedLeaderElection, SqlServerHealthBasedLeaderElection,
+# ConsulLeaderElection, KubernetesLeaderElection. The last two were believed blocked on CI
+# infrastructure -- no dedicated Testcontainers module for Consul, a privileged-mode k3s fixture for
+# Kubernetes -- and that premise was wrong: a Testcontainers module is a convenience wrapper over the
+# generic ContainerBuilder, not a precondition for it, and an official Testcontainers.K3s module
+# already existed. Both derive the kit against a real engine (real Consul session/KV Acquire/Release;
+# real coordination.k8s.io Lease), both arms (safety + liveness), no mocks.
+#
+# THE TRAP THAT MADE POSTGRES/SQLSERVER LOOK COVERED, kept because it is what a reader will
+# re-derive otherwise: leader-election conformance suites DO exist for the PLAIN
+# PostgresLeaderElection and SqlServerLeaderElection. The health-based variants are different types
+# with different acquisition behaviour. A suite for a sibling type is not coverage of this one.
+#
+# WHAT MUST NOT BE DONE HERE, stated because it is the tempting shortcut: writing a mocked runner
+# would put the published kit's NAME on arms that never touch the mechanism under test. For a
+# subsystem whose entire guarantee is mutual exclusion, that is worse than no arm at all -- it is a
+# green that certifies nothing. The Kubernetes deriver found this is not hypothetical: its
+# ConcurrentContention arm, run against real k3s, hit a real bug (a lost lease-create race threw
+# uncaught out of StartAsync instead of falling through to the normal acquire path) that a mock
+# calling CreateNamespacedLeaseAsync once could never have contended into existence.
+# ---------------------------------------------------------------------------------------------
+# CATEGORY E -- TYPES NO SUITE CAN NAME. Both are private sealed nested classes inside an internal
+# decorator: they are the encrypting and decrypting views that decorator hands out when the store it
+# wraps advertises a refined outbox contract.
+#
+# The binding this gate asks for is inexpressible for them. It looks for a suite that constructs the
+# named type, references it with typeof, or calls its registration extension -- and the name is not
+# accessible outside the type that declares it. No suite can be written that would clear these
+# entries, so unlike every other line in this file they cannot be worked off; they can only sit here.
+#
+# That makes them a question about the census rather than a debt: the gate already declines to
+# ledger abstract implementors, on the reasoning that a consumer never receives one by name, and a
+# private nested type is strictly less reachable than an abstract one. Their behaviour is not going
+# unexercised either way -- the decorator that owns them is the type a consumer actually resolves,
+# and exercising it exercises these views. They are listed rather than silently excluded because
+# changing what the census counts is a decision that should be made deliberately and written down,
+# not made by whoever first found the gate inconvenient.
+# ---------------------------------------------------------------------------------------------
+IOutboxStore:DecryptingFencedStore
+IOutboxStore:EncryptingMultiTransportStore
+
+# The three entries below are PRIVATE SEALED classes nested inside their decorators
+# (EncryptingEventStoreDecorator, TenantScopedEventStore, TieredEventStoreDecorator). The fix this
+# gate suggests -- a suite whose file constructs the named type or calls its registration extension
+# -- is not available for any of them: a consumer cannot name the type, and neither can a test.
+# They are reached only THROUGH their outer decorator, and each outer decorator is covered: none is
+# listed as uncovered by this gate, and 4, 3 and 5 test files respectively construct them. So the
+# contract arms do run over this code; what cannot be done is derive a kit against the view itself.
+# This is a limit of the gate's population (it enumerates nested private implementation detail),
+# not an uncovered backend. Closing these means teaching the gate to attribute a nested private
+# view to its enclosing type, not writing three suites that cannot compile.
+IEventStore:EncryptingTransactionalView
+IEventStore:TenantScopedTransactionalView
+IEventStore:TieredTransactionalView

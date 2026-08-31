@@ -4,6 +4,12 @@
 -- SQL Server Job Coordination Schema
 -- Creates the tables required for distributed job coordination.
 -- Default schema: [Jobs]. Override via SqlServerJobCoordinatorOptions.SchemaName.
+--
+-- TENANCY: none of these tables carries a tenant column, deliberately. They hold process-coordination
+-- state -- which host holds a job lock, which instances are alive, which instance a job was handed to --
+-- not tenant data. A job lock is mutual exclusion between HOSTS: partitioning it by tenant would let two
+-- hosts hold the same lock rather than isolate anything. Job payloads are opaque to these tables; a job
+-- whose work is tenant-scoped establishes that scope in its handler, against a tenant-confined store.
 
 IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'Jobs')
 BEGIN

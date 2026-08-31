@@ -10,30 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Core;
 public sealed class AwsProviderOptionsShould
 {
 	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new AwsProviderOptions();
-
-		// Assert
-		options.Region.ShouldBe("us-east-1");
-		options.Connection.Credentials.ShouldBeNull();
-		options.Connection.ServiceUrl.ShouldBeNull();
-		options.Connection.UseLocalStack.ShouldBeFalse();
-		options.Connection.LocalStackUrl.ShouldNotBeNull();
-		options.Connection.LocalStackUrl!.ToString().ShouldBe("http://localhost:4566/");
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.Connection.ValidateOnStartup.ShouldBeTrue();
-		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.Consumer.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
-		options.Consumer.MaxNumberOfMessages.ShouldBe(10);
-		options.EnableDeduplication.ShouldBeFalse();
-		options.EnableEncryption.ShouldBeFalse();
-		options.KmsKeyId.ShouldBeNull();
-	}
-
-	[Fact]
 	public void AllowSettingRegion()
 	{
 		// Arrange & Act
@@ -76,18 +52,4 @@ public sealed class AwsProviderOptionsShould
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 	}
 
-	[Fact]
-	public void AllowSettingEncryption()
-	{
-		// Arrange & Act
-		var options = new AwsProviderOptions
-		{
-			EnableEncryption = true,
-			KmsKeyId = "alias/my-key",
-		};
-
-		// Assert
-		options.EnableEncryption.ShouldBeTrue();
-		options.KmsKeyId.ShouldBe("alias/my-key");
-	}
 }

@@ -111,33 +111,6 @@ public sealed class TelemetryTransportReceiverShould : IDisposable
 	}
 
 	[Fact]
-	public async Task Record_DurationHistogram_On_ReceiveAsync()
-	{
-		A.CallTo(() => _innerReceiver.ReceiveAsync(A<int>._, A<CancellationToken>._))
-			.Returns(new List<TransportReceivedMessage>());
-
-		var sut = new TelemetryTransportReceiver(_innerReceiver, _meter, _activitySource, "Test");
-		await sut.ReceiveAsync(10, CancellationToken.None);
-
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.ReceiveDuration && h.Value >= 0);
-	}
-
-	[Fact]
-	public async Task Record_DurationHistogram_On_ReceiveAsync_WithReturnedMessages()
-	{
-		var messages = new List<TransportReceivedMessage> { CreateTestMessage() };
-		A.CallTo(() => _innerReceiver.ReceiveAsync(A<int>._, A<CancellationToken>._))
-			.Returns(messages);
-
-		var sut = new TelemetryTransportReceiver(_innerReceiver, _meter, _activitySource, "Test");
-		_ = await sut.ReceiveAsync(10, CancellationToken.None);
-
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.ReceiveDuration && h.Value >= 0);
-	}
-
-	[Fact]
 	public async Task Propagate_Exception_From_InnerReceive_Without_Recording_Success_Metrics()
 	{
 		A.CallTo(() => _innerReceiver.ReceiveAsync(A<int>._, A<CancellationToken>._))
@@ -149,8 +122,6 @@ public sealed class TelemetryTransportReceiverShould : IDisposable
 
 		_recordedCounters.ShouldNotContain(c =>
 			c.Name == TransportTelemetryConstants.MetricNames.MessagesReceived);
-		_recordedHistograms.ShouldNotContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.ReceiveDuration);
 	}
 
 	[Fact]
@@ -227,5 +198,16 @@ public sealed class TelemetryTransportReceiverShould : IDisposable
 		_meterListener.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();
+	}
+	[Fact]
+	public async Task Not_Record_Any_Duration_Histogram()
+	{
+		// Operation duration is recorded once, by the transport adapter beneath this decorator.
+		// Recording it here too produced two instruments for one quantity, which a dashboard
+		// aggregating either one would double-count. This asserts the duplicate stays gone.
+		var sut = new TelemetryTransportReceiver(_innerReceiver, _meter, _activitySource, "Test");
+		_ = await sut.ReceiveAsync(10, CancellationToken.None);
+
+		_recordedHistograms.ShouldNotContain(h => h.Name.Contains("duration", StringComparison.Ordinal));
 	}
 }

@@ -11,7 +11,7 @@ namespace Excalibur.Cdc.Diagnostics;
 /// These IDs fall within the Excalibur reserved range (3000-4999).
 /// </para>
 /// </remarks>
-public static class CdcProcessingEventId
+internal static class CdcProcessingEventId
 {
 	/// <summary>CDC background service disabled.</summary>
 	public const int CdcBackgroundServiceDisabled = 3100;

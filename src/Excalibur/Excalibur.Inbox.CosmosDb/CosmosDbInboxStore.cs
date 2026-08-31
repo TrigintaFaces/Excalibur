@@ -19,11 +19,30 @@ namespace Excalibur.Inbox.CosmosDb;
 /// <remarks>
 /// <para>
 /// This implementation provides message deduplication using Cosmos DB's native document model.
-/// Documents are keyed by a composite of (MessageId:HandlerType).
+/// Documents are keyed by a composite of (TenantId:MessageId:HandlerType), so two tenants carrying the
+/// same message and handler never collide on one dedup document.
 /// </para>
 /// <para>
-/// Uses handler_type as partition key for optimal query patterns where messages
-/// are typically queried by handler type.
+/// The <c>handler_type</c> field is the partition key. When a shared partition key is configured — the mode
+/// that makes the transactional batch possible — every document is written to that one partition and the
+/// field carries the shared value rather than the handler type; the handler type is persisted in its own
+/// <c>logical_handler_type</c> field so it survives that placement.
+/// </para>
+/// <para>
+/// <b>This store offers the claim protocol and no lease.</b> A lease requires the expiry comparison and
+/// the write it gates to be decided in one atomic step against the store's own clock, since that is the
+/// only clock competing processors agree on. Cosmos exposes no item-level conditional write that reads
+/// server time — an ETag makes the write atomic without making the decision correct, so two processors
+/// with skewed clocks can both judge a live lease expired and the write that lands is not necessarily
+/// the one that reasoned correctly. That would run one handler twice, which is worse than the stall it
+/// would fix.
+/// </para>
+/// <para>
+/// What this costs: a processor that claims an entry and then dies leaves it <c>Processing</c> until an
+/// operator clears it, and the message is not re-admitted. What it does not cost: the terminal mark is
+/// still made exactly once, because the claim is a first-writer-wins insert. The gap is liveness, not
+/// correctness. A deployment needing a bounded stall should use a provider that declares the lease
+/// protocol.
 /// </para>
 /// </remarks>
 public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, IAsyncDisposable, IDisposable
@@ -34,9 +53,14 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 	// Ambient tenant context. When active, the tenant is composed INTO the dedup id (via ScopedId) so two
 	// tenants' identical (messageId, handlerType) can never collide on the dedup key, and is stamped on write.
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
 
 	private CosmosClient? _client;
+
+	// Whether this store built the client it holds. A borrowed client belongs to the container that
+	// registered it, and disposing something you did not create is how one feature's shutdown breaks
+	// another feature that is still running against the same account.
+	private bool _ownsClient;
 	private Container? _container;
 	private volatile bool _initialized;
 	private volatile bool _disposed;
@@ -47,14 +71,14 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context; when active it composes the tenant into the dedup <c>id</c> and stamps
-	/// the tenant on write. When <see langword="null"/> the untenanted sentinel is composed, so an untenanted
-	/// deployment is a single named partition rather than an unbounded shared one.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public CosmosDbInboxStore(
 		IOptions<CosmosDbInboxOptions> options,
 		ILogger<CosmosDbInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -62,12 +86,41 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbInboxStore"/> class over a client supplied by
+	/// the caller.
+	/// </summary>
+	/// <remarks>
+	/// This is the constructor dependency injection selects when a <see cref="CosmosClient"/> is registered,
+	/// and it is the reason a host that enables several Cosmos features opens one connection pool rather
+	/// than one per feature. The client's lifetime belongs to whoever registered it, so this store never
+	/// disposes it.
+	/// </remarks>
+	/// <param name="client">The Cosmos client to borrow. Its lifetime belongs to the caller.</param>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The ambient tenant context, as for the other constructor.</param>
+	public CosmosDbInboxStore(
+		CosmosClient client,
+		IOptions<CosmosDbInboxOptions> options,
+		ILogger<CosmosDbInboxStore> logger,
+		ITenantContext tenantContext)
+		: this(options, logger, tenantContext)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+
+		_client = client;
+		_ownsClient = false;
 	}
 
 	// The keyed partition seam resolves the ambient tenant to a concrete term (a real tenant, or the reserved
 	// untenanted sentinel) — never null, never empty. A keyed store must never emit an empty tenant segment.
-	private string TenantTerm => KeyedTenantPartition.FromContext(_tenantContext).TenantId;
+	private string TenantTerm =>
+		KeyedTenantPartition.FromContext(_tenantContext).TenantId;
 
 	// Composes the ambient tenant into the dedup id via the keyed partition seam, so the dedup/claim key —
 	// and thus every keyed read/write/claim — is tenant-isolated by construction.
@@ -94,7 +147,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			}
 
 			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
+			// Only build a client when none was supplied. A store that overwrites an injected client would
+			// leave the registered singleton unused while still opening a second connection pool.
+			if (_client is null)
+			{
+				_client = CreateClient(clientOptions);
+				_ownsClient = true;
+			}
 
 			Database database;
 
@@ -182,7 +241,10 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		// The stored partition-key field (handler_type) MUST equal the partition we write to, so it matches the
 		// uniform partition selection: the shared partition-key value when configured, else the handler type.
+		// That overwrite destroys the handler type on the shared-partition path, so the logical handler type is
+		// persisted separately (FromInboxEntry set it; restated here so the two lines are read together).
 		document.HandlerType = ResolvePartitionKeyValue(handlerType);
+		document.LogicalHandlerType = handlerType;
 
 		try
 		{
@@ -272,6 +334,14 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
+
+			// Processed is absorbing: refuse rather than demote a finalized entry back to Processing,
+			// which would re-admit the message and run the handler again.
+			if (document.Status == (int)InboxStatus.Processed)
+			{
+				return;
+			}
+
 			document.Status = (int)InboxStatus.Processing;
 			document.LastAttemptAt = DateTimeOffset.UtcNow;
 
@@ -307,6 +377,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			TenantId = TenantTerm,
 			MessageId = messageId,
 			HandlerType = ResolvePartitionKeyValue(handlerType),
+			LogicalHandlerType = handlerType,
 			MessageType = string.Empty,
 			Payload = string.Empty,
 			Status = (int)InboxStatus.Processed,
@@ -354,6 +425,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			TenantId = TenantTerm,
 			MessageId = messageId,
 			HandlerType = ResolvePartitionKeyValue(handlerType),
+			LogicalHandlerType = handlerType,
 			MessageType = string.Empty,
 			Payload = string.Empty,
 			Status = (int)InboxStatus.Processing,
@@ -489,6 +561,14 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
+
+			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which
+			// would make it re-admittable and run the handler again.
+			if (document.Status == (int)InboxStatus.Processed)
+			{
+				return;
+			}
+
 			document.Status = (int)InboxStatus.Failed;
 			document.LastError = errorMessage;
 			document.LastAttemptAt = DateTimeOffset.UtcNow;
@@ -530,12 +610,20 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
+
+			// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which
+			// would make it re-admittable and run the handler again.
+			if (document.Status == (int)InboxStatus.Processed)
+			{
+				return;
+			}
+
 			document.Status = (int)InboxStatus.Failed;
 			document.LastError = errorMessage;
 			document.LastAttemptAt = DateTimeOffset.UtcNow;
 
 			// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
-			// re-admittable without consuming a delivery attempt (FR-4).
+			// re-admittable without consuming a delivery attempt.
 			document.RetryCount = retryCount;
 
 			_ = await _container!.ReplaceItemAsync(
@@ -554,7 +642,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -610,7 +698,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -629,7 +717,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -670,7 +758,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
@@ -718,6 +806,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	public bool SupportsClaim => true;
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// This store has no lease path: it supports the caller-governed claim only. Reporting false keeps the
+	/// dispatch path off a protocol this store does not implement.
+	/// </remarks>
+	public bool SupportsLeasedClaim => false;
+
+	/// <inheritdoc/>
 	/// <remarks>The Cosmos DB store implements <see cref="IProcessingTrackingInboxStore"/> directly.</remarks>
 	public bool SupportsProcessingTracking => true;
 
@@ -730,6 +825,19 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	/// protocol rather than falsely advertising atomicity.
 	/// </remarks>
 	public bool SupportsTransactional => _options.SharedPartitionKey is not null;
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// This store's only transactional seam is the scoped one, so this tracks
+	/// <see cref="SupportsTransactional"/> exactly. Both are gated on the shared partition key: the
+	/// transactional batch is scoped to a single logical partition, so without one there is no scope to
+	/// hand the handler.
+	/// </remarks>
+	public bool SupportsScopedTransactional => _options.SharedPartitionKey is not null;
+
+	/// <inheritdoc/>
+	/// <remarks>This store records no per-entry next-attempt time.</remarks>
+	public bool SupportsBackoffScheduling => false;
 
 	/// <inheritdoc/>
 	public async ValueTask<bool> TryProcessTransactionallyAsync(
@@ -800,6 +908,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			TenantId = TenantTerm,
 			MessageId = messageId,
 			HandlerType = ResolvePartitionKeyValue(handlerType),
+			LogicalHandlerType = handlerType,
 			MessageType = string.Empty,
 			Payload = string.Empty,
 			Status = (int)InboxStatus.Processed,
@@ -831,7 +940,10 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
 		_initLock?.Dispose();
 	}
 
@@ -844,7 +956,10 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
@@ -860,7 +975,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
 			ConnectionMode = _options.Client.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
 
-			// fmjwqy (SA HYBRID): framework-built client uses STJ so persisted documents'
+			// (SA HYBRID): framework-built client uses STJ so persisted documents'
 			// [JsonPropertyName] attributes are honored (SDK v3 default Newtonsoft ignores them).
 			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
 			{

@@ -183,7 +183,7 @@ ON [dbo].[inbox_messages] ([Status], [ReceivedAt]);
 ```
 
 :::info Multi-tenant variant
-Register multi-tenancy with `AddMultiTenancy()` and provision the table with the **multi-tenant** key instead — add a `TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL` column and make it part of the primary key:
+Register multi-tenancy with `AddMultiTenancy()` and provision the table with the **multi-tenant** key instead — add a `TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL` column and make it part of the primary key:
 
 ```sql
 -- MULTI-TENANT. Use this ONLY when multi-tenancy is registered.
@@ -191,7 +191,7 @@ CREATE TABLE [dbo].[inbox_messages] (
     [MessageId]         NVARCHAR(255)  NOT NULL,
     [HandlerType]       NVARCHAR(500)  NOT NULL,
     -- ... same columns as above ...
-    [TenantId]          NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL,
+    [TenantId]          NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL,
 
     -- Multi-tenant: tenant is part of identity. The dedup/claim key is the triple.
     CONSTRAINT [PK_inbox_messages] PRIMARY KEY ([MessageId], [HandlerType], [TenantId])
@@ -255,65 +255,33 @@ public record OrderCreatedEvent(
 }
 ```
 
-### Custom Identity
+### Message Identity Fallbacks
 
-For business-key based deduplication, implement `IMessageIdProvider`:
+When `IMessageContext.MessageId` is empty, the inbox middleware resolves an identity in this order,
+and skips deduplication only if every step yields nothing:
+
+1. `IMessageContext.MessageId`.
+2. A `"MessageId"` entry in `IMessageContext.Items`.
+3. The `MessageId` of an `IMessageEnvelope` stored in `Items` under `"MessageEnvelope"`.
+4. A `MessageId` property on the message type, then a `CorrelationId` property.
+
+To deduplicate on a business key rather than a transport identity, set that key as the message's
+`MessageId` when you construct the message, or write it into `IMessageContext.MessageId` from a
+middleware that runs before the inbox stage:
 
 ```csharp
-public class OrderMessageIdProvider : IMessageIdProvider
+public record OrderCreatedEvent(Guid OrderId, string CustomerId) : IDispatchEvent
 {
-    public string? GetMessageId(IDispatchMessage message, IMessageContext context)
-    {
-        return message switch
-        {
-            // Use order ID for order events
-            OrderCreatedEvent e => $"order-created-{e.OrderId}",
-
-            // Use composite key for payments
-            PaymentReceivedEvent e => $"payment-{e.OrderId}-{e.PaymentId}",
-
-            // Default to message ID from context
-            _ => context.MessageId
-        };
-    }
+    // Deduplicate on the business key rather than a fresh transport id
+    public string MessageId { get; init; } = $"order-created-{OrderId}";
 }
-
-// Register and use with [Idempotent] attribute
-services.AddSingleton<IMessageIdProvider, OrderMessageIdProvider>();
-
-[Idempotent(Strategy = MessageIdStrategy.Custom)]
-public class OrderHandler : IEventHandler<OrderCreatedEvent> { }
-```
-
-## Idempotency Keys
-
-Use the `[Idempotent]` attribute with different `MessageIdStrategy` values to control how message IDs are extracted:
-
-### From Message Headers (Default)
-
-```csharp
-// Uses "MessageId" header by default
-[Idempotent(Strategy = MessageIdStrategy.FromHeader)]
-public class OrderHandler : IEventHandler<OrderCreatedEvent> { }
-
-// Custom header name
-[Idempotent(Strategy = MessageIdStrategy.FromHeader, HeaderName = "X-Idempotency-Key")]
-public class PaymentHandler : IEventHandler<PaymentEvent> { }
-```
-
-### Composite Keys
-
-```csharp
-// Uses {HandlerType}:{CorrelationId} format
-[Idempotent(Strategy = MessageIdStrategy.CompositeKey)]
-public class MultiTenantHandler : IEventHandler<TenantEvent> { }
 ```
 
 ## Cleanup
 
 ### Manual Cleanup
 
-The `IInboxStoreAdmin.CleanupAsync` method removes processed entries older than the specified cutoff timestamp. Administrative operations (cleanup, statistics, failed entry queries) are on the separate `IInboxStoreAdmin` interface:
+The `IInboxStoreAdmin.CleanupAllTenantsProcessedEntriesAsync` method removes processed entries older than the specified cutoff timestamp, across every tenant. Administrative operations (cleanup, statistics, failed entry queries) are on the separate `IInboxStoreAdmin` interface:
 
 ```csharp
 public class InboxCleanupJob
@@ -324,7 +292,7 @@ public class InboxCleanupJob
     public async Task CleanupAsync(CancellationToken ct)
     {
         var olderThan = DateTimeOffset.UtcNow.AddDays(-7);
-        var deleted = await _adminStore.CleanupAsync(olderThan, ct);
+        var deleted = await _adminStore.CleanupAllTenantsProcessedEntriesAsync(olderThan, ct);
         _logger.LogInformation("Cleaned up {Count} expired inbox entries", deleted);
     }
 }
@@ -338,20 +306,28 @@ Register the inbox hosted service for automatic background cleanup:
 services.AddInboxHostedService();
 ```
 
-## Per-Handler Deduplication
+## Deduplication Scope
 
-The inbox store tracks messages by a composite key of `(MessageId, HandlerType)` (extended to `(MessageId, HandlerType, TenantId)` in a multi-tenant deployment), allowing multiple handlers to process the same message independently:
+The inbox store keys every entry by a composite `(MessageId, HandlerType)` (extended to
+`(MessageId, HandlerType, TenantId)` in a multi-tenant deployment). The store contract lets a caller
+choose any scope for the second component, so several handlers can track the same message
+independently.
+
+**The inbox middleware does not do that.** It runs once per message, before handlers are resolved, so
+it has no single handler to name — it deduplicates per **message type** and passes the message type's
+fully qualified name as the scope. A message admitted by the inbox is therefore delivered to every
+handler registered for it, or to none of them:
 
 ```csharp
-// Both handlers can process the same event - tracked separately
-[Idempotent]
+// One inbox entry per (message id, OrderCreatedEvent). Both handlers run, or neither does.
 public class SendEmailHandler : IEventHandler<OrderCreatedEvent> { }
-
-[Idempotent]
 public class UpdateInventoryHandler : IEventHandler<OrderCreatedEvent> { }
 ```
 
-Each handler's processing is tracked independently, so `SendEmailHandler` and `UpdateInventoryHandler` each deduplicate the same `OrderCreatedEvent` separately — concurrent redeliveries are blocked by the atomic claim, and a crash mid-handler results in a reclaim-and-retry (so handlers must be idempotent).
+Concurrent redeliveries are blocked by the atomic claim, and a crash mid-handler results in a
+reclaim-and-retry — so handlers must be idempotent. If two handlers of the same event need to
+succeed and fail independently, give them separate message types, or track completion inside each
+handler against your own store.
 
 ## Distributed Deduplication
 
@@ -397,16 +373,16 @@ The middleware always probes the store's `SupportsTransactional` capability and 
 // active as soon as the relational inbox store is registered.
 
 // MongoDB — requires a replica set (transactions are a replica-set feature)
-services.Configure<MongoDbInboxOptions>(options =>
+services.Configure<MongoDbInboxOptions>(mongo =>
 {
-    options.EnableTransactions = true;
+    mongo.EnableTransactions = true;
 });
 
 // Azure Cosmos DB — the processed-mark and the handler's batch must share one
 // logical partition, so set the shared partition-key value to opt in.
-services.Configure<CosmosDbInboxOptions>(options =>
+services.Configure<CosmosDbInboxOptions>(cosmos =>
 {
-    options.SharedPartitionKey = "inbox";
+    cosmos.SharedPartitionKey = "inbox";
 });
 ```
 
@@ -546,7 +522,7 @@ public class OrderHandlerTests : IClassFixture<WebApplicationFactory<Program>>
         await dispatcher.PublishAsync(@event);
         await dispatcher.PublishAsync(@event);
 
-        // Assert - Only one order created (handler is [Idempotent])
+        // Assert - Only one order created (the inbox skipped the duplicate)
         var orders = await db.QueryAsync<Order>(
             "SELECT * FROM Orders WHERE Id = @Id",
             new { Id = orderId });
@@ -576,182 +552,25 @@ public async Task Handler_Skips_Duplicate_Message()
 }
 ```
 
-## Declarative Idempotency
-
-For handler-level control over idempotency, use the `[Idempotent]` attribute. This enables per-handler deduplication based on the handler's configuration.
-
-### Quick Start
-
-```csharp
-// 1. Register an inbox store (required for persistent deduplication)
-services.AddSqlServerInboxStore(options =>
-{
-    options.ConnectionString = connectionString;
-});
-
-// 2. Mark handlers with the attribute
-[Idempotent]
-public class PaymentHandler : IEventHandler<PaymentEvent>
-{
-    public async Task HandleAsync(PaymentEvent @event, CancellationToken ct)
-    {
-        // Duplicate messages are automatically skipped
-        await _paymentService.ProcessAsync(@event, ct);
-    }
-}
-```
-
-The `IdempotentHandlerMiddleware` automatically detects handlers with `[Idempotent]` and applies deduplication.
-
-### The `[Idempotent]` Attribute
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `RetentionMinutes` | `int` | 1440 (24h) | How long to track processed message IDs |
-| `UseInMemory` | `bool` | `false` | Use fast in-memory deduplication |
-| `Strategy` | `MessageIdStrategy` | `FromHeader` | How to extract message IDs |
-| `HeaderName` | `string` | `"MessageId"` | Header name for `FromHeader` strategy |
-
-### Usage Examples
-
-```csharp
-// Default settings (24h retention, persistent storage, from header)
-[Idempotent]
-public class OrderHandler : IEventHandler<OrderCreatedEvent> { }
-
-// Custom retention period
-[Idempotent(RetentionMinutes = 60)]
-public class NotificationHandler : IEventHandler<NotificationEvent> { }
-
-// High-throughput with in-memory storage
-[Idempotent(UseInMemory = true, RetentionMinutes = 5)]
-public class MetricsHandler : IEventHandler<MetricsEvent> { }
-
-// Use correlation ID for deduplication
-[Idempotent(Strategy = MessageIdStrategy.FromCorrelationId)]
-public class SagaHandler : IEventHandler<SagaEvent> { }
-
-// Custom header name
-[Idempotent(Strategy = MessageIdStrategy.FromHeader, HeaderName = "X-Idempotency-Key")]
-public class ApiHandler : IEventHandler<ApiEvent> { }
-```
-
-### Message ID Strategies
-
-| Strategy | Description | Use Case |
-|----------|-------------|----------|
-| `FromHeader` | Extract from message header (default: `MessageId`) | Standard message transports |
-| `FromCorrelationId` | Use `IMessageContext.CorrelationId` | Saga/workflow scenarios |
-| `CompositeKey` | `{HandlerType}:{CorrelationId}` | Multi-handler with same message |
-| `Custom` | Use registered `IMessageIdProvider` | Business-key extraction |
-
-### Custom Message ID Provider
-
-For complex ID extraction, implement `IMessageIdProvider`:
-
-```csharp
-public class OrderIdempotencyProvider : IMessageIdProvider
-{
-    public string? GetMessageId(IDispatchMessage message, IMessageContext context)
-    {
-        return message switch
-        {
-            // Use order ID for order events
-            OrderCreatedEvent e => $"order-{e.OrderId}",
-
-            // Use composite key for payments
-            PaymentReceivedEvent e => $"payment-{e.OrderId}-{e.PaymentId}",
-
-            // Fall back to message ID
-            _ => context.MessageId
-        };
-    }
-}
-
-// Register the provider
-services.AddSingleton<IMessageIdProvider, OrderIdempotencyProvider>();
-
-// Use custom strategy in handler
-[Idempotent(Strategy = MessageIdStrategy.Custom)]
-public class OrderHandler : IEventHandler<OrderCreatedEvent> { }
-```
-
-### In-Memory vs Persistent Storage
-
-| Aspect | In-Memory | Persistent (IInboxStore) |
-|--------|-----------|-------------------------|
-| **Performance** | Faster (no I/O) | Slower (database calls) |
-| **Durability** | Lost on restart | Survives restarts |
-| **Distributed** | Single instance only | Shared across instances |
-| **Best For** | Serverless, testing | Production clusters |
-
-#### When to Use In-Memory
-
-- **Serverless functions**: Short-lived processes where persistence adds latency
-- **Single-instance deployments**: No need for distributed deduplication
-- **High-throughput, low-risk**: Metrics, telemetry where duplicates are acceptable
-- **Testing**: Fast, isolated test execution
-
-```csharp
-[Idempotent(UseInMemory = true, RetentionMinutes = 5)]
-public class MetricsHandler : IEventHandler<MetricsCollectedEvent> { }
-```
-
-#### When to Use Persistent Storage
-
-- **Multi-instance deployments**: Kubernetes, App Service scale-out
-- **Critical handlers**: Payments, orders, inventory updates
-- **Long retention needs**: Hours or days of deduplication window
-- **Audit requirements**: Need to query processed message history
-
-```csharp
-// Uses IInboxStore (must be registered)
-[Idempotent(RetentionMinutes = 1440)] // 24 hours
-public class PaymentHandler : IEventHandler<PaymentEvent> { }
-```
-
-### Best Practices for Declarative Idempotency
-
-- **Mark only handlers that need it**: Not all handlers require idempotency. Logging handlers or read-only handlers can safely receive duplicates.
-- **Use appropriate retention**: Match retention to your message redelivery window (typically 1-7 days).
-- **Choose storage wisely**: Use `UseInMemory = true` for single-instance, high-throughput handlers; use persistent storage for multi-instance or critical handlers.
-- **Register an inbox store**: For persistent deduplication, register a store via `AddExcaliburInbox(inbox => inbox.UseSqlServer(...))`, `inbox.UseRedis(...)`, or `AddInMemoryInboxStore()`.
-
 ## Processing Modes
 
 The inbox supports three processing modes:
 
 | Mode | Component | Use Case |
 |------|-----------|----------|
-| **Attribute-based (automatic)** | `IdempotentHandlerMiddleware` | Most scenarios — deduplicates handlers marked with `[Idempotent]` |
-| **Pipeline-level** | `InboxMiddleware` | Full inbox semantics for all messages in the pipeline |
+| **Pipeline** | `InboxMiddleware` | Deduplicate every message that flows through the dispatch pipeline |
 | **Background service** | `InboxService` via `AddInboxHostedService()` | Background cleanup and reprocessing of failed inbox entries |
 | **Manual** | `IInboxProcessor` | Serverless environments (Azure Functions, AWS Lambda) — trigger processing on demand |
 
-### Attribute-Based Mode (Recommended)
+### Pipeline Mode
 
-When you register an inbox store, the `IdempotentHandlerMiddleware` automatically handles deduplication for handlers marked with `[Idempotent]`. Each incoming message is checked against the inbox before the handler executes:
-
-```csharp
-services.AddSqlServerInboxStore(options =>
-{
-    options.ConnectionString = connectionString;
-});
-
-// Handlers marked with [Idempotent] are automatically deduplicated
-[Idempotent]
-public class OrderHandler : IEventHandler<OrderCreatedEvent> { }
-```
-
-### Pipeline-Level Mode
-
-For full inbox semantics applied to all messages in the pipeline (not just handlers with `[Idempotent]`), register `InboxMiddleware`:
+`InboxMiddleware` is registered by `AddDispatch` and sits at the pre-processing stage, so registering
+an inbox store is all that is needed for it to deduplicate every message in the pipeline:
 
 ```csharp
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.UseMiddleware<InboxMiddleware>();
 });
 
 services.AddSqlServerInboxStore(options =>
@@ -760,7 +579,18 @@ services.AddSqlServerInboxStore(options =>
 });
 ```
 
-This mode applies inbox deduplication to all messages regardless of whether handlers are marked with `[Idempotent]`.
+To place the middleware explicitly in a custom pipeline, call `UseInbox()` (or its alias
+`UseIdempotency()`) — deduplicate after authentication and before validation:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseAuthentication()
+            .UseAuthorization()
+            .UseInbox()
+            .UseValidation();
+});
+```
 
 ### Background Service
 
@@ -793,11 +623,10 @@ public class InboxCleanupFunction
 |----------|----------------|
 | Retention | 7 days minimum, match message TTL |
 | Identity | Use business keys when possible |
-| Scope | Per-handler for multi-subscriber scenarios |
+| Scope | Deduplication is per message type; split message types when handlers must fail independently |
 | Cleanup | Regular cleanup to manage storage |
 | Locking | Use distributed locks in clusters |
-| Declarative | Use `[Idempotent]` for handler-specific control |
-| Strategy | Match ID strategy to message source |
+| Identity source | Carry the deduplication key on the message id, not on a handler attribute |
 
 ## Next Steps
 

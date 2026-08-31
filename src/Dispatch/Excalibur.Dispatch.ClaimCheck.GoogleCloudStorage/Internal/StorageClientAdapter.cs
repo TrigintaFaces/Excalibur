@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Internal;
 /// to a real <see cref="StorageClient"/>. This adapter is the only place
 /// in the claim check path that touches the live Google Cloud Storage SDK
 /// client type — tests substitute at the seam, never at the SDK type
-/// directly (ADR-142 §D7).
+/// directly.
 /// </summary>
 internal sealed class StorageClientAdapter : IStorageClientSeam
 {

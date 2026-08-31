@@ -96,17 +96,6 @@ public sealed class RuleBasedTtlOptionsIspSplitShould
 	}
 
 	[Fact]
-	public void WeightSubOptions_HaveAtMost10Properties()
-	{
-		var properties = typeof(AdaptiveTtlWeightOptions)
-			.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-		properties.Length.ShouldBeLessThanOrEqualTo(10,
-			$"AdaptiveTtlWeightOptions has {properties.Length} properties: " +
-			$"{string.Join(", ", properties.Select(p => p.Name))}");
-	}
-
-	[Fact]
 	public void ThresholdSubOptions_HaveAtMost10Properties()
 	{
 		var properties = typeof(AdaptiveTtlThresholdOptions)
@@ -154,13 +143,6 @@ public sealed class RuleBasedTtlOptionsIspSplitShould
 	{
 		var options = new RuleBasedTtlOptions();
 		options.Content.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AdaptiveTtlOptions_HaveNonNullWeightsSubOptions()
-	{
-		var options = new AdaptiveTtlOptions();
-		options.Weights.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -400,7 +382,6 @@ public sealed class RuleBasedTtlOptionsIspSplitShould
 			// Inherited from AdaptiveTtlOptions
 			MinTtl = TimeSpan.FromSeconds(10),
 			MaxTtl = TimeSpan.FromHours(12),
-			TargetHitRate = 0.85,
 			// RuleBasedTtlOptions sub-options
 			HitRate = new RuleBasedHitRateOptions { HighHitRateThreshold = 0.95 },
 			Frequency = new RuleBasedFrequencyOptions { HighFrequencyThreshold = 500 },
@@ -412,7 +393,6 @@ public sealed class RuleBasedTtlOptionsIspSplitShould
 		// Verify inherited properties
 		options.MinTtl.ShouldBe(TimeSpan.FromSeconds(10));
 		options.MaxTtl.ShouldBe(TimeSpan.FromHours(12));
-		options.TargetHitRate.ShouldBe(0.85);
 
 		// Verify sub-option properties
 		options.HitRate.HighHitRateThreshold.ShouldBe(0.95);
@@ -472,8 +452,6 @@ public sealed class RuleBasedTtlOptionsIspSplitShould
 		// Verify inherited AdaptiveTtlOptions properties work
 		options.MinTtl.ShouldBe(TimeSpan.FromSeconds(5));
 		options.MaxTtl.ShouldBe(TimeSpan.FromHours(24));
-		options.TargetHitRate.ShouldBe(0.8);
-		options.Weights.ShouldNotBeNull();
 		options.Thresholds.ShouldNotBeNull();
 	}
 

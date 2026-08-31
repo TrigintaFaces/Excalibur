@@ -16,6 +16,13 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 public sealed class InMemoryTransportConformanceTests
 	: TransportConformanceTestBase<InMemoryChannelSender, InMemoryChannelReceiver>
 {
+	/// <summary>
+	/// This transport runs in-process, so its arms execute whether or not a container runtime is available.
+	/// Counting them toward run liveness would make <c>ConformanceLivenessGate</c> green in exactly the
+	/// situation it exists to catch: every broker suite skipped, this one passed, assembly reports success.
+	/// </summary>
+	protected override bool UsesExternalBroker => false;
+
 	private Channel<object>? _channel;
 	private InMemoryDeadLetterQueueManager? _dlqManager;
 
@@ -181,7 +188,7 @@ public sealed class InMemoryDeadLetterQueueManager : IDeadLetterQueueManager
 		}
 	}
 
-	public Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		lock (_lock)
 		{

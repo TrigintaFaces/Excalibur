@@ -11,8 +11,8 @@ dotnet add package Excalibur.Compliance.Azure
 ## Quick Start
 
 ```csharp
-// Add Excalibur.Compliance.Azure to your service configuration
-services.AddComplianceAzure();
+services.AddAzureKeyVaultKeyManagement(azure => azure
+    .VaultUri(new Uri("https://my-vault.vault.azure.net/")));
 ```
 
 ## Documentation
@@ -21,4 +21,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

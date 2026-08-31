@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Grpc.Core;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
@@ -93,6 +94,7 @@ public static class InboxBuilderFirestoreExtensions
 		}
 
 		// Register ValidateOnStart
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddOptions<FirestoreInboxOptions>().ValidateOnStart();
 
 		// Register validator
@@ -109,7 +111,16 @@ public static class InboxBuilderFirestoreExtensions
 			var projectId = firestoreBuilder.ProjectIdValue ?? "emulator-project";
 			var emulatorHost = firestoreBuilder.EmulatorHostValue;
 			builder.Services.TryAddSingleton(_ =>
-				new FirestoreDbBuilder { ProjectId = projectId, EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly, Endpoint = emulatorHost }.Build());
+				new FirestoreDbBuilder
+				{
+					ProjectId = projectId,
+
+					// Endpoint and EmulatorDetection.EmulatorOnly are mutually exclusive: setting both
+					// throws "Endpoint is set, contrary to use of EmulatorDetection.EmulatorOnly", so this
+					// registration could not resolve a client at all when an emulator host was configured.
+					Endpoint = emulatorHost,
+					ChannelCredentials = ChannelCredentials.Insecure,
+				}.Build());
 		}
 		else if (firestoreBuilder.ProjectIdValue is not null)
 		{
@@ -118,13 +129,15 @@ public static class InboxBuilderFirestoreExtensions
 		}
 
 		// Register store services
-		// AddTenantScopedStore injects ITenantContext AND emits the ITenantScopingCapability<IInboxStore>
-		// marker inseparably from that wiring, so an unwired provider cannot advertise a capability it does
-		// not have.
-		builder.Services.AddTenantScopedStore<IInboxStore, FirestoreInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore injects ITenantContext (since this store's constructor declares one) AND
+		// emits the ITenantScopingCapability<IInboxStore> marker inseparably from that wiring, so an
+		// unwired provider cannot advertise a capability it does not have.
+		_ = builder.Services.AddDefaultTenantContext();
+		builder.Services.AddTenantAwareStore<IInboxStore, FirestoreInboxStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<FirestoreInboxOptions>>();
 			var logger = sp.GetRequiredService<ILogger<FirestoreInboxStore>>();
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
 
 			// A registered FirestoreDb must still win; the options-only overload would discard it.
 			var db = sp.GetService<FirestoreDb>();
@@ -133,6 +146,7 @@ public static class InboxBuilderFirestoreExtensions
 				? new FirestoreInboxStore(options, logger, tenantContext)
 				: new FirestoreInboxStore(db, options, logger, tenantContext);
 		});
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddKeyedSingleton<IInboxStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("firestore"));

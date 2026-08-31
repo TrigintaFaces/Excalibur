@@ -6,7 +6,7 @@ namespace Excalibur.Outbox.Postgres.Diagnostics;
 /// <summary>
 /// Event IDs for Postgres outbox store operations (101900-101999, 102000-102099).
 /// </summary>
-public static class OutboxPostgresEventId
+internal static class OutboxPostgresEventId
 {
 	// ========================================
 	// 101900-101999: Outbox Store

@@ -22,11 +22,25 @@ namespace Excalibur.Data.Persistence;
 public interface IPersistenceProviderHealth
 {
 	/// <summary>
-	/// Gets a value indicating whether the provider is currently available and healthy.
+	/// Gets a value indicating whether the provider is ready to serve requests.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if the provider is available and healthy; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> while the provider is ready to serve and has not been disposed;
+	/// otherwise, <see langword="false"/>.
 	/// </value>
+	/// <remarks>
+	/// <para>
+	/// Readiness may be established either at construction — when the provider is handed an already
+	/// connected dependency, such as a client it does not own — or by <c>InitializeAsync</c> for
+	/// providers that build their own connection from configuration. Both are supported; which one
+	/// applies is a property of the constructor you chose, not of the interface.
+	/// </para>
+	/// <para>
+	/// Implementations must report <see langword="false"/> once disposed, and may report
+	/// <see langword="false"/> while otherwise ready if the underlying connection has dropped. This is
+	/// a cheap, non-blocking status flag rather than a probe: reading it must not perform I/O.
+	/// </para>
+	/// </remarks>
 	bool IsAvailable { get; }
 
 	/// <summary>
@@ -41,12 +55,32 @@ public interface IPersistenceProviderHealth
 	/// </summary>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A dictionary of metric names and values. </returns>
+	/// <remarks>
+	/// <para>
+	/// The returned dictionary MUST contain two identifying entries, and they carry different
+	/// dimensions:
+	/// </para>
+	/// <list type="bullet">
+	/// <item><description>
+	/// <c>"Provider"</c> is the <b>engine</b> identity — a fixed literal, constant per implementation and
+	/// identical for every instance of it (for example <c>"SqlServer"</c> for every SQL Server instance).
+	/// It MUST NOT vary with configuration, and in particular MUST NOT be set from
+	/// <see cref="IPersistenceProvider.Name"/>, which is the instance dimension and would make the engine
+	/// unreadable.
+	/// </description></item>
+	/// <item><description>
+	/// <c>"Name"</c> is the <b>instance</b> identity — the value of
+	/// <see cref="IPersistenceProvider.Name"/>, which distinguishes two separately configured instances of
+	/// the same engine.
+	/// </description></item>
+	/// </list>
+	/// <para>
+	/// Together they let a consumer aggregating across a mixed deployment group by engine and still
+	/// attribute a reading to the instance that produced it. Keys are compared with an ordinal comparer,
+	/// so the casing is part of the contract -- <c>"provider"</c> is a different key and does not satisfy
+	/// it. Every other key is provider-specific; the convention is PascalCase. The conformance suite
+	/// verifies the required entries.
+	/// </para>
+	/// </remarks>
 	Task<IDictionary<string, object>> GetMetricsAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Gets the current connection pool statistics (if applicable).
-	/// </summary>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> Connection pool statistics or <see langword="null"/> if not applicable. </returns>
-	Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken);
 }

@@ -47,7 +47,7 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 		// that sentinel. Scoped and None therefore emit IDENTICAL SQL and the discriminator moved from the
 		// text to the BOUND VALUE — which is why asserting on CommandText alone can no longer tell a
 		// tenant-restricted purge from an untenanted one.
-		var sql = EmittedSql(TenantScope.None, allTenants: false);
+		var sql = EmittedSql(TenantScope.Untenanted, allTenants: false);
 
 		sql.ShouldContain(
 			"AND TenantId = @TenantId",
@@ -56,7 +56,7 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 			+ "purge every tenant's completed sagas — the estate-wide sweep, reached by omission rather "
 			+ "than by the caller declaring it.");
 
-		BoundTenant(TenantScope.None, allTenants: false).ShouldBe(
+		BoundTenant(TenantScope.Untenanted, allTenants: false).ShouldBe(
 			KeyedTenantPartition.Untenanted.TenantId,
 			"omission must bind the reserved untenanted sentinel. If this binds a real tenant the purge "
 			+ "deletes their rows; if it binds null the predicate matches nothing and the purge silently "
@@ -75,7 +75,7 @@ public sealed class PurgeRangeOpPredicateConformanceShould
 	{
 		// LIVENESS (must-not-fire): the explicit, opted-in sweep is allowed to span all tenants —
 		// it emits NO tenant predicate, and that is correct precisely because it was declared.
-		var sweep = EmittedSql(TenantScope.None, allTenants: true);
+		var sweep = EmittedSql(TenantScope.Untenanted, allTenants: true);
 		sweep.ShouldNotContain("TenantId IS NULL");
 		sweep.ShouldNotContain("TenantId = @TenantId");
 		// Non-vacuity: it is the SAME statement modulo the tenant fragment — still a real purge.

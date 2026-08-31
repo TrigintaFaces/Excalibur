@@ -19,7 +19,7 @@ namespace Excalibur.Outbox.Postgres;
 /// (<see cref="OutboxPartitionOptions"/>), or a failed message could be re-claimed on the very next poll (a
 /// retry hot-loop). This is a fail-fast composition validator, loud at startup rather than a silent runtime regression.
 /// </remarks>
-public sealed class PostgresOutboxStoreOptionsValidator(
+internal sealed class PostgresOutboxStoreOptionsValidator(
 	IOptions<OutboxProcessingOptions> processingOptions,
 	IOptions<OutboxPartitionOptions> partitionOptions)
 	: IValidateOptions<PostgresOutboxStoreOptions>

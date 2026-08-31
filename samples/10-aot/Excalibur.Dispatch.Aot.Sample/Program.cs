@@ -16,6 +16,7 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Aot.Sample.EventSourcing;
 using Excalibur.Dispatch.Aot.Sample.Handlers;
 using Excalibur.Domain.Model;
@@ -24,9 +25,13 @@ using Excalibur.Dispatch.Aot.Sample.Serialization;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.EventSourcing;
+using Excalibur.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Excalibur.EventSourcing.InMemory;
 
 Console.WriteLine("================================================");
 Console.WriteLine("  Excalibur.Dispatch.Aot.Sample - Native AOT Demo");
@@ -47,6 +52,17 @@ var services = new ServiceCollection();
 // Add logging (minimal setup for demo)
 services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 
+// Handler activation for anything the generated direct-dispatch table does not cover. Registered
+// BEFORE AddDispatch, because Dispatch adds its default activator only if none is present -- and
+// that default compiles expressions, which a Native AOT build cannot do.
+services.AddSingleton<IHandlerActivator, AotHandlerActivator>();
+
+// Event serialization for a runtime without dynamic code. There is no default here and there cannot
+// be one: the serializer reads and writes through a JsonSerializerContext generated in THIS assembly
+// over THIS application's event types, which the framework cannot synthesize. A composition that
+// omits this call is rejected at startup rather than failing on the first event written.
+services.AddAotEventSerializer(AppJsonSerializerContext.Default);
+
 // Configure Dispatch with source-generator-discovered handlers (AOT-safe, zero reflection)
 services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 
@@ -59,6 +75,13 @@ services.AddInMemoryEventStore();
 
 // Configure source-generated JSON serializer options
 services.AddSingleton(AppJsonSerializerContext.Default.Options);
+
+// Hand the event store the same source-generated context. Registering the options above is not
+// enough on its own: the store reads its resolver from its own options, so without this line it
+// falls back to reflection and a PublishAot build fails at the first append rather than at build
+// time. Declare every type the store writes -- the events, and the value types your metadata holds.
+services.Configure<InMemoryEventStoreOptions>(
+	options => options.EventTypeInfoResolver = AppJsonSerializerContext.Default);
 
 var provider = services.BuildServiceProvider();
 
@@ -216,14 +239,12 @@ Console.WriteLine("--- Demo 8: InMemory Event Store Round-Trip ---");
 var eventStore = provider.GetRequiredKeyedService<IEventStore>("default");
 var uncommittedEvents = account.GetUncommittedEvents();
 
-#pragma warning disable IL2026, IL3050 // InMemoryEventStore serialization uses reflection internally
 var appendResult = await eventStore.AppendAsync(
 	account.Id,
 	account.AggregateType,
 	uncommittedEvents,
 	-1, // expected version: -1 means new aggregate (no prior events)
 	CancellationToken.None).ConfigureAwait(false);
-#pragma warning restore IL2026, IL3050
 
 Console.WriteLine($"Append result: Success={appendResult.Success}, NextExpectedVersion={appendResult.NextExpectedVersion}");
 
@@ -329,6 +350,79 @@ await transport.StopAsync(CancellationToken.None).ConfigureAwait(false);
 Console.WriteLine($"Transport stopped: IsRunning={transport.IsRunning}");
 Console.WriteLine();
 
+
+// ============================================================================
+// S4: Compliance - SOC 2 Configuration Binding + Report Export
+// ============================================================================
+// Roots Excalibur.Compliance for AOT publish validation: configuration binding
+// of Soc2Options (including the nested SystemDescription and ControlDefinition
+// report-content types) via AddSoc2Compliance(IConfiguration), and the
+// reflection-free Soc2ReportExporter (JSON/CSV/XML/text; PDF is opt-in via
+// Excalibur.Compliance.Pdf). NOTE: under a full Native AOT publish, the
+// configuration binding below currently loses SystemDescription's values
+// silently, because the reflection-based ConfigurationBinder.Bind() this
+// overload uses is not trim-safe for this nested record graph. This demo
+// intentionally prints whatever actually got bound rather than asserting it,
+// so the gap stays visible instead of being asserted away.
+// ============================================================================
+
+await RunComplianceDemoAsync().ConfigureAwait(false);
+
+// Kept out of the top-level Program member (CA1505 maintainability index) --
+// this is the whole S4 demo body, unchanged, just callable instead of inline.
+static async Task RunComplianceDemoAsync()
+{
+	// ============================================================================
+	// Demo 11: SOC 2 Options Bound From Configuration
+	// ============================================================================
+	Console.WriteLine("--- Demo 11: SOC 2 Configuration Binding (AOT) ---");
+
+	var complianceConfig = new ConfigurationBuilder()
+		.AddInMemoryCollection(new Dictionary<string, string?>
+		{
+			["SystemDescription:Name"] = "Aot Sample System",
+			["SystemDescription:Description"] = "Demonstrates AOT-safe SOC 2 configuration binding.",
+			["SystemDescription:Services:0"] = "Order processing",
+			["SystemDescription:Infrastructure:0"] = "Kubernetes",
+			["SystemDescription:DataTypes:0"] = "Order records"
+		})
+		.Build();
+
+	var complianceServices = new ServiceCollection();
+	complianceServices.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
+	complianceServices.AddSingleton(TimeProvider.System);
+	complianceServices.AddSoc2Compliance(complianceConfig);
+
+	await using var complianceProvider = complianceServices.BuildServiceProvider();
+	var soc2Options = complianceProvider.GetRequiredService<IOptions<Soc2Options>>().Value;
+	Console.WriteLine($"Bound system name: {soc2Options.SystemDescription?.Name}");
+	Console.WriteLine($"Bound services:    {string.Join(", ", soc2Options.SystemDescription?.Services ?? [])}");
+
+	// ============================================================================
+	// Demo 12: SOC 2 Report Export (Reflection-Free Formats)
+	// ============================================================================
+	Console.WriteLine("--- Demo 12: SOC 2 Report Export (AOT) ---");
+
+	var soc2Exporter = complianceProvider.GetRequiredService<ISoc2ReportExporter>();
+	var soc2Report = new Soc2Report
+	{
+		ReportId = Guid.NewGuid(),
+		ReportType = Soc2ReportType.TypeI,
+		Title = "AOT Sample SOC 2 Report",
+		PeriodStart = DateTimeOffset.UtcNow.AddDays(-1),
+		PeriodEnd = DateTimeOffset.UtcNow,
+		CategoriesIncluded = [TrustServicesCategory.Security],
+		System = soc2Options.SystemDescription!,
+		ControlSections = [],
+		Opinion = AuditorOpinion.Unqualified
+	};
+
+	var soc2Export = await soc2Exporter.ExportAsync(soc2Report, ExportFormat.Json, null, CancellationToken.None)
+		.ConfigureAwait(false);
+	Console.WriteLine($"Exported: {soc2Export.FileName} ({soc2Export.Data.Length} bytes, {soc2Export.ContentType})");
+	Console.WriteLine();
+}
+
 // ============================================================================
 // AOT Build Verification
 // ============================================================================
@@ -361,4 +455,8 @@ Console.WriteLine("  - Transport SendAsync (message tracking)");
 Console.WriteLine("  - Source-generated JSON serialization for transport payloads");
 Console.WriteLine("  - Event dispatch through pipeline to handler");
 Console.WriteLine("  - Transport health check API");
+Console.WriteLine();
+Console.WriteLine("S4 - Compliance:");
+Console.WriteLine("  - Configuration binding of Soc2Options (SystemDescription, ControlDefinition)");
+Console.WriteLine("  - Reflection-free SOC 2 report export (JSON)");
 Console.WriteLine("================================================");

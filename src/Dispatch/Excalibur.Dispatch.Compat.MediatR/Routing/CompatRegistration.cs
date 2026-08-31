@@ -113,6 +113,7 @@ internal static class CompatGeneratedRegistrations
         Assembly HandlerAssembly,
         Func<ICompatRequestBridge> BridgeFactory,
         Type HandlerServiceType,
+        [param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         [field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type HandlerImplementationType);
 
@@ -121,6 +122,7 @@ internal static class CompatGeneratedRegistrations
         Assembly HandlerAssembly,
         Func<ICompatNotificationBridge> BridgeFactory,
         Type HandlerServiceType,
+        [param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         [field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type HandlerImplementationType);
 
@@ -129,6 +131,7 @@ internal static class CompatGeneratedRegistrations
         Assembly HandlerAssembly,
         Func<ICompatStreamBridge> BridgeFactory,
         Type HandlerServiceType,
+        [param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         [field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type HandlerImplementationType);
 }

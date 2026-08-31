@@ -97,7 +97,7 @@ public sealed class MediatRCompatSourceGenerator : IIncrementalGenerator
 
     private static void Emit(SourceProductionContext context, ImmutableArray<HandlerInfo> handlers)
     {
-        // ADR-341 §9: emit a [ModuleInitializer] that registers each discovered compat handler's bridge +
+        // emit a [ModuleInitializer] that registers each discovered compat handler's bridge +
         // handler-type via the public CompatRegistration API. AddMediatRCompat then filters these by the
         // consumer's registered assemblies. Swap-only, AOT-safe (closed generics, no reflection).
         var sb = new StringBuilder();

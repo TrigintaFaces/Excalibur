@@ -1,0 +1,417 @@
+# Public members annotated RequiresDynamicCode / RequiresUnreferencedCode.
+#
+# An entry is a RECORD, not an approval: this member's reflection path was known and
+# accepted when it was written down. Removing an entry is always safe. Adding one is a
+# decision -- it means a consumer's build will now warn at their call site.
+#
+# Regenerate deliberately, never to clear a failure you have not read:
+#   python3 eng/ci/aot-annotation-inventory-gate.py --regenerate
+src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/EventTypeRegistrationServiceCollectionExtensions.cs::AddEventTypesFromAssembly
+src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs::JsonEventSerializer
+src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::EnqueueAsync
+src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::GetUnsentMessagesAsync
+src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxWriterExtensions.cs::WriteScheduledAsync
+src/Dispatch/Excalibur.Dispatch.Caching/CachingDispatchBuilderExtensions.cs::UseCaching
+src/Dispatch/Excalibur.Dispatch.Caching/CachingDispatchBuilderExtensions.cs::WithCachingOptions
+src/Dispatch/Excalibur.Dispatch.Caching/CachingMiddleware.cs::InvokeAsync
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::AddDispatchCaching
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::AddDispatchHybridCaching
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::AddDispatchMemoryCaching
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::AddDispatchRedisCaching
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::DynamicallyAccessedMembers
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::InvokeAsync
+src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::public static IServiceCollection AddDisp
+src/Dispatch/Excalibur.Dispatch.Caching/DefaultCacheKeyBuilder.cs::CreateKey
+src/Dispatch/Excalibur.Dispatch.Compat.MediatR/DependencyInjection/MediatRCompatServiceCollectionExtensions.cs::AddMediatRCompat
+src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/EndpointRouteBuilderExtensions.cs::public static RouteHandlerBuilder Dispat
+src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/WebApplicationBuilderExtensions.cs::AddDispatch
+src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/AwsLambdaServiceCollectionExtensions.cs::AddAwsLambdaServerless
+src/Dispatch/Excalibur.Dispatch.Observability/Context/ContextTraceEnricher.cs::CreateContextOperationSpan
+src/Dispatch/Excalibur.Dispatch.Observability/Context/ContextTraceEnricher.cs::EnrichActivity
+src/Dispatch/Excalibur.Dispatch.Observability/DispatchBuilderObservabilityExtensions.cs::UseObservability
+src/Dispatch/Excalibur.Dispatch.Patterns/ClaimCheck/ClaimCheckMessageSerializer.cs::ClaimCheckMessageSerializer
+src/Dispatch/Excalibur.Dispatch.Resilience.Polly/DispatchBuilderResilienceExtensions.cs::UseResilience
+src/Dispatch/Excalibur.Dispatch.Resilience.Polly/PollyResilienceServiceCollectionExtensions.cs::AddPollyResilience
+src/Dispatch/Excalibur.Dispatch.Serialization.Avro/AvroSerializer.cs::ISerializer
+src/Dispatch/Excalibur.Dispatch.Serialization.MemoryPack/MemoryPackSerializer.cs::ISerializer
+src/Dispatch/Excalibur.Dispatch.Serialization.MessagePack/MessagePackSerializer.cs::ISerializer
+src/Dispatch/Excalibur.Dispatch.Serialization.Protobuf/ProtobufSerializer.cs::ISerializer
+src/Dispatch/Excalibur.Dispatch.SourceGenerators.Analyzers/Analyzers/AotCompatibilityAnalyzer.cs::DiagnosticAnalyzer
+src/Dispatch/Excalibur.Dispatch.Testing/DispatchTestHarness.cs::CreateAsyncScope
+src/Dispatch/Excalibur.Dispatch.Testing/DispatchTestHarness.cs::CreateScope
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForEventBridge
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForSns
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForSqs
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsCloudEventsServiceCollectionExtensions.cs::UseCloudEvents
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsEventBridgeCloudEventAdapter.cs::ToEventBridgeEventAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsEventBridgeCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSnsCloudEventAdapter.cs::ToSnsMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSnsCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSqsCloudEventAdapter.cs::ToBatchSqsMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSqsCloudEventAdapter.cs::ToSqsMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSqsCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/LongPolling/LongPollingServiceCollectionExtensions.cs::AddAwsLongPolling
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Transport/Builders/Options/AwsSqsSnsOptions.cs::ToJson
+src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForEventHubs
+src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForServiceBus
+src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureCloudEventsServiceCollectionExtensions.cs::UseCloudEvents
+src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureEventHubsCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureServiceBusCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/CloudEvents/GoogleCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForPubSub
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/CloudEvents/GoogleCloudEventsServiceCollectionExtensions.cs::UseCloudEvents
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/CloudEvents/GooglePubSubCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/DeadLetter/DeadLetterServiceCollectionExtensions.cs::AddOptimizedDeadLetterQueue
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/OrderingKey/OrderingKeyServiceCollectionExtensions.cs::AddGooglePubSubOrderingKey
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Serialization/MessageSerializerExtensions.cs::public static PubsubMessage SerializeToP
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Serialization/MessageSerializerExtensions.cs::public static T DeserializeFromPubSubMes
+src/Dispatch/Excalibur.Dispatch.Transport.Kafka/CloudEvents/KafkaCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.Kafka/CloudEvents/KafkaCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForKafka
+src/Dispatch/Excalibur.Dispatch.Transport.Kafka/DispatchBuilderKafkaExtensions.cs::UseKafka
+src/Dispatch/Excalibur.Dispatch.Transport.Kafka/KafkaTransportServiceCollectionExtensions.cs::AddKafkaTransport
+src/Dispatch/Excalibur.Dispatch.Transport.Kafka/SchemaRegistry/ConfluentSchemaRegistryOptions.cs::CreateSubjectNameStrategy
+src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/CloudEvents/RabbitMqCloudEventAdapter.cs::ToTransportMessageAsync
+src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/CloudEvents/RabbitMqCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForRabbitMq
+src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/DependencyInjection/FluentValidationServiceCollectionExtensions.cs::WithFluentValidation
+src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilderExtensions.cs::AddHandlersFromAssembly
+src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilderExtensions.cs::AddHandlersFromEntryAssembly
+src/Dispatch/Excalibur.Dispatch/Configuration/DispatchConfigurationServiceCollectionExtensions.cs::AddDefaultDispatchPipelines
+src/Dispatch/Excalibur.Dispatch/Configuration/DispatchConfigurationServiceCollectionExtensions.cs::AddStrictDispatchPipelines
+src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public Task<IMessageResult<TResponse>> D
+src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public Task<IMessageResult> DispatchAsyn
+src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public ValueTask DispatchLocalAsync<TMes
+src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public ValueTask<TResponse?> DispatchLoc
+src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerActivator.cs::PreWarmCache
+src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerInvoker.cs::IValueTaskHandlerInvoker
+src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerLifetimeAnalyzer.cs::PromoteEligibleHandlers
+src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs::DynamicallyAccessedMembers
+src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/TimeAwareSchedulingServiceCollectionExtensions.cs::AddAdaptiveTimeAwareScheduling
+src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/TimeAwareSchedulingServiceCollectionExtensions.cs::AddLightweightTimeAwareScheduling
+src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/TimeAwareSchedulingServiceCollectionExtensions.cs::AddThroughputTimeAwareScheduling
+src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/TimeAwareSchedulingServiceCollectionExtensions.cs::AddTimeAwareScheduling
+src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/TimeAwareSchedulingServiceCollectionExtensions.cs::ReplaceWithTimeAwareScheduling
+src/Dispatch/Excalibur.Dispatch/DeliveryServiceCollectionExtensions.cs::AddInboxOptions
+src/Dispatch/Excalibur.Dispatch/DeliveryServiceCollectionExtensions.cs::AddOutboxOptions
+src/Dispatch/Excalibur.Dispatch/DependencyInjection/UpcastingBuilder.cs::ScanAssemblies
+src/Dispatch/Excalibur.Dispatch/DependencyInjection/UpcastingBuilder.cs::ScanAssembly
+src/Dispatch/Excalibur.Dispatch/DispatchMessageExtensions.cs::ExpectsReturnValue
+src/Dispatch/Excalibur.Dispatch/DispatchMessageExtensions.cs::IsAction
+src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs::AddDispatch
+src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs::AddDispatchHandlers
+src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs::AddDispatchWithDefaults
+src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageDispatchBuilderExtensions.cs::UsePoisonMessageHandling
+src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageHandler.cs::HandlePoisonMessageAsync
+src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageHandler.cs::ReplayMessageAsync
+src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageServiceCollectionExtensions.cs::AddPoisonMessageHandling
+src/Dispatch/Excalibur.Dispatch/Extensions/AssemblyExtensions.cs::GetLoadableTypes
+src/Dispatch/Excalibur.Dispatch/MemoryMessageExtensions.cs::DynamicallyAccessedMembers
+src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/DeferredOutboxWriter.cs::WriteAsync
+src/Dispatch/Excalibur.Dispatch/Options/Serialization/DispatchJsonSerializerOptions.cs::ApplyDefaults
+src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishPendingMessagesAsync
+src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishScheduledMessagesAsync
+src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::RetryFailedMessagesAsync
+src/Dispatch/Excalibur.Dispatch/Routing/Builder/TransportRoutingBuilderExtensions.cs::RouteAll
+src/Dispatch/Excalibur.Dispatch/Routing/Policies/RoutingPolicyFileLoader.cs::LoadAsync
+src/Dispatch/Excalibur.Dispatch/Serialization/AotJsonSerializer.cs::DynamicallyAccessedMembers
+src/Dispatch/Excalibur.Dispatch/Serialization/CompositeAotJsonSerializer.cs::DynamicallyAccessedMembers
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::Deserialize
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DeserializeAsync
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DeserializeFromBytes
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DeserializeFromStreamAsync
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DeserializeFromUtf8
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::DynamicallyAccessedMembers
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::Serialize
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::SerializeAsync
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::public JsonElement SerializeToElement<T>
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::public PooledSerializationResult Seriali
+src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs::public string Serialize<T>(T value)
+src/Dispatch/Excalibur.Dispatch/Serialization/JsonWriterManager.cs::public PooledBuffer SerializeToPooledBuf
+src/Dispatch/Excalibur.Dispatch/Serialization/PluggableSerializationServiceCollectionExtensions.cs::AddEventSerializer
+src/Dispatch/Excalibur.Dispatch/Serialization/SerializationBuilderExtensions.cs::RegisterSystemTextJson
+src/Dispatch/Excalibur.Dispatch/Serialization/SerializerMigrationService.cs::MigrateStoreAsync
+src/Dispatch/Excalibur.Dispatch/Serialization/SpanEventSerializer.cs::DeserializeEvent
+src/Dispatch/Excalibur.Dispatch/Serialization/SpanEventSerializer.cs::DeserializeSnapshot
+src/Dispatch/Excalibur.Dispatch/Serialization/SpanEventSerializer.cs::GetSnapshotSize
+src/Dispatch/Excalibur.Dispatch/Serialization/SpanEventSerializer.cs::SerializeSnapshot
+src/Dispatch/Excalibur.Dispatch/Serialization/SystemTextJsonSerializer.cs::ISerializer
+src/Dispatch/Excalibur.Dispatch/Threading/ThreadingDispatchBuilderExtensions.cs::WithThreadingOptions
+src/Dispatch/Excalibur.Dispatch/Validation/Context/ContextValidationDispatchBuilderExtensions.cs::UseContextValidation
+src/Dispatch/Excalibur.Dispatch/Validation/Context/ContextValidationServiceCollectionExtensions.cs::AddContextValidation
+src/Dispatch/Excalibur.Dispatch/ZeroAlloc/ZeroAllocConfigurationExtensions.cs::UseZeroAllocation
+src/Excalibur/Excalibur.A3/A3ServiceCollectionExtensions.cs::AddA3DispatchServices
+src/Excalibur/Excalibur.A3/A3ServiceCollectionExtensions.cs::AddExcaliburA3
+src/Excalibur/Excalibur.A3/Audit/AuditExcaliburBuilderExtensions.cs::AddAudit
+src/Excalibur/Excalibur.A3/Audit/AuditMiddleware.cs::InvokeAsync
+src/Excalibur/Excalibur.A3/Audit/Internal/DefaultOutboxDispatcher.cs::RunOutboxDispatchAsync
+src/Excalibur/Excalibur.A3/Authorization/A3AuthorizationMiddleware.cs::InvokeAsync
+src/Excalibur/Excalibur.A3/Authorization/AttributeAuthorizationCache.cs::ExtractResourceId
+src/Excalibur/Excalibur.A3/Authorization/AttributeAuthorizationCache.cs::GetAttributes
+src/Excalibur/Excalibur.A3/Authorization/AttributeAuthorizationCache.cs::HasAttributes
+src/Excalibur/Excalibur.A3/Authorization/AuthorizationServiceCollectionExtensions.cs::AddExcaliburAuthorization
+src/Excalibur/Excalibur.A3/Authorization/DispatchBuilderExtensions.cs::AddExcaliburAuthorization
+src/Excalibur/Excalibur.Application/ExcaliburApplicationServiceCollectionExtensions.cs::AddActivities
+src/Excalibur/Excalibur.Caching/Projections/ExcaliburDispatchBuilderExtensions.cs::WithProjectionResolversFromAssembly
+src/Excalibur/Excalibur.Caching/Projections/ProjectionCacheInvalidator.cs::InvalidateCacheAsync
+src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdc
+src/Excalibur/Excalibur.Cdc.CosmosDb/CosmosDbCdcExtensions.cs::AddCosmosDbCdcStateStore
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcExtensions.cs::AddDynamoDbCdc
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::FromBase64
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::ToBase64
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::ToBytes
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::ToToken
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcPosition.cs::TryFromBase64
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs::GetPositionAsync
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbCdcStateStore.cs::SavePositionAsync
+src/Excalibur/Excalibur.Cdc.DynamoDb/DynamoDbStalePositionDetector.cs::CreateEventArgs
+src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs::GetPositionAsync
+src/Excalibur/Excalibur.Cdc.DynamoDb/InMemoryDynamoDbCdcStateStore.cs::SavePositionAsync
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcExtensions.cs::AddFirestoreCdc
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::FromBase64
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::FromBytes
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::ToBase64
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::ToBytes
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::ToToken
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcPosition.cs::TryFromBase64
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs::GetPositionAsync
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreCdcStateStore.cs::SavePositionAsync
+src/Excalibur/Excalibur.Cdc.Firestore/FirestoreStalePositionDetector.cs::CreateEventArgs
+src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs::GetPositionAsync
+src/Excalibur/Excalibur.Cdc.Firestore/InMemoryFirestoreCdcStateStore.cs::SavePositionAsync
+src/Excalibur/Excalibur.Cdc.SqlServer/DependencyInjection/DataChangeHandlerCdcBuilderExtensions.cs::AddDataChangeHandlersFromAssembly
+src/Excalibur/Excalibur.Cdc.SqlServer/DependencyInjection/DataChangeHandlerServiceCollectionExtensions.cs::AddDataChangeHandlersFromAssembly
+src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::EnqueueAsync
+src/Excalibur/Excalibur.Compliance/Encryption/Decorators/EncryptingOutboxStoreDecorator.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Compliance/Encryption/EncryptionDecryptionService.cs::DynamicallyAccessedMembers
+src/Excalibur/Excalibur.Compliance/Masking/RegexDataMasker.cs::class
+src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementService.cs::EnforceRetentionAsync
+src/Excalibur/Excalibur.Compliance/Retention/RetentionEnforcementService.cs::GetRetentionPoliciesAsync
+src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryCursorAsync
+src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.Data.CosmosDb/Projections/CosmosDbProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.DataProcessing/Builders/DataProcessingBuilderExtensions.cs::AddProcessorsFromAssembly
+src/Excalibur/Excalibur.Data.DataProcessing/Builders/DataProcessingBuilderExtensions.cs::AddRecordHandlersFromAssembly
+src/Excalibur/Excalibur.Data.DataProcessing/DataProcessingServiceCollectionExtensions.cs::AddDataProcessing
+src/Excalibur/Excalibur.Data.DataProcessing/DataProcessorRegistry.cs::DataProcessorRegistry
+src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::ExecuteBatchAsync
+src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::public async Task<CloudOperationResult<T
+src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::public async Task<CloudQueryResult<TDocu
+src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs::public async Task<TDocument?> GetByIdAsy
+src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::QueryCursorAsync
+src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotDocument.cs::FromSnapshot
+src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotDocument.cs::ToSnapshot
+src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchIndexManagement
+src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchMonitoring
+src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchProjections
+src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddElasticsearchServices
+src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddMonitoredResilientElasticsearchServices
+src/Excalibur/Excalibur.Data.ElasticSearch/ElasticSearchServiceCollectionExtensions.cs::AddResilientElasticsearchServices
+src/Excalibur/Excalibur.Data.ElasticSearch/MaterializedViews/ElasticSearchMaterializedViewStore.cs::public async ValueTask SaveAsync<TView>(
+src/Excalibur/Excalibur.Data.ElasticSearch/MaterializedViews/ElasticSearchMaterializedViewStore.cs::public async ValueTask<TView?> GetAsync<
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchActivitySource.cs::EnrichWithRequestDetails
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchActivitySource.cs::EnrichWithResponseDetails
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchMonitoringService.cs::StartOperation
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchRequestLogger.cs::LogRequest
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchRequestLogger.cs::LogResponse
+src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/SecureElasticRepositoryBase.cs::SecureGetByIdAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/SecureElasticRepositoryBase.cs::SecureIndexAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/SecureElasticRepositoryBase.cs::SecureSearchAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/SecureElasticRepositoryBase.cs::SecureUpdateAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::DecryptDocumentAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::DecryptFieldAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::EncryptDocumentAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Encryption/FieldEncryptor.cs::EncryptFieldAsync
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAuthentication
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddAzureKeyVault
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddElasticsearchSecurity
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddKeyManagement
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs::AddSecurityMonitoring
+src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.InMemory/InMemoryPersistenceProvider.cs::InitializeAsync
+src/Excalibur/Excalibur.Data.InMemory/InMemoryPersistenceProvider.cs::PersistToDiskAsync
+src/Excalibur/Excalibur.Data.MongoDB/MaterializedViews/MongoDbMaterializedViewStore.cs::public async ValueTask SaveAsync<TView>(
+src/Excalibur/Excalibur.Data.MongoDB/MaterializedViews/MongoDbMaterializedViewStore.cs::public async ValueTask SaveViewAndPositi
+src/Excalibur/Excalibur.Data.MongoDB/MaterializedViews/MongoDbMaterializedViewStore.cs::public async ValueTask<TView?> GetAsync<
+src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.Data.MongoDB/Projections/MongoDbProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.OpenSearch/MaterializedViews/OpenSearchMaterializedViewStore.cs::public async ValueTask SaveAsync<TView>(
+src/Excalibur/Excalibur.Data.OpenSearch/MaterializedViews/OpenSearchMaterializedViewStore.cs::public async ValueTask<TView?> GetAsync<
+src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceServiceCollectionExtensions.cs::AddPostgresPersistence
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceServiceCollectionExtensions.cs::AddPostgresPersistenceFromSection
+src/Excalibur/Excalibur.Data.SqlServer/Persistence/SqlServerPersistenceExtensions.cs::AddSqlServerPersistence
+src/Excalibur/Excalibur.Data/Serialization/ExcaliburJsonSerializerOptions.cs::ExcaliburJsonSerializerOptions
+src/Excalibur/Excalibur.Domain/BoundedContext/BoundedContextServiceCollectionExtensions.cs::AddBoundedContextEnforcement
+src/Excalibur/Excalibur.Domain/BoundedContext/DefaultBoundedContextValidator.cs::DefaultBoundedContextValidator
+src/Excalibur/Excalibur.Domain/BoundedContext/DefaultBoundedContextValidator.cs::ValidateAsync
+src/Excalibur/Excalibur.Domain/DomainServiceCollectionExtensions.cs::AddImplementations
+src/Excalibur/Excalibur.Domain/DomainServiceCollectionExtensions.cs::public static IServiceCollection AddImpl
+src/Excalibur/Excalibur.Domain/Model/SmartEnum.cs::public abstract class SmartEnum<T>
+src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<CursorPagedResu
+src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<IReadOnlyList<o
+src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<PagedResult<TPr
+src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<bool> ExistsAsy
+src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventPayloadWriter.cs::SerializeEvent
+src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventPayloadWriter.cs::SerializeMetadata
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresMaterializedViewStore.cs::public async ValueTask SaveAsync<TView>(
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresMaterializedViewStore.cs::public async ValueTask SaveViewAndPositi
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresMaterializedViewStore.cs::public async ValueTask<TView?> GetAsync<
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedViewStore.cs::public async ValueTask SaveAsync<TView>(
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedViewStore.cs::public async ValueTask SaveViewAndPositi
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedViewStore.cs::public async ValueTask<TView?> GetAsync<
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Decorators/IsolatingProjectionStoreDecorator.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing/Decorators/IsolatingProjectionStoreDecorator.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing/Decorators/IsolatingProjectionStoreDecorator.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Decorators/ProjectionStoreCapabilityView.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing/Decorators/ProjectionStoreCapabilityView.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing/Decorators/ProjectionStoreCapabilityView.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventNotificationServiceCollectionExtensions.cs::AddEventNotificationHandlersFromAssembly
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventNotificationServiceCollectionExtensions.cs::AddProjectionsFromAssembly
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventNotificationServiceCollectionExtensions.cs::Configure
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventNotificationServiceCollectionExtensions.cs::UseEventNotification
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventNotificationServiceCollectionExtensions.cs::UseProjectionRecovery
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventNotificationServiceCollectionExtensions.cs::public static IEventSourcingBuilder AddP
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventSourcingUtilitiesServiceCollectionExtensions.cs::public static IServiceCollection AddAggr
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/ExcaliburEventSourcingBuilder.cs::RegisterEventTypesFromAssembly
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/ImmutableProjectionServiceCollectionExtensions.cs::Configure
+src/Excalibur/Excalibur.EventSourcing/DependencyInjection/ImmutableProjectionServiceCollectionExtensions.cs::public static IEventSourcingBuilder AddI
+src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::QueryCursorAsync
+src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::QueryPagedAsync
+src/Excalibur/Excalibur.EventSourcing/Encryption/Decorators/EncryptingProjectionStoreDecorator.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Projections/EventNotificationBroker.cs::EventNotificationBroker
+src/Excalibur/Excalibur.EventSourcing/Projections/ImmutableProjectionBuilder.cs::AddImmutableProjectionHandlersFromAssembly
+src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionBuilder.cs::AddProjectionHandlersFromAssembly
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantRoutingProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::GetByIdAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryCursorAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::QueryPagedAsync
+src/Excalibur/Excalibur.EventSourcing/Sharding/TenantScopedProjectionStore.cs::UpsertAsync
+src/Excalibur/Excalibur.EventSourcing/Snapshots/CompositeSnapshotStrategy.cs::ShouldCreateSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/IncrementalSnapshotStrategy.cs::ShouldCreateSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/IntervalSnapshotStrategy.cs::ShouldCreateSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/NoSnapshotStrategy.cs::ShouldCreateSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/SizeBasedSnapshotStrategy.cs::ShouldCreateSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/SnapshotVersionManager.cs::UpgradeSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/TimeBasedSnapshotStrategy.cs::ShouldCreateSnapshot
+src/Excalibur/Excalibur.EventSourcing/Snapshots/Upgrading/SnapshotUpgraderRegistry.cs::public void Register<TFrom, TTo>(
+src/Excalibur/Excalibur.EventSourcing/Views/MaterializedViewProcessor.cs::CatchUpAsync
+src/Excalibur/Excalibur.EventSourcing/Views/MaterializedViewProcessor.cs::ProcessEventAsync
+src/Excalibur/Excalibur.EventSourcing/Views/MaterializedViewProcessor.cs::ProcessEventsAsync
+src/Excalibur/Excalibur.EventSourcing/Views/MaterializedViewProcessor.cs::RebuildAsync
+src/Excalibur/Excalibur.EventSourcing/Views/ViewStoreAccessor.cs::GetAsync
+src/Excalibur/Excalibur.EventSourcing/Views/ViewStoreAccessor.cs::SaveAsync
+src/Excalibur/Excalibur.EventSourcing/Views/ViewStoreAccessor.cs::SaveWithPositionAsync
+src/Excalibur/Excalibur.Hosting.AwsLambda/ExcaliburAwsLambdaServiceCollectionExtensions.cs::AddExcaliburAwsLambdaServerless
+src/Excalibur/Excalibur.Hosting.HealthChecks/ApplicationBuilderExtensions.cs::UseExcaliburHealthChecks
+src/Excalibur/Excalibur.Hosting.Jobs/ApplicationBuilderExtensions.cs::UseExcaliburJobHost
+src/Excalibur/Excalibur.Hosting.Jobs/Builders/JobsExcaliburBuilderExtensions.cs::AddJobs
+src/Excalibur/Excalibur.Hosting.Jobs/HostApplicationBuilderExtensions.cs::AddExcaliburJobHost
+src/Excalibur/Excalibur.Hosting/Builders/ExcaliburBuilderContextExtensions.cs::ScanAssemblies
+src/Excalibur/Excalibur.Hosting/Builders/ExcaliburBuilderDispatchExtensions.cs::AddDispatch
+src/Excalibur/Excalibur.Hosting/DependencyInjection/DispatchHealthChecksBuilderExtensions.cs::AddExcaliburHealthChecks
+src/Excalibur/Excalibur.Jobs.Redis/Coordination/RedisJobCoordinator.cs::DistributeJobAsync
+src/Excalibur/Excalibur.Jobs.Redis/Coordination/RedisJobCoordinator.cs::ReportJobCompletionAsync
+src/Excalibur/Excalibur.Jobs.SqlServer/SqlServerJobCoordinator.cs::DistributeJobAsync
+src/Excalibur/Excalibur.Jobs.SqlServer/SqlServerJobCoordinator.cs::ReportJobCompletionAsync
+src/Excalibur/Excalibur.Jobs/Core/ConfigurationExtensions.cs::public static TOptions GetJobConfigurati
+src/Excalibur/Excalibur.Jobs/Quartz/ApplicationBuilderExtensions.cs::UseExcaliburJobHost
+src/Excalibur/Excalibur.LeaderElection/Watch/LeaderElectionWatchServiceCollectionExtensions.cs::AddLeaderElectionWatcher
+src/Excalibur/Excalibur.Outbox.ElasticSearch/ElasticsearchOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.ElasticSearch/ElasticsearchOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.InMemory/InMemoryOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.Marten/MartenOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.Marten/MartenOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.MongoDB/MongoDbOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.MongoDB/MongoDbOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.Oracle/OracleOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.Oracle/OracleOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.Postgres/PostgresOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.Postgres/PostgresOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.Redis/RedisOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox/DependencyInjection/OutboxExcaliburBuilderExtensions.cs::AddOutbox
+src/Excalibur/Excalibur.Outbox/Diagnostics/TelemetryOutboxStoreDecorator.cs::EnqueueAsync
+src/Excalibur/Excalibur.Outbox/Diagnostics/TelemetryOutboxStoreDecorator.cs::GetUnsentMessagesAsync
+src/Excalibur/Excalibur.Outbox/MultiTransport/MultiTransportOutboxServiceCollectionExtensions.cs::AddMultiTransportOutbox
+src/Excalibur/Excalibur.Outbox/Outbox/MessageOutbox.cs::RunOutboxDispatchAsync
+src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs::DispatchPendingMessagesAsync
+src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs::Init
+src/Excalibur/Excalibur.Outbox/Outbox/OutboxProcessor.cs::OutboxProcessor
+src/Excalibur/Excalibur.Outbox/TransactionalOutboxWriter.cs::WriteAsync
+src/Excalibur/Excalibur.Saga.CosmosDb/CosmosDbSagaStore.cs::public async Task SaveAsync<TSagaState>(
+src/Excalibur/Excalibur.Saga.DynamoDb/DynamoDbSagaStore.cs::public async Task SaveAsync<TSagaState>(
+src/Excalibur/Excalibur.Saga.Firestore/FirestoreSagaStore.cs::public async Task SaveAsync<TSagaState>(
+src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::AddOracleSagaStore
+src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::UseOracleSagaStore
+src/Excalibur/Excalibur.Saga.Oracle/DependencyInjection/OracleSagaExtensions.cs::public static IServiceCollection AddOrac
+src/Excalibur/Excalibur.Saga.Oracle/Requests/SaveSagaRequest.cs::SaveSagaRequest
+src/Excalibur/Excalibur.Saga.Postgres/DependencyInjection/PostgresSagaExtensions.cs::AddPostgresSagaStore
+src/Excalibur/Excalibur.Saga.Postgres/Requests/SaveSagaRequest.cs::SaveSagaRequest
+src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::AddSqlServerSagaStore
+src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::UseSqlServerSagaStore
+src/Excalibur/Excalibur.Saga.SqlServer/DependencyInjection/SqlServerSagaExtensions.cs::public static IServiceCollection AddSqlS
+src/Excalibur/Excalibur.Saga.SqlServer/Requests/SaveSagaRequest.cs::SaveSagaRequest
+src/Excalibur/Excalibur.Saga/DependencyInjection/SagaExcaliburBuilderExtensions.cs::AddSagas
+src/Excalibur/Excalibur.Saga/DependencyInjection/SagaServiceCollectionExtensions.cs::public static IServiceCollection AddSaga
+src/Excalibur/Excalibur.Saga/Orchestration/SagaBase.cs::protected Task<string> RequestTimeoutAsy
+src/Excalibur/Excalibur.Saga/Orchestration/SagaBase.cs::protected virtual byte[] SerializeTimeou
+src/Excalibur/Excalibur.Saga/Orchestration/SagaCoordinator.cs::ProcessEventAsync
+src/Excalibur/Excalibur.Saga/Orchestration/SagaCoordinator.cs::public async Task HandleEventInternalAsy
+src/Excalibur/Excalibur.Saga/Orchestration/SagaManager.cs::public async Task HandleEventAsync<
+src/Excalibur/Excalibur.Security.Aws/DispatchSecurityAwsServiceCollectionExtensions.cs::AddAwsSecretsManagerKeyProvider
+src/Excalibur/Excalibur.Security.Aws/DispatchSecurityAwsServiceCollectionExtensions.cs::AddDispatchSecurityAws
+src/Excalibur/Excalibur.Security/Argon2ServiceCollectionExtensions.cs::AddPasswordHasher
+src/Excalibur/Excalibur.Security/EventStores/FileSecurityEventStore.cs::FileSecurityEventStore
+src/Excalibur/Excalibur.Security/Middleware/SecurityMiddlewareExtensions.cs::AddDispatchSecurityMiddleware
+src/Excalibur/Excalibur.Security/Middleware/SecurityMiddlewareExtensions.cs::AddJwtAuthentication
+src/Excalibur/Excalibur.Security/Middleware/SecurityMiddlewareExtensions.cs::AddMessageEncryption
+src/Excalibur/Excalibur.Security/Middleware/SecurityMiddlewareExtensions.cs::AddMessageSigning
+src/Excalibur/Excalibur.Security/Middleware/SecurityMiddlewareExtensions.cs::AddRateLimiting
+src/Excalibur/Excalibur.Security/SecurityExcaliburBuilderExtensions.cs::UseSecurity
+src/Excalibur/Excalibur.Security/SecurityServiceCollectionExtensions.cs::AddDispatchSecurity
+src/Excalibur/Excalibur.Security/SecurityServiceCollectionExtensions.cs::AddInputValidation
+src/Excalibur/Excalibur.Security/SecurityServiceCollectionExtensions.cs::AddSecurityAuditing
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/CdcProviderConformanceTestKit.cs::ConformanceTestKit
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/CloudNativeOutboxStoreConformanceTestKit.cs::ConformanceTestKit
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/EventStoreConformanceTestKit.cs::ConformanceTestKit
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/InboxStoreConformanceTestKit.cs::ConformanceTestKit
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/OutboxStoreConformanceTestKit.cs::ConformanceTestKit
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/SagaStoreConformanceTestKit.cs::ConformanceTestKit
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/SchedulerConformanceTestKit.cs::ScheduleJobAsync_PassesCronExpressionToDownstreamCall
+src/Excalibur/Excalibur.Testing.Conformance/Conformance/SnapshotStoreConformanceTestKit.cs::ConformanceTestKit
+src/metapackages/Excalibur.Dispatch.AspNetCore/DispatchAspNetCoreServiceCollectionExtensions.cs::AddDispatchAspNetCore
+src/metapackages/Excalibur.Dispatch.Aws/DispatchAwsServiceCollectionExtensions.cs::AddDispatchAws
+src/metapackages/Excalibur.Dispatch.Azure/DispatchAzureServiceCollectionExtensions.cs::AddDispatchAzure
+src/metapackages/Excalibur.Dispatch.Kafka/DispatchKafkaServiceCollectionExtensions.cs::AddDispatchKafka
+src/metapackages/Excalibur.Dispatch.Postgres/DispatchPostgresServiceCollectionExtensions.cs::AddDispatchWithPostgres
+src/metapackages/Excalibur.Dispatch.RabbitMQ/DispatchRabbitMQServiceCollectionExtensions.cs::AddDispatchRabbitMQ
+src/metapackages/Excalibur.Dispatch.SqlServer/DispatchSqlServerServiceCollectionExtensions.cs::AddDispatchWithSqlServer
+src/metapackages/Excalibur.Postgres/ExcaliburPostgresServiceCollectionExtensions.cs::AddExcaliburPostgres
+src/metapackages/Excalibur.SqlServer/ExcaliburSqlServerServiceCollectionExtensions.cs::AddExcaliburSqlServer

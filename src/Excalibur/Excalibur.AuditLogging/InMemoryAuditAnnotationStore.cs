@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using Excalibur.Compliance;
 using Excalibur.Dispatch;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.AuditLogging;
 
 /// <summary>
@@ -23,26 +25,63 @@ namespace Excalibur.AuditLogging;
 internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 {
 	private readonly ConcurrentDictionary<(string TenantId, string EventId), List<AuditAnnotation>> _annotationsByEvent = new();
-	private readonly IAuditActorProvider _actorProvider;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly TimeProvider _timeProvider;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryAuditAnnotationStore"/> class.
 	/// </summary>
-	/// <param name="actorProvider">Provider for the current actor identity.</param>
+	/// <param name="scopeFactory">
+	/// The factory this store opens a scope from on every operation, to resolve the caller's identity.
+	/// It is not a constructor-injected provider: this store is a singleton, and the identity it resolves
+	/// is stamped onto each annotation as its author.
+	/// </param>
 	/// <param name="timeProvider">Provider for timestamps.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public InMemoryAuditAnnotationStore(
-		IAuditActorProvider actorProvider,
+		IServiceScopeFactory scopeFactory,
 		TimeProvider timeProvider,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
-		_actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
+		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
+	}
+
+	/// <summary>
+	/// Resolves the identity of the caller performing the current operation, from a scope opened for that
+	/// operation.
+	/// </summary>
+	/// <remarks>
+	/// The provider is never held in a field. This store is a singleton, so a provider captured at
+	/// construction answers for one caller for the life of the process -- and the value it returns is
+	/// stamped onto the annotation as its author, so every annotation the process ever wrote would be
+	/// attributed to whoever happened to be first. A provider that reads ambient state (claims, an
+	/// <c>IHttpContextAccessor</c>, an async-local) resolves correctly from the scope opened here, because
+	/// that state flows with the call rather than with the container scope.
+	/// </remarks>
+	private async Task<string> GetCurrentActorIdAsync(CancellationToken cancellationToken)
+	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		return await scope.ServiceProvider
+			.GetRequiredService<IAuditActorProvider>()
+			.GetCurrentActorIdAsync(cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -55,7 +94,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 	/// every tenant's annotations together.
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <summary>
 	/// Composes the storage key. The tenant term is part of the KEY rather than a filter applied after
@@ -73,7 +112,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		ArgumentNullException.ThrowIfNull(tags);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 		var annotations = _annotationsByEvent.GetOrAdd(KeyFor(eventId), _ => []);
 
@@ -113,7 +152,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 		var annotations = _annotationsByEvent.GetOrAdd(KeyFor(eventId), _ => []);
 
@@ -143,7 +182,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 
 		if (!_annotationsByEvent.TryGetValue(KeyFor(eventId), out var annotations))
 		{
@@ -165,7 +204,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(note);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 		var id = Guid.NewGuid().ToString("N");
 		var annotations = _annotationsByEvent.GetOrAdd(KeyFor(eventId), _ => []);

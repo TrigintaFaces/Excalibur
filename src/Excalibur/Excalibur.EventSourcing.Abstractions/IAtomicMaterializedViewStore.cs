@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing;
 
 /// <summary>
@@ -62,6 +64,8 @@ public interface IAtomicMaterializedViewStore : IMaterializedViewStore
 	/// <paramref name="viewName"/> or <paramref name="viewId"/> is <see langword="null"/>, empty, or white space.
 	/// </exception>
 	/// <exception cref="ArgumentNullException"><paramref name="view"/> is <see langword="null"/>.</exception>
+	[RequiresUnreferencedCode("Implementations serialize the view type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming.")]
+	[RequiresDynamicCode("Implementations serialize the view type reflectively; supply JsonSerializerOptions with a source-generated resolver for AOT.")]
 	ValueTask SaveViewAndPositionAsync<TView>(
 		string viewName,
 		string viewId,

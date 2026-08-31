@@ -278,7 +278,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// bd-cd8h8t (scheduled path) — the SCHEDULED outbox path (`ScheduleMessageAsync` → `GetScheduledMessagesAsync`)
+	/// bd-cd8h8t (scheduled path) — the SCHEDULED outbox path (`ScheduleMessageAsync` → `GetAllTenantsScheduledMessagesAsync`)
 	/// must persist and reload <c>TenantId</c>. This was the path Backend fixed (`ScheduleOutboxMessage` didn't
 	/// accept a tenant; `GetScheduledOutboxMessages` didn't read it). Real-infra round-trip: RED on the pre-fix
 	/// scheduled SQL that omits tenant_id, GREEN once the scheduled INSERT/SELECT carry it.
@@ -316,7 +316,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 		}
 
 		// Assert 2 (scheduled read-path) — the reloaded scheduled message carries the persisted TenantId.
-		var scheduled = (await store.GetScheduledMessagesAsync(DateTimeOffset.UtcNow.AddMinutes(1), 10, TestCancellationToken)).ToList();
+		var scheduled = (await store.GetAllTenantsScheduledMessagesAsync(DateTimeOffset.UtcNow.AddMinutes(1), 10, TestCancellationToken)).ToList();
 		var reloaded = scheduled.ShouldHaveSingleItem();
 		reloaded.TenantId.ShouldBe(ExpectedTenantId);
 	}
@@ -436,7 +436,11 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
 			    message_body BYTEA NOT NULL,
-			    tenant_id VARCHAR(255),
+			    -- Total, matching the shipped DDL: 'no tenant' is the reserved value rather than the
+			    -- absence of one. Load-bearing for the dead-letter move, which copies this column into a
+			    -- NOT NULL column -- a nullable source here would make the fixture accept a NULL the
+			    -- shipped schema cannot produce, and the move would fail only in the test.
+			    tenant_id VARCHAR(255) NOT NULL DEFAULT '__untenanted__',
 			    destination VARCHAR(500),
 			    correlation_id VARCHAR(255),
 			    causation_id VARCHAR(255),
@@ -458,6 +462,11 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			CREATE TABLE IF NOT EXISTS outbox_dead_letters (
 			    id SERIAL PRIMARY KEY,
 			    message_id VARCHAR(100) NOT NULL UNIQUE,
+			    -- Originating tenant, carried as provenance: the move DELETEs the outbox row, so a term
+			    -- it does not copy across is destroyed rather than merely unqueryable. NOT NULL with no
+			    -- default, matching the shipped DDL, so a move path that stops copying it fails loudly
+			    -- here instead of silently recording the message as untenanted.
+			    tenant_id VARCHAR(255) NOT NULL,
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
 			    message_body BYTEA NOT NULL,

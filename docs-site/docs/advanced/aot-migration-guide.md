@@ -102,21 +102,34 @@ using System.Text.Json.Serialization;
 public partial class AppJsonSerializerContext : JsonSerializerContext { }
 ```
 
-Register it:
+Register it, and select the reflection-free event serializer that reads and writes through it:
 
 ```csharp
 services.AddSingleton(AppJsonSerializerContext.Default.Options);
+
+services.AddEventTypes<OrderCreatedEvent>();          // the names events resolve by
+services.AddAotEventSerializer(AppJsonSerializerContext.Default);
 ```
 
-The framework's `AotJsonEventSerializer` automatically uses `IEventTypeRegistry` (populated from source-generated `EventStoreTypeMap`) and `JsonSerializerContext` for type-safe serialization.
+`AddAotEventSerializer` replaces the default reflection-based event serializer, so call order relative to `AddDispatch()` does not matter. Event types resolve through the allow-list `AddEventTypes` populates — there is no assembly-scan fallback — and payloads are read and written entirely through your context.
+
+Pass the generated `Default` instance, not `new AppJsonSerializerContext()`: the `[JsonSourceGenerationOptions]` settings are applied to `Default` only, and a freshly constructed context carries default PascalCase, null-writing options.
 
 :::warning `OrderCreatedEvent` crosses the wire — options must match the reflection path
 `OrderCreatedEvent` is an event type, so it round-trips through your event store. The
 `PropertyNamingPolicy`, `UseStringEnumConverter`, and `DefaultIgnoreCondition` settings above must
 match the reflection-based `JsonEventSerializer`'s defaults (camelCase, string enums, omitted
 nulls) or events written via the AOT path will silently mis-read when loaded via the reflection
-path (or vice versa). Nothing validates this for you — copy the options block verbatim.
+path (or vice versa). The naming-policy and null-handling settings are checked when the serializer is
+constructed and a divergent context is rejected with an error naming the missing attribute; the
+string-enum setting is not visible at run time, so copy the options block verbatim.
 :::
+
+Event metadata is an `IDictionary<string, object>`, so each value is written as its runtime type.
+Declare the closed value types your application actually stores — `[JsonSerializable(typeof(string))]`,
+`[JsonSerializable(typeof(int))]`, and so on. An undeclared value type throws `NotSupportedException`
+on serialize. Do not declare `Dictionary<string, object>` itself as a shortcut: it compiles and then
+throws at run time on the same values.
 
 ### Event Type Resolution
 
@@ -151,7 +164,7 @@ Not all packages are AOT-compatible. Check the [AOT Compatibility Matrix](aot-co
 
 | Reflection-Based | AOT-Safe Alternative |
 |------------------|---------------------|
-| `JsonEventSerializer` (default) | `AotJsonEventSerializer` (auto-selected in AOT builds) |
+| `JsonEventSerializer` (default) | `AotJsonEventSerializer` (opt in with `AddAotEventSerializer(...)`) |
 | Assembly-scanned handler discovery | `[AutoRegister]` + `PrecompiledHandlerRegistry` |
 | `ResultFactoryCache` (reflection) | `ResultFactoryRegistry` (source-generated) |
 | `Type.GetType()` for deserialization | `TypeResolver` + `EventStoreTypeMap` (source-generated) |

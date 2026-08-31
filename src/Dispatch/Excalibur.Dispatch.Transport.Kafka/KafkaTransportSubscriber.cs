@@ -259,7 +259,7 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 			ProviderData = new Dictionary<string, object>
 			{
 				["kafka.partition"] = consumeResult.Partition.Value,
-				["kafka.offset"] = consumeResult.Offset.Value,
+				[TransportOrderingMetadata.KafkaOffsetKey] = consumeResult.Offset.Value,
 				["kafka.topic"] = consumeResult.Topic,
 			},
 		};

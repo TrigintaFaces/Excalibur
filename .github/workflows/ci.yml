@@ -1539,7 +1539,7 @@ jobs:
 
   # ── Serialization policy validation ──
   serialization-policy:
-    name: Serialization Policy Validation (R0.14)
+    name: Serialization Policy Validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: package
@@ -1556,7 +1556,7 @@ jobs:
       - name: Validate Serializer Policy
         shell: pwsh
         run: |
-          Write-Host "Validating serializer policy (R0.14, R20.24-26)..."
+          Write-Host "Validating serializer policy..."
           ./eng/validate-serializer-policy.ps1
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Serializer policy validation FAILED" -ForegroundColor Red
@@ -1672,15 +1672,15 @@ jobs:
       # NuGetAudit runs inside restore and checks direct + transitive packages against the GitHub
       # Advisory Database. AuditPipeline=true promotes NU1901-1904 to errors for this run only;
       # Directory.Solution.targets asserts every project was actually audited.
-      - name: Audit packages for known vulnerabilities (R20.10)
+      - name: Audit packages for known vulnerabilities
         run: bash ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --properties AuditPipeline=true
 
-      - name: Validate serialization policy (R0.14, R20.24-26)
+      - name: Validate serialization policy
         run: |
           echo "Validating serialization policy..."
           pwsh -File eng/validate-serializer-policy.ps1
 
-      - name: Validate architecture boundaries (R1.9, R17.8)
+      - name: Validate architecture boundaries
         run: |
           echo "Validating architecture boundaries..."
           pwsh -File eng/validate-architecture-boundaries.ps1
@@ -1997,7 +1997,7 @@ jobs:
               { name: 'ci:netarchtest', color: '5319e7', description: 'Architecture tests violations' },
               { name: 'ci:api-compat', color: '1d76db', description: 'API compatibility issues' },
               { name: 'ci:trim-aot', color: 'fbca04', description: 'Trim/AOT validation issues' },
-              { name: 'ci:r014-boundary', color: 'd93f0b', description: 'Serialization boundary (R0.14) issues' },
+              { name: 'ci:r014-boundary', color: 'd93f0b', description: 'Serialization boundary issues' },
               { name: 'sec:cve', color: 'b60205', description: 'Security CVE findings' }
             ];
             for (const l of labels) {
@@ -2267,7 +2267,7 @@ jobs:
           echo "| Coverage | ${{ needs.call-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Security Scanning | ${{ needs.call-security.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Governance | ${{ needs.call-governance.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Serialization Policy (R0.14) | ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Serialization Policy | ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Sample Validation (T3.4) | ${{ needs.sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| AOT Sample Validation | ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY

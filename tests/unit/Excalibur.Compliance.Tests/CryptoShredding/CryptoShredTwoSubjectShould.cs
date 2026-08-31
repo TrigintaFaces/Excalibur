@@ -7,6 +7,7 @@ using Excalibur.Compliance.Encryption;
 using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Compliance.Tests.CryptoShredding;
@@ -28,11 +29,12 @@ public sealed class CryptoShredTwoSubjectShould
     public async Task DestroyingSubjectAKey_ShredsOnlySubjectA_LeavesSubjectBDecryptable()
     {
         await using var provider = BuildRealEncryptionStack();
-        ForceEncryptionRegistryInit(provider);
+        await ForceEncryptionRegistryInitAsync(provider);
 
         using var scope = provider.CreateScope();
         var fieldEncryptor = scope.ServiceProvider.GetRequiredService<IFieldEncryptor>();
-        var subjectKeys = scope.ServiceProvider.GetRequiredService<ISubjectKeyManager>();
+        var keyAdmin = scope.ServiceProvider.GetRequiredService<IKeyManagementAdmin>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IDataSubjectHasher>();
 
         var subjectAData = "subject-A-personal-data"u8.ToArray();
         var subjectBData = "subject-B-personal-data"u8.ToArray();
@@ -46,7 +48,7 @@ public sealed class CryptoShredTwoSubjectShould
         (await fieldEncryptor.DecryptAsync(envelopeB, CancellationToken.None)).ShouldBe(subjectBData);
 
         // Crypto-shred subject A: destroy A's key (all versions), idempotent.
-        await subjectKeys.DestroyKeyAsync("subject-A", CancellationToken.None);
+        await ShredSubjectAsync(keyAdmin, hasher, "subject-A");
 
         // LOAD-BEARING: A's PII is now unrecoverable (degrade-open tombstone = null), while B's PII is
         // untouched. A shared/purpose-key scheme would either leave A decryptable (no per-subject key)
@@ -61,21 +63,31 @@ public sealed class CryptoShredTwoSubjectShould
     public async Task DestroyKey_IsIdempotent_ForAnAlreadyShreddedSubject()
     {
         await using var provider = BuildRealEncryptionStack();
-        ForceEncryptionRegistryInit(provider);
+        await ForceEncryptionRegistryInitAsync(provider);
 
         using var scope = provider.CreateScope();
         var fieldEncryptor = scope.ServiceProvider.GetRequiredService<IFieldEncryptor>();
-        var subjectKeys = scope.ServiceProvider.GetRequiredService<ISubjectKeyManager>();
+        var keyAdmin = scope.ServiceProvider.GetRequiredService<IKeyManagementAdmin>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IDataSubjectHasher>();
 
         var data = "erase-me"u8.ToArray();
         var envelope = await fieldEncryptor.EncryptAsync("subject-C", data, CancellationToken.None);
 
-        await subjectKeys.DestroyKeyAsync("subject-C", CancellationToken.None);
+        await ShredSubjectAsync(keyAdmin, hasher, "subject-C");
         // Second destroy must not throw (idempotent crypto-erase).
         await Should.NotThrowAsync(async () =>
-            await subjectKeys.DestroyKeyAsync("subject-C", CancellationToken.None));
+            await ShredSubjectAsync(keyAdmin, hasher, "subject-C"));
 
         (await fieldEncryptor.DecryptAsync(envelope, CancellationToken.None)).ShouldBeNull();
+    }
+
+    // Destroys a subject exactly as the erasure service does: the subject-id hash IS the key handle
+    // (SubjectKeyManager derives it from the same singleton IDataSubjectHasher), and zero-day retention
+    // requests an immediate crypto-shred. Going through IKeyManagementAdmin rather than a dedicated
+    // per-subject destroy verb keeps this test bound to the path production actually takes.
+    private static async Task ShredSubjectAsync(IKeyManagementAdmin keyAdmin, IDataSubjectHasher hasher, string subjectId)
+    {
+        _ = await keyAdmin.DeleteKeyAsync(hasher.HashDataSubjectId(subjectId), retentionDays: 0, CancellationToken.None);
     }
 
     private static ServiceProvider BuildRealEncryptionStack()
@@ -101,11 +113,15 @@ public sealed class CryptoShredTwoSubjectShould
         return services.BuildServiceProvider();
     }
 
-    // The encryption registry populates + selects its primary lazily on first resolution of these
-    // marker services; force it so FieldEncryptor's registry.GetPrimary() does not throw.
-    private static void ForceEncryptionRegistryInit(IServiceProvider provider)
+    // The encryption registry populates on first resolution of IEncryptionProvider, and selects its
+    // primary only once every registered IHostedService has started (a real Generic Host does this
+    // automatically); force both here so FieldEncryptor's registry.GetPrimary() does not throw.
+    private static async Task ForceEncryptionRegistryInitAsync(IServiceProvider provider)
     {
         _ = provider.GetServices<IEncryptionProvider>().ToList();
-        _ = provider.GetServices<IEncryptionProviderInitializer>().ToList();
+        foreach (var hostedService in provider.GetServices<IHostedService>())
+        {
+            await hostedService.StartAsync(CancellationToken.None);
+        }
     }
 }

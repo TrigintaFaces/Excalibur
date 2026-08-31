@@ -270,8 +270,12 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 			.Where(p => !p.CanWrite && p.PropertyType.Name.StartsWith("Postgres", StringComparison.Ordinal))
 			.ToList();
 
-		// Assert — 6 settable properties on root
-		settableProperties.Count.ShouldBe(6);
+		// Assert — 7 settable properties on root
+		settableProperties.Count.ShouldBe(7);
+
+		// Named explicitly, so a future addition has to be justified here rather than absorbed by bumping
+		// a number. Name is the configured-instance identity the provider reports.
+		settableProperties.Select(p => p.Name).ShouldContain("Name");
 		// 4 read-only sub-option navigation properties
 		readOnlySubObjects.Count.ShouldBe(4);
 	}
@@ -780,43 +784,5 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		connStr.ShouldContain("Command Timeout=120");
 		connStr.ShouldContain("Pooling=False");
 		connStr.ShouldContain("Application Name=TestApp");
-	}
-
-	// ─────────────────────────────────────────────
-	// Explicit interface delegation
-	// ─────────────────────────────────────────────
-
-	[Fact]
-	public void DelegatePoolingPropertiesToSubOptions()
-	{
-		// Arrange
-		var options = new PostgresPersistenceOptions();
-		options.Pooling.MaxPoolSize = 250;
-		options.Pooling.MinPoolSize = 25;
-		options.Pooling.EnableConnectionPooling = false;
-
-		// Act — access through interface
-		var poolingOptions = (IPersistencePoolingOptions)options;
-
-		// Assert — explicit interface delegates to Pooling sub-options
-		poolingOptions.MaxPoolSize.ShouldBe(250);
-		poolingOptions.MinPoolSize.ShouldBe(25);
-		poolingOptions.EnableConnectionPooling.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void DelegateResiliencePropertiesToSubOptions()
-	{
-		// Arrange
-		var options = new PostgresPersistenceOptions();
-		options.Resilience.MaxRetryAttempts = 7;
-		options.Resilience.RetryDelayMilliseconds = 3000;
-
-		// Act — access through interface
-		var resilienceOptions = (IPersistenceResilienceOptions)options;
-
-		// Assert — explicit interface delegates to Resilience sub-options
-		resilienceOptions.MaxRetryAttempts.ShouldBe(7);
-		resilienceOptions.RetryDelayMilliseconds.ShouldBe(3000);
 	}
 }

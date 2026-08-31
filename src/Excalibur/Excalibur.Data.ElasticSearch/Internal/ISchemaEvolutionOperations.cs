@@ -15,11 +15,9 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// this public.
 /// </summary>
 /// <remarks>
-/// Fifth of the 6 γ seams per COMPASS S798 msg 1746 ruling + S799 msg 1799
-/// naming precedent. Seam 1 of 4 in the S802 Path 4 multi-seam split per
-/// COMPASS msg 1940. <c>Operations</c> suffix describes the consumer's domain
-/// role — the migration workflow — rather than an SDK sub-client mirror.
-/// Size: 5 methods, at the ADR-142 §D7 hard cap.
+/// The <c>Operations</c> suffix describes the consumer's domain role — the
+/// migration workflow — rather than an SDK sub-client mirror.
+/// Size: 5 methods, at the five-method seam cap.
 ///
 /// <para>
 /// The <c>mapping</c> parameters are typed as <see cref="object"/> so SDK

@@ -7,7 +7,7 @@ using Excalibur.EventSourcing.Projections;
 namespace Excalibur.Testing.Conformance.Projections;
 
 /// <summary>
-/// Test utility for applying events to projections without DI or event store (R27.27).
+/// Test utility for applying events to projections without DI or event store.
 /// Reuses the same <see cref="MultiStreamProjection{TProjection}"/> handler mechanism
 /// as inline and async projections at runtime.
 /// </summary>

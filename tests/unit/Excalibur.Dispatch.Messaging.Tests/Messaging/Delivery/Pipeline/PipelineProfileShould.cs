@@ -220,77 +220,24 @@ public sealed class PipelineProfileShould
 		result.ShouldBeTrue();
 	}
 
-	#endregion
-
-	#region GetApplicableMiddleware Tests
-
 	[Fact]
-	public void GetApplicableMiddleware_ReturnsAllMiddleware_WhenNoFiltering()
+	public void IsCompatible_WithGenericActionMessage_ReturnsTrue_ForActionProfile()
 	{
-		// Arrange
-		var middlewareTypes = new[] { typeof(TestMiddleware), typeof(TestMiddleware2) };
+		// Arrange -- the message declares only IDispatchAction<TResponse>. Classification must still see it as an
+		// Action: the generic interface derives from the non-generic one, so an assignability check covers both.
+		// Were that not so, a request/response message would fall through to the unclassified path.
 		var profile = new PipelineProfile(
-			"Test",
-			"Test",
-			middlewareTypes);
+			"ActionOnly",
+			"Actions only",
+			Array.Empty<Type>(),
+			supportedMessageKinds: MessageKinds.Action);
+		var message = new TestGenericActionMessage();
 
 		// Act
-		var applicable = profile.GetApplicableMiddleware(MessageKinds.Action);
+		var result = profile.IsCompatible(message);
 
 		// Assert
-		applicable.Count.ShouldBe(2);
-	}
-
-	[Fact]
-	public void GetApplicableMiddleware_ReturnsEmptyList_WhenNoMiddleware()
-	{
-		// Arrange
-		var profile = new PipelineProfile(
-			"Empty",
-			"Empty",
-			Array.Empty<Type>());
-
-		// Act
-		var applicable = profile.GetApplicableMiddleware(MessageKinds.Action);
-
-		// Assert
-		applicable.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void GetApplicableMiddleware_WithFeatures_ReturnsFilteredList()
-	{
-		// Arrange
-		var middlewareTypes = new[] { typeof(TestMiddleware) };
-		var profile = new PipelineProfile(
-			"Test",
-			"Test",
-			middlewareTypes);
-		var enabledFeatures = new HashSet<DispatchFeatures>();
-
-		// Act
-		var applicable = profile.GetApplicableMiddleware(MessageKinds.Action, enabledFeatures);
-
-		// Assert
-		_ = applicable.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void GetApplicableMiddleware_DoesNotExcludeByAttributeKind_akwb5j()
-	{
-		// akwb5j convergence lock (non-vacuous): the profile no longer filters by the [AppliesTo] attribute —
-		// message-kind applicability is the single-source-of-truth runtime IMiddlewareApplicabilityStrategy's
-		// job (each middleware's ApplicableMessageKinds property). So an [AppliesTo(Action)]-decorated
-		// middleware is STILL returned when querying a DIFFERENT kind (Event). This was RED before convergence
-		// (the attribute kinds-filter excluded it); GREEN after (kind filtering moved to the property strategy).
-		var profile = new PipelineProfile(
-			"Test",
-			"Test",
-			new[] { typeof(ActionScopedTestMiddleware) });
-
-		var applicable = profile.GetApplicableMiddleware(MessageKinds.Event);
-
-		applicable.ShouldContain(typeof(ActionScopedTestMiddleware));
+		result.ShouldBeTrue();
 	}
 
 	#endregion
@@ -364,6 +311,18 @@ public sealed class PipelineProfileShould
 		public IReadOnlyDictionary<string, object> Headers { get; } = new Dictionary<string, object>();
 		public object Body => this;
 		public string MessageType => GetType().FullName ?? "TestActionMessage";
+		public IMessageFeatures Features { get; } = new DefaultMessageFeatures();
+	}
+
+	public sealed class TestGenericActionMessage : IDispatchAction<string>
+	{
+		public Guid Id { get; } = Guid.NewGuid();
+		public string MessageId { get; } = Guid.NewGuid().ToString();
+		public DateTimeOffset Timestamp { get; } = DateTimeOffset.UtcNow;
+		public MessageKinds Kind { get; } = MessageKinds.Action;
+		public IReadOnlyDictionary<string, object> Headers { get; } = new Dictionary<string, object>();
+		public object Body => this;
+		public string MessageType => GetType().FullName ?? "TestGenericActionMessage";
 		public IMessageFeatures Features { get; } = new DefaultMessageFeatures();
 	}
 

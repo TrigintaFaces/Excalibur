@@ -13,6 +13,12 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to update the aggregate status of a message based on transport delivery statuses.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.ForeignKeyConfined,
+	"this request spans both tables and neither predicate can reach another tenant, for two different reasons. The roll-up reads the transports table through MessageId, a foreign key to the globally-unique outbox Id, so every row it aggregates belongs to the one message the claim returned; the update then addresses that message's own row by the outbox Id, which is that table's primary key and so matches at most one row. The drain claims across tenants, so a tenant term on either statement could only subtract rows the roll-up must see")]
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"this request spans both tables and neither predicate can reach another tenant, for two different reasons. The roll-up reads the transports table through MessageId, a foreign key to the globally-unique outbox Id, so every row it aggregates belongs to the one message the claim returned; the update then addresses that message's own row by the outbox Id, which is that table's primary key and so matches at most one row. The drain claims across tenants, so a tenant term on either statement could only subtract rows the roll-up must see")]
 public sealed class UpdateAggregateStatusRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>

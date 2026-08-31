@@ -25,11 +25,4 @@ public sealed class HighThroughputSqsPollingOptions
 	/// </value>
 	public int MaxConcurrentPollers { get; set; } = 10;
 
-	/// <summary>
-	/// Gets or sets the wait time for long polling in seconds.
-	/// </summary>
-	/// <value>
-	/// The wait time for long polling in seconds.
-	/// </value>
-	public int WaitTimeSeconds { get; set; } = 20;
 }

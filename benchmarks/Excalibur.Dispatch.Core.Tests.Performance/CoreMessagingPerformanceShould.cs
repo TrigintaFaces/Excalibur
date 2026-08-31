@@ -63,7 +63,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 			CleanupInterval = TimeSpan.FromMilliseconds(50)
 		};
 
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var initialMemory = GC.GetTotalMemory(true);
@@ -121,7 +121,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 		memoryGrowthMB.ShouldBeLessThan(50, $"Memory growth should be less than 50MB, was {memoryGrowthMB:F2}MB");
 
 		// Verify cleanup effectiveness
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		finalStats.TotalEntries.ShouldBeLessThanOrEqualTo(messageCount, "Cleanup should have reduced total entries");
 	}
 
@@ -385,7 +385,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 			MaxBatchDelay = TimeSpan.FromMilliseconds(20)
 		};
 
-		var inbox = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger);
+		var inbox = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger, UntenantedContext.Instance);
 		var middleware = new UnifiedBatchingMiddleware(Microsoft.Extensions.Options.Options.Create(options), _middlewareLogger, _loggerFactory);
 
 		var endToEndResults = new ConcurrentBag<(string messageId, bool inboxProcessed, bool middlewareProcessed, long totalLatency)>();
@@ -503,7 +503,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 		memoryGrowthMB.ShouldBeLessThan(200, $"Integrated scenario memory growth should be less than 200MB, was {memoryGrowthMB:F2}MB");
 
 		// Component health validation
-		var inboxStats = await inbox.GetStatisticsAsync(CancellationToken.None);
+		var inboxStats = await inbox.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		inboxStats.ProcessedEntries.ShouldBeGreaterThan((int)(messageCount * 0.8), "Inbox should have processed most messages");
 	}
 
@@ -521,7 +521,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 			CleanupInterval = TimeSpan.FromMilliseconds(25)
 		};
 
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var performanceMetrics = new ConcurrentBag<(long beforeGC, long afterGC, long operationTime, int generation)>();
@@ -584,7 +584,7 @@ public sealed class CoreMessagingPerformanceShould : IDisposable, IAsyncDisposab
 		}
 
 		// Memory cleanup effectiveness
-		var finalStats = await store.GetStatisticsAsync(CancellationToken.None);
+		var finalStats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		finalStats.ProcessedEntries.ShouldBeGreaterThan(50, "Should have processed some messages despite GC pressure");
 	}
 

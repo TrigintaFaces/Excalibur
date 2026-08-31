@@ -41,3 +41,14 @@
 
 # Use bd merge for beads JSONL files
 .beads/beads.jsonl merge=beads
+
+# Migration-drift fixtures: these hold a specific line-ending convention as their SUBJECT, not
+# as formatting. The pair proves a migrator accepts the CRLF and LF renderings of one committed
+# script as the same script -- the false positive that would otherwise stop a consumer's service
+# after a cross-platform package upgrade. Under `* text=auto` both files would be checked out
+# with the same terminators and the test would compare a file against itself, so the eol
+# declarations below are load-bearing. The test asserts the two resources differ in bytes and
+# fails naming this file if they do not, so a regression here reports itself.
+tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/Original/*.sql      text eol=lf
+tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/Edited/*.sql        text eol=lf
+tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/OriginalCrlf/*.sql  text eol=crlf

@@ -3,8 +3,6 @@ Excalibur.EventSourcing.Firestore.FirestoreEventStore
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudAppendResult!>!
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.CloudProvider.get -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.EventSourcing.Firestore.FirestoreEventStore.FirestoreEventStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Firestore.FirestoreEventStore!>! logger) -> void
-Excalibur.EventSourcing.Firestore.FirestoreEventStore.FirestoreEventStore(Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Firestore.FirestoreEventStore!>! logger) -> void
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.GetCurrentVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.GetService(System.Type! serviceType) -> object?
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -36,8 +34,6 @@ Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.MaxBatchSize.get ->
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.MaxBatchSize.set -> void
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.ProjectId.get -> string?
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.ProjectId.set -> void
-Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.UseBatchedWrites.get -> bool
-Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.UseBatchedWrites.set -> void
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.Validate() -> void
 Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder
 Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
@@ -52,3 +48,7 @@ Microsoft.Extensions.DependencyInjection.EventSourcingBuilderFirestoreExtensions
 Microsoft.Extensions.DependencyInjection.FirestoreTenantShardingExtensions
 static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderFirestoreExtensions.UseFirestore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.FirestoreTenantShardingExtensions.UseFirestoreTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.FirestoreEventStore.FirestoreEventStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Firestore.FirestoreEventStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
+Excalibur.EventSourcing.Firestore.FirestoreEventStore.FirestoreEventStore(Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Firestore.FirestoreEventStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
+Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.EventTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.EventTypeInfoResolver.set -> void

@@ -56,7 +56,7 @@ public sealed class RedisInboxStoreConformanceShould : InboxStoreConformanceTest
 		_connection = await ConnectionMultiplexer.ConnectAsync(_fixture.ConnectionString).ConfigureAwait(false);
 
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		var store = new RedisInboxStore(_connection, options, logger);
+		var store = new RedisInboxStore(_connection, options, logger, SingleTenantTestContext.Instance);
 
 		return store;
 	}

@@ -26,7 +26,7 @@ IF NOT EXISTS (SELECT * FROM sys.columns
                WHERE object_id = OBJECT_ID(N'[dbo].[inbox_messages]') AND name = N'TenantId')
 BEGIN
     ALTER TABLE [dbo].[inbox_messages]
-        ADD TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL CONSTRAINT DF_inbox_messages_TenantId DEFAULT N'__untenanted__';
+        ADD TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL CONSTRAINT DF_inbox_messages_TenantId DEFAULT N'__untenanted__';
 END
 GO
 
@@ -78,7 +78,7 @@ BEGIN
     END
 
     ALTER TABLE [dbo].[inbox_messages]
-        ALTER COLUMN TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL;
+        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 
     ALTER TABLE [dbo].[inbox_messages]
         ADD CONSTRAINT PK_inbox_messages PRIMARY KEY (MessageId, HandlerType, TenantId);

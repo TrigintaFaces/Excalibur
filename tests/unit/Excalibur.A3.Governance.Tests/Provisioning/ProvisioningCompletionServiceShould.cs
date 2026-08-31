@@ -38,7 +38,7 @@ public sealed class ProvisioningCompletionServiceShould : UnitTestBase
 		string userId = "user-1",
 		string grantScope = "Admin",
 		string grantType = "Role",
-		string? tenantId = null,
+		string tenantId = "tenant-A",
 		DateTimeOffset? requestedExpiry = null) =>
 		new(requestId, userId, grantScope, grantType,
 			ProvisioningRequestStatus.Approved, $"idem-{requestId}", 10, "requester", Now,
@@ -67,6 +67,43 @@ public sealed class ProvisioningCompletionServiceShould : UnitTestBase
 		A.CallTo(() => _grantStore.SaveGrantAsync(A<Grant>.That.Matches(g =>
 			g.UserId == "user-1" && g.Qualifier == "Admin" && g.GrantType == "Role"),
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task RefuseARequestThatNamesNoTenant_AndSaveNoGrant()
+	{
+		// Safety: a grant belongs to exactly one tenant, so a request that never named one cannot produce
+		// a grant. Refusing is the only honest outcome -- substituting a placeholder tenant would file the
+		// grant under an identity nobody chose.
+		var summary = MakeApprovedSummary(tenantId: null!);
+		A.CallTo(() => _provisioningStore.GetRequestAsync("req-1", A<CancellationToken>._))
+			.Returns(summary);
+
+		var result = await _sut.CompleteProvisioningAsync("req-1", CancellationToken.None);
+
+		result.ShouldBeFalse();
+		A.CallTo(() => _grantStore.SaveGrantAsync(A<Grant>._, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task ProvisionARequestThatNamesATenant_AndCarryThatTenantOntoTheGrant()
+	{
+		// Liveness for the arm above: the refusal must not be achieved by refusing everything. A request
+		// that does name a tenant still provisions, and the grant carries that tenant verbatim.
+		var summary = MakeApprovedSummary(tenantId: "tenant-A");
+		A.CallTo(() => _provisioningStore.GetRequestAsync("req-1", A<CancellationToken>._))
+			.Returns(summary);
+		A.CallTo(() => _grantStore.GrantExistsAsync(A<string>._, A<string>._, A<string>._, A<string>._, A<CancellationToken>._))
+			.Returns(false);
+		A.CallTo(() => _sodEvaluator.EvaluateHypotheticalAsync(A<string>._, A<string>._, A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IReadOnlyList<SoDConflict>>([]));
+
+		var result = await _sut.CompleteProvisioningAsync("req-1", CancellationToken.None);
+
+		result.ShouldBeTrue();
+		A.CallTo(() => _grantStore.SaveGrantAsync(
+			A<Grant>.That.Matches(g => g.TenantId == "tenant-A"), A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

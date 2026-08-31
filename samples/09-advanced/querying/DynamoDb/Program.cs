@@ -263,7 +263,6 @@ static void DemonstrateApiSurface()
     Console.WriteLine("  TestConnectionAsync(ct)");
     Console.WriteLine("  GetDocumentStoreStatisticsAsync(ct)");
     Console.WriteLine("  GetMetricsAsync(ct)");
-    Console.WriteLine("  GetConnectionPoolStatsAsync(ct)");
     Console.WriteLine();
     Console.WriteLine("DynamoDbOptions Properties:");
     Console.WriteLine("  Name, DefaultTableName, DefaultPartitionKeyAttribute, DefaultSortKeyAttribute");

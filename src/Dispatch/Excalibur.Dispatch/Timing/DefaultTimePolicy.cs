@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Timing;
 
 /// <summary>
-/// Default implementation of time-based policies for message processing. R7.4: Configurable timeout handling with adaptive capabilities.
+/// Default implementation of time-based policies for message processing. Configurable timeout handling with adaptive capabilities.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="DefaultTimePolicy" /> class. </remarks>
 /// <param name="options"> The time policy options. </param>

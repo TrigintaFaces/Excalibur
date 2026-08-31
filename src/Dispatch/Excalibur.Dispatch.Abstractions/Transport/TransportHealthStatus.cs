@@ -23,4 +23,14 @@ public enum TransportHealthStatus
 	/// The component is unhealthy and not functioning properly.
 	/// </summary>
 	Unhealthy = 2,
+
+	/// <summary>
+	/// No health check has completed yet, so the component's health is not established.
+	/// </summary>
+	/// <remarks>
+	/// A newly constructed or started component reports this until its first health probe
+	/// completes. It is not a claim that the component is healthy, degraded, or unhealthy --
+	/// it is the absence of such a claim. Treat it as "not yet known" and probe before acting.
+	/// </remarks>
+	Unknown = 3,
 }

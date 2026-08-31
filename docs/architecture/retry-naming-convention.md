@@ -46,8 +46,6 @@ Already aligned. No changes needed.
 | `AzureLogicAppsSchedulerOptions.cs` | Transport.AzureServiceBus | `MaxRetries` |
 | `AwsProviderOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `EventBridgeSchedulerOptions.cs` | Transport.AwsSqs | `MaxRetries` |
-| `AwsSqsRetryOptions.cs` | Transport.AwsSqs | `MaxRetries` |
-| `BatchRetryOptions.cs` | Transport.Abstractions | `MaxRetries` |
 | `DlqOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `RetryPolicyOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `RetryOptions.cs` | Resilience.Polly | `MaxRetries` |

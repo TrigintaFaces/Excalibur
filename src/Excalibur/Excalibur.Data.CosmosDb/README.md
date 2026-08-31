@@ -234,8 +234,13 @@ For local development with Azure Cosmos DB Emulator:
 # Install and start Cosmos DB Emulator
 # Windows: Use the installer from Azure Portal
 # Docker: name a specific emulator version — an unversioned tag can resolve to a different image later:
-# docker run -p 8081:8081 -p 10251-10255:10251-10255 \
-#   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706
+# docker run -p 8081:8081 -p 1234:1234 -p 8080:8080 \
+#   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706 --protocol https
+#
+# --protocol https is not optional for a .NET client: this emulator starts in HTTP mode and the
+# .NET SDK does not support HTTP mode against it. 8081 is the gateway, 1234 the Data Explorer,
+# 8080 the health probes (curl http://localhost:8080/ready). This emulator is gateway-mode only,
+# so the legacy direct-mode port range is not needed.
 ```
 
 A client built from a container's connection string alone follows the account endpoint the emulator

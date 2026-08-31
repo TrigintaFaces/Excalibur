@@ -36,7 +36,6 @@ Excalibur.Data.CloudNative.ChangeFeedStartPosition.Now = 1 -> Excalibur.Data.Clo
 Excalibur.Data.CloudNative.CloudAppendResult
 Excalibur.Data.CloudNative.CloudAppendResult.ErrorMessage.get -> string?
 Excalibur.Data.CloudNative.CloudAppendResult.IsConcurrencyConflict.get -> bool
-Excalibur.Data.CloudNative.CloudAppendResult.NextExpectedVersion.get -> long
 Excalibur.Data.CloudNative.CloudAppendResult.RequestCharge.get -> double
 Excalibur.Data.CloudNative.CloudAppendResult.SessionToken.get -> string?
 Excalibur.Data.CloudNative.CloudAppendResult.Success.get -> bool
@@ -98,6 +97,10 @@ Excalibur.Data.CloudNative.CloudOutboxMessage.Headers.init -> void
 Excalibur.Data.CloudNative.CloudOutboxMessage.IsPublished.get -> bool
 Excalibur.Data.CloudNative.CloudOutboxMessage.LastError.get -> string?
 Excalibur.Data.CloudNative.CloudOutboxMessage.LastError.init -> void
+Excalibur.Data.CloudNative.CloudOutboxMessage.LeasedAt.get -> System.DateTimeOffset?
+Excalibur.Data.CloudNative.CloudOutboxMessage.LeasedAt.init -> void
+Excalibur.Data.CloudNative.CloudOutboxMessage.LeasedBy.get -> string?
+Excalibur.Data.CloudNative.CloudOutboxMessage.LeasedBy.init -> void
 Excalibur.Data.CloudNative.CloudOutboxMessage.MessageId.get -> string!
 Excalibur.Data.CloudNative.CloudOutboxMessage.MessageId.init -> void
 Excalibur.Data.CloudNative.CloudOutboxMessage.MessageType.get -> string!
@@ -184,8 +187,6 @@ Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.ReadChangesAsync(S
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CloudNative.IChangeFeedSubscription<TDocument>.SubscriptionId.get -> string!
-Excalibur.Data.CloudNative.IChangeFeedSubscriptionDiagnostics<TDocument>
-Excalibur.Data.CloudNative.IChangeFeedSubscriptionDiagnostics<TDocument>.CurrentContinuationToken.get -> string?
 Excalibur.Data.CloudNative.ICloudBatchOperation
 Excalibur.Data.CloudNative.ICloudBatchOperation.DocumentId.get -> string!
 Excalibur.Data.CloudNative.ICloudBatchOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
@@ -209,6 +210,8 @@ Excalibur.Data.CloudNative.ICloudNativeOutboxStoreBatch.AddBatchAsync(System.Col
 Excalibur.Data.CloudNative.ICloudNativeOutboxStoreBatch.CleanupOldMessagesAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudCleanupResult!>!
 Excalibur.Data.CloudNative.ICloudNativeOutboxStoreBatch.IncrementRetryCountAsync(string! messageId, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult!>!
 Excalibur.Data.CloudNative.ICloudNativeOutboxStoreBatch.MarkBatchAsPublishedAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
+Excalibur.Data.CloudNative.ICloudNativeOutboxStoreClaim
+Excalibur.Data.CloudNative.ICloudNativeOutboxStoreClaim.ClaimPendingAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, int batchSize, string! claimantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Data.CloudNative.ICloudNativePersistenceBatchOperations
 Excalibur.Data.CloudNative.ICloudNativePersistenceBatchOperations.ExecuteBatchAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Data.CloudNative.ICloudBatchOperation!>! operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
 Excalibur.Data.CloudNative.ICloudNativePersistenceChangeFeed
@@ -340,26 +343,11 @@ Excalibur.Data.OperationFailedException.Operation.get -> string!
 Excalibur.Data.OperationFailedException.Operation.set -> void
 Excalibur.Data.OperationFailedException.OperationFailedException(string! operation, string! resource, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Data.OperationFailedException.OperationFailedException(string! resource, int? statusCode, string? message = null, System.Exception? innerException = null) -> void
-Excalibur.Data.Persistence.ConfigurationValidationResult
-Excalibur.Data.Persistence.ConfigurationValidationResult.ConfigurationValidationResult(bool isValid, string! providerName, string! message, Excalibur.Dispatch.Validation.ValidationSeverity severity = Excalibur.Dispatch.Validation.ValidationSeverity.Error) -> void
-Excalibur.Data.Persistence.ConfigurationValidationResult.IsValid.get -> bool
-Excalibur.Data.Persistence.ConfigurationValidationResult.Message.get -> string!
-Excalibur.Data.Persistence.ConfigurationValidationResult.ProviderName.get -> string!
-Excalibur.Data.Persistence.ConfigurationValidationResult.Severity.get -> Excalibur.Dispatch.Validation.ValidationSeverity
 Excalibur.Data.Persistence.ConnectionStringProviderExtensions
 Excalibur.Data.Persistence.DelegatingPersistenceProvider
 Excalibur.Data.Persistence.DelegatingPersistenceProvider.DelegatingPersistenceProvider(Excalibur.Data.Persistence.IPersistenceProvider! inner) -> void
 Excalibur.Data.Persistence.DelegatingPersistenceProvider.Dispose() -> void
 Excalibur.Data.Persistence.DelegatingPersistenceProvider.Inner.get -> Excalibur.Data.Persistence.IPersistenceProvider!
-Excalibur.Data.Persistence.DetailedHealthCheckResult
-Excalibur.Data.Persistence.DetailedHealthCheckResult.Data.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
-Excalibur.Data.Persistence.DetailedHealthCheckResult.Description.get -> string?
-Excalibur.Data.Persistence.DetailedHealthCheckResult.DetailedHealthCheckResult(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus status, string? description = null, System.Exception? exception = null, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? data = null, System.TimeSpan? responseTime = null, System.Collections.Generic.IDictionary<string!, double>? metrics = null) -> void
-Excalibur.Data.Persistence.DetailedHealthCheckResult.Exception.get -> System.Exception?
-Excalibur.Data.Persistence.DetailedHealthCheckResult.Metrics.get -> System.Collections.Generic.IDictionary<string!, double>!
-Excalibur.Data.Persistence.DetailedHealthCheckResult.ResponseTime.get -> System.TimeSpan?
-Excalibur.Data.Persistence.DetailedHealthCheckResult.Status.get -> Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus
-Excalibur.Data.Persistence.DetailedHealthCheckResult.ToHealthCheckResult() -> Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult
 Excalibur.Data.Persistence.IConnectionStringProvider
 Excalibur.Data.Persistence.IConnectionStringProvider.ConnectionStringExists(string! name) -> bool
 Excalibur.Data.Persistence.IConnectionStringProvider.GetConnectionString(string! name) -> string!
@@ -371,55 +359,14 @@ Excalibur.Data.Persistence.IConnectionStringProviderAdmin.BuildConnectionString(
 Excalibur.Data.Persistence.IConnectionStringProviderAdmin.ParseConnectionString(string! connectionString) -> System.Collections.Generic.IDictionary<string!, string!>!
 Excalibur.Data.Persistence.IConnectionStringProviderAdmin.RefreshAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Persistence.IConnectionStringProviderAdmin.ValidateConnectionString(string! connectionString, string! providerType) -> bool
-Excalibur.Data.Persistence.IDocumentAggregation
-Excalibur.Data.Persistence.IDocumentAggregation.ExecuteAggregationAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! aggregationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Persistence.IDocumentBulkOperations
-Excalibur.Data.Persistence.IDocumentBulkOperations.ExecuteBulkDocumentAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! bulkDocumentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Persistence.IDocumentIndexing
-Excalibur.Data.Persistence.IDocumentIndexing.ExecuteIndexOperationAsync<TConnection>(Excalibur.Data.IDocumentDataRequest<TConnection, string!>! indexRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Data.Persistence.IDataRequestExecutor
+Excalibur.Data.Persistence.IDataRequestExecutor.ExecuteAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Persistence.IDocumentPersistenceProvider
 Excalibur.Data.Persistence.IDocumentPersistenceProvider.DocumentStoreType.get -> string!
 Excalibur.Data.Persistence.IDocumentPersistenceProvider.ExecuteDocumentAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Persistence.IDocumentPersistenceProvider.ExecuteDocumentBatchAsync<TConnection>(System.Collections.Generic.IEnumerable<Excalibur.Data.IDocumentDataRequest<TConnection, object!>!>! documentRequests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
 Excalibur.Data.Persistence.IDocumentPersistenceProvider.ExecuteDocumentInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Persistence.IDocumentPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.Persistence.IDocumentPersistenceProvider.ValidateDocumentRequest<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! documentRequest) -> bool
-Excalibur.Data.Persistence.IDocumentStatistics
-Excalibur.Data.Persistence.IDocumentStatistics.GetCollectionInfoAsync(string! collectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
-Excalibur.Data.Persistence.IDocumentStatistics.GetDocumentStoreStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
-Excalibur.Data.Persistence.IDocumentStatistics.GetSupportedOperationTypes() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Data.Persistence.IPersistenceConfiguration
-Excalibur.Data.Persistence.IPersistenceConfiguration.ConfigurationSection.get -> Microsoft.Extensions.Configuration.IConfigurationSection!
-Excalibur.Data.Persistence.IPersistenceConfiguration.DefaultProviderName.get -> string!
-Excalibur.Data.Persistence.IPersistenceConfiguration.GetConfiguredProviders() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Data.Persistence.IPersistenceConfiguration.GetProviderOptions(string! providerName) -> Excalibur.Data.Persistence.IPersistenceOptions!
-Excalibur.Data.Persistence.IPersistenceConfiguration.Validate() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Persistence.ConfigurationValidationResult!>!
-Excalibur.Data.Persistence.IPersistenceConfigurationAdmin
-Excalibur.Data.Persistence.IPersistenceConfigurationAdmin.RegisterProviderConfiguration(string! providerName, Excalibur.Data.Persistence.IPersistenceOptions! options) -> void
-Excalibur.Data.Persistence.IPersistenceConfigurationAdmin.Reload() -> void
-Excalibur.Data.Persistence.IPersistenceConfigurationAdmin.RemoveProviderConfiguration(string! providerName) -> bool
-Excalibur.Data.Persistence.IPersistenceHealthCheck
-Excalibur.Data.Persistence.IPersistenceHealthCheck.CheckDetailedHealthAsync(Excalibur.Data.Persistence.IPersistenceProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Persistence.DetailedHealthCheckResult!>!
-Excalibur.Data.Persistence.IPersistenceHealthCheck.HealthCheckName.get -> string!
-Excalibur.Data.Persistence.IPersistenceHealthCheck.Tags.get -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Data.Persistence.IPersistenceHealthCheck.Timeout.get -> System.TimeSpan
-Excalibur.Data.Persistence.IPersistenceHealthCheck.Timeout.set -> void
-Excalibur.Data.Persistence.IPersistenceMetrics
-Excalibur.Data.Persistence.IPersistenceMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Data.Persistence.IPersistenceMetrics.RecordError(System.Exception! exception, string! operationType, string! providerName) -> void
-Excalibur.Data.Persistence.IPersistenceMetrics.RecordQueryDuration(System.TimeSpan duration, string! queryType, bool success, string! providerName) -> void
-Excalibur.Data.Persistence.IPersistenceMetrics.RecordRowsAffected(int rowCount, string! commandType, string! providerName) -> void
-Excalibur.Data.Persistence.IPersistenceMetrics.StartActivity(string! name, System.Collections.Generic.IDictionary<string!, object?>? tags = null) -> System.Diagnostics.Activity?
-Excalibur.Data.Persistence.IPersistenceMetricsAdmin
-Excalibur.Data.Persistence.IPersistenceMetricsAdmin.GetMetricsSnapshot() -> System.Collections.Generic.IDictionary<string!, object!>!
-Excalibur.Data.Persistence.IPersistenceMetricsAdmin.RecordCacheMetrics(bool hit, string! cacheKey, string! providerName) -> void
-Excalibur.Data.Persistence.IPersistenceMetricsAdmin.RecordConnectionPoolMetrics(int activeConnections, int idleConnections, string! providerName) -> void
-Excalibur.Data.Persistence.IPersistenceMetricsAdmin.RecordTransactionMetrics(System.TimeSpan duration, bool committed, string! providerName) -> void
-Excalibur.Data.Persistence.IPersistenceObservabilityOptions
-Excalibur.Data.Persistence.IPersistenceObservabilityOptions.EnableDetailedLogging.get -> bool
-Excalibur.Data.Persistence.IPersistenceObservabilityOptions.EnableDetailedLogging.set -> void
-Excalibur.Data.Persistence.IPersistenceObservabilityOptions.EnableMetrics.get -> bool
-Excalibur.Data.Persistence.IPersistenceObservabilityOptions.EnableMetrics.set -> void
 Excalibur.Data.Persistence.IPersistenceOptions
 Excalibur.Data.Persistence.IPersistenceOptions.CommandTimeout.get -> int
 Excalibur.Data.Persistence.IPersistenceOptions.CommandTimeout.set -> void
@@ -429,58 +376,26 @@ Excalibur.Data.Persistence.IPersistenceOptions.ConnectionTimeout.get -> int
 Excalibur.Data.Persistence.IPersistenceOptions.ConnectionTimeout.set -> void
 Excalibur.Data.Persistence.IPersistenceOptions.ProviderSpecificOptions.get -> System.Collections.Generic.IDictionary<string!, object!>!
 Excalibur.Data.Persistence.IPersistenceOptions.Validate() -> void
-Excalibur.Data.Persistence.IPersistencePoolingOptions
-Excalibur.Data.Persistence.IPersistencePoolingOptions.EnableConnectionPooling.get -> bool
-Excalibur.Data.Persistence.IPersistencePoolingOptions.EnableConnectionPooling.set -> void
-Excalibur.Data.Persistence.IPersistencePoolingOptions.MaxPoolSize.get -> int
-Excalibur.Data.Persistence.IPersistencePoolingOptions.MaxPoolSize.set -> void
-Excalibur.Data.Persistence.IPersistencePoolingOptions.MinPoolSize.get -> int
-Excalibur.Data.Persistence.IPersistencePoolingOptions.MinPoolSize.set -> void
 Excalibur.Data.Persistence.IPersistenceProvider
-Excalibur.Data.Persistence.IPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Persistence.IPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.Persistence.IPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Persistence.IPersistenceProvider.Name.get -> string!
 Excalibur.Data.Persistence.IPersistenceProvider.ProviderType.get -> string!
-Excalibur.Data.Persistence.IPersistenceProviderFactory
-Excalibur.Data.Persistence.IPersistenceProviderFactory.CreateProvider<TProvider>() -> TProvider
-Excalibur.Data.Persistence.IPersistenceProviderFactory.CreateProvider<TProvider>(string! name) -> TProvider
-Excalibur.Data.Persistence.IPersistenceProviderFactory.DisposeAllProvidersAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.Persistence.IPersistenceProviderFactory.GetProvider(string! name) -> Excalibur.Data.Persistence.IPersistenceProvider?
-Excalibur.Data.Persistence.IPersistenceProviderFactory.GetProviderNames() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Data.Persistence.IPersistenceProviderFactory.RegisterProvider(string! name, Excalibur.Data.Persistence.IPersistenceProvider! provider) -> void
-Excalibur.Data.Persistence.IPersistenceProviderFactory.UnregisterProvider(string! name) -> bool
+Excalibur.Data.Persistence.IPersistenceProviderConnection
+Excalibur.Data.Persistence.IPersistenceProviderConnection.ConnectionString.get -> string!
+Excalibur.Data.Persistence.IPersistenceProviderConnection.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
 Excalibur.Data.Persistence.IPersistenceProviderHealth
-Excalibur.Data.Persistence.IPersistenceProviderHealth.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.Persistence.IPersistenceProviderHealth.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.Persistence.IPersistenceProviderHealth.IsAvailable.get -> bool
 Excalibur.Data.Persistence.IPersistenceProviderHealth.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.Persistence.IPersistenceProviderTransaction
-Excalibur.Data.Persistence.IPersistenceProviderTransaction.ConnectionString.get -> string!
 Excalibur.Data.Persistence.IPersistenceProviderTransaction.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.Persistence.IPersistenceProviderTransaction.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Persistence.IPersistenceProviderTransaction.RetryPolicy.get -> Excalibur.Data.Resilience.IDataRequestRetryPolicy!
-Excalibur.Data.Persistence.IPersistenceResilienceOptions
-Excalibur.Data.Persistence.IPersistenceResilienceOptions.MaxRetryAttempts.get -> int
-Excalibur.Data.Persistence.IPersistenceResilienceOptions.MaxRetryAttempts.set -> void
-Excalibur.Data.Persistence.IPersistenceResilienceOptions.RetryDelayMilliseconds.get -> int
-Excalibur.Data.Persistence.IPersistenceResilienceOptions.RetryDelayMilliseconds.set -> void
-Excalibur.Data.Persistence.ISqlBulkOperations
-Excalibur.Data.Persistence.ISqlBulkOperations.ExecuteBulkAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! bulkRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Persistence.ISqlBulkOperations.SupportsBulkOperations.get -> bool
 Excalibur.Data.Persistence.ISqlPersistenceProvider
 Excalibur.Data.Persistence.ISqlPersistenceProvider.DatabaseType.get -> string!
 Excalibur.Data.Persistence.ISqlPersistenceProvider.ExecuteBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
 Excalibur.Data.Persistence.ISqlPersistenceProvider.ExecuteBatchInTransactionAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.IDataRequest<System.Data.IDbConnection!, object!>!>! requests, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
-Excalibur.Data.Persistence.ISqlPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.Persistence.ISqlPersistenceProvider.ValidateRequest<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! request) -> bool
-Excalibur.Data.Persistence.ISqlStatistics
-Excalibur.Data.Persistence.ISqlStatistics.DatabaseVersion.get -> string!
-Excalibur.Data.Persistence.ISqlStatistics.GetDatabaseStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
-Excalibur.Data.Persistence.ISqlStatistics.GetSchemaInfoAsync(string! tableName, string? schemaName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
-Excalibur.Data.Persistence.ISqlStoredProcedures
-Excalibur.Data.Persistence.ISqlStoredProcedures.ExecuteStoredProcedureAsync<TResult>(Excalibur.Data.IDataRequest<System.Data.IDbConnection!, TResult>! storedProcedureRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Persistence.ISqlStoredProcedures.SupportsStoredProcedures.get -> bool
 Excalibur.Data.Persistence.ITransactionScope
 Excalibur.Data.Persistence.ITransactionScope.CommitAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Persistence.ITransactionScope.EnlistConnectionAsync(System.Data.IDbConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -502,52 +417,10 @@ Excalibur.Data.Persistence.ITransactionScopeCallbacks
 Excalibur.Data.Persistence.ITransactionScopeCallbacks.OnCommit(System.Func<System.Threading.Tasks.Task!>! callback) -> void
 Excalibur.Data.Persistence.ITransactionScopeCallbacks.OnComplete(System.Func<Excalibur.Data.Persistence.TransactionStatus, System.Threading.Tasks.Task!>! callback) -> void
 Excalibur.Data.Persistence.ITransactionScopeCallbacks.OnRollback(System.Func<System.Threading.Tasks.Task!>! callback) -> void
-Excalibur.Data.Persistence.PersistenceConfigurationExtensions
-Excalibur.Data.Persistence.PersistenceHealthStatus
-Excalibur.Data.Persistence.PersistenceHealthStatus.CheckedAt.get -> System.DateTimeOffset
-Excalibur.Data.Persistence.PersistenceHealthStatus.CheckedAt.set -> void
-Excalibur.Data.Persistence.PersistenceHealthStatus.Data.get -> System.Collections.Generic.Dictionary<string!, object!>?
-Excalibur.Data.Persistence.PersistenceHealthStatus.IsHealthy.get -> bool
-Excalibur.Data.Persistence.PersistenceHealthStatus.IsHealthy.set -> void
-Excalibur.Data.Persistence.PersistenceHealthStatus.Message.get -> string!
-Excalibur.Data.Persistence.PersistenceHealthStatus.Message.set -> void
-Excalibur.Data.Persistence.PersistenceHealthStatus.PersistenceHealthStatus() -> void
-Excalibur.Data.Persistence.PersistenceHealthStatus.ProviderName.get -> string!
-Excalibur.Data.Persistence.PersistenceHealthStatus.ProviderName.set -> void
-Excalibur.Data.Persistence.PersistenceHealthStatus.ResponseTimeMs.get -> long?
-Excalibur.Data.Persistence.PersistenceHealthStatus.ResponseTimeMs.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsExtensions
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.AverageCommandDurationMs.get -> double
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.AverageCommandDurationMs.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.AverageQueryDurationMs.get -> double
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.AverageQueryDurationMs.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.CacheHits.get -> long
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.CacheHits.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.CacheMisses.get -> long
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.CacheMisses.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.CustomMetrics.get -> System.Collections.Generic.Dictionary<string!, long>!
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.PersistenceMetricsSnapshot() -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.Timestamp.get -> System.DateTimeOffset
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.Timestamp.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.TotalCommands.get -> long
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.TotalCommands.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.TotalErrors.get -> long
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.TotalErrors.set -> void
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.TotalQueries.get -> long
-Excalibur.Data.Persistence.PersistenceMetricsSnapshot.TotalQueries.set -> void
 Excalibur.Data.Persistence.PersistenceProviderBuilder
 Excalibur.Data.Persistence.PersistenceProviderBuilder.Build() -> Excalibur.Data.Persistence.IPersistenceProvider!
 Excalibur.Data.Persistence.PersistenceProviderBuilder.PersistenceProviderBuilder(Excalibur.Data.Persistence.IPersistenceProvider! innerProvider) -> void
 Excalibur.Data.Persistence.PersistenceProviderBuilder.Use(System.Func<Excalibur.Data.Persistence.IPersistenceProvider!, Excalibur.Data.Persistence.IPersistenceProvider!>! decorator) -> Excalibur.Data.Persistence.PersistenceProviderBuilder!
-Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.Custom = 6 -> Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.Elasticsearch = 3 -> Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.InMemory = 5 -> Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.MongoDB = 2 -> Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.Postgres = 1 -> Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.Redis = 4 -> Excalibur.Data.Persistence.PersistenceProviderType
-Excalibur.Data.Persistence.PersistenceProviderType.SqlServer = 0 -> Excalibur.Data.Persistence.PersistenceProviderType
 Excalibur.Data.Persistence.TransactionScopeBase
 Excalibur.Data.Persistence.TransactionScopeBase.Dispose() -> void
 Excalibur.Data.Persistence.TransactionScopeBase.Disposed.get -> bool
@@ -581,16 +454,6 @@ Excalibur.Data.Persistence.TransactionStatus.RolledBack = 4 -> Excalibur.Data.Pe
 Excalibur.Data.Persistence.TransactionStatus.RollingBack = 3 -> Excalibur.Data.Persistence.TransactionStatus
 Excalibur.Data.Persistence.TransactionStatus.TimedOut = 6 -> Excalibur.Data.Persistence.TransactionStatus
 Excalibur.Data.ProjectionSerializationDefaults
-Excalibur.Data.Resilience.ICircuitBreakerOptions
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerDurationOfBreak.get -> System.TimeSpan
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerDurationOfBreak.set -> void
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerFailureThreshold.get -> int
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerFailureThreshold.set -> void
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerMinimumThroughput.get -> int
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerMinimumThroughput.set -> void
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerSamplingDuration.get -> System.TimeSpan
-Excalibur.Data.Resilience.ICircuitBreakerOptions.CircuitBreakerSamplingDuration.set -> void
-Excalibur.Data.Resilience.IDataRequestResilienceOptions
 Excalibur.Data.Resilience.IDataRequestRetryPolicy
 Excalibur.Data.Resilience.IDataRequestRetryPolicy.BaseRetryDelay.get -> System.TimeSpan
 Excalibur.Data.Resilience.IDataRequestRetryPolicy.MaxRetryAttempts.get -> int
@@ -599,23 +462,6 @@ Excalibur.Data.Resilience.IDocumentDataRequestRetryPolicy
 Excalibur.Data.Resilience.IDocumentDataRequestRetryPolicy.ResolveDocumentAsync<TConnection, TResult>(Excalibur.Data.IDocumentDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.Resilience.IRelationalDataRequestRetryPolicy
 Excalibur.Data.Resilience.IRelationalDataRequestRetryPolicy.ResolveAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Resilience.IResilienceGeneralOptions
-Excalibur.Data.Resilience.IResilienceGeneralOptions.DefaultTimeout.get -> System.TimeSpan
-Excalibur.Data.Resilience.IResilienceGeneralOptions.DefaultTimeout.set -> void
-Excalibur.Data.Resilience.IResilienceGeneralOptions.EnableResilience.get -> bool
-Excalibur.Data.Resilience.IResilienceGeneralOptions.EnableResilience.set -> void
-Excalibur.Data.Resilience.IResilienceGeneralOptions.ProviderSpecificOptions.get -> System.Collections.Generic.IDictionary<string!, object!>!
-Excalibur.Data.Resilience.IRetryOptions
-Excalibur.Data.Resilience.IRetryOptions.BaseRetryDelay.get -> System.TimeSpan
-Excalibur.Data.Resilience.IRetryOptions.BaseRetryDelay.set -> void
-Excalibur.Data.Resilience.IRetryOptions.MaxRetryAttempts.get -> int
-Excalibur.Data.Resilience.IRetryOptions.MaxRetryAttempts.set -> void
-Excalibur.Data.Resilience.IRetryOptions.MaxRetryDelay.get -> System.TimeSpan
-Excalibur.Data.Resilience.IRetryOptions.MaxRetryDelay.set -> void
-Excalibur.Data.Resilience.IRetryOptions.UseExponentialBackoff.get -> bool
-Excalibur.Data.Resilience.IRetryOptions.UseExponentialBackoff.set -> void
-Excalibur.Data.Resilience.IRetryOptions.UseJitter.get -> bool
-Excalibur.Data.Resilience.IRetryOptions.UseJitter.set -> void
 Excalibur.Data.ResourceException
 Excalibur.Data.ResourceException.Context.get -> System.Collections.Generic.Dictionary<string!, object?>!
 Excalibur.Data.ResourceException.Resource.get -> string?
@@ -745,13 +591,6 @@ static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.BuildConnec
 static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.ParseConnectionString(this Excalibur.Data.Persistence.IConnectionStringProvider! provider, string! connectionString) -> System.Collections.Generic.IDictionary<string!, string!>!
 static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.RefreshAsync(this Excalibur.Data.Persistence.IConnectionStringProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.ValidateConnectionString(this Excalibur.Data.Persistence.IConnectionStringProvider! provider, string! connectionString, string! providerType) -> bool
-static Excalibur.Data.Persistence.PersistenceConfigurationExtensions.RegisterProviderConfiguration(this Excalibur.Data.Persistence.IPersistenceConfiguration! config, string! providerName, Excalibur.Data.Persistence.IPersistenceOptions! options) -> void
-static Excalibur.Data.Persistence.PersistenceConfigurationExtensions.Reload(this Excalibur.Data.Persistence.IPersistenceConfiguration! config) -> void
-static Excalibur.Data.Persistence.PersistenceConfigurationExtensions.RemoveProviderConfiguration(this Excalibur.Data.Persistence.IPersistenceConfiguration! config, string! providerName) -> bool
-static Excalibur.Data.Persistence.PersistenceMetricsExtensions.GetMetricsSnapshot(this Excalibur.Data.Persistence.IPersistenceMetrics! metrics) -> System.Collections.Generic.IDictionary<string!, object!>!
-static Excalibur.Data.Persistence.PersistenceMetricsExtensions.RecordCacheMetrics(this Excalibur.Data.Persistence.IPersistenceMetrics! metrics, bool hit, string! cacheKey, string! providerName) -> void
-static Excalibur.Data.Persistence.PersistenceMetricsExtensions.RecordConnectionPoolMetrics(this Excalibur.Data.Persistence.IPersistenceMetrics! metrics, int activeConnections, int idleConnections, string! providerName) -> void
-static Excalibur.Data.Persistence.PersistenceMetricsExtensions.RecordTransactionMetrics(this Excalibur.Data.Persistence.IPersistenceMetrics! metrics, System.TimeSpan duration, bool committed, string! providerName) -> void
 static Excalibur.Data.ProjectionSerializationDefaults.CreateReadModelOptions() -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Data.ResourceException.ForResource(string! resource, string? resourceId = null) -> Excalibur.Data.ResourceException!
 static Excalibur.Data.ResourceException.FormatMessage(string! resource, string? resourceId) -> string!
@@ -769,8 +608,39 @@ static readonly Excalibur.Data.CloudNative.ConsistencyOptions.Strong -> Excalibu
 virtual Excalibur.Data.Db.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.GetService(System.Type! serviceType) -> object?
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.InitializeAsync(Excalibur.Data.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.Name.get -> string!
 virtual Excalibur.Data.Persistence.DelegatingPersistenceProvider.ProviderType.get -> string!
+Excalibur.Data.CloudNative.CloudAppendResult.NextExpectedVersion.get -> long?
+Excalibur.Data.NoTenantTermAttribute
+Excalibur.Data.NoTenantTermAttribute.Confinement.get -> Excalibur.Data.TenantConfinement
+Excalibur.Data.NoTenantTermAttribute.Justification.get -> string!
+Excalibur.Data.NoTenantTermAttribute.NoTenantTermAttribute(Excalibur.Data.TenantConfinement confinement, string! justification) -> void
+Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.EstateWide = 0 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.ForeignKeyConfined = 2 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.IdentityAddressed = 1 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.TenantConfinement.NoTenantDimension = 3 -> Excalibur.Data.TenantConfinement
+Excalibur.Data.CloudNative.ICloudBatchDocumentOperation
+Excalibur.Data.CloudNative.ICloudBatchDocumentOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchCreateOperation
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.CloudBatchCreateOperation(string! documentId, object! document) -> void
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchCreateOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.CloudBatchReplaceOperation(string! documentId, object! document) -> void
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchReplaceOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.CloudBatchUpsertOperation(string! documentId, object! document) -> void
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.Document.get -> object!
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchUpsertOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation.CloudBatchDeleteOperation(string! documentId) -> void
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation.DocumentId.get -> string!
+Excalibur.Data.CloudNative.CloudBatchDeleteOperation.OperationType.get -> Excalibur.Data.CloudNative.CloudBatchOperationType
+Excalibur.Data.Sharding.ShardInfo.RequireCoordinate(string? value, string! coordinateName) -> string!

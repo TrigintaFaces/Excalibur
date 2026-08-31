@@ -35,7 +35,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 {
 	private readonly DynamoDbInboxOptions _options;
 	private readonly ILogger<DynamoDbInboxStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
 
@@ -59,14 +59,14 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When absent every
-	/// entry resolves to the reserved untenanted term, which is a concrete value rather than a null, so
-	/// the dedup key has the same shape either way.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public DynamoDbInboxStore(
 		IOptions<DynamoDbInboxOptions> options,
 		ILogger<DynamoDbInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -74,6 +74,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 
 		// No client was supplied, so InitializeAsync will construct one (see the `_client ??= CreateClient()`
@@ -89,14 +90,15 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. See the other
-	/// constructor: an absent context resolves to the reserved untenanted term, never to a null.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public DynamoDbInboxStore(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbInboxOptions> options,
 		ILogger<DynamoDbInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -106,6 +108,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		_ownsClient = false;
 		_options = options.Value;
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 
 		// Do NOT mark initialized here: a consumer-supplied client still needs InitializeAsync to run the
@@ -348,12 +351,19 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			TableName = _options.TableName,
 			Key = key,
 			UpdateExpression = "SET #status = :status, last_attempt_at = :attempt",
-			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute})",
+			// Processed is absorbing: the condition refuses rather than demoting a finalized entry back
+			// to Processing, which would re-admit the message and run the handler again. A refusal and an
+			// absent item raise the same exception, so the item that failed the condition is returned
+			// with it — an item that came back exists and was refused by the status term, and no item
+			// means there was nothing to mark.
+			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute}) AND #status <> :processed",
+			ReturnValuesOnConditionCheckFailure = ReturnValuesOnConditionCheckFailure.ALL_OLD,
 			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
 				[":status"] = new() { N = ((int)InboxStatus.Processing).ToString() },
-				[":attempt"] = new() { S = now.ToString("O") }
+				[":attempt"] = new() { S = now.ToString("O") },
+				[":processed"] = new() { N = ((int)InboxStatus.Processed).ToString(System.Globalization.CultureInfo.InvariantCulture) }
 			}
 		};
 
@@ -362,10 +372,16 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 			_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 		}
-		catch (ConditionalCheckFailedException)
+		catch (ConditionalCheckFailedException ex) when (ex.Item is not { Count: > 0 })
 		{
 			throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+		}
+		catch (ConditionalCheckFailedException)
+		{
+			_logger.LogDebug(
+				"Skipped Processing transition for message {MessageId} and handler {HandlerType} (already finalized)",
+				messageId, handlerType);
 		}
 	}
 
@@ -579,14 +595,18 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			Key = key,
 			UpdateExpression =
 				"SET #status = :status, last_error = :error, last_attempt_at = :attempt, retry_count = retry_count + :inc",
-			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute})",
+			// Processed is absorbing: the condition refuses rather than demoting a finalized entry to
+			// Failed, which would make it re-admittable and run the handler again. A refusal raises
+			// ConditionalCheckFailedException, which the catch below already treats as a no-op.
+			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute}) AND #status <> :processed",
 			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
 				[":status"] = new() { N = ((int)InboxStatus.Failed).ToString() },
 				[":error"] = new() { S = errorMessage },
 				[":attempt"] = new() { S = now.ToString("O") },
-				[":inc"] = new() { N = "1" }
+				[":inc"] = new() { N = "1" },
+				[":processed"] = new() { N = ((int)InboxStatus.Processed).ToString(System.Globalization.CultureInfo.InvariantCulture) }
 			}
 		};
 
@@ -616,21 +636,25 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		var now = DateTimeOffset.UtcNow;
 
 		// Set retry_count EXACTLY (no increment) so a transient short-circuit leaves the entry
-		// re-admittable without consuming a delivery attempt (FR-4).
+		// re-admittable without consuming a delivery attempt.
 		var updateRequest = new UpdateItemRequest
 		{
 			TableName = _options.TableName,
 			Key = key,
 			UpdateExpression =
 				"SET #status = :status, last_error = :error, last_attempt_at = :attempt, retry_count = :retryCount",
-			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute})",
+			// Processed is absorbing: the condition refuses rather than demoting a finalized entry to
+			// Failed, which would make it re-admittable and run the handler again. A refusal raises
+			// ConditionalCheckFailedException, which the catch below already treats as a no-op.
+			ConditionExpression = $"attribute_exists({_options.PartitionKeyAttribute}) AND #status <> :processed",
 			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" },
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
 				[":status"] = new() { N = ((int)InboxStatus.Failed).ToString(System.Globalization.CultureInfo.InvariantCulture) },
 				[":error"] = new() { S = errorMessage },
 				[":attempt"] = new() { S = now.ToString("O") },
-				[":retryCount"] = new() { N = retryCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+				[":retryCount"] = new() { N = retryCount.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+				[":processed"] = new() { N = ((int)InboxStatus.Processed).ToString(System.Globalization.CultureInfo.InvariantCulture) }
 			}
 		};
 
@@ -646,7 +670,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -706,7 +730,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -729,7 +753,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -789,7 +813,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
@@ -904,7 +928,8 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// Always a concrete, non-empty term: an unscoped host resolves to the reserved untenanted sentinel
 	/// rather than to <see langword="null"/>, so the key shape never varies by tenancy mode.
 	/// </remarks>
-	private string TenantTerm => KeyedTenantPartition.FromContext(_tenantContext).TenantId;
+	private string TenantTerm =>
+		KeyedTenantPartition.FromContext(_tenantContext).TenantId;
 
 	/// <summary>
 	/// Composes the sort-key term that identifies an inbox entry within its handler partition.
@@ -921,7 +946,25 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// entries, which is the failure this shape is built to make inexpressible.
 	/// </para>
 	/// </remarks>
-	private string ComposeDedupTerm(string messageId) => $"{TenantTerm}:{messageId}";
+	private string ComposeDedupTerm(string messageId) =>
+		$"{EscapeSegment(TenantTerm)}:{EscapeSegment(messageId)}";
+
+	// The ':' joining the two terms is not injective on its own. Neither the tenant term nor the message id
+	// is validated against any charset -- both are caller data -- so tenant "a:b" with message "c" and
+	// tenant "a" with message "b:c" both composed the sort key "a:b:c" and shared one item. This is the
+	// dedup key, so the collision does not surface as an error: the second message fails the conditional
+	// put, the caller reads that as a duplicate, and the message is dropped -- silently, across a tenant
+	// boundary.
+	//
+	// '%' is escaped FIRST and is what makes the encoding reversible. Escaping only ':' would map the
+	// distinct terms "a:b" and "a%3Ab" onto one sort key -- a collision introduced by the escaping itself.
+	//
+	// This is deliberately a no-op for any term containing neither '%' nor ':'. The sort key is PERSISTED,
+	// so an encoding that moved every existing item would orphan every in-flight dedup record on upgrade
+	// and re-deliver already-processed messages. Only the previously-ambiguous keys change.
+	private static string EscapeSegment(string value) =>
+		value.Replace("%", "%25", StringComparison.Ordinal)
+			.Replace(":", "%3A", StringComparison.Ordinal);
 
 	private Dictionary<string, AttributeValue> CreateKey(string messageId, string handlerType) =>
 		new()

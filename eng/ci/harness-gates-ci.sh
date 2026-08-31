@@ -117,9 +117,19 @@ run "container-image-pinning (real tree)" python3 eng/ci/container-image-pinning
 #       hermetic, so they run here on every push instead.
 run "release-receipt self-test" python3 eng/ci/release-receipt.py --self-test
 
+# -- 1e. SHIPPED DEPENDENCY LISTS. The packed manifest is the list a consumer's restore acts on, and
+#        with central transitive pinning a single reference missing PrivateAssets is promoted onto
+#        every downstream package's list. The enforcing run packs the shipping filter and lives in the
+#        governance workflow; only its classifier is hermetic, so its non-vacuity is proven here on
+#        every push rather than once at release time. PowerShell, so it cannot live in the bash loop.
+run "shipped-dependency classifier self-test" pwsh -NoProfile -File eng/ci/validate-nuspec-dependencies.ps1 -SelfTest
+
 # ── 3. Run the gate NON-VACUITY locks (authoritative in CI, not just pre-commit). All hermetic.
 for t in \
     "eng/ci/gate-wiring.test.sh" \
+    "eng/ci/gate-denominator.sh --self-test" \
+    "eng/ci/gate-denominator-gate.sh --self-test" \
+    "eng/ci/gate-denominator-gate.test.sh" \
     "eng/ci/f5-sweep.sh --self-test" \
     "eng/ci/f5-sweep.test.sh" \
     "eng/ci/assert-tests-executed.sh --self-test" \
@@ -135,6 +145,8 @@ for t in \
     "eng/ci/orphaned-constant-gate.test.sh" \
     "eng/ci/inbox-decorator-seam-gate.sh --self-test" \
     "eng/ci/inbox-decorator-seam-gate.test.sh" \
+    "eng/ci/conformance-fork-gate.sh --self-test" \
+    "eng/ci/persistence-health-deriver-gate.sh --self-test" \
     "eng/ci/package-metadata-gate.test.sh" \
     "eng/ci/orphan-test-project-gate.test.sh" \
     "eng/ci/build-entrypoint-compose.test.sh" \
@@ -152,12 +164,15 @@ for t in \
     "eng/ci/integration-serial-runner-gate.sh" \
     "eng/ci/unconditional-skip-ratchet.sh --self-test" \
     "eng/ci/unconditional-skip-ratchet.sh" \
+    "eng/ci/ide0052-ratchet-gate.sh --self-test" \
+    "eng/ci/ide0052-ratchet-gate.sh --check-armed" \
     "eng/ci/committed-sha-build-gate.test.sh" \
     "eng/ci/aot-publish-validation-exit.test.sh" \
     "eng/ci/assert-compiled-not-skipped.test.sh" \
     "eng/compliance/collect-evidence.test.sh" \
     "eng/ci/cosmos-liveness-gate.sh --self-test" \
-    "eng/hooks/verify-hooks-current.test.sh" ; do
+    "eng/hooks/verify-hooks-current.test.sh" \
+    "eng/hooks/pre-push-significance.test.sh" ; do
     # Two conditions before adding an entry here, both learned the hard way:
     #
     #  1. It MUST be committed. A path that exists only in someone's working tree resolves
@@ -270,6 +285,23 @@ run "shipped-ddl-sweep (real repo, set-baselined)" bash eng/ci/shipped-ddl-sweep
 # 2 REFUSE (scanned nothing, or scanned files and evaluated no property — never a pass).
 run "sqlserver-ddl-hygiene (real repo)" bash eng/ci/sqlserver-ddl-hygiene.sh
 
+# FUNCTIONAL: conformance kits ship WITHOUT a test-framework reference, on purpose, so a consumer is not
+# forced onto our runner. That means an arm carries no discovery attribute and the deriving suite supplies
+# one. An arm the deriver never wraps is not skipped and not reported -- it does not exist, and the suite
+# is green over the arms that remain, so its pass count measures WIRING, not COVERAGE.
+#
+# The kits carry an in-process arm that reflects over the deriver and fails on a gap, which is what
+# reaches a consumer. But that arm is itself unattributed: a suite that forgets IT disables the check
+# silently. A mechanism cannot detect its own absence. Only something outside the test process can, and
+# that is this gate -- it is not a fallback for the in-process guard, it is the half the guard cannot do.
+#
+# Also reds a guard bound to public members alone on a kit that declares its arms protected: such a guard
+# enumerates zero arms and passes over an empty set for every deriver, forever.
+# Three states: 0 every arm wired · 1 an arm is unwired (or a guard is vacuous) · 2 REFUSE (found no kits
+# or no derivers -- nothing measured, which is never a pass).
+run "conformance-arm-wiring self-test" python3 eng/ci/conformance-arm-wiring.py --self-test
+run "conformance-arm-wiring (real repo)" python3 eng/ci/conformance-arm-wiring.py
+
 # FUNCTIONAL: run the shard hang-timeout gate against the REAL tree. Self-test-only wiring would
 # validate the detector and never cast the net over the runners and documented commands that actually
 # wedge (the self-test-only class). The defect it guards is silent by construction: an unbounded
@@ -306,6 +338,16 @@ else
     echo "::warning::staging-feed-validate self-test SKIPPED — pwsh not on PATH (a skip is not a pass)"
 fi
 
+# The PowerShell evidence collector's lock, the twin of eng/compliance/collect-evidence.test.sh in the
+# bash battery above. Both collectors write a document whose audience is an auditor, so both need the
+# same safety/liveness pair: an empty package may not claim documented controls, and a package with
+# real evidence must still report accurate non-zero figures. Hermetic - no gh, no network, no run id.
+if command -v pwsh >/dev/null 2>&1; then
+    run "self-test: collect-evidence-ps" pwsh -NoProfile -File eng/compliance/collect-evidence.test.ps1
+else
+    echo "::warning::collect-evidence-ps self-test SKIPPED — pwsh not on PATH (a skip is not a pass)"
+fi
+
 # ddl-pack-completeness answers the INVERSE question to shipped-ddl-sweep, and neither can see the
 # other's class. The sweep asks "does the DDL we ship declare every column the code writes?" — it
 # compares DDL that IS shipped. This asks "can a consumer obtain the DDL at all?" A column-drift
@@ -322,6 +364,27 @@ fi
 run "self-test: ddl-pack-completeness" python3 eng/ci/ddl-pack-completeness.py --self-test
 
 run "ddl-pack-completeness (real repo)" python3 eng/ci/ddl-pack-completeness.py
+
+# ddl-migration-completeness asks the one question the two DDL gates above CANNOT, and the reason is
+# structural rather than a matter of coverage: both of them compare current artifacts against each
+# other, and a freshly provisioned database always matches the current script -- that is what
+# "current" means. So an in-place edit to a shipped CREATE TABLE is satisfied by definition on our
+# machines and breaks only on a consumer's EXISTING database, which is the one place we never look.
+# The missing dimension is time: this gate diffs each provisioning artifact against its own previous
+# committed content and requires an ALTER for anything an existing database would not pick up.
+# It covers BOTH limbs of the provisioning surface -- the shipped .sql AND the CREATE TABLE authored
+# as an interpolated string in C#. That is not thoroughness; the defect this was built for lives
+# entirely in the second limb, so a .sql-keyed version of this gate would be structurally blind to
+# the very thing it exists to catch.
+# Three states: 0 no NEW gap (recorded gaps are named in the baseline and are not a clean tree)
+# · 1 an in-place change has no upgrade path, or a baseline entry is stale · 2 REFUSE (unreadable
+# history, an unparseable script, an unresolvable table identity, or an empty window — a zero over
+# nothing measured is not a clean tree).
+# Its own interpreter, for the same reason as the gate above. Self-test FIRST: non-vacuity must
+# report before the verdict is believed. Keep this above the real-repo run.
+run "self-test: ddl-migration-completeness" python3 eng/ci/ddl-migration-completeness.py --self-test
+
+run "ddl-migration-completeness (real repo)" python3 eng/ci/ddl-migration-completeness.py
 
 # Report what EXECUTED, not what is configured. A battery that reaches green by dropping entries
 # prints the same "0 failures" as a healthy one, so the failure count alone cannot distinguish a

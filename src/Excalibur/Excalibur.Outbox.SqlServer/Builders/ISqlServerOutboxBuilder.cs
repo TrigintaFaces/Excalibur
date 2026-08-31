@@ -113,16 +113,6 @@ public interface ISqlServerOutboxBuilder
 	ISqlServerOutboxBuilder TransportsTableName(string tableName);
 
 	/// <summary>
-	/// Sets the table name for storing dead letter messages. Default: "OutboxDeadLetters".
-	/// </summary>
-	/// <param name="tableName">The table name for dead letters.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="tableName"/> is null or whitespace.
-	/// </exception>
-	ISqlServerOutboxBuilder DeadLetterTableName(string tableName);
-
-	/// <summary>
 	/// Enables SQL Server health checks for the outbox store.
 	/// </summary>
 	/// <param name="name">Optional health check name. Default: "sqlserver-outbox".</param>

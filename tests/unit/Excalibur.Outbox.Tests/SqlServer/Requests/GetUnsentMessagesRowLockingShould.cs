@@ -47,8 +47,10 @@ public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 		// Act
 		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
-		// Assert - Lease columns prevent double-processing by concurrent processors
-		request.Command.CommandText.ShouldContain("LeasedAt = GETUTCDATE()");
+		// Assert - Lease columns prevent double-processing by concurrent processors. The lease is stamped
+		// with the same clock function the rest of this predicate reads, so one WHERE clause does not reason
+		// at two different resolutions.
+		request.Command.CommandText.ShouldContain("LeasedAt = TODATETIMEOFFSET(SYSUTCDATETIME(), 0)");
 		request.Command.CommandText.ShouldContain("LeasedBy = @ProcessorId");
 	}
 

@@ -4,6 +4,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Benchmarks.Patterns;
 
 using Excalibur.EventSourcing;
@@ -40,7 +41,7 @@ public class EventSourcingConcurrentLoadTest
 	[IterationSetup]
 	public void IterationSetup()
 	{
-		_eventStore = new InMemoryEventStore();
+		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
 	}
 
 	/// <summary>

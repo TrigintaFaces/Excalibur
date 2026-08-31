@@ -76,4 +76,46 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 		// Assert
 		options.EnvironmentVariables.ShouldContainKeyAndValue("KEY1", "value1");
 	}
+
+	// ExecutionTimeout is a promise the framework has to keep: a consumer who sets it to bound a
+	// runaway handler must actually get that bound. These arms pin BOTH directions -- it shortens
+	// the budget when it is tighter than the platform's, and it cannot lengthen it when it is not.
+	[Fact]
+	public void CapExecutionBudgetWhenTheConfiguredTimeoutIsShorterThanThePlatformBudget()
+	{
+		var remaining = TimeSpan.FromSeconds(30);
+
+		var budget = ServerlessHostOptions.ComputeExecutionTimeout(remaining, TimeSpan.FromSeconds(5));
+
+		budget.ShouldBe(TimeSpan.FromSeconds(5));
+	}
+
+	[Fact]
+	public void IgnoreAConfiguredTimeoutLongerThanThePlatformBudget()
+	{
+		var remaining = TimeSpan.FromSeconds(30);
+
+		var budget = ServerlessHostOptions.ComputeExecutionTimeout(remaining, TimeSpan.FromMinutes(10));
+
+		budget.ShouldBe(remaining - ServerlessHostOptions.DefaultCleanupReserve);
+	}
+
+	[Fact]
+	public void FallBackToThePlatformBudgetWhenNoTimeoutIsConfigured()
+	{
+		var remaining = TimeSpan.FromSeconds(30);
+
+		var budget = ServerlessHostOptions.ComputeExecutionTimeout(remaining, configuredTimeout: null);
+
+		budget.ShouldBe(remaining - ServerlessHostOptions.DefaultCleanupReserve);
+	}
+
+	[Fact]
+	public void FloorTheBudgetAtZeroWhenTheConfiguredTimeoutIsNegative()
+	{
+		var budget = ServerlessHostOptions.ComputeExecutionTimeout(
+			TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(-1));
+
+		budget.ShouldBe(TimeSpan.Zero);
+	}
 }

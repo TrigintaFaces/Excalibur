@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
@@ -62,10 +62,10 @@ public sealed class MartenOutboxSettleTombstoneShould : IClassFixture<PostgresOu
 	/// Safety: a release must leave a settled message's tombstone in place, so a second settle still loses.
 	/// </summary>
 	/// <remarks>
-	/// <c>MarkFailedAsync</c> releases the claim so a retried message returns to the pool immediately. If
-	/// that release also cleared a terminal tombstone, the next <c>MarkSentAsync</c> would find no row,
-	/// insert one, and settle an already-sent message a second time — reopening the very race the
-	/// arbitration closes.
+	/// <c>MarkFailedAsync</c> gives up the failing dispatcher's lease so a retried message returns to the
+	/// pool once its floor elapses. If that release also cleared a terminal tombstone, the next
+	/// <c>MarkSentAsync</c> would find no row, insert one, and settle an already-sent message a second
+	/// time — reopening the very race the arbitration closes.
 	/// </remarks>
 	[Fact]
 	public async Task Keep_the_terminal_tombstone_when_a_release_runs_after_the_message_was_settled()
@@ -89,16 +89,32 @@ public sealed class MartenOutboxSettleTombstoneShould : IClassFixture<PostgresOu
 	}
 
 	/// <summary>
-	/// Liveness counterpart: a live dispatcher's claim IS still released, so the guard above did not
-	/// simply disable releasing.
+	/// Liveness counterpart: a live dispatcher's lease IS still given up, so the guard above did not
+	/// simply disable releasing, and the failed message comes back to the pool once its floor elapses.
 	/// </summary>
 	/// <remarks>
-	/// Without this arm the safety assertion is satisfied by a release that deletes nothing at all, which
+	/// <para>
+	/// Without this arm the safety assertion is satisfied by a release that gives nothing up at all, which
 	/// would strand every failed message for the whole claim timeout before any dispatcher could retry it.
+	/// </para>
+	/// <para>
+	/// The release is not a delete. A plain failure leaves the row in place carrying the retry floor F —
+	/// deleting it would drop the floor and let the drain re-claim the message on its very next poll, the
+	/// hot-loop the floor exists to prevent. What the release gives up is the <i>lease</i>: it rewinds
+	/// <c>claimed_at</c> so the claim timeout stops holding the message, leaving the floor as the only
+	/// thing that does. So the property asserted here is "back in the pool once F elapses", never "at
+	/// once" — and it is asserted through the public surface, because a row-shape assertion would go stale
+	/// the moment the mechanism changed, which is exactly how this arm came to be checking for a delete
+	/// the store had stopped doing.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public async Task Still_release_a_live_dispatchers_claim_so_a_failed_message_returns_to_the_pool()
+	public async Task Still_release_a_live_dispatchers_lease_so_a_failed_message_returns_to_the_pool_after_its_floor()
 	{
+		// The shortest floor the store admits: this arm is about whether the message comes back at all,
+		// not about how long F is, and a 30-second default would only make it slow.
+		_options.FailureBackoffFloorSeconds = 1;
+
 		var store = await CreateStoreAsync().ConfigureAwait(false);
 		var message = NewMessage();
 
@@ -115,8 +131,46 @@ public sealed class MartenOutboxSettleTombstoneShould : IClassFixture<PostgresOu
 
 		await store.MarkFailedAsync(message.Id, "transient failure", 1, CancellationToken.None).ConfigureAwait(false);
 
-		(await ReadClaimDispatcherAsync(message.Id).ConfigureAwait(false)).ShouldBeNull(
-			"a live dispatcher's claim must still be released on failure, so the message can be retried at once");
+		// The row survives, and it is the failing dispatcher's own — not the terminal tombstone. A plain
+		// failure must not settle the message, or the sibling arm above would be asserting nothing.
+		var afterFailure = await ReadClaimDispatcherAsync(message.Id).ConfigureAwait(false);
+		afterFailure.ShouldNotBe(
+			TerminalDispatcherId,
+			"a plain failure must never settle the message — that would strand it under a tombstone");
+
+		// The property that matters, through the public surface: the message really does return to the
+		// pool. A release that left the lease in place would withhold it for the whole claim timeout,
+		// which is minutes — far beyond this window — so an inert release fails here rather than passing.
+		var reclaimed = await PollUntilReclaimedAsync(store, message.Id, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		reclaimed.ShouldBeTrue(
+			"a failed message must return to the pool once its floor elapses; a release that did not give "
+			+ "up the lease would hold it for the entire claim timeout instead");
+	}
+
+	/// <summary>
+	/// Polls the drain until <paramref name="messageId"/> is handed back, or the budget runs out.
+	/// </summary>
+	/// <remarks>
+	/// Polling rather than sleeping for F: the floor is a wall-clock property of the store, and a fixed
+	/// delay would either be flaky under load or wastefully long. The budget bounds the failure instead.
+	/// </remarks>
+	private static async Task<bool> PollUntilReclaimedAsync(MartenOutboxStore store, string messageId, TimeSpan budget)
+	{
+		var deadline = DateTimeOffset.UtcNow + budget;
+
+		do
+		{
+			var batch = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
+			if (batch.Any(m => m.Id == messageId))
+			{
+				return true;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+		}
+		while (DateTimeOffset.UtcNow < deadline);
+
+		return false;
 	}
 
 	/// <summary>

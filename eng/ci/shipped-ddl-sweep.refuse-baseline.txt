@@ -14,7 +14,7 @@
 # A line is closed by MAPPING the table or scoping it out with a written reason — never by suppression.
 #
 # Format: the sweep's REFUSE label, verbatim (everything after "REFUSE " up to the " — " explanation).
-outbox_fence (postgres outbox fence)
+public.outbox_fence (postgres outbox fence)
 # Both fence tables are written by an UPSERT — Postgres via INSERT ... ON CONFLICT DO UPDATE, SQL Server
 # via MERGE ... WHEN MATCHED THEN UPDATE / WHEN NOT MATCHED THEN INSERT. The column extractor reads plain
 # INSERT and UPDATE statements, so it cannot recover the written column set from either shape and refuses

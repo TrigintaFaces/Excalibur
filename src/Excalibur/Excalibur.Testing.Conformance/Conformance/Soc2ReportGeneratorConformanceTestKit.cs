@@ -86,7 +86,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class Soc2ReportGeneratorConformanceTestKit
+public abstract class Soc2ReportGeneratorConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh SOC 2 report generator instance for testing.
@@ -132,7 +132,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIReportAsync"/> returns a valid Type I report.
 	/// </summary>
-	protected virtual async Task GenerateTypeIReportAsync_ValidOptions_ShouldReturnReport()
+	public virtual async Task GenerateTypeIReportAsync_ValidOptions_ShouldReturnReport()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -159,7 +159,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIReportAsync"/> returns a point-in-time report.
 	/// </summary>
-	protected virtual async Task GenerateTypeIReportAsync_ShouldReturnPointInTime()
+	public virtual async Task GenerateTypeIReportAsync_ShouldReturnPointInTime()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -186,7 +186,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIReportAsync"/> populates required properties.
 	/// </summary>
-	protected virtual async Task GenerateTypeIReportAsync_ShouldHaveRequiredProperties()
+	public virtual async Task GenerateTypeIReportAsync_ShouldHaveRequiredProperties()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -220,7 +220,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIIReportAsync"/> returns a valid Type II report for periods >= 90 days.
 	/// </summary>
-	protected virtual async Task GenerateTypeIIReportAsync_ValidPeriod_ShouldReturnReport()
+	public virtual async Task GenerateTypeIIReportAsync_ValidPeriod_ShouldReturnReport()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -255,7 +255,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIIReportAsync"/> returns correct period dates.
 	/// </summary>
-	protected virtual async Task GenerateTypeIIReportAsync_ShouldReturnCorrectPeriod()
+	public virtual async Task GenerateTypeIIReportAsync_ShouldReturnCorrectPeriod()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -284,7 +284,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIIReportAsync"/> populates required properties.
 	/// </summary>
-	protected virtual async Task GenerateTypeIIReportAsync_ShouldHaveRequiredProperties()
+	public virtual async Task GenerateTypeIIReportAsync_ShouldHaveRequiredProperties()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -316,7 +316,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateTypeIIReportAsync"/> throws ArgumentException for periods shorter than minimum (90 days).
 	/// </summary>
-	protected virtual async Task GenerateTypeIIReportAsync_PeriodTooShort_ShouldThrow()
+	public virtual async Task GenerateTypeIIReportAsync_PeriodTooShort_ShouldThrow()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -349,7 +349,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateAndStoreReportAsync"/> generates Type I reports from request.
 	/// </summary>
-	protected virtual async Task GenerateAndStoreReportAsync_TypeI_ShouldReturnReport()
+	public virtual async Task GenerateAndStoreReportAsync_TypeI_ShouldReturnReport()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -383,7 +383,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateAndStoreReportAsync"/> generates Type II reports from request.
 	/// </summary>
-	protected virtual async Task GenerateAndStoreReportAsync_TypeII_ShouldReturnReport()
+	public virtual async Task GenerateAndStoreReportAsync_TypeII_ShouldReturnReport()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -418,7 +418,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GenerateAndStoreReportAsync"/> throws ArgumentNullException for null request.
 	/// </summary>
-	protected virtual async Task GenerateAndStoreReportAsync_NullRequest_ShouldThrow()
+	public virtual async Task GenerateAndStoreReportAsync_NullRequest_ShouldThrow()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -448,7 +448,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GetControlDescriptionsAsync"/> returns a non-null list.
 	/// </summary>
-	protected virtual async Task GetControlDescriptionsAsync_ShouldNotBeNull()
+	public virtual async Task GetControlDescriptionsAsync_ShouldNotBeNull()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -468,7 +468,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GetControlDescriptionsAsync"/> returns valid control descriptions.
 	/// </summary>
-	protected virtual async Task GetControlDescriptionsAsync_ShouldReturnValidDescriptions()
+	public virtual async Task GetControlDescriptionsAsync_ShouldReturnValidDescriptions()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -508,7 +508,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GetTestResultsAsync"/> returns a non-null list.
 	/// </summary>
-	protected virtual async Task GetTestResultsAsync_ShouldNotBeNull()
+	public virtual async Task GetTestResultsAsync_ShouldNotBeNull()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -530,7 +530,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GetTestResultsAsync"/> returns valid test results.
 	/// </summary>
-	protected virtual async Task GetTestResultsAsync_ShouldReturnValidResults()
+	public virtual async Task GetTestResultsAsync_ShouldReturnValidResults()
 	{
 		// Arrange
 		var generator = CreateGenerator();
@@ -568,7 +568,7 @@ public abstract class Soc2ReportGeneratorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="ISoc2ReportGenerator.GetTestResultsAsync"/> respects the specified period.
 	/// </summary>
-	protected virtual async Task GetTestResultsAsync_ShouldRespectPeriod()
+	public virtual async Task GetTestResultsAsync_ShouldRespectPeriod()
 	{
 		// Arrange
 		var generator = CreateGenerator();

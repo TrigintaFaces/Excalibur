@@ -37,7 +37,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -54,7 +54,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new FirestoreSnapshotStore(options, _logger);
+		var store = new FirestoreSnapshotStore(options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -65,7 +65,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreSnapshotStore(options: null!, _logger));
+			new FirestoreSnapshotStore(options: null!, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -74,7 +74,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreSnapshotStore(_validOptions, logger: null!));
+			new FirestoreSnapshotStore(_validOptions, logger: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -86,7 +86,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new FirestoreSnapshotStore(invalidOptions, _logger));
+			new FirestoreSnapshotStore(invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new FirestoreSnapshotStore(invalidOptions, _logger));
+			new FirestoreSnapshotStore(invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	#endregion Simple Constructor Tests
@@ -113,7 +113,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreSnapshotStore(db: null!, _validOptions, _logger));
+			new FirestoreSnapshotStore(db: null!, _validOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("db");
 	}
 
@@ -126,7 +126,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 
 		// Act & Assert - This will throw before reaching the Db null check
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreSnapshotStore(db: null!, options: null!, _logger));
+			new FirestoreSnapshotStore(db: null!, options: null!, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("db");
 	}
 
@@ -135,7 +135,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreSnapshotStore(db: null!, _validOptions, logger: null!));
+			new FirestoreSnapshotStore(db: null!, _validOptions, logger: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("db");
 	}
 
@@ -147,7 +147,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();
@@ -159,7 +159,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public void Dispose_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert - Should not throw
 		store.Dispose();
@@ -171,7 +171,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task GetLatestSnapshotAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -183,7 +183,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task SaveSnapshotAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 		await store.DisposeAsync();
 		var snapshot = A.Fake<ISnapshot>();
 		_ = A.CallTo(() => snapshot.AggregateId).Returns("test-id");
@@ -198,7 +198,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DeleteSnapshotsAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -210,7 +210,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DeleteSnapshotsOlderThanAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -226,7 +226,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task GetLatestSnapshotAsync_WithNullAggregateId_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -237,7 +237,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task GetLatestSnapshotAsync_WithEmptyAggregateId_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -248,7 +248,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task GetLatestSnapshotAsync_WithNullAggregateType_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -259,7 +259,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task GetLatestSnapshotAsync_WithEmptyAggregateType_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -270,7 +270,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task SaveSnapshotAsync_WithNullSnapshot_ThrowsArgumentNullException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -281,7 +281,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DeleteSnapshotsAsync_WithNullAggregateId_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -292,7 +292,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DeleteSnapshotsAsync_WithNullAggregateType_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -303,7 +303,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DeleteSnapshotsOlderThanAsync_WithNullAggregateId_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>
@@ -314,7 +314,7 @@ public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DeleteSnapshotsOlderThanAsync_WithNullAggregateType_ThrowsArgumentException()
 	{
 		// Arrange
-		var store = new FirestoreSnapshotStore(_validOptions, _logger);
+		var store = new FirestoreSnapshotStore(_validOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(async () =>

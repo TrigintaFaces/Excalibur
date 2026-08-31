@@ -22,7 +22,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// migration to <c>Excalibur.Compliance</c> is deferred to per
 /// §Open-Questions §2, so this bridge ships in the separate
 /// <c>Excalibur.Hosting.Compliance</c> package to avoid pulling heavy
-/// compliance transitive dependencies (MongoDB.Driver, Npgsql, QuestPDF) into
+/// compliance transitive dependencies (MongoDB.Driver, Npgsql) into
 /// every consumer of <c>Excalibur.Hosting</c>.
 /// </para>
 /// </remarks>
@@ -57,10 +57,6 @@ public static class GdprExcaliburBuilderExtensions
 	/// <param name="builder">The Excalibur builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="ErasureOptions"/>.</param>
 	/// <returns>The same builder for fluent chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IExcaliburBuilder AddGdprErasure(
 		this IExcaliburBuilder builder,
 		IConfiguration configuration)

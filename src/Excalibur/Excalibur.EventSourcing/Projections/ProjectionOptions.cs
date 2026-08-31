@@ -22,7 +22,7 @@ public sealed class ProjectionOptions
 {
 	/// <summary>
 	/// Gets or sets the warning threshold for slow projection processing.
-	/// If a projection batch exceeds this duration, a warning log is emitted (R27.49).
+	/// If a projection batch exceeds this duration, a warning log is emitted.
 	/// </summary>
 	/// <value>The warning threshold. Default is 100 milliseconds.</value>
 	public TimeSpan WarningThreshold { get; set; } = TimeSpan.FromMilliseconds(100);

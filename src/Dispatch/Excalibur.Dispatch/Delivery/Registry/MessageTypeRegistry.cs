@@ -2,131 +2,130 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+
+using Excalibur.Dispatch.Extensions;
 
 namespace Excalibur.Dispatch.Delivery.Registry;
 
 /// <summary>
-/// Manual implementation of MessageTypeRegistry for development/testing.
+/// Resolves a stored message type name back to its <see cref="Type"/> for the durable drains (inbox, outbox, scheduler) and for
+/// runtime JSON deserialization.
 /// </summary>
 /// <remarks>
-/// This is a temporary workaround while the build environment issue prevents the source generator from running. Once the generator works,
-/// this file should be deleted in favor of the generated version.
+/// <para>
+/// A type is indexed under every name form the framework writes to durable storage: its assembly-qualified name, its
+/// <see cref="Type.FullName"/>, <c>"FullName, AssemblyName"</c>, and its simple <see cref="MemberInfo.Name"/>. A name a
+/// producer stored therefore resolves on the consuming side regardless of which of those forms it chose.
+/// </para>
+/// <para>
+/// Name collisions are refused, never guessed. If two distinct types claim the same name form -- two types sharing a simple name
+/// across namespaces is the common case -- that name becomes permanently ambiguous and resolution fails for it, while the more
+/// specific forms of both types keep resolving. A caller therefore never receives a type that merely happens to share a name with
+/// the one that was stored, which would deserialize into the wrong shape and silently drop the fields that did not match.
+/// </para>
 /// </remarks>
 public static class MessageTypeRegistry
 {
-	private static readonly Dictionary<string, Type> TypeNameToType = [];
-	private static readonly Dictionary<string, Type> SimpleNameToType = [];
+	/// <summary>
+	/// Maps every registered name form to its type. A <see langword="null"/> value marks a name claimed by more than one type; the
+	/// name is then ambiguous and never resolves. Ambiguity is sticky -- once a name is contested no later registration can make it
+	/// unambiguous again.
+	/// </summary>
+	private static readonly ConcurrentDictionary<string, Type?> NameToType = new(StringComparer.Ordinal);
 
-	private static readonly Lock RegistryLock = new();
+	private static readonly Lock InitializationLock = new();
 
 	private static volatile bool _isInitialized;
 
 	/// <summary>
-	/// Initializes static members of the <see cref="MessageTypeRegistry"/> class.
-	/// Static constructor to initialize known types.
+	/// Tries to resolve a registered type from any of the name forms it was indexed under.
 	/// </summary>
-	static MessageTypeRegistry() => InitializeKnownTypes();
-
-	/// <summary>
-	/// Tries to get a Type from its name.
-	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Using precompiled type registry")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "All types are statically referenced")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2057:Unrecognized value passed to the parameter of method. It's not possible to guarantee the availability of the target type.",
-		Justification = "Type.GetType is only used in non-AOT builds as a development fallback. In AOT builds, this code is not compiled.")]
+	/// <param name="typeName"> The stored type name. </param>
+	/// <param name="type"> The resolved type when this method returns <see langword="true"/>; otherwise <see langword="null"/>. </param>
+	/// <returns>
+	/// <see langword="true"/> when the name resolves to exactly one registered type; <see langword="false"/> when no type is
+	/// registered under that name, or when the name is ambiguous across two or more types.
+	/// </returns>
 	public static bool TryGetType(string typeName, [NotNullWhen(true)] out Type? type)
 	{
 		EnsureInitialized();
 
-		if (TypeNameToType.TryGetValue(typeName, out type))
-		{
-			return true;
-		}
-
-		if (SimpleNameToType.TryGetValue(typeName, out type))
-		{
-			return true;
-		}
-
-		// Fallback disabled to maintain AOT and banned API compliance. Types must be registered explicitly or via source generation.
-		type = null;
-		return false;
+		// A miss and an ambiguity are deliberately the same answer to the caller: in both cases there is no single type the name
+		// can honestly be resolved to. Reflection fallback stays disabled to keep the registry AOT-safe.
+		return NameToType.TryGetValue(typeName, out type) && type is not null;
 	}
 
 	/// <summary>
-	/// Gets a Type from its name.
+	/// Gets every distinct registered message type.
 	/// </summary>
-	/// <exception cref="TypeLoadException"></exception>
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Using precompiled type registry")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "All types are statically referenced")]
-	public static Type GetType(string typeName)
-	{
-		if (TryGetType(typeName, out var type))
-		{
-			return type;
-		}
-
-		throw new TypeLoadException(
-			$"Type '{typeName}' not found in message type registry. " +
-			"Ensure the type implements IDispatchMessage and is registered.");
-	}
-
-	/// <summary>
-	/// Gets all registered message types.
-	/// </summary>
+	/// <returns> The registered types, each appearing once regardless of how many name forms index it. </returns>
 	public static IEnumerable<Type> GetAllMessageTypes()
 	{
 		EnsureInitialized();
-		return TypeNameToType.Values;
+		return NameToType.Values.Where(static t => t is not null).Distinct()!;
 	}
 
 	/// <summary>
-	/// Registers a type in the registry.
+	/// Registers a type under every name form the framework may store for it.
 	/// </summary>
+	/// <param name="type"> The message type to register. </param>
 	public static void RegisterType(Type type)
 	{
 		ArgumentNullException.ThrowIfNull(type);
 
-		lock (RegistryLock)
+		Claim(type.AssemblyQualifiedName, type);
+		Claim(type.FullName, type);
+		Claim(type.Name, type);
+
+		if (type.FullName is { } fullName)
 		{
-			// Register by assembly-qualified name
-			var assemblyQualifiedName = type.AssemblyQualifiedName;
-			if (assemblyQualifiedName != null)
-			{
-				TypeNameToType[assemblyQualifiedName] = type;
-			}
-
-			// Register by simple name
-			SimpleNameToType[type.Name] = type;
-
-			// Also register without version for compatibility
-			var typeName = $"{type.FullName}, {type.Assembly.GetName().Name}";
-			TypeNameToType[typeName] = type;
+			Claim($"{fullName}, {type.Assembly.GetName().Name}", type);
 		}
 	}
 
 	/// <summary>
-	/// Registers a type in the registry (generic version).
+	/// Registers a type under every name form the framework may store for it.
 	/// </summary>
+	/// <typeparam name="T"> The message type to register. </typeparam>
 	public static void RegisterType<T>()
 		where T : IDispatchMessage
 		=> RegisterType(typeof(T));
 
+	/// <summary>
+	/// Claims a name for a type, marking the name ambiguous if a different type already holds it.
+	/// </summary>
+	private static void Claim(string? name, Type type)
+	{
+		if (string.IsNullOrEmpty(name))
+		{
+			return;
+		}
+
+		// The update leaves the name owned by `type` only when `type` already owns it, so re-registering the same type is
+		// idempotent and any contest collapses to the ambiguous marker. There is no argument that makes an ambiguous name
+		// unambiguous again, which is what keeps a late-loading assembly from deciding a collision in its own favour.
+		_ = NameToType.AddOrUpdate(name, type, (_, existing) => existing == type ? existing : null);
+	}
+
 	private static void EnsureInitialized()
 	{
-		if (!_isInitialized)
+		if (_isInitialized)
 		{
-			lock (RegistryLock)
+			return;
+		}
+
+		lock (InitializationLock)
+		{
+			if (_isInitialized)
 			{
-				if (!_isInitialized)
-				{
-					InitializeKnownTypes();
-					_isInitialized = true;
-				}
+				return;
 			}
+
+			InitializeKnownTypes();
+			_isInitialized = true;
 		}
 	}
 
@@ -134,50 +133,32 @@ public static class MessageTypeRegistry
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
-			"Assembly scanning is only used in non-AOT builds during development. In AOT builds, this code is conditionally excluded and types are registered via source generation.")]
+			"Assembly scanning runs only where dynamic code is supported. Under AOT the guard below is false and types are registered explicitly or by source generation.")]
 	private static void InitializeKnownTypes()
 	{
-		// Manual type registration for known message types In AOT deployments, the source generator will replace this manual registration
-		// with compile-time discovery For development/runtime scenarios, assembly scanning below provides automatic discovery
-
-		// Example manual registrations: RegisterType(typeof(PingCommand)); RegisterType(typeof(TestEvent)); RegisterType(typeof(ComplexAction));
-
-		// Assembly scanning for development - in production, use explicit registration or source generation
-		// Only scan assemblies in JIT mode; AOT uses source-generated registrations
-		if (System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+		if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
 		{
-			try
-			{
-				foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-				{
-					// Skip system assemblies for performance
-					if (assembly.FullName?.StartsWith("System.", StringComparison.Ordinal) == true ||
-						assembly.FullName?.StartsWith("Microsoft.", StringComparison.Ordinal) == true)
-					{
-						continue;
-					}
+			return;
+		}
 
-					try
-					{
-						foreach (var type in assembly.GetTypes())
-						{
-							if (type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } &&
-								typeof(IDispatchMessage).IsAssignableFrom(type))
-							{
-								RegisterType(type);
-							}
-						}
-					}
-					catch
-					{
-						// Ignore types that can't be loaded
-					}
-				}
-			}
-			catch
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			// Skip framework assemblies: they carry no message types and dominate the scan cost.
+			if (assembly.FullName?.StartsWith("System.", StringComparison.Ordinal) == true ||
+				assembly.FullName?.StartsWith("Microsoft.", StringComparison.Ordinal) == true)
 			{
-				// Ignore assembly scanning errors
+				continue;
+			}
+
+			foreach (var type in assembly.GetLoadableTypes())
+			{
+				if (type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } &&
+					typeof(IDispatchMessage).IsAssignableFrom(type))
+				{
+					RegisterType(type);
+				}
 			}
 		}
 	}
+
 }

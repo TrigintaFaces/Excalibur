@@ -37,8 +37,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddMqttTransport("events", mqtt =>
 {
-    mqtt.Host = "localhost";
-    mqtt.Port = 1883;
+    mqtt.Host = "mqtt.internal";
+    mqtt.Port = 8883;
+    mqtt.UseTls = true;
     mqtt.ClientId = "order-service";
     mqtt.Topic = "orders";
     mqtt.QualityOfService = MqttQualityOfService.AtLeastOnce;
@@ -49,6 +50,27 @@ services.AddMqttTransport("events", mqtt =>
 
 `AddMqttTransport` requires an explicit transport name. Options are validated at startup (`ValidateOnStart`), so a missing `Host`, `ClientId`, or `Topic` fails fast with `OptionsValidationException`.
 
+### Transport security
+
+The broker can be reached in the clear, so an unencrypted connection is refused by default. The
+refusal happens when the transport is resolved -- while the host is starting -- rather than on the
+first message, and it raises `TransportSecurityException`.
+
+MQTT over plain TCP carries the user name, password and every payload in the clear, so `UseTls` must
+be set (the TLS listener is normally port 8883). For a local broker with no TLS listener, opt out
+explicitly:
+
+```csharp
+services.AddMqttTransport("local-dev", mqtt =>
+{
+    mqtt.Host = "localhost";
+    mqtt.Port = 1883;
+    mqtt.ClientId = "order-service";
+    mqtt.Topic = "orders";
+    mqtt.RequireTls = false;   // Local brokers only: credentials travel in the clear
+});
+```
+
 ### Options
 
 | Property | Type | Default | Purpose |
@@ -57,6 +79,8 @@ services.AddMqttTransport("events", mqtt =>
 | `Port` | `int` | `1883` | The broker TCP port (1..65535); typically `8883` for TLS. |
 | `ClientId` | `string` | *(required)* | The client id presented to the broker. Must be unique per connected client. |
 | `Topic` | `string` | *(required)* | The topic to publish to and subscribe from. |
+| `UseTls` | `bool` | `false` | Connect over TLS. |
+| `RequireTls` | `bool` | `true` | Refuse the connection unless `UseTls` is set. |
 | `QualityOfService` | `MqttQualityOfService` | `AtLeastOnce` | The delivery guarantee (see below). |
 | `UseTls` | `bool` | `false` | Connect to the broker over TLS. |
 | `UseSharedSubscription` | `bool` | `false` | Subscribe using an MQTT-5 shared subscription so multiple consumers compete for messages. Requires an MQTT-5 broker that supports shared subscriptions. |

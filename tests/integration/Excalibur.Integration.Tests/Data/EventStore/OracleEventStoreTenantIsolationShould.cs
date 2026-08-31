@@ -56,7 +56,7 @@ public sealed class OracleEventStoreTenantIsolationShould
 			NullLogger<OracleEventStore>.Instance,
 			schema: _fixture.Schema,
 			table: _fixture.TableName,
-			tenantContext: tenantId is null ? null : new FixedTenant(tenantId));
+			tenantContext: tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
 
 	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{

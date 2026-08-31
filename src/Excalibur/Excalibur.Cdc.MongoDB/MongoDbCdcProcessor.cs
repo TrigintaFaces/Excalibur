@@ -27,8 +27,8 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 	private MongoDbCdcPosition _confirmedPosition;
 	private volatile bool _disposed;
 
-	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
-	// an infinite silent reconnect loop (ADR-338). _onFatalError receives the in-flight event for a
+	// optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// an infinite silent reconnect loop. _onFatalError receives the in-flight event for a
 	// per-event fatal, or null for a connection/stream-level fatal.
 	private readonly CdcFatalErrorHandler<MongoDbDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
@@ -465,7 +465,7 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 			// Return an EMPTY (non-null) pipeline so the driver's WatchAsync(pipeline, options, ct) never
 			// receives null. A null pipeline throws ArgumentNullException on EVERY real change stream with
 			// the default config (no operation-type filter, single/zero collection) — the mock-hidden bug
-			// 6idsbx. An empty pipeline watches all change events unfiltered, which is the intended default.
+			//. An empty pipeline watches all change events unfiltered, which is the intended default.
 			return new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
 		}
 

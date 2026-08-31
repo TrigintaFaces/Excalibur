@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Resilience.Polly;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 using PollyRetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
@@ -40,8 +41,11 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		services.Any(d => d.ServiceType == typeof(ITimeoutManager)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(IGracefulDegradationService)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(BulkheadManager)).ShouldBeTrue();
-		services.Any(d => d.ServiceType == typeof(DistributedCircuitBreakerFactory)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(PollyRetryPolicyAdapter)).ShouldBeTrue();
+
+		// The distributed circuit breaker factory is deliberately absent: it requires an IDistributedCache
+		// and this path registers none, so registering it here would seat a service nothing can construct.
+		services.Any(d => d.ServiceType == typeof(DistributedCircuitBreakerFactory)).ShouldBeFalse();
 	}
 
 	[Fact]
@@ -444,19 +448,110 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 	}
 
 	[Fact]
-	public async Task AddDistributedCircuitBreaker_RegistersDistributedCache()
+	public async Task AddDistributedCircuitBreaker_DoesNotSeatAnInProcessCacheOfItsOwn()
 	{
-		// Arrange
+		// The method used to call AddDistributedMemoryCache() as a default. A consumer who overrode
+		// nothing then got a per-instance breaker reached through a method promising coordination, and
+		// nothing about that was observable at runtime. The store is the caller's to supply.
 		var services = new ServiceCollection();
 		services.AddLogging();
 
-		// Act
 		services.AddDistributedCircuitBreaker("test");
 
-		// Assert
 		await using var provider = services.BuildServiceProvider();
-		var cache = provider.GetService<IDistributedCache>();
-		cache.ShouldNotBeNull();
+		provider.GetService<IDistributedCache>().ShouldBeNull(
+			"AddDistributedCircuitBreaker must not supply a store that is not shared between instances");
+	}
+
+	[Fact]
+	public async Task AddDistributedCircuitBreaker_FailsAtStartupWhenNoStoreIsRegistered()
+	{
+		using var host = new HostBuilder()
+			.ConfigureServices((_, services) =>
+			{
+				services.AddLogging();
+				services.AddDistributedCircuitBreaker("test");
+			})
+			.Build();
+
+		var thrown = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
+		thrown.Message.ShouldContain("IDistributedCache");
+	}
+
+	[Fact]
+	public async Task AddDistributedCircuitBreaker_FailsAtStartupWhenTheStoreIsInProcess()
+	{
+		// The silent case the guard exists for: the composition constructs and runs, and every replica
+		// trips its own circuit while the registration reads as distributed.
+		using var host = new HostBuilder()
+			.ConfigureServices((_, services) =>
+			{
+				services.AddLogging();
+				services.AddDistributedMemoryCache();
+				services.AddDistributedCircuitBreaker("test");
+			})
+			.Build();
+
+		var thrown = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
+		thrown.Message.ShouldContain("AddDistributedMemoryCache");
+	}
+
+	[Fact]
+	public async Task AddDistributedCircuitBreaker_StartsAndResolvesTheNamedBreakerOnASharedStore()
+	{
+		using var host = new HostBuilder()
+			.ConfigureServices((_, services) =>
+			{
+				services.AddLogging();
+				services.AddSingleton<IDistributedCache>(new SharedStoreDouble());
+				services.AddDistributedCircuitBreaker("test", options => options.ConsecutiveFailureThreshold = 7);
+			})
+			.Build();
+
+		await host.StartAsync();
+
+		// Resolved, not merely asserted present: before the keyed registration this method configured a
+		// breaker no consumer could obtain.
+		var breaker = host.Services.GetRequiredKeyedService<IDistributedCircuitBreaker>("test");
+		breaker.ShouldNotBeNull();
+
+		await host.StopAsync();
+	}
+
+	/// <summary>
+	/// Stands in for a cross-instance backend (Redis, SQL Server). Only its TYPE matters here — the guard
+	/// refuses the in-process implementation by name — so the storage itself can be trivial.
+	/// </summary>
+	private sealed class SharedStoreDouble : IDistributedCache
+	{
+		private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> _entries =
+			new(StringComparer.Ordinal);
+
+		public byte[]? Get(string key) => _entries.TryGetValue(key, out var value) ? value : null;
+
+		public Task<byte[]?> GetAsync(string key, CancellationToken token = default) => Task.FromResult(Get(key));
+
+		public void Set(string key, byte[] value, DistributedCacheEntryOptions options) => _entries[key] = value;
+
+		public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
+		{
+			Set(key, value, options);
+			return Task.CompletedTask;
+		}
+
+		public void Refresh(string key)
+		{
+		}
+
+		public Task RefreshAsync(string key, CancellationToken token = default) => Task.CompletedTask;
+
+		public void Remove(string key) => _entries.TryRemove(key, out _);
+
+		public Task RemoveAsync(string key, CancellationToken token = default)
+		{
+			Remove(key);
+			return Task.CompletedTask;
+		}
 	}
 
 	[Fact]

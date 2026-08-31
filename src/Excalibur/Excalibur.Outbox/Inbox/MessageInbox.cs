@@ -108,7 +108,10 @@ public sealed partial class MessageInbox : IInbox
 		var messageType = message.GetType();
 		var payloadBytes = await SerializePayloadAsync(message).ConfigureAwait(false);
 		var handlerType = messageType.FullName ?? messageType.Name;
-		var messageTypeName = messageType.Name;
+		// Store the same name form the outbox stages, so one registry lookup resolves either drain's rows. The simple name
+		// alone is not unique: two message types sharing it across namespaces are indistinguishable once written, and the
+		// registry refuses an ambiguous name rather than guessing which one the producer meant.
+		var messageTypeName = handlerType;
 
 		var metadataDictionary = CreateMetadataDictionary(metadata);
 

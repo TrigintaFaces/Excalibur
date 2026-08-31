@@ -177,6 +177,35 @@ jobs:
       - name: no-internal-refs (ratcheted -- fails on any NEW public-surface leak)
         run: bash eng/ci/no-internal-refs-gate.sh
 
+      # A shipped Oracle migration signals a refusal with RAISE_APPLICATION_ERROR, and SQL*Plus
+      # exits 0 on that unless the script carries a WHENEVER SQLERROR EXIT FAILURE directive -- so
+      # an unattended runner records a DECLINED migration as applied and runs the next step against
+      # a database that was never changed. The gate derives its predicate from the script itself, so
+      # a new script that raises and forgets the directive is caught without anyone updating a list.
+      - name: oracle-refusal-exit-code self-test (non-vacuity)
+        run: bash eng/ci/oracle-refusal-exit-code-gate.sh --self-test
+
+      - name: oracle-refusal-exit-code (a refusal must exit non-zero)
+        run: bash eng/ci/oracle-refusal-exit-code-gate.sh
+
+      - name: aot-promise-coherence self-test (non-vacuity)
+        run: python3 eng/ci/aot-promise-coherence-gate.py --self-test
+
+      # A package cannot be AOT-compatible if an assembly it ships is not. Each project is
+      # analyzed alone, so the contradiction is invisible to the build; this reads the claims
+      # across the reference graph. Exit 2 means something was unreadable and is NOT a pass.
+      - name: aot-promise-coherence (no package may claim AOT that a shipped dependency denies)
+        run: python3 eng/ci/aot-promise-coherence-gate.py
+
+      - name: aot-annotation-inventory self-test (non-vacuity)
+        run: python3 eng/ci/aot-annotation-inventory-gate.py --self-test
+
+      # Opting a package out of the AOT claim also turns OFF its AOT analyzer, so the build stops
+      # reporting new dynamic-code violations there. This inventory is what keeps that detection:
+      # a newly annotated public member must be recorded deliberately, in a reviewed diff.
+      - name: aot-annotation-inventory (a new AOT-unsafe public member must be recorded)
+        run: python3 eng/ci/aot-annotation-inventory-gate.py
+
       - name: mutable-image-tag ratchet self-test (non-vacuity)
         run: bash eng/ci/mutable-image-tag-gate.sh --self-test
 
@@ -237,6 +266,15 @@ jobs:
       # BLOCKING — a declared SQL predicate fragment that the SQL string never interpolates or concatenates
       # is a filter the query silently ignores (a dead WHERE clause). Pure git/grep over src/**/*.cs; passes
       # clean on committed content today.
+      # BLOCKING - every gate must report WHAT IT EXAMINED, not only what it found. A gate printing
+      # "0 violations" over a population that silently drifted out of its matcher's shape prints the
+      # same green as a gate over a clean tree, and nothing in the output tells them apart. One
+      # counter and one line per gate closes that, and it degrades on its own: when a matcher stops
+      # matching, the count falls toward zero and says so, with nobody having anticipated the drift.
+      # Enumerated baseline (shrink-only); passes clean on committed content today.
+      - name: gate-denominator-gate
+        run: bash eng/ci/gate-denominator-gate.sh
+
       - name: sql-predicate-gate
         run: bash eng/ci/sql-predicate-gate.sh
 
@@ -253,6 +291,66 @@ jobs:
       # no log line. Pure grep over src/**/*.cs; passes clean on committed content today.
       - name: inbox-decorator-seam-gate
         run: bash eng/ci/inbox-decorator-seam-gate.sh
+
+      # BLOCKING — a conformance suite that derives a kit living under tests/ instead of the one inside the
+      # published conformance package is verifying a contract no consumer can obtain: our providers pass a
+      # suite nobody outside this repository has, the published arms go unexercised, and the two drift with
+      # nothing detecting it. Both halves stay green the whole time, which is why only a boundary-aware scan
+      # can see it. Enumerated baseline (shrink-only: a stale entry also fails); passes clean today.
+      - name: conformance-fork-gate
+        run: bash eng/ci/conformance-fork-gate.sh
+
+      # BLOCKING — a provider that implements the published health contract while no suite derives the
+      # published conformance kit against it ships unverified, and the arms we impose on consumers are arms
+      # we do not run ourselves. This is how a misspelled required metrics key survived in several providers
+      # at once: the ones with derivers failed CI, the ones without were found only by a hand census. Binds
+      # by constructed type name, so a deriver cannot cover one provider and be credited for another.
+      # Passes clean today; a new implementor without a deriver fails on its first appearance.
+      - name: persistence-health-deriver-gate
+        run: bash eng/ci/persistence-health-deriver-gate.sh
+
+      # BLOCKING — a store backend that implements a published contract while no suite derives that
+      # contract's published conformance kit against it ships verified by nothing that speaks the
+      # contract, and the arms we impose on every consumer writing their own provider are arms we never
+      # run against our own. Nothing else sees this: the arm census measures, per deriver, whether each
+      # arm is wired, which is answered only over the derivers that exist — a kit derived solely by an
+      # in-memory store scores perfect arm coverage while every durable backend for that contract is
+      # unverified, and reports the identical green. Binds by named type (construction, or a registration
+      # entry point resolved from source), so a deriver cannot cover one backend and be credited for its
+      # neighbour. Enumerated baseline, shrink-only: a stale entry also fails. Passes clean today; a
+      # newly-unverified backend fails on its first appearance.
+      - name: conformance-backend-coverage-gate
+        run: bash eng/ci/conformance-backend-coverage-gate.sh
+
+      # BLOCKING — a conformance arm that declines to run for an optional capability the store under test
+      # ACTUALLY HAS. Every test runner reports an arm that returned early exactly as it reports an arm
+      # that ran and passed, so the suite certifies behaviour nobody verified and records a reason that is
+      # false about that store. The kits already make the distinction observable through their skip hook;
+      # until now nothing asked it anything. This gate is the asking. It does NOT fail on every skip —
+      # most declines here are genuine absences and red-flagging those would be wrong — it fails only when
+      # the store implements the capability and the arm cannot reach it. The kits' own private nested
+      # fixtures construct no store by design and are reported as exempt on every run, so the exemption is
+      # visible rather than silent. Anything it cannot evaluate REFUSES rather than passing. Passes clean
+      # today; the self-test below reddens on a seeded narrowing so a green here is never vacuous.
+      - name: conformance-arm-skip-gate self-test (non-vacuity)
+        run: bash eng/ci/conformance-arm-skip-gate.sh --self-test
+
+      - name: conformance-arm-skip-gate
+        run: bash eng/ci/conformance-arm-skip-gate.sh
+
+      # BLOCKING — a subsystem ARCHITECTURE.md guarantee whose named enforcing test has drifted (renamed,
+      # deleted, or moved to a different class) reads as documented-and-verified while nothing checks it.
+      # Extracts every backtick-quoted test citation from each "## Evidence" section and confirms it
+      # resolves to a real declared class/method under src/ or tests/ -- a whole-symbol match, not a
+      # name-keyed grep of the guarantee sentence (which cannot detect its own citation rotting, since the
+      # sentence never changes). REFUSEs rather than passes on an Evidence section with zero classifiable
+      # citations, unless the file is enumerated in the baseline with a reason. Self-test proves the gate
+      # FAILS a renamed/deleted citation before the real run is trusted.
+      - name: architecture-evidence-gate self-test (non-vacuity)
+        run: bash eng/ci/architecture-evidence-gate.sh --self-test
+
+      - name: architecture-evidence-gate
+        run: bash eng/ci/architecture-evidence-gate.sh
 
       # BLOCKING — a raw `await Task.Delay(...)` sync-wait newly added to test code is a non-deterministic
       # wall-clock dependency (poll a condition with a bounded timeout instead). Whole-tree scan; passes
@@ -286,11 +384,17 @@ jobs:
       - name: Restore (writes lock files if the committed ones are stale)
         run: bash ./build.sh --restore --verbosity quiet
 
-      # ADVISORY pending a restore-verification dry-run (`|| true`): a tracked lock file rewritten by
-      # restore means the committed lock is stale. Flips to blocking (drop the `|| true`) once a CI/local
-      # restore confirms the committed tree passes — same shipped-with-teeth sequencing as vacuous.
-      - name: lockfile-drift-gate (advisory pending restore-verification)
-        run: bash eng/ci/lockfile-drift-gate.sh || true
+      # BLOCKING. The restore-verification this step waited for has been performed: a locked-mode
+      # restore of the whole solution resolves the committed lock files exactly, so a rewritten lock
+      # file here is drift and not a pre-existing staleness the gate would trip over on every run.
+      #
+      # No `|| true`. The gate reports three states and only one of them is a pass: 0 means tracked
+      # lock files were found and none drifted, 1 means at least one was rewritten by the restore
+      # above, and 2 means it found nothing to check and is therefore making no claim. Swallowing
+      # the exit code collapsed all three into a pass, which is worse than not running the gate --
+      # a check that cannot fail still reports that the checking is happening.
+      - name: lockfile-drift-gate
+        run: bash eng/ci/lockfile-drift-gate.sh
 
   # A shipping NuGet package must carry its consumer-visible metadata (projectUrl + icon + lockfile-on),
   # or it publishes a blank field to consumers. The gate evaluates REAL MSBuild properties, so it needs

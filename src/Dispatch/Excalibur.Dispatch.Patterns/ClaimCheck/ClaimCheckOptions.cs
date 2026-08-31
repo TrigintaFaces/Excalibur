@@ -138,7 +138,10 @@ public sealed class ClaimCheckOptions
 	/// Gets or sets the default retention period for stored payloads.
 	/// Delegates to <see cref="Cleanup"/>.<see cref="ClaimCheckCleanupOptions.DefaultTtl"/>.
 	/// </summary>
-	/// <value>The default retention period for stored payloads.</value>
+	/// <value>
+	/// The default retention period for stored payloads. <see cref="TimeSpan.Zero"/> disables expiry and
+	/// retains payloads until they are deleted explicitly.
+	/// </value>
 	public TimeSpan RetentionPeriod
 	{
 		get => Cleanup.DefaultTtl;
@@ -149,12 +152,32 @@ public sealed class ClaimCheckOptions
 	/// Gets or sets the default time-to-live for stored payloads.
 	/// Delegates to <see cref="Cleanup"/>.<see cref="ClaimCheckCleanupOptions.DefaultTtl"/>.
 	/// </summary>
-	/// <value>The default time-to-live for stored payloads.</value>
+	/// <value>
+	/// The default time-to-live for stored payloads. <see cref="TimeSpan.Zero"/> disables expiry and
+	/// retains payloads until they are deleted explicitly.
+	/// </value>
 	public TimeSpan DefaultTtl
 	{
 		get => Cleanup.DefaultTtl;
 		set => Cleanup.DefaultTtl = value;
 	}
+
+	/// <summary>
+	/// Resolves the instant at which a payload stored at <paramref name="storedAt"/> expires.
+	/// </summary>
+	/// <param name="storedAt">The instant the payload was stored.</param>
+	/// <returns>
+	/// The instant the payload expires, or <see langword="null"/> when <see cref="DefaultTtl"/> is
+	/// <see cref="TimeSpan.Zero"/> or negative, meaning the payload never expires.
+	/// </returns>
+	/// <remarks>
+	/// Providers resolve expiry through this method rather than adding <see cref="DefaultTtl"/> to the
+	/// current instant directly. Adding a zero time-to-live produces an instant equal to the store time,
+	/// which marks every payload expired the moment it is written; routing the decision through a single
+	/// method makes that outcome unreachable rather than something each provider must remember to avoid.
+	/// </remarks>
+	public DateTimeOffset? ResolveExpiresAt(DateTimeOffset storedAt) =>
+		DefaultTtl <= TimeSpan.Zero ? null : storedAt.Add(DefaultTtl);
 
 	/// <summary>
 	/// Gets or sets the minimum compression ratio (0.0 to 1.0) required to keep compressed data.

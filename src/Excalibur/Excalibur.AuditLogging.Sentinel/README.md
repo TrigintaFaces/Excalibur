@@ -11,8 +11,10 @@ dotnet add package Excalibur.AuditLogging.Sentinel
 ## Quick Start
 
 ```csharp
-// Add Excalibur.AuditLogging.Sentinel to your service configuration
-services.AddAuditLoggingSentinel();
+services.AddAuditLogging();
+services.AddSentinelAuditExporter(sentinel => sentinel
+    .WorkspaceId(configuration["Sentinel:WorkspaceId"]!)
+    .SharedKey(configuration["Sentinel:SharedKey"]!));
 ```
 
 ## Documentation
@@ -21,4 +23,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur repository. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur repository. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

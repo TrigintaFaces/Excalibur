@@ -58,10 +58,16 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(dataSource);
 
+		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves
+		// for a host that never registered multi-tenancy. A multi-tenant host registers its own first and
+		// TryAdd leaves it alone.
+		services.AddDefaultTenantContext();
+
 		services.TryAddSingleton<IMaterializedViewStore>(sp =>
 			new PostgresMaterializedViewStore(
 				dataSource,
 				sp.GetRequiredService<ILogger<PostgresMaterializedViewStore>>(),
+				sp.GetRequiredService<ITenantContext>(),
 				viewTableName,
 				positionTableName));
 
@@ -168,8 +174,8 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 
 	internal static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
-		// NOTE: the ITenantScopingCapability<IEventStore> marker is emitted by AddTenantScopedStore at the
-		// concrete store registration (RegisterEventStore), inseparably from the store wiring (S886 rw2ull) —
+		// NOTE: the ITenantScopingCapability<IEventStore> marker is emitted by AddTenantAwareStore at the
+		// concrete store registration (RegisterEventStore), inseparably from the store wiring —
 		// not here, where it was decoupled from the store that must honor the tenant.
 		services.AddKeyedSingleton<IEventStore>("postgres", (sp, _) =>
 		{

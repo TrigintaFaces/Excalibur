@@ -13,8 +13,9 @@ namespace Excalibur.Dispatch.Resilience;
 /// through to test if the underlying service has recovered.
 /// </para>
 /// <para>
-/// For diagnostic properties (ConsecutiveFailures, LastOpenedAt) and events (StateChanged),
-/// use <c>GetService(typeof(ICircuitBreakerDiagnostics))</c> or <c>GetService(typeof(ICircuitBreakerEvents))</c>.
+/// Diagnostic properties (ConsecutiveFailures, LastOpenedAt) and events (StateChanged) are kept off
+/// this interface so an implementation is not obliged to carry them. Test the policy instance for
+/// <see cref="ICircuitBreakerDiagnostics"/> or <see cref="ICircuitBreakerEvents"/> to reach them.
 /// </para>
 /// </remarks>
 public interface ICircuitBreakerPolicy
@@ -27,6 +28,18 @@ public interface ICircuitBreakerPolicy
 	/// <summary>
 	/// Executes an asynchronous operation through the circuit breaker.
 	/// </summary>
+	/// <remarks>
+	/// <b>This method records the outcome itself.</b> An implementation registers the success, or registers
+	/// the failure and rethrows, before control returns to the caller. A caller that also calls
+	/// <see cref="RecordSuccess"/> or <see cref="RecordFailure"/> for the same execution counts it twice, so
+	/// a breaker configured to open after N consecutive failures opens after N/2 and sheds a healthy
+	/// dependency at half the tolerance its consumer configured. The explicit recorders exist for outcomes
+	/// observed <em>outside</em> this method; they are not a supplement to it.
+	/// <para>
+	/// The recorders also bypass an implementation's own decision about which exceptions count. Calling one
+	/// after an execution therefore overrides that decision as well as double-counting it.
+	/// </para>
+	/// </remarks>
 	/// <typeparam name="TResult">The type of the result.</typeparam>
 	/// <param name="action">The action to execute.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
@@ -55,10 +68,14 @@ public interface ICircuitBreakerPolicy
 
 /// <summary>
 /// Provides diagnostic information about a circuit breaker's operational state.
-/// Access via <c>GetService(typeof(ICircuitBreakerDiagnostics))</c> on the policy instance.
+/// Test an <see cref="ICircuitBreakerPolicy"/> instance for this interface to reach it.
 /// </summary>
 public interface ICircuitBreakerDiagnostics
 {
+	// A policy that measures nothing must not implement this interface. Every member here is a
+	// measurement, so a pass-through implementation could only answer with fabricated constants, and a
+	// caller reading them could not tell "no breaker installed" from "breaker installed and healthy".
+
 	/// <summary>
 	/// Gets the number of consecutive failures since the last success.
 	/// </summary>
@@ -72,7 +89,7 @@ public interface ICircuitBreakerDiagnostics
 
 /// <summary>
 /// Provides circuit breaker state change events.
-/// Access via <c>GetService(typeof(ICircuitBreakerEvents))</c> on the policy instance.
+/// Test an <see cref="ICircuitBreakerPolicy"/> instance for this interface to reach it.
 /// </summary>
 public interface ICircuitBreakerEvents
 {

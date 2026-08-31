@@ -78,7 +78,7 @@ public sealed class DynamoDbSnapshotStoreConformanceShould : SnapshotConformance
 
 		// Inject the fixture's default-configured client so reads/writes hit the LocalStack endpoint.
 		// Ambient context, not the default null: the tenant-isolation arms establish tenants with
-		// TenantContextHolder.BeginScope, and TenantScope.FromContext(null) collapses every tenant onto
+		// TenantContextHolder.BeginScope, and CurrentTenantScope collapses every tenant onto
 		// the reserved untenanted sentinel, so they share one row per aggregate id and overwrite each
 		// other. Same fix verified on SQL Server, Postgres, Redis and Mongo.
 		var store = new DynamoDbSnapshotStore(

@@ -55,6 +55,35 @@ public sealed class IbmMqOptions
 	/// <value>The password, or <see langword="null"/>. Source from a secret manager; never commit a value.</value>
 	public string? Password { get; set; }
 
+	/// <summary>Gets or sets the TLS CipherSpec presented on the server-connection channel.</summary>
+	/// <value>
+	/// The CipherSpec name configured on the queue manager's channel (for example
+	/// <c>ANY_TLS12_OR_HIGHER</c>), or <see langword="null"/> to connect without TLS.
+	/// </value>
+	/// <remarks>
+	/// IBM MQ negotiates TLS from the CipherSpec agreed on the SVRCONN channel; there is no separate
+	/// "use TLS" switch. A channel with no CipherSpec carries the user id, password and every message body
+	/// in the clear, which is why <see cref="RequireTls"/> refuses that combination by default.
+	/// </remarks>
+	public string? SslCipherSpec { get; set; }
+
+	/// <summary>Gets or sets the distinguished name the queue manager's certificate must match.</summary>
+	/// <value>The expected peer name, or <see langword="null"/> to accept any certificate the trust store validates.</value>
+	public string? SslPeerName { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether an unencrypted queue-manager connection is refused.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> (the default) to refuse the connection unless <see cref="SslCipherSpec"/> is
+	/// set; <see langword="false"/> to accept a plaintext channel.
+	/// </value>
+	/// <remarks>
+	/// Set this to <see langword="false"/> only for a queue manager reached over a channel that is already
+	/// encrypted, or for a developer queue manager such as <c>DEV.APP.SVRCONN</c>.
+	/// </remarks>
+	public bool RequireTls { get; set; } = true;
+
 	/// <summary>Gets or sets the receive tuning options.</summary>
 	/// <value>The receive tuning options.</value>
 	public IbmMqReceiveTuningOptions Receive { get; set; } = new();

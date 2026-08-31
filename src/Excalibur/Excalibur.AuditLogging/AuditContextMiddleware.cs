@@ -23,6 +23,21 @@ namespace Excalibur.AuditLogging;
 /// <see cref="IAuditContext.ObserveAsync"/> without manually constructing audit events.
 /// </para>
 /// <para>
+/// The audit context and the actor provider are resolved from the scope the message is being
+/// processed in, on every invocation, and are never held in a field. A middleware instance is
+/// built once and lives for the process: an actor provider captured in a constructor would report
+/// the first caller's identity on every audit entry the process ever writes, and a context
+/// captured there would carry the first caller's correlation id and tenant. Its registered
+/// service lifetime cannot change this, because the instance is materialised once regardless.
+/// </para>
+/// <para>
+/// A message dispatched without a request scope is passed through unchanged. The audit context a
+/// handler receives in that case belongs to a scope created for the handler, which this middleware
+/// has no handle on, so there is nothing here to initialize; resolving one from the root provider
+/// instead would bind a single instance for the life of the container and mutate it per message,
+/// which is a cross-request identity leak rather than a fix. The gap is logged rather than hidden.
+/// </para>
+/// <para>
 /// Missing providers are handled gracefully:
 /// <list type="bullet">
 /// <item>No <see cref="IAuditActorProvider"/> registered → ActorId defaults to "system"</item>
@@ -33,24 +48,15 @@ namespace Excalibur.AuditLogging;
 /// </remarks>
 internal sealed partial class AuditContextMiddleware : IDispatchMiddleware
 {
-	private readonly IAuditActorProvider? _actorProvider;
-	private readonly TimeProvider _timeProvider;
 	private readonly ILogger<AuditContextMiddleware> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AuditContextMiddleware"/> class.
 	/// </summary>
-	/// <param name="timeProvider">The time provider for timestamps.</param>
-	/// <param name="actorProvider">Optional actor provider for resolving the current actor.</param>
 	/// <param name="logger">The logger for diagnostic output.</param>
-	public AuditContextMiddleware(
-		TimeProvider timeProvider,
-		IAuditActorProvider? actorProvider,
-		ILogger<AuditContextMiddleware> logger)
+	public AuditContextMiddleware(ILogger<AuditContextMiddleware> logger)
 	{
-		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_actorProvider = actorProvider;
 	}
 
 	/// <inheritdoc />
@@ -67,7 +73,17 @@ internal sealed partial class AuditContextMiddleware : IDispatchMiddleware
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
 
-		var auditContext = context.RequestServices.GetService<IAuditContext>();
+		// A provider returned by BuildServiceProvider() is not an IServiceScope while a real scope's
+		// provider is, so this accepts the request scope an integration supplies (for example the
+		// ASP.NET Core request scope) and rejects the root provider.
+		var scopedServices = (context.RequestServices as IServiceScope)?.ServiceProvider;
+		if (scopedServices is null)
+		{
+			LogNoRequestScope(message.GetType().Name);
+			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
+		var auditContext = scopedServices.GetService<IAuditContext>();
 		if (auditContext is not DefaultAuditContext defaultAuditContext)
 		{
 			// No IAuditContext registered or not our implementation — pass through
@@ -76,14 +92,14 @@ internal sealed partial class AuditContextMiddleware : IDispatchMiddleware
 
 		var correlationId = context.CorrelationId;
 		var tenantId = context.GetTenantId();
-		var timestamp = _timeProvider.GetUtcNow();
 
 		string? actorId = null;
-		if (_actorProvider is not null)
+		var actorProvider = scopedServices.GetService<IAuditActorProvider>();
+		if (actorProvider is not null)
 		{
 			try
 			{
-				actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+				actorId = await actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
@@ -107,4 +123,9 @@ internal sealed partial class AuditContextMiddleware : IDispatchMiddleware
 	[LoggerMessage(AuditLoggingEventId.AuditActorResolutionFailed, LogLevel.Warning,
 		"Failed to resolve audit actor from IAuditActorProvider; defaulting to 'system'")]
 	private partial void LogActorResolutionFailed(Exception exception);
+
+	[LoggerMessage(AuditLoggingEventId.AuditContextNoRequestScope, LogLevel.Warning,
+		"{MessageType} was dispatched without a request scope, so the audit context could not be "
+		+ "initialized. Audit entries recorded by its handler will have no correlation id, tenant or actor.")]
+	private partial void LogNoRequestScope(string messageType);
 }

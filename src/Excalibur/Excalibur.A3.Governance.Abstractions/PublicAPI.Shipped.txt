@@ -90,9 +90,7 @@ Excalibur.A3.Governance.AccessReviews.AccessReviewState.Created = 0 -> Excalibur
 Excalibur.A3.Governance.AccessReviews.AccessReviewState.Expired = 3 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
 Excalibur.A3.Governance.AccessReviews.AccessReviewState.InProgress = 1 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
 Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier
-Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier.NotifyCampaignCreatedAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier.NotifyCampaignExtendedAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier.NotifyDecisionRequiredAsync(string! campaignId, string! reviewerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Governance.AccessReviews.IAccessReviewStore
 Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.DeleteCampaignAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.GetCampaignAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary?>!

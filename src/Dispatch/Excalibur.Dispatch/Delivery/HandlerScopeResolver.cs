@@ -8,6 +8,8 @@ using System.Reflection;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Options.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -46,6 +48,7 @@ internal sealed class HandlerScopeResolver
     private readonly IServiceScopeFactory? _scopeFactory;
     private readonly IDispatchAmbientScopeAccessor? _ambientScope;
     private readonly HandlerLifetimeRegistry? _lifetimes;
+    private readonly bool _promotionEnabled;
     private readonly ConcurrentDictionary<Type, Requirement> _cache = new();
 
     /// <summary>
@@ -58,6 +61,57 @@ internal sealed class HandlerScopeResolver
         _scopeFactory = root.GetService(typeof(IServiceScopeFactory)) as IServiceScopeFactory;
         _ambientScope = root.GetService(typeof(IDispatchAmbientScopeAccessor)) as IDispatchAmbientScopeAccessor;
         _lifetimes = root.GetService(typeof(HandlerLifetimeRegistry)) as HandlerLifetimeRegistry;
+        _promotionEnabled =
+            (root.GetService(typeof(IOptions<DispatchOptions>)) as IOptions<DispatchOptions>)
+                ?.Value.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton ?? false;
+    }
+
+    /// <summary>
+    /// Whether a single shared handler instance may be substituted for per-dispatch activation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Substituting a shared instance changes the lifetime the consumer registered, so it is permitted
+    /// only for <see cref="ServiceLifetime.Transient"/>. Transient is the discovery default, so a consumer
+    /// who writes <c>AddTransient</c> has asked for nothing different from what they would have received
+    /// anyway — there is no preference to override. <c>AddScoped</c> and <c>AddSingleton</c> ARE departures
+    /// from the default and are honoured as written; Scoped in particular is chosen precisely when
+    /// per-request isolation matters, and silently sharing one instance would take that away.
+    /// </para>
+    /// <para>
+    /// This is the same rule <c>HandlerLifetimeAnalyzer.PromoteEligibleHandlers</c> applies to the
+    /// DI-descriptor rewrite, which skips any descriptor whose lifetime is not Transient. The two
+    /// promotion paths must not disagree about which registrations they are entitled to change.
+    /// </para>
+    /// <para>
+    /// An unknown lifetime returns <see langword="false"/>. That is the safe direction: the cost is a
+    /// handler activation we could have avoided, rather than a lifetime the consumer asked for and did
+    /// not get.
+    /// </para>
+    /// </remarks>
+    internal bool MayPromoteToSharedInstance(Type handlerType) =>
+        _promotionEnabled &&
+        TryGetRegisteredLifetime(handlerType, out var lifetime) &&
+        lifetime == ServiceLifetime.Transient;
+
+    /// <summary>
+    /// Reports the lifetime the consumer registered for <paramref name="handlerType"/>, when it is known.
+    /// </summary>
+    /// <remarks>
+    /// Exposed so a caller can distinguish "not promotable because of its shape" from "not promotable
+    /// because the consumer asked for a different lifetime" — only the second is worth telling them about,
+    /// and only the second names a lifetime in the message.
+    /// </remarks>
+    internal bool TryGetRegisteredLifetime(Type handlerType, out ServiceLifetime lifetime)
+    {
+        if (_lifetimes is not null && _lifetimes.TryGetLifetime(handlerType, out var registered))
+        {
+            lifetime = registered;
+            return true;
+        }
+
+        lifetime = default;
+        return false;
     }
 
     /// <summary>
@@ -172,10 +226,6 @@ internal sealed class HandlerScopeResolver
     /// </summary>
     [UnconditionalSuppressMessage(
         "Trimming",
-        "IL2070:'this' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method.",
-        Justification = "Handler and dependency types are preserved via DI registration; constructor metadata is inspected only to decide scope requirement. AOT consumers use the source-generated dispatcher.")]
-    [UnconditionalSuppressMessage(
-        "Trimming",
         "IL2072:'target parameter' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The return value of the source method does not have matching annotations.",
         Justification = "A constructor parameter type is resolved from DI; its constructors are preserved by registration. The scope verdict is advisory and AOT consumers use the source-generated dispatcher.")]
     private Requirement Walk(
@@ -185,7 +235,7 @@ internal sealed class HandlerScopeResolver
         var ctor = SelectActivatableConstructor(type);
         if (ctor is null)
         {
-            return Requirement.Root; // EC-A1: no public constructor — nothing scoped to capture.
+            return Requirement.Root; // No public constructor — nothing scoped to capture.
         }
 
         foreach (var parameter in ctor.GetParameters())
@@ -205,7 +255,7 @@ internal sealed class HandlerScopeResolver
 
             if (lifetime == ServiceLifetime.Transient)
             {
-                // Recurse through the transient intermediary — this is the depth-1 blind spot pedo87 fixes.
+                // Recurse through the transient intermediary — this is the depth-1 blind spot fixes.
                 // visited.Add returns false on a cycle/diamond, terminating the walk for that branch.
                 if (visited.Add(parameterType) && Walk(parameterType, visited) == Requirement.Scope)
                 {

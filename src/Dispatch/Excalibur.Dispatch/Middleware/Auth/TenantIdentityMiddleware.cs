@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Telemetry;
 
@@ -104,6 +105,14 @@ public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 
 		// Set tenant context for downstream middleware and handlers
 		SetTenantContext(context, tenantContext);
+
+		// Establish the AMBIENT tenant for the remainder of the pipeline. The entries written above reach
+		// only readers that hold this message context; everything that resolves ITenantContext instead --
+		// authorization, and the per-store ambient fallbacks -- reads the ambient holder and saw no tenant
+		// at all, so a tenant this middleware had successfully resolved never reached the code that acts
+		// on it. The scope is disposed with this frame, restoring whatever was ambient before, so a nested
+		// dispatch cannot leak its tenant back to its caller.
+		using var tenantScope = TenantContextHolder.BeginScope(tenantContext.TenantId);
 
 		// Set up logging scope with tenant information
 		using var logScope = CreateTenantLoggingScope(tenantContext);
@@ -212,7 +221,7 @@ public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 		}
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.TenancyMiddlewareExecuting, LogLevel.Debug,
 		"Established tenant context for message {MessageType} with tenant ID {TenantId}")]
 	private partial void LogTenantContextEstablished(string messageType, string tenantId);
@@ -385,6 +394,14 @@ public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 	/// </summary>
 	private void SetTenantContext(IMessageContext context, TenantContext tenantContext)
 	{
+		// The identity feature is the single source the read side actually consults: IMessageContext's
+		// GetTenantId() reads GetIdentityFeature()?.TenantId, and that is what the outbox write path uses
+		// when it stamps a message's tenant. Writing only the Items entries below left every one of those
+		// readers seeing no tenant at all, so a tenant this middleware had successfully resolved never
+		// reached the message it was resolved for. The Items entries are kept: they are the
+		// header-propagation surface and may have readers of their own.
+		context.GetOrCreateIdentityFeature().TenantId = tenantContext.TenantId;
+
 		// Set tenant properties in context for downstream middleware
 		context.SetItem("TenantId", tenantContext.TenantId);
 

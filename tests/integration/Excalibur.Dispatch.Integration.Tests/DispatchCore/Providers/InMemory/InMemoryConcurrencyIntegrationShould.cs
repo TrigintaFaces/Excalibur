@@ -185,38 +185,6 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// Tests that many concurrent transactions are handled gracefully via serialization.
-	/// </summary>
-	[Fact]
-	public async Task HandleLockContention()
-	{
-		// Arrange
-		using var provider = CreatePersistenceProvider();
-		var transactionCount = 20;
-		var completedTransactions = new ConcurrentBag<int>();
-
-		// Act - Start many concurrent transactions (serialized by SemaphoreSlim)
-		var tasks = Enumerable.Range(0, transactionCount).Select(async i =>
-		{
-			// BeginTransactionAsync waits for the semaphore
-			using var transaction = await provider.BeginTransactionAsync(
-				IsolationLevel.ReadCommitted,
-				TestCancellationToken).ConfigureAwait(false);
-
-			// Simulate work
-			await Task.Delay(5, TestCancellationToken).ConfigureAwait(false);
-
-			transaction.Commit();
-			completedTransactions.Add(i);
-		}).ToArray();
-
-		await Task.WhenAll(tasks);
-
-		// Assert - All transactions completed despite lock contention
-		completedTransactions.Count.ShouldBe(transactionCount);
-	}
-
-	/// <summary>
 	/// Tests that no updates are lost under concurrent write load.
 	/// </summary>
 	[Fact]

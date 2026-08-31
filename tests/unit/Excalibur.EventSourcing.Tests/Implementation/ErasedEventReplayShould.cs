@@ -82,7 +82,7 @@ public sealed class ErasedEventReplayShould
 	public async Task ReturnSentinelForFullyErasedStream()
 	{
 		// Arrange — real store, real erasure write path: append a genuine event, then GDPR-erase it.
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = Guid.NewGuid().ToString();
 
 		_ = await store.AppendAsync(
@@ -124,7 +124,7 @@ public sealed class ErasedEventReplayShould
 	{
 		// Arrange — real store, a genuine (non-erased) event whose type cannot be resolved on load,
 		// i.e. real corruption / unregistered type — must NOT be masked as erasure.
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = Guid.NewGuid().ToString();
 
 		_ = await store.AppendAsync(

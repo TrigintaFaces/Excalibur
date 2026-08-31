@@ -368,7 +368,7 @@ Remove MassTransit broker, use Dispatch outbox with custom publisher:
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 }));
 
@@ -394,7 +394,7 @@ Remove message broker entirely, use database for messaging:
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 }));
 
@@ -449,7 +449,7 @@ builder.Services.AddMassTransit(x =>
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 }));
 builder.Services.AddOutboxHostedService();
@@ -708,7 +708,7 @@ builder.Services.AddRabbitMqTransport(options =>
 // Or use the outbox with transport integration
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 }));
 ```

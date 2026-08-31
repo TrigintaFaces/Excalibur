@@ -24,14 +24,9 @@ public static class DispatchJsonSerializerOptions
 		new(static () => new JsonSerializerOptions(JsonSerializerDefaults.General));
 
 	/// <summary>
-	/// A lazily initialized web <see cref="JsonSerializerOptions" /> instance configured with <see cref="JsonSerializerDefaults.Web" />.
+	/// Backing store for <see cref="Web" />, populated on first access.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-			"AotAnalysis",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Default JSON options are configured at startup and are not used in AOT scenarios.")]
-	private static readonly Lazy<JsonSerializerOptions> WebSettings = new(static () =>
-			ApplyDefaults(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+	private static JsonSerializerOptions? _webSettings;
 
 	/// <summary>
 	/// Gets the default <see cref="JsonSerializerOptions" /> configured for JSON serialization.
@@ -43,7 +38,30 @@ public static class DispatchJsonSerializerOptions
 	/// Gets the default <see cref="JsonSerializerOptions" /> configured for web-based JSON serialization.
 	/// </summary>
 	/// <value> A <see cref="JsonSerializerOptions" /> instance using <see cref="JsonSerializerDefaults.Web" />. </value>
-	public static JsonSerializerOptions Web => WebSettings.Value;
+	/// <remarks>
+	/// These options include a string-enum converter that is built at run time, so they cannot be
+	/// produced ahead of time. Callers that publish ahead-of-time should build their own options from a
+	/// <see cref="JsonSerializerContext" /> instead, or apply
+	/// <see cref="JsonStringEnumConverter{TEnum}" /> to the specific enums they serialize.
+	/// The value is created on first access rather than in a field initializer, because a class
+	/// constructor cannot declare the dynamic-code requirement and would therefore hide it.
+	/// </remarks>
+	public static JsonSerializerOptions Web
+	{
+		[RequiresDynamicCode(
+			"The shared web options add a string-enum converter that is constructed at run time.")]
+		get
+		{
+			var existing = Volatile.Read(ref _webSettings);
+			if (existing is not null)
+			{
+				return existing;
+			}
+
+			var created = ApplyDefaults(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+			return Interlocked.CompareExchange(ref _webSettings, created, null) ?? created;
+		}
+	}
 
 	/// <summary>
 	/// Applies standard settings to the provided <see cref="JsonSerializerOptions" /> instance.

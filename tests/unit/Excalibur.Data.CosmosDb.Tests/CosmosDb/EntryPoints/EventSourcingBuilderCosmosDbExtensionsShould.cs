@@ -115,4 +115,25 @@ public sealed class EventSourcingBuilderCosmosDbExtensionsShould : UnitTestBase
         var options = provider.GetRequiredService<IOptions<CosmosDbEventStoreOptions>>();
         options.Value.EventsContainerName.ShouldBe("my_events");
     }
+
+    [Fact]
+    public void UseCosmosDb_ConfiguresDatabaseNameViaBuilder()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var builder = A.Fake<IEventSourcingBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+
+        // Act
+        builder.UseCosmosDb(cosmo => cosmo
+            .ConnectionString(TestConnectionString)
+            .DatabaseName("audit_history"));
+
+        // Assert: the store reads the database name from these options, so a name that does not
+        // arrive here is a database the provider can never open. "events" is the default, so the
+        // assertion is only meaningful against a name that differs from it.
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<CosmosDbEventStoreOptions>>();
+        options.Value.DatabaseName.ShouldBe("audit_history");
+    }
 }

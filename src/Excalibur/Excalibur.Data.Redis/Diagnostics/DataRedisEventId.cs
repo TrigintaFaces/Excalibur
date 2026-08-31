@@ -14,7 +14,7 @@ namespace Excalibur.Data.Redis.Diagnostics;
 /// <item>107200-107299: Retry Policy</item>
 /// </list>
 /// </remarks>
-public static class DataRedisEventId
+internal static class DataRedisEventId
 {
 	// ========================================
 	// 107000-107099: Connection/Initialization

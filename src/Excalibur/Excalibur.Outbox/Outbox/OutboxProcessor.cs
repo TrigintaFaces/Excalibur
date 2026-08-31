@@ -15,7 +15,6 @@ using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Delivery;
-using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Outbox;
@@ -101,6 +100,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <summary>
 	/// Claims a batch, presenting the leadership token when both a tenure and a fencing-capable store exist.
 	/// </summary>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		if (_fencingActive && FencedStore is { } fenced && CurrentFencingToken is { } token)
@@ -165,7 +166,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 	private string? _dispatcherId;
 
-	private InstanceAwareQueue? _idQueue;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OutboxProcessor" /> class. Initializes a new instance of the OutboxProcessor with
@@ -193,6 +193,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// </param>
 	/// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when configuration validation fails. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public OutboxProcessor(
 		IOptions<OutboxDeliveryOptions> options,
 		IOutboxStore outboxStore,
@@ -279,11 +281,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// not. Refuse to start instead. (Skipped under an explicit single-active-writer opt-out, which the
 		// consumer has taken responsibility for and which is logged above.)
 		//
+		// The predicate is the presence of the ELECTION, not of the gate: a gate-keyed predicate is
+		// supplied by the thing it guards, so a host that registered an election through a path that never
+		// wired the gate would read as single-instance and pass silently while draining unfenced.
+		//
 		// This is the defense-in-depth check for the partitioned / directly-constructed drain. The DEFAULT
 		// drain (OutboxBackgroundService -> IOutboxPublisher) never constructs an OutboxProcessor, so the
 		// same invariant is ALSO enforced at host startup by OutboxPrerequisiteValidator via the shared
 		// OutboxFencingStartupInvariant helper -- covering every drain path. Both call one source of truth.
-		OutboxFencingStartupInvariant.EnsureFencingCapableStore(leaderGate, _options.SingleActiveWriter, outboxStore);
+		OutboxFencingStartupInvariant.EnsureFencingCapableStore(
+			OutboxFencingStartupInvariant.IsLeaderElectionRegistered(serviceProvider),
+			leaderGate,
+			_options.SingleActiveWriter,
+			outboxStore);
 
 		if (_options.BatchProcessing.EnableDynamicBatchSizing)
 		{
@@ -302,13 +312,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <param name="dispatcherId"> Unique identifier for this dispatcher instance, used for message ownership and coordination. </param>
 	/// <exception cref="ArgumentException"> Thrown when dispatcherId is null, empty, or whitespace. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when processor is already initialized or in invalid state. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public void Init(string dispatcherId)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
 
 		_dispatcherId = dispatcherId;
-		var orderedQueue = new SimpleOrderedSet<string>(_queueCapacity + _options.ProducerBatchSize);
-		_idQueue = new InstanceAwareQueue(dispatcherId, orderedQueue);
 	}
 
 	/// <summary>
@@ -321,11 +331,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <exception cref="ObjectDisposedException"> Thrown when the processor has been disposed. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when processor is not properly initialized via Init method. </exception>
 	/// <exception cref="MessagingException"> Thrown when message processing fails due to broker or serialization issues. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<int> DispatchPendingMessagesAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		if (string.IsNullOrWhiteSpace(_dispatcherId) || _idQueue == null)
+		if (string.IsNullOrWhiteSpace(_dispatcherId))
 		{
 			throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, AttemptedToRunWithoutCallingInitFormat,
 				nameof(DispatchPendingMessagesAsync), nameof(Init)));
@@ -490,11 +502,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				await SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
 			}
 
-			if (_idQueue is not null)
-			{
-				await SafeDisposeAsync(_idQueue).ConfigureAwait(false);
-			}
-
 			_ = _outboxMessages.Writer.TryComplete();
 
 			_batchMetrics?.Dispose();
@@ -505,12 +512,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 	}
 
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task ProducerLoopAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
 			var totalQueued = 0;
 			var reachedLimit = false;
+
+			// Guards against queueing the same message twice within this run. Keyed on MessageId, which
+			// really is the outbox's unit of work. Cross-instance exclusion is not this set's job: it comes
+			// from the store's reservation.
+			var queuedThisRun = new HashSet<string>(StringComparer.Ordinal);
 
 			while (!cancellationToken.IsCancellationRequested && !reachedLimit)
 			{
@@ -543,7 +557,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				foreach (var outboxRecord in batch)
 				{
-					if (await _idQueue!.AddAsync(outboxRecord.MessageId, cancellationToken).ConfigureAwait(false))
+					if (queuedThisRun.Add(outboxRecord.MessageId))
 					{
 						await _outboxMessages.Writer.WriteAsync(outboxRecord, cancellationToken).ConfigureAwait(false);
 						totalQueued++;
@@ -657,6 +671,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		"AOT",
 		"IL3050:Using RequiresDynamicCode member in AOT",
 		Justification = "Outbox batch reservation converts outbound records using runtime serialization.")]
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task<IReadOnlyCollection<IOutboxMessage>> ReserveBatchRecordsAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		var records = await ClaimBatchAsync(batchSize, cancellationToken).ConfigureAwait(false);
@@ -687,9 +703,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 		// Re-establish this message's originating tenant as ambient for the whole per-message body so the
 		// handler dispatch AND every tenant-aware store mark (sent/failed/dead-lettered) run under the right
-		// tenant, scoping the store's composite (TenantId, Id) key correctly. Null-safe: BeginScope(null)
-		// establishes "no tenant" -> byte-identical to prior behavior for non-tenant deployments.
-		using var tenantScope = TenantContextHolder.BeginScope(message.TenantId);
+		// tenant, scoping the store's composite (TenantId, Id) key correctly.
+		//
+		// The tenant term is read back off a stored row, so it goes through the total store-read conversion
+		// rather than being passed raw. A raw null CLEARS the ambient, and a cleared ambient is "no tenant
+		// was established" -- which a multi-tenant store fails closed on (TenantRequiredException), aborting
+		// the mark after the handler already ran. An untenanted row is a different state with its own term.
+		using var tenantScope = TenantContextHolder.BeginScope(
+			KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var attempt = message.Attempts + 1;
@@ -712,19 +733,38 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		_ = activity?.SetTag("excalibur.outbox.dispatcher_id", _dispatcherId);
 		_ = activity?.SetTag("messaging.message_type", message.MessageType);
 
+		// Decode BEFORE entering the breaker. A row that cannot be decoded is terminal for that row and
+		// never reached the transport, so it must not count against the circuit; dead-letter it directly.
+		PreparedDispatch prepared;
+		try
+		{
+			prepared = await PrepareDispatchAsync(message).ConfigureAwait(false);
+		}
+		catch (OutboxPoisonMessageException ex)
+		{
+			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
+
+			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
+			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
+
+			await RouteToDeadLetterQueueAsync(message, DeadLetterReason.DeserializationFailed, ex, cancellationToken)
+				.ConfigureAwait(false);
+
+			return;
+		}
+
 		try
 		{
 			LogDispatchingOutboxRecord(message.MessageId, _dispatcherId!);
 
-			// Execute dispatch through circuit breaker
+			// Execute dispatch through circuit breaker. It records the outcome -- success or failure --
+			// itself; recording it again here would count every delivery failure twice and open the
+			// circuit at half the configured threshold.
 			await circuitBreaker.ExecuteAsync(async ct =>
 			{
-				await DispatchAsync(message, ct).ConfigureAwait(false);
+				await DispatchAsync(message, prepared, ct).ConfigureAwait(false);
 				return true;
 			}, cancellationToken).ConfigureAwait(false);
-
-			// Record success for circuit breaker
-			circuitBreaker.RecordSuccess();
 
 			LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
 
@@ -743,9 +783,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		catch (Exception ex)
 		{
-			// Record failure for circuit breaker
-			circuitBreaker.RecordFailure(ex);
-
 			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
 
 			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
@@ -776,12 +813,26 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <summary>
 	/// Routes a failed message to the dead letter queue.
 	/// </summary>
+	/// <remarks>
+	/// The tenant is established here, from the message being filed, rather than inherited from whatever
+	/// scope the caller happens to be in. The single-message path wraps its whole body in a scope and so
+	/// was correct; the batch path opens its scope inside the parallel lambda, defers failures to a list,
+	/// and drains that list afterwards, by which time the scope is disposed. A dead letter from one tenant
+	/// was then filed under the untenanted sentinel -- silently, because the destination column is not
+	/// nullable and the sentinel satisfies it. Establishing the scope at the point of use makes the
+	/// caller's scope irrelevant, so no future caller can reintroduce the gap by deferring the work.
+	/// </remarks>
 	private async Task RouteToDeadLetterQueueAsync(
 		IOutboxMessage message,
 		DeadLetterReason reason,
 		Exception? exception,
 		CancellationToken cancellationToken)
 	{
+		// Store-read tenant term: folded through the total conversion so an untenanted row binds the reserved
+		// untenanted term rather than clearing the ambient, which a multi-tenant store fails closed on.
+		using var tenantScope = TenantContextHolder.BeginScope(
+			KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
+
 		var reasonText = reason switch
 		{
 			DeadLetterReason.MaxRetriesExceeded => "Max retries exceeded",
@@ -871,6 +922,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		return _outboxStore.MarkFailedAsync(messageId, errorMessage, attempt, cancellationToken);
 	}
 
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
+		Justification =
+			"Outbox message dispatch requires runtime type resolution from MessageTypeRegistry for polymorphic message types - reflection is intentional")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Using RequiresDynamicCode member in AOT",
+		Justification = "Outbox dispatch uses runtime deserialization for stored message payloads.")]
 	private async Task<int> ProcessBatchParallelAsync(IOutboxMessage[] batch, CancellationToken cancellationToken)
 	{
 		var stopwatch = ValueStopwatch.StartNew();
@@ -889,8 +947,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				// Per-iteration tenant scope: re-establish this message's originating tenant as ambient so the
 				// handler dispatch runs under the right tenant, and (MinimizedWindow) the immediate MarkSentAsync
 				// scopes the store's composite (TenantId, Id) key. Wraps the single iteration only — each message
-				// may carry a different tenant. Null-safe: BeginScope(null) == prior non-tenant behavior.
-				using var tenantScope = TenantContextHolder.BeginScope(message.TenantId);
+				// may carry a different tenant. Store-read tenant term: folded through the total conversion so
+				// an untenanted row binds the reserved untenanted term rather than clearing the ambient,
+				// which a multi-tenant store fails closed on.
+				using var tenantScope = TenantContextHolder.BeginScope(
+					KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
 
 				var attempt = message.Attempts + 1;
 
@@ -909,19 +970,33 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					return; // Don't throw - we've handled this case
 				}
 
+				// Decode BEFORE entering the breaker. A row that cannot be decoded is terminal for that
+				// row and never reached the transport, so it must not count against the circuit --
+				// otherwise one corrupt row in a batch opens it for every healthy message behind it.
+				PreparedDispatch prepared;
 				try
 				{
-					// Execute dispatch through circuit breaker
+					prepared = await PrepareDispatchAsync(message).ConfigureAwait(false);
+				}
+				catch (OutboxPoisonMessageException ex)
+				{
+					LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
+					failedToDeadLetter.Add((message.MessageId, message, ex, DeadLetterReason.DeserializationFailed));
+
+					return; // Don't throw - a poison row is not a batch delivery failure.
+				}
+
+				try
+				{
+					// Execute dispatch through circuit breaker. It records the outcome itself; see the
+					// single-message path above.
 					await circuitBreaker.ExecuteAsync(async token =>
 					{
-						await DispatchSingleMessageAsync(message, token).ConfigureAwait(false);
+						await DispatchSingleMessageAsync(message, prepared, token).ConfigureAwait(false);
 						return true;
 					}, ct).ConfigureAwait(false);
 
-					// Record success for circuit breaker
-					circuitBreaker.RecordSuccess();
-
-					// AD-222-1: For MinimizedWindow, mark sent immediately after dispatch
+					// For MinimizedWindow, mark sent immediately after dispatch
 					if (_options.DeliveryGuarantee == OutboxDeliveryGuarantee.MinimizedWindow)
 					{
 						await MarkSentFencedAsync(message.MessageId, ct).ConfigureAwait(false);
@@ -941,9 +1016,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				}
 				catch (Exception ex)
 				{
-					// Record failure for circuit breaker
-					circuitBreaker.RecordFailure(ex);
-
 					LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
 
 					if (attempt >= _options.MaxAttempts)
@@ -975,7 +1047,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
 		}
 
-		// AD-222-1: Branch on DeliveryGuarantee setting for batch completion
+		// Branch on DeliveryGuarantee setting for batch completion
 		var successfulIdsOnly = successfulIds.ToList();
 
 		// For MinimizedWindow, messages were already marked individually in the dispatch loop
@@ -1141,57 +1213,100 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		Justification = "CancellationToken parameter required for async pattern consistency and future cancellation support")]
 	[SuppressMessage("Style", "IDE0060:Remove unused parameter",
 		Justification = "CancellationToken parameter required for async pattern consistency and future cancellation support")]
-	private async Task DispatchSingleMessageAsync(IOutboxMessage message, CancellationToken cancellationToken)
+	private async Task DispatchSingleMessageAsync(IOutboxMessage message, PreparedDispatch prepared, CancellationToken cancellationToken)
 	{
 		using var activity = BackgroundServiceActivitySource.StartMessageDispatch(BackgroundServiceTypes.Outbox, message.MessageId);
 		_ = activity?.SetTag("excalibur.outbox.dispatcher_id", _dispatcherId);
 
 		LogDispatchingOutboxRecord(message.MessageId, _dispatcherId!);
 
-		await DispatchAsync(message, cancellationToken).ConfigureAwait(false);
+		await DispatchAsync(message, prepared, cancellationToken).ConfigureAwait(false);
 
 		LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
 	}
 
+	/// <summary>
+	/// A staged row decoded into the message and metadata the dispatcher needs.
+	/// </summary>
+	private readonly record struct PreparedDispatch(IDispatchMessage Message, DeliveryMetadata Metadata);
+
+	/// <summary>
+	/// Decodes a staged row into a dispatchable message, ahead of any transport attempt.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The staged body is the serialized MESSAGE, written by the outbox writer as its own runtime type.
+	/// It is not a nested envelope: the identifier, the type name and the metadata all arrive on the
+	/// <see cref="IOutboxMessage"/> the store conversion already produced, so they are read from there
+	/// rather than reconstructed out of the body.
+	/// </para>
+	/// <para>
+	/// This runs OUTSIDE the transport circuit breaker, and that placement is load-bearing. A body this
+	/// process cannot decode will not decode on the next attempt and never reached a transport, so it is
+	/// evidence about the row rather than about transport health. Decoding inside the breaker lets one
+	/// corrupt row count against the circuit and stall delivery of every healthy message behind it.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="OutboxPoisonMessageException"> Thrown when the row cannot be decoded. </exception>
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
-	private async Task DispatchAsync(IOutboxMessage outboxMessage, CancellationToken cancellationToken)
+	private async Task<PreparedDispatch> PrepareDispatchAsync(IOutboxMessage outboxMessage)
 	{
-		if (outboxMessage.MessageBody.Length == 0
-			|| _serializer.DeserializeFromUtf8<OutboxMessage>(outboxMessage.MessageBody) is not { } message)
-		{
-			BackgroundServiceMetrics.RecordProcessingError(BackgroundServiceTypes.Outbox, "empty_message");
-			return;
-		}
-
 		try
 		{
-			var type = MessageTypeRegistry.GetType(message.MessageType)
-					   ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {message.MessageType}");
+			if (outboxMessage.MessageBody.Length == 0)
+			{
+				BackgroundServiceMetrics.RecordProcessingError(BackgroundServiceTypes.Outbox, "empty_message");
 
-			if (_serializer.DeserializeFromUtf8(message.MessageBody, type) is not IDispatchMessage
+				throw new InvalidOperationException(ErrorConstants.CouldNotDeserializeAsDispatchMessage);
+			}
+
+			if (!MessageTypeRegistry.TryGetType(outboxMessage.MessageType, out var type))
+			{
+				throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {outboxMessage.MessageType}");
+			}
+
+			if (_serializer.DeserializeFromUtf8(outboxMessage.MessageBody, type) is not IDispatchMessage
 				dispatchMessage)
 			{
 				throw new InvalidOperationException(
-					$"{ErrorConstants.CouldNotDeserializeAsDispatchMessage}: {message.MessageType}");
+					$"{ErrorConstants.CouldNotDeserializeAsDispatchMessage}: {outboxMessage.MessageType}");
 			}
 
 			var deserializedMetadata =
-				await _serializer.DeserializeAsync(message.MessageMetadata, typeof(DeliveryMetadata)).ConfigureAwait(false);
+				await _serializer.DeserializeAsync(outboxMessage.MessageMetadata, typeof(DeliveryMetadata)).ConfigureAwait(false);
 			if (deserializedMetadata is not DeliveryMetadata deliveryMetadata)
 			{
 				throw new InvalidOperationException(
-					$"{ErrorConstants.FailedToDeserializeMessageMetadata}: {message.MessageId}");
+					$"{ErrorConstants.FailedToDeserializeMessageMetadata}: {outboxMessage.MessageId}");
 			}
 
+			return new PreparedDispatch(dispatchMessage, deliveryMetadata);
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+#pragma warning disable CA1031 // Every non-cancellation decode failure is the same terminal condition for this row.
+		catch (Exception ex)
+		{
+			throw new OutboxPoisonMessageException(outboxMessage.MessageId, ex.Message, ex);
+		}
+#pragma warning restore CA1031
+	}
+
+	private async Task DispatchAsync(IOutboxMessage outboxMessage, PreparedDispatch prepared, CancellationToken cancellationToken)
+	{
+		try
+		{
 			await using var scope = _serviceProvider.CreateAsyncScope();
 
 			// Seed the context directly from the strongly-typed metadata — no per-message dictionary alloc.
-			var messageContext = DispatchContextInitializer.CreateFromMetadata(deliveryMetadata);
-			messageContext.MessageId = message.MessageId;
+			var messageContext = DispatchContextInitializer.CreateFromMetadata(prepared.Metadata);
+			messageContext.MessageId = outboxMessage.MessageId;
 
 			var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
-			var result = await scopedDispatcher.DispatchAsync(dispatchMessage, messageContext, cancellationToken)
+			var result = await scopedDispatcher.DispatchAsync(prepared.Message, messageContext, cancellationToken)
 				.ConfigureAwait(false);
 
 			// Check if the dispatch was successful
@@ -1203,7 +1318,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		catch (Exception ex)
 		{
-			LogDispatchFailed(message.MessageId, ex);
+			LogDispatchFailed(outboxMessage.MessageId, ex);
 
 			throw;
 		}

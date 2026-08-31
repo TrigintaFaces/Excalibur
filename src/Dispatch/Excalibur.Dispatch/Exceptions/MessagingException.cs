@@ -74,27 +74,6 @@ public sealed class MessagingException : DispatchException
 	public string? QueueName { get; set; }
 
 	/// <summary>
-	/// Creates an exception for when a message handler is not found.
-	/// </summary>
-	/// <param name="messageType"> The type of message for which no handler was found. </param>
-	/// <returns> A new MessagingException instance. </returns>
-	public static MessagingException HandlerNotFound(Type messageType)
-	{
-		var ex = new MessagingException(
-			$"No handler found for message type '{messageType.FullName}'. " +
-			$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
-			$"Alternatively, register the handler directly with services.AddTransient<IDispatchHandler<{messageType.Name}>, YourHandler>().")
-		{
-			Data = { ["ErrorCode"] = ErrorCodes.MessageHandlerNotFound },
-			MessageType = messageType.FullName,
-		};
-		return ex.WithContext("messageType", messageType.FullName)
-			.WithSuggestedAction(
-				$"Register a handler for '{messageType.Name}' by calling services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly)).")
-			.WithStatusCode(500) as MessagingException ?? new MessagingException();
-	}
-
-	/// <summary>
 	/// Creates an exception for when message routing fails.
 	/// </summary>
 	/// <param name="messageId"> The ID of the message that failed to route. </param>
@@ -102,7 +81,7 @@ public sealed class MessagingException : DispatchException
 	/// <returns> A new MessagingException instance. </returns>
 	public static MessagingException RoutingFailed(string messageId, string reason)
 	{
-		var ex = new MessagingException($"Failed to route message '{messageId}': {reason}")
+		var ex = new MessagingException(ErrorCodes.MessageRoutingFailed, $"Failed to route message '{messageId}': {reason}")
 		{
 			Data = { ["ErrorCode"] = ErrorCodes.MessageRoutingFailed },
 			MessageId = messageId,
@@ -120,7 +99,7 @@ public sealed class MessagingException : DispatchException
 	/// <returns> A new MessagingException instance. </returns>
 	public static MessagingException DuplicateMessage(string messageId)
 	{
-		var ex = new MessagingException($"Duplicate message detected: '{messageId}'")
+		var ex = new MessagingException(ErrorCodes.MessageDuplicate, $"Duplicate message detected: '{messageId}'")
 		{
 			Data = { ["ErrorCode"] = ErrorCodes.MessageDuplicate },
 			MessageId = messageId,
@@ -138,7 +117,7 @@ public sealed class MessagingException : DispatchException
 	/// <returns> A new MessagingException instance. </returns>
 	public static MessagingException RetryLimitExceeded(string messageId, int retryCount)
 	{
-		var ex = new MessagingException($"Message '{messageId}' exceeded retry limit after {retryCount} attempts.")
+		var ex = new MessagingException(ErrorCodes.MessageRetryLimitExceeded, $"Message '{messageId}' exceeded retry limit after {retryCount} attempts.")
 		{
 			Data = { ["ErrorCode"] = ErrorCodes.MessageRetryLimitExceeded },
 			MessageId = messageId,
@@ -158,8 +137,9 @@ public sealed class MessagingException : DispatchException
 	public static MessagingException BrokerConnectionFailed(string brokerAddress, Exception? innerException = null)
 	{
 		var ex = new MessagingException(
+			ErrorCodes.MessageBrokerConnectionFailed,
 			$"Failed to connect to message broker at '{brokerAddress}'.",
-						innerException ?? new InvalidOperationException(ErrorMessages.ConnectionFailed))
+			innerException ?? new InvalidOperationException(ErrorMessages.ConnectionFailed))
 		{
 			Data = { ["ErrorCode"] = ErrorCodes.MessageBrokerConnectionFailed },
 		};

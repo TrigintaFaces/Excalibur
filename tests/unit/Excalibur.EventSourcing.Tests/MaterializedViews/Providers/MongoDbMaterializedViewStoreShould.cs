@@ -11,6 +11,8 @@ using Microsoft.Extensions.Options;
 
 using MongoDB.Driver;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.MaterializedViews.Providers;
 
 /// <summary>
@@ -76,7 +78,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MongoDbMaterializedViewStore(options: null!, logger));
+			new MongoDbMaterializedViewStore(options: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -91,7 +93,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MongoDbMaterializedViewStore(options, logger: null!));
+			new MongoDbMaterializedViewStore(options, logger: null!, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -106,7 +108,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() =>
-			new MongoDbMaterializedViewStore(options, logger));
+			new MongoDbMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -121,7 +123,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() =>
-			new MongoDbMaterializedViewStore(options, logger));
+			new MongoDbMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -136,7 +138,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 		var logger = NullLogger<MongoDbMaterializedViewStore>.Instance;
 
 		// Act
-		var store = new MongoDbMaterializedViewStore(options, logger);
+		var store = new MongoDbMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -159,7 +161,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MongoDbMaterializedViewStore(client: null!, options, logger));
+			new MongoDbMaterializedViewStore(client: null!, options, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -171,7 +173,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MongoDbMaterializedViewStore(client, options: null!, logger));
+			new MongoDbMaterializedViewStore(client, options: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -187,7 +189,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MongoDbMaterializedViewStore(client, options, logger: null!));
+			new MongoDbMaterializedViewStore(client, options, logger: null!, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -206,7 +208,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 		var logger = NullLogger<MongoDbMaterializedViewStore>.Instance;
 
 		// Act
-		var store = new MongoDbMaterializedViewStore(client, options, logger);
+		var store = new MongoDbMaterializedViewStore(client, options, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -484,7 +486,7 @@ public sealed class MongoDbMaterializedViewStoreShould
 		});
 		var logger = NullLogger<MongoDbMaterializedViewStore>.Instance;
 
-		return new MongoDbMaterializedViewStore(client, options, logger);
+		return new MongoDbMaterializedViewStore(client, options, logger, TenantViewFixture.SingleTenant);
 	}
 
 	#endregion
@@ -498,4 +500,19 @@ public sealed class MongoDbMaterializedViewStoreShould
 	}
 
 	#endregion
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

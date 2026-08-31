@@ -149,7 +149,7 @@ Choose a transport for publishing integration events between services:
 ```csharp
 services.AddDispatchRabbitMQ(rmq =>
 {
-    rmq.ConnectionString = "amqp://guest:guest@localhost";
+    rmq.ConnectionString = "amqps://guest:guest@localhost";
 });
 ```
 
@@ -289,7 +289,7 @@ services.AddExcaliburSqlServer(sql =>
 
 services.AddDispatchRabbitMQ(rmq =>
 {
-    rmq.ConnectionString = "amqp://guest:guest@localhost";
+    rmq.ConnectionString = "amqps://guest:guest@localhost";
 });
 
 services.AddDispatch(dispatch =>

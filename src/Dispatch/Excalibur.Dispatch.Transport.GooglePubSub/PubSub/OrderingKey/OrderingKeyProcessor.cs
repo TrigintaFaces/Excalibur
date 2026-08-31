@@ -437,7 +437,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		}
 	}
 
-	// Source-generated logging methods (Sprint 363 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(GooglePubSubEventId.OrderingProcessorStarted, LogLevel.Information,
 		"Ordering key processor started with {WorkerCount} workers, max concurrent keys: {MaxConcurrentKeys}")]
 	private partial void LogProcessorStarted(int workerCount, int maxConcurrentKeys);

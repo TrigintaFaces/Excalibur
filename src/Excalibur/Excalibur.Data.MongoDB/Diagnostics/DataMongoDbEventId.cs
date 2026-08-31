@@ -18,7 +18,7 @@ namespace Excalibur.Data.MongoDB.Diagnostics;
 /// <item>104600-104699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataMongoDbEventId
+internal static class DataMongoDbEventId
 {
 	// ========================================
 	// 104000-104099: Client Management

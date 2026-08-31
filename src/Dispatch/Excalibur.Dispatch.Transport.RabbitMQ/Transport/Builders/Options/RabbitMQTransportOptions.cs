@@ -215,12 +215,54 @@ public sealed class RabbitMQSslOptions
 	public string? CertificatePassphrase { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to accept untrusted certificates.
+	/// Gets or sets a value indicating whether an unencrypted broker connection is refused.
 	/// </summary>
-	/// <value><see langword="true"/> to accept untrusted certificates; otherwise, <see langword="false"/>.</value>
+	/// <value>
+	/// <see langword="true"/> to refuse to build a connection factory that would connect in the clear;
+	/// <see langword="false"/> to permit one. Default is <see langword="true"/>.
+	/// </value>
 	/// <remarks>
-	/// <b>Warning:</b> Setting this to <see langword="true"/> disables certificate validation
-	/// and should only be used in development/testing environments.
+	/// <para>
+	/// The refusal happens when the connection factory is built, so a plaintext registration fails where
+	/// it is wired rather than at the first message. Every AMQP client this transport creates is reached
+	/// through that one factory, so the refusal covers all of them.
+	/// </para>
+	/// <para>
+	/// A connection carries TLS when its connection string uses the <c>amqps</c> scheme or when
+	/// <see cref="RabbitMQConnectionOptions.UseSsl"/> is set. Neither being present is plaintext, so this
+	/// setting is read whether or not the rest of this group has been configured.
+	/// </para>
+	/// <para>
+	/// <strong>Setting this to false permits credentials and message payloads to travel in the clear.</strong>
+	/// It exists for local brokers and test fixtures, not for anything holding real data.
+	/// </para>
+	/// </remarks>
+	public bool RequireTls { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether a broker certificate that fails trust validation is accepted.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> to complete the handshake despite an untrusted certificate;
+	/// <see langword="false"/> to require a certificate that validates. Default is <see langword="false"/>.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// This waives exactly two validation errors: a certificate that does not chain to a trusted root, and
+	/// a certificate whose subject does not match the host being dialled. It does <em>not</em> disable
+	/// validation wholesale -- a broker that presents no certificate at all is still refused, so the
+	/// connection can never silently become unauthenticated.
+	/// </para>
+	/// <para>
+	/// The relaxation is applied to any connection that carries TLS, whether TLS came from
+	/// <see cref="RabbitMQConnectionOptions.UseSsl"/> or from an <c>amqps</c> connection string. It has no
+	/// effect on a plaintext connection, which has no handshake to relax.
+	/// </para>
+	/// <para>
+	/// <strong>The connection stays encrypted but stops being authenticated: an interposed party
+	/// presenting any certificate is accepted.</strong> It exists for self-signed local brokers and test
+	/// fixtures, not for anything holding real data.
+	/// </para>
 	/// </remarks>
 	public bool AcceptUntrustedCertificates { get; set; }
 }
@@ -270,7 +312,7 @@ public sealed class RabbitMQExchangeOptions
 /// know — <see cref="Durable"/>, <see cref="Exclusive"/>, <see cref="AutoDelete"/> and the
 /// <see cref="Arguments"/> map (into which <see cref="MessageTtl"/> → <c>x-message-ttl</c>,
 /// <see cref="MaxLength"/> → <c>x-max-length</c>, <see cref="MaxLengthBytes"/> → <c>x-max-length-bytes</c>),
-/// plus the consumer settings (<see cref="PrefetchCount"/> → <c>basic.qos</c>, <see cref="AutoAck"/>) and the
+/// plus the consumer setting <see cref="PrefetchCount"/> (→ <c>basic.qos</c>) and the
 /// framework's <see cref="MaxPayloadBytes"/> ingress guard. Splitting these into nested groups would diverge
 /// from the well-known broker vocabulary and reduce discoverability, so the flat surface is retained by design.
 /// </remarks>
@@ -305,12 +347,6 @@ public sealed class RabbitMQQueueOptions
 	/// </summary>
 	/// <value>The prefetch count. Default is 100.</value>
 	public ushort PrefetchCount { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether messages are auto-acknowledged.
-	/// </summary>
-	/// <value><see langword="true"/> for auto-acknowledge; otherwise, <see langword="false"/>.</value>
-	public bool AutoAck { get; set; }
 
 	/// <summary>
 	/// Gets or sets the message time-to-live.
@@ -400,18 +436,6 @@ public sealed class RabbitMQDeadLetterOptions
 	/// </summary>
 	/// <value>The routing key. Default is "#".</value>
 	public string RoutingKey { get; set; } = "#";
-
-	/// <summary>
-	/// Gets or sets the maximum number of retry attempts before dead-lettering.
-	/// </summary>
-	/// <value>The max retries. Default is 3.</value>
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the delay between retry attempts.
-	/// </summary>
-	/// <value>The retry delay. Default is 30 seconds.</value>
-	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>

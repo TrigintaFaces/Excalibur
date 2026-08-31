@@ -185,19 +185,29 @@ Do not set `ThrowOnStartupFailure = false` unless you have a specific degraded-o
 
 ```yaml
 spec:
-  terminationGracePeriodSeconds: 35  # >= DrainTimeoutSeconds + 5
+  terminationGracePeriodSeconds: 35  # >= HostOptions.ShutdownTimeout + 5
   containers:
   - name: api
     # ...
 ```
 
-**Rule:** `terminationGracePeriodSeconds` must be >= `DrainTimeoutSeconds` (default: 30) plus a small buffer (5s) for SIGTERM propagation.
+**Rule:** three budgets nest, and each must be strictly inside the next:
+
+`DrainTimeoutSeconds` (24) < `HostOptions.ShutdownTimeout` (30) < `terminationGracePeriodSeconds` (35)
+
+The drain budget defaults to 24 seconds -- 80% of the host's 30-second `ShutdownTimeout` -- because the host
+cancels the shutdown token at `ShutdownTimeout`. A drain budget equal to it would be abandoned mid-drain
+rather than running to completion. `terminationGracePeriodSeconds` then needs a small buffer (5s) above
+`ShutdownTimeout` for SIGTERM propagation.
+
+The settings are related but not linked: raising `ShutdownTimeout` does **not** move `DrainTimeoutSeconds`.
+If you tune one, tune the others to keep the nesting.
 
 **What happens on shutdown:**
 
 1. Kubernetes sends SIGTERM -- .NET host triggers `ApplicationStopping`
 2. `TransportAdapterHostedService.StopAsync` begins drain (reverse start order)
-3. Each adapter gets up to `DrainTimeoutSeconds` to finish in-flight messages
+3. Each adapter gets up to `DrainTimeoutSeconds` (24s by default) to finish in-flight messages
 4. If drain exceeds timeout, adapter is forcefully stopped (logged as warning)
 5. After `terminationGracePeriodSeconds`, Kubernetes sends SIGKILL
 
@@ -206,7 +216,7 @@ spec:
 ```csharp
 builder.Services.Configure<TransportAdapterHostedServiceOptions>(options =>
 {
-    options.DrainTimeoutSeconds = 30; // Default
+    options.DrainTimeoutSeconds = 24; // Default -- keep below HostOptions.ShutdownTimeout (30)
 });
 ```
 
@@ -383,6 +393,6 @@ For detailed observability setup, see [Observability](../observability/index.md)
 | Setting | Default | Where |
 |---------|---------|-------|
 | Health endpoint | `/.well-known/ready` | `AddExcaliburHealthChecks()` |
-| Drain timeout | 30 seconds | `TransportAdapterHostedServiceOptions.DrainTimeoutSeconds` |
+| Drain timeout | 24 seconds | `TransportAdapterHostedServiceOptions.DrainTimeoutSeconds` |
 | Throw on startup failure | `true` | `TransportAdapterHostedServiceOptions.ThrowOnStartupFailure` |
 | AOT packages | 150/170 | [Compatibility Matrix](./aot-compatibility.md) |

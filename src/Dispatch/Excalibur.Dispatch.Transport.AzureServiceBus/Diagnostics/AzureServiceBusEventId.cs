@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus;
 /// <item>24900-24999: StorageQueues Consumer</item>
 /// </list>
 /// </remarks>
-public static class AzureServiceBusEventId
+internal static class AzureServiceBusEventId
 {
 	// ========================================
 	// 24000-24099: ServiceBus Core

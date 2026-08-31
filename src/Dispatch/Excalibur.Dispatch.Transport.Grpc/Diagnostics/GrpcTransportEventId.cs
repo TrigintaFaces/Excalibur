@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// <summary>
 /// Event IDs for gRPC transport logging (25000-25099).
 /// </summary>
-public static class GrpcTransportEventId
+internal static class GrpcTransportEventId
 {
 	// ========================================
 	// 25000-25019: Sender

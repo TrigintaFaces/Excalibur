@@ -10,7 +10,7 @@ namespace Excalibur.Security.Azure.Internal;
 /// Default <see cref="ISecretClient"/> implementation that forwards to a real
 /// <see cref="SecretClient"/>. This adapter is intentionally the only place in
 /// the framework that touches live Azure Key Vault SDK call sites — tests do
-/// not fake <see cref="SecretClient"/> directly (see bd-wy56o5, ADR-142).
+/// not fake <see cref="SecretClient"/> directly.
 /// </summary>
 internal sealed class SecretClientAdapter : ISecretClient
 {

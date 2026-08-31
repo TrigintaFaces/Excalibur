@@ -10,9 +10,15 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AwsLambdaHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logger) : IServerlessHostProvider, IServerlessHostConfigurator
+/// <param name="options"> The serverless host options, when the host supplies them. </param>
+internal partial class AwsLambdaHostProvider(
+	ILogger<AwsLambdaHostProvider> logger,
+	Microsoft.Extensions.Options.IOptions<ServerlessHostOptions>? options = null) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+	// Null when the host was composed without options; the platform limit then stands alone.
+	private readonly TimeSpan? _configuredTimeout = options?.Value.ExecutionTimeout;
 
 	/// <inheritdoc />
 	public ServerlessPlatform Platform => ServerlessPlatform.AwsLambda;
@@ -53,8 +59,7 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 		// tracing + CloudWatch), enabled by the operator at the function/platform level — the
 		// provider does not wire in-process exporters for these flags. Warn honestly that the
 		// in-process exporter toggle is a no-op on this host (not a misleading "not implemented"
-		// message, and not a silent no-op); deps-bearing in-process exporters are tracked in
-		// bd-wh492p.
+		// message, and not a silent no-op); deps-bearing in-process exporters are not wired here.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
 			LogAwsXRayTracingPlatformProvisioned();
@@ -134,7 +139,7 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 			// Zero, so an invocation already within (or past) the cleanup reserve cancels immediately
 			// instead of running unbounded. Cancellation is ALWAYS scheduled — the fail-open skip is
 			// structurally inexpressible.
-			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime));
+			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime, _configuredTimeout));
 
 			using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts.Token);
@@ -168,7 +173,7 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 		return serviceType.IsAssignableFrom(GetType()) ? this : null;
 	}
 
-	// Source-generated logging methods (Sprint 368 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(AwsLambdaEventId.ConfiguringServices, Microsoft.Extensions.Logging.LogLevel.Debug,
 		"Configuring services for AWS Lambda")]
 	private partial void LogConfiguringServicesForAwsLambda();

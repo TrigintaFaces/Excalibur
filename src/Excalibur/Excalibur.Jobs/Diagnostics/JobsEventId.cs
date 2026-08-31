@@ -26,7 +26,7 @@ namespace Excalibur.Jobs.Diagnostics;
 /// <item>147810-147819: Projection Rebuild Job</item>
 /// </list>
 /// </remarks>
-public static class JobsEventId
+internal static class JobsEventId
 {
 	// ========================================
 	// 147100-147199: Job Config Watcher

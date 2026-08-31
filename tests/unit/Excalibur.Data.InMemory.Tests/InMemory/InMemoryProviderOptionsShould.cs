@@ -19,11 +19,6 @@ public sealed class InMemoryProviderOptionsShould : UnitTestBase
 		options.ConnectionString.ShouldBe("InMemory");
 		options.ConnectionTimeout.ShouldBe(30);
 		options.CommandTimeout.ShouldBe(30);
-		options.MaxRetryAttempts.ShouldBe(0);
-		options.RetryDelayMilliseconds.ShouldBe(1000);
-		options.EnableConnectionPooling.ShouldBeFalse();
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(0);
 		options.EnableDetailedLogging.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
 		options.MaxItemsPerCollection.ShouldBe(10000);

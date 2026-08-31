@@ -153,4 +153,31 @@ public interface IPayloadSerializer
 	/// </remarks>
 	byte[] SerializeObject(object value, Type type);
 
+	/// <summary>
+	/// Deserializes a byte array to an object of the specified runtime type, automatically detecting the format.
+	/// </summary>
+	/// <param name="data">
+	/// Byte array in format: [magic byte (1 byte)][serialized payload (N bytes)].
+	/// </param>
+	/// <param name="type">The runtime type to deserialize to.</param>
+	/// <returns>The deserialized object.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when data or type is null.</exception>
+	/// <exception cref="SerializationException">
+	/// Thrown when:
+	/// <list type="bullet">
+	///   <item>The payload is empty</item>
+	///   <item>The magic byte identifies an unknown/unregistered serializer</item>
+	///   <item>Deserialization fails</item>
+	/// </list>
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The runtime-typed counterpart of <see cref="SerializeObject"/>, and the read side of the persistence
+	/// contract: a stored payload names its own serializer in the magic byte, so a store that resolves its
+	/// message type at runtime can read an entry back through the serializer that wrote it rather than
+	/// through whichever serializer happens to be configured when the entry is drained.
+	/// </para>
+	/// </remarks>
+	object DeserializeObject(byte[] data, Type type);
+
 }

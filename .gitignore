@@ -24,6 +24,16 @@ tmp_workermail_*.json
 # All generated output should go to artifacts/ (already gitignored below).
 # These catch common locations where tools write by default.
 **/TestResults/
+# AOT/ILC validation and coverage output. Regenerable measurement artifacts --
+# aot-after alone is ~9MB of ILC warning JSON. Two report files were tracked by
+# accident before this rule existed; they are untracked in the same change.
+validation-results/
+# Interface/option census scratch written to the repo root by analysis passes.
+# Regenerable, ~1MB each, and they embed source paths -- which makes the commit
+# gate read them as a coupled set with every file they mention.
+census_*.json
+suppression-audit-results/
+aot-suppression-audit/
 test-results/
 test-results-*.txt
 coverage-*/
@@ -526,6 +536,14 @@ StrykerOutput/
 .tmp_*.cs
 tmp_ci_run/
 .tmp_ci_run/
+
+# Integrator scratch: build logs, captured exit codes, commit messages, extracted
+# trees used to verify a prospective commit. Untracked by design -- but the staged
+# coherence gate scans untracked files for couplings to staged ones, so a large
+# snapshot or an extracted copy of the repo left here blocks unrelated commits and
+# names files nobody edited. Ignored so verification scratch cannot gate the work
+# it exists to verify.
+.tmp-pm/
 certified-samples.slnf
 
 # Beads / Dolt files (added by bd init)
@@ -534,3 +552,14 @@ certified-samples.slnf
 .beads-credential-key
 .beads/proxieddb/
 eng/ci/ci-sli-history.jsonl
+
+# Repository-local .NET SDK provisioned by build.ps1 when the pinned global.json version is absent.
+# Never committed: it is a machine artifact, and global.json is the authority on which version.
+.dotnet/
+
+# Build serialization mutex (eng/ci/build-lock.sh) — runtime only, never committed
+.build-lock/
+
+# Throwaway AOT coverage harness (eng/ci/Invoke-AotCoverageGate.ps1) — regenerated every run
+# from the current IsAotCompatible=true declaring set, never committed.
+eng/ci/.aot-coverage-harness/

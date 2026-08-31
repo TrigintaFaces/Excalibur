@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -26,7 +26,7 @@ namespace Excalibur.Testing.Conformance;
 /// <item><description>Delete existing payload returns true, non-existent returns false</description></item>
 /// <item><description>ShouldUseClaimCheck threshold detection (SYNC method!)</description></item>
 /// <item><description>Null parameter validation (ArgumentNullException)</description></item>
-/// <item><description>TTL expiration throws InvalidOperationException on retrieve</description></item>
+/// <item><description>TTL expiration throws KeyNotFoundException on retrieve</description></item>
 /// <item><description>Retrieve non-existent throws KeyNotFoundException</description></item>
 /// </list>
 /// </para>
@@ -53,7 +53,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class ClaimCheckProviderConformanceTestKit
+public abstract class ClaimCheckProviderConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh claim check provider instance for testing.
@@ -97,7 +97,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that StoreAsync throws ArgumentNullException for null payload.
 	/// </summary>
-	protected virtual async Task StoreAsync_NullPayload_ShouldThrowArgumentNullException()
+	public virtual async Task StoreAsync_NullPayload_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -129,7 +129,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that StoreAsync populates all required ClaimCheckReference fields.
 	/// </summary>
-	protected virtual async Task StoreAsync_ShouldPopulateReferenceMetadata()
+	public virtual async Task StoreAsync_ShouldPopulateReferenceMetadata()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -181,7 +181,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that StoreAsync preserves metadata.
 	/// </summary>
-	protected virtual async Task StoreAsync_WithMetadata_ShouldPreserveMetadata()
+	public virtual async Task StoreAsync_WithMetadata_ShouldPreserveMetadata()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -230,7 +230,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that RetrieveAsync throws ArgumentNullException for null reference.
 	/// </summary>
-	protected virtual async Task RetrieveAsync_NullReference_ShouldThrowArgumentNullException()
+	public virtual async Task RetrieveAsync_NullReference_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -262,7 +262,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that RetrieveAsync throws KeyNotFoundException for non-existent reference.
 	/// </summary>
-	protected virtual async Task RetrieveAsync_NonExistent_ShouldThrowKeyNotFoundException()
+	public virtual async Task RetrieveAsync_NonExistent_ShouldThrowKeyNotFoundException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -305,7 +305,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteAsync throws ArgumentNullException for null reference.
 	/// </summary>
-	protected virtual async Task DeleteAsync_NullReference_ShouldThrowArgumentNullException()
+	public virtual async Task DeleteAsync_NullReference_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -337,7 +337,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteAsync returns true for existing payload.
 	/// </summary>
-	protected virtual async Task DeleteAsync_ExistingPayload_ShouldReturnTrue()
+	public virtual async Task DeleteAsync_ExistingPayload_ShouldReturnTrue()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -365,7 +365,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteAsync returns false for non-existent payload.
 	/// </summary>
-	protected virtual async Task DeleteAsync_NonExistent_ShouldReturnFalse()
+	public virtual async Task DeleteAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -401,7 +401,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ShouldUseClaimCheck throws ArgumentNullException for null payload.
 	/// </summary>
-	protected virtual Task ShouldUseClaimCheck_NullPayload_ShouldThrowArgumentNullException()
+	public virtual Task ShouldUseClaimCheck_NullPayload_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -436,7 +436,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ShouldUseClaimCheck returns false for small payloads.
 	/// </summary>
-	protected virtual Task ShouldUseClaimCheck_BelowThreshold_ShouldReturnFalse()
+	public virtual Task ShouldUseClaimCheck_BelowThreshold_ShouldReturnFalse()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -467,7 +467,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ShouldUseClaimCheck returns true for large payloads.
 	/// </summary>
-	protected virtual Task ShouldUseClaimCheck_AboveThreshold_ShouldReturnTrue()
+	public virtual Task ShouldUseClaimCheck_AboveThreshold_ShouldReturnTrue()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -501,7 +501,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that Store then Retrieve returns the original payload.
 	/// </summary>
-	protected virtual async Task RoundTrip_StoreRetrieve_ShouldReturnOriginalPayload()
+	public virtual async Task RoundTrip_StoreRetrieve_ShouldReturnOriginalPayload()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -543,7 +543,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that Store then Retrieve works with text data.
 	/// </summary>
-	protected virtual async Task RoundTrip_TextData_ShouldPreserveContent()
+	public virtual async Task RoundTrip_TextData_ShouldPreserveContent()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -575,9 +575,14 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	#region Expiration Tests
 
 	/// <summary>
-	/// Verifies that RetrieveAsync throws InvalidOperationException for expired payload.
+	/// Verifies that RetrieveAsync throws KeyNotFoundException for an expired payload.
 	/// </summary>
-	protected virtual async Task RetrieveAsync_ExpiredPayload_ShouldThrowInvalidOperationException()
+	/// <remarks>
+	/// An expired payload is a form of missing payload: it is no longer retrievable, so it raises the
+	/// same exception a deleted or never-stored payload raises. Nothing about the provider's state is
+	/// invalid when a payload's retention elapses, so this is not an InvalidOperationException.
+	/// </remarks>
+	public virtual async Task RetrieveAsync_ExpiredPayload_ShouldThrowKeyNotFoundException()
 	{
 		// Arrange - create provider with very short TTL
 		var provider = CreateProviderWithTtl(TimeSpan.FromMilliseconds(50));
@@ -595,7 +600,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 			{
 				_ = await provider.RetrieveAsync(reference, CancellationToken.None).ConfigureAwait(false);
 			}
-			catch (InvalidOperationException ex) when (ex.Message.Contains("expired", StringComparison.OrdinalIgnoreCase))
+			catch (KeyNotFoundException)
 			{
 				caughtException = true;
 			}
@@ -603,7 +608,53 @@ public abstract class ClaimCheckProviderConformanceTestKit
 			if (!caughtException)
 			{
 				throw new TestFixtureAssertionException(
-					"Expected RetrieveAsync to throw InvalidOperationException for expired payload.");
+					"Expected RetrieveAsync to throw KeyNotFoundException for expired payload.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a zero time-to-live disables expiry rather than expiring the payload immediately.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A zero retention period means "never expires". A provider that resolves expiry by adding the
+	/// time-to-live to the current instant produces an expiry equal to the store time, which marks every
+	/// payload expired the moment it is written -- silent data loss that only shows up on retrieval.
+	/// </para>
+	/// <para>
+	/// This arm is also the liveness half of the expiry contract: a provider that reported every payload
+	/// as missing would satisfy the expiry arm above while being entirely unable to serve a payload.
+	/// </para>
+	/// </remarks>
+	public virtual async Task RetrieveAsync_ZeroTtl_ShouldNotExpire()
+	{
+		// Arrange - zero TTL means the payload never expires
+		var provider = CreateProviderWithTtl(TimeSpan.Zero);
+		try
+		{
+			var payload = GeneratePayload();
+			var reference = await provider.StoreAsync(payload, CancellationToken.None, null).ConfigureAwait(false);
+
+			if (reference.ExpiresAt.HasValue)
+			{
+				throw new TestFixtureAssertionException(
+					"Expected StoreAsync to leave ExpiresAt unset for a zero time-to-live, because a zero "
+					+ $"time-to-live disables expiry. Got '{reference.ExpiresAt.Value:O}'.");
+			}
+
+			// Act - a payload stored with expiry disabled stays retrievable
+			var retrieved = await provider.RetrieveAsync(reference, CancellationToken.None).ConfigureAwait(false);
+
+			// Assert
+			if (!retrieved.AsSpan().SequenceEqual(payload))
+			{
+				throw new TestFixtureAssertionException(
+					"Expected RetrieveAsync to return the stored payload unchanged for a zero time-to-live.");
 			}
 		}
 		finally
@@ -613,4 +664,5 @@ public abstract class ClaimCheckProviderConformanceTestKit
 	}
 
 	#endregion
+
 }

@@ -29,6 +29,9 @@
 
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 # Secret-pattern corpus. Each entry "Label|ERE", length-bounded/anchored to stay high-confidence and
 # avoid false-positive wedging. The `# pragma` on each line exempts these REGEX definitions from the
 # scanner when this file is itself committed (they are patterns, not secrets).
@@ -111,4 +114,14 @@ if [ "$hits" -ne 0 ]; then
     echo "    Never loosen this scanner to clear a token — an example relaxation also clears a real key." >&2
     exit 1
 fi
+# The DENOMINATOR — how many staged files this scan actually READ. A secret scanner is the worst
+# possible place for a green over an empty population: "no secrets found" and "no files examined"
+# are the same output otherwise, and the second is what a broken staged-file read produces. The
+# population is a diff, so zero is legitimate (an empty commit stages nothing) and the may-be-empty
+# form is chosen deliberately — but the count is printed either way so a reader can tell which
+# green they are looking at.
+staged_count="$(printf '%s
+' "$staged_files" | grep -c . || true)"
+case "$staged_count" in ''|*[!0-9]*) staged_count=0 ;; esac
+gate_denominator_may_be_empty "$staged_count" "staged file(s)"
 exit 0

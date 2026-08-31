@@ -16,6 +16,10 @@ namespace Excalibur.Cdc.MongoDB;
 /// </summary>
 public static class CdcBuilderMongoDbExtensions
 {
+	/// <summary>
+	/// Stands in for a connection string when the builder supplies the client itself, so options
+	/// validation does not reject a registration whose connection is builder-managed.
+	/// </summary>
 	private const string BuilderManagedConnectionSentinel = "mongodb://builder-managed-client";
 
 	/// <summary>
@@ -58,6 +62,13 @@ public static class CdcBuilderMongoDbExtensions
 		var mongoOptions = new MongoDbCdcOptions();
 		var mongoBuilder = new MongoDbCdcBuilder(mongoOptions);
 		configure(mongoBuilder);
+
+		// A consumer who supplies the client itself has no connection string to give, and the options
+		// validator requires one. Every sibling Mongo registration substitutes the sentinel here.
+		if (mongoBuilder.ClientInstance is not null || mongoBuilder.ClientFactoryFunc is not null)
+		{
+			mongoOptions.Connection.ConnectionString = BuilderManagedConnectionSentinel;
+		}
 
 		RegisterCdcOptions(builder.Services, mongoBuilder, mongoOptions);
 		RegisterStateStore(builder.Services, mongoBuilder);
@@ -102,10 +113,21 @@ public static class CdcBuilderMongoDbExtensions
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcOptions>, MongoDbCdcOptionsValidator>());
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcRecoveryOptions>, MongoDbCdcRecoveryOptionsValidator>());
 		services.AddOptions<MongoDbCdcOptions>().ValidateOnStart();
 		services.TryAddSingleton<IMongoDbCdcProcessor, MongoDbCdcProcessor>();
+
+		// The processor and state store resolve IMongoClient from DI, so a builder-supplied client has to
+		// be registered or supplying one would leave the CDC path with no client at all.
+		if (mongoBuilder.ClientInstance is not null)
+		{
+			var client = mongoBuilder.ClientInstance;
+			services.TryAddSingleton<IMongoClient>(client);
+		}
+		else if (mongoBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = mongoBuilder.ClientFactoryFunc;
+			services.TryAddSingleton<IMongoClient>(factory);
+		}
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
 		services.TryAddSingleton<ICdcStreamProcessor<MongoDbDataChangeEvent, MongoDbCdcPosition>>(

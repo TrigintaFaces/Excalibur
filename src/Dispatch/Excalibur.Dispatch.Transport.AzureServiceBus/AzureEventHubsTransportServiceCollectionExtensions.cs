@@ -101,10 +101,7 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 		configure(builder);
 
 		// Register core Azure Event Hubs services
-		RegisterAzureEventHubsServices(services, transportOptions);
-
-		// Register Azure Event Hubs options
-		RegisterOptions(services, transportOptions);
+		RegisterAzureEventHubsServices(services, name, transportOptions);
 
 		// Register the transport adapter
 		RegisterTransportAdapter(services, name);
@@ -149,10 +146,13 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterAzureEventHubsServices(
 		IServiceCollection services,
+		string name,
 		AzureEventHubsTransportOptions transportOptions)
 	{
-		// Register EventHubProducerClient
-		services.TryAddSingleton(sp =>
+		// Keyed by transport name: TryAddSingleton-by-type de-duplicates, so a second named Event
+		// Hubs transport contributed no registration and both names resolved the first transport's
+		// producer/bus, silently sending every named transport to the first transport's Event Hub.
+		services.TryAddKeyedSingleton<EventHubProducerClient>(name, (_, _) =>
 		{
 			if (!string.IsNullOrEmpty(transportOptions.ConnectionString))
 			{
@@ -171,43 +171,22 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 				"Azure Event Hubs requires either a ConnectionString or FullyQualifiedNamespace with managed identity, and an EventHubName.");
 		});
 
-		// Register AzureEventHubMessageBus
-		services.TryAddSingleton(sp =>
+		services.TryAddKeyedSingleton<AzureEventHubMessageBus>(name, (sp, key) =>
 		{
-			var producer = sp.GetRequiredService<EventHubProducerClient>();
+			var producer = sp.GetRequiredKeyedService<EventHubProducerClient>(key);
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
-			var options = sp.GetRequiredService<IOptions<AzureEventHubOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<AzureEventHubMessageBus>>();
 
-			return new AzureEventHubMessageBus(producer, serializer, options, logger);
+			return new AzureEventHubMessageBus(producer, serializer, logger);
 		});
+
+		// Unkeyed convenience registrations for the single-transport host. TryAdd*, so the
+		// first-registered named transport wins -- a multi-transport host must resolve the keyed
+		// client/bus by name instead.
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<EventHubProducerClient>(name));
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AzureEventHubMessageBus>(name));
 	}
 
-	/// <summary>
-	/// Registers options with the service collection.
-	/// </summary>
-	private static void RegisterOptions(
-		IServiceCollection services,
-		AzureEventHubsTransportOptions transportOptions)
-	{
-		// Map AzureEventHubsTransportOptions to existing AzureEventHubOptions
-		_ = services.AddOptions<AzureEventHubOptions>()
-			.Configure(options =>
-			{
-				options.ConnectionString = transportOptions.ConnectionString;
-				options.FullyQualifiedNamespace = transportOptions.FullyQualifiedNamespace;
-				options.EventHubName = transportOptions.EventHubName ?? string.Empty;
-				options.ConsumerGroup = transportOptions.ConsumerGroup ?? "$Default";
-				options.Consumer.PrefetchCount = transportOptions.PrefetchCount;
-				options.Consumer.MaxBatchSize = transportOptions.MaxBatchSize;
-				options.EnableEncryption = transportOptions.EnableEncryption;
-				options.Consumer.StartingPosition = transportOptions.StartingPosition;
-			})
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<AzureEventHubOptions>, AzureEventHubOptionsValidator>());
-	}
 
 	/// <summary>
 	/// Registers the transport adapter with the service collection.
@@ -223,7 +202,7 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AzureEventHubsTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AzureEventHubMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AzureEventHubMessageBus>(name);
 			return new AzureEventHubsTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -231,7 +210,7 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AzureEventHubsTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AzureEventHubMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AzureEventHubMessageBus>(name);
 			return new AzureEventHubsTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -336,35 +315,6 @@ internal sealed class AzureEventHubsTransportBuilder : IAzureEventHubsTransportB
 		return this;
 	}
 
-	/// <summary>Sets the consumer group name.</summary>
-	public IAzureEventHubsTransportBuilder ConsumerGroup(string consumerGroup)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
-		_options.ConsumerGroup = consumerGroup;
-		return this;
-	}
-
-	/// <summary>Sets the prefetch count for receivers.</summary>
-	public IAzureEventHubsTransportBuilder PrefetchCount(int prefetchCount)
-	{
-		_options.PrefetchCount = prefetchCount;
-		return this;
-	}
-
-	/// <summary>Sets the maximum batch size for batch operations.</summary>
-	public IAzureEventHubsTransportBuilder MaxBatchSize(int maxBatchSize)
-	{
-		_options.MaxBatchSize = maxBatchSize;
-		return this;
-	}
-
-	/// <summary>Sets the starting position for event processing.</summary>
-	public IAzureEventHubsTransportBuilder StartingPosition(EventHubStartingPosition startingPosition)
-	{
-		_options.StartingPosition = startingPosition;
-		return this;
-	}
-
 	/// <inheritdoc/>
 	public IAzureEventHubsTransportBuilder ConfigureOptions(Action<AzureEventHubsTransportOptions> configure)
 	{
@@ -404,29 +354,4 @@ public sealed class AzureEventHubsTransportOptions
 	/// Gets or sets the Event Hub name.
 	/// </summary>
 	public string? EventHubName { get; set; }
-
-	/// <summary>
-	/// Gets or sets the consumer group name. Default is "$Default".
-	/// </summary>
-	public string? ConsumerGroup { get; set; } = "$Default";
-
-	/// <summary>
-	/// Gets or sets the prefetch count for receivers. Default is 300.
-	/// </summary>
-	public int PrefetchCount { get; set; } = 300;
-
-	/// <summary>
-	/// Gets or sets the maximum batch size for batch operations. Default is 100.
-	/// </summary>
-	public int MaxBatchSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable encryption.
-	/// </summary>
-	public bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets the starting position for event processing. Default is Latest.
-	/// </summary>
-	public EventHubStartingPosition StartingPosition { get; set; } = EventHubStartingPosition.Latest;
 }

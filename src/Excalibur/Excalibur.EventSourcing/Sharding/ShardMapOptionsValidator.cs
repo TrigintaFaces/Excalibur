@@ -38,7 +38,7 @@ public sealed class ShardMapOptionsValidator : IValidateOptions<ShardMapOptions>
 		var failures = new List<string>();
 
 		// Validator is only registered when EnableTenantSharding(...) is invoked, so
-		// presence of the validator itself signals sharding is enabled. [bd-51k0mc]
+		// presence of the validator itself signals sharding is enabled.
 		if (_shardMap is not null)
 		{
 			var shardIds = _shardMap.GetRegisteredShardIds();

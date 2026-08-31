@@ -82,7 +82,7 @@ services.AddDispatch(dispatch =>
 });
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
           .EnableBackgroundProcessing();
 }));
@@ -179,7 +179,7 @@ services.AddDispatch(dispatch =>
 // Outbox for reliable publishing
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .EnableBackgroundProcessing();
 }));
 

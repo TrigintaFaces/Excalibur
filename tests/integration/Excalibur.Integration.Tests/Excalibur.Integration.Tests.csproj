@@ -21,6 +21,7 @@
     <!-- Testcontainers -->
     <PackageReference Include="TestContainers" />
     <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.MySql" />
     <PackageReference Include="Testcontainers.Oracle" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" />
     <PackageReference Include="Testcontainers.PostgreSql" />
@@ -33,6 +34,9 @@
     <PackageReference Include="Testcontainers.Azurite" />
     <PackageReference Include="Testcontainers.Kafka" />
     <PackageReference Include="Testcontainers.RabbitMq" />
+    <!-- kbjd0b: real-Kubernetes leader-election conformance kit; no dedicated Consul module exists, so
+         ConsulContainerFixture builds hashicorp/consul via the generic ContainerBuilder instead. -->
+    <PackageReference Include="Testcontainers.K3s" />
     <!-- Provider SDKs -->
     <PackageReference Include="Elastic.Clients.Elasticsearch" />
     <PackageReference Include="Elastic.Transport" />
@@ -40,6 +44,8 @@
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Google.Cloud.Firestore" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Consul" />
+    <PackageReference Include="KubernetesClient" />
     <!-- Excalibur.Tests.Integration dependencies -->
     <PackageReference Include="Azure.Messaging.ServiceBus" />
     <PackageReference Include="Confluent.Kafka" />
@@ -72,11 +78,40 @@
     -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Scripts\001_CreateEventStoreSchema.sql" Link="Schema\001_CreateEventStoreSchema.sql" />
     <!--
+      The tenant-totality UPGRADE script, linked in for the same reason as the create script
+      above: the totality lock runs the migration a consumer runs, not a paraphrase of it. A
+      copy in the test would let the shipped script rot behind a green suite, which is the
+      exact gap the create-script link exists to close.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Scripts\004_MakeEventTenantTotal.sql" Link="Schema\004_MakeEventTenantTotal.sql" />
+    <!--
       Same rule for the SINGLE-TENANT inbox DDL. The turnkey-composition E2E needs the single-tenant
       shape (PK (MessageId, HandlerType), no TenantId) while the shared inbox fixture is deliberately
       multi-tenant, so the E2E provisions its own database — from the shipped script, not a copy.
     -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Inbox.SqlServer\Scripts\001_CreateInboxSchema.sql" Link="Schema\001_CreateInboxSchema.sql" />
+    <!--
+      The shipped Postgres OUTBOX schema and its tenant-totality upgrade, linked for the same reason
+      as the event-store pair above. The outbox container fixture hand-writes its own DDL — which is
+      fine for the store behavioural suites, but means nothing in the tree exercised the script a
+      consumer actually runs. The totality lock provisions from these, so a divergence between the
+      shipped script and the store surfaces here rather than on a consumer database.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Scripts\001_CreateOutboxSchema.sql" Link="Schema\001_CreatePostgresOutboxSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Scripts\002_MakeOutboxTenantTotal.sql" Link="Schema\002_MakePostgresOutboxTenantTotal.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Scripts\003_CarryTenantOnDeadLetters.sql" Link="Schema\003_CarryPostgresDeadLetterTenant.sql" />
+    <!--
+      Migration-drift fixtures. Three renderings of ONE migration id, which is what lets a test
+      distinguish an EDITED migration (must be refused) from the SAME migration checked out with
+      the other line-ending convention (must be accepted). LogicalName is set explicitly because
+      the migrator discovers scripts by resource-name prefix, so these names are the test input
+      rather than an artefact of directory layout. Their line endings are pinned in .gitattributes
+      and are the SUBJECT of the test, not formatting; the test fails naming that file if the two
+      renderings ever become byte-identical, so a regression there cannot pass silently.
+    -->
+    <EmbeddedResource Include="Fixtures/MigrationDrift/Original/001_CreateDriftProbe.sql" LogicalName="MigrationDriftProbe.Original.001_CreateDriftProbe.sql" />
+    <EmbeddedResource Include="Fixtures/MigrationDrift/OriginalCrlf/001_CreateDriftProbe.sql" LogicalName="MigrationDriftProbe.OriginalCrlf.001_CreateDriftProbe.sql" />
+    <EmbeddedResource Include="Fixtures/MigrationDrift/Edited/001_CreateDriftProbe.sql" LogicalName="MigrationDriftProbe.Edited.001_CreateDriftProbe.sql" />
   </ItemGroup>
   <ItemGroup>
     <!-- Dispatch projects -->
@@ -171,6 +206,10 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
     <!-- 5fswhd: real-Mongo fencing-token split-brain regression lock (MongoDbLeaderElectionFencingShould) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.MongoDB\Excalibur.LeaderElection.MongoDB.csproj" />
+    <!-- kbjd0b: neither backend derived the shipped conformance kit; mutual exclusion is engine-determined
+         and a mocked unit suite cannot establish it. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Consul\Excalibur.LeaderElection.Consul.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Kubernetes\Excalibur.LeaderElection.Kubernetes.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
@@ -183,5 +222,11 @@
     <None Update="xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+      <!--
+      MySQL persistence-provider conformance deriver. MySqlPersistenceProvider implements
+      IPersistenceProviderHealth and shipped with no deriver at all, so the health contract the
+      conformance kit imposes on consumers was one this provider was never checked against.
+    -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MySql\Excalibur.Data.MySql.csproj" />
   </ItemGroup>
 </Project>

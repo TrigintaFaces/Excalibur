@@ -1,6 +1,6 @@
 ﻿# FedRAMP Certification Readiness Checklist
 
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5 (FedRAMP Moderate Baseline)
 **Epic:** FedRAMP Government Compliance
 **Status:** 14/14 controls SATISFIED (100% complete)
@@ -32,7 +32,7 @@ This checklist provides a step-by-step guide for FedRAMP certification preparati
 | **SC-13** | Cryptographic Protection | ✅ SATISFIED | Inherit `IEncryptionProvider` | `docs/advanced/security.md:170-213` |
 | **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Inherit `[PersonalData]` | `docs/advanced/security.md:352-395` |
 | **SI-4** | System Monitoring | ✅ SATISFIED | Inherit OpenTelemetry | `docs/advanced/deployment.md:515-570` |
-| **SI-7** | Software Integrity | ✅ SATISFIED | Inherit SBOM + dependency scanning | `docs/compliance/fedramp/CM-8-SBOM.md:38-77` |
+| **SI-7** | Software Integrity | ⚠️ PARTIAL | Inherit SBOM + dependency scanning; packages are UNSIGNED | `docs/compliance/fedramp/CM-8-SBOM.md:38-77` |
 | **PM-11** | Mission/Business Process Definition | ✅ SATISFIED | Reference RTM | `management/specs/requirements-traceability-matrix.md` |
 | **SA-15** | Development Process | ✅ SATISFIED | Reference CI/CD | `.github/workflows/ci.yml` |
 | **CM-8** | Component Inventory | ✅ SATISFIED | Reference SBOM | `docs/compliance/fedramp/CM-8-SBOM.md` |
@@ -295,9 +295,9 @@ The information system protects audit information and audit tools from unauthori
 
 **Code Example:**
 ```csharp
-public class SqlServerAuditStore : IAuditStore
+public class AppendOnlyAuditStore : IAuditStore
 {
-    public async Task AppendAsync(AuditEvent auditEvent, CancellationToken ct)
+    public async Task<AuditEventId> StoreAsync(AuditEvent auditEvent, CancellationToken ct)
     {
         // INSERT-only, no UPDATE or DELETE
         await _db.ExecuteAsync(
@@ -577,13 +577,14 @@ The organization employs integrity verification mechanisms to detect unauthorize
 **Framework Implementation:**
 - SHA-256 hash verification for NuGet packages
 - SBOM generation (CycloneDX) for supply chain transparency
-- Dependency vulnerability scanning (Dependabot, Trivy)
+- Dependency vulnerability scanning
 
 **Consumer Checklist:**
 
-- [ ] Download SBOM artifacts from GitHub Actions
-- [ ] Review SBOM for known vulnerabilities (Dependabot, Trivy)
-- [ ] Verify NuGet package hashes after download
+- [ ] Download SBOM artifacts from the release workflow
+- [ ] Review SBOM for known vulnerabilities
+- [ ] Verify the hash on the package you actually downloaded
+- [ ] Record that the packages carry **no author signature** (see below) in your own supply-chain risk assessment
 
 **Evidence:**
 - `docs/compliance/fedramp/CM-8-SBOM.md:38-77` - SBOM generation guide
@@ -591,7 +592,22 @@ The organization employs integrity verification mechanisms to detect unauthorize
 - Vulnerability scan reports
 
 **SSP Statement:**
-> "SI-7 is satisfied through SBOM generation and dependency vulnerability scanning. All framework packages include SHA-256 hashes for integrity verification. SBOM artifacts (CycloneDX format) enable supply chain transparency and automated vulnerability scanning."
+> "SI-7 is satisfied through SBOM generation, package hash verification and dependency vulnerability scanning. SBOM artifacts (CycloneDX format) enable supply chain transparency and automated vulnerability scanning. The framework's packages are published without an author signature; authenticity at the registry level is provided by nuget.org's own repository signature."
+
+:::warning Packages are published UNSIGNED — do not claim author signing
+There is currently no signing certificate, so every release produces packages carrying **no author
+signature**. This is a declared, committed default in the release pipeline rather than an accident
+of a missing secret, and the pipeline emits a warning on every release saying so.
+
+What this means for your SSP: **do not inherit an author-signing control from this framework.**
+`dotnet nuget verify` on a package you download will not show a publisher signature. nuget.org
+applies its own repository signature to everything it serves, so you retain a registry-level
+authenticity guarantee — but that is nuget.org's control, not ours, and it should be attributed to
+them if you cite it.
+
+The signing path exists in the pipeline and activates when a certificate is configured. Re-check
+this section before an assessment rather than assuming it still reads the same.
+:::
 
 ---
 
@@ -823,7 +839,7 @@ ls -lh bom.json bom.xml
 
 **Artifact Evidence:**
 - SBOM artifacts (CycloneDX JSON/XML)
-- NuGet packages (hash-verified)
+- NuGet packages (hash-verifiable; **no author signature** — see SI-7)
 - Docker images (Trivy-scanned)
 - RTM reports (requirements traceability)
 
@@ -881,7 +897,8 @@ ls -lh bom.json bom.xml
 - Project Manager: Evidence packages, sprint planning, audit coordination
 
 **Escalation:**
-- Security incidents: See `docs/security/incident-response.md`
+- Security incidents: follow your organisation's incident response plan. The framework records
+  security-relevant events through the audit trail; it does not detect, triage, or escalate incidents.
 - Compliance gaps: Create GitHub issue with `compliance` label
 - Audit requests: Contact Project Manager for evidence package
 

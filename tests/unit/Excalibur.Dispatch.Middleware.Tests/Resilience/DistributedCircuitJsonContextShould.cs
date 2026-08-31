@@ -39,33 +39,6 @@ public sealed class DistributedCircuitJsonContextShould : UnitTestBase
 	}
 
 	[Fact]
-	public void RoundTrip_DistributedCircuitMetrics_Succeeds()
-	{
-		// Arrange
-		var metrics = new DistributedCircuitMetrics
-		{
-			SuccessCount = 100,
-			FailureCount = 5,
-			ConsecutiveFailures = 2,
-			ConsecutiveSuccesses = 0,
-			LastSuccess = DateTimeOffset.UtcNow.AddSeconds(-30),
-			LastFailure = DateTimeOffset.UtcNow.AddSeconds(-5),
-			LastFailureReason = "Connection timeout",
-		};
-
-		// Act
-		var json = JsonSerializer.Serialize(metrics, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics);
-		var deserialized = JsonSerializer.Deserialize(json, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics);
-
-		// Assert
-		deserialized.ShouldNotBeNull();
-		deserialized.SuccessCount.ShouldBe(100);
-		deserialized.FailureCount.ShouldBe(5);
-		deserialized.ConsecutiveFailures.ShouldBe(2);
-		deserialized.LastFailureReason.ShouldBe("Connection timeout");
-	}
-
-	[Fact]
 	public void Serialization_IsNotIndented()
 	{
 		// Arrange

@@ -117,7 +117,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 				}
 			}
 
-			// yg3qyv: when contributors ran but every one failed (nothing cleaned), a bare Information
+			// when contributors ran but every one failed (nothing cleaned), a bare Information
 			// 'completed' misreports a failed enforcement pass as success. Log at Warning instead so an
 			// operator sees the sink failure; otherwise report normal completion.
 			if (_contributors.Count > 0 && succeededCount == 0 && failedCount > 0)

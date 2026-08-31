@@ -45,7 +45,7 @@ public sealed class SpanEventSerializer : IEventSerializer
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 
-		// Prefer the current/default serializer (JSON-first per ADR-295),
+		// Prefer the current/default serializer (JSON-first ),
 		// fall back to MemoryPack only if no current serializer is configured
 		_pluggable = registry.GetCurrent().Serializer
 					 ?? registry.GetByName("MemoryPack")
@@ -132,10 +132,6 @@ public sealed class SpanEventSerializer : IEventSerializer
 	#region IEventSerializer - byte[] and type resolution methods
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification = "Delegates to the injected reflection serializer; the trim opt-in is enforced where that serializer is constructed.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Delegates to the injected reflection serializer; the AOT opt-in is enforced where that serializer is constructed.")]
 	public byte[] SerializeEvent(IDomainEvent domainEvent)
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
@@ -145,10 +141,6 @@ public sealed class SpanEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
-		Justification = "Delegates to the injected reflection serializer; the trim opt-in is enforced where that serializer is constructed.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Delegates to the injected reflection serializer; the AOT opt-in is enforced where that serializer is constructed.")]
 	public IDomainEvent DeserializeEvent(byte[] data, Type eventType)
 	{
 		ArgumentNullException.ThrowIfNull(data);
@@ -177,7 +169,7 @@ public sealed class SpanEventSerializer : IEventSerializer
 	{
 		ArgumentNullException.ThrowIfNull(typeName);
 
-		// wpynky / S-E: resolve ONLY via the registered allow-list (no unbounded AppDomain.GetAssemblies()
+		// S-E: resolve ONLY via the registered allow-list (no unbounded AppDomain.GetAssemblies()
 		// scan), so an unregistered/attacker-chosen type name cannot be deserialized — the gadget-chain
 		// vector is inexpressible. Registered types resolve identically under JIT and AOT.
 		if (TypeResolution.TypeResolverRegistry.TryResolveType(typeName, out var type) && type is not null)

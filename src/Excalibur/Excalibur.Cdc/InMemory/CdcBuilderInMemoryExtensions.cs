@@ -88,6 +88,7 @@ public static class CdcBuilderInMemoryExtensions
 			opt.AutoFlush = memOptions.AutoFlush;
 			opt.PreserveHistory = memOptions.PreserveHistory;
 		});
+		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<InMemoryCdcOptions>, InMemoryCdcOptionsValidator>());
 
 		// Register in-memory CDC store as singleton (so tests can inject changes)
 		builder.Services.TryAddSingleton<IInMemoryCdcStore>(sp =>
@@ -170,6 +171,7 @@ public static class CdcBuilderInMemoryExtensions
 			opt.AutoFlush = memOptions.AutoFlush;
 			opt.PreserveHistory = memOptions.PreserveHistory;
 		});
+		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<InMemoryCdcOptions>, InMemoryCdcOptionsValidator>());
 
 		// Register the provided store instance
 		builder.Services.TryAddSingleton(store);

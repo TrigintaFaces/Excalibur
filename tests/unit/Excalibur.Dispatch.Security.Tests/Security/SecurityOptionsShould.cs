@@ -17,15 +17,21 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Assert
-		options.Encryption.EnableEncryption.ShouldBeTrue();
+		// Every component is off until the host names it. These flags decide what the configuration
+		// delegate composes, so a default of true made naming any one component compose the others too:
+		// asking for encryption alone produced JWT authentication with no credentials, and the dispatch
+		// pipeline could not then be resolved at all.
+		options.Encryption.EnableEncryption.ShouldBeFalse();
 		options.Encryption.EncryptionAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
-		options.Signing.EnableSigning.ShouldBeTrue();
+		options.Signing.EnableSigning.ShouldBeFalse();
 		options.Signing.SigningAlgorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
-		options.RateLimiting.EnableRateLimiting.ShouldBeTrue();
+		options.RateLimiting.EnableRateLimiting.ShouldBeFalse();
 		options.RateLimiting.RateLimitAlgorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
-		options.Authentication.EnableAuthentication.ShouldBeTrue();
+		options.Authentication.EnableAuthentication.ShouldBeFalse();
+
+		// Not an Enable flag: this decides how authentication behaves once composed, not whether it is
+		// composed, and authentication that is not enforced buys the host nothing.
 		options.Authentication.RequireAuthentication.ShouldBeTrue();
-		options.EnableSecurityHeaders.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -83,16 +89,16 @@ public sealed class SecurityOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void EnableSigning_CanBeDisabled()
+	public void EnableSigning_CanBeEnabled()
 	{
 		// Arrange
 		var options = new SecurityOptions();
 
-		// Act
-		options.Signing.EnableSigning = false;
+		// Act -- signing is off by default, so opting in is the direction worth asserting.
+		options.Signing.EnableSigning = true;
 
 		// Assert
-		options.Signing.EnableSigning.ShouldBeFalse();
+		options.Signing.EnableSigning.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -181,23 +187,6 @@ public sealed class SecurityOptionsShould : UnitTestBase
 
 		// Assert
 		options.Authentication.JwtSigningKey.ShouldBe("super-secret-key-12345");
-	}
-
-	[Fact]
-	public void CustomHeaders_CanAddAndRetrieveHeaders()
-	{
-		// Arrange
-		var options = new SecurityOptions
-		{
-			CustomHeaders = new Dictionary<string, string>(StringComparer.Ordinal)
-			{
-				["X-Custom-Header"] = "CustomValue"
-			}
-		};
-
-		// Assert
-		options.CustomHeaders.ShouldContainKey("X-Custom-Header");
-		options.CustomHeaders["X-Custom-Header"].ShouldBe("CustomValue");
 	}
 
 	[Fact]

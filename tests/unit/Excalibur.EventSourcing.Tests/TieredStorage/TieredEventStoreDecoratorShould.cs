@@ -32,11 +32,13 @@ public sealed class TieredEventStoreDecoratorShould
 		_decorator = new TieredEventStoreDecorator(
 			_hotStore, _coldStore,
 			NullLogger<TieredEventStoreDecorator>.Instance,
-			_snapshotStore);
+			tenantContext: TestTenantContext.SingleTenantDefault,
+			snapshotStore: _snapshotStore);
 
 		_decoratorNoSnapshot = new TieredEventStoreDecorator(
 			_hotStore, _coldStore,
-			NullLogger<TieredEventStoreDecorator>.Instance);
+			NullLogger<TieredEventStoreDecorator>.Instance,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 	}
 
 	// --- Writes always go to hot store ---
@@ -212,7 +214,8 @@ public sealed class TieredEventStoreDecoratorShould
 	{
 		Should.Throw<ArgumentNullException>(
 			() => new TieredEventStoreDecorator(null!, _coldStore,
-				NullLogger<TieredEventStoreDecorator>.Instance));
+				NullLogger<TieredEventStoreDecorator>.Instance,
+				tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -220,14 +223,16 @@ public sealed class TieredEventStoreDecoratorShould
 	{
 		Should.Throw<ArgumentNullException>(
 			() => new TieredEventStoreDecorator(_hotStore, null!,
-				NullLogger<TieredEventStoreDecorator>.Instance));
+				NullLogger<TieredEventStoreDecorator>.Instance,
+				tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
 	public void ThrowOnNullLogger()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new TieredEventStoreDecorator(_hotStore, _coldStore, null!));
+			() => new TieredEventStoreDecorator(_hotStore, _coldStore, null!,
+				tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	// --- Helpers ---

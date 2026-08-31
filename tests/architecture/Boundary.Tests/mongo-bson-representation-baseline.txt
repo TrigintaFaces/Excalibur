@@ -1,0 +1,24 @@
+# MongoDB BSON representation baseline — a one-directional ratchet.
+#
+# Each line records a persisted document field whose CLR type does not determine a BSON encoding
+# (Guid, DateTime, DateTimeOffset, decimal) and which carries no [BsonRepresentation] attribute,
+# together with the representation it ACTUALLY persists as today.
+#
+# The entries are evidence, not exemptions. They exist so that MongoBsonRepresentationGuardShould can
+# tell a known gap from a new one: a field listed here may not silently change shape, and a field that
+# is not listed here and not annotated fails the build.
+#
+# Format:  <Namespace.Type>::<Property> = <BsonType>   # rationale
+#
+# To remove a line: annotate the property with [BsonRepresentation(...)]. That is the only way out.
+# To add a line: state why the field cannot be annotated. Adding an entry is a reviewable act — it
+# widens the set of storage contracts nothing enforces.
+
+# ---------------------------------------------------------------------------------------------------
+# EMPTY. Every field this file recorded now declares its representation explicitly, so there is no
+# undeclared persisted instant left in the MongoDB document types.
+#
+# The file stays because the guard requires it: without it the guard cannot tell a known gap from a new
+# one, and it fails rather than passing. An empty baseline is the strongest state it can be in — any
+# newly added representation-ambiguous field now fails the build outright.
+# ---------------------------------------------------------------------------------------------------

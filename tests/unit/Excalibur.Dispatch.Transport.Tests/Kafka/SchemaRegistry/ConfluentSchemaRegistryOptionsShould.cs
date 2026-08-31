@@ -26,9 +26,8 @@ public sealed class ConfluentSchemaRegistryOptionsShould
 		options.Ssl.ShouldNotBeNull();
 		options.Ssl.EnableSslCertificateVerification.ShouldBeTrue();
 		options.Ssl.SslCaLocation.ShouldBeNull();
-		options.Ssl.SslKeyLocation.ShouldBeNull();
-		options.Ssl.SslCertificateLocation.ShouldBeNull();
-		options.Ssl.SslKeyPassword.ShouldBeNull();
+		options.Ssl.SslKeystoreLocation.ShouldBeNull();
+		options.Ssl.SslKeystorePassword.ShouldBeNull();
 
 		// Assert - Schema sub-options
 		options.Schema.ShouldNotBeNull();
@@ -54,9 +53,8 @@ public sealed class ConfluentSchemaRegistryOptionsShould
 			{
 				EnableSslCertificateVerification = false,
 				SslCaLocation = "/path/to/ca.crt",
-				SslKeyLocation = "/path/to/key.pem",
-				SslCertificateLocation = "/path/to/cert.pem",
-				SslKeyPassword = "secret",
+				SslKeystoreLocation = "/path/to/client.p12",
+				SslKeystorePassword = "secret",
 			},
 			Schema = new SchemaRegistrySchemaOptions
 			{
@@ -77,9 +75,8 @@ public sealed class ConfluentSchemaRegistryOptionsShould
 		// Assert - SSL
 		options.Ssl.EnableSslCertificateVerification.ShouldBeFalse();
 		options.Ssl.SslCaLocation.ShouldBe("/path/to/ca.crt");
-		options.Ssl.SslKeyLocation.ShouldBe("/path/to/key.pem");
-		options.Ssl.SslCertificateLocation.ShouldBe("/path/to/cert.pem");
-		options.Ssl.SslKeyPassword.ShouldBe("secret");
+		options.Ssl.SslKeystoreLocation.ShouldBe("/path/to/client.p12");
+		options.Ssl.SslKeystorePassword.ShouldBe("secret");
 
 		// Assert - Schema
 		options.Schema.AutoRegisterSchemas.ShouldBeFalse();

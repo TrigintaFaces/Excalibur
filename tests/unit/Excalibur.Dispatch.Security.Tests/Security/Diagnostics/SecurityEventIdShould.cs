@@ -199,12 +199,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveSecureKeyProviderCreatedInSigningRange()
-	{
-		SecurityEventId.SecureKeyProviderCreated.ShouldBe(70205);
-	}
-
-	[Fact]
 	public void HaveSigningKeyRotatedInSigningRange()
 	{
 		SecurityEventId.SigningKeyRotated.ShouldBe(70206);
@@ -621,7 +615,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 			SecurityEventId.SignatureVerified,
 			SecurityEventId.SignatureVerificationFailed,
 			SecurityEventId.HmacSigningServiceCreated,
-			SecurityEventId.SecureKeyProviderCreated,
 			SecurityEventId.SigningKeyRotated,
 			SecurityEventId.KeyVaultInitialized,
 			SecurityEventId.KeyVaultInitializationFailed,

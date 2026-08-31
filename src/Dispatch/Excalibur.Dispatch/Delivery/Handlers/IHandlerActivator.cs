@@ -44,12 +44,15 @@ public interface IHandlerActivator
 	/// required dependencies are satisfied before returning.
 	/// </para>
 	/// <para>
-	/// Uses DynamicallyAccessedMembers to preserve PublicProperties for reflection-based context injection.
+	/// When the application is trimmed or published ahead-of-time, the annotation on <paramref name="handlerType" />
+	/// preserves both the handler's public constructors and its public properties: constructors because activation
+	/// instantiates the handler through the service provider, and properties because the message context may be
+	/// applied by property injection. Preserving only one of the two leaves the other trimmed away, and activation
+	/// then fails at run time.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("Handler activation may require reflection to instantiate handler types")]
 	object ActivateHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		IMessageContext context,
 		IServiceProvider provider);
 }

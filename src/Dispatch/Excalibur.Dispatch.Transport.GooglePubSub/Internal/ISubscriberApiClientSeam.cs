@@ -11,11 +11,11 @@ namespace Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 /// <see cref="Google.PubSubDeadLetterQueueManager"/>. Exposes only the
 /// use-case operations needed for pull-based subscribe, acknowledge, and
 /// dead letter management so tests can substitute at this boundary without
-/// faking the concrete SDK client type (ADR-142 §D7).
+/// faking the concrete SDK client type.
 /// </summary>
 /// <remarks>
-/// Follows the COMPASS S798 msg 1712 ruling: flat use-case methods, not
-/// SDK topology mirroring. Data-shaped SDK types
+/// The seam exposes flat use-case methods rather than mirroring the SDK's
+/// client topology. Data-shaped SDK types
 /// (<see cref="PullRequest"/>, <see cref="PullResponse"/>,
 /// <see cref="Subscription"/>, <see cref="UpdateSubscriptionRequest"/>)
 /// cross the seam — they are property bags and are safe to construct directly.

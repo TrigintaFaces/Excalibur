@@ -74,7 +74,7 @@ public sealed class RedisOutboxConcurrentStageDedupShould : IntegrationTestBase
 		// Assert — exactly one stager succeeded, and exactly one message is staged.
 		results.Count(static won => won).ShouldBe(1, "exactly one concurrent stage of the same id must win");
 
-		var stats = await store.GetStatisticsAsync(TestCancellationToken);
+		var stats = await store.GetAllTenantsStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(1, "the duplicate stages must not produce more than one staged message");
 	}
 

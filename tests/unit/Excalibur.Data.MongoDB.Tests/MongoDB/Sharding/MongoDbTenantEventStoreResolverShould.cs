@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.MongoDB;
 using Excalibur.EventSourcing.MongoDB.Sharding;
@@ -24,7 +25,7 @@ public sealed class MongoDbTenantEventStoreResolverShould : UnitTestBase
 	{
 		var shardMap = A.Fake<ITenantShardMap>();
 		A.CallTo(() => shardMap.GetShardInfo(A<string>._))
-			.Returns(new ShardInfo("shard-1", "mongodb://localhost:27017", "testdb"));
+			.Returns(new ShardInfo("shard-1", "mongodb://localhost:27017", "testdb", DatabaseName: "testdb"));
 
 		var loggerFactory = A.Fake<ILoggerFactory>();
 		A.CallTo(() => loggerFactory.CreateLogger(A<string>._))
@@ -37,7 +38,8 @@ public sealed class MongoDbTenantEventStoreResolverShould : UnitTestBase
 			CollectionName = "events"
 		});
 
-		return new MongoDbTenantEventStoreResolver(shardMap, loggerFactory, options, null, null);
+		return new MongoDbTenantEventStoreResolver(
+			shardMap, loggerFactory, options, UntenantedContext.Instance, null, null);
 	}
 
 	[Fact]

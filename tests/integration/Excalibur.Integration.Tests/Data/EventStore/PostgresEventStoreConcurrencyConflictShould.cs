@@ -50,15 +50,18 @@ public sealed class PostgresEventStoreConcurrencyConflictShould : IClassFixture<
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 
-		var store = new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance);
+		var store = new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance, SingleTenantTestContext.Instance);
 
 		var aggregateId = Guid.NewGuid().ToString();
 		const string aggregateType = "ConcurrencyConflictAggregate";
 
 		// Seed v0 so BOTH racers target the same existing expected version (0). With the stream
 		// already at version 0, both racers pre-check current==0 (pass) and both attempt to INSERT
-		// version 1 — only one INSERT can satisfy the UNIQUE (aggregate_id, aggregate_type, version)
-		// index, forcing the other into a unique-violation.
+		// version 1 — only one INSERT can satisfy the
+		// UNIQUE (aggregate_id, aggregate_type, version, tenant_id) index, forcing the other into a
+		// unique-violation. Both racers run on the same store, so the tenant term is equal on both
+		// rows and the race is decided by the version exactly as before: adding the tenant to the key
+		// makes optimistic concurrency per-tenant, it does not weaken it within a tenant.
 		var seedEvent = CreateEvent(aggregateId);
 		var seedResult = await store.AppendAsync(
 			aggregateId,
@@ -93,7 +96,7 @@ public sealed class PostgresEventStoreConcurrencyConflictShould : IClassFixture<
 		// pre-fix the generic catch returned CreateFailure (IsConcurrencyConflict == false), losing
 		// the retry signal; post-fix the UniqueViolation catch returns CreateConcurrencyConflict.
 		var successes = results.Count(r => r.Success);
-		successes.ShouldBe(1, "exactly one concurrent append may win the UNIQUE (aggregate_id, aggregate_type, version) race");
+		successes.ShouldBe(1, "exactly one concurrent append may win the UNIQUE (aggregate_id, aggregate_type, version, tenant_id) race");
 
 		var loser = results.Single(r => !r.Success);
 		loser.IsConcurrencyConflict.ShouldBeTrue(

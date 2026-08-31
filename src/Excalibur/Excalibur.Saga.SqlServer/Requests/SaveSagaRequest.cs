@@ -32,8 +32,8 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// The tenant scope. When tenant-scoped it is the isolation authority: the saga row is stamped with this
 	/// tenant and the version-gated MERGE match additionally requires the persisted tenant to equal it, so a
 	/// save under one tenant can never match (and overwrite) another tenant's saga. When
-	/// <see cref="TenantScope.None"/> (the non-multi-tenant path) the saga's own <c>TenantId</c> is persisted
-	/// and no tenant is added to the match (byte-identical un-scoped behavior). A tenant-scoped scope cannot
+	/// the scope is untenanted it stamps the reserved sentinel, not an absent tenant, so the term is present
+	/// either way and the match predicate is unconditional. A tenant-scoped scope cannot
 	/// be constructed without a tenant, so a predicate-less save while tenancy is active is unrepresentable.
 	/// </param>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
@@ -50,7 +50,7 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 
 		ArgumentNullException.ThrowIfNull(sagaState);
 
-		// Optimistic-concurrency compare-and-swap (bd-eszc06), store-owns-increment (EF-style; SA seam ruling).
+		// Optimistic-concurrency compare-and-swap, store-owns-increment (EF-style; SA seam ruling).
 		// SagaState.Version is the version the caller LOADED (the concurrency token; a brand-new saga is 0) -- the
 		// caller performs NO version arithmetic. The store expects the persisted Version to still equal that loaded
 		// value and writes the bumped (loadedVersion + 1). A concurrent write that already advanced the row makes
@@ -75,12 +75,26 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// `scope.IsScoped` branch without someone deliberately changing its type — which matters here
 		// precisely because the conditional was removed from the other providers and survived in this one.
 		const string onTenant = " AND target.TenantId = @TenantId";
-		// WITH (HOLDLOCK) takes a serializable key-range lock on the MERGE target so two concurrent saves for
-		// the same (SagaId[, TenantId]) key cannot both evaluate WHEN NOT MATCHED and both INSERT -> primary-key
+		// WITH (UPDLOCK, HOLDLOCK) -- both hints, and neither is optional.
+		//
+		// HOLDLOCK takes a serializable key-range lock on the MERGE target so two concurrent saves for the
+		// same (SagaId[, TenantId]) key cannot both evaluate WHEN NOT MATCHED and both INSERT -> primary-key
 		// violation. This is Microsoft's documented guard against the MERGE upsert race; without it the atomic
 		// find-or-create guarantee is only probabilistic under concurrency.
+		//
+		// HOLDLOCK ALONE is the conversion-deadlock shape. It takes a SHARED range lock for the match, then
+		// asks to convert that lock to exclusive for the write. Two sessions upserting the same key each hold
+		// S and each wait for the other to drop it before either can take X -- a cycle the engine can only
+		// break by killing one as a deadlock victim (error 1205). UPDLOCK takes an UPDATE lock on the read
+		// instead, and two UPDATE locks are not mutually compatible, so the second session BLOCKS briefly and
+		// then proceeds. It appears only under contention -- which for a process manager is the ordinary case,
+		// not the exceptional one, and a 1205 here is a lost or retried saga state transition.
+		//
+		// UPDLOCK alone is not the fix either: it does not hold the range, so it reopens the phantom-insert
+		// race HOLDLOCK exists to close. Both, or the guarantee is incomplete in one direction or the other.
+		// The snapshot store's MERGE already carries the pair.
 		var sql = $"""
-                        MERGE {qualifiedTableName} WITH (HOLDLOCK) AS target
+                        MERGE {qualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
                         USING (SELECT @SagaId AS SagaId) AS source
                         ON (target.SagaId = source.SagaId{onTenant})
                         WHEN MATCHED AND target.Version = @ExpectedVersion THEN UPDATE SET
@@ -101,7 +115,7 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		Parameters.Add("StateJson", stateJson);
 		Parameters.Add("IsCompleted", sagaState.Completed);
 		// Persist the explicit completion instant out of StateJson into an indexed column so retention purge
-		// keys on the same CompletedAt field across every provider (SA w8aqq3 ruling), not a proxy column.
+		// keys on the same CompletedAt field across every provider (SA ruling), not a proxy column.
 		Parameters.Add("CompletedAt", sagaState.CompletedAt);
 		// Ambient tenant is the isolation authority: the scope resolves the partition, and that ONE value both
 		// gates the MERGE match and is persisted.

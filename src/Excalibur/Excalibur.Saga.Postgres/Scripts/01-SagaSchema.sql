@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS dispatch.sagas (
     -- comparison, so there is nothing to pin here. Pinning a non-deterministic collation would
     -- additionally risk defeating index usage on this column. The absence is deliberate, not a gap
     -- -- stated so a collation census does not read it as one.
-    tenant_id     varchar(200)  NOT NULL DEFAULT '__untenanted__',
+    tenant_id     varchar(64)  NOT NULL DEFAULT '__untenanted__',
 
     -- Application-level optimistic concurrency version (matches SagaState.Version).
     -- The store performs a compare-and-swap on this column via INSERT ... ON CONFLICT

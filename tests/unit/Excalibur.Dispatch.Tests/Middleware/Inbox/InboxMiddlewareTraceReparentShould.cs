@@ -120,7 +120,7 @@ public sealed class InboxMiddlewareTraceReparentShould
 		// proceeds to the handler (and the span is started first).
 		var deduplicator = A.Fake<IInMemoryDeduplicator>(o => o.Implements<IClaimableDeduplicator>());
 		_ = A.CallTo(() => ((IClaimableDeduplicator)deduplicator).TryClaimAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(true);
+			.Returns(new LeaseToken("test-lease"));
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
 		return new InboxMiddleware(options, inboxStore: null, deduplicator, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);

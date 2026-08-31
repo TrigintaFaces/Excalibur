@@ -148,7 +148,7 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 	/// <inheritdoc />
 	public Task FlushAsync(CancellationToken cancellationToken)
 	{
-		// No-op by design: the sender's channel has publisher-confirm TRACKING enabled (fjtok4), so
+		// No-op by design: the sender's channel has publisher-confirm TRACKING enabled, so
 		// BasicPublishAsync already awaits the broker ack on every publish — there is no batch of
 		// unconfirmed publishes to drain. (RabbitMQ.Client v7 removed the v6 WaitForConfirmsAsync batch API.)
 		return Task.CompletedTask;

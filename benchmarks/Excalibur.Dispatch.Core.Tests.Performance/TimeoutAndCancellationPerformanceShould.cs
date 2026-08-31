@@ -72,7 +72,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 				MaxEntries = operationCount + 100,
 				EnableAutomaticCleanup = false
 			}),
-			logger);
+			logger, UntenantedContext.Instance);
 
 		var allocationMetrics = new List<AllocationMetrics>();
 
@@ -380,7 +380,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 					MaxEntries = (warmupCount + messageCount) * concurrentOperations + 100,
 					EnableAutomaticCleanup = false
 				}),
-				logger);
+				logger, UntenantedContext.Instance);
 
 			// Warmup
 			await PerformLatencyWarmup(inboxStore, warmupCount, scenario).ConfigureAwait(false);
@@ -555,7 +555,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 					EnableAutomaticCleanup = true,
 					CleanupInterval = TimeSpan.FromSeconds(2)
 				}),
-				logger);
+				logger, UntenantedContext.Instance);
 
 			var completedOperations = new ConcurrentBag<CompletedOperation>();
 			var globalStopwatch = Stopwatch.StartNew();

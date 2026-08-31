@@ -180,12 +180,26 @@ public sealed class AddAccessReviewsShould : UnitTestBase
 	#region Notifier Registration
 
 	[Fact]
-	public void RegisterNullNotifier_AsFallback()
+	public void NotRegisterAnyNotifier_SoAnAbsentOneIsDetectable()
 	{
+		// There is deliberately no default notifier. A no-op registration would make the missing-notifier
+		// check unfalsifiable, and the expiry service would extend campaigns on the strength of
+		// notifications nobody sent.
 		using var provider = BuildProvider();
-		var notifier = provider.GetService<IAccessReviewNotifier>();
-		notifier.ShouldNotBeNull();
-		notifier.GetType().Name.ShouldBe("NullAccessReviewNotifier");
+		provider.GetService<IAccessReviewNotifier>().ShouldBeNull();
+	}
+
+	[Fact]
+	public void ResolveTheConsumerNotifier_WhenOneIsRegistered()
+	{
+		var notifier = A.Fake<IAccessReviewNotifier>();
+
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(notifier);
+		_ = services.AddExcaliburA3Core().AddGovernance(g => g.AddAccessReviews());
+
+		using var provider = services.BuildServiceProvider();
+		provider.GetService<IAccessReviewNotifier>().ShouldBeSameAs(notifier);
 	}
 
 	#endregion

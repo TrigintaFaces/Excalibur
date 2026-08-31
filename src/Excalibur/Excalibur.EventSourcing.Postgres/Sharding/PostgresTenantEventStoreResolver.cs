@@ -30,6 +30,12 @@ internal sealed class PostgresTenantEventStoreResolver : ITenantStoreResolver<IE
 	private readonly ISerializer? _serializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly ITenantContext _tenantContext;
+
+	/// <summary>
+	/// The host's optional source-generated event type-info resolver, applied to every per-shard store
+	/// this resolver builds so a sharded host is reflection-free on the same terms as a single-shard one.
+	/// </summary>
+	private readonly System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? _eventTypeInfoResolver;
 	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, NpgsqlDataSource> _dataSourceCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
@@ -39,7 +45,8 @@ internal sealed class PostgresTenantEventStoreResolver : ITenantStoreResolver<IE
 		ILoggerFactory loggerFactory,
 		ISerializer? serializer,
 		IPayloadSerializer? payloadSerializer,
-		ITenantContext tenantContext)
+		ITenantContext tenantContext,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver = null)
 	{
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -50,6 +57,7 @@ internal sealed class PostgresTenantEventStoreResolver : ITenantStoreResolver<IE
 		_serializer = serializer;
 		_payloadSerializer = payloadSerializer;
 		_tenantContext = tenantContext;
+		_eventTypeInfoResolver = eventTypeInfoResolver;
 	}
 
 	/// <inheritdoc />
@@ -82,16 +90,17 @@ internal sealed class PostgresTenantEventStoreResolver : ITenantStoreResolver<IE
 
 	private IEventStore CreateStore(ShardInfo shardInfo)
 	{
-		var schema = shardInfo.SchemaName ?? "public";
+		var schema = shardInfo.RequireCoordinate(shardInfo.SchemaName, nameof(ShardInfo.SchemaName));
 		var dataSource = NpgsqlDataSource.Create(shardInfo.ConnectionString);
 		_dataSourceCache.TryAdd(shardInfo.ShardId, dataSource);
 
 		return new PostgresEventStore(
-			dataSource,
-			_loggerFactory.CreateLogger<PostgresEventStore>(),
-			_serializer,
-			_payloadSerializer,
-			schema,
-			tenantContext: _tenantContext);
+				dataSource,
+				_loggerFactory.CreateLogger<PostgresEventStore>(),
+				tenantContext: _tenantContext,
+				internalSerializer: _serializer,
+				payloadSerializer: _payloadSerializer,
+				schema: schema,
+				eventTypeInfoResolver: _eventTypeInfoResolver);
 	}
 }

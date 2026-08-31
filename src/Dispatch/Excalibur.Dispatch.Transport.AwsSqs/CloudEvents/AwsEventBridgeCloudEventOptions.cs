@@ -42,28 +42,4 @@ public sealed class AwsEventBridgeCloudEventOptions
 	/// </value>
 	public bool IncludeExtensionsInDetail { get; set; } = true;
 
-	/// <summary>
-	/// Gets or sets the maximum batch size for EventBridge CloudEvent operations.
-	/// </summary>
-	/// <remarks> EventBridge PutEvents API supports up to 10 events per request. </remarks>
-	/// <value>
-	/// The maximum batch size for EventBridge CloudEvent operations.
-	/// </value>
-	public int MaxBatchSize { get; set; } = 10;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable replay functionality for EventBridge CloudEvents.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable replay functionality for EventBridge CloudEvents.
-	/// </value>
-	public bool EnableReplay { get; set; }
-
-	/// <summary>
-	/// Gets or sets the replay archive name for CloudEvents.
-	/// </summary>
-	/// <value>
-	/// The replay archive name for CloudEvents.
-	/// </value>
-	public string? ReplayArchiveName { get; set; }
 }

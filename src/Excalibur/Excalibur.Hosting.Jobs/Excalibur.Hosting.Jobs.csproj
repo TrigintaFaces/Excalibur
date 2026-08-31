@@ -8,7 +8,7 @@
     <IsTrimmable>true</IsTrimmable>
     <WarningsNotAsErrors>NU1608</WarningsNotAsErrors>
     <PackageTags>excalibur;hosting;jobs;background;scheduling;aot</PackageTags>
-    <IsAotCompatible>true</IsAotCompatible>
+    <IsAotCompatible>false</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>

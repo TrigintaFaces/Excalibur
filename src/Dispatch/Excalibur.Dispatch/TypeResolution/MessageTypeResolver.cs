@@ -39,9 +39,5 @@ internal sealed class MessageTypeResolver : ITypeResolver
 	public static MessageTypeResolver Instance { get; } = new();
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Delegating to MessageTypeRegistry which handles AOT")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "Delegating to MessageTypeRegistry which handles trimming")]
 	public bool TryGetType(string typeName, [NotNullWhen(true)] out Type? type) => MessageTypeRegistry.TryGetType(typeName, out type);
 }

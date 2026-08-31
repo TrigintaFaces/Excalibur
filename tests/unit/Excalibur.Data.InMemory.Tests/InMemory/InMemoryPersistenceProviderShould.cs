@@ -119,63 +119,6 @@ public sealed class InMemoryPersistenceProviderShould : UnitTestBase
 
 	#region Transaction Support
 
-	[Fact]
-	public void BeginTransaction()
-	{
-		// Act
-		var transaction = _provider.BeginTransaction();
-
-		// Assert
-		_ = transaction.ShouldNotBeNull();
-		transaction.IsolationLevel.ShouldBe(IsolationLevel.ReadCommitted);
-		transaction.Dispose();
-	}
-
-	[Fact]
-	public void BeginTransactionWithIsolationLevel()
-	{
-		// Act
-		var transaction = _provider.BeginTransaction(IsolationLevel.Serializable);
-
-		// Assert
-		_ = transaction.ShouldNotBeNull();
-		transaction.IsolationLevel.ShouldBe(IsolationLevel.Serializable);
-		transaction.Dispose();
-	}
-
-	[Fact]
-	public async Task BeginTransactionAsync()
-	{
-		// Act
-		var transaction = await _provider.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken.None);
-
-		// Assert
-		_ = transaction.ShouldNotBeNull();
-		transaction.IsolationLevel.ShouldBe(IsolationLevel.ReadCommitted);
-		transaction.Dispose();
-	}
-
-	[Fact]
-	public void CreateTransactionScope()
-	{
-		// Act
-		var scope = _provider.CreateTransactionScope();
-
-		// Assert
-		_ = scope.ShouldNotBeNull();
-		_ = scope.ShouldBeAssignableTo<ITransactionScope>();
-	}
-
-	[Fact]
-	public void CreateTransactionScopeWithIsolationLevel()
-	{
-		// Act
-		var scope = _provider.CreateTransactionScope(IsolationLevel.Serializable);
-
-		// Assert
-		_ = scope.ShouldNotBeNull();
-	}
-
 	#endregion Transaction Support
 
 	#region Test Connection
@@ -216,48 +159,40 @@ public sealed class InMemoryPersistenceProviderShould : UnitTestBase
 	#region Execute Methods
 
 	[Fact]
+	public void GetService_WithTransactionType_ReturnsNull()
+	{
+		var service = _provider.GetService(typeof(IPersistenceProviderTransaction));
+
+		service.ShouldBeNull(
+			"The in-memory store writes by overwriting the entry in place, so no prior value is retained "
+			+ "and a rollback has nothing to restore. It declines the capability at discovery rather than "
+			+ "handing back a scope whose Rollback silently does nothing.");
+	}
+
+	[Fact]
+	public void ExecuteAsync_IsReachableThroughGetService()
+	{
+		// Liveness arm for the segregated capability. The null-guard arm below is also satisfied by a
+		// provider that declines the capability entirely, so this pins the other half: a provider that
+		// can execute a data request must actually offer the capability from GetService, which is the
+		// only way a consumer holding IPersistenceProvider can reach it.
+		var capability = _provider.GetService(typeof(IDataRequestExecutor));
+
+		_ = capability.ShouldNotBeNull();
+		_ = capability.ShouldBeAssignableTo<IDataRequestExecutor>();
+	}
+
+	[Fact]
 	public async Task ExecuteAsync_ThrowsArgumentNullException_WhenRequestIsNull()
 	{
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(() =>
-			_provider.ExecuteAsync<IDbConnection, string>(null!, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task ExecuteInTransactionAsync_ThrowsArgumentNullException_WhenRequestIsNull()
-	{
-		// Arrange
-		var scope = _provider.CreateTransactionScope();
-
-		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentNullException>(() =>
-			_provider.ExecuteInTransactionAsync<IDbConnection, string>(null!, scope, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task ExecuteInTransactionAsync_ThrowsArgumentNullException_WhenScopeIsNull()
-	{
-		// Arrange
-		var request = A.Fake<IDataRequest<IDbConnection, string>>();
-
-		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentNullException>(() =>
-			_provider.ExecuteInTransactionAsync(request, null!, CancellationToken.None));
+			_provider.ExecuteAsync<string>(null!, CancellationToken.None));
 	}
 
 	#endregion Execute Methods
 
 	#region Connection Pool Stats
-
-	[Fact]
-	public async Task GetConnectionPoolStatsAsync_ReturnsNull()
-	{
-		// Act - InMemory provider doesn't have connection pooling
-		var stats = await _provider.GetConnectionPoolStatsAsync(CancellationToken.None);
-
-		// Assert
-		stats.ShouldBeNull();
-	}
 
 	#endregion Connection Pool Stats
 

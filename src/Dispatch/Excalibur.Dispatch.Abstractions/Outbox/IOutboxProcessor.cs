@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -16,6 +18,8 @@ public interface IOutboxProcessor : IAsyncDisposable
 	/// sets up the processor context and prepares it for message processing operations.
 	/// </summary>
 	/// <param name="dispatcherId"> Unique identifier for this dispatcher instance, used for message ownership and coordination. </param>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	void Init(string dispatcherId);
 
 	/// <summary>
@@ -25,5 +29,7 @@ public interface IOutboxProcessor : IAsyncDisposable
 	/// <param name="cancellationToken"> Cancellation token to support graceful shutdown and timeout scenarios. </param>
 	/// <returns> Task containing the number of messages successfully dispatched from the outbox. </returns>
 	/// <exception cref="InvalidOperationException"> Thrown when the processor is not properly initialized. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<int> DispatchPendingMessagesAsync(CancellationToken cancellationToken);
 }

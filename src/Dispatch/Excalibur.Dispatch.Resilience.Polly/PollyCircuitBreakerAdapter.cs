@@ -42,15 +42,17 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger.Instance;
 
+		PollyCircuitBreakerConstraints.ThrowIfNotExpressible(_options, name);
+
 		// Create Polly resilience pipeline with circuit breaker
 		_pipeline = new ResiliencePipelineBuilder()
 			.AddCircuitBreaker(new CircuitBreakerStrategyOptions
 			{
-				FailureRatio = 0.5, // 50% failure rate threshold
-				SamplingDuration = TimeSpan.FromSeconds(30),
+				FailureRatio = _options.FailureRatio,
+				SamplingDuration = _options.SamplingDuration,
 				MinimumThroughput = _options.FailureThreshold,
 				BreakDuration = _options.OpenDuration,
-				// FR-116-2: OperationCanceledException is never a failure — non-tripping.
+				// OperationCanceledException is never a failure — non-tripping.
 				ShouldHandle = new PredicateBuilder().Handle<Exception>(ex => ex is not OperationCanceledException),
 			})
 			.AddTimeout(_options.OperationTimeout)
@@ -67,6 +69,8 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 	public IReadOnlyDictionary<string, object> Configuration => new Dictionary<string, object>(StringComparer.Ordinal)
 	{
 		[nameof(_options.FailureThreshold)] = _options.FailureThreshold,
+		[nameof(_options.FailureRatio)] = _options.FailureRatio,
+		[nameof(_options.SamplingDuration)] = _options.SamplingDuration,
 		[nameof(_options.OpenDuration)] = _options.OpenDuration,
 		[nameof(_options.OperationTimeout)] = _options.OperationTimeout,
 	};
@@ -109,7 +113,7 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
-			// FR-116-2: cancellation is not a failure — non-tripping.
+			// Cancellation is not a failure — non-tripping.
 			_ = Interlocked.Increment(ref _failedRequests);
 			LogOperationFailed(Name, ex);
 			throw;

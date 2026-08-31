@@ -160,14 +160,33 @@ public partial class SqlServerTransactionScope : ITransactionScope, ITransaction
 
 		try
 		{
-			// Commit all SQL transactions
-			foreach (var transaction in _transactions)
+			try
 			{
-				transaction.Commit();
-			}
+				// Commit all SQL transactions
+				foreach (var transaction in _transactions)
+				{
+					transaction.Commit();
+				}
 
-			// Complete the ambient transaction scope
-			_ambientTransaction?.Complete();
+				// Complete the ambient transaction scope
+				_ambientTransaction?.Complete();
+			}
+			finally
+			{
+				// Disposing the ambient scope is what REMOVES it from Transaction.Current, and it has to happen
+				// here rather than at scope disposal. A TransactionScope that has been completed but not
+				// disposed stays current on the async flow, and the next connection opened on that flow — by a
+				// commit callback below, or by anything the caller does afterwards — enlists in it and throws
+				// "The current TransactionScope is already complete". The failure surfaces far from here, names
+				// a type the consumer never used, and only appears AFTER a successful commit, which is the
+				// least likely place anyone looks.
+				//
+				// Disposal is in a finally so it happens on the throwing path too: if committing a SQL
+				// transaction fails above, Complete() was never reached, so this disposal rolls the ambient
+				// transaction back — the correct outcome — and still clears it off the flow. Either way the
+				// caller's async context is left clean.
+				DisposeAmbientTransaction();
+			}
 
 			Status = TransactionStatus.Committed;
 			LogTransactionCommitted(TransactionId);
@@ -236,8 +255,7 @@ public partial class SqlServerTransactionScope : ITransactionScope, ITransaction
 			}
 
 			// Dispose the ambient transaction without completing it (implicit rollback)
-			_ambientTransaction?.Dispose();
-			_ambientTransaction = null;
+			DisposeAmbientTransaction();
 
 			Status = TransactionStatus.RolledBack;
 			LogTransactionRolledBack(TransactionId);
@@ -508,8 +526,8 @@ public partial class SqlServerTransactionScope : ITransactionScope, ITransaction
 				connection?.Dispose();
 			}
 
-			// Dispose ambient transaction
-			_ambientTransaction?.Dispose();
+			// Dispose ambient transaction — a no-op when Commit or Rollback already cleared it.
+			DisposeAmbientTransaction();
 
 			Status = TransactionStatus.Disposed;
 			_disposed = true;
@@ -530,7 +548,7 @@ public partial class SqlServerTransactionScope : ITransactionScope, ITransaction
 				{
 					try
 					{
-						// Use synchronous Rollback to avoid thread pool starvation during shutdown (AD-540.2)
+						// Use synchronous Rollback to avoid thread pool starvation during shutdown
 						foreach (var transaction in _transactions)
 						{
 							try
@@ -568,13 +586,30 @@ public partial class SqlServerTransactionScope : ITransactionScope, ITransaction
 					connection?.Dispose();
 				}
 
-				// Dispose ambient transaction
-				_ambientTransaction?.Dispose();
+				// Dispose ambient transaction — a no-op when Commit or Rollback already cleared it.
+				DisposeAmbientTransaction();
 			}
 
 			Status = TransactionStatus.Disposed;
 			_disposed = true;
 		}
+	}
+
+	/// <summary>
+	/// Disposes the ambient <see cref="TransactionScope"/> and clears the field, so the scope is removed from
+	/// <see cref="Transaction.Current"/> on the calling async flow.
+	/// </summary>
+	/// <remarks>
+	/// Disposal and clearing the field are one act, in one place, deliberately. Both were previously written
+	/// out at each site and the commit path did neither, leaving a completed scope current on the caller's
+	/// flow; routing every path through this method is what stops the two from drifting apart again. Clearing
+	/// the field is what makes it safe to call more than once — commit or rollback disposes the scope, and the
+	/// later Dispose finds nothing left to do.
+	/// </remarks>
+	private void DisposeAmbientTransaction()
+	{
+		_ambientTransaction?.Dispose();
+		_ambientTransaction = null;
 	}
 
 	private static string GetConnectionId(IDbConnection connection) => $"{connection.GetHashCode():X8}";

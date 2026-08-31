@@ -14,6 +14,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// Data request to delete transport deliveries for sent messages older than a specified date.
 /// This is the first step in the cleanup process.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"retention purge: deletes transport delivery rows whose parent message is already sent and aged out, following the parent rows the operator purges estate-wide; bounded by the age and batch arguments, never by ambient tenant state")]
 public sealed class CleanupTransportDeliveriesRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>
@@ -62,6 +65,9 @@ public sealed class CleanupTransportDeliveriesRequest : DataRequestBase<IDbConne
 /// Data request to delete sent messages older than a specified date.
 /// This is the second step in the cleanup process, after transport deliveries are deleted.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"retention purge: deletes already-sent messages by age and batch size on behalf of the operator rather than a tenant, so it is estate-wide by intent; its reach is bounded by the age and batch arguments it is given, never by ambient tenant state")]
 public sealed class CleanupSentMessagesRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>

@@ -126,7 +126,6 @@ public sealed class TimePolicyServiceCollectionExtensionsShould
 
 		// Assert
 		options.Adaptive.UseAdaptiveTimeouts.ShouldBeTrue();
-		options.Observability.IncludeTimeoutMetrics.ShouldBeTrue();
 	}
 
 	[Fact]

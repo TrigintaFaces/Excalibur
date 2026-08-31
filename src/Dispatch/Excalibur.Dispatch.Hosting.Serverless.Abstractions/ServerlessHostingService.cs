@@ -40,7 +40,7 @@ internal sealed partial class ServerlessHostingService(
 		return Task.CompletedTask;
 	}
 
-	// Source-generated logging methods (Sprint 368 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(ServerlessEventId.HostingServiceStarting, LogLevel.Information,
 		"Starting serverless hosting service for platform {Platform}")]
 	private partial void LogStarting(string platform);

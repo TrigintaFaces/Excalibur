@@ -52,7 +52,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions { MaxEntries = 100, EnableAutomaticCleanup = false };
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var messageId = "test-message-001";
@@ -86,7 +86,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		entry.MessageId.ShouldBe(messageId);
 
 		// Verify statistics reflect the operations
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(1);
 		stats.ProcessedEntries.ShouldBe(1);
 	}
@@ -99,7 +99,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		var meterProvider = metricCollector.CreateMeterProvider("Excalibur.Dispatch.InboxStore");
 
 		var options = new InMemoryInboxOptions { MaxEntries = 10, EnableAutomaticCleanup = true };
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		// Act - Perform operations that should emit metrics
@@ -115,7 +115,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		await Task.Delay(100).ConfigureAwait(false);
 
 		// Assert - Metrics validation
-		var statistics = await store.GetStatisticsAsync(CancellationToken.None);
+		var statistics = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		statistics.TotalEntries.ShouldBe(5);
 		statistics.ProcessedEntries.ShouldBe(1);
 		statistics.FailedEntries.ShouldBe(1);
@@ -272,7 +272,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		ActivitySource.AddActivityListener(listener);
 
 		var inboxOptions = new InMemoryInboxOptions { MaxEntries = 50, EnableAutomaticCleanup = false };
-		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger);
+		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(inboxStore);
 
 		var batchOptions = new MicroBatchOptions { MaxBatchSize = 5, MaxBatchDelay = TimeSpan.FromMilliseconds(50) };
@@ -340,7 +340,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		await Task.Delay(200).ConfigureAwait(false); // Allow processing to complete
 
 		// Assert - End-to-end observability validation
-		var inboxEntries = await inboxStore.GetAllEntriesAsync(CancellationToken.None);
+		var inboxEntries = await inboxStore.GetAllTenantsEntriesAsync(CancellationToken.None);
 		inboxEntries.Count().ShouldBe(5);
 
 		processedItems.Count.ShouldBe(5);
@@ -370,7 +370,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions { MaxEntries = 10, EnableAutomaticCleanup = false };
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var errorProcessor = new BatchProcessor<string>(
@@ -438,11 +438,11 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions { MaxEntries = 100, EnableAutomaticCleanup = true };
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		// Act - Get health/statistics information
-		var statistics = await store.GetStatisticsAsync(CancellationToken.None);
+		var statistics = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 
 		// Assert - Health information availability
 		_ = statistics.ShouldNotBeNull();

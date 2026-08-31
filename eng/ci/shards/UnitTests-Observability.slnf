@@ -8,6 +8,7 @@
       "tests\\unit\\Excalibur.Dispatch.Hosting.Tests\\Excalibur.Dispatch.Hosting.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Abstractions.Tests\\Excalibur.AuditLogging.Abstractions.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Tests\\Excalibur.AuditLogging.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Datadog.Tests\\Excalibur.AuditLogging.Datadog.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Sentinel.Tests\\Excalibur.AuditLogging.Sentinel.Tests.csproj",

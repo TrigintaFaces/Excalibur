@@ -50,7 +50,7 @@ public sealed class DynamoDbInboxStoreClaimAtomicityShould : IClassFixture<Dynam
 			DefaultTtlSeconds = 0,
 			Connection = new DynamoDbConnectionOptions { ServiceUrl = _fixture.ServiceUrl },
 		});
-		var store = new DynamoDbInboxStore(_fixture.Client, options, NullLogger<DynamoDbInboxStore>.Instance);
+		var store = new DynamoDbInboxStore(_fixture.Client, options, NullLogger<DynamoDbInboxStore>.Instance, SingleTenantTestContext.Instance);
 		await store.InitializeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		try

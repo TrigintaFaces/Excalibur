@@ -11,10 +11,9 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// <summary>
 /// Internal helper that translates the framework's domain
 /// <see cref="IndexLifecyclePolicy"/> (+ per-phase configs) into the Elastic
-/// SDK's fluent <see cref="IlmPolicyDescriptor"/>. Extracted from
-/// <see cref="IndexManagement.IndexLifecycleManager"/> during the S800 seam
-/// migration so descriptor plumbing lives beside the
-/// <see cref="IndexLifecycleOperationsAdapter"/> that uses it.
+/// SDK's fluent <see cref="IlmPolicyDescriptor"/>. Kept separate from
+/// <see cref="IndexManagement.IndexLifecycleManager"/> so descriptor plumbing
+/// lives beside the <see cref="IndexLifecycleOperationsAdapter"/> that uses it.
 /// </summary>
 internal static class IlmPolicyDescriptorBuilder
 {

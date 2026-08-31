@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
@@ -39,22 +38,4 @@ public sealed class ElasticsearchSecurityOptions
 	/// </summary>
 	/// <value> Settings for network-level security controls and access restrictions. </value>
 	public NetworkSecurityOptions NetworkSecurity { get; init; } = new();
-
-	/// <summary>
-	/// Gets the audit and compliance configuration.
-	/// </summary>
-	/// <value> Settings for security auditing, logging, and compliance reporting. </value>
-	public AuditOptions Audit { get; init; } = new();
-
-	/// <summary>
-	/// Gets the security monitoring and alerting configuration.
-	/// </summary>
-	/// <value> Settings for security event monitoring, threat detection, and alerting. </value>
-	public SecurityMonitoringOptions Monitoring { get; init; } = new();
-
-	/// <summary>
-	/// Gets the transport security configuration.
-	/// </summary>
-	/// <value> Settings for SSL/TLS transport encryption and certificate management. </value>
-	public TransportSecurityOptions Transport { get; init; } = new();
 }

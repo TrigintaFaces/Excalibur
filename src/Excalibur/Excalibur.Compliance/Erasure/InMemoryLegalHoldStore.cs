@@ -19,7 +19,17 @@ namespace Excalibur.Compliance.Erasure;
 internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryStore
 {
 	private readonly ConcurrentDictionary<Guid, LegalHold> _holds = new();
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
+	/// the same term. When the deployment is not multi-tenant the store
+	/// deliberately applies no tenant filter. That decision is stated here
+	/// and nowhere else: a conversion cannot make it on the store's behalf without inventing a tenant
+	/// decision the host never made.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly bool _requireTenant;
 
 	/// <summary>
@@ -36,7 +46,7 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// </para>
 	/// <para>
 	/// Deployment mode decides the shape. A deployment that has not opted into multi-tenancy resolves
-	/// <see cref="TenantScope.None"/>: no filter is applied, and holds keep whatever tenant value the caller
+	/// no filter at all, and holds keep whatever tenant value the caller
 	/// supplied — byte-identical to the single-tenant behaviour, so no stored hold becomes unreachable. Mode
 	/// is "did the consumer opt in", read from <see cref="TenantContextOptions.RequireTenant"/>, and
 	/// deliberately not "is an <see cref="ITenantContext"/> present" — the framework always registers a
@@ -45,7 +55,7 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// <para>
 	/// Multi-tenancy active with no resolved tenant fails closed: it throws rather than reaching an unfiltered
 	/// read. A missing context is the same failure and is stated as such, because degrading it to
-	/// <see cref="TenantScope.None"/> would apply no filter at all.
+	/// an unfiltered read would apply no filter at all.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="TenantRequiredException">
@@ -57,12 +67,10 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 		{
 			if (!_requireTenant)
 			{
-				return TenantScope.None;
+				return TenantScope.Untenanted;
 			}
 
-			return _tenantContext is null
-				? throw new TenantRequiredException()
-				: TenantScope.FromContext(_tenantContext);
+			return CurrentTenantScope;
 		}
 	}
 
@@ -73,19 +81,20 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// Ambient tenant context. Under multi-tenancy every tenant-facing operation matches on the resolved
 	/// tenant, and the write path stamps it rather than the value on the incoming hold, so one tenant cannot
 	/// place a hold into another tenant's partition. <c>GetExpiredHoldsAsync</c> is deliberately estate-wide
-	/// and documented as such at its call site. Omitting it — the default — is the single-tenant deployment
-	/// shape, in which the store resolves <see cref="TenantScope.None"/> and applies no filter.
+	/// and documented as such at its call site. It is required: the deployment mode is selected by
+	/// <paramref name="tenantContextOptions"/>, not by whether a context was supplied.
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
 	/// <c>AddMultiTenancy()</c>) selects the deployment mode.
 	/// </param>
 	public InMemoryLegalHoldStore(
-		ITenantContext? tenantContext = null,
-		IOptions<TenantContextOptions>? tenantContextOptions = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
-		_tenantContext = tenantContext;
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 	}
 
 	/// <summary>
@@ -109,13 +118,22 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 		// tenant place a hold in another tenant's partition — or, by leaving it null, a global hold that
 		// blocks every other tenant's erasures. Creating a genuinely global hold is an estate-level
 		// operation, not a tenant-facing one, and is not reachable through this path once a tenant is
-		// ambient. Without multi-tenancy the caller's own instance is stored untouched.
+		// ambient. Without multi-tenancy the caller's own value is kept, but it is folded to the sentinel
+		// first, so an absent tenant is stored in the one spelling the relational stores also write.
 		var tenant = AmbientScope;
-		var stored = tenant.IsScoped ? hold with { TenantId = tenant.TenantId } : hold;
+		var stored = hold with
+		{
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId
+		};
 
 		if (!_holds.TryAdd(stored.HoldId, stored))
 		{
-			throw new InvalidOperationException($"Legal hold {hold.HoldId} already exists");
+			// A DEDICATED type, not the base: TenantRequiredException — raised a few lines above when
+			// multi-tenancy is active and no tenant resolved — is also an InvalidOperationException. A
+			// caller catching the base here reads "the hold was never written" as "the hold is already on
+			// file" and drops a preservation order, whose loss is silent and does not fail safe.
+			throw DuplicateLegalHoldException.ForHoldId(hold.HoldId);
 		}
 
 		return Task.CompletedTask;
@@ -159,7 +177,11 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 			return Task.FromResult(false);
 		}
 
-		_holds[hold.HoldId] = tenant.IsScoped ? hold with { TenantId = tenant.TenantId } : hold;
+		_holds[hold.HoldId] = hold with
+		{
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId
+		};
 		return Task.FromResult(true);
 	}
 
@@ -183,7 +205,7 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 
 		if (!string.IsNullOrEmpty(tenantId))
 		{
-			query = query.Where(h => h.TenantId == tenantId || h.TenantId is null);
+			query = query.Where(h => MatchesCallerTenant(tenantId, h.TenantId));
 		}
 
 		// Exclude expired holds
@@ -204,11 +226,18 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 
 		// The caller names a tenant, but the ambient term is still applied on top: asking for another tenant's
 		// holds now intersects to the empty set instead of returning them.
+		//
+		// The caller's own term admits the holds that belong to NO tenant, for the same reason the
+		// ambient one does. This surface answers "which active holds are in force for this tenant",
+		// and its caller is the erasure gate: a global preservation order is in force for every
+		// tenant, and it carries no data subject, so the subject-scoped query cannot return it either.
+		// A bare equality here therefore left a scoped erasure check seeing no global hold at all, and
+		// the deletion it should have blocked is irreversible.
 		var tenant = AmbientScope;
 
 		var holds = _holds.Values
 			.Where(h => h.IsActive &&
-						h.TenantId == tenantId &&
+						MatchesCallerTenant(tenantId, h.TenantId) &&
 						(!h.ExpiresAt.HasValue || h.ExpiresAt.Value > now))
 			.Where(h => MatchesAmbientTenant(tenant, h.TenantId))
 			.ToList();
@@ -233,7 +262,7 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 
 		if (!string.IsNullOrEmpty(tenantId))
 		{
-			query = query.Where(h => h.TenantId == tenantId);
+			query = query.Where(h => MatchesCallerTenant(tenantId, h.TenantId));
 		}
 
 		var holds = query.OrderByDescending(h => h.CreatedAt).ToList();
@@ -257,7 +286,7 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 
 		if (!string.IsNullOrEmpty(tenantId))
 		{
-			query = query.Where(h => h.TenantId == tenantId);
+			query = query.Where(h => MatchesCallerTenant(tenantId, h.TenantId));
 		}
 
 		if (fromDate.HasValue)
@@ -325,8 +354,8 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// not mutate one, or it could stamp its own tenant onto an estate-wide preservation order and lift it
 	/// for every other tenant, whose next erasure would then run and report success.
 	/// </remarks>
-	private static bool OwnedByAmbientTenant(TenantScope tenant, string? rowTenantId) =>
-		!tenant.IsScoped || string.Equals(rowTenantId, tenant.TenantId, StringComparison.Ordinal);
+	private bool OwnedByAmbientTenant(TenantScope tenant, string? rowTenantId) =>
+		!_requireTenant || string.Equals(rowTenantId, tenant.TenantId, StringComparison.Ordinal);
 
 	/// <summary>
 	/// Decides whether a stored hold's tenant satisfies the ambient tenant term.
@@ -334,8 +363,9 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// <param name="tenant">The scope resolved once at the start of the operation.</param>
 	/// <param name="rowTenantId">The tenant value stored on the hold.</param>
 	/// <returns>
-	/// <see langword="true"/> when multi-tenancy is not active, when the hold carries no tenant, or when the
-	/// hold belongs to the ambient tenant; otherwise <see langword="false"/>.
+	/// <see langword="true"/> when multi-tenancy is not active, when the hold is untenanted — carrying either
+	/// the reserved sentinel or no tenant at all — or when the hold belongs to the ambient tenant; otherwise
+	/// <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
 	/// <para>
@@ -345,11 +375,26 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// framework — matching case-insensitively here would let two distinct tenants read each other's holds.
 	/// </para>
 	/// <para>
-	/// A hold with no tenant is a <em>global</em> hold that blocks erasure for every tenant, so the term is
-	/// <c>tenant matches OR tenant is absent</c> rather than a bare equality. A bare equality would drop
+	/// An untenanted hold is a <em>global</em> hold that blocks erasure for every tenant, so the term is
+	/// <c>tenant matches OR the hold is untenanted</c> rather than a bare equality. A bare equality would drop
 	/// global holds from a tenant's view, and a legal hold is a control that <em>blocks</em> erasure — losing
 	/// one does not fail safe, it erases data a court order says to keep. It still excludes every other
 	/// tenant's holds, which is the isolation this exists to provide.
+	/// </para>
+	/// <para>
+	/// "Untenanted" has TWO spellings and this term must admit both, because the two exist for different
+	/// reasons and neither is going away. <see cref="TenantScope.UntenantedSentinel"/> is what a global hold
+	/// carries once the tenant column is total — both SQL providers store it and match it, and it is what a
+	/// hold holds after any round trip through one of them. <see langword="null"/> is the pre-migration
+	/// spelling, retained as transition tolerance for a database whose column has not yet been closed.
+	/// </para>
+	/// <para>
+	/// Admitting only <see langword="null"/> was a real divergence rather than a tidiness problem: a hold
+	/// carrying the sentinel would have been read as belonging to a tenant <em>literally named</em> by that
+	/// reserved string, so the same global hold was visible to every tenant on SQL and to none here. The
+	/// direction of that failure is the dangerous one — a global hold that disappears does not block an
+	/// erasure it was filed to prevent. The sibling in-memory data-inventory store already matched the
+	/// sentinel; this store was the one place in the family that did not.
 	/// </para>
 	/// <para>
 	/// The scope is taken as a parameter rather than read here, because a caller that read it lazily — only
@@ -359,8 +404,57 @@ internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryS
 	/// throw is a property of the deployment rather than of the data.
 	/// </para>
 	/// </remarks>
-	private static bool MatchesAmbientTenant(TenantScope tenant, string? rowTenantId) =>
-		!tenant.IsScoped
-		|| rowTenantId is null
+	private bool MatchesAmbientTenant(TenantScope tenant, string? rowTenantId) =>
+		!_requireTenant
+		|| IsUntenanted(rowTenantId)
 		|| string.Equals(rowTenantId, tenant.TenantId, StringComparison.Ordinal);
+
+	/// <summary>
+	/// Decides whether a stored hold's tenant satisfies the tenant a CALLER named, as distinct from the
+	/// ambient one.
+	/// </summary>
+	/// <param name="tenantId">The tenant identifier the caller passed to the query.</param>
+	/// <param name="rowTenantId">The tenant value stored on the hold.</param>
+	/// <returns>
+	/// <see langword="true"/> when the hold belongs to the named tenant or to no tenant at all; otherwise
+	/// <see langword="false"/>.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// This is deliberately the same disjunction as <see cref="MatchesAmbientTenant"/>, and it was
+	/// previously a bare equality — which made each of these methods contradict itself. The ambient term
+	/// admitted a global hold and the caller's term, ten lines later in the same method, discarded it. The
+	/// consequence ran the wrong way on a blocking control: a caller who named their own tenant received a
+	/// result with every global preservation order removed, and erasure — which is irreversible — then
+	/// proceeded against data a court order says to keep.
+	/// </para>
+	/// <para>
+	/// The two failure directions are not comparable, which is why the term widens rather than the ambient
+	/// one narrowing. Missing a hold destroys preserved data permanently; seeing an extra one delays a
+	/// deletion until someone releases the hold or re-scopes the query.
+	/// </para>
+	/// <para>
+	/// It still excludes every OTHER tenant's holds, so the caller's argument narrows the ambient set
+	/// exactly as before. Mutations keep the strict form in <see cref="OwnedByAmbientTenant"/>: a tenant
+	/// must see a global hold and must never rewrite one.
+	/// </para>
+	/// </remarks>
+	private static bool MatchesCallerTenant(string tenantId, string? rowTenantId) =>
+		IsUntenanted(rowTenantId)
+		|| string.Equals(rowTenantId, tenantId, StringComparison.Ordinal);
+
+	/// <summary>
+	/// Whether a stored tenant value means "this row belongs to no tenant", in either spelling.
+	/// </summary>
+	/// <param name="rowTenantId">The tenant value stored on the row.</param>
+	/// <returns><see langword="true"/> when the value is the reserved sentinel or <see langword="null"/>.</returns>
+	/// <remarks>
+	/// Stated once so the two spellings cannot drift apart at separate call sites. This mirrors the SQL
+	/// providers' shared tenant clause, which admits the sentinel and NULL for the same reasons; a copy of
+	/// that predicate left on one spelling does not fail loudly, it silently stops matching global holds on
+	/// whichever read path it governs.
+	/// </remarks>
+	private static bool IsUntenanted(string? rowTenantId) =>
+		rowTenantId is null
+		|| string.Equals(rowTenantId, TenantScope.UntenantedSentinel, StringComparison.Ordinal);
 }

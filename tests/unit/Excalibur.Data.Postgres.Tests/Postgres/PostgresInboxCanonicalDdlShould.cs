@@ -63,7 +63,7 @@ public sealed class PostgresInboxCanonicalDdlShould
 			+ "ON CONFLICT (message_id, handler_type, tenant_id) when a tenant is ambient.");
 
 		ddl.ShouldContain(
-			"tenant_id text not null",
+			"tenant_id varchar(64) not null",
 			Case.Insensitive,
 			"the MULTI-TENANT triple key MUST make tenant_id NOT NULL — a NULLABLE tenant_id in a triple unique key "
 			+ "lets pre-PG15 Postgres treat NULLs as distinct, so ON CONFLICT never fires and duplicates slip through "

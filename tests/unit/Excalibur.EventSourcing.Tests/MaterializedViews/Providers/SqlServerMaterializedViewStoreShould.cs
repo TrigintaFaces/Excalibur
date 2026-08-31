@@ -12,6 +12,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.MaterializedViews.Providers;
 
 /// <summary>
@@ -70,7 +72,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new SqlServerMaterializedViewStore(connectionString: null!, logger));
+			new SqlServerMaterializedViewStore(connectionString: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -81,7 +83,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new SqlServerMaterializedViewStore(connectionString: "", logger));
+			new SqlServerMaterializedViewStore(connectionString: "", logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -92,7 +94,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new SqlServerMaterializedViewStore(connectionString: "   ", logger));
+			new SqlServerMaterializedViewStore(connectionString: "   ", logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -103,7 +105,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerMaterializedViewStore(connectionString, logger: null!));
+			new SqlServerMaterializedViewStore(connectionString, logger: null!, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -114,7 +116,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
 
 		// Act
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -132,7 +134,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerMaterializedViewStore(connectionFactory: null!, logger));
+			new SqlServerMaterializedViewStore(connectionFactory: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -143,7 +145,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerMaterializedViewStore(factory, logger: null!));
+			new SqlServerMaterializedViewStore(factory, logger: null!, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -154,7 +156,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
 
 		// Act
-		var store = new SqlServerMaterializedViewStore(factory, logger);
+		var store = new SqlServerMaterializedViewStore(factory, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -172,7 +174,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
 
 		// Act - using defaults (no explicit table names)
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -189,6 +191,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var store = new SqlServerMaterializedViewStore(
 			connectionString,
 			logger,
+			TenantViewFixture.SingleTenant,
 			viewTableName: "CustomMaterializedViews");
 
 		// Assert
@@ -206,6 +209,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var store = new SqlServerMaterializedViewStore(
 			connectionString,
 			logger,
+			TenantViewFixture.SingleTenant,
 			positionTableName: "CustomPositions");
 
 		// Assert
@@ -228,6 +232,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var store = new SqlServerMaterializedViewStore(
 			connectionString,
 			logger,
+			TenantViewFixture.SingleTenant,
 			jsonOptions: jsonOptions);
 
 		// Assert
@@ -249,6 +254,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var store = new SqlServerMaterializedViewStore(
 			factory,
 			logger,
+			TenantViewFixture.SingleTenant,
 			viewTableName: "MyViews",
 			positionTableName: "MyPositions",
 			jsonOptions: jsonOptions);
@@ -267,7 +273,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -280,7 +286,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -293,7 +299,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -306,7 +312,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -323,7 +329,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 		var view = new TestView { Id = "1" };
 
 		// Act & Assert
@@ -337,7 +343,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 		var view = new TestView { Id = "1" };
 
 		// Act & Assert
@@ -351,7 +357,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 		var view = new TestView { Id = "1" };
 
 		// Act & Assert
@@ -365,7 +371,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -382,7 +388,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -395,7 +401,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -408,7 +414,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -425,7 +431,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -438,7 +444,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -455,7 +461,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -468,7 +474,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Server=localhost;Database=test;";
 		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
-		var store = new SqlServerMaterializedViewStore(connectionString, logger);
+		var store = new SqlServerMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -498,4 +504,19 @@ public sealed class SqlServerMaterializedViewStoreShould
 	}
 
 	#endregion
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

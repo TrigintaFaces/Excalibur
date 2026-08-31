@@ -60,7 +60,7 @@ internal static class KafkaConsumerConfigBuilder
 			config.Set(kvp.Key, kvp.Value);
 		}
 
-		return config;
+		return KafkaSecurityPosture.Apply(config, options);
 	}
 
 	private static AutoOffsetReset MapAutoOffsetReset(string value) =>

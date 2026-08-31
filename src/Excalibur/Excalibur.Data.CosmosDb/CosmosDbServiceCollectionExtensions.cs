@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -153,7 +154,7 @@ public static class CosmosDbServiceCollectionExtensions
 		}
 	}
 
-	// fmjwqy (SA HYBRID ruling): every framework-BUILT Cosmos client must use the System.Text.Json
+	// (SA HYBRID ruling): every framework-BUILT Cosmos client must use the System.Text.Json
 	// serializer. Cosmos SDK v3's default serializer is Newtonsoft, which ignores the persisted
 	// documents' [JsonPropertyName] attributes and emits PascalCase — bricking lowercase point-reads
 	// and partition-key paths. Configuring STJ here makes every STJ-only document correct by
@@ -221,6 +222,16 @@ public static class CosmosDbServiceCollectionExtensions
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<CosmosDbPersistenceProvider>();
+
+		// Keyed by provider, matching the relational and search providers. An unkeyed TryAdd alone is a
+		// no-op once any other cloud package has registered the same service type, so a host that adds two
+		// of them silently resolves the first one's provider for both.
+		services.AddKeyedSingleton<ICloudNativePersistenceProvider>("cosmosdb",
+			(sp, _) => sp.GetRequiredService<CosmosDbPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("cosmosdb",
+			(sp, _) => sp.GetRequiredService<CosmosDbPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("cosmosdb"));
 		services.TryAddSingleton<ICloudNativePersistenceProvider>(sp =>
 			sp.GetRequiredService<CosmosDbPersistenceProvider>());
 

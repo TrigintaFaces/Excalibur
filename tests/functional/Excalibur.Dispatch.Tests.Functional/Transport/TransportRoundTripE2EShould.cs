@@ -39,10 +39,8 @@ public sealed class TransportRoundTripE2EShould : FunctionalTestBase, IClassFixt
 	[Fact]
 	public async Task SendAndReceiveMessageThroughRabbitMQ()
 	{
-		if (!_container.DockerAvailable)
-		{
-			return; // Skip when Docker unavailable (CI without Docker)
-		}
+		_container.DockerAvailable.ShouldBeTrue(
+			"RabbitMQ (Docker) is REQUIRED by this suite but is not available. This fails deliberately rather than returning early: a test that returns early when its infrastructure is missing is satisfied by doing nothing and is reported as passed, which makes a green suite indistinguishable from a suite that never ran.");
 
 		// Arrange
 		var exchangeName = $"test-exchange-{Guid.NewGuid():N}";
@@ -120,10 +118,8 @@ public sealed class TransportRoundTripE2EShould : FunctionalTestBase, IClassFixt
 	[Fact]
 	public async Task HandleMultipleMessagesInOrder()
 	{
-		if (!_container.DockerAvailable)
-		{
-			return;
-		}
+		_container.DockerAvailable.ShouldBeTrue(
+			"RabbitMQ (Docker) is REQUIRED by this suite but is not available. This fails deliberately rather than returning early: a test that returns early when its infrastructure is missing is satisfied by doing nothing and is reported as passed, which makes a green suite indistinguishable from a suite that never ran.");
 
 		// Arrange
 		var exchangeName = $"test-exchange-{Guid.NewGuid():N}";
@@ -201,10 +197,8 @@ public sealed class TransportRoundTripE2EShould : FunctionalTestBase, IClassFixt
 	[Fact]
 	public async Task DispatchMessageAndReceiveViaTransport()
 	{
-		if (!_container.DockerAvailable)
-		{
-			return;
-		}
+		_container.DockerAvailable.ShouldBeTrue(
+			"RabbitMQ (Docker) is REQUIRED by this suite but is not available. This fails deliberately rather than returning early: a test that returns early when its infrastructure is missing is satisfied by doing nothing and is reported as passed, which makes a green suite indistinguishable from a suite that never ran.");
 
 		// Arrange: Build full Dispatch pipeline + RabbitMQ transport consumer
 		var exchangeName = $"dispatch-exchange-{Guid.NewGuid():N}";
@@ -284,10 +278,8 @@ public sealed class TransportRoundTripE2EShould : FunctionalTestBase, IClassFixt
 	[Fact]
 	public async Task HandleTransportUnavailableGracefully()
 	{
-		if (!_container.DockerAvailable)
-		{
-			return;
-		}
+		_container.DockerAvailable.ShouldBeTrue(
+			"RabbitMQ (Docker) is REQUIRED by this suite but is not available. This fails deliberately rather than returning early: a test that returns early when its infrastructure is missing is satisfied by doing nothing and is reported as passed, which makes a green suite indistinguishable from a suite that never ran.");
 
 		// Arrange: Try to connect to a non-existent RabbitMQ host
 		var factory = new ConnectionFactory

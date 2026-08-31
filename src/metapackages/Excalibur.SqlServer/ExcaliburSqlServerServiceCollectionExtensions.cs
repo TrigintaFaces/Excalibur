@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -15,6 +15,21 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ExcaliburSqlServerServiceCollectionExtensions
 {
+	// The two sentences a caller needs: what makes this reflective, and what they can do about it.
+	// Held as constants because the same requirement is stated on three members and a hand-copied
+	// fourth is how the set comes to disagree with itself.
+	private const string OutboxTrimRequirement =
+		"The outbox registered by this stack serializes message payloads reflectively. Supply JsonSerializerOptions with a source-generated TypeInfoResolver for your message types to satisfy this under trimming.";
+
+	private const string OutboxAotRequirement =
+		"The outbox registered by this stack serializes message payloads reflectively, which requires dynamic code generation. There is no ahead-of-time-safe alternative entry point for this stack.";
+
+	private const string BindingTrimRequirement =
+		OutboxTrimRequirement + " Binding the configuration section also reflects over the options type.";
+
+	private const string BindingAotRequirement =
+		OutboxAotRequirement + " Binding the configuration section also requires dynamic code.";
+
 	/// <summary>
 	/// Adds the complete Excalibur SQL Server stack: event sourcing, outbox, inbox,
 	/// sagas, leader election, audit logging, compliance, and data access.
@@ -34,6 +49,14 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
+	/// <remarks>
+	/// Not usable under Native AOT: the outbox this stack registers serializes message payloads
+	/// reflectively and there is no ahead-of-time-safe alternative entry point. Under trimming it is
+	/// usable, but you must supply <c>JsonSerializerOptions</c> with a source-generated
+	/// <c>TypeInfoResolver</c> covering your message types.
+	/// </remarks>
+	[RequiresUnreferencedCode(OutboxTrimRequirement)]
+	[RequiresDynamicCode(OutboxAotRequirement)]
 	public static IServiceCollection AddExcaliburSqlServer(
 		this IServiceCollection services,
 		Action<ExcaliburSqlServerOptions> configure)
@@ -54,10 +77,14 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <see langword="null"/>.</exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	/// <remarks>
+	/// Not usable under Native AOT: the outbox this stack registers serializes message payloads
+	/// reflectively and there is no ahead-of-time-safe alternative entry point. Under trimming it is
+	/// usable, but you must supply <c>JsonSerializerOptions</c> with a source-generated
+	/// <c>TypeInfoResolver</c> covering your message types.
+	/// </remarks>
+	[RequiresUnreferencedCode(BindingTrimRequirement)]
+	[RequiresDynamicCode(BindingAotRequirement)]
 	public static IServiceCollection AddExcaliburSqlServer(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -71,11 +98,14 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 		return RegisterSqlServerServices(services, options);
 	}
 
+	[RequiresUnreferencedCode(OutboxTrimRequirement)]
+	[RequiresDynamicCode(OutboxAotRequirement)]
 	private static IServiceCollection RegisterSqlServerServices(
 		IServiceCollection services,
 		ExcaliburSqlServerOptions options)
 	{
-		// Core: Dispatch + EventSourcing + Outbox + Hosting (via starter metapackage)
+		// Core: Dispatch + EventSourcing + Outbox (via the starter metapackage). That call stages
+		// outbox messages durably but starts no delivery loop; background drain stays opt-in here too.
 		_ = services.AddDispatchWithSqlServer(options.ConnectionString, options.DispatchConfiguration);
 
 		// Inbox (builder API)
@@ -90,7 +120,7 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 		}
 
 		// Saga (builder API) — routed through IExcaliburBuilder bridge so the
-		// flat aggregator stays internal per ADR-325 composition-root policy.
+		// flat aggregator stays internal composition-root policy.
 		if (options.UseSaga)
 		{
 			_ = services.AddExcalibur(excalibur =>
@@ -103,7 +133,7 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 		}
 
 		// Leader Election (builder API) — routed through IExcaliburBuilder
-		// bridge so the flat aggregator stays internal per ADR-325.
+		// bridge so the flat aggregator stays internal .
 		if (options.UseLeaderElection)
 		{
 			_ = services.AddExcalibur(excalibur =>

@@ -80,10 +80,6 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// Configures outbox options with the high throughput preset, then applies overrides
 	/// from an <see cref="IConfiguration"/> section.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddOutboxHighThroughput(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -143,10 +139,6 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// Configures outbox options with the balanced preset, then applies overrides
 	/// from an <see cref="IConfiguration"/> section.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddOutboxBalanced(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -206,10 +198,6 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// Configures outbox options with the high reliability preset, then applies overrides
 	/// from an <see cref="IConfiguration"/> section.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddOutboxHighReliability(
 		this IServiceCollection services,
 		IConfiguration configuration)

@@ -42,7 +42,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Act
-		var store = new MongoDbInboxStore(_options, _logger);
+		var store = new MongoDbInboxStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -53,7 +53,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbInboxStore(options: null!, _logger));
+			new MongoDbInboxStore(options: null!, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -62,7 +62,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbInboxStore(_options, logger: null!));
+			new MongoDbInboxStore(_options, logger: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -77,7 +77,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbInboxStore(invalidOptions, _logger));
+			new MongoDbInboxStore(invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	#endregion Simple Constructor Tests
@@ -95,7 +95,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 			.Returns(database);
 
 		// Act
-		var store = new MongoDbInboxStore(client, _options, _logger);
+		var store = new MongoDbInboxStore(client, _options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -106,7 +106,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbInboxStore(client: null!, _options, _logger));
+			new MongoDbInboxStore(client: null!, _options, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("client");
 	}
 
@@ -118,7 +118,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbInboxStore(client, options: null!, _logger));
+			new MongoDbInboxStore(client, options: null!, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -130,7 +130,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbInboxStore(client, _options, logger: null!));
+			new MongoDbInboxStore(client, _options, logger: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -146,7 +146,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbInboxStore(client, invalidOptions, _logger));
+			new MongoDbInboxStore(client, invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	#endregion Client Constructor Tests
@@ -164,8 +164,8 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 			.Returns(database);
 
 		// Act
-		var simpleStore = new MongoDbInboxStore(_options, _logger);
-		var clientStore = new MongoDbInboxStore(client, _options, _logger);
+		var simpleStore = new MongoDbInboxStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
+		var clientStore = new MongoDbInboxStore(client, _options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert - Both create valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -180,7 +180,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	public void Store_ImplementsIInboxStore()
 	{
 		// Act
-		var store = new MongoDbInboxStore(_options, _logger);
+		var store = new MongoDbInboxStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IInboxStore>();
@@ -190,7 +190,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	public void Store_ImplementsIAsyncDisposable()
 	{
 		// Act
-		var store = new MongoDbInboxStore(_options, _logger);
+		var store = new MongoDbInboxStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IAsyncDisposable>();
@@ -213,7 +213,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbInboxStore(invalidOptions, _logger));
+			new MongoDbInboxStore(invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	[Fact]
@@ -229,7 +229,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbInboxStore(invalidOptions, _logger));
+			new MongoDbInboxStore(invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	#endregion Options Validation Tests
@@ -240,7 +240,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new MongoDbInboxStore(_options, _logger);
+		var store = new MongoDbInboxStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();
@@ -259,7 +259,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 		var defaultOptions = Options.Create(new MongoDbInboxOptions());
 
 		// Act
-		var store = new MongoDbInboxStore(defaultOptions, _logger);
+		var store = new MongoDbInboxStore(defaultOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -278,7 +278,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbInboxStore(customOptions, _logger);
+		var store = new MongoDbInboxStore(customOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -297,7 +297,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbInboxStore(customOptions, _logger);
+		var store = new MongoDbInboxStore(customOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -316,7 +316,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbInboxStore(sslOptions, _logger);
+		var store = new MongoDbInboxStore(sslOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -335,7 +335,7 @@ public sealed class MongoDbInboxStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbInboxStore(customOptions, _logger);
+		var store = new MongoDbInboxStore(customOptions, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();

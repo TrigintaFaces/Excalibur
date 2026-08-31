@@ -58,6 +58,9 @@ set -uo pipefail
 
 E_PASS=0; E_FAIL=1; E_REFUSE=2; E_SELFTEST=3
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 REPO_ROOT="${ORPHCONST_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}"
 cd "$REPO_ROOT" || exit $E_REFUSE
 
@@ -159,6 +162,9 @@ sweep() {
 
     echo ""
     echo "files-with-cadence-numbers=$scanned cadence-numbers-evaluated=$num_total orphans=$orphans"
+    # The denominator, in the standard machine-readable form: what was EXAMINED, not only what was
+    # FOUND. A "0 orphans" over a zero denominator is a broken parser wearing a green.
+    gate_denominator "$num_total" "cadence/cap number(s) across $scanned file(s)" || return $E_REFUSE
 
     if [ "$num_total" -lt "$ORPHCONST_MIN_NUMS" ]; then
         echo "orphaned-constant-gate: REFUSE — evaluated $num_total cadence-numbers (floor=$ORPHCONST_MIN_NUMS)."

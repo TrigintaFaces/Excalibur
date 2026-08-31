@@ -16,7 +16,7 @@ using Excalibur.EventSourcing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-#pragma warning disable IL2026 // JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions
+#pragma warning disable IL2026, IL3050 // JSON serialization fallback path uses reflection when consumer does not provide source-gen JsonSerializerOptions
 
 namespace Excalibur.Data.DynamoDb.Projections;
 
@@ -99,6 +99,8 @@ public sealed class DynamoDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
 	{
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
@@ -124,6 +126,7 @@ public sealed class DynamoDbProjectionStore<
 	/// key name collided with a projection property, the original value is restored
 	/// from <c>_projection.origPk</c>.
 	/// </summary>
+	[RequiresDynamicCode("Deserializes the projection type with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	private TProjection? DeserializeItem(Dictionary<string, AttributeValue> item)
 	{
 		// Convert low-level attributes to Document model
@@ -156,6 +159,8 @@ public sealed class DynamoDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(projection);
@@ -208,6 +213,8 @@ public sealed class DynamoDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -216,7 +223,7 @@ public sealed class DynamoDbProjectionStore<
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
 		// Scan with the projection-type discriminator AND every supplied filter as a predicate
-		// (FR-P1.1/FR-P1.3). A null/empty filter leaves only the discriminator (AC-P1.4).
+		//. A null/empty filter leaves only the discriminator.
 		var (filterExpression, names, values) = BuildScanFilter(filters);
 
 		var request = new ScanRequest
@@ -254,12 +261,14 @@ public sealed class DynamoDbProjectionStore<
 	{
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
-		// Count only the projections matching the supplied filter (FR-P1.2).
+		// Count only the projections matching the supplied filter.
 		var (filterExpression, names, values) = BuildScanFilter(filters);
 		return await ComputeTotalAsync(filterExpression, names, values, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<CursorPagedResult<TProjection>> QueryCursorAsync(
 		IDictionary<string, object>? filters,
 		string? cursor,
@@ -277,15 +286,15 @@ public sealed class DynamoDbProjectionStore<
 		// The cursor carries both the partition-key continuation point AND the total record count. The
 		// total is computed ONCE (on the first page) and carried forward, so continuation pages never
 		// re-issue a COUNT scan — the per-page full COUNT scan the previous implementation ran is gone
-		// (FR-P2.1 / AC-P2.3), and the count is never the 1 MB-truncated partial (FR-P2.2 / AC-P2.2).
+		//, and the count is never the 1 MB-truncated partial.
 		var (startKey, carriedTotal) = DecodeCursor(cursor);
 
 		// DynamoDB Scan `Limit` caps the number of items SCANNED, not MATCHED — it is applied BEFORE the
 		// FilterExpression. A single scan with Limit=pageSize can therefore return fewer than pageSize
 		// matched items while a continuation key is still set. To return a full page of MATCHED items
-		// (FR-P2.3 / AC-P2.1) we scan repeatedly following LastEvaluatedKey, with Limit set to exactly the
+		// we scan repeatedly following LastEvaluatedKey, with Limit set to exactly the
 		// number still needed — so each call consumes everything it scans up to its LastEvaluatedKey (no
-		// skip/duplicate across pages, EC-P2.3) and never matches more than the page needs (no overshoot).
+		// skip/duplicate across pages) and never matches more than the page needs (no overshoot).
 		var results = new List<TProjection>(pageSize);
 		Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
@@ -317,7 +326,7 @@ public sealed class DynamoDbProjectionStore<
 
 			if (lastEvaluatedKey is null)
 			{
-				// Table exhausted before the page filled — this is the final page (AC-P2.4).
+				// Table exhausted before the page filled — this is the final page.
 				break;
 			}
 		}
@@ -329,7 +338,7 @@ public sealed class DynamoDbProjectionStore<
 
 		// Surface a continuation cursor only when the page filled AND DynamoDB signalled more to scan.
 		// When the table is exhausted (lastEvaluatedKey is null) the cursor is null, so the walk ends
-		// cleanly with no phantom next page (AC-P2.4).
+		// cleanly with no phantom next page.
 		string? nextCursor = null;
 		if (results.Count >= pageSize
 			&& lastEvaluatedKey is { Count: > 0 } finalKey
@@ -510,7 +519,7 @@ public sealed class DynamoDbProjectionStore<
 		return value switch
 		{
 			// A null filter value is ambiguous (NULL-typed attribute vs. absent attribute) and cannot be
-			// translated to an unambiguous equality predicate — signal "can't honor the contract" (FR-P1.5)
+			// translated to an unambiguous equality predicate — signal "can't honor the contract"
 			// rather than silently issuing an unfiltered or mis-filtered scan.
 			null => throw new NotSupportedException(
 				"DynamoDB projection filter cannot translate a null filter value. Provide a concrete value, "

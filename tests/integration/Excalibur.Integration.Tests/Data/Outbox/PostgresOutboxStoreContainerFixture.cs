@@ -11,6 +11,8 @@ using Tests.Shared.Fixtures;
 
 #pragma warning disable CA2100 // SQL strings are safe - table/index names are constants in test fixture
 
+using Tests.Shared.Helpers;
+
 namespace Excalibur.Integration.Tests.Data.Outbox;
 
 /// <summary>
@@ -37,7 +39,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 {
 	private PostgreSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Static constructor to configure Npgsql timestamp behavior.
@@ -98,70 +100,33 @@ public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 	/// reference, including the tenant_id and next_attempt_at columns used by the tenant-persistence
 	/// and exponential-backoff paths.
 	/// </remarks>
-	public async Task EnsureInitializedAsync()
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
+
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
 	{
-		if (_initialized)
-		{
-			return;
-		}
-
-		const string createTablesSql = """
-			CREATE TABLE IF NOT EXISTS outbox (
-				id SERIAL PRIMARY KEY,
-				message_id VARCHAR(100) NOT NULL UNIQUE,
-				message_type VARCHAR(500) NOT NULL,
-				message_metadata TEXT,
-				message_body BYTEA NOT NULL,
-				tenant_id VARCHAR(255),
-				destination VARCHAR(500),
-				correlation_id VARCHAR(255),
-				causation_id VARCHAR(255),
-				priority INT NOT NULL DEFAULT 0,
-				partition_key VARCHAR(255),
-				group_key VARCHAR(255),
-				sequence_number BIGINT NOT NULL DEFAULT 0,
-				target_transports VARCHAR(500),
-				is_multi_transport BOOLEAN NOT NULL DEFAULT FALSE,
-				occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				attempts INT NOT NULL DEFAULT 0,
-				error_message TEXT,
-				dispatcher_id VARCHAR(100),
-				dispatcher_timeout TIMESTAMPTZ,
-				next_attempt_at TIMESTAMPTZ,
-				scheduled_at TIMESTAMPTZ
-			);
-
-			CREATE TABLE IF NOT EXISTS outbox_dead_letters (
-				id SERIAL PRIMARY KEY,
-				message_id VARCHAR(100) NOT NULL UNIQUE,
-				message_type VARCHAR(500) NOT NULL,
-				message_metadata TEXT,
-				message_body BYTEA NOT NULL,
-				occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				attempts INT NOT NULL DEFAULT 0,
-				error_message TEXT,
-				moved_on TIMESTAMPTZ NOT NULL DEFAULT NOW()
-			);
-
-			-- Leadership-fencing high-water control table (one durable row per scope). The delete-on-sent
-			-- outbox deletes the winning rows, so the fence high-water cannot live in the outbox rows; this
-			-- dedicated table survives the drain. Matches the fenced-claim high-water enforcement in PostgresOutboxStore.
-			CREATE TABLE IF NOT EXISTS outbox_fence (
-				scope_key VARCHAR(600) PRIMARY KEY,
-				high_water_token BIGINT NOT NULL
-			);
-
-			CREATE INDEX IF NOT EXISTS idx_outbox_unreserved ON outbox (occurred_on) WHERE dispatcher_id IS NULL;
-			CREATE INDEX IF NOT EXISTS idx_outbox_dispatcher ON outbox (dispatcher_id) WHERE dispatcher_id IS NOT NULL;
-			""";
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. A
+		// fixture that restated it could drift permissively -- a nullable column where the script says NOT
+		// NULL, a narrower key -- and every arm running against it would then be structurally unable to
+		// detect the violation it exists to catch, while still reporting green. A fixture that holds no
+		// schema cannot drift from one.
+		var scripts = ShippedSchemaScript.ReadAll(
+			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/001_CreateOutboxSchema.sql",
+			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/002_MakeOutboxTenantTotal.sql",
+			"src/Excalibur/Excalibur.Outbox.Postgres/Scripts/003_CarryTenantOnDeadLetters.sql");
 
 		await using var connection = new NpgsqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		await using var command = new NpgsqlCommand(createTablesSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
+		foreach (var script in scripts)
+		{
+			await using var command = new NpgsqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

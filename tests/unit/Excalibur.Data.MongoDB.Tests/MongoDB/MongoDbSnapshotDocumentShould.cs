@@ -4,6 +4,7 @@
 using Excalibur.Domain.Model;
 
 using Excalibur.Data.MongoDB;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.Tests.MongoDB.Snapshots;
 
@@ -22,10 +23,10 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		var aggregateType = "Order";
 
 		// Act
-		var id = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType);
+		var id = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, "tenant-a");
 
 		// Assert
-		id.ShouldBe("order-123:Order");
+		id.ShouldBe("t:tenant-a:order-123:Order");
 	}
 
 	[Fact]
@@ -36,10 +37,35 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		var aggregateType = "Customer";
 
 		// Act
-		var id = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType);
+		var id = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, "tenant-a");
 
 		// Assert
-		id.ShouldBe("550e8400-e29b-41d4-a716-446655440000:Customer");
+		id.ShouldBe("t:tenant-a:550e8400-e29b-41d4-a716-446655440000:Customer");
+	}
+
+	[Fact]
+	public void CreateId_CarriesTheTenantSegment_ForEveryPartition()
+	{
+		// LIVENESS: a real tenant and the untenanted partition both yield a well-formed id. Without this
+		// arm a builder returning the empty string for everything satisfies the safety arm below.
+		Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId("order-123", "Order", "tenant-a")
+			.ShouldBe("t:tenant-a:order-123:Order");
+		Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId("order-123", "Order", TenantScope.UntenantedSentinel)
+			.ShouldBe($"t:{TenantScope.UntenantedSentinel}:order-123:Order");
+	}
+
+	[Fact]
+	public void CreateId_SeparatesTenants_AndSeparatesUntenantedFromTenanted()
+	{
+		// SAFETY: no two partitions share an id for the same aggregate. The untenanted partition is a
+		// value like any other, so it is separated too - it is not an absence.
+		var tenantA = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId("order-123", "Order", "tenant-a");
+		var tenantB = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId("order-123", "Order", "tenant-b");
+		var untenanted = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.CreateId("order-123", "Order", TenantScope.UntenantedSentinel);
+
+		tenantA.ShouldNotBe(tenantB);
+		tenantA.ShouldNotBe(untenanted);
+		tenantB.ShouldNotBe(untenanted);
 	}
 
 	[Fact]
@@ -57,10 +83,10 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		};
 
 		// Act
-		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(snapshot);
+		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(snapshot, "tenant-a");
 
 		// Assert
-		document.Id.ShouldBe("order-456:Order");
+		document.Id.ShouldBe("t:tenant-a:order-456:Order");
 		document.SnapshotId.ShouldBe("snap-123");
 		document.AggregateId.ShouldBe("order-456");
 		document.AggregateType.ShouldBe("Order");
@@ -89,7 +115,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		};
 
 		// Act
-		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(snapshot);
+		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(snapshot, "tenant-a");
 
 		// Assert
 		_ = document.Metadata.ShouldNotBeNull();
@@ -112,7 +138,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		};
 
 		// Act
-		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(snapshot);
+		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(snapshot, "tenant-a");
 
 		// Assert
 		document.Metadata.ShouldBeNull();
@@ -160,7 +186,7 @@ public sealed class MongoDbSnapshotDocumentShould : UnitTestBase
 		};
 
 		// Act
-		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(original);
+		var document = Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotDocument.FromSnapshot(original, "tenant-a");
 		var result = document.ToSnapshot();
 
 		// Assert

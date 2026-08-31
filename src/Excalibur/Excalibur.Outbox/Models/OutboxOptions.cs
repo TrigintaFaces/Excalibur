@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox;
@@ -33,54 +33,30 @@ public sealed class OutboxRetryOptions
 }
 
 /// <summary>
-/// Immutable configuration options for the outbox pattern.
+/// Immutable, resolved configuration for the outbox pattern.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Use the preset factory methods (<see cref="HighThroughput"/>, <see cref="Balanced"/>,
-/// <see cref="HighReliability"/>) to create options with sensible defaults, then apply
-/// overrides using the fluent builder methods.
+/// This type is produced by the framework from the outbox builder, not constructed by consumers.
+/// Configure the outbox through the builder callback on <c>AddOutbox</c>; resolve this type from
+/// dependency injection when you need to read the settings the outbox is actually running with,
+/// for example in a diagnostics endpoint or a startup log.
 /// </para>
-/// <para>
-/// <strong>Preset Selection Guide:</strong>
-/// </para>
-/// <list type="bullet">
-///   <item>
-///     <term><see cref="HighThroughput"/></term>
-///     <description>For high-volume systems (BatchSize: 1000, PollingInterval: 100ms, Parallelism: 8)</description>
-///   </item>
-///   <item>
-///     <term><see cref="Balanced"/></term>
-///     <description>For most production systems (BatchSize: 100, PollingInterval: 1s, Parallelism: 4)</description>
-///   </item>
-///   <item>
-///     <term><see cref="HighReliability"/></term>
-///     <description>For critical systems (BatchSize: 10, PollingInterval: 5s, Sequential processing)</description>
-///   </item>
-///   <item>
-///     <term><see cref="Custom"/></term>
-///     <description>For advanced users who need full control</description>
-///   </item>
-/// </list>
 /// </remarks>
 /// <example>
 /// <code>
-/// // Preset-based (recommended for most users)
-/// var options = OutboxOptions.HighThroughput().Build();
+/// // Configure:
+/// services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+///     .UseSqlServer(sql => sql.ConnectionString(connectionString))
+///     .WithProcessing(processing => processing
+///         .BatchSize(1000)
+///         .PollingInterval(TimeSpan.FromMilliseconds(100))
+///         .EnableParallelProcessing(maxDegreeOfParallelism: 8))
+///     .EnableBackgroundProcessing()));
 ///
-/// // Preset with overrides
-/// var options = OutboxOptions.HighThroughput()
-///     .WithBatchSize(2000)
-///     .WithProcessorId("worker-1")
-///     .Build();
-///
-/// // Full custom configuration
-/// var options = OutboxOptions.Custom()
-///     .WithBatchSize(500)
-///     .WithPollingInterval(TimeSpan.FromMilliseconds(500))
-///     .WithParallelism(4)
-///     .WithMaxRetries(7)
-///     .Build();
+/// // Read back the resolved settings:
+/// var options = serviceProvider.GetRequiredService&lt;OutboxOptions&gt;();
+/// logger.LogInformation("Outbox batch size: {BatchSize}", options.BatchSize);
 /// </code>
 /// </example>
 public sealed class OutboxOptions
@@ -134,7 +110,7 @@ public sealed class OutboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IOutboxOptionsBuilder HighThroughput() =>
+	internal static IOutboxOptionsBuilder HighThroughput() =>
 		OutboxOptionsBuilder.FromPreset(OutboxPreset.HighThroughput);
 
 	/// <summary>
@@ -158,7 +134,7 @@ public sealed class OutboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IOutboxOptionsBuilder Balanced() =>
+	internal static IOutboxOptionsBuilder Balanced() =>
 		OutboxOptionsBuilder.FromPreset(OutboxPreset.Balanced);
 
 	/// <summary>
@@ -182,7 +158,7 @@ public sealed class OutboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IOutboxOptionsBuilder HighReliability() =>
+	internal static IOutboxOptionsBuilder HighReliability() =>
 		OutboxOptionsBuilder.FromPreset(OutboxPreset.HighReliability);
 
 	/// <summary>
@@ -205,7 +181,7 @@ public sealed class OutboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IOutboxOptionsBuilder Custom() =>
+	internal static IOutboxOptionsBuilder Custom() =>
 		OutboxOptionsBuilder.FromPreset(OutboxPreset.Custom);
 
 	// ========================================

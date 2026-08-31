@@ -71,7 +71,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 		throughput.ShouldBeGreaterThan(1000); // More than 1000 messages/second
 
 		// Verify all messages were stored
-		var entries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var entries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		entries.Count().ShouldBe(messageCount);
 	}
 
@@ -291,7 +291,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 		totalThroughput.ShouldBeGreaterThan(50); // More than 50 operations/second combined
 
 		// Verify component-specific results
-		var inboxEntries = await inboxStore.GetAllEntriesAsync(CancellationToken.None);
+		var inboxEntries = await inboxStore.GetAllTenantsEntriesAsync(CancellationToken.None);
 		inboxEntries.Count().ShouldBe(300);
 
 		// Allow some time for batch processing to complete — generous for full-suite VS Test Explorer load
@@ -749,7 +749,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 		var throughput = operationCount / stopwatch.Elapsed.TotalSeconds;
 		throughput.ShouldBeGreaterThan(20); // Should maintain throughput with correlation propagation
 
-		var inboxEntries = await inboxStore.GetAllEntriesAsync(CancellationToken.None);
+		var inboxEntries = await inboxStore.GetAllTenantsEntriesAsync(CancellationToken.None);
 		inboxEntries.Count().ShouldBe(operationCount / 2);
 		processedItems.Count.ShouldBe(operationCount / 2);
 
@@ -784,11 +784,11 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 		// Baseline test without telemetry
 		var baselineStore = new InMemoryInboxStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance);
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 		_disposables.Add(baselineStore);
 
 		// Telemetry-enabled test
-		var telemetryStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), testLogger);
+		var telemetryStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), testLogger, UntenantedContext.Instance);
 		_disposables.Add(telemetryStore);
 
 		const int messageCount = 500;
@@ -829,8 +829,15 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 		telemetryStopwatch.Stop();
 
 		// Assert - Telemetry overhead validation
-		var baselineAvgMs = baselineStopwatch.ElapsedMilliseconds / (double)messageCount;
-		var telemetryAvgMs = telemetryStopwatch.ElapsedMilliseconds / (double)messageCount;
+		// Elapsed.TotalMilliseconds, NOT ElapsedMilliseconds. The latter is an integer, and the baseline
+		// here is a few milliseconds in total for 500 in-memory inserts -- so one millisecond of
+		// quantisation moves the denominator by a large fraction, and the ratio computed from it swings by
+		// hundreds of percent without the code under test changing at all. That is what this arm's
+		// threshold was relaxed to absorb, which treated a measurement-resolution defect as environment
+		// variance. TotalMilliseconds is a double derived from ticks and carries sub-microsecond
+		// resolution, so the ratio now reflects the overhead rather than the rounding.
+		var baselineAvgMs = baselineStopwatch.Elapsed.TotalMilliseconds / messageCount;
+		var telemetryAvgMs = telemetryStopwatch.Elapsed.TotalMilliseconds / messageCount;
 		var totalOverheadPercentage = (telemetryAvgMs - baselineAvgMs) / baselineAvgMs * 100;
 
 		// CI-friendly: Relaxed from 200% to 500% overhead limit for CI environment variance
@@ -958,7 +965,7 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 
 	private InMemoryInboxStore CreateInboxStore(InMemoryInboxOptions options)
 	{
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 		return store;
 	}

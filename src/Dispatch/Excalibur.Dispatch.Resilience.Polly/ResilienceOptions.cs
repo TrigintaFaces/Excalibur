@@ -13,11 +13,6 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// on <c>IDispatchBuilder</c>. It controls retry policies, circuit breakers, and timeouts
 /// at the middleware level.
 /// </para>
-/// <para>
-/// For lightweight <c>appsettings.json</c> configuration binding, see
-/// <c>Excalibur.Dispatch.Options.Configuration.ResilienceOptions</c> which provides a simplified
-/// subset of resilience settings on <see cref="Options.Configuration.DispatchOptions"/>.
-/// </para>
 /// </remarks>
 public sealed class ResilienceOptions
 {

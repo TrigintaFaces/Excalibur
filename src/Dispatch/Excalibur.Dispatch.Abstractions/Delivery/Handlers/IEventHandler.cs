@@ -36,6 +36,12 @@ public interface IEventHandler<in TEvent>
 	/// <remarks>
 	/// Implementations should be idempotent to handle potential redelivery. Event handlers execute independently; one handler's failure
 	/// doesn't affect others. Consider the eventual consistency implications when designing event handlers.
+	/// <para>
+	/// A fault thrown here reaches the publisher unchanged when it is the only one: the publisher catches
+	/// this exact exception type whether one handler or several are subscribed. Only when two or more
+	/// handlers fail for the same event does the publisher see an <see cref="AggregateException"/> carrying
+	/// all of them.
+	/// </para>
 	/// </remarks>
 	Task HandleAsync(TEvent eventMessage, CancellationToken cancellationToken);
 }

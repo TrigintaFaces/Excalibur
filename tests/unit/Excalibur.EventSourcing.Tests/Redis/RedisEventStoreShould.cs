@@ -25,13 +25,16 @@ public sealed class RedisEventStoreShould : UnitTestBase
 		var connection = CreateUninitializedConnection();
 		var options = Options.Create(new RedisEventStoreOptions { ConnectionString = "localhost:6379" });
 		var logger = NullLogger<RedisEventStore>.Instance;
+		var tenantContext = new SingleTenantDefaultContext();
 
-		Should.Throw<ArgumentNullException>(() => new RedisEventStore(null!, options, logger))
+		Should.Throw<ArgumentNullException>(() => new RedisEventStore(null!, options, logger, tenantContext))
 			.ParamName.ShouldBe("connection");
-		Should.Throw<ArgumentNullException>(() => new RedisEventStore(connection, null!, logger))
+		Should.Throw<ArgumentNullException>(() => new RedisEventStore(connection, null!, logger, tenantContext))
 			.ParamName.ShouldBe("options");
-		Should.Throw<ArgumentNullException>(() => new RedisEventStore(connection, options, null!))
+		Should.Throw<ArgumentNullException>(() => new RedisEventStore(connection, options, null!, tenantContext))
 			.ParamName.ShouldBe("logger");
+		Should.Throw<ArgumentNullException>(() => new RedisEventStore(connection, options, logger, null!))
+			.ParamName.ShouldBe("tenantContext");
 	}
 
 	[Fact]
@@ -114,4 +117,12 @@ public sealed class RedisEventStoreShould : UnitTestBase
 
 	private static ConnectionMultiplexer CreateUninitializedConnection() =>
 		(ConnectionMultiplexer)RuntimeHelpers.GetUninitializedObject(typeof(ConnectionMultiplexer));
+
+	/// <summary>Mirrors the framework single-tenant default: always present, always the one canonical tenant.</summary>
+	private sealed class SingleTenantDefaultContext : ITenantContext
+	{
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
+	}
 }

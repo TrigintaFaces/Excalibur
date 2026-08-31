@@ -7,6 +7,7 @@ using Amazon.DynamoDBv2;
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.DynamoDb;
+using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -142,6 +143,16 @@ public static class DynamoDbServiceCollectionExtensions
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<DynamoDbPersistenceProvider>();
+
+		// Keyed by provider, matching the relational and search providers. An unkeyed TryAdd alone is a
+		// no-op once any other cloud package has registered the same service type, so a host that adds two
+		// of them silently resolves the first one's provider for both.
+		services.AddKeyedSingleton<ICloudNativePersistenceProvider>("dynamodb",
+			(sp, _) => sp.GetRequiredService<DynamoDbPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("dynamodb",
+			(sp, _) => sp.GetRequiredService<DynamoDbPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("dynamodb"));
 		services.TryAddSingleton<ICloudNativePersistenceProvider>(sp =>
 			sp.GetRequiredService<DynamoDbPersistenceProvider>());
 

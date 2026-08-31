@@ -55,8 +55,8 @@ public sealed class TenantScopedProjectionIsolationShould
     {
         var services = new ServiceCollection();
         // Deliberately NO ITenantContext registered.
-        services.AddTenantScopedProjectionStore<IProjectionStore<TestProjection>, IProjectionStore<object>>(
-            (_, tenant) => new TenantFilteringProjectionStore<TestProjection>(tenant));
+        services.AddTenantScopedProjectionStore<IProjectionStore<TestProjection>, TenantFilteringProjectionStore<TestProjection>, IProjectionStore<object>>(
+            sp => new TenantFilteringProjectionStore<TestProjection>(sp.GetRequiredService<ITenantContext>()));
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -71,8 +71,8 @@ public sealed class TenantScopedProjectionIsolationShould
     {
         var services = new ServiceCollection();
         services.AddSingleton<ITenantContext>(new TestTenantContext(tenantId));
-        services.AddTenantScopedProjectionStore<IProjectionStore<TestProjection>, IProjectionStore<object>>(
-            (_, tenant) => new TenantFilteringProjectionStore<TestProjection>(tenant));
+        services.AddTenantScopedProjectionStore<IProjectionStore<TestProjection>, TenantFilteringProjectionStore<TestProjection>, IProjectionStore<object>>(
+            sp => new TenantFilteringProjectionStore<TestProjection>(sp.GetRequiredService<ITenantContext>()));
         return services.BuildServiceProvider();
     }
 

@@ -9,6 +9,7 @@ using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Postgres.Sharding;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -61,7 +62,8 @@ public static class PostgresTenantShardingExtensions
 				sp.GetRequiredService<ILoggerFactory>(),
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>(),
-				sp.GetRequiredService<ITenantContext>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetService<Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions>>()?.Value.EventTypeInfoResolver));
 
 		return builder;
 	}

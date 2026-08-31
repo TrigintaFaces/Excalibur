@@ -14,7 +14,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ExcaliburApplicationServiceCollectionExtensions
 {
-	// AddExcaliburApplicationServices(...) was deleted in S804 (bd-sdhocq A7) per ADR-325 §2.
+	// AddExcaliburApplicationServices(...) was deleted.
 	// Its internal helpers (AddValidatorsFromAssemblies + AddDispatchHandlers) are now reachable
 	// via IExcaliburBuilder.ScanAssemblies(...) — see Excalibur.Hosting/Builders/ExcaliburBuilderContextExtensions.cs.
 

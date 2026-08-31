@@ -95,7 +95,7 @@ The binding lambda does not change — only the transport registration does:
 services.AddInMemoryTransport("orders");
 
 // after (any of these)
-services.AddRabbitMQTransport("orders", r => r.ConnectionString("amqp://localhost"));
+services.AddRabbitMQTransport("orders", r => r.ConnectionString("amqps://localhost"));
 services.AddKafkaTransport("orders", k => k.BootstrapServers("localhost:9092"));
 services.AddAzureServiceBusTransport("orders", sb => sb.ConnectionString("Endpoint=sb://..."));
 services.AddAwsSqsTransport("orders", s => s.Region("us-east-1").QueueName("orders"));

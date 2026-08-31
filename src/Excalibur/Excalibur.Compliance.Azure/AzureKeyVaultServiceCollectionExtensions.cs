@@ -52,31 +52,6 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		return services;
 	}
 
-	/// <summary>
-	/// Adds Azure Key Vault RSA key wrapping services for envelope encryption.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">An action to configure the RSA key wrapping options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddAzureKeyVaultRsaKeyWrapping(
-		this IServiceCollection services,
-		Action<RsaKeyWrappingOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = services.AddOptions<RsaKeyWrappingOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<RsaKeyWrappingOptions>, RsaKeyWrappingOptionsValidator>());
-
-		services.TryAddSingleton<IAzureRsaKeyWrapper, AzureKeyVaultRsaKeyWrapper>();
-
-		return services;
-	}
-
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",

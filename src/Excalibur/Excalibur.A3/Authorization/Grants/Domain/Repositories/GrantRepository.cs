@@ -50,8 +50,6 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
-	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
-	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
 	public async Task<Grant?> GetByIdAsync(string aggregateId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
@@ -213,7 +211,7 @@ public partial class GrantRepository : IGrantRepository
 		grant.UserId = storeGrant.UserId;
 		grant.FullName = storeGrant.FullName;
 		grant.Scope = new GrantScope(
-			storeGrant.TenantId ?? string.Empty,
+			storeGrant.TenantId,
 			storeGrant.GrantType,
 			storeGrant.Qualifier);
 		grant.ExpiresOn = storeGrant.ExpiresOn;
@@ -226,16 +224,24 @@ public partial class GrantRepository : IGrantRepository
 	/// <summary>
 	/// Maps a domain aggregate grant to a store DTO grant.
 	/// </summary>
-	private static StoreGrant ToStoreGrant(Grant aggregate) =>
-		new(
+	private static StoreGrant ToStoreGrant(Grant aggregate)
+	{
+		// A grant's scope carries its tenant, type, and qualifier, and each is non-empty by construction.
+		// An aggregate with no scope names no tenant, so it cannot be persisted as a grant.
+		var scope = aggregate.Scope
+			?? throw new InvalidOperationException(
+				"The grant has no scope, so it names no tenant, grant type, or qualifier, and cannot be saved.");
+
+		return new(
 			UserId: aggregate.UserId ?? string.Empty,
 			FullName: aggregate.FullName,
-			TenantId: aggregate.Scope?.TenantId,
-			GrantType: aggregate.Scope?.GrantType ?? string.Empty,
-			Qualifier: aggregate.Scope?.Qualifier ?? string.Empty,
+			TenantId: scope.TenantId,
+			GrantType: scope.GrantType,
+			Qualifier: scope.Qualifier,
 			ExpiresOn: aggregate.ExpiresOn,
 			GrantedBy: aggregate.GrantedBy ?? string.Empty,
 			GrantedOn: aggregate.GrantedOn);
+	}
 
 	[LoggerMessage(A3EventId.GrantSaveError, LogLevel.Error, "Error saving grant with UserId: {UserId}, TenantId: {TenantId}, GrantType: {GrantType}, Qualifier: {Qualifier}.")]
 	private partial void LogGrantSaveError(Exception ex, string? userId, string? tenantId, string? grantType, string? qualifier);

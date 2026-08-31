@@ -28,7 +28,7 @@ public static class DispatchOrchestrationExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// iuv3s1: do NOT silently bind an in-memory saga store as the "default". Saga state is lost on
+		// do NOT silently bind an in-memory saga store as the "default". Saga state is lost on
 		// restart/scale-out, so the store is a required deployment decision — register a persistent
 		// provider or opt in explicitly via AddInMemorySagaStore() / ISagaBuilder.WithInMemoryStore().
 		// SagaPrerequisiteValidator fails loud at host startup if neither registered a "default" store.
@@ -37,6 +37,7 @@ public static class DispatchOrchestrationExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, SagaHandlingMiddleware>());
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, Excalibur.Saga.DependencyInjection.SagaPrerequisiteValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, Excalibur.Saga.DependencyInjection.SagaPrerequisiteValidator>());
 
 		return services;
 	}

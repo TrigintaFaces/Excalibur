@@ -42,17 +42,18 @@ internal static class LeaderElectionBuilderServiceCollectionExtensions
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.ValidateOnStart();
 
-		// bd-gmq2j7: enforce the cross-property timing rule (Renew+Grace+skew < Lease) for ALL
+		// enforce the cross-property timing rule (Renew+Grace+skew < Lease) for ALL
 		// providers selected via the builder (SqlServer/Consul/Kubernetes/MongoDB/Redis/InMemory),
 		// which funnel through this shared path. Idempotent via TryAddEnumerable — re-registration
 		// (e.g. a provider that also registers it) does not double-validate.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 
-		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a provider.
+		// fail loud at host start if the consumer forgot to pick a provider.
 		// Idempotent via TryAddEnumerable — re-registering AddLeaderElection does not
 		// double-register the validator.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LeaderElectionPrerequisiteValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, LeaderElectionPrerequisiteValidator>());
 
 		// Non-keyed convenience aliases: forward to keyed "default" so consumers
 		// can inject ILeaderElection / ILeaderElectionFactory directly without [FromKeyedServices("default")].

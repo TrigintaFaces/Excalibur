@@ -154,18 +154,38 @@ public sealed class DynamoDbCdcPositionShould : UnitTestBase
 	}
 
 	[Fact]
-	public void RoundTripNowPositionThroughBase64()
+	public void TokenIsAFunctionOfThePositionNotOfWhenItWasBuilt()
 	{
-		// Arrange
-		var original = DynamoDbCdcPosition.Now(TestStreamArn);
+		// A token identifies a place in the stream, so two constructions of the same logical position must
+		// produce the same token -- otherwise tokens cannot be compared, deduplicated, or diffed in a log,
+		// and a saved position never equals the position it was saved from. This previously failed: the
+		// token carried the wall-clock instant of construction, so it changed every time it was rebuilt,
+		// disagreeing with Equals and GetHashCode, which have always excluded it.
+		var first = DynamoDbCdcPosition.Now(TestStreamArn);
+		var second = DynamoDbCdcPosition.Now(TestStreamArn);
 
-		// Act
-		var base64 = original.ToBase64();
-		var parsed = DynamoDbCdcPosition.FromBase64(base64);
+		first.ToBase64().ShouldBe(second.ToBase64());
+		first.ToToken().ShouldBe(second.ToToken());
 
-		// Assert
+		// Liveness: the token still carries what locates the position, so a round trip is not merely stable
+		// but useful. A token that discarded everything would satisfy the equality above on its own.
+		var parsed = DynamoDbCdcPosition.FromBase64(first.ToBase64());
 		parsed.StreamArn.ShouldBe(TestStreamArn);
-		_ = parsed.Timestamp.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void TokenDistinguishesPositionsThatDenoteDifferentPlaces()
+	{
+		// The liveness half of the property above: equal tokens for equal positions is worthless unless
+		// different positions still produce different tokens.
+		var atShardOne = DynamoDbCdcPosition.FromShardPositions(
+			TestStreamArn,
+			new Dictionary<string, string> { ["shard-1"] = "seq-100" });
+		var atShardTwo = DynamoDbCdcPosition.FromShardPositions(
+			TestStreamArn,
+			new Dictionary<string, string> { ["shard-1"] = "seq-200" });
+
+		atShardOne.ToBase64().ShouldNotBe(atShardTwo.ToBase64());
 	}
 
 	[Fact]

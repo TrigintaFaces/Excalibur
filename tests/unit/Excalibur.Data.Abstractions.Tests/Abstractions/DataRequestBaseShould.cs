@@ -3,6 +3,9 @@
 
 using Dapper;
 
+using Excalibur.Dispatch;
+using Excalibur.Data;
+
 namespace Excalibur.Data.Tests.Abstractions;
 
 /// <summary>

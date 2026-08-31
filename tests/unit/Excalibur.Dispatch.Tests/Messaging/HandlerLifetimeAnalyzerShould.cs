@@ -5,6 +5,7 @@
 #pragma warning disable CA1034 // Nested types should not be visible - needed for test handler types
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 
@@ -193,6 +194,117 @@ public sealed class HandlerLifetimeAnalyzerShould
 		promoted.ShouldBe(0);
 	}
 
+	// ---- Mutable instance state disqualifies a handler on EVERY branch, not only the branch that ----
+	// ---- happened to reach the check.                                                            ----
+	//
+	// The eligibility rule has always been a conjunction: the handler must take nothing injectable that
+	// outlives a request, AND it must carry no mutable instance state. Two branches returned true before
+	// reaching the second half — the no-public-constructor branch and the parameterless-constructor branch,
+	// the latter commented "parameterless constructor = stateless = safe singleton". That is not what a
+	// parameterless constructor means. It means nothing is INJECTED. A type with no constructor arguments
+	// can still declare a counter, and promoting it hands every dispatch in the process one instance of it:
+	// state leaks between unrelated messages and increments race under concurrency.
+	//
+	// These arms assert the observable outcome — the lifetime the registration ends up with — rather than
+	// which branch produced it, so a rewrite that reaches the same rule differently stays green.
+
+	[Fact]
+	public void NotPromoteStatefulHandlerWithParameterlessConstructor()
+	{
+		// Arrange — the shape the false comment described as safe: nothing injected, but stateful.
+		var services = new ServiceCollection();
+		services.AddTransient<IActionHandler<TestCommand>, StatefulParameterlessHandler>();
+
+		// Act
+		var promoted = HandlerLifetimeAnalyzer.PromoteEligibleHandlers(services);
+
+		// Assert
+		promoted.ShouldBe(
+			0,
+			"a handler with a parameterless constructor and a mutable instance field was promoted. Taking no "
+			+ "constructor arguments means nothing is injected, not that the type holds no state");
+
+		var descriptor = services.First(d => d.ServiceType == typeof(IActionHandler<TestCommand>));
+		descriptor.Lifetime.ShouldBe(
+			ServiceLifetime.Transient,
+			"the consumer registered this handler Transient and it carries mutable state, so one shared "
+			+ "instance would leak that state across every dispatch in the process and race under concurrency");
+	}
+
+	[Fact]
+	public void NotPromoteStatefulHandlerWithNoPublicConstructor()
+	{
+		// Arrange — the second branch that skipped the state check. A type with only a non-public
+		// constructor cannot be activated by the container at all, so the lifetime its registration ends up
+		// with is the only thing an observer can see here; there is no instance to compare.
+		var services = new ServiceCollection();
+		services.AddTransient<IActionHandler<TestCommand>, StatefulNoPublicConstructorHandler>();
+
+		// Act
+		var promoted = HandlerLifetimeAnalyzer.PromoteEligibleHandlers(services);
+
+		// Assert
+		promoted.ShouldBe(
+			0,
+			"a handler with no public constructor and a mutable instance field was promoted. Having nothing "
+			+ "to inject is not the same as having nothing to share");
+
+		var descriptor = services.First(d => d.ServiceType == typeof(IActionHandler<TestCommand>));
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Transient);
+	}
+
+	// ---- The rule has to hold where a consumer actually meets it: through AddDispatch. ----
+	//
+	// Every arm above calls the analyzer directly, so all of them would still pass if AddDispatch never
+	// invoked it — the advertised-but-unwired shape. These two go through the public entry point with the
+	// option set, and register the handler BEFORE AddDispatch so the descriptor is present when the option
+	// is acted on.
+
+	[Fact]
+	public void NotPromoteAStatefulHandlerThroughAddDispatch()
+	{
+		// SAFETY, wired.
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddTransient<IActionHandler<TestCommand>, StatefulParameterlessHandler>();
+
+		_ = services.AddDispatch(dispatch =>
+			dispatch.WithOptions(options =>
+				options.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true));
+
+		// Assert on every descriptor naming this implementation, so a second registration added by
+		// discovery cannot hide a promoted one behind a Transient one.
+		services
+			.Where(d => d.ImplementationType == typeof(StatefulParameterlessHandler))
+			.ShouldAllBe(
+				d => d.Lifetime == ServiceLifetime.Transient,
+				"a stateful handler was promoted to Singleton by opting into the optimisation. The consumer "
+				+ "asked for a faster dispatch, not for their handler's state to become process-wide");
+	}
+
+	[Fact]
+	public void StillPromoteAStatelessHandlerThroughAddDispatch()
+	{
+		// LIVENESS, wired. Without this arm, tightening the rule is satisfiable by never promoting
+		// anything — which turns a correctness fix into a silent performance regression, and would leave
+		// the option above doing nothing whether it is set or not.
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddTransient<IActionHandler<TestCommand>, StatelessHandler>();
+
+		_ = services.AddDispatch(dispatch =>
+			dispatch.WithOptions(options =>
+				options.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true));
+
+		services
+			.Where(d => d.ImplementationType == typeof(StatelessHandler))
+			.ShouldContain(
+				d => d.Lifetime == ServiceLifetime.Singleton,
+				"a genuinely stateless handler was not promoted with the optimisation enabled, so opting in "
+				+ "now buys nothing. Excluding handlers that carry state must narrow what is promoted, not "
+				+ "stop promotion happening at all");
+	}
+
 	#region Test Types
 
 	public sealed class TestCommand : IDispatchAction
@@ -249,6 +361,40 @@ public sealed class HandlerLifetimeAnalyzerShould
 	public sealed class StatelessHandler : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Nothing to inject, but not stateless: <c>_handled</c> is mutable instance state, and one shared
+	/// instance would make it a process-wide counter incremented from every dispatch.
+	/// </summary>
+	public sealed class StatefulParameterlessHandler : IActionHandler<TestCommand>
+	{
+		private int _handled;
+
+		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken)
+		{
+			_handled++;
+			return Task.FromResult(_handled);
+		}
+	}
+
+	/// <summary>
+	/// The same state, reached through the other branch: a non-public constructor means
+	/// <see cref="Type.GetConstructors()"/> reports none, which used to short-circuit the state check.
+	/// </summary>
+	public sealed class StatefulNoPublicConstructorHandler : IActionHandler<TestCommand>
+	{
+		private int _handled;
+
+		private StatefulNoPublicConstructorHandler()
+		{
+		}
+
+		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken)
+		{
+			_handled++;
+			return Task.FromResult(_handled);
+		}
 	}
 
 	public sealed class StatelessEventHandler : IEventHandler<TestEvent>

@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Security.Cryptography;
+
+using Microsoft.Win32;
 
 using Microsoft.Extensions.Logging;
 
@@ -30,14 +33,29 @@ public sealed partial class DefaultFipsDetector : IFipsDetector
 {
 	private readonly ILogger<DefaultFipsDetector> _logger;
 	private readonly Lazy<FipsDetectionResult> _cachedResult;
+	private readonly Func<bool?> _readWindowsPolicy;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DefaultFipsDetector"/> class.
 	/// </summary>
 	/// <param name="logger">The logger for diagnostics.</param>
 	public DefaultFipsDetector(ILogger<DefaultFipsDetector> logger)
+		: this(logger, ReadWindowsFipsPolicy)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="DefaultFipsDetector"/> class with a substitute reader
+	/// for the Windows policy, so both outcomes can be exercised on a host that is in only one of them.
+	/// </summary>
+	/// <param name="logger">The logger for diagnostics.</param>
+	/// <param name="readWindowsPolicy">
+	/// Returns the Windows FIPS policy state, or <see langword="null" /> when it cannot be read.
+	/// </param>
+	internal DefaultFipsDetector(ILogger<DefaultFipsDetector> logger, Func<bool?> readWindowsPolicy)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_readWindowsPolicy = readWindowsPolicy ?? throw new ArgumentNullException(nameof(readWindowsPolicy));
 		_cachedResult = new Lazy<FipsDetectionResult>(DetectFipsStatus);
 	}
 
@@ -94,11 +112,52 @@ public sealed partial class DefaultFipsDetector : IFipsDetector
 		}
 	}
 
+	/// <summary>
+	/// Reads the Windows FIPS policy from the registry, or returns <see langword="null" /> when the value
+	/// cannot be read.
+	/// </summary>
+	/// <remarks>
+	/// Read from the registry rather than from <c>CryptoConfig.AllowOnlyFipsAlgorithms</c>. On .NET Core
+	/// and later that property is hardcoded to <see langword="false" /> and is never set from the policy,
+	/// so consulting it reports every host as non-compliant, including a genuinely FIPS-enabled one.
+	/// Reading the policy directly is the documented way to determine the real state.
+	/// </remarks>
+	private static bool? ReadWindowsFipsPolicy()
+	{
+		if (!OperatingSystem.IsWindows())
+		{
+			return null;
+		}
+
+		try
+		{
+			using var key = Registry.LocalMachine.OpenSubKey(
+				@"SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy");
+
+			return key?.GetValue("Enabled") is int enabled ? enabled != 0 : null;
+		}
+		catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException)
+		{
+			return null;
+		}
+	}
+
 	private FipsDetectionResult DetectWindowsFipsStatus()
 	{
-		// On Windows, CryptoConfig.AllowOnlyFipsAlgorithms reflects the registry setting
-		// HKLM\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy\Enabled.
-		var isFipsEnabled = CryptoConfig.AllowOnlyFipsAlgorithms;
+		var policy = _readWindowsPolicy();
+
+		if (policy is null)
+		{
+			// Unreadable is not the same as disabled, and saying "disabled" would be a claim the check did
+			// not establish. The status carries the distinction even though IsFipsEnabled is false.
+			LogWindowsFipsMode(false);
+
+			return FipsDetectionResult.Disabled(
+				"Windows",
+				"Windows FIPS policy could not be read (FipsAlgorithmPolicy registry key absent or inaccessible), so compliance is unconfirmed.");
+		}
+
+		var isFipsEnabled = policy.Value;
 
 		LogWindowsFipsMode(isFipsEnabled);
 

@@ -281,8 +281,6 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("Snapshot creation may require types that cannot be statically analyzed. Consider using source generation.")]
-	[RequiresDynamicCode("Snapshot creation may require dynamic code generation which is not compatible with AOT compilation.")]
 	public virtual ISnapshot CreateSnapshot()
 	{
 		throw new NotSupportedException(

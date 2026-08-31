@@ -133,6 +133,8 @@ public sealed partial class ElasticSearchProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(
 		string id,
 		CancellationToken cancellationToken)
@@ -171,6 +173,8 @@ public sealed partial class ElasticSearchProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task UpsertAsync(
 		string id,
 		TProjection projection,
@@ -243,6 +247,8 @@ public sealed partial class ElasticSearchProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -536,7 +542,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		return fieldDefinition.JsonName;
 	}
 
-	// 5jo6tm: the exact-match (`.keyword`) decision comes from the DECLARED ES mapping (see
+	// the exact-match (`.keyword`) decision comes from the DECLARED ES mapping (see
 	// BuildFieldDefinitions), NOT a re-inference from the runtime property type. A `keyword`-mapped field is
 	// already exact-match → queried as-is; a `text`-mapped field is exact-matched via its `.keyword`
 	// sub-field. This keeps query field naming consistent-by-construction with ElasticIndexMappingBuilder
@@ -558,7 +564,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var definitions = new Dictionary<string, ProjectionFieldDefinition>(
 			StringComparer.OrdinalIgnoreCase);
 
-		// 5jo6tm: derive each field's type AND exact-match treatment from the SAME declared ES mapping the
+		// derive each field's type AND exact-match treatment from the SAME declared ES mapping the
 		// index is built from (ElasticIndexMappingBuilder) — explicit (IElasticIndexConfiguration) or inferred.
 		// This makes query-side field naming consistent-by-construction with the index mapping instead of a
 		// second source of truth (the runtime PropertyType) that re-diverged on every field-type addition.
@@ -589,7 +595,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		return definitions;
 	}
 
-	// Classifies a field by its DECLARED Elasticsearch property type (5jo6tm), returning both the value-
+	// Classifies a field by its DECLARED Elasticsearch property type, returning both the value-
 	// semantics type (for range/term conversion) and whether exact-match/sort needs the `.keyword` sub-field:
 	//   - `keyword`  → exact-match as-is (NO suffix)            — the default for string/Guid/enum mappings
 	//   - `text`     → exact-match via the `.keyword` sub-field — the standard explicit analyzed-text pattern

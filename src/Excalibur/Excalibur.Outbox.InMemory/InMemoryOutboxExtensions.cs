@@ -34,7 +34,12 @@ public static class InMemoryOutboxExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<InMemoryOutboxOptions>, InMemoryOutboxOptionsValidator>());
 
-		services.TryAddSingleton<InMemoryOutboxStore>();
+		// The store's constructor is internal (it is not part of the consumer contract), and
+		// ActivatorUtilities only considers public constructors -- so the type must be created by an
+		// explicit factory here rather than by TryAddSingleton<T>()'s implementation-type activation.
+		services.TryAddSingleton(static sp => new InMemoryOutboxStore(
+			sp.GetRequiredService<IOptions<InMemoryOutboxOptions>>(),
+			sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<InMemoryOutboxStore>>()));
 		services.AddKeyedSingleton<IOutboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryOutboxStore>());
 		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("inmemory"));

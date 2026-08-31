@@ -98,10 +98,10 @@ opts.WireFormat = ProtobufWireFormat.Json;
 
 Per Excalibur framework requirements:
 
-1. **Excalibur.Dispatch MUST NOT reference this package** (R0.14 compliance)
-2. **This package is pay-for-play** (R0.5: no transitive bloat)
+1. **Excalibur.Dispatch MUST NOT reference this package** (the core package stays serializer-neutral)
+2. **This package is pay-for-play** (no transitive bloat for consumers who do not use it)
 3. **System.Text.Json is the default serializer**
-4. **This package is opt-in only** (R9.46)
+4. **This package is opt-in only**
 
 ## Performance Characteristics
 

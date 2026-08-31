@@ -37,58 +37,58 @@ public sealed class OracleOutboxStoreMetrics : IDisposable
 		// Operation duration histograms
 		_saveMessagesTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.save_messages_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to save outbox messages");
 
 		_reserveMessagesTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.reserve_messages_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to reserve outbox messages");
 
 		_unreserveMessagesTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.unreserve_messages_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to unreserve outbox messages");
 
 		_deleteRecordTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.delete_record_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to delete an outbox record");
 
 		_increaseAttemptsTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.increase_attempts_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to increase message attempts");
 
 		_moveToDeadLetterTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.move_to_dead_letter_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to move message to dead letter");
 
 		_batchDeleteTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.batch_delete_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to delete multiple outbox records");
 
 		_batchIncreaseAttemptsTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.batch_increase_attempts_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to increase attempts for multiple messages");
 
 		_batchMoveToDeadLetterTime = _meter.CreateHistogram<double>(
 			"excalibur.outbox.batch_move_to_dead_letter_duration",
-			"milliseconds",
+			"ms",
 			"Time taken to move multiple messages to dead letter");
 
 		// Counters for throughput tracking
 		_messagesProcessed = _meter.CreateCounter<long>(
 			"excalibur.outbox.messages_processed_total",
-			"messages",
+			"{messages}",
 			"Total number of outbox messages processed");
 
 		_operationsCompleted = _meter.CreateCounter<long>(
 			"excalibur.outbox.operations_completed_total",
-			"operations",
+			"{operations}",
 			"Total number of outbox operations completed");
 	}
 

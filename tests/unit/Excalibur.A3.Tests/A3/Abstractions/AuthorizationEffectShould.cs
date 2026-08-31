@@ -16,13 +16,11 @@ public sealed class AuthorizationEffectShould : UnitTestBase
 		// Deny is the zero value so a default-initialized effect fails closed (39wqia).
 		((int)AuthorizationEffect.Deny).ShouldBe(0);
 		((int)AuthorizationEffect.Permit).ShouldBe(1);
-		((int)AuthorizationEffect.Indeterminate).ShouldBe(2);
 	}
 
 	[Theory]
 	[InlineData(AuthorizationEffect.Permit)]
 	[InlineData(AuthorizationEffect.Deny)]
-	[InlineData(AuthorizationEffect.Indeterminate)]
 	public void BeDefinedForAllValues(AuthorizationEffect effect)
 	{
 		// Act & Assert
@@ -43,7 +41,6 @@ public sealed class AuthorizationEffectShould : UnitTestBase
 	[Theory]
 	[InlineData(0, AuthorizationEffect.Deny)]
 	[InlineData(1, AuthorizationEffect.Permit)]
-	[InlineData(2, AuthorizationEffect.Indeterminate)]
 	public void CastFromInt_ReturnsCorrectValue(int value, AuthorizationEffect expected)
 	{
 		// Act
@@ -54,13 +51,14 @@ public sealed class AuthorizationEffectShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveThreeDistinctValues()
+	public void HaveTwoDistinctValues()
 	{
 		// Arrange
 		var values = Enum.GetValues<AuthorizationEffect>();
 
 		// Assert
-		values.Length.ShouldBe(3);
-		values.Distinct().Count().ShouldBe(3);
+		// Permit and Deny only: an evaluator that cannot decide returns Deny, so there is no third effect.
+		values.Length.ShouldBe(2);
+		values.Distinct().Count().ShouldBe(2);
 	}
 }

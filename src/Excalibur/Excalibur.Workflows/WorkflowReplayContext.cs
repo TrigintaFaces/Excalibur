@@ -449,12 +449,16 @@ internal sealed class WorkflowReplayContext : IWorkflowContext
             expectedVersion: _version,
             cancellationToken).ConfigureAwait(false);
 
-        if (!result.Success)
+        // A successful append always states the version it left the stream at; a failure states
+        // none. Reading the version through the success check rather than beside it keeps the two
+        // facts from drifting apart -- there is no branch here that can reach a version that is not
+        // there.
+        if (!result.Success || result.NextExpectedVersion is not { } nextExpectedVersion)
         {
             throw new WorkflowConcurrencyException(_instanceId, result.ErrorMessage);
         }
 
-        _version = result.NextExpectedVersion;
+        _version = nextExpectedVersion;
         return stamped;
     }
 }

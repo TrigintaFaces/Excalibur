@@ -200,6 +200,8 @@ public static class EventSourcingBuilderExtensions
 				opt.CurrentSnapshotVersion = options.CurrentSnapshotVersion;
 			})
 			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SnapshotUpgradingOptions>, SnapshotUpgradingOptionsValidator>());
 
 		foreach (var upgrader in upgradingBuilder.Upgraders)
 		{
@@ -244,7 +246,9 @@ public static class EventSourcingBuilderExtensions
 		_ = builder.Services.AddSingleton<global::Excalibur.Compliance.IErasureContributor>(sp =>
 		{
 			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
-			var erasure = eventStore as IEventStoreErasure
+			// Ask the store, do not test its type: the resolved store is the decorated one, and a decorator
+			// answers for the capabilities of the store it wraps.
+			var erasure = eventStore.GetService(typeof(IEventStoreErasure)) as IEventStoreErasure
 						  ?? throw new InvalidOperationException(
 							  $"The registered IEventStore ({eventStore.GetType().Name}) does not implement IEventStoreErasure. " +
 							  $"GDPR event store erasure requires an event store that supports the IEventStoreErasure interface.");
@@ -265,6 +269,16 @@ public static class EventSourcingBuilderExtensions
 		builder.Services.AddOptions<ShardingErasureGuardOptions>().ValidateOnStart();
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ShardingErasureGuardOptions>, ShardingErasureGuard>());
+
+		// Fail-closed startup gate: the throw in the contributor factory above runs on resolution, which for
+		// a scoped erasure service is the first right-to-erasure request — the consumer would learn their
+		// composition cannot erase with a statutory clock already running. This applies the same probe at
+		// boot. The factory throw stays as the floor for a host-less composition (serverless wiring), where
+		// ValidateOnStart never runs; two layers, not a replacement. Registered here so a host that never
+		// opts into erasure is untouched.
+		builder.Services.AddOptions<TieredErasureGuardOptions>().ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TieredErasureGuardOptions>, TieredErasureGuard>());
 
 		return builder;
 	}

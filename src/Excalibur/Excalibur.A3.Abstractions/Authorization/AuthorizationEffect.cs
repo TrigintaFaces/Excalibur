@@ -22,9 +22,4 @@ public enum AuthorizationEffect
 	/// Access is permitted.
 	/// </summary>
 	Permit = 1,
-
-	/// <summary>
-	/// Insufficient information to decide. Callers MUST treat this as a denial (fail closed).
-	/// </summary>
-	Indeterminate = 2,
 }

@@ -72,20 +72,12 @@ public static class PulsarTransportServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		var builder = new PulsarTransportBuilder();
-		configure(builder);
-		var configured = builder.Options;
-
+		// The builder is a VIEW over the options instance the options system owns, not a second
+		// instance whose contents are copied across afterwards. The consumer's fluent calls mutate the
+		// live options directly, so "the builder collected a value the registration forgot to copy"
+		// is not expressible here.
 		_ = services.AddOptions<PulsarOptions>(name)
-			.Configure(options =>
-			{
-				options.ServiceUrl = configured.ServiceUrl;
-				options.Topic = configured.Topic;
-				options.SubscriptionName = configured.SubscriptionName;
-				options.SubscriptionType = configured.SubscriptionType;
-				options.SubscriptionInitialPosition = configured.SubscriptionInitialPosition;
-				options.Receive = configured.Receive;
-			})
+			.Configure(options => configure(new PulsarTransportBuilder(options)))
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -107,6 +99,12 @@ public static class PulsarTransportServiceCollectionExtensions
 		services.TryAddKeyedSingleton<IPulsarClient>(name, (sp, _) =>
 		{
 			var options = sp.GetRequiredService<IOptionsMonitor<PulsarOptions>>().Get(name);
+
+			// The sender, the receiver and every channel below share this one client, so refusing here
+			// refuses the whole transport — and it happens when the transport is resolved, not on the
+			// first publish.
+			PulsarSecurityPosture.RequireSecureServiceUrl(options);
+
 			return PulsarClient.Builder()
 				.ServiceUrl(new Uri(options.ServiceUrl))
 				.Build();

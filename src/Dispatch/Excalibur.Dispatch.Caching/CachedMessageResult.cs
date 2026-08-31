@@ -82,6 +82,15 @@ internal sealed class CachedObjectMessageResult : IMessageResult
 	public object? ReturnValue { get; }
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Forwarded explicitly. This type implements the non-generic result contract, whose default
+	/// implementation of the untyped accessor returns null — so without this a caller reading the result
+	/// through the interface sees nothing at all on the ahead-of-time path, where this wrapper is the only
+	/// one used.
+	/// </remarks>
+	object? IMessageResult.UntypedReturnValue => ReturnValue;
+
+	/// <inheritdoc />
 	public bool CacheHit { get; }
 
 	/// <inheritdoc />

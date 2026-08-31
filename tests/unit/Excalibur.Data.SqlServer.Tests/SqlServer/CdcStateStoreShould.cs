@@ -3,107 +3,77 @@
 
 using System.Data;
 
-using Excalibur.Data;
 using Excalibur.Cdc.SqlServer;
-
-using Excalibur.Data.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
 /// <summary>
-/// Unit tests for <see cref="CdcStateStore"/>.
-/// Tests constructor validation and disposal patterns.
+/// Unit tests for <see cref="CdcStateStore"/> construction and ownership.
 /// </summary>
 /// <remarks>
-/// Sprint 201 - Unit Test Coverage Epic.
-/// Excalibur.Dispatch-7dm: CDC Unit Tests.
+/// The store takes a connection factory rather than a connection, and opens one connection per
+/// operation. These arms cover what can be established without a server: the factory is required, and
+/// the store does not take ownership of any connection. Whether overlapping operations actually succeed
+/// is a property of a real server and is covered by the SQL Server concurrency arm.
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CdcStateStore")]
 public sealed class CdcStateStoreShould : UnitTestBase
 {
 	[Fact]
-	public void Constructor_ThrowArgumentNullException_WhenConnectionIsNull()
+	public void Constructor_ThrowArgumentNullException_WhenConnectionFactoryIsNull()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => new CdcStateStore((IDbConnection)null!));
+		_ = Should.Throw<ArgumentNullException>(() => new CdcStateStore((Func<IDbConnection>)null!));
 	}
 
 	[Fact]
-	public void Constructor_ThrowArgumentNullException_WhenDbIsNull()
+	public void Constructor_AcceptAConnectionFactory()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => new CdcStateStore((IDb)null!));
-	}
+		using var store = new CdcStateStore(A.Fake<IDbConnection>);
 
-	[Fact]
-	public void Constructor_AcceptValidConnection()
-	{
-		// Arrange
-		var connection = A.Fake<IDbConnection>();
-
-		// Act
-		using var store = new CdcStateStore(connection);
-
-		// Assert - No exception thrown
 		_ = store.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void Constructor_AcceptValidDb()
+	public void Constructor_NotCallTheFactory_UntilAnOperationRunsIt()
 	{
-		// Arrange
-		var connection = A.Fake<IDbConnection>();
-		var db = A.Fake<IDb>();
-		_ = A.CallTo(() => db.Connection).Returns(connection);
+		var created = 0;
 
-		// Act
-		using var store = new CdcStateStore(db);
+		using var store = new CdcStateStore(() =>
+		{
+			created++;
+			return A.Fake<IDbConnection>();
+		});
 
-		// Assert - No exception thrown
-		_ = store.ShouldNotBeNull();
+		created.ShouldBe(
+			0,
+			"the store opens a connection per operation, so constructing it must not open one -- a store "
+			+ "that connected eagerly would hold a connection for its whole singleton lifetime, which is "
+			+ "the contract this factory replaced");
 	}
 
 	[Fact]
-	public void Dispose_DisposeConnection()
+	public void Dispose_NotDisposeAConnectionItDoesNotOwn()
 	{
-		// Arrange
 		var connection = A.Fake<IDbConnection>();
-		var store = new CdcStateStore(connection);
+		var store = new CdcStateStore(() => connection);
 
-		// Act
 		store.Dispose();
 
-		// Assert
-		_ = A.CallTo(() => connection.Dispose()).MustHaveHappenedOnceExactly();
+		// Each operation disposes the connection it opened, so there is nothing left for the store to
+		// release. Disposing a caller-supplied connection here would close one the caller still owns.
+		A.CallTo(() => connection.Dispose()).MustNotHaveHappened();
 	}
 
 	[Fact]
-	public async Task DisposeAsync_DisposeAsyncDisposableConnection()
+	public async Task DisposeAsync_NotDisposeAConnectionItDoesNotOwn()
 	{
-		// Arrange
-		var connection = A.Fake<IDbConnection>(options =>
-			options.Implements<IAsyncDisposable>());
-		var store = new CdcStateStore(connection);
+		var connection = A.Fake<IDbConnection>(options => options.Implements<IAsyncDisposable>());
+		var store = new CdcStateStore(() => connection);
 
-		// Act
 		await store.DisposeAsync();
 
-		// Assert
-		_ = A.CallTo(() => ((IAsyncDisposable)connection).DisposeAsync()).MustHaveHappenedOnceExactly();
-	}
-
-	[Fact]
-	public async Task DisposeAsync_DisposeRegularConnection_WhenNotAsyncDisposable()
-	{
-		// Arrange
-		var connection = A.Fake<IDbConnection>();
-		var store = new CdcStateStore(connection);
-
-		// Act
-		await store.DisposeAsync();
-
-		// Assert
-		_ = A.CallTo(() => connection.Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IAsyncDisposable)connection).DisposeAsync()).MustNotHaveHappened();
+		A.CallTo(() => connection.Dispose()).MustNotHaveHappened();
 	}
 }

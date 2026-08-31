@@ -116,40 +116,12 @@ public sealed class RabbitMqCloudEventDeadLetterOptions
 }
 
 /// <summary>
-/// Connection recovery configuration for RabbitMQ CloudEvents.
-/// </summary>
-public sealed class RabbitMqCloudEventRecoveryOptions
-{
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable automatic recovery from connection failures.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable automatic recovery from connection failures.
-	/// </value>
-	public bool AutomaticRecoveryEnabled { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the connection recovery interval.
-	/// </summary>
-	/// <value>
-	/// The connection recovery interval.
-	/// </value>
-	public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(5);
-}
-
-/// <summary>
 /// RabbitMQ-specific CloudEvent configuration options.
 /// </summary>
 public sealed class RabbitMqCloudEventOptions
 {
 	/// <summary>
-	/// Gets the consumer options for message consumption behavior.
-	/// </summary>
-	/// <value>The consumer options.</value>
-	public RabbitMqConsumerOptions Consumer { get; } = new();
-
-	/// <summary>
-	/// Gets the publisher options for message publishing behavior.
+	/// Gets the publisher options governing publisher confirms and mandatory publishing.
 	/// </summary>
 	/// <value>The publisher options.</value>
 	public RabbitMqPublisherOptions Publisher { get; } = new();
@@ -167,27 +139,12 @@ public sealed class RabbitMqCloudEventOptions
 	public RabbitMqCloudEventDeadLetterOptions DeadLetter { get; set; } = new();
 
 	/// <summary>
-	/// Gets or sets the connection recovery configuration.
-	/// </summary>
-	/// <value>The connection recovery configuration options.</value>
-	public RabbitMqCloudEventRecoveryOptions Recovery { get; set; } = new();
-
-	/// <summary>
 	/// Gets or sets the default queue name for consuming CloudEvents.
 	/// </summary>
 	/// <value>
 	/// The default queue name for consuming CloudEvents.
 	/// </value>
 	public string? DefaultQueue { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether queues should be durable.
-	/// </summary>
-	/// <remarks> Durable queues survive broker restarts. Recommended for production environments. </remarks>
-	/// <value>
-	/// A value indicating whether queues should be durable.
-	/// </value>
-	public bool DurableQueues { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to use quorum queues for high availability.
@@ -197,23 +154,4 @@ public sealed class RabbitMqCloudEventOptions
 	/// A value indicating whether to use quorum queues for high availability.
 	/// </value>
 	public bool UseQuorumQueues { get; set; }
-
-	/// <summary>
-	/// Gets or sets the prefetch count for consumers.
-	/// </summary>
-	/// <remarks>
-	/// Controls how many unacknowledged messages a consumer can have. Higher values improve throughput but use more memory.
-	/// </remarks>
-	/// <value>
-	/// The prefetch count for consumers.
-	/// </value>
-	public ushort PrefetchCount { get; set; } = 10;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable consumer acknowledgments.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable consumer acknowledgments.
-	/// </value>
-	public bool EnableConsumerAcks { get; set; } = true;
 }

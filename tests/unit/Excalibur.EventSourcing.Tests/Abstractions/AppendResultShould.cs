@@ -62,7 +62,12 @@ public sealed class AppendResultShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.NextExpectedVersion.ShouldBe(-1);
+
+		// NOT -1. Under this interface's version base -1 is the ordinary value meaning "this stream does
+		// not exist", so a failure reporting it would hand a caller a number asserting the opposite of the
+		// truth -- one they could pass straight back as an expected version and create a stream that
+		// already holds events. A failure that has no version to report states none.
+		result.NextExpectedVersion.ShouldBeNull();
 		result.FirstEventPosition.ShouldBeNull();
 		result.ErrorMessage!.ShouldBe(errorMessage);
 		result.IsConcurrencyConflict.ShouldBeFalse();
@@ -76,6 +81,19 @@ public sealed class AppendResultShould
 
 		// Assert
 		result.IsConcurrencyConflict.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void CreateConcurrencyConflict_OnANonExistentStream_ReportsATrueMinusOne()
+	{
+		// The one failure that CAN state a version: the store read the stream's actual version in order to
+		// detect the conflict. Here that reading is -1, and it is TRUE -- the stream really does not exist.
+		// This is what makes the null above a real distinction rather than a blanket ban on the value.
+		var result = AppendResult.CreateConcurrencyConflict(expectedVersion: 4, actualVersion: -1);
+
+		result.Success.ShouldBeFalse();
+		result.IsConcurrencyConflict.ShouldBeTrue();
+		result.NextExpectedVersion.ShouldBe(-1);
 	}
 
 	[Fact]

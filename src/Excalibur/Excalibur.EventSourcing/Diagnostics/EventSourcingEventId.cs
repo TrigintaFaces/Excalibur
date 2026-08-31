@@ -17,7 +17,7 @@ namespace Excalibur.EventSourcing.Diagnostics;
 /// <item>114600-114699: Subscriptions</item>
 /// </list>
 /// </remarks>
-public static class EventSourcingEventId
+internal static class EventSourcingEventId
 {
 	// ========================================
 	// 110000-110099: Event Store Core
@@ -347,9 +347,6 @@ public static class EventSourcingEventId
 	/// <summary>Cloud event store loaded events.</summary>
 	public const int CloudStoreLoadedEvents = 114305;
 
-	/// <summary>Large append split into multiple sequential transactional batches.</summary>
-	public const int CloudStoreLargeAppendChunked = 114306;
-
 	// ========================================
 	// 114400-114499: Schema Migration
 	// ========================================
@@ -396,6 +393,15 @@ public static class EventSourcingEventId
 	/// <summary>No pending migrations.</summary>
 	public const int NoPendingMigrations = 114415;
 
+	/// <summary>An applied migration's script no longer matches the checksum recorded for it.</summary>
+	public const int MigrationChecksumDrift = 114416;
+
+	/// <summary>An applied migration carries no recorded checksum, so its script cannot be verified.</summary>
+	public const int MigrationChecksumNotRecorded = 114417;
+
+	/// <summary>An applied migration has no script in the migration assembly, so it cannot be verified.</summary>
+	public const int MigrationScriptNotFound = 114418;
+
 	// ========================================
 	// 114500-114599: GDPR Erasure
 	// ========================================
@@ -423,6 +429,9 @@ public static class EventSourcingEventId
 
 	/// <summary>Event store erasure contributor completed.</summary>
 	public const int ErasureContributorCompleted = 114507;
+
+	/// <summary>A stream reader skipped an erased (tombstoned) event and advanced past it.</summary>
+	public const int ErasedEventSkipped = 114508;
 
 	// ========================================
 	// 114600-114699: Subscriptions

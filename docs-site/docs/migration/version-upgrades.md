@@ -44,14 +44,17 @@ Each Excalibur package single-targets one .NET major. There is no multi-targetin
 
 Breaking changes are communicated through multiple channels:
 
-1. **CHANGELOG.md** -- Updated for every release with categorized changes (Added, Changed, Deprecated, Removed, Fixed)
+1. **CHANGELOG.md** -- Categorized changes (Added, Changed, Deprecated, Removed, Fixed). Until `10.0.0`
+   ships, the pre-releases are documented cumulatively under a single heading rather than one entry per
+   alpha; the file says so at the top and explains why.
 2. **PublicAPI tracking** -- `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` files in each package track API surface changes
 3. **GitHub Releases** -- Tagged releases with detailed notes
 4. **Migration guides** -- For significant changes, dedicated migration documentation is provided
 
 ### During Pre-Release (Alpha/Beta)
 
-Breaking changes may occur between any pre-release version. Always review the CHANGELOG before upgrading.
+Breaking changes may occur between any pre-release version. Review the CHANGELOG before upgrading for the
+cumulative picture, and the tagged release notes on GitHub for what changed in a specific pre-release.
 
 ### After Stable Release
 
@@ -68,6 +71,19 @@ Once stable, Excalibur follows a minimum deprecation window:
 3. **Removal** -- The API is removed at the next major line, with a migration guide
 
 During pre-release, deprecated APIs may be removed in any subsequent build.
+
+## What Changed Between Versions
+
+This page states the *policy*. For what actually changed in the release you are moving to:
+
+1. **[Before you upgrade](../whats-new.md#before-you-upgrade)** -- the collected list of changes that
+   require you to act, including schema columns to add and APIs that were removed. Start here.
+2. **[Migration guides](index.md#upgrading-to-1000)** -- step-by-step guides for the changes that
+   rewrite data you have already stored. Both current ones must be completed *before* you deploy the new
+   package: [authorization grants require a tenant](authorization-tenant-required.md) and
+   [Firestore and Elasticsearch inbox keys change shape](inbox-document-id-rekey.md).
+3. **`CHANGELOG.md`** -- the full per-change history, with each breaking entry labelled and carrying its
+   migration.
 
 ## Upgrade Best Practices
 
@@ -88,5 +104,6 @@ Stay informed about releases and changes:
 ## See Also
 
 - [Migration Overview](index.md) -- All migration guides
+- [Before you upgrade](../whats-new.md#before-you-upgrade) -- What changed in this release, and what to do about it
 - [From MediatR](from-mediatr.md) -- MediatR migration guide
 - [Getting Started](../getting-started/index.md) -- New project setup from scratch

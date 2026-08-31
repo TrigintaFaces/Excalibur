@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage;
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Internal;
@@ -213,6 +213,78 @@ public sealed class GcsClaimCheckStoreShould : UnitTestBase
 		_ = await Should.ThrowAsync<ArgumentNullException>(() => sut.RetrieveAsync(null!, CancellationToken.None));
 		_ = await Should.ThrowAsync<ArgumentNullException>(() => sut.DeleteAsync(null!, CancellationToken.None));
 		Should.Throw<ArgumentNullException>(() => sut.ShouldUseClaimCheck(null!));
+	}
+
+	[Fact]
+	public async Task StoreAsync_WithZeroRetentionPeriod_ShouldLeaveExpiryUnset()
+	{
+		// A zero retention period means "never expires". Adding it to the current instant would stamp an
+		// expiry equal to the store time, marking every payload expired the moment it is written.
+		var storageClient = A.Fake<IStorageClientSeam>();
+		A.CallTo(() => storageClient.UploadObjectAsync(A<GcsObject>._, A<Stream>._, A<CancellationToken>._))
+			.Returns(new GcsObject());
+
+		var sut = CreateSut(storageClient, claimCheckOptions: new ClaimCheckOptions
+		{
+			IdPrefix = "cc-",
+			PayloadThreshold = 256,
+			RetentionPeriod = TimeSpan.Zero
+		});
+
+		var reference = await sut.StoreAsync([1, 2, 3], CancellationToken.None);
+
+		reference.ExpiresAt.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task RetrieveAsync_WithZeroRetentionPeriod_ShouldReturnPayload()
+	{
+		var storageClient = A.Fake<IStorageClientSeam>();
+		var expected = new byte[] { 5, 6, 7 };
+		A.CallTo(() => storageClient.UploadObjectAsync(A<GcsObject>._, A<Stream>._, A<CancellationToken>._))
+			.Returns(new GcsObject());
+		A.CallTo(() => storageClient.DownloadObjectAsync(
+				"test-bucket", A<string>._, A<Stream>._, A<CancellationToken>._))
+			.Invokes((string _, string _, Stream destination, CancellationToken _) =>
+				destination.Write(expected, 0, expected.Length))
+			.Returns(Task.CompletedTask);
+
+		var sut = CreateSut(storageClient, claimCheckOptions: new ClaimCheckOptions
+		{
+			IdPrefix = "cc-",
+			PayloadThreshold = 256,
+			RetentionPeriod = TimeSpan.Zero
+		});
+
+		var reference = await sut.StoreAsync(expected, CancellationToken.None);
+		var result = await sut.RetrieveAsync(reference, CancellationToken.None);
+
+		result.ShouldBe(expected);
+	}
+
+	[Fact]
+	public async Task RetrieveAsync_WithExpiredReference_ShouldThrowKeyNotFoundException()
+	{
+		// An expired payload is a form of missing payload, so it raises the same exception a deleted or
+		// never-stored one does.
+		var storageClient = A.Fake<IStorageClientSeam>();
+		var sut = CreateSut(storageClient);
+		var reference = new ClaimCheckReference
+		{
+			Id = "cc-expired",
+			BlobName = "claim-check/cc-expired",
+			ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1)
+		};
+
+		var ex = await Should.ThrowAsync<KeyNotFoundException>(
+			() => sut.RetrieveAsync(reference, CancellationToken.None));
+
+		ex.Message.ShouldContain("cc-expired");
+
+		// The object is never downloaded: expiry is decided before the request goes out.
+		A.CallTo(() => storageClient.DownloadObjectAsync(
+				A<string>._, A<string>._, A<Stream>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	private static GcsClaimCheckStore CreateSut(

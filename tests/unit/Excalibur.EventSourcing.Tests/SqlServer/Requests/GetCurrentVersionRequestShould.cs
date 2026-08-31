@@ -29,7 +29,7 @@ public sealed class GetCurrentVersionRequestShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest(aggregateId!, "Order", null, TenantScope.None, CancellationToken.None));
+			new GetCurrentVersionRequest(aggregateId!, "Order", null, TenantScope.Untenanted, CancellationToken.None));
 	}
 
 	[Theory]
@@ -40,7 +40,7 @@ public sealed class GetCurrentVersionRequestShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest("agg-1", aggregateType!, null, TenantScope.None, CancellationToken.None));
+			new GetCurrentVersionRequest("agg-1", aggregateType!, null, TenantScope.Untenanted, CancellationToken.None));
 	}
 
 	[Fact]

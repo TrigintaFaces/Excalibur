@@ -67,8 +67,9 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 	private long _catchUpTriggers;
 	private DateTimeOffset _lastTriggerTime;
 	private DateTimeOffset? _nextScheduledTrigger;
-	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
-	private TransportHealthStatus _lastStatus = TransportHealthStatus.Healthy;
+	// MinValue means "no health check has completed yet" -- it must not read as a recent check.
+	private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
+	private TransportHealthStatus _lastStatus = TransportHealthStatus.Unknown;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CronTimerTransportAdapter" /> class.
@@ -181,18 +182,21 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		_timerCts?.Dispose();
 		_timerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-		// Start the timer loop
-		_timerTask = RunTimerLoopAsync(_timerCts.Token);
-
 		// Record transport start metrics
 		TransportMeter.RecordTransportStarted(Name, TransportType);
 		TransportMeter.UpdateTransportState(Name, TransportType, isConnected: true);
 
-		// Fire immediately on startup if configured
+		// Fire immediately on startup if configured. This completes BEFORE the timer loop is launched,
+		// so the startup trigger and the loop's first scheduled fire are ordered rather than racing:
+		// with overlap prevention disabled the two would otherwise be free to run at once, which is not
+		// the behaviour the overlap setting describes.
 		if (_options.RunOnStartup && _dispatcher != null)
 		{
 			await TriggerExecutionAsync(_timerCts.Token).ConfigureAwait(false);
 		}
+
+		// Start the timer loop
+		_timerTask = RunTimerLoopAsync(_timerCts.Token);
 	}
 
 	/// <inheritdoc />
@@ -393,6 +397,22 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 	private async Task RunTimerLoopAsync(CancellationToken cancellationToken)
 	{
+		// The loop task is awaited only by StopAsync, so a host that tears down without a clean stop
+		// would never observe a fault escaping the per-iteration handling in the loop. Reporting it here
+		// keeps the failure visible and leaves the task completed rather than faulted.
+		try
+		{
+			await RunTimerLoopCoreAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			LogTimerExecutionFailed(Name, ex);
+			TransportMeter.RecordError(Name, TransportType, "timer_loop_error");
+		}
+	}
+
+	private async Task RunTimerLoopCoreAsync(CancellationToken cancellationToken)
+	{
 		while (!cancellationToken.IsCancellationRequested && IsRunning)
 		{
 			try
@@ -566,14 +586,6 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 	}
 
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Cron timer transport adapter dispatches trigger messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Cron timer transport adapter dispatches trigger messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	private async Task<IMessageResult> ProcessTriggerMessageAsync(
 		CronTimerTriggerMessage message,
 		IDispatcher dispatcher,

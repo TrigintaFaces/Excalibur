@@ -52,11 +52,6 @@ public sealed record AuditQuery
 	public DataClassification? MinimumClassification { get; init; }
 
 	/// <summary>
-	/// Gets or sets the tenant ID to filter by.
-	/// </summary>
-	public string? TenantId { get; init; }
-
-	/// <summary>
 	/// Gets or sets the application name to filter by.
 	/// </summary>
 	public string? ApplicationName { get; init; }

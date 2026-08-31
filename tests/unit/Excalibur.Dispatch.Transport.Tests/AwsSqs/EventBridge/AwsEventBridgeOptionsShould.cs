@@ -21,7 +21,6 @@ public sealed class AwsEventBridgeOptionsShould
 		options.DefaultSource.ShouldBe("Excalibur.Dispatch.Transport");
 		options.DefaultDetailType.ShouldBe(string.Empty);
 		options.RuleNames.ShouldBeEmpty();
-		options.RetryPolicy.ShouldBeNull();
 		options.EnableArchiving.ShouldBeFalse();
 		options.ArchiveName.ShouldBeNull();
 		options.ArchiveRetentionDays.ShouldBe(7);

@@ -9,14 +9,16 @@ namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
 /// Defines the contract for security alerting operations including alert processing,
-/// risk calculation, alert generation, and automated response configuration.
+/// risk calculation, and alert generation.
 /// </summary>
 public interface IElasticsearchSecurityAlerting
 {
 	/// <summary>
-	/// Gets a value indicating whether automated threat response is enabled.
+	/// Gets a value indicating whether the <c>AutomatedResponseTriggered</c> event is raised for
+	/// high-priority alerts. Acting on that event is the consumer's responsibility; this package
+	/// raises it and takes no action of its own.
 	/// </summary>
-	/// <value> True if automated responses are configured and active, false otherwise. </value>
+	/// <value> True if the event is raised for high-priority alerts, false otherwise. </value>
 	bool AutomatedResponseEnabled { get; }
 
 	/// <summary>
@@ -47,24 +49,11 @@ public interface IElasticsearchSecurityAlerting
 	/// <param name="alertRequest"> The security alert generation request with criteria. </param>
 	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
 	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains the generated security alerts and their distribution status.
+	/// A task that represents the asynchronous operation. The task result contains the generated security alerts. Alerts are generated and,
+	/// when enabled, stored in Elasticsearch and raised on <c>SecurityAlertGenerated</c>; this package does not deliver them to a
+	/// notification channel.
 	/// </returns>
 	/// <exception cref="SecurityException"> Thrown when alert generation fails due to security constraints. </exception>
 	/// <exception cref="ArgumentNullException"> Thrown when the alert request is null. </exception>
 	Task<SecurityAlertResult> GenerateSecurityAlertsAsync(SecurityAlertRequest alertRequest, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Configures automatic security response actions for specific threat types.
-	/// </summary>
-	/// <param name="responseConfiguration"> The automated response configuration. </param>
-	/// <param name="cancellationToken"> The cancellation token to monitor for cancellation requests. </param>
-	/// <returns>
-	/// A task that represents the asynchronous operation. The task result contains true if the response configuration was applied
-	/// successfully, false otherwise.
-	/// </returns>
-	/// <exception cref="SecurityException"> Thrown when response configuration fails due to security constraints. </exception>
-	/// <exception cref="ArgumentNullException"> Thrown when the response configuration is null. </exception>
-	Task<bool> ConfigureAutomatedResponseAsync(
-		AutomatedSecurityResponse responseConfiguration,
-		CancellationToken cancellationToken);
 }

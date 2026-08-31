@@ -25,8 +25,7 @@ public static class DispatchSecurityAzureServiceCollectionExtensions
 	/// <code>
 	/// services.AddDispatchSecurityAzure(azure =&gt;
 	/// {
-	///     azure.VaultUri("https://my-vault.vault.azure.net/")
-	///          .EnableServiceBusValidation();
+	///     azure.VaultUri("https://my-vault.vault.azure.net/");
 	/// });
 	/// </code>
 	/// </example>
@@ -46,11 +45,6 @@ public static class DispatchSecurityAzureServiceCollectionExtensions
 			_ = services.AddSingleton<IWritableCredentialStore, AzureKeyVaultCredentialStore>();
 		}
 
-		if (builder.ServiceBusValidationEnabled)
-		{
-			services.TryAddEnumerable(
-				ServiceDescriptor.Singleton<IValidateOptions<AzureServiceBusOptions>, AzureServiceBusOptionsValidator>());
-		}
 
 		return services;
 	}
@@ -60,6 +54,12 @@ public static class DispatchSecurityAzureServiceCollectionExtensions
 	/// material is stored as a Key Vault secret (base64-encoded), retrieved keys are cached with a bounded
 	/// TTL, and an unknown key fails closed (a <see cref="SigningException"/> is thrown — no key is minted
 	/// on the retrieval path). The vault URI is validated at startup via <c>ValidateOnStart</c>.
+	/// <para>
+	/// This is an explicit provider selection, so it takes precedence over any <see cref="IKeyProvider"/>
+	/// already registered. The framework registers none of its own — it never mints signing keys — so a
+	/// host that calls this has named the only provider in play. To supply a different one instead,
+	/// register it after this call.
+	/// </para>
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional configuration for the provider options.</param>
@@ -83,7 +83,7 @@ public static class DispatchSecurityAzureServiceCollectionExtensions
 			AzureKeyVaultKeyProviderOptionsValidator>());
 
 		services.TryAddSingleton(TimeProvider.System);
-		services.TryAddSingleton<IKeyProvider>(sp => new AzureKeyVaultKeyProvider(
+		services.AddSingleton<IKeyProvider>(sp => new AzureKeyVaultKeyProvider(
 			sp.GetRequiredService<ILogger<AzureKeyVaultKeyProvider>>(),
 			sp.GetRequiredService<IOptions<AzureKeyVaultKeyProviderOptions>>(),
 			sp.GetRequiredService<TimeProvider>()));

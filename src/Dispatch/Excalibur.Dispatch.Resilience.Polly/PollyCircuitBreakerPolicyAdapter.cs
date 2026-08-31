@@ -58,12 +58,14 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 		_logger = logger ?? NullLogger.Instance;
 		_manualControl = new CircuitBreakerManualControl();
 
+		PollyCircuitBreakerConstraints.ThrowIfNotExpressible(options, _circuitName);
+
 		// Create Polly resilience pipeline with circuit breaker strategy
 		_pipeline = new ResiliencePipelineBuilder()
 			.AddCircuitBreaker(new CircuitBreakerStrategyOptions
 			{
-				FailureRatio = 0.5,
-				SamplingDuration = TimeSpan.FromSeconds(10),
+				FailureRatio = options.FailureRatio,
+				SamplingDuration = options.SamplingDuration,
 				MinimumThroughput = options.FailureThreshold,
 				BreakDuration = options.OpenDuration,
 				ManualControl = _manualControl,

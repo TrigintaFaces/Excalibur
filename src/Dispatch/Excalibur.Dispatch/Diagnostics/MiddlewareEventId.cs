@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// <item>31700-31799: MetricsLogging</item>
 /// </list>
 /// </remarks>
-public static class MiddlewareEventId
+internal static class MiddlewareEventId
 {
 	// ========================================
 	// 30000-30099: Retry/CircuitBreaker Middleware

@@ -63,7 +63,6 @@ internal sealed class LazyTransportBinding : ITransportBinding
 			// this call site and could in theory construct a pathological backtracking
 			// regex. Explicit MatchTimeout bounds the worst-case evaluation time to a
 			// second rather than allowing unbounded catastrophic backtracking.
-			// [S795 bd-ilwc63]
 			_endpointRegex = new Regex(
 				regexPattern,
 				RegexOptions.Compiled | RegexOptions.IgnoreCase,

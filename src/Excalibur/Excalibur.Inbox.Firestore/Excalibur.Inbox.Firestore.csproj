@@ -5,7 +5,11 @@
     <PackageId>Excalibur.Inbox.Firestore</PackageId>
     <Description>Google Cloud Firestore implementation of the inbox pattern for Excalibur, providing idempotent message processing.</Description>
     <PackageTags>excalibur;inbox;idempotent;messaging;firestore;gcp</PackageTags>
-    <IsAotCompatible>true</IsAotCompatible>
+    <!-- AOT: NOT compatible. This package ships Excalibur.Data.Firestore, which declares itself
+         not AOT-compatible, so its reflection paths are reachable from any application that
+         publishes this package with PublishAot. Claiming compatibility here would be a
+         promise the shipped assembly cannot keep. -->
+    <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />

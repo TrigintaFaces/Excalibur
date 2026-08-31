@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Workflows;
 
 /// <summary>
@@ -24,7 +26,16 @@ namespace Excalibur.Workflows;
 /// inbox's durability to the journal's: a durable journal paired with an in-process inbox is durable only
 /// for the workflow's own decisions, never for the signals that reach it.
 /// </para>
+/// <para>
+/// <strong>The mailbox is tenant-owned.</strong> A signal belongs to the tenant whose workflow instance it
+/// addresses, and every implementation composes the tenant into the key it admits and drains on, so one
+/// tenant can neither observe nor deduplicate against another tenant's signal. The obligation is declared
+/// here rather than only asserted where inboxes happen to be registered, so a host that wires an inbox
+/// attesting no tenancy mechanism is refused at start rather than silently dropping a second tenant's
+/// signal against the first tenant's deduplication key.
+/// </para>
 /// </remarks>
+[TenantOwned]
 public interface IWorkflowSignalInbox
 {
 	/// <summary>

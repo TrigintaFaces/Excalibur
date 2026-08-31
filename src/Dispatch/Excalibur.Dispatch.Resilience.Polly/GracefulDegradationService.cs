@@ -16,9 +16,10 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 {
 	private readonly GracefulDegradationOptions _options;
 	private readonly ILogger<GracefulDegradationService> _logger;
+	private readonly TimeProvider _timeProvider;
 	private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OperationStatistics> _operationStats;
 	private readonly RollingErrorWindow _errorWindow;
-	private readonly Timer _healthCheckTimer;
+	private readonly ITimer _healthCheckTimer;
 	private DateTimeOffset _lastLevelChange;
 	private volatile string _lastChangeReason = "Initial";
 	private volatile HealthMetrics _currentHealth;
@@ -47,25 +48,32 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 	/// </summary>
 	/// <param name="options">The graceful degradation configuration options.</param>
 	/// <param name="logger">The logger instance for logging degradation events.</param>
+	/// <param name="timeProvider">
+	/// The clock the degradation decisions are made against. Defaults to <see cref="TimeProvider.System"/>.
+	/// The rolling error window, the CPU-sample elapsed delta and the health-check cadence all read it, so
+	/// supplying a controllable provider is what makes a level change reachable without waiting for one.
+	/// </param>
 	public GracefulDegradationService(
 		IOptions<GracefulDegradationOptions> options,
-		ILogger<GracefulDegradationService> logger)
+		ILogger<GracefulDegradationService> logger,
+		TimeProvider? timeProvider = null)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_operationStats = new System.Collections.Concurrent.ConcurrentDictionary<string, OperationStatistics>(StringComparer.Ordinal);
 		_errorWindow = new RollingErrorWindow(_options.ErrorRateWindow, _options.ErrorRateWindowBuckets);
 		_currentLevel = DegradationLevel.Normal;
-		_lastLevelChange = DateTimeOffset.UtcNow;
+		_lastLevelChange = _timeProvider.GetUtcNow();
 		_currentHealth = new HealthMetrics();
 
 		// Initialize CPU tracking for delta-based calculation
 		using var currentProcess = Process.GetCurrentProcess();
 		_previousCpuTime = currentProcess.TotalProcessorTime;
-		_previousCpuSampleTime = DateTimeOffset.UtcNow;
+		_previousCpuSampleTime = _timeProvider.GetUtcNow();
 
 		// Start health monitoring
-		_healthCheckTimer = new Timer(
+		_healthCheckTimer = _timeProvider.CreateTimer(
 			CheckSystemHealth,
 			state: null,
 			TimeSpan.Zero,
@@ -97,7 +105,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		// Track operation
 		var stats = _operationStats.GetOrAdd(context.OperationName, _ => new OperationStatistics());
 		stats.RecordAttempt();
-		_errorWindow.RecordAttempt(DateTimeOffset.UtcNow.UtcTicks);
+		_errorWindow.RecordAttempt(_timeProvider.GetUtcNow().UtcTicks);
 
 		// RecordFailure is called inside TryExecutePrimaryOrFallbackAsync on primary failure;
 		// do not record again here to avoid double-counting.
@@ -113,7 +121,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		{
 			var previousLevel = CurrentLevel;
 			CurrentLevel = level;
-			_lastLevelChange = DateTimeOffset.UtcNow;
+			_lastLevelChange = _timeProvider.GetUtcNow();
 			_lastChangeReason = reason;
 
 			LogLevelChanged(level, reason);
@@ -216,7 +224,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			catch (Exception ex)
 			{
 				stats.RecordFailure();
-				_errorWindow.RecordFailure(DateTimeOffset.UtcNow.UtcTicks);
+				_errorWindow.RecordFailure(_timeProvider.GetUtcNow().UtcTicks);
 				LogPrimaryOperationFailed(ex, context.OperationName);
 
 				if (context.Fallbacks.Count == 0)
@@ -311,7 +319,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		// burst of failures still drives auto-degradation in long-running processes. The per-operation
 		// OperationStatistics lifetime counters are intentionally left untouched — they back the
 		// lifetime reporting in GetMetrics()/SuccessRate.
-		var errorRate = _errorWindow.GetErrorRate(DateTimeOffset.UtcNow.UtcTicks);
+		var errorRate = _errorWindow.GetErrorRate(_timeProvider.GetUtcNow().UtcTicks);
 
 		// Real memory metric: WorkingSet as percentage of available memory
 		var workingSetBytes = Environment.WorkingSet;
@@ -329,7 +337,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		{
 			using var currentProcess = Process.GetCurrentProcess();
 			var currentCpuTime = currentProcess.TotalProcessorTime;
-			var now = DateTimeOffset.UtcNow;
+			var now = _timeProvider.GetUtcNow();
 
 			lock (_cpuSampleLock)
 			{
@@ -361,7 +369,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			CpuUsagePercent = cpuUsage,
 			MemoryUsagePercent = memoryUsage,
 			ErrorRate = errorRate,
-			Timestamp = DateTimeOffset.UtcNow,
+			Timestamp = _timeProvider.GetUtcNow(),
 		};
 	}
 

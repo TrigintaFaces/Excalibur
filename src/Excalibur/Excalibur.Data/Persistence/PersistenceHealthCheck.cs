@@ -3,25 +3,27 @@
 
 using Excalibur.Data.Diagnostics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Data.Persistence;
 
 /// <summary>
-/// Health check for persistence providers.
+/// Health check that probes a keyed persistence provider's connectivity.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="PersistenceHealthCheck" /> class. </remarks>
+/// <remarks>
+/// The provider is resolved from keyed dependency injection under <paramref name="providerName" />,
+/// the same key its package registers it under (for example <c>"sqlserver"</c> or <c>"default"</c>).
+/// </remarks>
 internal sealed partial class PersistenceHealthCheck(
-	IPersistenceProviderFactory providerFactory,
-	ILogger<PersistenceHealthCheck> logger,
-	string providerName) : IHealthCheck
+	IServiceProvider serviceProvider,
+	string providerName,
+	ILogger<PersistenceHealthCheck> logger) : IHealthCheck
 {
-	private readonly IPersistenceProviderFactory _providerFactory =
-		providerFactory ?? throw new ArgumentNullException(nameof(providerFactory));
-
-	private readonly ILogger<PersistenceHealthCheck> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+	private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 	private readonly string _providerName = providerName ?? throw new ArgumentNullException(nameof(providerName));
+	private readonly ILogger<PersistenceHealthCheck> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
 	public async Task<HealthCheckResult> CheckHealthAsync(
@@ -30,11 +32,12 @@ internal sealed partial class PersistenceHealthCheck(
 	{
 		try
 		{
-			// Get the provider
-			var provider = _providerFactory.GetProvider(_providerName);
+			var provider = _serviceProvider.GetKeyedService<IPersistenceProvider>(_providerName);
 			if (provider == null)
 			{
-				return HealthCheckResult.Unhealthy($"Provider '{_providerName}' not found");
+				return HealthCheckResult.Unhealthy(
+					$"No persistence provider is registered for key '{_providerName}'. " +
+					$"Register the provider before probing it (e.g. call the provider package's Add…Persistence extension).");
 			}
 
 			var health = (IPersistenceProviderHealth?)provider.GetService(typeof(IPersistenceProviderHealth));

@@ -1,6 +1,6 @@
 # Compliance Quick Start Guide
 
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Audience:** First-time users implementing compliance features
 **Last Updated:** 2026-01-01
 
@@ -180,7 +180,16 @@ builder.Services.AddEncryption(encryption => encryption
 
 :::note Key Management
 
-The `AddEncryption()` API uses a fluent builder pattern. Call `.UseKeyManagement<TProvider>(name)` to register your provider, then `.ConfigureOptions()` for settings. For production, implement `IEncryptionProvider` with your KMS (Azure Key Vault, AWS KMS, etc.).
+The `AddEncryption()` API uses a fluent builder pattern. Call `.UseKeyManagement<TProvider>(name)` to register your provider, then `.ConfigureOptions()` for settings. `AesGcmEncryptionProvider` and `RotatingEncryptionProvider` ship with the framework; to back field encryption with an external KMS, implement `IEncryptionProvider` against it — no cloud-KMS `IEncryptionProvider` is shipped.
+
+Message-signing key material is a **separate** extension point (`IKeyProvider`), and cloud-backed implementations of that one *are* shipped:
+
+```bash
+dotnet add package Excalibur.Security.Azure   # AddAzureKeyVaultKeyProvider()
+dotnet add package Excalibur.Security.Aws     # AddAwsSecretsManagerKeyProvider()
+```
+
+Do not reach for these expecting them to encrypt `[PersonalData]` fields; they supply signing keys, and an unknown key fails closed rather than being minted on retrieval.
 :::
 
 **Usage (Data Classification Attributes):**
@@ -339,8 +348,8 @@ builder.Services.AddInMemorySoc2ReportStore();
 // Optional: Continuous monitoring
 builder.Services.AddSoc2ComplianceWithMonitoring(options =>
 {
-    options.MonitoringInterval = TimeSpan.FromHours(1);
-    options.AlertThreshold = GapSeverity.Medium;
+    options.Monitoring.MonitoringInterval = TimeSpan.FromHours(1);
+    options.Monitoring.AlertThreshold = GapSeverity.Medium;
 });
 ```
 
@@ -358,17 +367,38 @@ The `--RunConfiguration.TreatNoTestsAsError=true` flag below matters for that re
 that matches nothing exits successfully and reads as a pass.
 
 ```bash
-# Run all GDPR conformance tests
-dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
-dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
-dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
-dotnet test --filter "FullyQualifiedName~AuditStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+# Run all GDPR conformance tests. Expected: all PASS, and a non-zero Total on each run
 
-# Expected: All tests PASS, and a non-zero Total on each run
+# VSTest (default)
+dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~AuditStoreConformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
+
+# Microsoft.Testing.Platform
+dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" -- --timeout 5m
+dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" -- --timeout 5m
+dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" -- --timeout 5m
+dotnet test --filter "FullyQualifiedName~AuditStoreConformance" -- --timeout 5m
 ```
 
+Which of the two forms you need depends on the test runner your project uses, and picking the wrong
+one fails in a way that does not name the cause:
+
+- **VSTest** (the default). `RunConfiguration.TreatNoTestsAsError=true` is required — without it a
+  filter that matches nothing exits `0` and reads as a pass.
+- **Microsoft.Testing.Platform** (`<UseMicrosoftTestingPlatform>true</UseMicrosoftTestingPlatform>`).
+  Do **not** pass the setting above: the native test host does not recognise it, prints its help text
+  and exits non-zero on every run, whether or not the filter matched. It needs no equivalent flag —
+  the platform already expects at least one test to run and fails with exit code `9` when fewer do.
+  Use `--minimum-expected-tests` only to require more than one.
+
+Both forms below also carry a hang bound, so a wedged test host ends the run with evidence instead of
+occupying your pipeline until it is killed.
+
+
 :::warning A conformance run that executes nothing is not a pass
-These commands carry `RunConfiguration.TreatNoTestsAsError=true` deliberately. Without it, `dotnet test
+The VSTest form carries `RunConfiguration.TreatNoTestsAsError=true` deliberately. Without it, `dotnet test
 --filter` **exits `0` when the filter matches nothing** — so if you have not referenced the conformance
 package, or a type has been renamed, the command prints `No test matches the given testcase filter` and
 **succeeds**. The checklist item would read as passed on a run that verified nothing, which is the state
@@ -383,7 +413,7 @@ non-zero `Total`** — an exit code alone is not evidence that a check ran.
 - **ErasureStoreConformanceTestKit:** 24 tests (GDPR erasure)
 - **LegalHoldStoreConformanceTestKit:** 19 tests (GDPR exceptions)
 - **DataInventoryStoreConformanceTestKit:** 19 tests (RoPA)
-- **Total:** 80 tests
+- **Total:** 92 arms available to wrap — record the count your own run executed
 
 ### 4.2 Manual Verification
 
@@ -546,7 +576,13 @@ public class Patient
 
 **Solution:** Wrap and run the conformance arms relevant to your controls before engaging an auditor:
 ```bash
-dotnet test --filter "FullyQualifiedName~Conformance" -- RunConfiguration.TreatNoTestsAsError=true
+# Run the conformance arms relevant to your controls
+
+# VSTest (default)
+dotnet test --filter "FullyQualifiedName~Conformance" --blame-hang-timeout 5m -- RunConfiguration.TreatNoTestsAsError=true
+
+# Microsoft.Testing.Platform
+dotnet test --filter "FullyQualifiedName~Conformance" -- --timeout 5m
 ```
 
 ### 4. Skipping Organizational Controls
@@ -587,7 +623,8 @@ dotnet test --filter "FullyQualifiedName~Conformance" -- RunConfiguration.TreatN
 **Check:**
 1. Is `IAuditStore` implementation registered?
 2. Is connection string correct?
-3. Did you run database migrations (`AutoMigrate = true`)?
+3. Have the audit tables been provisioned? The SQL Server audit store never creates its own table --
+   run the `001_CreateAuditSchema.sql` script shipped in the package before the first write.
 4. Check SQL Server permissions (INSERT required)
 
 ### Conformance Tests Failing

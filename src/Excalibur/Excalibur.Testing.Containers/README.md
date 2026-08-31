@@ -43,4 +43,4 @@ public sealed class MySqlServerOutboxConformanceTests
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

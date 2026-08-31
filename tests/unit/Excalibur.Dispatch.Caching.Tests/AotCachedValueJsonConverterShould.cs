@@ -360,6 +360,28 @@ public sealed partial class AotCachedValueJsonConverterShould
 			JsonSerializer.Deserialize<CachedValue>("[]", options));
 	}
 
+	[Fact]
+	public void RoundTripPreservingTheStoringActionIdentity()
+	{
+		// Same contract as the reflection converter. The two converters carry the entry independently, so a
+		// field added to one and not the other is dropped on exactly the path that has no other detector.
+		var options = CreateOptions();
+		var original = new CachedValue
+		{
+			Value = "hello world",
+			ShouldCache = true,
+			HasExecuted = true,
+			TypeName = typeof(string).FullName,
+			ActionTypeName = "Some.Assembly/Some.Namespace.SomeQuery",
+		};
+
+		var json = JsonSerializer.Serialize(original, options);
+		var result = JsonSerializer.Deserialize<CachedValue>(json, options);
+
+		result.ShouldNotBeNull();
+		result.ActionTypeName.ShouldBe("Some.Assembly/Some.Namespace.SomeQuery");
+	}
+
 	private static JsonSerializerOptions CreateOptions()
 	{
 		var context = new CacheTestJsonContext();

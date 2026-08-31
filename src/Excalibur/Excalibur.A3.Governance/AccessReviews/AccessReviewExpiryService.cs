@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.A3.Authorization;
@@ -31,7 +31,8 @@ namespace Excalibur.A3.Governance;
 internal sealed partial class AccessReviewExpiryService(
 	IServiceScopeFactory scopeFactory,
 	IOptions<AccessReviewOptions> options,
-	ILogger<AccessReviewExpiryService> logger) : BackgroundService
+	ILogger<AccessReviewExpiryService> logger,
+	TimeProvider timeProvider) : BackgroundService
 {
 	/// <inheritdoc />
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -66,7 +67,7 @@ internal sealed partial class AccessReviewExpiryService(
 		var inProgressCampaigns = await store.GetCampaignsByStateAsync(
 			AccessReviewState.InProgress, cancellationToken).ConfigureAwait(false);
 
-		var now = DateTimeOffset.UtcNow;
+		var now = timeProvider.GetUtcNow();
 
 		foreach (var campaign in inProgressCampaigns)
 		{
@@ -75,7 +76,7 @@ internal sealed partial class AccessReviewExpiryService(
 				continue;
 			}
 
-			await ApplyExpiryPolicyAsync(campaign, opts, store, scope.ServiceProvider, cancellationToken)
+			await ApplyExpiryPolicyAsync(campaign, opts, store, scope.ServiceProvider, now, cancellationToken)
 				.ConfigureAwait(false);
 		}
 	}
@@ -85,6 +86,7 @@ internal sealed partial class AccessReviewExpiryService(
 		AccessReviewOptions opts,
 		IAccessReviewStore store,
 		IServiceProvider serviceProvider,
+		DateTimeOffset now,
 		CancellationToken cancellationToken)
 	{
 		switch (campaign.ExpiryPolicy)
@@ -100,14 +102,46 @@ internal sealed partial class AccessReviewExpiryService(
 				break;
 
 			case AccessReviewExpiryPolicy.NotifyAndExtend:
-				var notifier = serviceProvider.GetService<IAccessReviewNotifier>()
-					?? NullAccessReviewNotifier.Instance;
-				await notifier.NotifyCampaignExtendedAsync(campaign.CampaignId, cancellationToken)
+				await NotifyAndExtendAsync(campaign, opts, store, serviceProvider, now, cancellationToken)
 					.ConfigureAwait(false);
-				await MarkCampaignExpiredAsync(campaign, store, cancellationToken).ConfigureAwait(false);
-				LogCampaignExtended(logger, campaign.CampaignId);
 				break;
 		}
+	}
+
+	/// <summary>
+	/// Applies <see cref="AccessReviewExpiryPolicy.NotifyAndExtend" />: notifies reviewers, then extends
+	/// the campaign deadline by <see cref="AccessReviewOptions.ExtensionDays" />.
+	/// </summary>
+	/// <remarks>
+	/// Notification is a precondition of the extension, not a side effect of it. Without a registered
+	/// <see cref="IAccessReviewNotifier" /> the campaign is left exactly as it is and the misconfiguration
+	/// is logged as an error on every sweep until it is corrected -- an access review is an audit surface,
+	/// so a deadline is never extended on the strength of a notification that was never sent.
+	/// </remarks>
+	private async Task NotifyAndExtendAsync(
+		AccessReviewCampaignSummary campaign,
+		AccessReviewOptions opts,
+		IAccessReviewStore store,
+		IServiceProvider serviceProvider,
+		DateTimeOffset now,
+		CancellationToken cancellationToken)
+	{
+		var notifier = serviceProvider.GetService<IAccessReviewNotifier>();
+		if (notifier is null)
+		{
+			LogNotifierNotAvailable(logger, campaign.CampaignId);
+			return;
+		}
+
+		await notifier.NotifyCampaignExtendedAsync(campaign.CampaignId, cancellationToken)
+			.ConfigureAwait(false);
+
+		// Extend from the moment of extension, not from the elapsed deadline: a campaign that expired
+		// weeks ago would otherwise land back in the past and be re-notified on every sweep.
+		var extended = campaign with { ExpiresAt = now.AddDays(opts.ExtensionDays) };
+		await store.SaveCampaignAsync(extended, cancellationToken).ConfigureAwait(false);
+
+		LogCampaignExtended(logger, campaign.CampaignId, extended.ExpiresAt);
 	}
 
 	private async Task RevokeUnreviewedWithRetryAsync(
@@ -119,20 +153,36 @@ internal sealed partial class AccessReviewExpiryService(
 	{
 		var unreviewedCount = campaign.TotalItems - campaign.DecidedItems;
 
-		// Attempt to revoke unreviewed grants via IGrantStore if available
+		// Revocation is a precondition of expiring the campaign, not a side effect of it. With no
+		// registered IGrantStore nothing can revoke, so the campaign is left exactly as it is and the
+		// misconfiguration is logged on every sweep until it is corrected. The campaign record is the
+		// audit evidence a later reader treats as proof the review completed, so it is never written on
+		// the strength of a revocation that did not happen -- the same disposition NotifyAndExtend
+		// applies to a missing notifier.
 		var grantStore = serviceProvider.GetService<IGrantStore>();
-		if (grantStore is not null && unreviewedCount > 0)
+		if (unreviewedCount > 0)
 		{
+			if (grantStore is null)
+			{
+				LogGrantStoreNotAvailable(logger, campaign.CampaignId, unreviewedCount);
+				return;
+			}
+
 			LogRevokeUnreviewedStart(logger, campaign.CampaignId, unreviewedCount);
-			await RevokeGrantsByScopeAsync(campaign, grantStore, opts, cancellationToken)
+			var revoked = await RevokeGrantsByScopeAsync(campaign, grantStore, opts, cancellationToken)
 				.ConfigureAwait(false);
-		}
-		else if (unreviewedCount > 0)
-		{
-			LogGrantStoreNotAvailable(logger, campaign.CampaignId, unreviewedCount);
+
+			// A store that cannot be queried, or a grant whose deletion exhausted its retries, leaves
+			// access in place just as surely as a missing store does. Each of those already logs; what
+			// must not follow is the receipt.
+			if (!revoked)
+			{
+				LogCampaignLeftOpenAfterIncompleteRevocation(logger, campaign.CampaignId);
+				return;
+			}
 		}
 
-		// Mark campaign as expired regardless
+		// Every unreviewed grant was revoked, so the completion receipt this writes is honest.
 		for (var attempt = 1; attempt <= opts.MaxRetryAttempts; attempt++)
 		{
 			try
@@ -156,7 +206,15 @@ internal sealed partial class AccessReviewExpiryService(
 		}
 	}
 
-	private async Task RevokeGrantsByScopeAsync(
+	/// <summary>
+	/// Revokes every grant matching <paramref name="campaign"/>'s scope.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> when every matched grant was revoked; <see langword="false"/> when any was
+	/// left in place, including when the store cannot be queried at all. The caller uses this to decide
+	/// whether the campaign may be recorded as completed, so it reports work done, never work attempted.
+	/// </returns>
+	private async Task<bool> RevokeGrantsByScopeAsync(
 		AccessReviewCampaignSummary campaign,
 		IGrantStore grantStore,
 		AccessReviewOptions opts,
@@ -166,7 +224,7 @@ internal sealed partial class AccessReviewExpiryService(
 		if (grantStore.GetService(typeof(IGrantQueryStore)) is not IGrantQueryStore queryStore)
 		{
 			LogGrantQueryStoreNotAvailable(logger, campaign.CampaignId);
-			return;
+			return false;
 		}
 
 		// Resolve scope to grant query parameters
@@ -179,21 +237,26 @@ internal sealed partial class AccessReviewExpiryService(
 			qualifier: qualifier,
 			cancellationToken: cancellationToken).ConfigureAwait(false);
 
+		var allRevoked = true;
+
 		foreach (var grant in matchingGrants)
 		{
+			var grantRevoked = false;
+
 			for (var attempt = 1; attempt <= opts.MaxRetryAttempts; attempt++)
 			{
 				try
 				{
 					await grantStore.DeleteGrantAsync(
 						grant.UserId,
-						grant.TenantId ?? string.Empty,
+						grant.TenantId,
 						grant.GrantType,
 						grant.Qualifier,
 						revokedBy: "AccessReviewExpiryService",
-						revokedOn: DateTimeOffset.UtcNow,
+						revokedOn: timeProvider.GetUtcNow(),
 						cancellationToken).ConfigureAwait(false);
 					LogGrantRevoked(logger, campaign.CampaignId, grant.UserId, grant.Qualifier);
+					grantRevoked = true;
 					break;
 				}
 #pragma warning disable CA1031 // Do not catch general exception types -- per-item retry
@@ -209,7 +272,11 @@ internal sealed partial class AccessReviewExpiryService(
 				}
 #pragma warning restore CA1031
 			}
+
+			allRevoked &= grantRevoked;
 		}
+
+		return allRevoked;
 	}
 
 	private static (string GrantType, string Qualifier) ResolveScopeToGrantFilter(AccessReviewScope scope)
@@ -241,13 +308,19 @@ internal sealed partial class AccessReviewExpiryService(
 	[LoggerMessage(EventId = 3522, Level = LogLevel.Information, Message = "Campaign '{CampaignId}' expired. Unreviewed items revoked.")]
 	private static partial void LogCampaignExpiredRevoked(ILogger logger, string campaignId);
 
-	[LoggerMessage(EventId = 3523, Level = LogLevel.Information, Message = "Campaign '{CampaignId}' extended and reviewers notified.")]
-	private static partial void LogCampaignExtended(ILogger logger, string campaignId);
+	[LoggerMessage(EventId = 3523, Level = LogLevel.Information, Message = "Campaign '{CampaignId}' reviewers notified; deadline extended to {ExpiresAt}.")]
+	private static partial void LogCampaignExtended(ILogger logger, string campaignId, DateTimeOffset expiresAt);
+
+	[LoggerMessage(EventId = 3531, Level = LogLevel.Error, Message = "No IAccessReviewNotifier is registered; campaign '{CampaignId}' uses the NotifyAndExtend policy and was left unchanged. Register an IAccessReviewNotifier, or change the campaign's expiry policy.")]
+	private static partial void LogNotifierNotAvailable(ILogger logger, string campaignId);
+
+	[LoggerMessage(EventId = 3532, Level = LogLevel.Error, Message = "Campaign '{CampaignId}' was left open: its unreviewed grants were not all revoked, so it is not recorded as completed. The preceding entries name what could not be revoked.")]
+	private static partial void LogCampaignLeftOpenAfterIncompleteRevocation(ILogger logger, string campaignId);
 
 	[LoggerMessage(EventId = 3524, Level = LogLevel.Information, Message = "Revoking {UnreviewedCount} unreviewed items for campaign '{CampaignId}'.")]
 	private static partial void LogRevokeUnreviewedStart(ILogger logger, string campaignId, int unreviewedCount);
 
-	[LoggerMessage(EventId = 3525, Level = LogLevel.Warning, Message = "IGrantStore not available; cannot revoke {UnreviewedCount} unreviewed grants for campaign '{CampaignId}'.")]
+	[LoggerMessage(EventId = 3525, Level = LogLevel.Error, Message = "No IGrantStore is registered; campaign '{CampaignId}' uses the RevokeUnreviewed policy and its {UnreviewedCount} unreviewed grants were left in place, so the campaign was left unchanged rather than recorded as completed. Register an IGrantStore, or change the campaign's expiry policy.")]
 	private static partial void LogGrantStoreNotAvailable(ILogger logger, string campaignId, int unreviewedCount);
 
 	[LoggerMessage(EventId = 3526, Level = LogLevel.Warning, Message = "IGrantQueryStore not available for campaign '{CampaignId}'; cannot query grants by scope.")]

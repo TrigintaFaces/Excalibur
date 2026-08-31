@@ -461,10 +461,7 @@ tests/Shared/Tests.Shared/
 │   └── MessageBuilder.cs
 │
 ├── Conformance/                      (conformance test bases)
-│   ├── DbConformanceTestBase.cs
 │   ├── PersistenceProviderAssertions.cs
-│   ├── PersistenceProviderConformanceTestBase.cs
-│   ├── RetryPolicyConformanceTestBase.cs
 │   ├── EventStore/EventStoreConformanceTestBase.cs
 │   ├── Inbox/InboxStoreConformanceTestBase.cs
 │   └── Outbox/OutboxStoreConformanceTestBase.cs

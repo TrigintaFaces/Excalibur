@@ -43,12 +43,20 @@ public static class PostgresSagaExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddPostgresSagaStore(
 		this IServiceCollection services,
 		Action<PostgresSagaOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
+
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
 
 		_ = services.AddOptions<PostgresSagaOptions>()
 			.Configure(configure)
@@ -57,15 +65,20 @@ public static class PostgresSagaExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresSagaOptions>, PostgresSagaOptionsValidator>());
 
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
 		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
 		// multi-tenant context still wins regardless of composition order.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore threads the resolved ITenantContext into construction (dep-gated: absent
-		// context ⇒ resolution fails closed) AND emits the ITenantScopingCapability<ISagaStore> marker
-		// inseparably (S886 rw2ull (B) — a store built without the ambient tenant is inexpressible here).
-		services.AddTenantScopedStore<ISagaStore, PostgresSagaStore>(
-			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<PostgresSagaStore>(sp, tenantContext));
+		// The remaining constructor dependencies, so this entry point can build its own store rather than
+		// only working in hosts that happen to have composed them already. Both are TryAdd-based and so
+		// defer to a host that registers them itself.
+		_ = services.AddLogging();
+		services.TryAddSingleton<DispatchJsonSerializer>();
+		// AddTenantAwareStore threads the resolved ITenantContext into construction (dep-gated: absent
+		// context ⇒ resolution fails closed, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<ISagaStore> marker inseparably ((B) — a store built without
+		// the ambient tenant is inexpressible here).
+		services.AddTenantAwareStore<ISagaStore, PostgresSagaStore>();
 		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("postgres"));
@@ -85,6 +98,8 @@ public static class PostgresSagaExtensions
 	/// </param>
 	/// <param name="configure">Action to configure the options (used for table names, timeouts, etc.).</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddPostgresSagaStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<NpgsqlConnection>> connectionFactoryProvider,
@@ -94,6 +109,12 @@ public static class PostgresSagaExtensions
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
+
 		_ = services.AddOptions<PostgresSagaOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
@@ -101,19 +122,20 @@ public static class PostgresSagaExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresSagaOptions>, PostgresSagaOptionsValidator>());
 
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
 		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
 		// multi-tenant context still wins regardless of composition order.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<ISagaStore> marker as one inseparable act (S886 rw2ull).
-		services.AddTenantScopedStore<ISagaStore, PostgresSagaStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISagaStore> marker as one inseparable act
+		//.
+		services.AddTenantAwareStore<ISagaStore, PostgresSagaStore>(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<PostgresSagaOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<PostgresSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new PostgresSagaStore(connectionFactory, options, logger, serializer, tenantContext);
+			return new PostgresSagaStore(connectionFactory, options, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>

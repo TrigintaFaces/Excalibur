@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -21,7 +23,8 @@ public static class TenantOptionsServiceCollectionExtensions
 	/// <typeparam name="TOptions">The options type.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The same <paramref name="services"/> instance, for chaining.</returns>
-	public static IServiceCollection AddTenantOptions<TOptions>(this IServiceCollection services)
+	public static IServiceCollection AddTenantOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
+		this IServiceCollection services)
 		where TOptions : class
 	{
 		ArgumentNullException.ThrowIfNull(services);

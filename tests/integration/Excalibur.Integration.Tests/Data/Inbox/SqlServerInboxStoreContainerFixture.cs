@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -26,7 +27,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 public sealed class SqlServerInboxStoreContainerFixture : ContainerFixtureBase
 {
 	private MsSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Gets the schema name for the inbox table (the store's default).
@@ -51,6 +52,7 @@ public sealed class SqlServerInboxStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-inboxstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
@@ -63,47 +65,28 @@ public sealed class SqlServerInboxStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the inbox store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Mirrors the columns the SqlServerInboxStore Insert/Merge/Update/Select requests reference.
-		var createTableSql = $"""
-			IF NOT EXISTS (SELECT * FROM sys.tables t
-				JOIN sys.schemas s ON t.schema_id = s.schema_id
-				WHERE s.name = '{SchemaName}' AND t.name = '{TableName}')
-			BEGIN
-				CREATE TABLE [{SchemaName}].[{TableName}] (
-					[MessageId]     NVARCHAR(255)  NOT NULL,
-					[HandlerType]   NVARCHAR(500)  NOT NULL,
-					[MessageType]   NVARCHAR(500)  NOT NULL,
-					[Payload]       VARBINARY(MAX) NOT NULL,
-					[Metadata]      NVARCHAR(MAX)  NULL,
-					[ReceivedAt]    DATETIMEOFFSET NOT NULL,
-					[ProcessedAt]   DATETIMEOFFSET NULL,
-					[Status]        INT            NOT NULL DEFAULT 0,
-					[LastError]     NVARCHAR(MAX)  NULL,
-					[RetryCount]    INT            NOT NULL DEFAULT 0,
-					[LastAttemptAt] DATETIMEOFFSET NULL,
-					[NextAttemptAt] DATETIMEOFFSET NULL,
-					[CorrelationId] NVARCHAR(255)  NULL,
-					[TenantId]      NVARCHAR(255)  NOT NULL,
-					[Source]        NVARCHAR(255)  NULL,
-					CONSTRAINT [PK_{TableName}] PRIMARY KEY CLUSTERED ([MessageId], [HandlerType], [TenantId])
-				);
-			END
-			""";
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
+		// The MULTI-TENANT schema the package SHIPS -- these tests exercise tenant isolation, and the
+		// store fails fast at startup if the physical schema does not match the registered mode. A
+		// hand-written copy omitted LeaseExpiresAtUtc entirely; a fixture that holds no schema cannot
+		// drift from one.
+		foreach (var script in ShippedSchemaScript.ReadSqlCmdBatches(
+			"src/Excalibur/Excalibur.Inbox.SqlServer/Scripts/001_CreateInboxSchema.MultiTenant.sql"))
+		{
+			await using var command = new SqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

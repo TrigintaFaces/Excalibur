@@ -23,20 +23,13 @@ namespace Excalibur.Outbox.Oracle;
 /// <summary>
 /// Oracle implementation of the outbox store for message persistence and processing.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="OracleOutboxStore" /> class. </remarks>
-/// <param name="db"> Database connection interface. </param>
-/// <param name="options"> Configuration options for the Oracle outbox store. </param>
-/// <param name="logger"> Logger for diagnostic output. </param>
-/// <param name="metrics"> Metrics collector for performance monitoring. </param>
 [SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the Dapper request set, outbox message mapping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
-public sealed partial class OracleOutboxStore(
-	IDb db,
-	IOptions<OracleOutboxStoreOptions> options,
-	ILogger<OracleOutboxStore> logger,
-	OracleOutboxStoreMetrics? metrics = null) : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable
+public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
 {
-	private readonly IDb _db = db ?? throw new ArgumentNullException(nameof(db));
+	private readonly IDb _db;
+
+	private readonly TimeProvider _timeProvider;
 
 	/// <inheritdoc />
 	/// <remarks>
@@ -56,10 +49,45 @@ public sealed partial class OracleOutboxStore(
 	/// </remarks>
 	private static string DispatcherId { get; } = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
 
-	private readonly OracleOutboxStoreOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-	private readonly ILogger<OracleOutboxStore> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly OracleOutboxStoreMetrics _metrics = metrics ?? new OracleOutboxStoreMetrics();
+	private readonly OracleOutboxStoreOptions _options;
+	private readonly ILogger<OracleOutboxStore> _logger;
+	private readonly OracleOutboxStoreMetrics _metrics;
 	private volatile bool _disposed;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="OracleOutboxStore"/> class. The constructor is
+	/// <see langword="internal"/>: consumers register the store via <c>UseOracle()</c> on the outbox builder and resolve it
+	/// through its public interfaces; the framework's own DI factory is the only constructor caller.
+	/// </summary>
+	/// <param name="db"> Database connection interface. </param>
+	/// <param name="options"> Configuration options for the Oracle outbox store. </param>
+	/// <param name="logger"> Logger for diagnostic output. </param>
+	/// <param name="metrics"> Metrics collector for performance monitoring. </param>
+	/// <param name="timeProvider">
+	/// The dispatcher-side clock. It is used for exactly one thing: converting a caller's absolute
+	/// next-attempt instant into the delay it represents, so the delay can be re-anchored on the database's
+	/// <c>SYSTIMESTAMP</c>. Both operands of that subtraction come from this one clock, so the dispatcher's
+	/// offset from the database cancels and no dispatcher clock reaches the persisted gate. Defaults to
+	/// <see cref="TimeProvider.System"/>.
+	/// <para>
+	/// It is deliberately NOT the clock any claim, lease, or floor comparison reads — those are all decided on
+	/// the database's clock. Injecting it here is what lets a test drive this dispatcher's clock arbitrarily
+	/// far from the database's and observe that the gate does not move.
+	/// </para>
+	/// </param>
+	internal OracleOutboxStore(
+		IDb db,
+		IOptions<OracleOutboxStoreOptions> options,
+		ILogger<OracleOutboxStore> logger,
+		OracleOutboxStoreMetrics? metrics = null,
+		TimeProvider? timeProvider = null)
+	{
+		_db = db ?? throw new ArgumentNullException(nameof(db));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_metrics = metrics ?? new OracleOutboxStoreMetrics();
+		_timeProvider = timeProvider ?? TimeProvider.System;
+	}
 
 	/// <summary>
 	/// Saves multiple outbox messages to the database.
@@ -437,7 +465,7 @@ public sealed partial class OracleOutboxStore(
 		ArgumentNullException.ThrowIfNull(message);
 
 		// Canonical conversion (OutboxMessage.FromOutboundMessage) so no stage path can silently drop a persisted
-		// field — TenantId in particular, which the bare ctor omits (bd-cd8h8t).
+		// field — TenantId in particular, which the bare ctor omits.
 		var outboxMessage = OutboxMessage.FromOutboundMessage(message);
 
 		_ = await SaveMessagesAsync(new[] { outboxMessage }, cancellationToken).ConfigureAwait(false);
@@ -535,8 +563,6 @@ public sealed partial class OracleOutboxStore(
 		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -563,10 +589,10 @@ public sealed partial class OracleOutboxStore(
 		};
 
 		// Uniform construction via the single context->message factory so TenantId/Correlation/Causation
-		// are never dropped on a convenience path (xl56kb). The propagated TenantId is persisted to the
+		// are never dropped on a convenience path. The propagated TenantId is persisted to the
 		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
-		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled (bd-cd8h8t).
-		// Derive the routing destination from the message context (cys98n) — falling back to the message
+		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled.
+		// Derive the routing destination from the message context — falling back to the message
 		// type name (the convention the other outbox providers use) rather than a hardcoded "default", so
 		// a consumer's configured destination is persisted and honored on dispatch.
 		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().Name;
@@ -589,8 +615,6 @@ public sealed partial class OracleOutboxStore(
 	/// <returns> Collection of unsent outbound messages. </returns>
 	[RequiresUnreferencedCode(
 		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresDynamicCode(
 		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
@@ -654,6 +678,11 @@ public sealed partial class OracleOutboxStore(
 					// re-stamps CreatedAt to UtcNow, so the drain reload must restore it or the caller's
 					// timestamp (and its ordering/audit fidelity) is lost on the consumer path.
 					CreatedAt = msg.CreatedAt,
+					// Same reason, and the consequence is worse than a lost timestamp: the ctor defaults the
+					// count to zero, so a reload that does not restore it hands every drain a message that
+					// has never been tried. The retry ceiling is compared against this value, so an
+					// unrestored count is a message that can never dead-letter and retries for ever.
+					RetryCount = msg.Attempts,
 				};
 
 				outboundMessages.Add(outboundMessage);
@@ -697,8 +726,6 @@ public sealed partial class OracleOutboxStore(
 	/// </remarks>
 	[RequiresUnreferencedCode(
 		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresDynamicCode(
 		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
@@ -846,7 +873,7 @@ public sealed partial class OracleOutboxStore(
 		// The message stays a RETRIEVABLE failed message (error_message set); the dead-letter transition at the
 		// retry ceiling is the OutboxProcessor's job (RouteToDeadLetterQueueAsync, attempts >= MaxAttempts), NOT
 		// the store's — matching the InMemory reference contract (Liskov: one load-bearing postcondition per
-		// family; parity with the Postgres outbox, u080fa).
+		// family; parity with the Postgres outbox).
 	}
 
 	/// <summary>
@@ -876,10 +903,21 @@ public sealed partial class OracleOutboxStore(
 		// Presenting this dispatcher's identity restricts the unreserve to a message this caller actually
 		// holds (or one nobody holds) — see SetOutboxMessageBackoff for why an unconditional unreserve is a
 		// double-delivery bug on this path too, not just the mark-failed one.
+		// The caller's schedule crosses the wire as a DELAY, never as an instant. The caller computed the
+		// instant on this dispatcher's clock and the claim predicate reads the stored gate back on the
+		// DATABASE's, so persisting the instant compared two machines that need not agree — and a dispatcher
+		// running ahead of the database then withheld a message for the whole skew after its backoff had
+		// genuinely elapsed. Subtracting here puts both operands on one clock, so the offset cancels; the
+		// request re-anchors the surviving duration on SYSTIMESTAMP.
+		var nextAttemptDelaySeconds = (nextAttemptAt - _timeProvider.GetUtcNow()).TotalSeconds;
+
 		var req = new SetOutboxMessageBackoff(
 			messageId,
-			nextAttemptAt,
+			nextAttemptDelaySeconds,
 			DispatcherId,
+			// The floor travels with the computed schedule rather than being displaced by it — see the request
+			// for why binding the caller's schedule alone made the preferred path ignore a configured floor.
+			_options.FailureBackoffFloorSeconds,
 			_options.QualifiedOutboxTableName,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
@@ -898,7 +936,7 @@ public sealed partial class OracleOutboxStore(
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Collection of failed outbound messages. </returns>
-	public async ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan,
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan,
 		int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -951,7 +989,7 @@ public sealed partial class OracleOutboxStore(
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Collection of scheduled outbound messages. </returns>
-	public async ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize,
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize,
 		CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -1044,7 +1082,7 @@ public sealed partial class OracleOutboxStore(
 	/// </summary>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Statistics about the outbox store including message counts and oldest pending age. </returns>
-	public async ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		LogGetStatistics();
 

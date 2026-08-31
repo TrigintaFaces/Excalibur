@@ -51,6 +51,8 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 
 	private readonly string _queueUrl;
 	private readonly AwsSqsVisibilityHeartbeatOptions _heartbeat;
+	private readonly int _waitTimeSeconds;
+	private readonly int? _visibilityTimeoutSeconds;
 	private readonly int? _maxPayloadBytes;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
@@ -67,13 +69,22 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 	/// The maximum inbound-payload length, in bytes, enforced before the body is materialized;
 	/// <see langword="null"/> opts out of the size limit. Defaults to the SQS provider ceiling (256 KiB).
 	/// </param>
+	/// <param name="waitTimeSeconds">
+	/// The long-poll wait time, in seconds (0-20), applied to every receive call.
+	/// </param>
+	/// <param name="visibilityTimeoutSeconds">
+	/// The visibility timeout, in seconds, applied to received messages, or <see langword="null"/> to
+	/// leave the queue's own default in force.
+	/// </param>
 	public SqsTransportSubscriber(
 		IAmazonSQS sqsClient,
 		string source,
 		string queueUrl,
 		AwsSqsVisibilityHeartbeatOptions heartbeatOptions,
 		ILogger<SqsTransportSubscriber> logger,
-		int? maxPayloadBytes = AwsSqsTransportAdapterOptions.SqsMaxPayloadBytes)
+		int? maxPayloadBytes = AwsSqsTransportAdapterOptions.SqsMaxPayloadBytes,
+		int waitTimeSeconds = 20,
+		int? visibilityTimeoutSeconds = null)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
@@ -81,6 +92,10 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 		_heartbeat = heartbeatOptions ?? throw new ArgumentNullException(nameof(heartbeatOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_maxPayloadBytes = maxPayloadBytes;
+		_waitTimeSeconds = Math.Clamp(waitTimeSeconds, 0, 20);
+		_visibilityTimeoutSeconds = visibilityTimeoutSeconds is { } visibility
+			? Math.Clamp(visibility, 0, MaxVisibilityTimeoutSeconds)
+			: null;
 
 		// Enforce the heartbeat cross-property invariants at the consumption point, independent of how the
 		// options were configured. The builder's ConfigureVisibilityHeartbeat only runs Validate() when the
@@ -110,10 +125,15 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 				{
 					QueueUrl = _queueUrl,
 					MaxNumberOfMessages = 10,
-					WaitTimeSeconds = 20,
+					WaitTimeSeconds = _waitTimeSeconds,
 					MessageAttributeNames = ["All"],
 					MessageSystemAttributeNames = ["All"],
 				};
+
+				if (_visibilityTimeoutSeconds is { } visibilityTimeout)
+				{
+					request.VisibilityTimeout = visibilityTimeout;
+				}
 
 				var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken)
 					.ConfigureAwait(false);

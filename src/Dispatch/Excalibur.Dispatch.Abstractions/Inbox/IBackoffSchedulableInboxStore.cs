@@ -45,7 +45,7 @@ public interface IBackoffSchedulableInboxStore
 	/// </summary>
 	/// <remarks>
 	/// After this call, the entry MUST NOT be returned by the re-admission claim
-	/// (<see cref="IInboxStoreAdmin.GetFailedEntriesAsync"/>) until <paramref name="nextAttemptAt"/> has
+	/// (<see cref="IInboxStoreAdmin.GetAllTenantsFailedEntriesAsync"/>) until <paramref name="nextAttemptAt"/> has
 	/// elapsed, so the computed backoff delay genuinely throttles re-delivery.
 	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message that failed.</param>

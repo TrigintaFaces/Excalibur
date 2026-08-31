@@ -32,7 +32,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresSnapshotStore(
 			connectionString: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -41,7 +42,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresSnapshotStore(
 			connectionString: "Host=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -50,7 +52,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act
 		var store = new PostgresSnapshotStore(
 			connectionString: "Host=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -66,7 +69,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresSnapshotStore(
 			dataSource: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -80,7 +84,8 @@ public sealed class PostgresSnapshotStoreShould
 			// Act & Assert
 			_ = Should.Throw<ArgumentNullException>(() => new PostgresSnapshotStore(
 				dataSource,
-				logger: null!));
+				logger: null!,
+				tenantContext: TestTenantContext.SingleTenantDefault));
 		}
 		finally
 		{
@@ -99,7 +104,8 @@ public sealed class PostgresSnapshotStoreShould
 			// Act
 			var store = new PostgresSnapshotStore(
 				dataSource,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			// Assert
 			_ = store.ShouldNotBeNull();
@@ -126,11 +132,13 @@ public sealed class PostgresSnapshotStoreShould
 			// Act
 			var simpleStore = new PostgresSnapshotStore(
 				connectionString,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			var advancedStore = new PostgresSnapshotStore(
 				dataSource,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			// Assert - Both should be valid instances
 			_ = simpleStore.ShouldNotBeNull();
@@ -154,7 +162,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act - Creating instance should not throw
 		var store = new PostgresSnapshotStore(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -171,7 +180,7 @@ public sealed class PostgresSnapshotStoreShould
 		var connectionString = "Host=localhost;Port=5432;Database=snapshots;Username=user;Password=pass";
 
 		// Act
-		var store = new PostgresSnapshotStore(connectionString, _logger);
+		var store = new PostgresSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -184,7 +193,7 @@ public sealed class PostgresSnapshotStoreShould
 		var connectionString = "Host=localhost;Database=snapshots;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=100";
 
 		// Act
-		var store = new PostgresSnapshotStore(connectionString, _logger);
+		var store = new PostgresSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -197,7 +206,7 @@ public sealed class PostgresSnapshotStoreShould
 		var connectionString = "Host=localhost;Database=snapshots;SSL Mode=Prefer;Trust Server Certificate=true";
 
 		// Act
-		var store = new PostgresSnapshotStore(connectionString, _logger);
+		var store = new PostgresSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -216,7 +225,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new PostgresSnapshotStore(
 			connectionString: string.Empty,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -228,7 +238,8 @@ public sealed class PostgresSnapshotStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new PostgresSnapshotStore(
 			connectionString: "   ",
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	#endregion Empty Connection String Tests
@@ -239,7 +250,7 @@ public sealed class PostgresSnapshotStoreShould
 	public void Store_ImplementsISnapshotStore()
 	{
 		// Arrange
-		var store = new PostgresSnapshotStore("Host=localhost;Database=TestDb", _logger);
+		var store = new PostgresSnapshotStore("Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<ISnapshotStore>();
@@ -259,7 +270,7 @@ public sealed class PostgresSnapshotStoreShould
 		try
 		{
 			// Act
-			var store = new PostgresSnapshotStore(dataSource, _logger);
+			var store = new PostgresSnapshotStore(dataSource, _logger, TestTenantContext.SingleTenantDefault);
 
 			// Assert
 			_ = store.ShouldNotBeNull();

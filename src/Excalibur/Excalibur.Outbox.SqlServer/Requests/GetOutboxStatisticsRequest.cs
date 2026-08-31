@@ -14,6 +14,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to get outbox statistics.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"estate-wide counters for operational monitoring: the store method that reaches this request takes no tenant argument, and this store reads no ambient tenant context, so there is no tenant to count by. The figures describe the whole table and are reported to an operator, not to a tenant")]
 public sealed class GetOutboxStatisticsRequest : DataRequestBase<IDbConnection, OutboxStatistics>
 {
 	/// <summary>

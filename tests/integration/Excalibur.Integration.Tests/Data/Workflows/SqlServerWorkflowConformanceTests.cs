@@ -52,7 +52,7 @@ public sealed class SqlServerWorkflowConformanceTests
             "SQL Server durable-execution conformance runs against real infrastructure and is never skipped");
 
         // Consumer-default (connectionString, logger) constructor; the schema was created in InitializeAsync.
-        return new SqlServerEventStore(_fixture.ConnectionString, NullLogger<SqlServerEventStore>.Instance);
+        return new SqlServerEventStore(_fixture.ConnectionString, NullLogger<SqlServerEventStore>.Instance, SingleTenantTestContext.Instance);
     }
 
     /// <inheritdoc/>
@@ -72,4 +72,8 @@ public sealed class SqlServerWorkflowConformanceTests
     [Fact]
     public override Task DelayedRestart_ResumesAndCompletesExactlyOnce() =>
         base.DelayedRestart_ResumesAndCompletesExactlyOnce();
+
+    [Fact]
+    public override Task ConformanceSuite_ShouldWireEveryArm() =>
+    	base.ConformanceSuite_ShouldWireEveryArm();
 }

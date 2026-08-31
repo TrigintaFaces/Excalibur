@@ -51,7 +51,7 @@ public sealed class DataChangeEventProcessorHandlerLookupShould : UnitTestBase
 			provider.GetRequiredService<IHostApplicationLifetime>(),
 			dbConfig,
 			new CdcRepository(new SqlConnection(TestConnectionString)),
-			new SqlConnection(TestConnectionString),
+			() => new SqlConnection(TestConnectionString),
 			Options.Create(new SqlServerCdcStateStoreOptions()),
 			provider,
 			A.Fake<IDataAccessPolicyFactory>(),

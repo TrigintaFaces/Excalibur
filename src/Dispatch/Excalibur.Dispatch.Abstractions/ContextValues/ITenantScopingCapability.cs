@@ -26,10 +26,12 @@ namespace Excalibur.Dispatch;
 /// <para>
 /// Providers that thread the ambient tenant through their store implementation register this marker
 /// through the dep-gated seams on <c>TenantScopedStoreServiceCollectionExtensions</c>
-/// (<c>AddTenantScopedStore</c> / <c>AddTenantScopedProjectionStore</c>), co-located with the store
-/// registration. A provider that does not honor the tenant discriminator simply does not register it,
-/// causing row-discriminator wiring to reject the configuration rather than silently returning
-/// cross-tenant data.
+/// (<c>AddTenantAwareStore</c> / <c>AddTenantScopedProjectionStore</c>), co-located with the store
+/// registration. <c>AddTenantAwareStore</c> derives the choice of this marker versus
+/// <see cref="ITenantPartitionedCapability{TContract}"/> from the store's own constructor shape, so a
+/// provider never names which mechanism applies — a provider that does not honor the tenant discriminator
+/// simply has a constructor with no <see cref="ITenantContext"/> parameter, causing row-discriminator
+/// wiring to reject the configuration rather than silently returning cross-tenant data.
 /// </para>
 /// <para>
 /// <b>Structural lock.</b> The <see cref="AssertWiredThroughDepGatedSeam"/> member is

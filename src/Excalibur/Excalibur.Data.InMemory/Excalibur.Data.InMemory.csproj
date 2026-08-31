@@ -33,4 +33,11 @@
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- DataInMemoryEventId is internal: its constants are logging plumbing, not consumer
+         contract. These sibling packages emit the same event ids. -->
+    <InternalsVisibleTo Include="Excalibur.Data.InMemory.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.InMemory" />
+  </ItemGroup>
+
 </Project>

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Globalization;
 
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
@@ -34,6 +35,19 @@ namespace Excalibur.Compliance.Aws;
 /// </list>
 /// </para>
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+	"Maintainability",
+	"CA1506:Avoid excessive class coupling",
+	Justification =
+		"Deliberate, named trade rather than an oversight. This type sits at 97 against a threshold of 96, "
+		+ "and the change that crossed it fixes data loss: rotation used to disable the superseded key, "
+		+ "which AWS documents as unusable for every cryptographic operation including Decrypt, so all "
+		+ "ciphertext under the previous key became unreadable. Reading version, purpose and superseded "
+		+ "state back from KMS costs a few more SDK types. The threshold is a smell and the defect was "
+		+ "real, so the defect wins and the coupling becomes tracked debt. The genuine remedy is splitting "
+		+ "this class along the four interfaces it implements, which is a refactor rather than a one-line "
+		+ "change and is tracked separately; the tag vocabulary has already been extracted to AwsKmsKeyTags "
+		+ "as the first step.")]
 public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
 {
 	private readonly IAmazonKeyManagementService _kmsClient;
@@ -88,7 +102,9 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 				new DescribeKeyRequest { KeyId = alias },
 				cancellationToken).ConfigureAwait(false);
 
-			var metadata = MapToKeyMetadata(keyId, response.KeyMetadata);
+			var tags = await AwsKmsKeyTags.ReadAsync(_kmsClient, response.KeyMetadata.KeyId, cancellationToken)
+				.ConfigureAwait(false);
+			var metadata = MapToKeyMetadata(keyId, response.KeyMetadata, tags);
 
 			_ = _metadataCache.Set(cacheKey, metadata, TimeSpan.FromSeconds(_options.Cache.MetadataCacheDurationSeconds));
 			CacheAliasMapping(keyId, response.KeyMetadata.KeyId);
@@ -113,27 +129,32 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrEmpty(keyId);
 
-		// AWS KMS handles key versions internally via key rotation
-		// Each DescribeKey returns the current (latest) key metadata
-		// For versioning, we track rotation events in the key's metadata
-		var metadata = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
-
-		if (metadata is null)
+		// Every version has a durable alias of its own, created at rotation, so a superseded version stays
+		// reachable after the unversioned alias moves on. Previously only the current key was addressable
+		// and every other version answered null.
+		try
 		{
+			var response = await _kmsClient.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = _options.BuildVersionAlias(keyId, version) },
+				cancellationToken).ConfigureAwait(false);
+
+			var tags = await AwsKmsKeyTags.ReadAsync(_kmsClient, response.KeyMetadata.KeyId, cancellationToken)
+				.ConfigureAwait(false);
+
+			return MapToKeyMetadata(keyId, response.KeyMetadata, tags);
+		}
+		catch (NotFoundException)
+		{
+			// A key created before per-version aliases existed has only its unversioned alias, and that is
+			// version 1 by definition. Fall back so an upgrade does not lose sight of an existing key.
+			if (version == 1)
+			{
+				return await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+			}
+
+			LogVersionsNotAvailable(version, keyId);
 			return null;
 		}
-
-		// AWS KMS doesn't expose version numbers directly
-		// Version 1 is always the current active key
-		if (version == metadata.Version)
-		{
-			return metadata;
-		}
-
-		// For older versions, we cannot retrieve them directly from AWS KMS
-		// as key material versions are managed internally
-		LogVersionsNotAvailable(version, keyId);
-		return null;
 	}
 
 	/// <inheritdoc/>
@@ -156,7 +177,12 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 				var aliasResponse = await _kmsClient.ListAliasesAsync(listRequest, cancellationToken)
 					.ConfigureAwait(false);
 
-				foreach (var alias in aliasResponse.Aliases)
+				// A region holding no aliases answers with no Aliases collection at all, not an empty one:
+				// this SDK major leaves collection properties null unless the service populated them. That
+				// now reaches GetActiveKeyAsync, whose documented answer for "nothing here" is null -- so an
+				// unguarded iteration would throw out of the getter on exactly the empty account it is meant
+				// to answer null for.
+				foreach (var alias in aliasResponse.Aliases ?? [])
 				{
 					// Filter to our aliases only
 					if (!alias.AliasName.StartsWith($"alias/{_options.KeyAliasPrefix}", StringComparison.Ordinal))
@@ -175,8 +201,11 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 						continue;
 					}
 
-					// Filter by purpose if specified
-					if (purpose is not null && !keyId.Contains(purpose, StringComparison.OrdinalIgnoreCase))
+					// Skip per-version aliases. They exist so a superseded version stays addressable after
+					// the unversioned alias moves on; they are an addressing mechanism, not additional
+					// logical keys. Enumerating them here would report one key per version, each under a
+					// synthetic id ending in "-v<n>".
+					if (VersionAliasSuffix().IsMatch(keyId))
 					{
 						continue;
 					}
@@ -187,7 +216,20 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 							new DescribeKeyRequest { KeyId = alias.TargetKeyId },
 							cancellationToken).ConfigureAwait(false);
 
-						var metadata = MapToKeyMetadata(keyId, describeResponse.KeyMetadata);
+						var tags = await AwsKmsKeyTags.ReadAsync(_kmsClient, alias.TargetKeyId, cancellationToken)
+							.ConfigureAwait(false);
+
+						// Filter on the recorded purpose. This previously matched the purpose against a
+						// SUBSTRING OF THE KEY ID, which both missed keys whose id did not contain the word
+						// and matched keys whose id happened to -- a key named "payments-encryption" with
+						// purpose "signing" satisfied a query for "encryption".
+						if (purpose is not null
+							&& !string.Equals(AwsKmsKeyTags.PurposeOf(tags), purpose, StringComparison.OrdinalIgnoreCase))
+						{
+							continue;
+						}
+
+						var metadata = MapToKeyMetadata(keyId, describeResponse.KeyMetadata, tags);
 
 						// Filter by status if specified
 						if (status.HasValue && metadata.Status != status.Value)
@@ -319,7 +361,13 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 				new ScheduleKeyDeletionRequest { KeyId = kmsKeyId, PendingWindowInDays = effectiveWindow },
 				cancellationToken).ConfigureAwait(false);
 
-			await DeleteAliasAndClearCacheAsync(alias, keyId, cancellationToken).ConfigureAwait(false);
+			// Keep the alias. A scheduled key remains recoverable until its window elapses, and the contract
+			// is explicit that it MUST NOT be attested as erased before then -- which requires that it stay
+			// observable. Deleting the alias here made the key vanish from this provider's view the instant
+			// deletion was scheduled, so a compliance caller could not distinguish "scheduled, still
+			// recoverable" from "gone", which is the distinction the outcome exists to report. The alias is
+			// removed only when destruction has actually completed.
+			_metadataCache.Remove($"key:{keyId}");
 
 			LogKeyScheduledForDeletion(keyId, effectiveWindow);
 
@@ -370,10 +418,32 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		{
 			var alias = _options.BuildKeyAlias(keyId);
 
-			// Disable the key
+			// Disable the current version.
 			_ = await _kmsClient.DisableKeyAsync(
 				new DisableKeyRequest { KeyId = alias },
 				cancellationToken).ConfigureAwait(false);
+
+			// And every earlier version. Suspension is a quarantine of the whole logical key -- a
+			// compromised key is compromised in all its versions -- whereas the unversioned alias names only
+			// the newest. Leaving prior versions enabled would let a suspended key keep decrypting through
+			// its own version aliases, and would report those versions as merely rotated-out rather than
+			// quarantined. Superseded versions stay enabled through ROTATION, deliberately, so they can
+			// decrypt; suspension is the case where that must stop.
+			var current = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+
+			for (var priorVersion = 1; priorVersion < (current?.Version ?? 1); priorVersion++)
+			{
+				try
+				{
+					_ = await _kmsClient.DisableKeyAsync(
+						new DisableKeyRequest { KeyId = _options.BuildVersionAlias(keyId, priorVersion) },
+						cancellationToken).ConfigureAwait(false);
+				}
+				catch (NotFoundException)
+				{
+					// A version created before per-version aliases existed has none. Nothing to disable.
+				}
+			}
 
 			// Update tags with suspension reason
 			string? kmsKeyId = null;
@@ -453,23 +523,23 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// Build key ID based on purpose
-		var keyId = purpose ?? "default";
-		var metadata = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+		// Query by PURPOSE, which is what the caller asked about. This previously used the purpose string
+		// as a key IDENTIFIER, so GetActiveKeyAsync("encryption") looked for a key literally named
+		// "encryption" and returned null for every real deployment -- silently, because null is also the
+		// documented answer for "no active key exists".
+		var candidates = await ListKeysAsync(KeyStatus.Active, purpose, cancellationToken).ConfigureAwait(false);
 
-		if (metadata?.Status == KeyStatus.Active)
-		{
-			return metadata;
-		}
+		// Newest active key wins. Rotation marks the superseded key DecryptOnly, so it is already excluded
+		// by the status filter rather than by ordering.
+		return candidates
+			.OrderByDescending(static k => k.Version)
+			.ThenByDescending(static k => k.CreatedAt)
+			.FirstOrDefault();
 
-		// No active key found - create one if purpose is null (default key)
-		if (purpose is null && metadata is null)
-		{
-			var result = await RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, cancellationToken).ConfigureAwait(false);
-			return result.NewKey;
-		}
-
-		return null;
+		// Deliberately NOT creating a key here. This is a getter, and it previously provisioned a KMS
+		// customer master key when it found none -- a durable, billable, security-relevant side effect from
+		// a query, and one that made the documented "or null" answer unreachable on that path. A caller who
+		// wants a key created asks for that explicitly, through RotateKeyAsync.
 	}
 
 	/// <inheritdoc/>
@@ -552,7 +622,20 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		// AWS KMS supports automatic rotation for symmetric keys
 		// EnableKeyRotation triggers rotation within the next year
 		// For immediate rotation, we need to create a new key and update the alias
-		if (!_aliasToKeyIdMap.TryGetValue(keyId, out var kmsKeyId))
+		// Resolve the current key from KMS rather than from the in-process cache. The cache is bounded, so
+		// an eviction previously turned a rotation of a key that exists into a flat "could not resolve"
+		// failure -- a cache size reporting a missing key. The alias is the durable name; ask for it.
+		string kmsKeyId;
+
+		try
+		{
+			var described = await _kmsClient.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = alias },
+				cancellationToken).ConfigureAwait(false);
+
+			kmsKeyId = described.KeyMetadata.KeyId;
+		}
+		catch (NotFoundException)
 		{
 			return KeyRotationResult.Failed("Could not resolve KMS key ID");
 		}
@@ -572,24 +655,40 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 			LogEnabledAutoRotation(keyId);
 		}
 
-		// For immediate rotation, create a new key and update the alias
-		var newKey = await CreateKmsKeyAsync(keyId, existingKey.Purpose, cancellationToken).ConfigureAwait(false);
+		var newVersion = existingKey.Version + 1;
 
-		// Update alias to point to new key
+		// Rotation creates a NEW CMK and repoints the alias, so every version is a distinct key with its
+		// own ARN. That is what makes versions representable here at all.
+		var newKey = await CreateKmsKeyAsync(keyId, existingKey.Purpose, newVersion, cancellationToken)
+			.ConfigureAwait(false);
+
+		// Give the new version a durable name of its own before anything points at it. Without this the
+		// superseded key becomes unreachable the moment the alias moves.
+		_ = await _kmsClient.CreateAliasAsync(
+			new CreateAliasRequest
+			{
+				AliasName = _options.BuildVersionAlias(keyId, newVersion),
+				TargetKeyId = newKey.KeyId,
+			},
+			cancellationToken).ConfigureAwait(false);
+
+		// New encryptions now resolve to the new key.
 		_ = await _kmsClient.UpdateAliasAsync(
 			new UpdateAliasRequest { AliasName = alias, TargetKeyId = newKey.KeyId },
 			cancellationToken).ConfigureAwait(false);
 
-		// Disable old key (keeps it for decryption)
-		_ = await _kmsClient.DisableKeyAsync(
-			new DisableKeyRequest { KeyId = kmsKeyId },
-			cancellationToken).ConfigureAwait(false);
+		// Mark the superseded key rather than disabling it. AWS documents a disabled key as unusable for
+		// EVERY cryptographic operation, Decrypt included, so disabling here made all ciphertext under the
+		// previous key undecryptable until an operator manually re-enabled it. The key stays enabled so it
+		// can still decrypt, and the tag records that it must not receive new encryptions -- which is what
+		// DecryptOnly means.
+		await AwsKmsKeyTags.MarkSupersededAsync(_kmsClient, kmsKeyId, cancellationToken).ConfigureAwait(false);
 
 		// Clear cache and update mapping
 		_metadataCache.Remove($"key:{keyId}");
 		CacheAliasMapping(keyId, newKey.KeyId);
 
-		var newMetadata = MapToKeyMetadata(keyId, newKey);
+		var newMetadata = MapToKeyMetadata(keyId, newKey) with { Version = newVersion, Purpose = existingKey.Purpose };
 		var previousMetadata = existingKey with { Status = KeyStatus.DecryptOnly };
 
 		LogRotatedKey(keyId, newKey.KeyId);
@@ -613,7 +712,19 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		string? purpose,
 		CancellationToken cancellationToken)
 	{
-		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, cancellationToken).ConfigureAwait(false);
+		var kmsKey = await CreateKmsKeyAsync(keyId, purpose, version: 1, cancellationToken).ConfigureAwait(false);
+
+		// Version 1 needs its own alias too, not only versions produced by rotation. Without it the first
+		// version becomes unaddressable the moment a rotation moves the unversioned alias, and a request for
+		// version 1 silently resolves to whatever is current.
+		_ = await _kmsClient.CreateAliasAsync(
+			new CreateAliasRequest
+			{
+				AliasName = _options.BuildVersionAlias(keyId, 1),
+				TargetKeyId = kmsKey.KeyId,
+			},
+			cancellationToken).ConfigureAwait(false);
+
 
 		// Create alias
 		_ = await _kmsClient.CreateAliasAsync(
@@ -641,6 +752,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 	private async Task<AwsKeyMetadata> CreateKmsKeyAsync(
 		string keyId,
 		string? purpose,
+		int version,
 		CancellationToken cancellationToken)
 	{
 		var request = new CreateKeyRequest
@@ -653,7 +765,12 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 			{
 				new() { TagKey = "Application", TagValue = "Excalibur.Dispatch" },
 				new() { TagKey = "KeyId", TagValue = keyId },
-				new() { TagKey = "CreatedAt", TagValue = DateTimeOffset.UtcNow.ToString("O") }
+				new() { TagKey = "CreatedAt", TagValue = DateTimeOffset.UtcNow.ToString("O") },
+
+				// The version lives on the key. AWS symmetric CMKs carry no consumer-visible version, and
+				// this provider rotates by creating a NEW CMK and repointing the alias -- so the version is
+				// ours to record, somewhere that survives a restart and is visible to every instance.
+				new() { TagKey = AwsKmsKeyTags.Version, TagValue = version.ToString(CultureInfo.InvariantCulture) },
 			}
 		};
 
@@ -671,25 +788,34 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 		return response.KeyMetadata;
 	}
 
-	private DispatchKeyMetadata MapToKeyMetadata(string keyId, AwsKeyMetadata kmsMetadata)
+	private DispatchKeyMetadata MapToKeyMetadata(
+		string keyId,
+		AwsKeyMetadata kmsMetadata,
+		IReadOnlyDictionary<string, string>? tags = null)
 	{
 		// AWS SDK KeyState is a ConstantClass, not an enum - use Value comparison
+		var superseded = AwsKmsKeyTags.IsSuperseded(tags);
 		var stateValue = kmsMetadata.KeyState?.Value;
 		var status = stateValue switch
 		{
-			"Enabled" => KeyStatus.Active,
+			// An enabled key that has been rotated out is DecryptOnly, not Active: it must still decrypt
+			// existing ciphertext and must not receive new encryptions.
+			"Enabled" => superseded ? KeyStatus.DecryptOnly : KeyStatus.Active,
+
+			// Disabled now means only what an operator did deliberately. Rotation no longer disables, so a
+			// routinely superseded key is no longer indistinguishable from a quarantined one.
 			"Disabled" => KeyStatus.Suspended,
 			"PendingDeletion" => KeyStatus.PendingDestruction,
-			"PendingImport" => KeyStatus.Active,
+			"PendingImport" => superseded ? KeyStatus.DecryptOnly : KeyStatus.Active,
 			"PendingReplicaDeletion" => KeyStatus.PendingDestruction,
 			"Unavailable" => KeyStatus.Suspended,
-			_ => KeyStatus.Active
+			_ => superseded ? KeyStatus.DecryptOnly : KeyStatus.Active
 		};
 
 		return new DispatchKeyMetadata
 		{
 			KeyId = keyId,
-			Version = 1, // AWS KMS manages versions internally
+			Version = AwsKmsKeyTags.VersionOf(tags),
 			Status = status,
 			Algorithm = EncryptionAlgorithm.Aes256Gcm, // SYMMETRIC_DEFAULT is AES-256-GCM
 			CreatedAt = kmsMetadata.CreationDate is { } creationDate
@@ -699,10 +825,17 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKey
 				? new DateTimeOffset(deletionDate)
 				: null,
 			LastRotatedAt = null, // AWS KMS doesn't expose this directly
-			Purpose = null, // Would need to fetch from tags
+			// Read back from the tag this provider writes at creation. Returning null meant a consumer
+			// could not filter by purpose even client-side, on data we had already stored.
+			Purpose = AwsKmsKeyTags.PurposeOf(tags),
 			IsFipsCompliant = _options.UseFipsEndpoint
 		};
 	}
+
+	/// <summary>Matches the "-v&lt;n&gt;" suffix that marks a per-version alias.</summary>
+	/// <returns>The compiled matcher.</returns>
+	[System.Text.RegularExpressions.GeneratedRegex(@"-v\d+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+	private static partial System.Text.RegularExpressions.Regex VersionAliasSuffix();
 
 	private string? ExtractKeyIdFromAlias(string aliasName)
 	{

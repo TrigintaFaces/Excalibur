@@ -141,9 +141,18 @@ public sealed class RegexDataMasker : IDataMasker
 		// Serialize to JSON, mask the string, and deserialize back
 		// This approach preserves the original object structure while masking all string values
 		var json = JsonSerializer.Serialize(obj, _jsonOptions);
-		var maskedJson = MaskJsonValues(json, obj.GetType());
+		var maskedJson = MaskJsonValues(json, GetMaskRootType(obj));
 		return JsonSerializer.Deserialize<T>(maskedJson, _jsonOptions)!;
 	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:UnrecognizedReflectionPattern",
+		Justification = "object.GetType() over a consumer instance carries no DAM guarantee. Masking discovers "
+			+ "[PersonalData(MaskInLogs)]/[Sensitive(MaskInLogs)] properties by reflection, which is why "
+			+ "MaskObject is annotated RequiresUnreferencedCode; a consumer trimming those annotations away "
+			+ "gets fewer masked fields, so annotated types must be rooted.")]
+	private static Type GetMaskRootType(object instance) => instance.GetType();
 
 	private static IEnumerable<PropertyInfo> GetMaskableProperties(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
@@ -307,11 +316,9 @@ public sealed class RegexDataMasker : IDataMasker
 		});
 	}
 
-	[UnconditionalSuppressMessage("Trimming", "IL2067:Parameter does not satisfy DAM on GetMaskableProperties parameter",
-		Justification = "MaskObject<T> is already annotated with [RequiresUnreferencedCode]. Callers accept the trimming risk.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2072:GetType() return does not satisfy DAM on GetMaskableProperties parameter",
-		Justification = "MaskObject<T> is already annotated with [RequiresUnreferencedCode]. Callers accept the trimming risk.")]
-	private string MaskJsonValues(string json, Type rootType)
+	private string MaskJsonValues(
+		string json,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type rootType)
 	{
 		// Get properties that need masking
 		var maskableProperties = GetMaskableProperties(rootType);

@@ -5,7 +5,7 @@
 | Interface | Purpose | Methods |
 |-----------|---------|---------|
 | `IOutboxStore` | Core outbox operations | StageMessageAsync, EnqueueAsync, GetUnsentMessagesAsync, MarkSentAsync, MarkFailedAsync |
-| `IOutboxStoreAdmin` | Admin/diagnostic operations | GetFailedMessagesAsync, GetScheduledMessagesAsync, CleanupAllTenantsSentMessagesAsync, GetStatisticsAsync |
+| `IOutboxStoreAdmin` | Admin/diagnostic operations | GetAllTenantsFailedMessagesAsync, GetAllTenantsScheduledMessagesAsync, CleanupAllTenantsSentMessagesAsync, GetAllTenantsStatisticsAsync |
 | `IOutboxStoreBatch` | Batch operations | MarkBatchSentAsync, MarkBatchFailedAsync |
 
 ## Rationale

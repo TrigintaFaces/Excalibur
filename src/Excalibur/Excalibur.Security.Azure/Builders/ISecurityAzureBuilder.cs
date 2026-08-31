@@ -4,7 +4,7 @@
 namespace Excalibur.Security.Azure;
 
 /// <summary>
-/// Fluent builder interface for configuring Azure security services (Key Vault credential store, Service Bus validation).
+/// Fluent builder interface for configuring the Azure Key Vault credential store.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,9 +18,6 @@ public interface ISecurityAzureBuilder
 
 	/// <summary>Sets the key prefix for Key Vault secrets.</summary>
 	ISecurityAzureBuilder KeyPrefix(string keyPrefix);
-
-	/// <summary>Enables Azure Service Bus security validation.</summary>
-	ISecurityAzureBuilder EnableServiceBusValidation(bool enable = true);
 
 	/// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
 	ISecurityAzureBuilder BindConfiguration(string sectionPath);

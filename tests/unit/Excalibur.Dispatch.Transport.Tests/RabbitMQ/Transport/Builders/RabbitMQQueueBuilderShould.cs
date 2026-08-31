@@ -211,34 +211,6 @@ public sealed class RabbitMQQueueBuilderShould : UnitTestBase
 	#region PrefetchCount Tests
 
 	[Fact]
-	public void PrefetchCount_SetCountInOptions()
-	{
-		// Arrange
-		var options = new RabbitMQQueueOptions();
-		var builder = new RabbitMQQueueBuilder(options);
-
-		// Act
-		_ = builder.PrefetchCount(20);
-
-		// Assert
-		options.PrefetchCount.ShouldBe((ushort)20);
-	}
-
-	[Fact]
-	public void PrefetchCount_AllowZero()
-	{
-		// Arrange
-		var options = new RabbitMQQueueOptions();
-		var builder = new RabbitMQQueueBuilder(options);
-
-		// Act - Should not throw
-		_ = builder.PrefetchCount(0);
-
-		// Assert
-		options.PrefetchCount.ShouldBe((ushort)0);
-	}
-
-	[Fact]
 	public void PrefetchCount_ReturnBuilderForChaining()
 	{
 		// Arrange
@@ -255,48 +227,6 @@ public sealed class RabbitMQQueueBuilderShould : UnitTestBase
 	#endregion
 
 	#region AutoAck Tests
-
-	[Fact]
-	public void AutoAck_DisableByDefault()
-	{
-		// Arrange
-		var options = new RabbitMQQueueOptions { AutoAck = true };
-		var builder = new RabbitMQQueueBuilder(options);
-
-		// Act
-		_ = builder.AutoAck();
-
-		// Assert
-		options.AutoAck.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AutoAck_EnableWhenExplicit()
-	{
-		// Arrange
-		var options = new RabbitMQQueueOptions { AutoAck = false };
-		var builder = new RabbitMQQueueBuilder(options);
-
-		// Act
-		_ = builder.AutoAck(true);
-
-		// Assert
-		options.AutoAck.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AutoAck_ReturnBuilderForChaining()
-	{
-		// Arrange
-		var options = new RabbitMQQueueOptions();
-		var builder = new RabbitMQQueueBuilder(options);
-
-		// Act
-		var result = builder.AutoAck();
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
 
 	#endregion
 
@@ -572,41 +502,6 @@ public sealed class RabbitMQQueueBuilderShould : UnitTestBase
 	#endregion
 
 	#region Full Fluent Chain Tests
-
-	[Fact]
-	public void QueueBuilder_SupportFullFluentChain()
-	{
-		// Arrange
-		var options = new RabbitMQQueueOptions();
-		var builder = new RabbitMQQueueBuilder(options);
-
-		// Act & Assert - Should not throw
-		Should.NotThrow(() =>
-		{
-			_ = builder.Name("order-handlers")
-				   .Durable(true)
-				   .Exclusive(false)
-				   .AutoDelete(false)
-				   .PrefetchCount(20)
-				   .AutoAck(false)
-				   .MessageTtl(TimeSpan.FromHours(1))
-				   .MaxLength(10000)
-				   .MaxLengthBytes(1024 * 1024 * 100)
-				   .WithArgument("x-queue-type", "quorum");
-		});
-
-		// Verify all options set
-		options.Name.ShouldBe("order-handlers");
-		options.Durable.ShouldBeTrue();
-		options.Exclusive.ShouldBeFalse();
-		options.AutoDelete.ShouldBeFalse();
-		options.PrefetchCount.ShouldBe((ushort)20);
-		options.AutoAck.ShouldBeFalse();
-		options.MessageTtl.ShouldBe(TimeSpan.FromHours(1));
-		options.MaxLength.ShouldBe(10000);
-		options.MaxLengthBytes.ShouldBe(1024 * 1024 * 100);
-		options.Arguments["x-queue-type"].ShouldBe("quorum");
-	}
 
 	#endregion
 }

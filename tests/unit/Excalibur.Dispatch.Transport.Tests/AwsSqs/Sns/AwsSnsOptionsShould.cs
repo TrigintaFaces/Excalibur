@@ -10,48 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sns;
 public sealed class AwsSnsOptionsShould
 {
 	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new AwsSnsOptions();
-
-		// Assert
-		options.TopicArn.ShouldBe(string.Empty);
-		options.EnableEncryption.ShouldBeFalse();
-		options.EnableDeduplication.ShouldBeFalse();
-		options.ContentBasedDeduplication.ShouldBeFalse();
-		options.DefaultAttributes.ShouldBeEmpty();
-		options.RawMessageDelivery.ShouldBeFalse();
-		options.DisplayName.ShouldBe(string.Empty);
-		options.KmsMasterKeyId.ShouldBeNull();
-		options.Connection.ServiceUrl.ShouldBeNull();
-		options.Connection.MaxErrorRetry.ShouldBe(3);
-		options.Connection.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.Connection.ReadWriteTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.Connection.UseHttp.ShouldBeFalse();
-		options.Connection.RegionEndpoint.ShouldBeNull();
-		options.Connection.AccessKey.ShouldBeNull();
-		options.Connection.SecretKey.ShouldBeNull();
-	}
-
-	[Fact]
-	public void AllowSettingTopicConfiguration()
-	{
-		// Arrange & Act
-		var options = new AwsSnsOptions
-		{
-			TopicArn = "arn:aws:sns:us-east-1:123456789:my-topic",
-			DisplayName = "My Topic",
-			ContentBasedDeduplication = true,
-		};
-
-		// Assert
-		options.TopicArn.ShouldBe("arn:aws:sns:us-east-1:123456789:my-topic");
-		options.DisplayName.ShouldBe("My Topic");
-		options.ContentBasedDeduplication.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void AllowAddingDefaultAttributes()
 	{
 		// Arrange

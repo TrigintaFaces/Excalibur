@@ -377,35 +377,56 @@ Cursors are Base64url-encoded (URL-safe, no padding) and opaque to consumers —
 - **Corrupt cursors are safe**: Invalid or tampered cursors return `null` from `DecodeCursor`, causing the query to start from the beginning rather than failing.
 - **Always include a tiebreaker sort**: Use `_id` or another unique field as the last sort criterion to ensure deterministic ordering when primary sort values are identical.
 
-## Audit Sink
+## Audit Exporter
 
-A separate package provides an Elasticsearch audit sink for real-time audit event indexing:
+A separate package indexes audit events into Elasticsearch for search, dashboards, and alerting:
 
 ```bash
 dotnet add package Excalibur.AuditLogging.Elasticsearch
 ```
 
 ```csharp
-// With options callback
-services.AddElasticsearchAuditSink(options =>
+using Excalibur.AuditLogging.Elasticsearch;
+
+// Single node
+services.AddElasticsearchAuditExporter(es =>
 {
-    // Single node
-    options.ElasticsearchUrl = "https://es.example.com:9200";
-
-    // Or cluster (round-robin)
-    options.NodeUrls = ["https://es1:9200", "https://es2:9200", "https://es3:9200"];
-
-    options.IndexPrefix = "dispatch-audit";
-    options.ApplicationName = "MyApp"; // fallback if AuditEvent.ApplicationName is null
+    es.NodeUri(new Uri("https://es.example.com:9200"))
+      .IndexName("dispatch-audit");
 });
 
-// Or from IConfiguration
-services.AddElasticsearchAuditSink(configuration.GetSection("AuditSink:Elasticsearch"));
+// Or a cluster -- every retry attempt round-robins to the next node
+services.AddElasticsearchAuditExporter(es =>
+{
+    es.NodeUris([new Uri("https://es1:9200"), new Uri("https://es2:9200"), new Uri("https://es3:9200")])
+      .IndexName("dispatch-audit");
+});
+
+// Or bind the whole option set from configuration
+services.AddElasticsearchAuditExporter(es => es.BindConfiguration("AuditExporter:Elasticsearch"));
+```
+
+The builder covers connection (`NodeUri`, `NodeUris`, `CloudId`), index naming (`IndexName`),
+and configuration binding (`BindConfiguration`). The remaining settings on
+`ElasticsearchExporterOptions` -- `ApiKey`, `BulkBatchSize`, `RefreshPolicy`, `ApplicationName`,
+`MaxRetryAttempts`, `RetryBaseDelay`, `Timeout` -- come from the bound configuration section, or
+from a `Configure` call registered after the exporter:
+
+```csharp
+using Excalibur.AuditLogging.Elasticsearch;
+
+services.AddElasticsearchAuditExporter(es => es.NodeUri(new Uri("https://es.example.com:9200")));
+services.Configure<ElasticsearchExporterOptions>(o =>
+{
+    o.ApiKey = configuration["Elasticsearch:ApiKey"];
+    o.BulkBatchSize = 500;
+    o.ApplicationName = "MyApp"; // fallback when AuditEvent.ApplicationName is null
+});
 ```
 
 :::info
 
-Elasticsearch serves as a search/analytics sink, not a compliance-grade audit store. Use SQL Server for tamper-evident hash-chained storage. See [provider compliance boundary](../compliance/audit-logging.md#provider-compliance-boundary) and [Audit Logging Providers](../observability/audit-logging-providers.md#elasticsearch-audit-sink).
+Elasticsearch is a search/analytics projection of the audit trail, not a compliance-grade audit store: the package registers `IAuditLogExporter` and never `IAuditStore`. Use SQL Server for tamper-evident hash-chained storage. See [provider compliance boundary](../compliance/audit-logging.md#provider-compliance-boundary) and [Audit Logging Providers](../observability/audit-logging-providers.md#elasticsearch-audit-exporter).
 :::
 
 ## See Also

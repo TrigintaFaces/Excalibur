@@ -123,20 +123,6 @@ public sealed class BatchReceivingBuilder
 	}
 
 	/// <summary>
-	/// Integrates with the flow control system.
-	/// </summary>
-	public BatchReceivingBuilder IntegrateWithFlowControl()
-	{
-		// Ensure flow control is registered
-		_services.TryAddSingleton<PubSubFlowController>();
-
-		// Note: Scrutor's Decorate extension method would be needed for this pattern For now, commenting out to avoid compilation errors
-		// _services.Decorate<IBatchReceiver>((inner, provider) => { var flowController =
-		// provider.GetRequiredService<PubSubFlowController>(); return inner; });
-		return this;
-	}
-
-	/// <summary>
 	/// Enables metrics collection.
 	/// </summary>
 	public BatchReceivingBuilder WithMetrics(string? meterName = null)

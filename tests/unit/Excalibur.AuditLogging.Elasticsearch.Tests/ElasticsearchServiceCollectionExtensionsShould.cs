@@ -61,18 +61,4 @@ public sealed class ElasticsearchServiceCollectionExtensionsShould
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
 	}
-
-	[Fact]
-	public void Register_sink_services_with_builder()
-	{
-		var services = new ServiceCollection();
-
-		services.AddElasticsearchAuditSink(es =>
-		{
-			es.NodeUri(new Uri("https://es.local:9200"));
-		});
-
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IValidateOptions<ElasticsearchAuditSinkOptions>));
-	}
 }

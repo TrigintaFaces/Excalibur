@@ -118,7 +118,7 @@ Store snapshots in the same database as events (default):
 // SQL Server stores snapshots in the Snapshots table alongside events
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.UseSqlServer(opts => opts.ConnectionString(connectionString));
 }));
 ```
 

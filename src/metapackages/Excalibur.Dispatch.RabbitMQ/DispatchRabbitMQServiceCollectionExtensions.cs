@@ -19,7 +19,7 @@ public static class DispatchRabbitMQServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureRabbitMQ">RabbitMQ transport configuration.</param>
-	/// <param name="configureDispatch">Optional additional dispatch builder configuration.</param>
+	/// <param name="configureDispatch">Optional additional dispatch builder configuration. Supplying it takes over handler registration: when it is omitted, handlers are discovered by scanning the entry assembly; when it is supplied, only the handlers it names are registered.</param>
 	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("Resilience configuration binding uses reflection for property access and value conversion.")]
 	[RequiresDynamicCode("Resilience configuration binding requires dynamic code generation for property reflection and value conversion.")]
@@ -36,7 +36,17 @@ public static class DispatchRabbitMQServiceCollectionExtensions
 			dispatch.UseRabbitMQ(configureRabbitMQ);
 			dispatch.UseResilience();
 			dispatch.UseObservability();
-			configureDispatch?.Invoke(dispatch);
+			// The consumer supplied no configuration of their own, so nothing has named a handler and
+			// nothing will. Discover them from the entry assembly, which is what this call did before the
+			// lambda was synthesised. A consumer who DOES supply a lambda owns handler registration.
+			if (configureDispatch is null)
+			{
+				_ = dispatch.AddHandlersFromEntryAssembly();
+			}
+			else
+			{
+				configureDispatch(dispatch);
+			}
 		});
 	}
 }

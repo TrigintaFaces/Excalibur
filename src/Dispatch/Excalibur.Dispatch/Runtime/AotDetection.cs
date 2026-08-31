@@ -37,8 +37,6 @@ internal static class AotDetection
 	/// </summary>
 	/// <param name="message"> The message to include if running in AOT mode when not expected. </param>
 	/// <exception cref="PlatformNotSupportedException"> Thrown when running in AOT mode but AOT is not expected. </exception>
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "This method is specifically for AOT detection")]
 	public static void EnsureNotAot(string message = "This operation requires JIT compilation and is not supported in AOT mode.")
 	{
 		if (IsAotCompiled)

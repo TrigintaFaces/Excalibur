@@ -271,7 +271,7 @@ public sealed class MemoryAllocationShould : IDisposable
 
 		var store = new InMemoryInboxStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance);
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 
 		_disposables.Add(store);
 
@@ -484,14 +484,14 @@ public sealed class MemoryAllocationShould : IDisposable
 			// Create disposable components
 			var store = new InMemoryInboxStore(
 				Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions()),
-				Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance);
+				Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 
 			var processor = new BatchProcessor<string>(
 				_ => ValueTask.CompletedTask,
 				Microsoft.Extensions.Logging.Abstractions.NullLogger<BatchProcessor<string>>.Instance);
 
 			// Use components briefly
-			_ = await store.GetStatisticsAsync(CancellationToken.None);
+			_ = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 
 			// Dispose properly
 			store.Dispose();

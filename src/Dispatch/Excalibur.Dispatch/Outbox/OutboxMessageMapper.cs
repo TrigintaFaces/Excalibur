@@ -49,7 +49,7 @@ public sealed class OutboxMessageMapper : IOutboxMessageMapper
 		// Copy properties from outbound message
 		context.CorrelationId = message.CorrelationId;
 		context.CausationId = message.CausationId;
-		context.TenantId = message.TenantId; // tenancy isolation invariant — first-class, never header-only (bd-1vqmei)
+		context.TenantId = message.TenantId; // tenancy isolation invariant — first-class, never header-only
 		context.TargetTransport = targetTransport;
 
 		// Set message type header
@@ -72,7 +72,7 @@ public sealed class OutboxMessageMapper : IOutboxMessageMapper
 		}
 
 		// Standardize the tenant on the canonical wire key so header-propagating transports carry it
-		// authoritatively from the first-class TenantId (overriding any stale header copy) (bd-1vqmei).
+		// authoritatively from the first-class TenantId (overriding any stale header copy).
 		if (!string.IsNullOrEmpty(message.TenantId))
 		{
 			context.SetHeader(OutboxHeaderNames.TenantId, message.TenantId);
@@ -172,7 +172,7 @@ public interface IMessageRoutingConfiguration
 	/// <summary>
 	/// Gets the target transports configured for a message type.
 	/// </summary>
-	/// <param name="messageType">The fully qualified message type name.</param>
+	/// <param name="messageType">A type name for the message that the message type registry can resolve — its simple name, its assembly-qualified name, or "Namespace.TypeName, AssemblyName".</param>
 	/// <returns>A collection of target transport names.</returns>
 	IReadOnlyCollection<string> GetTargetTransports(string messageType);
 }

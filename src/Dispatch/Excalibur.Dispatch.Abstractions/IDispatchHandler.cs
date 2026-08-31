@@ -25,7 +25,6 @@ namespace Excalibur.Dispatch;
 /// <item><description>Set <c>ValidationResult</c> or <c>AuthorizationResult</c> on success results</description></item>
 /// <item><description>Return failure without throwing an exception</description></item>
 /// <item><description>Access <see cref="IMessageContext"/> within the handler</description></item>
-/// <item><description>Implement <see cref="IBatchableHandler{TMessage}"/> for batch processing</description></item>
 /// </list>
 /// </remarks>
 /// <example>

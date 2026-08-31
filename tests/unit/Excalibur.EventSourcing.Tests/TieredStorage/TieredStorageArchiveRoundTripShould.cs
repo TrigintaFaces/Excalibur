@@ -197,14 +197,14 @@ public sealed class TieredStorageArchiveRoundTripShould
         var toArchive = hot.Snapshot().Where(e => e.Version <= throughVersion).ToList();
 
         var watermark = await cold.WriteAsync(
-            KeyedTenantPartition.FromContext(null), AggregateId, toArchive, CancellationToken.None);
+            KeyedTenantPartition.Untenanted, AggregateId, toArchive, CancellationToken.None);
 
         watermark.ShouldBe(
             throughVersion,
             "the cold tier must confirm the archived range before any hot event is deleted.");
 
         _ = await ((IEventStoreArchive)hot).DeleteEventsUpToVersionAsync(
-            KeyedTenantPartition.FromContext(null), AggregateId, AggregateType, watermark, CancellationToken.None);
+            KeyedTenantPartition.Untenanted, AggregateId, AggregateType, watermark, CancellationToken.None);
     }
 
     private static void SeedHot(InMemoryHotEventStore hot, params long[] versions)

@@ -1,11 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Health;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -67,9 +71,16 @@ internal static class LeaderElectionAotHelpers
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// TelemetryLeaderElectionFactory wraps the existing ILeaderElectionFactory
-		// via constructor injection, so it must be registered as a decorator.
-		services.AddSingleton<TelemetryLeaderElectionFactory>();
+		// TelemetryLeaderElectionFactory decorates the configured ILeaderElectionFactory, and its remaining
+		// constructor parameters -- a Meter, an ActivitySource and the provider name -- are values, not
+		// services. Registering it by implementation type asked the container to resolve a string, which it
+		// can never do, so the registration could not produce an instance under any composition. The factory
+		// below supplies the values and takes the decorated factory from the container.
+		services.TryAddSingleton(static sp => new TelemetryLeaderElectionFactory(
+			sp.GetRequiredService<ILeaderElectionFactory>(),
+			new Meter(LeaderElectionTelemetryConstants.MeterName),
+			new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName),
+			sp.GetRequiredService<ILeaderElectionFactory>().GetType().Name));
 		return services;
 	}
 

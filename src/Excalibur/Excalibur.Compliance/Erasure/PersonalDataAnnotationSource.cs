@@ -35,11 +35,16 @@ internal interface IPersonalDataAnnotationSource
 /// </summary>
 internal sealed class ReflectionPersonalDataAnnotationSource : IPersonalDataAnnotationSource
 {
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "Annotation discovery uses reflection by design on the admin/compliance erasure path; " +
-		"AOT consumers rely on registration-based coverage. Mirrors RetentionEnforcementService.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2070:UnrecognizedReflectionPattern",
-		Justification = "GetProperties over loaded domain types for [PersonalData] discovery; admin path, not AOT-critical.")]
+	// The scan has no statically known type set by construction: it enumerates whatever assemblies the
+	// host loaded, so the trimmer cannot prove the properties it reads are preserved. That is the
+	// diagnostic below, named exactly. Ahead-of-time consumers use the registration-based source
+	// instead, and the coverage gate fails closed rather than reporting an erasure complete.
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2075:UnrecognizedReflectionPattern",
+		Justification = "Types come from a whole-domain assembly scan, so no annotation can flow to them. "
+			+ "This is an administrative erasure-inventory path; ahead-of-time hosts use the registration-based "
+			+ "source, and a category the scan misses fails the coverage gate rather than completing silently.")]
 	public IReadOnlySet<PersonalDataCategory> GetAnnotatedCategories()
 	{
 		var categories = new HashSet<PersonalDataCategory>();
@@ -74,7 +79,11 @@ internal sealed class ReflectionPersonalDataAnnotationSource : IPersonalDataAnno
 		return categories;
 	}
 
-#pragma warning disable IL2026 // RequiresUnreferencedCode — reflection is intentional on this admin path.
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "Assembly.GetTypes() over host-loaded assemblies is the erasure-inventory scan itself; "
+			+ "a trimmed host uses the registration-based source, and a missed category fails the coverage gate.")]
 	private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
 	{
 		try
@@ -86,7 +95,6 @@ internal sealed class ReflectionPersonalDataAnnotationSource : IPersonalDataAnno
 			return ex.Types.Where(static t => t is not null)!;
 		}
 	}
-#pragma warning restore IL2026
 
 	private static PersonalDataAttribute? TryGetPersonalDataAttribute(PropertyInfo property)
 	{

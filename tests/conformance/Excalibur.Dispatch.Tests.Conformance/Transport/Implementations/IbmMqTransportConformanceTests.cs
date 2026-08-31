@@ -68,6 +68,10 @@ public sealed class IbmMqTransportConformanceTests
                 mq.QueueName = IbmMqContainerFixture.QueueName;
                 mq.UserId = IbmMqContainerFixture.AppUser;
                 mq.Password = IbmMqContainerFixture.AppPassword;
+
+                // The developer queue manager in the container listens on a channel with no CipherSpec,
+                // so the secure-by-default posture is opted out here deliberately.
+                mq.RequireTls = false;
             })
             .BuildServiceProvider();
     }

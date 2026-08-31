@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Defines the types of operations that can have timeout policies applied. R7.4: Operation categorization for timeout management.
+/// Defines the types of operations that can have timeout policies applied. Operation categorization for timeout management.
 /// </summary>
 public enum TimeoutOperationType
 {

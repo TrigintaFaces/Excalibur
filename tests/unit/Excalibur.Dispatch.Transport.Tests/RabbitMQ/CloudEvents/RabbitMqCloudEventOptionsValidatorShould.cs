@@ -27,17 +27,6 @@ public sealed class RabbitMqCloudEventOptionsValidatorShould
 		Should.Throw<ArgumentNullException>(() => _validator.Validate(null, null!));
 	}
 
-	[Fact]
-	public void FailWhenPrefetchCountIsZero()
-	{
-		var options = new RabbitMqCloudEventOptions { PrefetchCount = 0 };
-
-		var result = _validator.Validate(null, options);
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventOptions.PrefetchCount));
-	}
-
 	[Theory]
 	[InlineData(0)]
 	[InlineData(-1)]
@@ -50,18 +39,6 @@ public sealed class RabbitMqCloudEventOptionsValidatorShould
 
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventExchangeOptions.MaxMessageSizeBytes));
-	}
-
-	[Fact]
-	public void FailWhenMaxRetryAttemptsIsNegative()
-	{
-		var options = new RabbitMqCloudEventOptions();
-		options.DeadLetter.MaxRetryAttempts = -1;
-
-		var result = _validator.Validate(null, options);
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventDeadLetterOptions.MaxRetryAttempts));
 	}
 
 	[Fact]
@@ -92,20 +69,6 @@ public sealed class RabbitMqCloudEventOptionsValidatorShould
 	[Theory]
 	[InlineData(0)]
 	[InlineData(-1)]
-	public void FailWhenNetworkRecoveryIntervalIsNotPositive(int seconds)
-	{
-		var options = new RabbitMqCloudEventOptions();
-		options.Recovery.NetworkRecoveryInterval = TimeSpan.FromSeconds(seconds);
-
-		var result = _validator.Validate(null, options);
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventRecoveryOptions.NetworkRecoveryInterval));
-	}
-
-	[Theory]
-	[InlineData(0)]
-	[InlineData(-1)]
 	public void FailWhenMessageTtlIsNotPositive_WhenSet(int seconds)
 	{
 		var options = new RabbitMqCloudEventOptions();
@@ -128,21 +91,4 @@ public sealed class RabbitMqCloudEventOptionsValidatorShould
 		result.Succeeded.ShouldBeTrue();
 	}
 
-	[Fact]
-	public void ReportMultipleFailures_WhenMultipleConstraintsViolated()
-	{
-		var options = new RabbitMqCloudEventOptions
-		{
-			PrefetchCount = 0,
-		};
-		options.Exchange.MaxMessageSizeBytes = -1;
-		options.DeadLetter.MaxRetryAttempts = -1;
-
-		var result = _validator.Validate(null, options);
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventOptions.PrefetchCount));
-		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventExchangeOptions.MaxMessageSizeBytes));
-		result.FailureMessage.ShouldContain(nameof(RabbitMqCloudEventDeadLetterOptions.MaxRetryAttempts));
-	}
 }

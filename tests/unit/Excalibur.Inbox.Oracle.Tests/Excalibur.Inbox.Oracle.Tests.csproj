@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Oracle\Excalibur.Inbox.Oracle.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing.Conformance\Excalibur.Testing.Conformance.csproj" />
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

@@ -13,11 +13,19 @@ namespace Excalibur.Jobs.Core;
 /// <param name="jobName"> The job name. </param>
 /// <param name="config"> The job configuration. </param>
 /// <param name="heartbeatTracker"> The heartbeat tracker. </param>
-internal sealed class JobHealthCheck(string jobName, JobOptions config, JobHeartbeatTracker heartbeatTracker) : IHealthCheck
+/// <param name="timeProvider">
+/// The clock the heartbeat age is measured against. Defaults to <see cref="TimeProvider.System" />.
+/// </param>
+internal sealed class JobHealthCheck(
+	string jobName,
+	JobOptions config,
+	JobHeartbeatTracker heartbeatTracker,
+	TimeProvider? timeProvider = null) : IHealthCheck
 {
 	private readonly string _jobName = jobName;
 	private readonly JobOptions _config = config ?? throw new ArgumentNullException(nameof(config));
 	private readonly JobHeartbeatTracker _heartbeatTracker = heartbeatTracker ?? throw new ArgumentNullException(nameof(heartbeatTracker));
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
 	public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken)
@@ -26,7 +34,7 @@ internal sealed class JobHealthCheck(string jobName, JobOptions config, JobHeart
 
 		if (lastHeartbeat.HasValue)
 		{
-			var timeSinceHeartbeat = DateTimeOffset.UtcNow - lastHeartbeat.Value;
+			var timeSinceHeartbeat = _timeProvider.GetUtcNow() - lastHeartbeat.Value;
 			if (timeSinceHeartbeat < _config.DegradedThreshold)
 			{
 				return Task.FromResult(HealthCheckResult.Healthy($"Job {_jobName} is healthy. Last heartbeat: {lastHeartbeat.Value}"));

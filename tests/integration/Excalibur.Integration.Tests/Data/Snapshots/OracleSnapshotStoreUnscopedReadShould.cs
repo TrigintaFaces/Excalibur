@@ -519,7 +519,9 @@ public sealed class OracleSnapshotStoreUnscopedReadShould : IClassFixture<Oracle
 			NullLogger<OracleSnapshotStore>.Instance,
 			schema: _fixture.Schema,
 			table: _fixture.TableName,
-			tenantContext: tenantScoped ? new AmbientHolderTenantContext() : null);
+			tenantContext: tenantScoped
+				? new AmbientHolderTenantContext()
+				: UntenantedTestTenantContext.Instance);
 
 	private static ISnapshot CreateSnapshot(string aggregateId, long version, string data, string? tenantId) =>
 		new OracleUnscopedReadSnapshot(

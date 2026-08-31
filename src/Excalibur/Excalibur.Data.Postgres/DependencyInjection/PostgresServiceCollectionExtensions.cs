@@ -60,15 +60,13 @@ public static class PostgresServiceCollectionExtensions
 		}
 
 		// Register dead letter store (uses IOptions pattern via DI)
-		// Built by an explicit factory rather than by type activation: the store's ITenantContext is
-		// OPTIONAL, and type activation demands every constructor parameter be resolvable, so a
-		// single-tenant host that registers no tenant context would fail at resolve time for a supported
-		// registration shape. GetService yields null there, which the store reads as the untenanted
-		// partition — a concrete tenant term, not an absent one.
-		services.TryAddSingleton(sp => new PostgresDeadLetterStore(
-			sp.GetRequiredService<IOptions<PostgresDeadLetterOptions>>(),
-			sp.GetService<ITenantContext>(),
-			sp.GetRequiredService<ILogger<PostgresDeadLetterStore>>()));
+		// AddTenantAwareStore constructs the store (injecting ITenantContext, since its constructor
+		// requires one) AND emits the ITenantScopingCapability<IDeadLetterStore> marker inseparably, so
+		// the attestation cannot exist without the wiring it describes. The tenant context is required,
+		// not optional -- a hand-rolled factory here would carry a stale justification the constructor no
+		// longer supports.
+		_ = services.AddDefaultTenantContext();
+		_ = services.AddTenantAwareStore<IDeadLetterStore, PostgresDeadLetterStore>();
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
 		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
 
@@ -99,15 +97,13 @@ public static class PostgresServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresDeadLetterOptions>>(new Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptionsValidator()));
 
 		// Register dead letter store (uses IOptions pattern via DI)
-		// Built by an explicit factory rather than by type activation: the store's ITenantContext is
-		// OPTIONAL, and type activation demands every constructor parameter be resolvable, so a
-		// single-tenant host that registers no tenant context would fail at resolve time for a supported
-		// registration shape. GetService yields null there, which the store reads as the untenanted
-		// partition — a concrete tenant term, not an absent one.
-		services.TryAddSingleton(sp => new PostgresDeadLetterStore(
-			sp.GetRequiredService<IOptions<PostgresDeadLetterOptions>>(),
-			sp.GetService<ITenantContext>(),
-			sp.GetRequiredService<ILogger<PostgresDeadLetterStore>>()));
+		// AddTenantAwareStore constructs the store (injecting ITenantContext, since its constructor
+		// requires one) AND emits the ITenantScopingCapability<IDeadLetterStore> marker inseparably, so
+		// the attestation cannot exist without the wiring it describes. The tenant context is required,
+		// not optional -- a hand-rolled factory here would carry a stale justification the constructor no
+		// longer supports.
+		_ = services.AddDefaultTenantContext();
+		_ = services.AddTenantAwareStore<IDeadLetterStore, PostgresDeadLetterStore>();
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
 		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
 

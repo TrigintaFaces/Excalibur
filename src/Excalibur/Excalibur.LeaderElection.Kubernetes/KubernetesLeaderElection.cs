@@ -66,7 +66,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	private volatile bool _disposed;
 	private volatile bool _isLeader;
 	private volatile string? _currentLeaderId;
-	// 3g58kl: the native Lease.spec.leaseTransitions counter observed at the most recent leadership
+	// the native Lease.spec.leaseTransitions counter observed at the most recent leadership
 	// transition (the fencing token per SA ruling), and UTC ticks of the instant that tenure began.
 	// Accessed lock-free via Interlocked, mirroring the existing volatile-field pattern on this type.
 	private long _currentFencingToken;
@@ -483,10 +483,29 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				},
 			};
 
-			_currentLease = await _retryPolicy.ExecuteAsync(
-				async ct => await _kubernetesClient.CoordinationV1.CreateNamespacedLeaseAsync(
-					lease, _namespace, cancellationToken: ct).ConfigureAwait(false),
-				cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_currentLease = await _retryPolicy.ExecuteAsync(
+					async ct => await _kubernetesClient.CoordinationV1.CreateNamespacedLeaseAsync(
+						lease, _namespace, cancellationToken: ct).ConfigureAwait(false),
+					cancellationToken).ConfigureAwait(false);
+			}
+			catch (HttpOperationException createEx) when (createEx.Response.StatusCode == HttpStatusCode.Conflict)
+			{
+				// Another candidate's StartAsync raced this one between the read-404 above and this
+				// create: both saw no lease, both tried to create it, and Kubernetes admits exactly one
+				// (409 AlreadyExists for the rest). That candidate's create is authoritative -- this is
+				// not a failure, it is the lease now existing, which is what this method promises on
+				// return. Falling through to a read (rather than treating the 409 as terminal) is what
+				// lets every losing candidate proceed to the normal acquire path instead of StartAsync
+				// throwing outright for N-1 of N concurrent starters.
+				LogLeaseExists(_leaseName, _namespace);
+
+				_currentLease = await _retryPolicy.ExecuteAsync(
+					async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(
+						_leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
+					cancellationToken).ConfigureAwait(false);
+			}
 		}
 	}
 
@@ -537,7 +556,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	}
 
 	// Justification: Leader election state machine with K8s API calls, lease acquisition/renewal, and error recovery requires sequential orchestration for correctness
-	// R0.8: Method is too long
+	// Method is too long
 #pragma warning disable MA0051
 	private async Task TryAcquireOrRenewLeaseAsync(CancellationToken cancellationToken)
 	{

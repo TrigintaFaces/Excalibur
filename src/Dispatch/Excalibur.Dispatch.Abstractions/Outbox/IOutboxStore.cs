@@ -3,6 +3,8 @@
 
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -85,6 +87,8 @@ public interface IOutboxStore : IServiceProvider
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> A task representing the asynchronous enqueue operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when message or context is null. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -99,6 +103,8 @@ public interface IOutboxStore : IServiceProvider
 	/// cannot is never handed one.
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when batchSize is less than 1. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		CancellationToken cancellationToken);
@@ -120,6 +126,40 @@ public interface IOutboxStore : IServiceProvider
 	/// <summary>
 	/// Marks a message as failed during delivery.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A failure is a delay, not an ending. The message stays owed delivery, and three conditions hold
+	/// together to keep that true without turning it into a retry loop. Each is stated because a store can
+	/// satisfy the other two and still be wrong.
+	/// </para>
+	/// <para>
+	/// <b>The message is withheld, then returned.</b> It does not become claimable again immediately -- an
+	/// immediate re-claim is a zero-backoff loop that saturates the transport against a destination that is
+	/// failing anyway -- and it does become claimable once the store's failure-backoff floor has elapsed.
+	/// The floor is measured from the recorded failure, not from a claim lease: a message that failed
+	/// without ever being claimed has no lease, and a floor derived from one would yield nothing for it.
+	/// Withholding it permanently satisfies the first half and silently drops the message, so both halves
+	/// are required.
+	/// </para>
+	/// <para>
+	/// <b>Only the claim's owner may report against it.</b> A report from a dispatcher that no longer holds
+	/// the claim is a no-op rather than an error: it is stale, not invalid. Honouring it would release a
+	/// claim its successor is still delivering under, and both would then send the same message. A message
+	/// that was never claimed has no owner and is reported freely. The guard must not be satisfied by
+	/// refusing everybody -- the owner's own report still has to land, or the store cannot record failures
+	/// at all.
+	/// </para>
+	/// <para>
+	/// <b>The recorded attempt count never decreases.</b> Implementations record the greater of the stored
+	/// count and <paramref name="retryCount"/>. The ceiling that eventually gives up on a message is driven
+	/// by that count, so a late report carrying a lower number would push the ceiling further away each time
+	/// one arrived, and the message would be retried without end.
+	/// </para>
+	/// <para>
+	/// Marking a message that does not exist is a silent no-op. A message that has already been delivered is
+	/// never reopened by a late failure report.
+	/// </para>
+	/// </remarks>
 	/// <param name="messageId"> The unique identifier of the message that failed. </param>
 	/// <param name="errorMessage"> The error description or exception message. </param>
 	/// <param name="retryCount"> The current retry attempt count. </param>
@@ -133,75 +173,4 @@ public interface IOutboxStore : IServiceProvider
 		int retryCount,
 		CancellationToken cancellationToken);
 
-}
-
-/// <summary>
-/// Provides administrative and query operations for outbox store management.
-/// </summary>
-/// <remarks>
-/// <para>
-/// These operations are used by background services, health checks, and administrative tooling.
-/// They are NOT needed for normal outbox message flow (stage/send/fail).
-/// Implementations should access this sub-interface via <c>GetService(typeof(IOutboxStoreAdmin))</c>
-/// or direct DI registration.
-/// </para>
-/// </remarks>
-public interface IOutboxStoreAdmin
-{
-	/// <summary>
-	/// Retrieves failed messages that are eligible for retry.
-	/// </summary>
-	/// <param name="maxRetries"> Maximum number of retry attempts to consider. </param>
-	/// <param name="olderThan"> Only return messages that failed before this timestamp. </param>
-	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
-	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> Collection of failed messages eligible for retry. </returns>
-	ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(
-		int maxRetries,
-		DateTimeOffset? olderThan,
-		int batchSize,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Retrieves messages scheduled for future delivery.
-	/// </summary>
-	/// <param name="scheduledBefore"> Only return messages scheduled before this timestamp. </param>
-	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
-	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> Collection of scheduled messages ready for delivery. </returns>
-	ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(
-		DateTimeOffset scheduledBefore,
-		int batchSize,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Removes sent messages older than the specified age across <b>every</b> tenant.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// This is an estate-wide retention sweep and is deliberately unscoped: it matches rows by age, not by
-	/// tenant, so it removes the qualifying messages of every tenant in the store. The name declares that
-	/// scope so it cannot be reached by a caller who meant a single tenant.
-	/// </para>
-	/// <para>
-	/// An outbox store reads no ambient tenant context, so it cannot honor a tenant it never sees. Should
-	/// tenant-scoped retention ever be required, it arrives as an explicit parameter — never by inferring a
-	/// scope from ambient state.
-	/// </para>
-	/// </remarks>
-	/// <param name="olderThan"> Remove messages sent before this timestamp. </param>
-	/// <param name="batchSize"> Maximum number of messages to remove in one operation. </param>
-	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> The number of messages removed, across all tenants. </returns>
-	ValueTask<int> CleanupAllTenantsSentMessagesAsync(
-		DateTimeOffset olderThan,
-		int batchSize,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Gets statistics about the outbox store.
-	/// </summary>
-	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> Statistics including message counts by status and oldest unsent message age. </returns>
-	ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken);
 }

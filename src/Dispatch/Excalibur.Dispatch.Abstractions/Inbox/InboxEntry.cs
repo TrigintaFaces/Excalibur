@@ -32,8 +32,8 @@ public sealed class InboxEntry
 	/// Initializes a new instance of the <see cref="InboxEntry" /> class with specified values.
 	/// </summary>
 	/// <param name="messageId">The unique identifier of the message.</param>
-	/// <param name="handlerType">The fully qualified type name of the handler processing this message.</param>
-	/// <param name="messageType">The fully qualified type name of the message.</param>
+	/// <param name="handlerType">The deduplication scope this entry is keyed under, together with <paramref name="messageId"/>.</param>
+	/// <param name="messageType">A type name for the message that the message type registry can resolve.</param>
 	/// <param name="payload">The serialized message payload.</param>
 	/// <param name="metadata">Additional message metadata.</param>
 	public InboxEntry(
@@ -59,15 +59,27 @@ public sealed class InboxEntry
 	public string MessageId { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets the fully qualified type name of the handler processing this message.
+	/// Gets or sets the scope this message is deduplicated under, forming the composite key with
+	/// <see cref="MessageId"/>.
 	/// </summary>
-	/// <value>The .NET type name of the handler, forming part of the composite key with MessageId.</value>
+	/// <value>
+	/// An opaque scope name. A caller that deduplicates per handler passes that handler's fully qualified type
+	/// name, so one message can be processed independently by several handlers. The framework's own inbox
+	/// writers deduplicate per <b>message type</b> and pass the message type's fully qualified name, so an entry
+	/// written by the framework carries one scope per message type rather than one per handler.
+	/// </value>
 	public string HandlerType { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets the fully qualified type name of the message.
+	/// Gets or sets the name under which the message's .NET type is registered.
 	/// </summary>
-	/// <value>The .NET type name used for message deserialization and routing.</value>
+	/// <value>
+	/// A type name the message type registry can resolve.
+	/// The framework's own inbox writers store the simple name (<c>Type.Name</c>).
+	/// An ambiguous simple name — one shared by two registered types — resolves to
+	/// <b>nothing</b> rather than to either of them, so a collision fails loudly at resolution rather
+	/// than deserializing the payload as the wrong type.
+	/// </value>
 	public string MessageType { get; set; } = string.Empty;
 
 	/// <summary>
@@ -150,8 +162,17 @@ public sealed class InboxEntry
 	/// <summary>
 	/// Marks the entry as currently being processed.
 	/// </summary>
+	/// <remarks>
+	/// No-op once the entry is <see cref="InboxStatus.Processed"/>. See <see cref="MarkFailed"/> for why
+	/// that state absorbs every later transition.
+	/// </remarks>
 	public void MarkProcessing()
 	{
+		if (Status == InboxStatus.Processed)
+		{
+			return;
+		}
+
 		Status = InboxStatus.Processing;
 		LastAttemptAt = DateTimeOffset.UtcNow;
 	}
@@ -159,8 +180,17 @@ public sealed class InboxEntry
 	/// <summary>
 	/// Marks the entry as successfully processed.
 	/// </summary>
+	/// <remarks>
+	/// Idempotent: re-marking an already-processed entry leaves <see cref="ProcessedAt"/> at the instant
+	/// the message was actually handled rather than restamping it.
+	/// </remarks>
 	public void MarkProcessed()
 	{
+		if (Status == InboxStatus.Processed)
+		{
+			return;
+		}
+
 		Status = InboxStatus.Processed;
 		ProcessedAt = DateTimeOffset.UtcNow;
 		LastError = null;
@@ -170,9 +200,30 @@ public sealed class InboxEntry
 	/// Marks the entry as failed with the specified error.
 	/// </summary>
 	/// <param name="error"> The error description. </param>
+	/// <remarks>
+	/// <para>
+	/// <b><see cref="InboxStatus.Processed"/> is absorbing: this is a no-op on an entry that has already
+	/// been processed.</b> The transition is refused rather than applied because it is not recoverable in
+	/// the layer above. A handler that outran its own lease can finish after a second processor has
+	/// reclaimed the entry and finalized it; the late caller's finalize then reports "already processed"
+	/// and its own error handling calls this method. Demoting the entry to
+	/// <see cref="InboxStatus.Failed"/> would make it re-admittable, so the next redelivery would run the
+	/// handler a further time and <c>IsProcessedAsync</c> would answer <see langword="false"/> about a
+	/// message that was in fact processed.
+	/// </para>
+	/// <para>
+	/// Consumers that need to distinguish "recorded the failure" from "the entry was already terminal"
+	/// should read <see cref="Status"/> after the call.
+	/// </para>
+	/// </remarks>
 	public void MarkFailed(string error)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(error);
+
+		if (Status == InboxStatus.Processed)
+		{
+			return;
+		}
 
 		Status = InboxStatus.Failed;
 		LastError = error;

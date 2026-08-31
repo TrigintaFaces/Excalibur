@@ -23,7 +23,7 @@ dotnet add package Excalibur.EventSourcing
 // Register event sourcing with a provider (SQL Server example)
 services.AddExcalibur(x => x.AddEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.UseSqlServer(opts => opts.ConnectionString(connectionString));
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 }));
 
@@ -54,4 +54,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

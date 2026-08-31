@@ -6,7 +6,7 @@ namespace Excalibur.Cdc.Postgres.Diagnostics;
 /// <summary>
 /// Event IDs for Postgres CDC processor operations (102300-102399).
 /// </summary>
-public static class CdcPostgresEventId
+internal static class CdcPostgresEventId
 {
 	// ========================================
 	// 102300-102399: CDC Processor

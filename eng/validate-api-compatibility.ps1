@@ -1,5 +1,5 @@
 # Copyright (c) 2026 The Excalibur Project
-# API Compatibility Validation Script (Phase 9.5)
+# API Compatibility Validation Script
 #
 # This script validates public API surface compatibility using Microsoft.CodeAnalysis.PublicApiAnalyzers
 # and ensures breaking changes are tracked in Unshipped.txt files before release.
@@ -37,7 +37,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Excalibur - API Compatibility Validation (Phase 9.5)" -ForegroundColor Cyan
+Write-Host "  Excalibur - API Compatibility Validation" -ForegroundColor Cyan
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 

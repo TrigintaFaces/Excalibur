@@ -25,7 +25,7 @@ public sealed class AwsSchedulerJobProviderShould
 	public void ThrowWhenSchedulerClientIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsSchedulerJobProvider(null!, CreateOptions(), A.Fake<ILogger<AwsSchedulerJobProvider>>()));
+			new AwsSchedulerJobProvider(null!, Opt(CreateOptions()), A.Fake<ILogger<AwsSchedulerJobProvider>>()));
 	}
 
 	[Fact]
@@ -39,14 +39,14 @@ public sealed class AwsSchedulerJobProviderShould
 	public void ThrowWhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsSchedulerJobProvider(new TestAmazonSchedulerClient(), CreateOptions(), null!));
+			new AwsSchedulerJobProvider(new TestAmazonSchedulerClient(), Opt(CreateOptions()), null!));
 	}
 
 	[Fact]
 	public async Task BuildCreateScheduleRequestFromInputs()
 	{
 		var client = new TestAmazonSchedulerClient();
-		var provider = new AwsSchedulerJobProvider(client, CreateOptions(), A.Fake<ILogger<AwsSchedulerJobProvider>>());
+		var provider = new AwsSchedulerJobProvider(client, Opt(CreateOptions()), A.Fake<ILogger<AwsSchedulerJobProvider>>());
 
 		await provider.ScheduleJobAsync<TestBackgroundJob>("sync-orders", "0/5 * * * ? *", CancellationToken.None);
 
@@ -69,7 +69,7 @@ public sealed class AwsSchedulerJobProviderShould
 		{
 			CreateException = new InvalidOperationException("create failed")
 		};
-		var provider = new AwsSchedulerJobProvider(client, CreateOptions(), A.Fake<ILogger<AwsSchedulerJobProvider>>());
+		var provider = new AwsSchedulerJobProvider(client, Opt(CreateOptions()), A.Fake<ILogger<AwsSchedulerJobProvider>>());
 
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			provider.ScheduleJobAsync<TestBackgroundJob>("sync-orders", "0 * * * ? *", CancellationToken.None));
@@ -81,7 +81,7 @@ public sealed class AwsSchedulerJobProviderShould
 	public async Task DeleteScheduleWhenDeleteJobIsCalled()
 	{
 		var client = new TestAmazonSchedulerClient();
-		var provider = new AwsSchedulerJobProvider(client, CreateOptions(), A.Fake<ILogger<AwsSchedulerJobProvider>>());
+		var provider = new AwsSchedulerJobProvider(client, Opt(CreateOptions()), A.Fake<ILogger<AwsSchedulerJobProvider>>());
 
 		await provider.DeleteJobAsync("sync-orders", CancellationToken.None);
 
@@ -96,7 +96,7 @@ public sealed class AwsSchedulerJobProviderShould
 		{
 			DeleteException = new ResourceNotFoundException("not found")
 		};
-		var provider = new AwsSchedulerJobProvider(client, CreateOptions(), A.Fake<ILogger<AwsSchedulerJobProvider>>());
+		var provider = new AwsSchedulerJobProvider(client, Opt(CreateOptions()), A.Fake<ILogger<AwsSchedulerJobProvider>>());
 
 		await provider.DeleteJobAsync("missing", CancellationToken.None);
 	}
@@ -108,7 +108,7 @@ public sealed class AwsSchedulerJobProviderShould
 		{
 			DeleteException = new InvalidOperationException("delete failed")
 		};
-		var provider = new AwsSchedulerJobProvider(client, CreateOptions(), A.Fake<ILogger<AwsSchedulerJobProvider>>());
+		var provider = new AwsSchedulerJobProvider(client, Opt(CreateOptions()), A.Fake<ILogger<AwsSchedulerJobProvider>>());
 
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			provider.DeleteJobAsync("sync-orders", CancellationToken.None));
@@ -121,7 +121,7 @@ public sealed class AwsSchedulerJobProviderShould
 	{
 		var provider = new AwsSchedulerJobProvider(
 			new TestAmazonSchedulerClient(),
-			CreateOptions(),
+			Opt(CreateOptions()),
 			A.Fake<ILogger<AwsSchedulerJobProvider>>());
 		provider.Dispose();
 
@@ -185,4 +185,7 @@ public sealed class AwsSchedulerJobProviderShould
 			return Task.FromResult(new DeleteScheduleResponse());
 		}
 	}
+
+	private static Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Aws.AwsSchedulerOptions> Opt(Excalibur.Jobs.Aws.AwsSchedulerOptions options)
+		=> Microsoft.Extensions.Options.Options.Create(options);
 }

@@ -29,7 +29,7 @@ services.Configure<CloudEventOptions>(options =>
 {
     options.Mode = CloudEventMode.Structured;           // or CloudEventMode.Binary
     options.DefaultSource = new Uri("urn:my-service");
-    options.PreserveEnvelopeProperties = true;
+    options.DispatchExtensionPrefix = "dispatch";        // prefix for Dispatch extension attributes
 });
 ```
 

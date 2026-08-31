@@ -35,4 +35,15 @@
     <!-- Data Access -->
     <ProjectReference Include="..\..\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
   </ItemGroup>
+  <!--
+    Security floor for a Swashbuckle transitive. Central transitive pinning is deliberately off in
+    this directory, so the resolved graph would otherwise take Swashbuckle's own minimum of
+    Microsoft.OpenApi 2.4.1, in which a circular schema reference can StackOverflow-terminate the
+    process (GHSA-v5pm-xwqc-g5wc). PrivateAssets="all" applies the floor to this project's restore
+    without emitting the package onto the metapackage's dependency list, which stays the bundle it
+    names. Consumers reach the same floor through the implementation packages, which declare it.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" />
+  </ItemGroup>
 </Project>

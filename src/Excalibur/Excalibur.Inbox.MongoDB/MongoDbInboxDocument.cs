@@ -12,12 +12,41 @@ namespace Excalibur.Inbox.MongoDB;
 /// MongoDB document model for inbox entries.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Uses compound key: MessageId + HandlerType as the document _id.
+/// </para>
+/// <para>
+/// Every instant on this document is stored as a BSON date, which is what
+/// <see cref="BsonRepresentationAttribute"/> is doing on each of them. The driver's default for
+/// <see cref="DateTimeOffset"/> is a three-field sub-document (<c>{ DateTime, Ticks, Offset }</c>)
+/// instead, and that shape is not a date to anything outside this driver: an aggregation that dates it,
+/// an index intended as a date index, and a consumer reading this collection from another language all
+/// see a structure where a timestamp belongs. A TTL index is the sharpest case — one declared over a
+/// sub-document field expires nothing at all, silently, so the retention this store advertises does not
+/// happen.
+/// </para>
+/// <para>
+/// <b>This is a durable format change, and a collection can hold both shapes.</b> An entry written by an
+/// earlier version of this package is on disk in the sub-document shape and stays there; nothing rewrites
+/// it. Query operators are type-bracketed, so a date comparison does not match such a field rather than
+/// matching it wrongly — an entry in the old shape would simply become invisible to the two queries that
+/// bound this collection's growth. Both of those sites therefore read either shape rather than assuming
+/// the one this class writes.
+/// </para>
+/// <para>
+/// Reading is unaffected: the driver's serializer accepts either shape for a
+/// <see cref="DateTimeOffset"/> whatever representation is declared here, so an entry in either shape
+/// materialises into this class with the instant it was written from. What the attribute governs is how
+/// an instant is WRITTEN.
+/// </para>
 /// </remarks>
 internal sealed class MongoDbInboxDocument
 {
 	/// <summary>
-	/// Gets or sets the compound document ID: {MessageId}:{HandlerType}.
+	/// Gets or sets the compound document ID produced by <see cref="CreateId"/>:
+	/// <c>{TenantId}:{MessageId}:{HandlerType}</c>, each term percent-escaped so the join stays
+	/// injective. Opaque -- any term may itself contain a colon, so the id is never parsed back into
+	/// its segments; each segment is stored in its own field instead.
 	/// </summary>
 	[BsonId]
 	[BsonRepresentation(BsonType.String)]
@@ -57,12 +86,14 @@ internal sealed class MongoDbInboxDocument
 	/// Gets or sets when the message was received.
 	/// </summary>
 	[BsonElement("receivedAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset ReceivedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the message was processed.
 	/// </summary>
 	[BsonElement("processedAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset? ProcessedAt { get; set; }
 
 	/// <summary>
@@ -87,6 +118,7 @@ internal sealed class MongoDbInboxDocument
 	/// Gets or sets when the last attempt was made.
 	/// </summary>
 	[BsonElement("lastAttemptAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset? LastAttemptAt { get; set; }
 
 	/// <summary>
@@ -113,6 +145,7 @@ internal sealed class MongoDbInboxDocument
 	/// unmapped extra element (the store owns this field; it is not part of <see cref="InboxEntry"/>).
 	/// </summary>
 	[BsonElement("leaseExpiresAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime? LeaseExpiresAt { get; set; }
 
 	/// <summary>
@@ -129,8 +162,25 @@ internal sealed class MongoDbInboxDocument
 	/// <returns>The compound ID string.</returns>
 	public static string CreateId(string messageId, string handlerType, string? tenantId = null) =>
 		tenantId is null
-			? $"{messageId}:{handlerType}"
-			: $"{tenantId}:{messageId}:{handlerType}";
+			? $"{EscapeSegment(messageId)}:{EscapeSegment(handlerType)}"
+			: $"{EscapeSegment(tenantId)}:{EscapeSegment(messageId)}:{EscapeSegment(handlerType)}";
+
+	// The ':' joining the terms is not injective on its own. Neither the tenant term nor the message id is
+	// validated against any charset -- both are caller data -- so tenant "a:b" with message "c" and tenant
+	// "a" with message "b:c" both rendered "a:b:c:<handler>" and became ONE document sharing one unique
+	// _id. This is the dedup key, so the collision does not surface as an error: the second message reads
+	// as already-processed and is dropped, silently, across a tenant boundary.
+	//
+	// '%' is escaped FIRST and is what makes the encoding reversible. Escaping only ':' would map the
+	// distinct terms "a:b" and "a%3Ab" onto one id -- a collision introduced by the escaping itself.
+	//
+	// This is deliberately a no-op for any term containing neither '%' nor ':'. The _id is PERSISTED and is
+	// the dedup key, so an encoding that moved every existing document would orphan every in-flight dedup
+	// record on upgrade and re-deliver already-processed messages. Under this encoding the only ids whose
+	// bytes change are the ones that were ambiguous before, which had no single correct owner anyway.
+	private static string EscapeSegment(string value) =>
+		value.Replace("%", "%25", StringComparison.Ordinal)
+			.Replace(":", "%3A", StringComparison.Ordinal);
 
 	/// <summary>
 	/// Creates a document from an <see cref="InboxEntry"/>.

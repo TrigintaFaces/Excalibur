@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 /// Unit tests for <see cref="NullDeadLetterQueue"/>.
 /// </summary>
 /// <remarks>
-/// Sprint 745 ISP: ReplayBatchAsync, PurgeAsync, PurgeOlderThanAsync moved to IDeadLetterQueueAdmin.
+/// Sprint 745 ISP: ReplayBatchAsync, PurgeAsync, PurgeAllTenantsEntriesOlderThanAsync moved to IDeadLetterQueueAdmin.
 /// NullDeadLetterQueue only implements IDeadLetterQueue, so those tests were removed.
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]

@@ -129,9 +129,14 @@ public static class EventSourcingBuilderPostgresExtensions
 			opt.EventStoreTable = options.EventStoreTable;
 			opt.SnapshotStoreSchema = options.SnapshotStoreSchema;
 			opt.SnapshotStoreTable = options.SnapshotStoreTable;
-			opt.OutboxSchema = options.OutboxSchema;
-			opt.OutboxTable = options.OutboxTable;
 			opt.HealthChecks = options.HealthChecks;
+			// Only when the builder was actually given one. This delegate runs alongside any
+			// Configure<PostgresEventSourcingOptions> the consumer registered directly, so an
+			// unconditional assignment would overwrite their resolver with the builder's null.
+			if (options.EventTypeInfoResolver is not null)
+			{
+				opt.EventTypeInfoResolver = options.EventTypeInfoResolver;
+			}
 		});
 
 		// Register BindConfiguration if set
@@ -184,21 +189,22 @@ public static class EventSourcingBuilderPostgresExtensions
 		string table)
 	{
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext for the row-level tenant predicate)
-		// AND emits the ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull — the marker
-		// moved off the separate telemetry-wrapper helper onto the store registration so it cannot exist
-		// without the store that must honor the tenant).
-		services.AddTenantScopedStore<IEventStore, PostgresEventStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext for the row-level tenant predicate,
+		// since this store's constructor declares one) AND emits the ITenantScopingCapability<IEventStore>
+		// marker inseparably (the marker moved off the separate telemetry-wrapper helper onto
+		// the store registration so it cannot exist without the store that must honor the tenant).
+		services.AddTenantAwareStore<IEventStore, PostgresEventStore>(sp =>
 		{
 			var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
 			return new PostgresEventStore(
 				dataSource,
 				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>(),
-				schema,
-				table,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				internalSerializer: sp.GetService<ISerializer>(),
+				payloadSerializer: sp.GetService<IPayloadSerializer>(),
+				schema: schema,
+				table: table,
+				eventTypeInfoResolver: sp.GetService<IOptions<PostgresEventSourcingOptions>>()?.Value.EventTypeInfoResolver);
 		});
 
 		PostgresEventSourcingServiceCollectionExtensions.RegisterEventStoreTelemetryWrapper(services);
@@ -210,20 +216,21 @@ public static class EventSourcingBuilderPostgresExtensions
 		string table)
 	{
 		services.AddDefaultTenantContext();
-		// Mirror RegisterEventStore: AddTenantScopedStore injects ITenantContext (for the row-level tenant
-		// predicate) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably (S886 rw2ull)
-		// — the snapshot store cannot be registered without the tenant context it must honor. The prior
-		// TryAddSingleton constructed the store WITHOUT a context, so it silently served every tenant one
-		// partition (TenantScope.FromContext(null) = None) and carried no tenant-scoping attestation.
-		services.AddTenantScopedStore<ISnapshotStore, PostgresSnapshotStore>((sp, tenantContext) =>
+		// Mirror RegisterEventStore: AddTenantAwareStore injects ITenantContext (for the row-level tenant
+		// predicate, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<ISnapshotStore> marker inseparably — the snapshot store
+		// cannot be registered without the tenant context it must honor. The prior TryAddSingleton
+		// constructed the store WITHOUT a context, so it silently served every tenant one partition -- an
+		// unwired context resolved to default(TenantScope) -- and carried no tenant-scoping attestation.
+		services.AddTenantAwareStore<ISnapshotStore, PostgresSnapshotStore>(sp =>
 		{
 			var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
 			return new PostgresSnapshotStore(
 				dataSource,
 				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>(),
-				schema,
-				table,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				schema: schema,
+				table: table);
 		});
 
 		PostgresEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);

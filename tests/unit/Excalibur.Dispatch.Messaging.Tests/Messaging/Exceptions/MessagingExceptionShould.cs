@@ -150,25 +150,6 @@ public sealed class MessagingExceptionShould
 	}
 
 	[Fact]
-	public void CreateHandlerNotFoundException()
-	{
-		// Arrange
-		var messageType = typeof(TestMessage);
-
-		// Act
-		var exception = MessagingException.HandlerNotFound(messageType);
-
-		// Assert
-		exception.Message.ShouldContain("TestMessage");
-		exception.Message.ShouldContain("No handler found");
-		exception.MessageType.ShouldBe(messageType.FullName);
-		exception.Context.ShouldContainKey("messageType");
-		exception.SuggestedAction.ShouldContain("Register a handler");
-		exception.DispatchStatusCode.ShouldBe(500);
-		exception.Data["ErrorCode"].ShouldBe(ErrorCodes.MessageHandlerNotFound);
-	}
-
-	[Fact]
 	public void CreateRoutingFailedException()
 	{
 		// Arrange
@@ -282,6 +263,23 @@ public sealed class MessagingExceptionShould
 		{
 			caught.ShouldBe(exception);
 		}
+	}
+
+	public static TheoryData<MessagingException> Factories() =>
+	[
+		MessagingException.RoutingFailed("msg-1", "no route"),
+		MessagingException.DuplicateMessage("msg-1"),
+		MessagingException.RetryLimitExceeded("msg-1", 3),
+		MessagingException.BrokerConnectionFailed("localhost:5672"),
+	];
+
+	[Theory]
+	[MemberData(nameof(Factories))]
+	public void AgreeBetweenErrorCodePropertyAndDataEntry(MessagingException exception)
+	{
+		// The single-string constructor stamps ErrorCode with MessageSendFailed, so a factory that
+		// set only Data["ErrorCode"] reported two different codes for the same failure.
+		exception.ErrorCode.ShouldBe(exception.Data["ErrorCode"]);
 	}
 
 	// Helper class for testing

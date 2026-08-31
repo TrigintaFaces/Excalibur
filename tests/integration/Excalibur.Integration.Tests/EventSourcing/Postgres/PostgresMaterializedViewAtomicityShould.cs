@@ -45,7 +45,7 @@ public sealed class PostgresMaterializedViewAtomicityShould : IClassFixture<Post
 	private NpgsqlDataSource DataSource => _dataSource ??= NpgsqlDataSource.Create(_fixture.ConnectionString);
 
 	private PostgresMaterializedViewStore NewStore() =>
-		new(DataSource, NullLogger<PostgresMaterializedViewStore>.Instance);
+		new(DataSource, NullLogger<PostgresMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
 
 	private async Task<PostgresMaterializedViewStore> ReadyStoreAsync()
 	{
@@ -58,18 +58,21 @@ public sealed class PostgresMaterializedViewAtomicityShould : IClassFixture<Post
 		{
 			cmd.CommandText = """
 				CREATE TABLE IF NOT EXISTS materialized_views (
+					tenant_id  TEXT NOT NULL,
 					view_name  TEXT NOT NULL,
 					view_id    TEXT NOT NULL,
 					data       JSONB NOT NULL,
 					created_at TIMESTAMPTZ NOT NULL,
 					updated_at TIMESTAMPTZ NOT NULL,
-					PRIMARY KEY (view_name, view_id)
+					PRIMARY KEY (tenant_id, view_name, view_id)
 				);
 				CREATE TABLE IF NOT EXISTS materialized_view_positions (
-					view_name  TEXT NOT NULL PRIMARY KEY,
+					tenant_id  TEXT NOT NULL,
+					view_name  TEXT NOT NULL,
 					position   BIGINT NOT NULL,
 					created_at TIMESTAMPTZ NOT NULL,
-					updated_at TIMESTAMPTZ NOT NULL
+					updated_at TIMESTAMPTZ NOT NULL,
+					PRIMARY KEY (tenant_id, view_name)
 				);
 				""";
 			_ = await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
@@ -150,4 +153,19 @@ public sealed class PostgresMaterializedViewAtomicityShould : IClassFixture<Post
 	}
 
 	public void Dispose() => _dataSource?.Dispose();
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

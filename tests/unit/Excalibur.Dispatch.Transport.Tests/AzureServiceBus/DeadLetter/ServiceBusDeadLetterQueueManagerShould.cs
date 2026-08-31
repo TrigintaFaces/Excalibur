@@ -359,10 +359,10 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 
 	#endregion
 
-	#region PurgeDeadLetterQueueAsync
+	#region PurgeAllTenantsDeadLetterQueueAsync
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_ReturnsCountFromAdapter()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_ReturnsCountFromAdapter()
 	{
 		// Arrange — the adapter encapsulates the receive/complete cycle; manager
 		// just forwards the drain and surfaces the total count.
@@ -374,7 +374,7 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 			.Returns(2);
 
 		// Act
-		var purgedCount = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purgedCount = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purgedCount.ShouldBe(2);
@@ -384,7 +384,7 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	}
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_ReturnsZero_WhenEmpty()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_ReturnsZero_WhenEmpty()
 	{
 		// Arrange
 		A.CallTo(() => _fakeClient.PurgeDlqAsync(
@@ -392,7 +392,7 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 			.Returns(0);
 
 		// Act
-		var purgedCount = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purgedCount = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purgedCount.ShouldBe(0);

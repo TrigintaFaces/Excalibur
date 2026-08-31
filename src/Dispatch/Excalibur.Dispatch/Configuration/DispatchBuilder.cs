@@ -14,6 +14,7 @@ using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -57,8 +58,8 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// IMiddlewareApplicabilityStrategy is already TryAdd-registered by
 		// AddDispatchPipeline (which always runs before this constructor via the
 		// AddDispatch entry points); the redundant ctor registration was the
-		// S794 D1 row 3 drifter and is intentionally removed here.
-		// [S794 bd-ffecs4 rows 1+2]
+		// D1 row 3 drifter and is intentionally removed here.
+		// [ rows 1+2]
 		Services.TryAddSingleton(_profileRegistry);
 		Services.TryAddSingleton(_bindingRegistry);
 
@@ -72,11 +73,11 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// (PipelineBuilder.UseProfile -> GetService<IPipelineProfileRegistry>()) saw a registry
 		// WITHOUT the builder.RegisterProfile(...)/configured-default profiles — a configured
 		// profile resolved "not found". So the builder's instance must win over the framework
-		// default [S849 K keystone rb4g4b].
+		// default.
 		//
 		// BUT a consumer's pre-AddDispatch registration of IPipelineProfileRegistry — in ANY
 		// form (instance, implementation-type, OR factory) — MUST win over the builder
-		// (first-wins / consumer-override, S794 bd-ffecs4). A consumer who replaces the registry
+		// (first-wins / consumer-override,). A consumer who replaces the registry
 		// OWNS profile registration (Microsoft-first "replace a service = take ownership"; the
 		// framework does NOT merge its defaults into a consumer-owned instance). If such a
 		// consumer references an unpopulated profile via UseProfile(...), PipelineBuilder fails
@@ -88,10 +89,10 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// no instance/factory). Every consumer-override form fails that test and is left
 		// authoritative untouched — so "clobber a consumer override" is structurally
 		// inexpressible. No field retarget — preserves the DispatchCacheManager concrete-cast
-		// perf path. [S849 txmwh9]
+		// perf path.
 		var existing = Services.FirstOrDefault(
 			static d => d.ServiceType == typeof(IPipelineProfileRegistry));
-		// ybem93: keyed-safe accessors (raw reads — including property patterns — throw on keyed descriptors).
+		// keyed-safe accessors (raw reads — including property patterns — throw on keyed descriptors).
 		var isFrameworkDefault =
 			existing is not null
 			&& existing.GetImplementationInstance() is null
@@ -206,7 +207,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		// guards against a second Build() invocation by short-circuiting before
 		// the builder runs. This guard protects the descriptor graph when
 		// Build() is reached through any future path that bypasses the entry
-		// point. [S794 bd-ffecs4 rows 5+7 / COMPASS msg 1480]
+		// point.
 		if (Services.Any(static d => d.ServiceType == typeof(DispatchRuntimeState)))
 		{
 			return new DeferredDispatcher(Services
@@ -221,7 +222,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 
 		RegisterOptions();
 
-		// ssn7a3 (AC2 — fail closed at startup): authorization was explicitly wired into the pipeline
+		// Fail closed at startup: authorization was explicitly wired into the pipeline
 		// (UseAuthorization() → AuthorizationMiddleware in the global middleware set) but its activating
 		// feature is disabled, so the synthesizer/evaluator would silently drop the authorization stage and
 		// let authorization-required Action messages reach their handlers unauthorized. Fail loud, naming the
@@ -312,6 +313,19 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
 
+		// Enabling the inbox selects durable, store-backed deduplication, but the store lives in a
+		// persistence package this one does not reference and cannot register. Registering the gate here —
+		// on the single path every builder configuration flows through — means the flag cannot be set by
+		// any entry point without the store requirement being checked, rather than each entry point that
+		// promises durability having to remember to opt in. The gate is inert while the inbox is disabled.
+		var services = Services;
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, DurableInboxPrerequisiteValidator>(
+				sp => new DurableInboxPrerequisiteValidator(services, sp.GetRequiredService<IOptions<DispatchOptions>>())));
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, DurableInboxPrerequisiteValidator>(
+				sp => new DurableInboxPrerequisiteValidator(services, sp.GetRequiredService<IOptions<DispatchOptions>>())));
+
 		Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<Options.Core.InMemoryBusOptions>, Options.Core.InMemoryBusOptionsValidator>());
 
@@ -338,11 +352,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 				opt.Inbox.CleanupInterval = _options.Inbox.CleanupInterval;
 
 				opt.Outbox.Enabled = _options.Outbox.Enabled;
-				opt.Outbox.BatchSize = _options.Outbox.BatchSize;
-				opt.Outbox.PublishIntervalMs = _options.Outbox.PublishIntervalMs;
-				opt.Outbox.MaxRetries = _options.Outbox.MaxRetries;
-				opt.Outbox.SentMessageRetention = _options.Outbox.SentMessageRetention;
-				opt.Outbox.UseInMemoryStorage = _options.Outbox.UseInMemoryStorage;
 
 				opt.Consumer.Dedupe.Enabled = _options.Consumer.Dedupe.Enabled;
 				opt.Consumer.Dedupe.DefaultExpiry = _options.Consumer.Dedupe.DefaultExpiry;
@@ -486,10 +495,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		/// <inheritdoc />
 		public IServiceProvider? ServiceProvider => holder.GetOrThrow().ServiceProvider;
 
-		[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
-		[UnconditionalSuppressMessage("AOT", "IL3051",
-			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
 		public Task<IMessageResult> DispatchAsync<TMessage>(
 			TMessage message,
 			IMessageContext context,
@@ -497,10 +502,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			where TMessage : IDispatchMessage =>
 			holder.GetOrThrow().DispatchAsync(message, context, cancellationToken);
 
-		[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
-		[UnconditionalSuppressMessage("AOT", "IL3051",
-			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
 		public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 			TMessage message,
 			IMessageContext context,

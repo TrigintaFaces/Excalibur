@@ -38,7 +38,9 @@ Temporary problems that resolve on their own. Retrying is the correct response.
 Problems that will never resolve by retrying. Continuing to retry wastes resources and delays other messages.
 
 - Message payload cannot be deserialized (corrupt or wrong schema)
-- No handler registered for the message type
+- No handler registered for the message type — this one is not retried at all: it throws
+  `HandlerNotRegisteredException`, which `UseRetry()`, `UseExceptionMapping()` and `UseCircuitBreaker()`
+  deliberately let through rather than converting to a failed result
 - Business rule violation (order amount is negative)
 - Authorization failed (invalid credentials)
 - External resource permanently gone (HTTP 404/410)
@@ -275,12 +277,12 @@ var replayResult = await dlqAdmin.ReplayBatchAsync(
 // replayResult.Truncated is true when more entries still match -- loop until it is false.
 
 // Purge old entries. Estate-wide and irreversible: deletes in EVERY tenant on age alone.
-await dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(30), cancellationToken);
+await dlqAdmin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(30), cancellationToken);
 ```
 
 :::danger `IDeadLetterQueueAdmin` crosses tenant boundaries
 
-**`IDeadLetterQueueAdmin` addresses entries in every tenant**, and `PurgeOlderThanAsync` selects on an age predicate with no tenant term at all, deleting matching entries estate-wide and irreversibly.
+**`IDeadLetterQueueAdmin` addresses entries in every tenant**, and `PurgeAllTenantsEntriesOlderThanAsync` selects on an age predicate with no tenant term at all, deleting matching entries estate-wide and irreversibly.
 
 **`IDeadLetterQueue` resolves its tenant-facing operations within the ambient tenant.** The shipped SQL Server implementation carries the ambient tenant scope into `GetEntriesAsync`, `GetEntryAsync` and `ReplayAsync`, so an entry stored under another tenant is not listed, not fetched, and not replayable from a caller's own context; replay continues to re-enter the tenant the entry was *stored* under. **`IDeadLetterQueueAdmin` is different** — its purge operations resolve across every tenant deliberately, because an operator must be able to address any tenant's entry. Keep the admin interface out of tenant-reachable code paths, and treat a custom `IDeadLetterQueue` implementation as scoped only insofar as you scope it. See [Dead Letter Handling](./dead-letter.md) for the full contract.
 
@@ -340,7 +342,7 @@ The answer depends on who is doing the retrying:
 |-------------|----------------|----------------|
 | **Pipeline retry** (Polly/built-in) | Yes -- same pipeline invocation | Inbox is not consulted during retries within one pipeline execution |
 | **Broker redelivery** | Yes -- same transport message | Inbox detects duplicate and skips |
-| **Publisher retry** (outbox re-publish) | Depends on outbox implementation | Use `MessageIdStrategy.Custom` with business keys for safety |
+| **Publisher retry** (outbox re-publish) | Depends on outbox implementation | Carry a business key on the message id for safety |
 
 Pipeline retries happen inside a single message processing attempt. The inbox operates at the pipeline boundary -- it checks on message arrival and records on completion. So pipeline retries don't conflict with idempotency; they complement it.
 
@@ -464,7 +466,7 @@ var deserializationFailures = await dlq.GetEntriesAsync(
 // not only the deserialization failures you just reviewed. Scope the investigation
 // narrowly, but expect the purge to be broad.
 var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
-await dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(7), ct);
+await dlqAdmin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(7), ct);
 ```
 
 ### Transport-Level Recovery (Reprocessing)

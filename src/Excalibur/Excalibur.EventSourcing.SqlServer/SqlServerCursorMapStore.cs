@@ -19,14 +19,24 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// <c>(ProjectionName, StreamId, Position)</c>. Saves are atomic via MERGE.
 /// </para>
 /// <para>
-/// Table DDL:
+/// This store issues no DDL at run time. Provision the table from the
+/// <c>008_CreateCursorMapSchema.sql</c> script shipped in this package's <c>scripts</c> folder
+/// before the first checkpoint; without it every save fails with
+/// <c>Msg 208, Invalid object name 'ProjectionCursorMaps'</c>.
+/// </para>
+/// <para>
+/// Table DDL, abridged — run the script rather than transcribing this. The script carries the
+/// binary collation on the three key columns and the non-clustered primary key, both of which are
+/// load-bearing and neither of which is visible here: the natural key is 1152 bytes, over SQL
+/// Server's 900-byte clustered limit, so a plain <c>PRIMARY KEY</c> creates a table that accepts
+/// the definition and then refuses long rows at run time.
 /// <code>
 /// CREATE TABLE ProjectionCursorMaps (
-///     TenantId NVARCHAR(256) NOT NULL,
+///     TenantId NVARCHAR(64) NOT NULL,
 ///     ProjectionName NVARCHAR(256) NOT NULL,
 ///     StreamId NVARCHAR(256) NOT NULL,
 ///     Position BIGINT NOT NULL,
-///     CONSTRAINT PK_ProjectionCursorMaps PRIMARY KEY (TenantId, ProjectionName, StreamId)
+///     CONSTRAINT PK_ProjectionCursorMaps PRIMARY KEY NONCLUSTERED (TenantId, ProjectionName, StreamId)
 /// );
 /// </code>
 /// </para>
@@ -35,39 +45,31 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerCursorMapStore> _logger;
-	private readonly ITenantContext? _tenantContext;
-
+	private readonly ITenantContext _tenantContext;
 	/// <summary>
-	/// Initializes a new instance with a connection string.
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
 	/// </summary>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="logger">The logger instance.</param>
-	public SqlServerCursorMapStore(string connectionString, ILogger<SqlServerCursorMapStore> logger)
-		: this(CreateConnectionFactory(connectionString), logger, null)
-	{
-	}
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance with a connection string and an ambient tenant context.
 	/// </summary>
 	/// <param name="connectionString">The SQL Server connection string.</param>
 	/// <param name="logger">The logger instance.</param>
-	/// <param name="tenantContext">The ambient tenant context.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public SqlServerCursorMapStore(
 		string connectionString,
 		ILogger<SqlServerCursorMapStore> logger,
-		ITenantContext? tenantContext)
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString), logger, tenantContext)
-	{
-	}
-
-	/// <summary>
-	/// Initializes a new instance with a connection factory.
-	/// </summary>
-	/// <param name="connectionFactory">A factory that creates <see cref="SqlConnection"/> instances.</param>
-	/// <param name="logger">The logger instance.</param>
-	public SqlServerCursorMapStore(Func<SqlConnection> connectionFactory, ILogger<SqlServerCursorMapStore> logger)
-		: this(connectionFactory, logger, null)
 	{
 	}
 
@@ -77,19 +79,18 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 	/// <param name="connectionFactory">A factory that creates <see cref="SqlConnection"/> instances.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Cursor
-	/// maps are partitioned by the tenant this resolves -- never by a tenant the caller names, which is why
-	/// no method takes a tenant argument. The two-argument overloads are kept so the shipped public surface
-	/// is unchanged: an existing caller compiles untouched and lands in the untenanted partition, exactly
-	/// where its rows already were.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public SqlServerCursorMapStore(
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerCursorMapStore> logger,
-		ITenantContext? tenantContext)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_connectionFactory = connectionFactory;
 		_logger = logger;
@@ -99,7 +100,7 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 	/// <summary>Resolves the partition every cursor map is confined to.</summary>
 	/// <returns>The reserved partition key for the ambient tenant.</returns>
 	private string ResolveTenantKey() =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyDictionary<string, long>> GetCursorMapAsync(
@@ -150,7 +151,7 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 		{
 			await connection.ExecuteAsync(
 				"""
-				MERGE ProjectionCursorMaps AS target
+				MERGE ProjectionCursorMaps WITH (UPDLOCK, HOLDLOCK) AS target
 				USING (SELECT @TenantId AS TenantId, @ProjectionName AS ProjectionName, @StreamId AS StreamId) AS source
 				ON target.TenantId = source.TenantId
 					AND target.ProjectionName = source.ProjectionName

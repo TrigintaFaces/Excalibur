@@ -68,12 +68,6 @@ public sealed class BatchProcessingOptions
 	public bool ContinueOnError { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets the retry policy.
-	/// </summary>
-	/// <value>The policy describing retry behavior when processing failures occur.</value>
-	public BatchRetryOptions RetryPolicy { get; set; } = new();
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable metrics collection.
 	/// </summary>
 	/// <value><see langword="true"/> to publish processing metrics; otherwise <see langword="false"/>.</value>

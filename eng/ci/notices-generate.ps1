@@ -88,6 +88,19 @@ $projectPaths = Get-ChildItem -Path (Join-Path $RepoRoot 'src') -Recurse -File -
 
 $projRefs = $projectPaths | ForEach-Object { Get-PackageReferencesFromCsproj $_ }
 
+# Licences come from a committed map rather than from the restored package cache. A cache read would
+# make this file's content depend on what a given machine happened to have restored, and the CI gate
+# diffs the generated file byte-for-byte against the committed one -- so an unrestored package would
+# fail the gate on some machines and not others. The map also makes adding a dependency an explicit
+# licence decision: a package with no entry fails this script rather than being quietly listed with
+# an empty licence cell.
+$licenseMapPath = Join-Path $PSScriptRoot 'package-licenses.json'
+if (!(Test-Path $licenseMapPath)) {
+  Write-Error "Licence map not found at $licenseMapPath. Cannot state a licence for any package."
+  exit 1
+}
+$licenseMap = Get-Content -Raw -- $licenseMapPath | ConvertFrom-Json
+
 # Build a lookup of central package versions
 $centralVersions = @{}
 foreach ($p in $central) { $centralVersions[$p.Id] = $p.Version }
@@ -96,6 +109,11 @@ foreach ($p in $central) { $centralVersions[$p.Id] = $p.Version }
 # Resolve versions from explicit csproj Version attributes, falling back to central management.
 $all = @{}
 foreach ($r in $projRefs) {
+  # First-party packages are not third-party notices. Metapackages reference their siblings by
+  # PackageReference, which is why 22 Excalibur.* rows were listed here carrying a blank version --
+  # they are not centrally pinned, because their version is the build's.
+  if ($r.Id -like 'Excalibur.*') { continue }
+
   # Resolve the effective version for this reference (explicit, else central pin).
   $ver = if ($r.Version) { $r.Version }
          elseif ($centralVersions.ContainsKey($r.Id)) { $centralVersions[$r.Id] }
@@ -119,13 +137,31 @@ $lines += ""
 $lines += "This file lists third-party packages referenced by this repository."
 $lines += "It is generated from project files; licenses remain with their respective owners."
 $lines += ""
-$lines += "| Package | Version |"
-$lines += "|---------|---------|"
+$lines += "Licenses are recorded per package id in ``eng/ci/package-licenses.json``. Most are SPDX"
+$lines += "expressions taken from the package's own metadata. Where a package ships its terms as a"
+$lines += "license file or a URL instead of an SPDX expression, the entry states those terms in words,"
+$lines += "and is marked PROPRIETARY when they are not an OSI-approved open-source license."
+$lines += ""
+$lines += "| Package | Version | License |"
+$lines += "|---------|---------|---------|"
 $sortedKeys = [string[]]$all.Keys
 [System.Array]::Sort($sortedKeys, [System.StringComparer]::Ordinal)
+$unlicensed = @()
 foreach ($k in $sortedKeys) {
   $v = $all[$k]
-  $lines += "| $k | $v |"
+  $licenseProp = $licenseMap.PSObject.Properties[$k]
+  if ($null -eq $licenseProp -or [string]::IsNullOrWhiteSpace([string]$licenseProp.Value)) {
+    $unlicensed += $k
+    continue
+  }
+  $lines += "| $k | $v | $([string]$licenseProp.Value) |"
+}
+
+# Fail loud rather than emit a row with an empty licence cell. A notices file that lists a package
+# without stating its terms is the defect this column exists to close.
+if ($unlicensed.Count -gt 0) {
+  Write-Error ("No licence recorded for: " + ($unlicensed -join ', ') + ". Add each to eng/ci/package-licenses.json, reading the licence the package actually ships rather than the vendor's usual one.")
+  exit 1
 }
 
 # Use explicit UTF-8 without BOM for stable cross-platform diffs in CI.

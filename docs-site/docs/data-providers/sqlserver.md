@@ -107,7 +107,6 @@ await sqlProvider.ExecuteBatchInTransactionAsync(requests, scope, cancellationTo
   "SqlServerPersistence": {
     "ConnectionString": "Server=localhost;Database=MyApp;Trusted_Connection=true;",
     "CommandTimeout": 30,
-    "EnableConnectionResiliency": true,
     "MaxRetryAttempts": 3,
     "RetryDelayMilliseconds": 1000,
     "EnableDetailedLogging": false,

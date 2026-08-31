@@ -6,7 +6,7 @@ Demonstrates all framework DynamoDB capabilities provided by the `Excalibur.Data
 
 | # | Capability | API |
 |---|-----------|-----|
-| 1 | DI Registration | `AddDynamoDb(Action<DynamoDbOptions>)`, `AddDynamoDb(IConfiguration)`, `AddDynamoDb(IConfiguration, string)`, `AddDynamoDbWithClient(Action<DynamoDbOptions>)` |
+| 1 | DI Registration | `AddExcaliburDynamoDb(Action<IDynamoDBDataBuilder>)` -- the builder supplies `Region`, `ServiceUrl`, `TableName`, `TablePrefix`, `Client`, `ClientFactory`, and `BindConfiguration` |
 | 2 | CRUD Operations | `CreateAsync`, `GetByIdAsync`, `UpdateAsync`, `DeleteAsync` via `ICloudNativePersistenceProvider` |
 | 3 | Consistent Reads | `DynamoDbOptions.UseConsistentReads` + `ConsistencyOptions.Strong` per-operation override |
 | 4 | DynamoDB Streams | `DynamoDbOptions.EnableStreams`, `StreamViewType`, `CreateChangeFeedSubscriptionAsync` |

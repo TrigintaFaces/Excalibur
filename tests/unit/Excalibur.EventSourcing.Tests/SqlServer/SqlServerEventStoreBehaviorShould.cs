@@ -24,7 +24,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 	[Fact]
 	public async Task AppendAsync_ReturnSuccess_WhenNoEvents()
 	{
-		var sut = new SqlServerEventStore(InvalidConnectionString, Logger);
+		var sut = new SqlServerEventStore(InvalidConnectionString, Logger, TestTenantContext.SingleTenantDefault);
 
 		var result = await sut.AppendAsync("agg-1", "Order", [], expectedVersion: 5, CancellationToken.None);
 
@@ -36,7 +36,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 	[Fact]
 	public async Task AppendAsync_ReturnFailureResult_WhenConnectionCannotBeOpened()
 	{
-		var sut = new SqlServerEventStore(InvalidConnectionString, Logger);
+		var sut = new SqlServerEventStore(InvalidConnectionString, Logger, TestTenantContext.SingleTenantDefault);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1") };
 
 		var result = await sut.AppendAsync("agg-1", "Order", events, expectedVersion: 0, CancellationToken.None);
@@ -49,7 +49,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 	[Fact]
 	public async Task LoadAsync_Throw_WhenConnectionCannotBeOpened()
 	{
-		var sut = new SqlServerEventStore(InvalidConnectionString, Logger);
+		var sut = new SqlServerEventStore(InvalidConnectionString, Logger, TestTenantContext.SingleTenantDefault);
 
 		await Should.ThrowAsync<Exception>(() =>
 			sut.LoadAsync("agg-1", "Order", CancellationToken.None).AsTask());
@@ -58,7 +58,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 	[Fact]
 	public async Task LoadAsync_FromVersion_Throw_WhenConnectionCannotBeOpened()
 	{
-		var sut = new SqlServerEventStore(InvalidConnectionString, Logger);
+		var sut = new SqlServerEventStore(InvalidConnectionString, Logger, TestTenantContext.SingleTenantDefault);
 
 		await Should.ThrowAsync<Exception>(() =>
 			sut.LoadAsync("agg-1", "Order", 10, CancellationToken.None).AsTask());
@@ -71,12 +71,15 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		var sut = new SqlServerEventStore(
 			InvalidConnectionString,
 			Logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			internalSerializer: null,
 			payloadSerializer: payloadSerializer);
 		var method = typeof(SqlServerEventStore).GetMethod("SerializeEvent", BindingFlags.Instance | BindingFlags.NonPublic);
 		method.ShouldNotBeNull();
 
-		var bytes = (byte[])method!.Invoke(sut, [new TestDomainEvent("evt-1")])!;
+		// The stream identity is reported on the exception raised when a configured type-info resolver
+		// does not declare the event type, so it travels with the event into serialization.
+		var bytes = (byte[])method!.Invoke(sut, [new TestDomainEvent("evt-1"), "agg-1", "Order"])!;
 
 		bytes.ShouldBe([7, 8, 9]);
 		payloadSerializer.SerializeCallCount.ShouldBe(1);
@@ -90,6 +93,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		var sut = new SqlServerEventStore(
 			InvalidConnectionString,
 			Logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			internalSerializer: internalSerializer,
 			payloadSerializer: payloadSerializer);
 		var method = typeof(SqlServerEventStore).GetMethod(
@@ -113,6 +117,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		var sut = new SqlServerEventStore(
 			InvalidConnectionString,
 			Logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			internalSerializer: null,
 			payloadSerializer: payloadSerializer);
 		var method = typeof(SqlServerEventStore).GetMethod(
@@ -129,7 +134,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 	[Fact]
 	public void SerializeMetadata_ReturnJsonPayload()
 	{
-		var sut = new SqlServerEventStore(InvalidConnectionString, Logger);
+		var sut = new SqlServerEventStore(InvalidConnectionString, Logger, TestTenantContext.SingleTenantDefault);
 		var method = typeof(SqlServerEventStore).GetMethod("SerializeMetadata", BindingFlags.Instance | BindingFlags.NonPublic);
 		method.ShouldNotBeNull();
 
@@ -225,6 +230,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		public byte GetCurrentSerializerId() => 1;
 		public string GetCurrentSerializerName() => "stub";
 		public byte[] SerializeObject(object value, Type type) => payload;
+		public object DeserializeObject(byte[] data, Type type) => throw new NotSupportedException();
 	}
 
 	private sealed class StubInternalSerializer(byte[] payload) : ISerializer

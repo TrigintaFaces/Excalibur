@@ -42,7 +42,9 @@ public sealed class InMemoryDataInventoryStoreConformanceTests : DataInventorySt
 {
 	/// <inheritdoc />
 	protected override IDataInventoryStore CreateStore() =>
-		new InMemoryDataInventoryStore(new AmbientHolderTenantContext());
+		new InMemoryDataInventoryStore(
+			new AmbientHolderTenantContext(),
+			Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 	/// <inheritdoc />
 	protected override IDisposable EnterTenant(string tenantId) =>
@@ -176,4 +178,20 @@ public sealed class InMemoryDataInventoryStoreConformanceTests : DataInventorySt
 		GetDiscoveredLocationsAsync_ShouldIsolateByDataSubject();
 
 	#endregion Multi-Tenant Tests
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail - in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

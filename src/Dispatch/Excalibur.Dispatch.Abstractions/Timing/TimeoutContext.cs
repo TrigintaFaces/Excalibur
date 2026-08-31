@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Provides additional context for timeout decisions and adaptive timeout calculations. R7.4: Context-aware timeout handling.
+/// Provides additional context for timeout decisions and adaptive timeout calculations. Context-aware timeout handling.
 /// </summary>
 public sealed class TimeoutContext
 {

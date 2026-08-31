@@ -3,6 +3,7 @@
 
 using System.Reflection;
 
+using Excalibur.Dispatch;
 using Excalibur.Saga.DynamoDb;
 
 namespace Excalibur.Data.Tests.DynamoDb;
@@ -166,31 +167,51 @@ public sealed class DynamoDbSagaDocumentShould
 	#region CreatePK Tests
 
 	[Fact]
-	public void CreatePK_ReturnsCorrectPartitionKey()
-	{
-		// Arrange
-		var method = _documentType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
-		var sagaId = Guid.NewGuid();
-
-		// Act
-		var result = (string)method!.Invoke(null, new object[] { sagaId })!;
-
-		// Assert
-		result.ShouldBe($"SAGA#{sagaId}");
-	}
-
-	[Fact]
-	public void CreatePK_FormatsGuidCorrectly()
+	public void CreatePK_ComposesTheOwningTenantWithTheSagaId()
 	{
 		// Arrange
 		var method = _documentType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
 		var sagaId = new Guid("12345678-1234-1234-1234-123456789abc");
 
 		// Act
-		var result = (string)method!.Invoke(null, new object[] { sagaId })!;
+		var result = (string)method!.Invoke(null, new object[] { "tenant-a", sagaId })!;
 
 		// Assert
-		result.ShouldBe("SAGA#12345678-1234-1234-1234-123456789abc");
+		result.ShouldBe("SAGA#t:tenant-a:12345678-1234-1234-1234-123456789abc");
+	}
+
+	[Fact]
+	public void CreatePK_GivesTwoTenantsDistinctPartitionKeys_ForTheSameSagaId()
+	{
+		// The saga identifier is a business correlation key, so two tenants legitimately run a saga at the
+		// same one. If the partition key did not carry the tenant they would address ONE item, and the
+		// tenant term in the write condition -- which correctly refuses a cross-tenant overwrite -- would
+		// also refuse the second tenant its own saga.
+
+		// Arrange
+		var method = _documentType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
+		var sagaId = Guid.NewGuid();
+
+		// Act
+		var pkForA = (string)method!.Invoke(null, new object[] { "tenant-a", sagaId })!;
+		var pkForB = (string)method!.Invoke(null, new object[] { "tenant-b", sagaId })!;
+
+		// Assert
+		pkForA.ShouldNotBe(pkForB);
+	}
+
+	[Fact]
+	public void CreatePK_CarriesTheUntenantedSentinel_SoNoKeyIsProducedWithoutATenantSegment()
+	{
+		// Arrange
+		var method = _documentType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
+		var sagaId = new Guid("12345678-1234-1234-1234-123456789abc");
+
+		// Act
+		var result = (string)method!.Invoke(null, new object[] { TenantScope.Untenanted.TenantId, sagaId })!;
+
+		// Assert
+		result.ShouldBe($"SAGA#t:{TenantScope.Untenanted.TenantId}:12345678-1234-1234-1234-123456789abc");
 	}
 
 	#endregion

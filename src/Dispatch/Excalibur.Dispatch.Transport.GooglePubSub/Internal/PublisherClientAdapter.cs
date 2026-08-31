@@ -10,8 +10,7 @@ namespace Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 /// Default <see cref="IPublisherClientSeam"/> implementation that forwards
 /// to a real <see cref="PublisherServiceApiClient"/>. This adapter is the
 /// only place in the publish path that touches the live Pub/Sub SDK client
-/// type — tests substitute at the seam, never at the SDK type directly
-/// (ADR-142 §D7).
+/// type — tests substitute at the seam, never at the SDK type directly.
 /// </summary>
 internal sealed class PublisherClientAdapter : IPublisherClientSeam
 {

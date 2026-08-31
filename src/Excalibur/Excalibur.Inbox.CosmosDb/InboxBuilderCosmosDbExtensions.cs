@@ -113,14 +113,19 @@ public static class InboxBuilderCosmosDbExtensions
 			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 		}
 
-		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup id + every keyed
-		// read/claim scope per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably
-		// from that wiring — an unwired provider cannot carry a truthful marker.
-		builder.Services.AddTenantScopedStore<IInboxStore, CosmosDbInboxStore>((sp, tenantContext) =>
-			new CosmosDbInboxStore(
-				sp.GetRequiredService<IOptions<CosmosDbInboxOptions>>(),
-				sp.GetRequiredService<ILogger<CosmosDbInboxStore>>(),
-				tenantContext));
+		// AddTenantAwareStore builds the store injecting ITenantContext (so the dedup id + every keyed
+		// read/claim scope per tenant, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably from that wiring — an unwired provider
+		// cannot carry a truthful marker.
+		_ = builder.Services.AddDefaultTenantContext();
+		//
+		// Activated rather than hand-constructed, so the store borrows the CosmosClient registered above
+		// when there is one. Naming the three-argument constructor explicitly made the singleton
+		// unreachable to this store, which then opened a second connection pool against the same account.
+		// Activation still selects the three-argument constructor when no client is registered (the
+		// BindConfiguration path), so the store keeps working for a host that supplies one itself.
+		builder.Services.AddTenantAwareStore<IInboxStore, CosmosDbInboxStore>(
+			static sp => ActivatorUtilities.CreateInstance<CosmosDbInboxStore>(sp));
 		builder.Services.AddKeyedSingleton<IInboxStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("cosmosdb"));

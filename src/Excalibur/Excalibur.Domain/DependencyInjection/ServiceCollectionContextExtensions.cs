@@ -84,17 +84,22 @@ public static class ServiceCollectionContextExtensions
 	/// </summary>
 	/// <param name="services"> The service collection to modify. </param>
 	/// <param name="tenant"> The default tenant identifier applied when no ambient tenant resolves.
-	/// Defaults to <see cref="TenantDefaults.DefaultTenantId"/>. </param>
+	/// When <see langword="null" />, <see cref="TenantDefaults.DefaultTenantId"/> is resolved at run time.
+	/// It is deliberately not a default parameter value: a default value is baked into the caller's
+	/// assembly at compile time, so a consumer would keep passing the value that was current when they
+	/// built, and this value decides which rows an operation can see. </param>
 	/// <param name="localAddress"> Use the machine IP address when true; otherwise register a scoped address. </param>
 	/// <returns> The updated service collection. </returns>
 	public static IServiceCollection AddExcaliburContextServices(
 		this IServiceCollection services,
-		string tenant = TenantDefaults.DefaultTenantId,
+		string? tenant = null,
 		bool localAddress = false)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<TenantContextOptions>(o => o.DefaultTenantId = tenant);
+		var resolvedTenant = tenant ?? TenantDefaults.DefaultTenantId;
+
+		_ = services.Configure<TenantContextOptions>(o => o.DefaultTenantId = resolvedTenant);
 		_ = services.TryAddCorrelationId();
 		_ = services.TryAddETag();
 		_ = localAddress

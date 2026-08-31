@@ -115,6 +115,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		Justification = "Event deserialization is inherently dynamic; materialized view processor requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task ProcessEventAsync(IDomainEvent @event, long position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(@event);
@@ -143,6 +145,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		Justification = "Event deserialization is inherently dynamic; materialized view processor requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task ProcessEventsAsync(
 		IEnumerable<(IDomainEvent Event, long Position)> events,
 		CancellationToken cancellationToken)
@@ -188,6 +192,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		Justification = "Event deserialization is inherently dynamic; materialized view processor requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task RebuildAsync(CancellationToken cancellationToken)
 	{
 		LogRebuildStarting();
@@ -213,6 +219,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		Justification = "Event deserialization is inherently dynamic; materialized view processor requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task CatchUpAsync(string viewName, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(viewName);
@@ -248,6 +256,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		Justification = "Event deserialization is inherently dynamic; materialized view processor requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task ReplayGlobalStreamAsync(
 		GlobalStreamPosition startPosition,
 		bool allBuilders,
@@ -272,6 +282,17 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			foreach (var storedEvent in storedEvents)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
+
+				// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a
+				// nulled payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any
+				// deserialization attempt, and continue past it: a view replay that halted at the first
+				// tombstone would make an erased subject's stream permanently un-replayable. It is never routed
+				// to a view builder, so it cannot populate a view. Only the reserved marker is skipped.
+				if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+				{
+					LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
+					continue;
+				}
 
 				try
 				{
@@ -349,6 +370,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// <summary>
 	/// Applies a domain event to a builder, loading/creating the view and saving the result.
 	/// </summary>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task ApplyEventToBuilderAsync(
 		MaterializedViewBuilderRegistration registration,
 		IDomainEvent domainEvent,
@@ -397,6 +420,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// <summary>
 	/// Loads a view from the store via the per-view-type accessor (plain <c>await</c>, no reflection).
 	/// </summary>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private ValueTask<object?> GetViewFromStoreAsync(
 		Type viewType,
 		string viewName,
@@ -409,6 +434,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// <c>await</c>, no reflection). Only reached for an <see cref="ViewDeliverySemantics.ExactlyOnce"/>
 	/// projection, for which <see cref="_atomicViewStore"/> is guaranteed non-null by the constructor gate.
 	/// </summary>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private ValueTask SaveViewAndPositionToStoreAsync(
 		Type viewType,
 		string viewName,
@@ -424,6 +451,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// replays the last event on restart, which re-applies identically (upsert-by-view-id), so the two-write
 	/// path is safe on a non-atomic store such as Elasticsearch or OpenSearch.
 	/// </summary>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async ValueTask SaveViewThenPositionToStoreAsync(
 		Type viewType,
 		string viewName,
@@ -563,6 +592,10 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	[LoggerMessage(EventSourcingEventId.ViewProcessorEventError, LogLevel.Error,
 		"Error processing event {EventId} of type {EventType} in materialized view processor")]
 	private partial void LogEventProcessingError(string eventId, string eventType, Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.ErasedEventSkipped, LogLevel.Debug,
+		"Skipping erased (tombstoned) event {EventId} at global position {GlobalPosition}; advancing past it")]
+	private partial void LogErasedEventSkipped(string eventId, long globalPosition);
 
 	[LoggerMessage(EventSourcingEventId.ViewProcessorViewNotFound, LogLevel.Warning,
 		"Catch-up requested for unknown view {ViewName}")]

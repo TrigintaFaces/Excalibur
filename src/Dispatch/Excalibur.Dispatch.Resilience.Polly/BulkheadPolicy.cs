@@ -71,7 +71,7 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 		{
 			// No slot available — atomically reserve a queue slot. Incrementing first and testing the
 			// post-increment value makes MaxQueueLength a HARD bound: concurrent callers cannot all pass a
-			// stale check-then-act gate and overshoot the limit (bd-2qhmij). _pendingWaiters now counts
+			// stale check-then-act gate and overshoot the limit. _pendingWaiters now counts
 			// only true waiters, so GetMetrics().QueueLength / HasCapacity are accurate.
 			var pending = Interlocked.Increment(ref _pendingWaiters);
 			if (pending > _options.MaxQueueLength)

@@ -11,8 +11,6 @@ using Microsoft.Extensions.Options;
 
 using Tests.Shared.Conformance.Saga;
 
-#pragma warning disable CA2100 // SQL strings use a compile-time const table name in a test fixture.
-
 namespace Excalibur.Integration.Tests.Data.Saga;
 
 /// <summary>
@@ -23,9 +21,13 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// </summary>
 /// <remarks>
 /// Proven against real SQL Server (a mock cannot reproduce the MERGE match / predicate) and never skipped.
-/// Uses an isolated table whose PK is the full composite <c>(SagaId, TenantId)</c> so two tenants can hold the
-/// same <c>SagaId</c> as distinct rows — otherwise the canonical <c>SagaId</c>-only PK would collide before the
-/// tenant predicate is even exercised.
+/// Runs against the table the fixture provisions from the SHIPPED <c>Scripts/01-SagaSchema.sql</c>, so a green
+/// here is a statement about the schema a consumer actually receives. This class previously restated the table
+/// inline because the shipped primary key was <c>SagaId</c> alone and could not express two tenants holding the
+/// same id; the shipped key is now the composite <c>(TenantId, SagaId)</c>, so that reason is gone — and a
+/// restatement is worse than useless, because it drifts. It already had: the local copy still declared
+/// <c>CompletedAt</c> as <c>DATETIME2</c> after the shipped column became <c>DATETIMEOFFSET(7)</c>, and nothing
+/// here read it, so no test could go red.
 /// <para>
 /// <b>RED on the mutant</b> that drops the tenant predicate: from Load, tenant B's <c>LoadAsync</c> would return
 /// tenant A's saga (or the Save MERGE would match/overwrite it across tenants) — the cross-tenant access this
@@ -38,8 +40,6 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 [Collection("SqlServer SagaStore Integration Tests")]
 public sealed class SqlServerSagaStoreTenantIsolationShould : IClassFixture<SqlServerSagaStoreContainerFixture>
 {
-	private const string SchemaName = "dbo";
-	private const string TableName = "saga_tenant_isolation_test";
 	private const string TenantA = "tenant-A";
 	private const string TenantB = "tenant-B";
 
@@ -53,7 +53,8 @@ public sealed class SqlServerSagaStoreTenantIsolationShould : IClassFixture<SqlS
 	[Fact]
 	public async Task Admit_the_same_saga_id_once_per_tenant_and_isolate_loads()
 	{
-		await EnsureTableAsync().ConfigureAwait(false);
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 		var storeA = CreateStore(TenantA);
 		var storeB = CreateStore(TenantB);
 
@@ -79,7 +80,8 @@ public sealed class SqlServerSagaStoreTenantIsolationShould : IClassFixture<SqlS
 	[Fact]
 	public async Task Not_let_one_tenant_load_another_tenants_saga()
 	{
-		await EnsureTableAsync().ConfigureAwait(false);
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+		await _fixture.CleanupTableAsync().ConfigureAwait(false);
 		var storeA = CreateStore(TenantA);
 		var storeB = CreateStore(TenantB);
 
@@ -104,8 +106,8 @@ public sealed class SqlServerSagaStoreTenantIsolationShould : IClassFixture<SqlS
 
 		var options = Options.Create(new SqlServerSagaStoreOptions
 		{
-			SchemaName = SchemaName,
-			TableName = TableName,
+			SchemaName = _fixture.SchemaName,
+			TableName = _fixture.TableName,
 		});
 
 		return new SqlServerSagaStore(
@@ -114,42 +116,6 @@ public sealed class SqlServerSagaStoreTenantIsolationShould : IClassFixture<SqlS
 			NullLogger<SqlServerSagaStore>.Instance,
 			new DispatchJsonSerializer(),
 			new FixedTenantContext(tenantId));
-	}
-
-	private async Task EnsureTableAsync()
-	{
-		await using var connection = _fixture.CreateConnection();
-		await connection.OpenAsync().ConfigureAwait(false);
-
-		// Isolated table: PK is the full composite (SagaId, TenantId) with TenantId NOT NULL, so two tenants'
-		// identical SagaIds are distinct rows and the tenant dimension of the Save-MERGE / Load predicate is what
-		// is under test (not a bare SagaId PK collision). That PK is the one thing this table may not inherit
-		// from the shipped Scripts/01-SagaSchema.sql, which is why the columns are restated here rather than
-		// provisioned from it as SqlServerSagaStoreContainerFixture now does.
-		//
-		// Restating them makes this a copy, and a copy drifts: CompletedAt stood at DATETIME2 here after the
-		// shipped column became DATETIMEOFFSET(7), because nothing in this class reads it and no test could go
-		// red. Column types below must track the script. Where a column is not exercised by these tests, that
-		// is a reason to keep it honest, not a licence to let it rot.
-		var sql = $"""
-			IF OBJECT_ID('[{SchemaName}].[{TableName}]', 'U') IS NOT NULL DROP TABLE [{SchemaName}].[{TableName}];
-			CREATE TABLE [{SchemaName}].[{TableName}] (
-				SagaId      UNIQUEIDENTIFIER NOT NULL,
-				SagaType    NVARCHAR(500)    NOT NULL,
-				StateJson   NVARCHAR(MAX)    NOT NULL,
-				IsCompleted BIT              NOT NULL DEFAULT 0,
-				TenantId    NVARCHAR(200)    NOT NULL,
-				Version     BIGINT           NOT NULL DEFAULT 0,
-				CreatedUtc  DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
-				UpdatedUtc  DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
-				CompletedAt DATETIMEOFFSET(7) NULL,
-				RowVersion  ROWVERSION       NOT NULL,
-				CONSTRAINT [PK_{TableName}] PRIMARY KEY CLUSTERED (SagaId, TenantId)
-			);
-			""";
-
-		await using var command = new SqlCommand(sql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
 	/// <summary>A minimal ambient tenant context pinned to a single tenant id.</summary>

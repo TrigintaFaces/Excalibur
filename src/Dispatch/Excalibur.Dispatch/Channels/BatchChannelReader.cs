@@ -33,7 +33,7 @@ internal sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSi
 			_buffer.Clear();
 
 			// Fresh per-iteration CTS pair: a linked CTS cannot be un-cancelled, so reusing one across
-			// timeout windows would leave it permanently cancelled after the first flush (FR-I5). Each
+			// timeout windows would leave it permanently cancelled after the first flush. Each
 			// window therefore gets a clean timeout + linked token.
 			using var timeoutCts = new CancellationTokenSource(_batchTimeout);
 			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
@@ -78,7 +78,7 @@ internal sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSi
 			catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
 			{
 				// Time-based flush: this window's timeout fired (not the caller). Yield what we have and
-				// continue to the next window — the OCE must NOT escape the iterator (FR-I3).
+				// continue to the next window — the OCE must NOT escape the iterator.
 				if (_buffer.Count > 0)
 				{
 					shouldYieldBatch = true;

@@ -27,11 +27,6 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> Action to configure AWS scheduler options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		Action<AwsSchedulerOptions> configure)
@@ -64,12 +59,6 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind options from. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -102,11 +91,6 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="awsOptions"> AWS configuration options. </param>
 	/// <param name="configure"> Action to configure AWS scheduler options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		AWSOptions awsOptions,
@@ -142,12 +126,6 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="awsOptions"> AWS configuration options. </param>
 	/// <param name="configuration"> The configuration section to bind scheduler options from. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		AWSOptions awsOptions,

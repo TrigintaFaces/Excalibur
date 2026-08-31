@@ -24,7 +24,7 @@ public sealed class DeleteSnapshotsRequest : DataRequestBase<IDbConnection, int>
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope, or <see cref="TenantScope.None"/> in a single-tenant host.
+	/// The tenant scope. An untenanted scope binds the reserved sentinel rather than omitting the term.
 	/// </param>
 	/// <param name="schema">The schema name for the snapshot store table. Default: "public".</param>
 	/// <param name="table">The snapshot store table name. Default: "event_store_snapshots".</param>

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -143,9 +143,18 @@ public static class OutboxBuilderSqlServerExtensions
 		builder.Services.AddOptions<SqlServerOutboxOptions>().ValidateOnStart();
 
 		// Register SQL Server outbox store using resolved connection factory
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves ITenantContext.
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. The store registration below no longer
+		// depends on it.
 		builder.Services.AddDefaultTenantContext();
-		builder.Services.AddTenantScopedStore<IOutboxStore, SqlServerOutboxStore>((sp, _) =>
+		// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker inseparably from
+		// the store registration, and attests the mechanism this store actually implements. It is the partitioned
+		// seam rather than the scoped one because this store reads no ambient tenant on any path: each message
+		// persists its own TenantId on the write path and the drain hands that value back, so the owning
+		// partition is re-established from the row rather than inferred from ambient state. That seam takes no
+		// ITenantContext, so there is no dependency here to be handed and silently discarded. Statistics is an
+		// estate-wide operator report and counts the whole table.
+		builder.Services.AddTenantAwareStore<IOutboxStore, SqlServerOutboxStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
@@ -165,8 +174,8 @@ public static class OutboxBuilderSqlServerExtensions
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 
-		// The ITenantScopingCapability<IOutboxStore> marker is emitted by AddTenantScopedStore above,
-		// inseparably from the store registration (S886 rw2ull — the marker cannot exist without the store
+		// The ITenantPartitionedCapability<IOutboxStore> marker is emitted by AddTenantAwareStore above,
+		// inseparably from the store registration (the marker cannot exist without the store
 		// factory). The outbox honors the ambient tenant by stamping + persisting TenantId on enqueue and
 		// returning it on drain for the processor's per-message BeginScope.
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
@@ -204,7 +213,17 @@ public static class OutboxBuilderSqlServerExtensions
 
 		_ = builder.Services.Configure(configure);
 
-		builder.Services.TryAddSingleton<SqlServerDeadLetterQueue>();
+		// Both public constructors of SqlServerDeadLetterQueue require an ITenantContext, so the container
+		// must be able to supply one. UseSqlServer registers it, but this method is reachable in front of any
+		// other outbox store -- or with no Use* at all -- and then nothing would.
+		builder.Services.AddDefaultTenantContext();
+		// AddTenantAwareStore constructs the queue (injecting ITenantContext, since both of its public
+		// constructors declare one) AND emits the ITenantScopingCapability<IDeadLetterQueue> marker
+		// inseparably, so the attestation cannot exist without the wiring it describes. IDeadLetterQueue is
+		// [TenantOwned] and this queue genuinely scopes -- it stamps the tenant on insert and filters reads
+		// on it, and its primary key is (Id, TenantId) -- but a bare TryAddSingleton attested nothing, so
+		// RowDiscriminator refused every host that registered it.
+		_ = builder.Services.AddTenantAwareStore<IDeadLetterQueue, SqlServerDeadLetterQueue>();
 		builder.Services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 		builder.Services.TryAddSingleton<IDeadLetterQueueAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 
@@ -220,7 +239,6 @@ public static class OutboxBuilderSqlServerExtensions
 		target.Tables.SchemaName = source.Tables.SchemaName;
 		target.Tables.OutboxTableName = source.Tables.OutboxTableName;
 		target.Tables.TransportsTableName = source.Tables.TransportsTableName;
-		target.Tables.DeadLetterTableName = source.Tables.DeadLetterTableName;
 		target.Processing.CommandTimeoutSeconds = source.Processing.CommandTimeoutSeconds;
 		target.Processing.UseRowLocking = source.Processing.UseRowLocking;
 		target.Processing.DefaultBatchSize = source.Processing.DefaultBatchSize;

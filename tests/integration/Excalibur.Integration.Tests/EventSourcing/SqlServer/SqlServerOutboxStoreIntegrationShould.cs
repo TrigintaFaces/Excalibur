@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -31,7 +32,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 	private SqlServerOutboxOptions? _options;
 
 	public async ValueTask InitializeAsync()
@@ -39,12 +40,13 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			_options = new SqlServerOutboxOptions
 			{
@@ -62,9 +64,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			Console.WriteLine(ex.ToString());
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -90,10 +90,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task StageMessageSuccessfully()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
@@ -110,10 +107,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task StageMessageDuplicateIdThrows()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
@@ -139,10 +133,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task RetrieveUnsentMessagesInBatch()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 
@@ -164,10 +155,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MarkMessageAsSent()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
@@ -185,10 +173,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MarkMessageAsFailedWithError()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
@@ -197,7 +182,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		await outboxStore.StageMessageAsync(message, CancellationToken.None);
 		await outboxStore.MarkFailedAsync(message.Id, errorMessage, 1, CancellationToken.None);
 
-		var failed = await outboxStore.GetFailedMessagesAsync(5, null, 10, CancellationToken.None);
+		var failed = await outboxStore.GetAllTenantsFailedMessagesAsync(5, null, 10, CancellationToken.None);
 		var failedMessage = failed.FirstOrDefault(m => m.Id == message.Id);
 		_ = failedMessage.ShouldNotBeNull();
 		failedMessage.LastError.ShouldBe(errorMessage);
@@ -210,10 +195,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task RetrieveFailedMessagesForRetry()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
@@ -222,7 +204,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		await outboxStore.MarkFailedAsync(message.Id, "First failure", 1, CancellationToken.None);
 
 		// Should find message with retry count < maxRetries
-		var failed = await outboxStore.GetFailedMessagesAsync(3, null, 10, CancellationToken.None);
+		var failed = await outboxStore.GetAllTenantsFailedMessagesAsync(3, null, 10, CancellationToken.None);
 		failed.ShouldContain(m => m.Id == message.Id);
 	}
 
@@ -232,10 +214,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task CleanupSentMessages()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
@@ -258,10 +237,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReportOutboxStatistics()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		// Clear existing data for accurate stats
 		await ClearAllMessagesAsync();
@@ -274,7 +250,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None);
 		}
 
-		var stats = await outboxStore.GetStatisticsAsync(CancellationToken.None);
+		var stats = await outboxStore.GetAllTenantsStatisticsAsync(CancellationToken.None);
 
 		stats.StagedMessageCount.ShouldBe(3);
 	}
@@ -285,10 +261,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReturnEmptyListWhenNoUnsentMessages()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 
@@ -306,10 +279,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ThrowWhenMarkingNonExistentMessageAsSent()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var outboxStore = CreateOutboxStore();
 		var nonExistentId = Guid.NewGuid().ToString();
@@ -324,10 +294,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task PreserveMessageOrderInOutbox()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 
@@ -368,10 +335,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task NotReclaimADeadLetteredMessage_WhileStillClaimingAFailedOne()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 		var outboxStore = CreateOutboxStore();
@@ -424,10 +388,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReportSendingMessageCount_FromLeasedNonTerminalRows()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync().ConfigureAwait(false);
 		var outboxStore = CreateOutboxStore();
@@ -451,7 +412,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None).ConfigureAwait(false);
 		}
 
-		var stats = await outboxStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await outboxStore.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// 3 leased-non-terminal counted; the 1 sent (lease cleared) and the 2 unleased are NOT counted.
 		stats.SendingMessageCount.ShouldBe(

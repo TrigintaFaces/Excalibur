@@ -53,7 +53,7 @@ namespace Excalibur.MultiTenancy;
 //
 // This gate exists to refuse a configuration outright. Moving it to ExecuteAsync silently converts a
 // fail-closed startup gate into a race, and nothing about the type signature would reveal the change.
-internal sealed class ColdStoreTenantScopingValidator : IHostedService
+internal sealed class ColdStoreTenantScopingValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProviderIsService _isService;
 
@@ -81,7 +81,12 @@ internal sealed class ColdStoreTenantScopingValidator : IHostedService
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
+		Validate();
+		return Task.CompletedTask;
+	}
 
+	public void Validate()
+	{
 		if (_isService.IsService(typeof(IColdEventStore))
 			&& !_isService.IsService(typeof(ITenantScopingCapability<IColdEventStore>)))
 		{
@@ -93,8 +98,6 @@ internal sealed class ColdStoreTenantScopingValidator : IHostedService
 				+ "predicate. Register a cold-tier provider that partitions archived events by tenant and "
 				+ "presents that capability, or do not enable tiered storage under this isolation strategy.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	/// <summary>

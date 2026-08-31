@@ -262,28 +262,6 @@ public sealed class AwsSqsTransportServiceCollectionExtensionsShould : UnitTestB
 	}
 
 	[Fact]
-	public void AddAwsSqsTransport_ConfigureBatchOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert - Should not throw
-		Should.NotThrow(() =>
-		{
-			_ = services.AddAwsSqsTransport("sqs", sqs =>
-			{
-				_ = sqs.UseRegion(ValidRegion)
-				   .ConfigureBatch(batch =>
-				   {
-					   _ = batch.SendBatchSize(10)
-							.SendBatchWindow(TimeSpan.FromMilliseconds(100))
-							.ReceiveMaxMessages(10);
-				   });
-			});
-		});
-	}
-
-	[Fact]
 	public void AddAwsSqsTransport_ConfigureQueueMapping()
 	{
 		// Arrange
@@ -313,27 +291,6 @@ public sealed class AwsSqsTransportServiceCollectionExtensionsShould : UnitTestB
 			{
 				_ = sqs.UseRegion(ValidRegion)
 				   .WithQueuePrefix("myapp-prod-");
-			});
-		});
-	}
-
-	[Fact]
-	public void AddAwsSqsTransport_ConfigureFullFluentChain()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert - Should not throw
-		Should.NotThrow(() =>
-		{
-			_ = services.AddAwsSqsTransport("orders", sqs =>
-			{
-				_ = sqs.UseRegion("us-east-1")
-				   .ConfigureQueue(queue => queue.VisibilityTimeout(TimeSpan.FromMinutes(5)))
-				   .ConfigureFifo(fifo => fifo.ContentBasedDeduplication(true))
-				   .ConfigureBatch(batch => batch.SendBatchSize(10))
-				   .MapQueue<TestMessage>("https://sqs.us-east-1.amazonaws.com/123/orders")
-				   .WithQueuePrefix("myapp-");
 			});
 		});
 	}

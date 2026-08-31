@@ -84,9 +84,9 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 		_store = new PostgresProjectionStore<TestOrderProjection>(
 			_fixture.ConnectionString,
 			_logger,
-			TableName,
-			jsonOptions: null,
-			tenantContext: new FixedTenantContext(ProjectionTestTenantId));
+			tenantContext: new FixedTenantContext(ProjectionTestTenantId),
+			tableName: TableName,
+			jsonOptions: null);
 	}
 
 	public async ValueTask DisposeAsync()

@@ -64,8 +64,10 @@ public sealed class PostgresSagaStoreTenantIdShould : IAsyncLifetime
 		// The row's tenant term is resolved from the AMBIENT context alone, never from sagaState.TenantId
 		// (SaveSagaRequest's documented contract: the read side is given a saga id and a scope, never a
 		// state, so deriving the row key from the saga's own tenant would write it where no read looks).
-		// A store built without a context therefore stamps the reserved untenanted partition by design —
-		// so this lock MUST supply the ambient tenant to exercise the tenanted write at all.
+		// A store on the untenanted partition therefore stamps the reserved untenanted term by design —
+		// so this lock MUST supply the ambient tenant to exercise the tenanted write at all. The context is
+		// required now, so the untenanted store below names that partition explicitly; it is the same term
+		// an absent context used to resolve to, not a new one.
 		_store = new PostgresSagaStore(
 			options,
 			NullLogger<PostgresSagaStore>.Instance,
@@ -75,7 +77,8 @@ public sealed class PostgresSagaStoreTenantIdShould : IAsyncLifetime
 		_untenantedStore = new PostgresSagaStore(
 			options,
 			NullLogger<PostgresSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			UntenantedTestTenantContext.Instance);
 	}
 
 	public async ValueTask DisposeAsync()

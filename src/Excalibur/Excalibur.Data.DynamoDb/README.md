@@ -26,19 +26,15 @@ dotnet add package Excalibur.Data.DynamoDb
 ### Using Options Action
 
 ```csharp
-services.AddDynamoDb(options =>
-{
-    options.Connection.Region = "us-east-1";
-    options.DefaultTableName = "MyTable";
-    options.DefaultPartitionKeyAttribute = "pk";
-    options.DefaultSortKeyAttribute = "sk";
-});
+services.AddExcaliburDynamoDb(dynamo => dynamo
+    .Region(RegionEndpoint.USEast1)
+    .TableName("MyTable"));
 ```
 
 ### Using Configuration Section
 
 ```csharp
-services.AddDynamoDb(Configuration.GetSection("DynamoDb"));
+services.AddExcaliburDynamoDb(dynamo => dynamo.BindConfiguration("DynamoDb"));
 ```
 
 ### appsettings.json
@@ -64,11 +60,9 @@ services.AddDynamoDb(Configuration.GetSection("DynamoDb"));
 If you already have an `IAmazonDynamoDB` client configured:
 
 ```csharp
-services.AddSingleton<IAmazonDynamoDB>(sp => new AmazonDynamoDBClient());
-services.AddDynamoDbWithClient(options =>
-{
-    options.DefaultTableName = "MyTable";
-});
+services.AddExcaliburDynamoDb(dynamo => dynamo
+    .Client(new AmazonDynamoDBClient())
+    .TableName("MyTable"));
 ```
 
 ## Configuration Options

@@ -13,7 +13,7 @@ public sealed class PostgresAuditStoreShould
 		Should.Throw<ArgumentNullException>(() =>
 			new PostgresAuditStore(
 				null!,
-				AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance));
+				AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance));
 	}
 
 	[Fact]
@@ -25,7 +25,7 @@ public sealed class PostgresAuditStoreShould
 		});
 
 		Should.Throw<ArgumentNullException>(() =>
-			new PostgresAuditStore(options, AuditIntegrityTestStrategy.Create(), tenantContext: null, null!));
+			new PostgresAuditStore(options, AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), null!));
 	}
 
 	[Fact]
@@ -39,7 +39,7 @@ public sealed class PostgresAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new PostgresAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance));
+				AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance));
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class PostgresAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new PostgresAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance));
+				AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance));
 	}
 
 	[Theory]
@@ -73,7 +73,7 @@ public sealed class PostgresAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new PostgresAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance));
+				AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance));
 	}
 
 	[Theory]
@@ -93,7 +93,7 @@ public sealed class PostgresAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new PostgresAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance));
+				AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance));
 	}
 
 	[Theory]
@@ -112,7 +112,7 @@ public sealed class PostgresAuditStoreShould
 
 		var store = new PostgresAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+			AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		store.ShouldNotBeNull();
 		store.Dispose();
@@ -133,7 +133,7 @@ public sealed class PostgresAuditStoreShould
 
 		var store = new PostgresAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+			AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		store.ShouldNotBeNull();
 		store.Dispose();
@@ -149,7 +149,7 @@ public sealed class PostgresAuditStoreShould
 
 		var store = new PostgresAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+			AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		// Should not throw
 		store.Dispose();
@@ -165,7 +165,7 @@ public sealed class PostgresAuditStoreShould
 
 		var store = new PostgresAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+			AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		// Double dispose should not throw
 		store.Dispose();
@@ -182,7 +182,7 @@ public sealed class PostgresAuditStoreShould
 
 		var store = new PostgresAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+			AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		store.ShouldBeAssignableTo<Excalibur.Compliance.IAuditStore>();
 		store.Dispose();
@@ -198,7 +198,7 @@ public sealed class PostgresAuditStoreShould
 
 		var store = new PostgresAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+			AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		store.ShouldBeAssignableTo<IDisposable>();
 		store.Dispose();

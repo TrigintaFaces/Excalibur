@@ -29,10 +29,7 @@ public sealed class LongPollingOptimizerShould : IDisposable
 		_receiver = A.Fake<ILongPollingReceiver>();
 		_strategy = A.Fake<IAwsLongPollingStrategy>();
 		_metricsCollector = A.Fake<IPollingMetricsCollector>();
-		_config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
+		_config = new LongPollingOptions();
 		_config.Processing.EnableRequestCoalescing = false;
 
 		_optimizer = new LongPollingOptimizer(

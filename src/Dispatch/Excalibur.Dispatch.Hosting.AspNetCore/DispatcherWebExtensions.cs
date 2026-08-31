@@ -26,7 +26,7 @@ public static class DispatcherWebExtensions
 		var messageContext = DispatchContextInitializer.CreateDefaultContext();
 		var correlationGuid = context.RequestServices.GetRequiredService<ICorrelationId>().Value;
 
-		// Sprint 71: Use direct properties only (no redundant Items[] writes)
+		// Use direct properties only (no redundant Items[] writes)
 		messageContext.CorrelationId = correlationGuid.ToString();
 		messageContext.GetOrCreateIdentityFeature().TenantId = context.RequestServices.GetRequiredService<ITenantContext>().TenantId;
 

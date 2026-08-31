@@ -9,12 +9,6 @@ namespace Excalibur.Data.SqlServer;
 /// <summary>
 /// Configuration options for SQL Server provider.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Connection properties are in <see cref="Connection"/> and pooling properties are in <see cref="Pooling"/>.
-/// This follows the <c>SqlConnectionStringBuilder</c> pattern of separating connection from pooling configuration.
-/// </para>
-/// </remarks>
 public sealed class SqlServerProviderOptions
 {
 	/// <summary>
@@ -39,8 +33,14 @@ public sealed class SqlServerProviderOptions
 	/// <summary>
 	/// Gets or sets the retry count for transient failures.
 	/// </summary>
+	/// <remarks>
+	/// Bounded, because the attempt budget is what bounds the total time a single data request can spend
+	/// retrying: the backoff delay is capped at thirty seconds, so the worst case is this many attempts of
+	/// thirty seconds. An unbounded budget left that worst case unbounded too, and a caller observes an
+	/// unbounded retry as a hung request rather than a failure.
+	/// </remarks>
 	/// <value> The retry count for transient failures. </value>
-	[Range(0, int.MaxValue)]
+	[Range(0, 10)]
 	public int RetryCount { get; set; } = 3;
 
 	/// <summary>
@@ -48,16 +48,4 @@ public sealed class SqlServerProviderOptions
 	/// </summary>
 	/// <value> <c> true </c> if connections are opened immediately; otherwise, <c> false </c>. </value>
 	public bool OpenConnectionImmediately { get; set; }
-
-	/// <summary>
-	/// Gets or sets the connection options.
-	/// </summary>
-	/// <value> The SQL Server connection options. </value>
-	public SqlServerConnectionOptions Connection { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets the pooling options.
-	/// </summary>
-	/// <value> The SQL Server pooling options. </value>
-	public SqlServerPoolingOptions Pooling { get; set; } = new();
 }

@@ -7,8 +7,10 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Cdc;
 using Excalibur.Cdc.CosmosDb;
 
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 
@@ -33,6 +35,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<CosmosDbCdcOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcOptions>, CosmosDbCdcOptionsValidator>());
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -62,6 +65,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<CosmosDbCdcOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcOptions>, CosmosDbCdcOptionsValidator>());
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -93,6 +97,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<CosmosDbCdcOptions>()
 			.Bind(configuration.GetSection(sectionName))
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcOptions>, CosmosDbCdcOptionsValidator>());
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -107,6 +112,13 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds the CosmosDb-based CDC state store.
 	/// </summary>
+	/// <remarks>
+	/// If a <see cref="CosmosClient"/> is registered in the service collection, the store uses it — which is
+	/// what makes token-credential authentication, a custom <c>HttpClientFactory</c>, Gateway mode, and a
+	/// chosen serializer reachable. Otherwise the store builds a client from
+	/// <see cref="CosmosDbCdcStateStoreOptions.ConnectionString"/>, so a host that configures nothing but a
+	/// connection string is unaffected.
+	/// </remarks>
 	public static IServiceCollection AddCosmosDbCdcStateStore(
 		this IServiceCollection services,
 		Action<CosmosDbCdcStateStoreOptions> configure)
@@ -115,7 +127,7 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		RegisterCdcStateStoreOptions(services, configure);
-		services.TryAddSingleton<ICosmosDbCdcStateStore, CosmosDbCdcStateStore>();
+		RegisterCdcStateStore(services);
 
 		return services;
 	}
@@ -123,6 +135,10 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds the CosmosDb-based CDC state store using configuration.
 	/// </summary>
+	/// <remarks>
+	/// If a <see cref="CosmosClient"/> is registered in the service collection, the store uses it; otherwise
+	/// it builds one from <see cref="CosmosDbCdcStateStoreOptions.ConnectionString"/>.
+	/// </remarks>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
@@ -138,8 +154,8 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<CosmosDbCdcStateStoreOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcStateStoreOptions>, CosmosDbCdcStateStoreOptionsValidator>());
-		services.TryAddSingleton<ICosmosDbCdcStateStore, CosmosDbCdcStateStore>();
+		RegisterCdcStateStoreOptionsValidator(services);
+		RegisterCdcStateStore(services);
 
 		return services;
 	}
@@ -191,6 +207,36 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		_ = optionsBuilder
 			.ValidateOnStart();
 
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcStateStoreOptions>, CosmosDbCdcStateStoreOptionsValidator>());
+		RegisterCdcStateStoreOptionsValidator(services);
 	}
+
+	/// <summary>
+	/// Registers the state store, preferring a <see cref="CosmosClient"/> the host registered over one built
+	/// from the connection string.
+	/// </summary>
+	/// <remarks>
+	/// Resolved explicitly rather than left to constructor selection: which client a store talks to is the
+	/// kind of thing that should be readable at the registration site, not inferred from which constructor
+	/// happened to be satisfiable.
+	/// </remarks>
+	private static void RegisterCdcStateStore(IServiceCollection services) =>
+		services.TryAddSingleton<ICosmosDbCdcStateStore>(static sp =>
+		{
+			var options = sp.GetRequiredService<IOptions<CosmosDbCdcStateStoreOptions>>();
+			var logger = sp.GetRequiredService<ILogger<CosmosDbCdcStateStore>>();
+			var client = sp.GetService<CosmosClient>();
+
+			return client is not null
+				? new CosmosDbCdcStateStore(client, options, logger)
+				: new CosmosDbCdcStateStore(options, logger);
+		});
+
+	/// <summary>
+	/// Registers the options validator, telling it whether a client was supplied so it does not demand a
+	/// connection string the store will never read.
+	/// </summary>
+	private static void RegisterCdcStateStoreOptionsValidator(IServiceCollection services) =>
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcStateStoreOptions>, CosmosDbCdcStateStoreOptionsValidator>(
+				static sp => new CosmosDbCdcStateStoreOptionsValidator(sp.GetService<CosmosClient>())));
 }

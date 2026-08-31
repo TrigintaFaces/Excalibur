@@ -11,9 +11,9 @@ using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.KeyManagement;
 using Excalibur.Compliance.Portability;
 using Excalibur.Compliance.Retention;
-using Excalibur.Compliance.Stores.MongoDb;
-using Excalibur.Compliance.Stores.Postgres;
 using Excalibur.Compliance.SubjectAccess;
+
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -74,10 +74,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="DataPortabilityOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDataPortability(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -126,10 +122,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="SubjectAccessOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSubjectAccessRequests(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -182,10 +174,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="AuditLogEncryptionOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAuditLogEncryption(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -238,10 +226,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="KeyEscrowBackupOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKeyEscrow(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -290,10 +274,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="BreachNotificationOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddBreachNotification(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -348,10 +328,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="RetentionEnforcementOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRetentionEnforcement(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -371,6 +347,78 @@ public static class GdprServiceCollectionExtensions
 			_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
 			_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
 		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers an <see cref="IRetentionContributor"/> that deletes sent outbox messages older than
+	/// <see cref="OutboxRetentionOptions.RetentionDays"/>, via the same <see cref="IOutboxStoreAdmin"/>
+	/// admin surface every registered outbox provider already implements.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureOptions">Optional configuration for outbox retention options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// Call this in addition to <see cref="AddRetentionEnforcement(IServiceCollection, Action{RetentionEnforcementOptions}?)"/>
+	/// -- retention enforcement never deletes outbox data unless this (or <c>AddInboxRetention</c>) is
+	/// also registered. Requires an <see cref="IOutboxStoreAdmin"/> to already be registered (every
+	/// first-party outbox provider registers one); if none is registered, resolution fails fast with a
+	/// clear "unable to resolve IOutboxStoreAdmin" error rather than silently doing nothing.
+	/// </remarks>
+	public static IServiceCollection AddOutboxRetention(
+		this IServiceCollection services,
+		Action<OutboxRetentionOptions>? configureOptions = null)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var optionsBuilder = services.AddOptions<OutboxRetentionOptions>()
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OutboxRetentionOptions>, OutboxRetentionOptionsValidator>());
+		if (configureOptions is not null)
+		{
+			_ = optionsBuilder.Configure(configureOptions);
+		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IRetentionContributor, OutboxRetentionContributor>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers an <see cref="IRetentionContributor"/> that deletes processed inbox entries older than
+	/// <see cref="InboxRetentionOptions.RetentionDays"/>, via the same <see cref="IInboxStoreAdmin"/>
+	/// admin surface every registered inbox provider already implements.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureOptions">Optional configuration for inbox retention options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// Call this in addition to <see cref="AddRetentionEnforcement(IServiceCollection, Action{RetentionEnforcementOptions}?)"/>
+	/// -- retention enforcement never deletes inbox data unless this (or <c>AddOutboxRetention</c>) is
+	/// also registered. Requires an <see cref="IInboxStoreAdmin"/> to already be registered (every
+	/// first-party inbox provider registers one); if none is registered, resolution fails fast with a
+	/// clear "unable to resolve IInboxStoreAdmin" error rather than silently doing nothing.
+	/// </remarks>
+	public static IServiceCollection AddInboxRetention(
+		this IServiceCollection services,
+		Action<InboxRetentionOptions>? configureOptions = null)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var optionsBuilder = services.AddOptions<InboxRetentionOptions>()
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InboxRetentionOptions>, InboxRetentionOptionsValidator>());
+		if (configureOptions is not null)
+		{
+			_ = optionsBuilder.Configure(configureOptions);
+		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IRetentionContributor, InboxRetentionContributor>());
 
 		return services;
 	}
@@ -406,10 +454,6 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="ConsentOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddConsentManagement(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -424,146 +468,6 @@ public static class GdprServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<ConsentOptions>, ConsentOptionsValidator>());
 
 		services.TryAddSingleton<IConsentService, ConsentService>();
-		return services;
-	}
-
-	/// <summary>
-	/// Adds the Postgres compliance store for durable GDPR record storage.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configureOptions">Configuration for Postgres compliance options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddPostgresComplianceStore(
-		this IServiceCollection services,
-		Action<PostgresComplianceOptions> configureOptions)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configureOptions);
-
-		var optionsBuilder = services.AddOptions<PostgresComplianceOptions>()
-			.ValidateOnStart();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<PostgresComplianceOptions>, PostgresComplianceOptionsValidator>());
-		_ = optionsBuilder.Configure(configureOptions);
-
-		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves for a
-		// consumer who never opted into multi-tenancy; TryAdd means the multi-tenancy composition's ambient
-		// context wins when it is present.
-		_ = services.AddDefaultTenantContext();
-
-		// Dep-gated registration: the ambient ITenantContext is resolved by the seam (fail-closed) and threaded
-		// into construction, so a compliance store built without it is inexpressible here — and the
-		// ITenantScopingCapability<IComplianceStore> marker is emitted inseparably from that wiring, so an
-		// unwired store cannot carry a truthful-looking capability marker.
-		services.AddTenantScopedStore<IComplianceStore, PostgresComplianceStore>(
-			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<PostgresComplianceStore>(sp, tenantContext));
-
-		// The seam registers the CONCRETE store (so the capability marker is bound to a real instance); the
-		// contract itself is mapped here, forwarding to that same singleton rather than constructing a second,
-		// unwired instance.
-		services.TryAddSingleton<IComplianceStore>(static sp => sp.GetRequiredService<PostgresComplianceStore>());
-		return services;
-	}
-
-	/// <summary>
-	/// Adds the Postgres compliance store using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="PostgresComplianceOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddPostgresComplianceStore(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddOptions<PostgresComplianceOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<PostgresComplianceOptions>, PostgresComplianceOptionsValidator>());
-
-		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves for a
-		// consumer who never opted into multi-tenancy; TryAdd means the multi-tenancy composition's ambient
-		// context wins when it is present.
-		_ = services.AddDefaultTenantContext();
-
-		// Dep-gated registration: the ambient ITenantContext is resolved by the seam (fail-closed) and threaded
-		// into construction, so a compliance store built without it is inexpressible here — and the
-		// ITenantScopingCapability<IComplianceStore> marker is emitted inseparably from that wiring, so an
-		// unwired store cannot carry a truthful-looking capability marker.
-		services.AddTenantScopedStore<IComplianceStore, PostgresComplianceStore>(
-			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<PostgresComplianceStore>(sp, tenantContext));
-
-		// The seam registers the CONCRETE store (so the capability marker is bound to a real instance); the
-		// contract itself is mapped here, forwarding to that same singleton rather than constructing a second,
-		// unwired instance.
-		services.TryAddSingleton<IComplianceStore>(static sp => sp.GetRequiredService<PostgresComplianceStore>());
-		return services;
-	}
-
-	/// <summary>
-	/// Adds the MongoDB compliance store for durable GDPR record storage.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configureOptions">Configuration for MongoDB compliance options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbComplianceStore(
-		this IServiceCollection services,
-		Action<MongoDbComplianceOptions> configureOptions)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configureOptions);
-
-		var optionsBuilder = services.AddOptions<MongoDbComplianceOptions>()
-			.ValidateOnStart();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<MongoDbComplianceOptions>, MongoDbComplianceOptionsValidator>());
-		_ = optionsBuilder.Configure(configureOptions);
-
-		// Idempotent single-tenant default: MongoDbComplianceStore takes ITenantContext positionally, so without
-		// this registration the container cannot construct it at all and IComplianceStore throws on resolve.
-		// TryAdd means the multi-tenancy composition's ambient context still wins when it is present.
-		_ = services.AddDefaultTenantContext();
-
-		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
-		return services;
-	}
-
-	/// <summary>
-	/// Adds the MongoDB compliance store using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="MongoDbComplianceOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddMongoDbComplianceStore(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddOptions<MongoDbComplianceOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<MongoDbComplianceOptions>, MongoDbComplianceOptionsValidator>());
-
-		// Idempotent single-tenant default: MongoDbComplianceStore takes ITenantContext positionally, so without
-		// this registration the container cannot construct it at all and IComplianceStore throws on resolve.
-		// TryAdd means the multi-tenancy composition's ambient context still wins when it is present.
-		_ = services.AddDefaultTenantContext();
-
-		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
 		return services;
 	}
 }

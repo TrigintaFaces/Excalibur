@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Observability.Metrics;
 
@@ -91,14 +90,6 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 	/// <param name="configuration"> The configuration section. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for metrics instrumentation requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchMetricsInstrumentation(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(services);

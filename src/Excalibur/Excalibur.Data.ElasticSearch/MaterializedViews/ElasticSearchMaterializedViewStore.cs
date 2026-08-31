@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 
 using Elastic.Clients.Elasticsearch;
@@ -13,6 +14,8 @@ using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.ElasticSearch.MaterializedViews;
 
@@ -36,6 +39,23 @@ namespace Excalibur.Data.ElasticSearch.MaterializedViews;
 /// this store cannot offer exactly-once projection. Wiring it to a projection that requires exactly-once is
 /// refused at startup rather than degrading to at-least-once in production.
 /// </para>
+/// <para>
+/// Views and checkpoints are partitioned by tenant. The tenant term is part of each document's
+/// identifier rather than a filter applied over it, so two tenants projecting the same named view hold
+/// distinct documents and distinct checkpoints. Keyed on view name and view id alone they shared one
+/// document: the later writer's data silently replaced the earlier one's, and a read returned whichever
+/// tenant wrote last. The checkpoint was worse -- keyed on view name alone it held ONE position for
+/// every tenant, so one tenant's progress advanced another's and that tenant's projector skipped every
+/// event in between, permanently.
+/// </para>
+/// <para>
+/// A document written before this partitioning existed carries the un-prefixed identifier, so a scoped
+/// read does not find it. That direction is the safe one and it is chosen deliberately: an unfound
+/// checkpoint reads as unset, and an unset checkpoint replays from the beginning, which re-derives the
+/// view. The alternative failure -- a tenant inheriting a checkpoint written by another -- would skip
+/// the events in between with no error and no way to detect it afterwards. Replay costs time; a skip
+/// costs data.
+/// </para>
 /// </remarks>
 public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedViewStore, IAsyncDisposable
 {
@@ -52,19 +72,38 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	private volatile bool _initialized;
 	private volatile bool _disposed;
 
+	private readonly ITenantContext _tenantContext;
+
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every identifier it builds
+	/// uses the same value. The context is a required dependency, so the term is decided identically on
+	/// every path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticSearchMaterializedViewStore"/> class.
 	/// </summary>
 	/// <param name="options">The store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions documents by tenant, and it resolves
+	/// that partition from here, so there is no state in which the partition is undecided. A single-tenant
+	/// host receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
 	public ElasticSearchMaterializedViewStore(
 		IOptions<ElasticSearchMaterializedViewStoreOptions> options,
 		ILogger<ElasticSearchMaterializedViewStore> logger,
+		ITenantContext tenantContext,
 		JsonSerializerOptions? jsonOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
+
+		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
@@ -85,16 +124,25 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	/// <param name="client">An existing Elasticsearch client.</param>
 	/// <param name="options">The store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions documents by tenant, and it resolves
+	/// that partition from here, so there is no state in which the partition is undecided. A single-tenant
+	/// host receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
 	public ElasticSearchMaterializedViewStore(
 		ElasticsearchClient client,
 		IOptions<ElasticSearchMaterializedViewStoreOptions> options,
 		ILogger<ElasticSearchMaterializedViewStore> logger,
+		ITenantContext tenantContext,
 		JsonSerializerOptions? jsonOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
+
+		_tenantContext = tenantContext;
 
 		_client = client;
 		_options = options.Value;
@@ -110,9 +158,6 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		};
 	}
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-
 	[RequiresUnreferencedCode("JSON deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON deserialization might require runtime code generation.")]
 	public async ValueTask<TView?> GetAsync<TView>(
@@ -146,9 +191,6 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		return JsonSerializer.Deserialize<TView>(response.Source.Data, _jsonOptions);
 	}
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-
 	[RequiresUnreferencedCode("JSON serialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization might require runtime code generation.")]
 	public async ValueTask SaveAsync<TView>(
@@ -170,6 +212,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		var document = new MaterializedViewDocument
 		{
+			TenantId = CurrentTenantPartition.TenantId,
 			ViewName = viewName,
 			ViewId = viewId,
 			Data = JsonSerializer.Serialize(view, _jsonOptions),
@@ -231,7 +274,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		var response = await _client!.GetAsync<MaterializedViewPositionDocument>(
 			_options.PositionsIndexName,
-			viewName,
+			CreatePositionDocumentId(viewName),
 			cancellationToken).ConfigureAwait(false);
 
 		if (!response.Found || response.Source == null)
@@ -256,7 +299,14 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		var now = DateTimeOffset.UtcNow;
 
-		var document = new MaterializedViewPositionDocument { ViewName = viewName, Position = position, CreatedAt = now, UpdatedAt = now };
+		var document = new MaterializedViewPositionDocument
+		{
+			TenantId = CurrentTenantPartition.TenantId,
+			ViewName = viewName,
+			Position = position,
+			CreatedAt = now,
+			UpdatedAt = now
+		};
 
 		// Monotonic advance, enforced by the store rather than by the caller. The checkpoint is written under
 		// external versioning: Elasticsearch accepts the write only when the supplied version is greater than
@@ -270,7 +320,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			document,
 			idx => idx
 				.Index(_options.PositionsIndexName)
-				.Id(viewName)
+				.Id(CreatePositionDocumentId(viewName))
 				.Version(position + 1)
 				.VersionType(VersionType.ExternalGte)
 				.Refresh(GetRefresh()),
@@ -318,7 +368,47 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		return ValueTask.CompletedTask;
 	}
 
-	private static string CreateDocumentId(string viewName, string viewId) => $"{viewName}:{viewId}";
+	/// <summary>
+	/// Prefixes a document identifier with the ambient tenant, confining it to that tenant's partition.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The tenant segment is length-prefixed rather than merely delimited. A tenant identifier may
+	/// legally contain the delimiter, and without the prefix ("a", "b:c") and ("a:b", "c") compose to
+	/// the SAME identifier -- a cross-tenant collision reintroduced by the very code meant to prevent
+	/// one. The prefix makes the segment self-delimiting, so no two distinct tenants can produce the
+	/// same identifier.
+	/// </para>
+	/// <para>
+	/// A printable prefix is used rather than the ASCII unit separator the in-process cursor store
+	/// uses for the same purpose, because this identifier travels in a URL path.
+	/// </para>
+	/// <para>
+	/// The term is always present. <see cref="KeyedTenantPartition"/> has no empty inhabitant, so an
+	/// unscoped host binds the reserved untenanted sentinel rather than omitting the segment: "this
+	/// deployment has no tenants" and "somebody forgot to supply one" cannot become the same document.
+	/// </para>
+	/// </remarks>
+	/// <param name="key">The un-partitioned document identifier.</param>
+	/// <returns>The identifier confined to the ambient tenant's partition.</returns>
+	private string QualifyWithTenant(string key)
+	{
+		var tenantId = CurrentTenantPartition.TenantId;
+		return string.Create(
+			CultureInfo.InvariantCulture,
+			$"t{tenantId.Length}:{tenantId}:{key}");
+	}
+
+	private string CreateDocumentId(string viewName, string viewId) =>
+		QualifyWithTenant($"{viewName}:{viewId}");
+
+	/// <summary>
+	/// Builds the checkpoint document identifier for a view, confined to the ambient tenant.
+	/// </summary>
+	/// <param name="viewName">The view whose checkpoint is addressed.</param>
+	/// <returns>The tenant-partitioned checkpoint identifier.</returns>
+	private string CreatePositionDocumentId(string viewName) =>
+		QualifyWithTenant(viewName);
 
 	private Refresh GetRefresh() =>
 		_options.RefreshPolicy == "true" ? Refresh.True
@@ -398,6 +488,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 				.Mappings(m => m
 					.Properties(new Properties
 					{
+						{ "tenantId", new KeywordProperty() },
 						{ "viewName", new KeywordProperty() },
 						{ "viewId", new KeywordProperty() },
 						{ "data", new TextProperty { Index = false } },
@@ -434,6 +525,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 				.Mappings(m => m
 					.Properties(new Properties
 					{
+						{ "tenantId", new KeywordProperty() },
 						{ "viewName", new KeywordProperty() },
 						{ "position", new LongNumberProperty() },
 						{ "createdAt", new DateProperty() },
@@ -495,6 +587,11 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	/// </summary>
 	internal sealed class MaterializedViewDocument
 	{
+		/// <summary>
+		/// The owning tenant. The identifier already confines the document to its partition; this field
+		/// makes that partition visible to a query and to an operator reading the index.
+		/// </summary>
+		public string TenantId { get; set; } = string.Empty;
 		public string ViewName { get; set; } = string.Empty;
 		public string ViewId { get; set; } = string.Empty;
 		public string Data { get; set; } = string.Empty;
@@ -507,6 +604,11 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	/// </summary>
 	internal sealed class MaterializedViewPositionDocument
 	{
+		/// <summary>
+		/// The owning tenant. The identifier already confines the checkpoint to its partition; this field
+		/// makes that partition visible to a query and to an operator reading the index.
+		/// </summary>
+		public string TenantId { get; set; } = string.Empty;
 		public string ViewName { get; set; } = string.Empty;
 		public long Position { get; set; }
 		public DateTimeOffset CreatedAt { get; set; }

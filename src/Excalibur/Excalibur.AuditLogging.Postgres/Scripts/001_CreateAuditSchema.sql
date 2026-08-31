@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS "audit"."audit_events" (
     -- collation is byte-wise, so 'Acme' and 'acme' are distinct tenants exactly as the .NET side's
     -- Ordinal comparison requires. Do NOT provision this column with a nondeterministic
     -- (case-insensitive) collation -- that would silently merge two tenants into one scope.
-    tenant_id               TEXT        NOT NULL DEFAULT '__untenanted__',
+    tenant_id               VARCHAR(64)        NOT NULL DEFAULT '__untenanted__',
 
     application_name        TEXT        NULL,
 

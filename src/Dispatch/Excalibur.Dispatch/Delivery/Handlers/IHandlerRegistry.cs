@@ -36,7 +36,7 @@ public interface IHandlerRegistry
 	/// handler replacement or modification during application lifecycle. Handler types should implement appropriate interfaces
 	/// (IActionHandler, IEventHandler, etc.) to be compatible with the processing pipeline.
 	/// </remarks>
-	void Register(Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType, bool expectsResponse);
+	void Register([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType, bool expectsResponse);
 
 	/// <summary>
 	/// Attempts to retrieve the handler registration information for the specified message type. This method provides efficient handler

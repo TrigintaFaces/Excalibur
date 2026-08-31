@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Saga;
 // `string? tenantId = null` pattern (a null tenant silently dropped the predicate) to the fail-CLOSED
 // TenantScope struct: a scoped request with no tenant is now UNREPRESENTABLE by construction.
 //
-//   * TenantScope.None            -> the explicit non-multi-tenant path. Emits NO "AND tenant_id = @TenantId".
+//   * TenantScope.Untenanted            -> the explicit non-multi-tenant path. Emits NO "AND tenant_id = @TenantId".
 //   * TenantScope.Scoped("t")     -> emits the tenant gate UNCONDITIONALLY and binds @TenantId.
 //   * TenantScope.Scoped(null/"")  -> THROWS TenantRequiredException at scope construction, so a predicate-
 //                                    less-yet-tenant-active request can never be built (the widening bug is
@@ -78,7 +78,7 @@ public sealed class SagaTenantScopedRequestFailsClosedShould
 		// SAFETY — the gate is UNCONDITIONAL. Every saga request must carry the tenant predicate on the
 		// unscoped path too, bound to the reserved untenanted sentinel.
 		//
-		// This arm asserted the OPPOSITE — that TenantScope.None emits NO gate — and it was describing a
+		// This arm asserted the OPPOSITE — that TenantScope.Untenanted emits NO gate — and it was describing a
 		// live cross-tenant defect as a requirement. The predicate used to be built as
 		//     scope.IsScoped ? " AND TenantId = @TenantId" : string.Empty
 		// so an UNSCOPED load matched on SagaId + SagaType alone and returned whichever tenant's saga
@@ -94,7 +94,7 @@ public sealed class SagaTenantScopedRequestFailsClosedShould
 
 		foreach (var (name, commandTextFor) in TenantColumnedRequests)
 		{
-			var sql = commandTextFor(TenantScope.None);
+			var sql = commandTextFor(TenantScope.Untenanted);
 			if (!sql.Contains(ScopedGate, StringComparison.Ordinal))
 			{
 				ungated.Add(name);
@@ -102,7 +102,7 @@ public sealed class SagaTenantScopedRequestFailsClosedShould
 		}
 
 		ungated.ShouldBeEmpty(
-			"These saga request DTOs emitted NO tenant gate on the unscoped (TenantScope.None) path: " +
+			"These saga request DTOs emitted NO tenant gate on the unscoped (TenantScope.Untenanted) path: " +
 			string.Join(", ", ungated) + ". A predicate-less saga query matches on SagaId + SagaType alone " +
 			"and returns whichever tenant's row carries that id — the cross-tenant read the unconditional " +
 			"predicate closes.");

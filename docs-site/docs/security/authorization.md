@@ -107,7 +107,7 @@ The builder also registers Dispatch pipeline integration (`AddExcaliburAuthoriza
 
 :::tip Single-Tenant Applications
 
-Calling `AddExcaliburA3()` automatically registers the ambient `ITenantContext` (via `AddTenantContext()`), with `TenantContextOptions.DefaultTenantId` (`"Default"`) as the configured default. All tenant-scoped features — grants, authorization policies, audit search — read the ambient tenant. Web apps built on `Excalibur.Hosting.Web` get a per-request middleware that establishes the ambient tenant automatically, so a single-tenant app needs no extra setup.
+`AddExcaliburA3()` registers the ambient `ITenantContext` (via `AddTenantContext()`). That context reports whichever tenant the current execution flow has established through `TenantContextHolder.BeginScope` — it does not select a tenant of its own, and no framework component substitutes one when the scope is empty. On `Excalibur.Hosting.Web`, the per-request middleware opens that scope from the request's `X-Tenant-Id` header or `tenantId` query value (both must parse as a `Guid`); when a request supplies neither, the scope is opened with no tenant and `ITenantContext.HasTenant` reports `false`. A single-tenant deployment that wants every operation to run under one identity opens the scope itself, using the framework's single-tenant identifier `TenantDefaults.DefaultTenantId`. Read that identifier from the constant rather than copying its literal value — it is the identity your rows are stored under, so a hardcoded copy that drifts from it silently changes which rows an operation can see. All tenant-scoped features — grants, authorization policies, audit search — read the ambient tenant.
 
 For **multi-tenant** applications that serve multiple tenants from a single instance, establish the ambient tenant per request before A3 evaluates — the hosting middleware derives it from the request, or scope it explicitly:
 
@@ -128,33 +128,38 @@ A3 **fails closed**: if authorization runs with no ambient tenant resolved, it t
 
 ## Authentication
 
-### Token Validation
+### Authenticated Identity
 
-Implement `ITokenValidator` to validate tokens from any provider (JWT, opaque, API keys):
+A3 does not validate tokens, and provides no validation extension point. Validation belongs to your
+host's authentication stack -- ASP.NET Core JWT bearer authentication, for example. A3 consumes the
+identity that stack has already authenticated, through `IAuthenticationToken`, which your host registers:
 
 ```csharp
+using System.Security.Claims;
 using Excalibur.A3.Authentication;
 
-public class JwtTokenValidator : ITokenValidator
+// Project your host's validated principal onto IAuthenticationToken.
+public sealed class ClaimsPrincipalAuthenticationToken(ClaimsPrincipal principal) : IAuthenticationToken
 {
-    public async Task<AuthenticationResult> ValidateAsync(
-        string token,
-        CancellationToken cancellationToken)
-    {
-        // Validate JWT and extract claims
-        var principal = new AuthenticatedPrincipal(
-            SubjectId: "user-123",
-            TenantId: "tenant-abc",
-            Claims: new Dictionary<string, string>
-            {
-                ["role"] = "admin",
-                ["email"] = "user@example.com"
-            });
+    public AuthenticationState AuthenticationState =>
+        principal.Identity?.IsAuthenticated == true
+            ? AuthenticationState.Authenticated
+            : AuthenticationState.Anonymous;
 
-        return new AuthenticationResult(Succeeded: true, Principal: principal);
-    }
+    public string? UserId => principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    public IEnumerable<Claim>? Claims => principal.Claims;
+    public string? Login => principal.FindFirst(ClaimTypes.Name)?.Value;
+    public string? FirstName => principal.FindFirst(ClaimTypes.GivenName)?.Value;
+    public string? LastName => principal.FindFirst(ClaimTypes.Surname)?.Value;
+    public string FullName => $"{FirstName} {LastName}".Trim();
+    public string? Jwt { get; set; }
 }
+
+services.AddScoped<IAuthenticationToken, ClaimsPrincipalAuthenticationToken>();
 ```
+
+`AddA3(...)` separately registers `IAuthenticationTokenProvider`, an `HttpClient`-backed provider used to
+*acquire* a token for outbound calls. That is a different concern from validating an inbound one.
 
 ### Access Token
 
@@ -489,23 +494,28 @@ var auditEvent = new AuditEvent(
     });
 ```
 
-### Audit Sink
+### Audit Store
 
-Implement `IAuditSink` to persist audit events to your chosen store:
+Audit persistence lives in `Excalibur.AuditLogging`. Applications write events through `IAuditLogger`;
+storage is pluggable by implementing `IAuditStore`:
 
 ```csharp
-using Excalibur.A3.Auditing;
+using Excalibur.Compliance;
+using Microsoft.Extensions.DependencyInjection;
 
-public class SqlAuditSink : IAuditSink
+// SqlAuditStore : IAuditStore
+services.AddAuditLogging<SqlAuditStore>();
+
+// Anywhere in the application:
+public sealed class OrderService(IAuditLogger auditLogger)
 {
-    public async ValueTask WriteAsync(
-        IAuditEvent auditEvent,
-        CancellationToken cancellationToken)
-    {
-        // Persist to database, send to log aggregator, etc.
-    }
+    public Task<AuditEventId> RecordAsync(AuditEvent auditEvent, CancellationToken cancellationToken)
+        => auditLogger.LogAsync(auditEvent, cancellationToken);
 }
 ```
+
+`AddAuditLogging()` without a type argument registers an in-memory store, which is suitable for
+development and tests but not for production retention.
 
 ### Audit Message Publisher
 
@@ -1054,7 +1064,7 @@ The entitlement report provider aggregates data from all governance subsystems. 
 | Entitlement reporting (`IEntitlementReportProvider`, `AddEntitlementReporting()`) | -- | -- | Yes |
 | CQRS commands (`AddGrantCommand`, `RevokeGrantCommand`) | -- | Yes | -- |
 | Dispatch pipeline middleware (auth, audit) | -- | Yes | -- |
-| Authentication HTTP services (`ITokenValidator`) | -- | Yes | -- |
+| Authentication HTTP services (`IAuthenticationTokenProvider`) | -- | Yes | -- |
 | Event-sourced Grant aggregate | -- | Yes | -- |
 | Audit message publishing | -- | Yes | -- |
 | NuGet transitive dependencies | 3 packages | 8+ packages | 4 packages |

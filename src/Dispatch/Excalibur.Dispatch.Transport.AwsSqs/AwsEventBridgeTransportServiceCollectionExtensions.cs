@@ -105,10 +105,10 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 		configure(builder);
 
 		// Register core AWS EventBridge services
-		RegisterAwsEventBridgeServices(services, transportOptions);
+		RegisterAwsEventBridgeServices(services, name, transportOptions);
 
 		// Register EventBridge options
-		RegisterOptions(services, transportOptions);
+		RegisterOptions(services, name, transportOptions);
 
 		// Register the transport adapter with the transport factory
 		RegisterTransportAdapter(services, name);
@@ -154,10 +154,13 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterAwsEventBridgeServices(
 		IServiceCollection services,
+		string name,
 		AwsEventBridgeTransportOptions transportOptions)
 	{
-		// Register AWS EventBridge client
-		services.TryAddSingleton<IAmazonEventBridge>(sp =>
+		// Keyed by transport name: TryAddSingleton-by-type de-duplicates, so a second named
+		// EventBridge transport contributed no registration and both names resolved the first
+		// transport's client/bus, silently sending every named transport to the first event bus.
+		services.TryAddKeyedSingleton<IAmazonEventBridge>(name, (_, _) =>
 		{
 			if (!string.IsNullOrEmpty(transportOptions.Region))
 			{
@@ -168,16 +171,21 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 			return new AmazonEventBridgeClient();
 		});
 
-		// Register EventBridge message bus
-		services.TryAddSingleton(sp =>
+		services.TryAddKeyedSingleton<AwsEventBridgeMessageBus>(name, (sp, key) =>
 		{
-			var client = sp.GetRequiredService<IAmazonEventBridge>();
+			var client = sp.GetRequiredKeyedService<IAmazonEventBridge>(key);
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
-			var options = sp.GetRequiredService<IOptions<AwsEventBridgeOptions>>().Value;
+			var options = sp.GetRequiredService<IOptionsMonitor<AwsEventBridgeOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<AwsEventBridgeMessageBus>>();
 
 			return new AwsEventBridgeMessageBus(client, serializer, options, logger);
 		});
+
+		// Unkeyed convenience registrations for the single-transport host. TryAdd*, so the
+		// first-registered named transport wins -- a multi-transport host must resolve the keyed
+		// client/bus by name instead.
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<IAmazonEventBridge>(name));
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AwsEventBridgeMessageBus>(name));
 	}
 
 	/// <summary>
@@ -185,22 +193,35 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterOptions(
 		IServiceCollection services,
+		string name,
 		AwsEventBridgeTransportOptions transportOptions)
 	{
-		// Map AwsEventBridgeTransportOptions to existing AwsEventBridgeOptions
-		_ = services.AddOptions<AwsEventBridgeOptions>()
-			.Configure(options =>
-			{
-				options.EventBusName = transportOptions.EventBusName ?? "default";
-				options.DefaultSource = transportOptions.DefaultSource ?? "Excalibur.Dispatch.Transport";
-				options.DefaultDetailType = transportOptions.DefaultDetailType ?? string.Empty;
-				options.EnableArchiving = transportOptions.EnableArchiving;
-				options.ArchiveName = transportOptions.ArchiveName;
-				options.ArchiveRetentionDays = transportOptions.ArchiveRetentionDays;
-			})
+		// NAMED, so two named EventBridge transports in one container no longer write the same instance
+		// and let the second silently replace the first. The unnamed instance is configured as well and
+		// keeps its existing last-registration-wins behaviour, for consumers that inject
+		// IOptions<AwsEventBridgeOptions> directly and for the single-transport host.
+		_ = services.AddOptions<AwsEventBridgeOptions>(name)
+			.Configure(Map)
 			.ValidateOnStart();
+
+		_ = services.AddOptions<AwsEventBridgeOptions>()
+			.Configure(Map)
+			.ValidateOnStart();
+
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AwsEventBridgeOptions>>(new AwsEventBridgeOptionsValidator()));
+
+		// One mapping, applied to both registrations, so a property added here cannot reach one and
+		// miss the other.
+		void Map(AwsEventBridgeOptions options)
+		{
+			options.EventBusName = transportOptions.EventBusName ?? "default";
+			options.DefaultSource = transportOptions.DefaultSource ?? "Excalibur.Dispatch.Transport";
+			options.DefaultDetailType = transportOptions.DefaultDetailType ?? string.Empty;
+			options.EnableArchiving = transportOptions.EnableArchiving;
+			options.ArchiveName = transportOptions.ArchiveName;
+			options.ArchiveRetentionDays = transportOptions.ArchiveRetentionDays;
+		}
 	}
 
 	/// <summary>
@@ -217,7 +238,7 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AwsEventBridgeTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AwsEventBridgeMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AwsEventBridgeMessageBus>(name);
 			return new AwsEventBridgeTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -225,7 +246,7 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AwsEventBridgeTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AwsEventBridgeMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AwsEventBridgeMessageBus>(name);
 			return new AwsEventBridgeTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 

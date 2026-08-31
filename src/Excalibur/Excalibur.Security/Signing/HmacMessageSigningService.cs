@@ -122,7 +122,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 
 			// Prepare data to sign (optionally include timestamp). Capture the signing time ONCE onto the
 			// context so the caller can transmit it; the verifier MUST reuse this exact value — re-deriving
-			// the current time on the verify side would never reproduce the HMAC (qtogpu).
+			// the current time on the verify side would never reproduce the HMAC ().
 			byte[] dataToSign;
 			if (context.IncludeTimestamp)
 			{
@@ -210,7 +210,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 
 			// Prepare data to verify. For a timestamped signature the verifier MUST reuse the transmitted
 			// signing timestamp; if it is absent we fail closed rather than substituting the current time
-			// (which would never reproduce the signer's HMAC) — qtogpu.
+			// (which would never reproduce the signer's HMAC) —.
 			byte[] dataToVerify;
 			if (context.IncludeTimestamp)
 			{

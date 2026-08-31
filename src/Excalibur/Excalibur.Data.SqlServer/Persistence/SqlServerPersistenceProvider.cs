@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
+using Excalibur.Data;
 using Excalibur.Data.Persistence;
 using Excalibur.Data.Resilience;
 using Excalibur.Data.SqlServer.Diagnostics;
@@ -32,17 +33,13 @@ namespace Excalibur.Data.SqlServer.Persistence;
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "SQL persistence providers inherently couple with many SDK, System.Data, and abstraction types.")]
-public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction
+public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction, IPersistenceProviderConnection, IDataRequestExecutor
 {
 	private readonly ILogger<SqlServerPersistenceProvider> _logger;
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly SqlServerPersistenceOptions _options;
 	private readonly SqlServerPersistenceMetrics _metrics;
 
-	// IDE0052: Reserved for future policy-based authorization enforcement
-#pragma warning disable IDE0052
-	private readonly SqlDataAccessPolicyFactory _policyFactory;
-#pragma warning restore IDE0052
 	private readonly SemaphoreSlim _connectionSemaphore;
 	private bool _isInitialized;
 	private volatile bool _disposed;
@@ -56,21 +53,20 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 	/// <param name="loggerFactory"> The logger factory for creating component loggers. </param>
 	/// <param name="metrics"> The metrics collector. </param>
 	/// <param name="retryPolicy"> The retry policy for DataRequest operations. </param>
-	/// <param name="policyFactory"> The SQL-specific policy factory. </param>
 	public SqlServerPersistenceProvider(
 		IOptions<SqlServerPersistenceOptions> options,
 		ILogger<SqlServerPersistenceProvider> logger,
 		ILoggerFactory loggerFactory,
 		SqlServerPersistenceMetrics metrics,
-		IDataRequestRetryPolicy retryPolicy,
-		SqlDataAccessPolicyFactory policyFactory)
+		IDataRequestRetryPolicy retryPolicy)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
 		_metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 		RetryPolicy = retryPolicy ?? throw new ArgumentNullException(nameof(retryPolicy));
-		_policyFactory = policyFactory ?? throw new ArgumentNullException(nameof(policyFactory));
+
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "sqlserver" : _options.Name;
 
 		_options.Validate();
 
@@ -92,7 +88,12 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 	}
 
 	/// <inheritdoc />
-	public string Name => "SqlServerPersistenceProvider";
+	/// <remarks>
+	/// The consumer-configured instance name, taken from the options and defaulting to
+	/// <c>"sqlserver"</c>. This identifies which configured instance answered; the engine
+	/// identity is reported separately under the <c>Provider</c> metrics key.
+	/// </remarks>
+	public string Name { get; }
 
 	/// <inheritdoc />
 	public string ProviderType => "SQL";
@@ -173,26 +174,18 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 	}
 
 	/// <inheritdoc />
-	public async Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
+	public async Task<TResult> ExecuteAsync<TResult>(
+		IDataRequest<IDbConnection, TResult> request,
 		CancellationToken cancellationToken)
-		where TConnection : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(request);
-
-		// Ensure the request is compatible with IDbConnection
-		if (typeof(TConnection) != typeof(IDbConnection))
-		{
-			throw new ArgumentException(
-				$"Request connection type {typeof(TConnection).Name} is not compatible with SQL Server provider. Expected IDbConnection.",
-				nameof(request));
-		}
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		using var activity = Activity.Current?.Source.StartActivity("SqlServer.ExecuteDataRequest");
 		_ = (activity?.SetTag("request.type", request.GetType().Name));
 
 		return await ((IRelationalDataRequestRetryPolicy)RetryPolicy).ResolveAsync(
-			(IDataRequest<IDbConnection, TResult>)request,
+			request,
 			async () => await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
 			cancellationToken).ConfigureAwait(false);
 	}
@@ -220,8 +213,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		_ = (activity?.SetTag("request.type", request.GetType().Name));
 		_ = (activity?.SetTag("transaction.id", transactionScope.TransactionId));
 
-		// Connection lifecycle is managed by the transaction scope after enlistment - scope owns disposal R0.8: Dispose objects before
-		// losing scope
+		// Connection lifecycle is managed by the transaction scope after enlistment - scope owns disposal, not this method
 #pragma warning disable CA2000
 		var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 		await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
@@ -289,44 +281,50 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		using var activity = Activity.Current?.Source.StartActivity("SqlServer.ExecuteBatch");
 		_ = (activity?.SetTag("batch.size", requestList.Count));
 
+		// Each DataRequest builds its own CommandDefinition without a transaction, so an explicit
+		// SqlTransaction cannot be flowed onto those commands. The batch instead enlists its connection
+		// in an ambient transaction - the same mechanism the transaction-scope batch path uses - because
+		// commands on an enlisted connection require no explicit transaction assignment.
+		using var ambientTransaction = new System.Transactions.TransactionScope(
+			System.Transactions.TransactionScopeOption.Required,
+			new System.Transactions.TransactionOptions
+			{
+				IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted,
+				Timeout = TimeSpan.FromMinutes(_options.CommandTimeout),
+			},
+			System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
+
+		// Opened inside the ambient transaction so the connection enlists in it automatically.
 		using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-		if (connection is not SqlConnection sqlConnection)
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var results = new List<object>();
+
+		try
 		{
-			throw new InvalidOperationException("Failed to begin batch transaction.");
+			foreach (var request in requestList)
+			{
+				var result = await request.ResolveAsync(connection).ConfigureAwait(false);
+				results.Add(result);
+			}
+
+			ambientTransaction.Complete();
+
+			_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true, requestList.Count, results.Count);
+
+			if (_options.Observability.EnableDetailedLogging)
+			{
+				LogBatchExecuted(requestList.Count, (long)stopwatch.Elapsed.TotalMilliseconds);
+			}
+
+			return results;
 		}
-
-		var transaction = await sqlConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-		await using (transaction.ConfigureAwait(false))
+		catch (Exception ex)
 		{
-			var stopwatch = ValueStopwatch.StartNew();
-			var results = new List<object>();
-
-			try
-			{
-				foreach (var request in requestList)
-				{
-					var result = await request.ResolveAsync(connection).ConfigureAwait(false);
-					results.Add(result);
-				}
-
-				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
-				_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true, requestList.Count, results.Count);
-
-				if (_options.Observability.EnableDetailedLogging)
-				{
-					LogBatchExecuted(requestList.Count, (long)stopwatch.Elapsed.TotalMilliseconds);
-				}
-
-				return results;
-			}
-			catch (Exception ex)
-			{
-				await transaction.RollbackAsync().ConfigureAwait(false);
-				_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: false, requestList.Count, 0);
-				LogBatchError(ex);
-				throw;
-			}
+			// Leaving the scope without completing it rolls the ambient transaction back on dispose.
+			_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: false, requestList.Count, 0);
+			LogBatchError(ex);
+			throw;
 		}
 	}
 
@@ -350,8 +348,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		_ = (activity?.SetTag("batch.size", requestList.Count));
 		_ = (activity?.SetTag("transaction.id", transactionScope.TransactionId));
 
-		// Connection lifecycle is managed by the transaction scope after enlistment - scope owns disposal R0.8: Dispose objects before
-		// losing scope
+		// Connection lifecycle is managed by the transaction scope after enlistment - scope owns disposal, not this method
 #pragma warning disable CA2000
 		var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 		await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
@@ -433,10 +430,10 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		                           (SELECT SUM(size * 8 / 1024) FROM sys.database_files WHERE type = 1) AS LogSizeMB,
 		                           (SELECT cntr_value FROM sys.dm_os_performance_counters
 		                           WHERE object_name LIKE '%:Buffer Manager%' AND counter_name = 'Buffer cache hit ratio') AS BufferCacheHitRatio,
-		                           SERVERPROPERTY('Edition') AS SqlServerEdition,
-		                           SERVERPROPERTY('ProductVersion') AS ProductVersion,
-		                           SERVERPROPERTY('ProductLevel') AS ProductLevel,
-		                           (SELECT value FROM sys.configurations WHERE name = 'max server memory (MB)') AS MaxServerMemoryMB
+		                           CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) AS SqlServerEdition,
+		                           CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)) AS ProductVersion,
+		                           CAST(SERVERPROPERTY('ProductLevel') AS nvarchar(128)) AS ProductLevel,
+		                           (SELECT CAST(value AS int) FROM sys.configurations WHERE name = 'max server memory (MB)') AS MaxServerMemoryMB
 		                          """;
 
 		using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -467,6 +464,17 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 	{
 		var metrics = await _metrics.GetMetricsAsync().ConfigureAwait(false);
 
+		// "Provider" is the stable engine identity -- a fixed literal every SQL Server instance reports,
+		// so a consumer aggregating across providers can attribute a reading to the engine. "Name" is the
+		// consumer-configured instance name, which distinguishes two instances of the same engine. The
+		// dictionary uses an ordinal comparer, so the casing here is part of each key.
+		metrics["Provider"] = "SqlServer";
+		metrics["Name"] = Name;
+
+		// Reported by every other persistence provider, so a consumer polling metrics across a mixed
+		// deployment can read availability the same way everywhere rather than special-casing this one.
+		metrics["IsAvailable"] = IsAvailable;
+
 		// Add SQL Server-specific metrics
 		metrics["ConnectionPoolSize"] = _options.Pooling.MaxPoolSize;
 		metrics["ConnectionPoolMinSize"] = _options.Pooling.MinPoolSize;
@@ -481,57 +489,21 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 	}
 
 	/// <inheritdoc />
-	public async Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			const string poolQuery = """
-			                          SELECT
-			                          'SqlServer' as ProviderType,
-			                          @@SERVERNAME as ServerName,
-			                          DB_NAME() as DatabaseName,
-			                          (SELECT COUNT(*) FROM sys.dm_exec_connections) as TotalConnections,
-			                          (SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE is_user_process = 1) as UserConnections,
-			                          (SELECT COUNT(*) FROM sys.dm_exec_requests) as ActiveRequests,
-			                          (SELECT COUNT(*) FROM sys.dm_exec_requests WHERE blocking_session_id > 0) as BlockedRequests,
-			                          (SELECT COUNT(*) FROM sys.dm_tran_active_transactions) as ActiveTransactions
-			                         """;
-
-			using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-			var poolStats = await connection.QuerySingleAsync<ProviderConnectionPoolDto>(poolQuery).ConfigureAwait(false);
-
-			var result = new Dictionary<string, object>(StringComparer.Ordinal)
-			{
-				["ProviderType"] = poolStats.ProviderType ?? "N/A",
-				["ServerName"] = poolStats.ServerName ?? "N/A",
-				["DatabaseName"] = poolStats.DatabaseName ?? "N/A",
-				["TotalConnections"] = poolStats.TotalConnections,
-				["UserConnections"] = poolStats.UserConnections,
-				["ActiveRequests"] = poolStats.ActiveRequests,
-				["BlockedRequests"] = poolStats.BlockedRequests,
-				["ActiveTransactions"] = poolStats.ActiveTransactions,
-			};
-
-			// Add configured pool settings
-			result["ConfiguredMaxPoolSize"] = _options.Pooling.MaxPoolSize;
-			result["ConfiguredMinPoolSize"] = _options.Pooling.MinPoolSize;
-			result["ConnectionPoolingEnabled"] = _options.Pooling.EnableConnectionPooling;
-
-			return result;
-		}
-		catch (Exception ex)
-		{
-			LogConnectionPoolStatsError(ex);
-			return null;
-		}
-	}
-
-	/// <inheritdoc />
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
 		if (serviceType == typeof(IPersistenceProviderHealth))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IDataRequestExecutor))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
@@ -544,7 +516,21 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		return null;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Reads the schema of a single table: its identity and the ordered column metadata backing it.
+	/// </summary>
+	/// <param name="tableName">The table to describe. Required.</param>
+	/// <param name="schemaName">The schema the table lives in, or <see langword="null"/> for the provider default.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>A dictionary carrying the table's identity and its column metadata.</returns>
+	/// <remarks>
+	/// <b>This call fails closed.</b> It never returns a value describing a table it could not read: an
+	/// absent table raises <see cref="Excalibur.Data.ResourceNotFoundException"/>, and any other failure --
+	/// an unreachable server, a permission denial -- propagates. A returned dictionary therefore means the
+	/// table exists and was described, with no key a caller must probe to discover otherwise.
+	/// </remarks>
+	/// <exception cref="System.ArgumentException"><paramref name="tableName"/> is null, empty, or whitespace.</exception>
+	/// <exception cref="Excalibur.Data.ResourceNotFoundException">The named table does not exist.</exception>
 	public async Task<IDictionary<string, object>> GetSchemaInfoAsync(
 		string tableName,
 		string? schemaName,
@@ -606,11 +592,23 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		var schemaInfo = await connection.QueryAsync(schemaQuery, new { SchemaName = schemaName, TableName = tableName })
 			.ConfigureAwait(false);
 
+		var columns = schemaInfo.ToList();
+
+		// Fail closed: a table that does not exist yields no rows, and returning a dictionary with an empty
+		// column list makes "absent" indistinguishable from "present" to a caller reading the result. A
+		// table with zero columns is not a state SQL Server can be in, so an empty result means the table
+		// was not found and is reported as such -- the same contract the Postgres provider states for the
+		// same call, so a consumer that swaps providers does not silently swap a throw for a value.
+		if (columns.Count == 0)
+		{
+			throw new ResourceNotFoundException("Table", $"{schemaName}.{tableName}");
+		}
+
 		return new Dictionary<string, object>(StringComparer.Ordinal)
 		{
 			["SchemaName"] = schemaName,
 			["TableName"] = tableName,
-			["Columns"] = schemaInfo.ToList(),
+			["Columns"] = columns,
 		};
 	}
 
@@ -773,6 +771,11 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			_connectionSemaphore?.Dispose();
 			await Task.CompletedTask.ConfigureAwait(false);
 			_disposed = true;
+
+			// IsAvailable is latched by the health probe and is not otherwise derived from _disposed,
+			// so a disposed provider would keep reporting the last successful probe. Every other
+			// provider folds disposal into that expression; this one has to clear it explicitly.
+			IsAvailable = false;
 		}
 	}
 
@@ -790,6 +793,10 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			}
 
 			_disposed = true;
+
+		// IsAvailable is latched by the health probe, so disposal must clear it here as well as on the
+		// async path -- otherwise a synchronously-disposed provider keeps reporting the last good probe.
+		IsAvailable = false;
 		}
 	}
 
@@ -905,9 +912,6 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		"Error executing batch of DataRequests in transaction {TransactionId}")]
 	private partial void LogBatchInTransactionError(string transactionId, Exception ex);
 
-	[LoggerMessage(DataSqlServerEventId.PersistenceConnectionPoolStatsError, LogLevel.Warning,
-		"Failed to retrieve connection pool statistics")]
-	private partial void LogConnectionPoolStatsError(Exception ex);
 
 	[LoggerMessage(DataSqlServerEventId.PersistenceUnsafeSqlPattern, LogLevel.Warning,
 		"DataRequest contains potentially unsafe SQL pattern: {Pattern}")]

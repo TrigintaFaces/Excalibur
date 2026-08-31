@@ -24,7 +24,7 @@ namespace Excalibur.Compliance.Erasure.DependencyInjection;
 /// Sibling of the encryption wiring validators. Runtime defense-in-depth is provided independently by the
 /// affirmative-coverage gate in <see cref="ErasureService"/>.
 /// </remarks>
-internal sealed partial class ErasureDiscoverySourceValidator : IHostedService
+internal sealed partial class ErasureDiscoverySourceValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 	private readonly IOptions<ErasureOptions> _options;
@@ -42,16 +42,22 @@ internal sealed partial class ErasureDiscoverySourceValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		// Explicit opt-in: key-destruction-only erasure accepts no store-coverage verification.
 		if (_options.Value.KeyShredOnlyErasure)
 		{
-			return Task.CompletedTask;
+			return;
 		}
 
 		var isService = _services.GetRequiredService<IServiceProviderIsService>();
 		if (isService.IsService(typeof(IDataInventoryService)))
 		{
-			return Task.CompletedTask;
+			return;
 		}
 
 		LogNoDiscoverySource();

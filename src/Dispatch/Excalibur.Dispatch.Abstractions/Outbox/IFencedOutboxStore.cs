@@ -1,5 +1,7 @@
 // Copyright (c) Excalibur contributors. All rights reserved.
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch;
 
 /// <summary>
@@ -51,6 +53,8 @@ public interface IFencedOutboxStore : IOutboxStore
 	/// token simply yields fewer or zero claimable rows — it MUST NOT throw.
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when batchSize is less than 1. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
 		long fencingToken,

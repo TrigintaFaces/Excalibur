@@ -28,13 +28,24 @@ namespace Excalibur.Compliance.Postgres.Erasure;
 /// <item>7-year certificate retention for regulatory compliance</item>
 /// </list>
 /// </remarks>
-public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore, IDisposable
+public sealed partial class PostgresErasureStore
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureSchemaValidator, IDisposable
 {
 	private readonly PostgresErasureStoreOptions _options;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<PostgresErasureStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
+	/// the same term. When the deployment is not multi-tenant the store
+	/// deliberately emits no tenant predicate. That decision is stated here
+	/// and nowhere else: a conversion cannot make it on the store's behalf without inventing a tenant
+	/// decision the host never made.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly bool _requireTenant;
 	private volatile bool _disposed;
 	private volatile bool _initialized;
@@ -54,7 +65,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	/// </para>
 	/// <para>
 	/// Deployment mode decides the shape. A deployment that has not opted into multi-tenancy resolves
-	/// <see cref="TenantScope.None"/>: no predicate, no bound parameter, and rows keep whatever tenant
+	/// no predicate and no bound parameter, and rows keep whatever tenant
 	/// value the caller supplied — byte-identical to the single-tenant behaviour, so no stored row becomes
 	/// unreachable. A multi-tenant deployment resolves a scoped term that rides every tenant-facing path.
 	/// Mode is "did the consumer opt in", read from <see cref="TenantContextOptions.RequireTenant"/>, and
@@ -64,7 +75,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	/// <para>
 	/// Multi-tenancy active with no resolved tenant fails closed: it throws rather than reaching a
 	/// predicate-less statement. A missing context is the same failure and is stated as such, because
-	/// degrading it to <see cref="TenantScope.None"/> would emit no predicate at all — the exact
+	/// degrading it to an unscoped read would emit no predicate at all — the exact
 	/// cross-tenant read this property exists to remove.
 	/// </para>
 	/// </remarks>
@@ -77,33 +88,11 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		{
 			if (!_requireTenant)
 			{
-				return TenantScope.None;
+				return TenantScope.Untenanted;
 			}
 
-			return _tenantContext is null
-				? throw new TenantRequiredException()
-				: TenantScope.FromContext(_tenantContext);
+			return CurrentTenantScope;
 		}
-	}
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="PostgresErasureStore"/> class without an ambient tenant
-	/// context — the single-tenant deployment shape.
-	/// </summary>
-	/// <param name="options">The configuration options.</param>
-	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
-	/// <param name="logger">The logger instance.</param>
-	/// <remarks>
-	/// Equivalent to supplying no tenant context and no tenant options: the store resolves
-	/// <see cref="TenantScope.None"/> and emits no tenant predicate. A multi-tenant host must use the
-	/// tenant-aware overload, which the tenant-scoped registration seam calls on its behalf.
-	/// </remarks>
-	public PostgresErasureStore(
-		IOptions<PostgresErasureStoreOptions> options,
-		IDataSubjectHasher dataSubjectHasher,
-		ILogger<PostgresErasureStore> logger)
-		: this(options, dataSubjectHasher, logger, tenantContext: null, tenantContextOptions: null)
-	{
 	}
 
 	/// <summary>
@@ -121,20 +110,25 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
-	/// <c>AddMultiTenancy()</c>) selects the deployment mode.
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode. Required: it used to be nullable and fold a
+	/// missing value onto single-tenant, so omitting the registration silently selected the mode that
+	/// applies no tenant predicate - a decision nobody made, taken by default, on the path that decides
+	/// isolation. The registration extensions call <c>AddDefaultTenantContext()</c> first, so the value
+	/// always resolves; a host that reaches this constructor without one is misconfigured and says so.
 	/// </param>
 	public PostgresErasureStore(
 		IOptions<PostgresErasureStoreOptions> options,
 		IDataSubjectHasher dataSubjectHasher,
 		ILogger<PostgresErasureStore> logger,
-		ITenantContext? tenantContext,
-		IOptions<TenantContextOptions>? tenantContextOptions)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_tenantContext = tenantContext;
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		_requireTenant = (tenantContextOptions ?? throw new ArgumentNullException(nameof(tenantContextOptions)))
+			.Value.RequireTenant;
 
 		_options.Validate();
 	}
@@ -167,12 +161,15 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+		try
+		{
+			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
 		{
 			request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
-			TenantId = tenant.IsScoped ? tenant.TenantId : request.TenantId,
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
 			Scope = (int)request.Scope,
 			LegalBasis = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -188,6 +185,22 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 			CreatedAt = now,
 			UpdatedAt = now
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (PostgresException ex) when (IsUniqueViolation(ex))
+		{
+			// This method inserts; it does not upsert. A caller that re-files an existing request id is
+			// making a mistake, and the raw provider type is the wrong way to tell them: it forces every
+			// consumer to reference Npgsql and to know its error codes just to handle a condition the
+			// abstraction already defines. The filter is narrow on purpose - only a unique violation is
+			// translated, so a connection failure, a timeout or a constraint we did not anticipate still
+			// surfaces unchanged rather than being reported as a duplicate.
+			//
+			// The type is specific for the same reason the filter is narrow. InvalidOperationException is
+			// also what an unprovisioned schema and an unresolved tenant would surface as, so a caller
+			// branching on the base type would read those as "already on file" and never re-file a request
+			// that was never stored.
+			throw DuplicateErasureRequestException.ForRequestId(request.RequestId, ex);
+		}
 
 		LogSavedRequest(request.RequestId, scheduledExecutionTime);
 	}
@@ -200,7 +213,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND tenant_id = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND tenant_id = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis,
@@ -230,7 +243,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND tenant_id = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND tenant_id = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -261,7 +274,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND tenant_id = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND tenant_id = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -276,7 +289,12 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql,
+		// The affected count is the whole check, which is why it is no longer discarded. An UPDATE that
+		// matches nothing is a perfectly successful statement, so throwing the result away turned
+		// "there is no such request" into "recorded". This surface produces the evidence a consumer hands
+		// to an auditor: a completion recorded against a request that does not exist attests to erasing
+		// something nobody asked to erase, and nothing anywhere reports it.
+		var affected = await connection.ExecuteAsync(new CommandDefinition(sql,
 			new
 			{
 				RequestId = requestId,
@@ -287,6 +305,12 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 				Now = DateTimeOffset.UtcNow,
 				AmbientTenantId = tenant.TenantId
 			}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			throw new KeyNotFoundException(
+				$"No erasure request with id '{requestId}' exists, so its completion cannot be recorded.");
+		}
 	}
 
 	/// <inheritdoc />
@@ -299,7 +323,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND tenant_id = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND tenant_id = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -390,7 +414,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		// and omitting the argument no longer removes the predicate. Widening is not expressible here — it
 		// would take changing this AND to an OR.
 		var tenant = AmbientScope;
-		if (tenant.IsScoped)
+		if (_requireTenant)
 		{
 			whereClauses.Add("tenant_id = @AmbientTenantId");
 			parameters.Add("AmbientTenantId", tenant.TenantId);
@@ -466,7 +490,9 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+		try
+		{
+			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
 		{
 			certificate.CertificateId,
 			certificate.RequestId,
@@ -485,6 +511,14 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 			certificate.RetainUntil,
 			CreatedAt = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (PostgresException ex) when (IsUniqueViolation(ex))
+		{
+			// A certificate is the attestation itself, so silently replacing one would rewrite evidence
+			// that has already been issued. Same narrow filter, and same specific type, as the request
+			// insert.
+			throw DuplicateErasureCertificateException.ForCertificateId(certificate.CertificateId, ex);
+		}
 
 		LogSavedCertificate(certificate.CertificateId, certificate.RequestId);
 	}
@@ -500,7 +534,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		// certifies, so its tenant is that request's. Scoping through the request is what keeps the join and
 		// the row in agreement — adding a second tenant column would let the two disagree.
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped
+		var tenantPredicate = _requireTenant
 			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
 				  WHERE r.request_id = {_options.FullCertificatesTableName}.request_id AND r.tenant_id = @AmbientTenantId)"
 			: string.Empty;
@@ -530,7 +564,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 
 		// Scoped through the certified request, for the same reason as the by-request lookup above.
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped
+		var tenantPredicate = _requireTenant
 			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
 				  WHERE r.request_id = {_options.FullCertificatesTableName}.request_id AND r.tenant_id = @AmbientTenantId)"
 			: string.Empty;
@@ -622,6 +656,18 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	[LoggerMessage(LogLevel.Debug, "Ensured Postgres erasure schema and tables exist")]
 	private partial void LogSchemaEnsured();
 
+	/// <inheritdoc />
+	/// <remarks>
+	/// Provisioning is settled here, once, at host startup — not on the path of every write. A store that
+	/// verified its schema inside <c>SaveRequestAsync</c> reports a deployment fault as a failure of that
+	/// one erasure request, at the moment a data subject's request is being filed. Running it here means a
+	/// mis-provisioned deployment fails to start instead, and by the time any write executes the check is
+	/// already satisfied. The first-use call that remains on each operation is the fail-closed floor for
+	/// consumers that never run the hosted service.
+	/// </remarks>
+	public async ValueTask ValidateSchemaAsync(CancellationToken cancellationToken)
+		=> await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
 	/// <summary>
 	/// Provisions the schema once, however many callers arrive together.
 	/// </summary>
@@ -699,32 +745,114 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
 	/// provider error far from its cause. This method is the verification half of that guarantee.
 	/// </remarks>
-	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	/// <exception cref="ErasureStoreNotProvisionedException">
+	/// A required table is absent, or is present but missing columns this store's statements bind.
+	/// Deliberately outside the <see cref="InvalidOperationException"/> hierarchy: that is the hierarchy a
+	/// duplicate request identifier uses, and a caller cannot be left unable to tell "this request is
+	/// already on file" from "this database was never provisioned".
+	/// </exception>
 	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
 	{
-		const string ExistsSql = "SELECT to_regclass(@TableName) IS NOT NULL";
+		// Reading the COLUMN catalogue rather than the table catalogue is the whole point of this method.
+		// A probe that asks only whether the table exists reports healthy on precisely the database that is
+		// broken: one provisioned before a column was added, where the table is present and the wrong shape.
+		// The consumer then gets a dead store plus a check that told them it was fine, and the real failure
+		// arrives later as a raw undefined_column far from its cause. Automatic schema creation does not
+		// repair that database either -- CREATE TABLE IF NOT EXISTS only creates tables that are absent.
+		//
+		// Resolved through to_regclass rather than by splitting the configured name: the option already
+		// carries a qualified identifier and to_regclass parses it the way the statements do. attnum > 0
+		// excludes system columns; NOT attisdropped excludes columns dropped but not yet vacuumed, which
+		// still occupy a pg_attribute row and would otherwise read as present.
+		const string ColumnsSql =
+			"SELECT attname FROM pg_attribute " +
+			"WHERE attrelid = to_regclass(@TableName) AND attnum > 0 AND NOT attisdropped";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		foreach (var tableName in new[] { _options.FullRequestsTableName, _options.FullCertificatesTableName })
+		foreach (var (tableName, requiredColumns) in RequiredSchema)
 		{
-			var exists = await connection.ExecuteScalarAsync<bool>(
+			var actualColumns = (await connection.QueryAsync<string>(
 				new CommandDefinition(
-					ExistsSql,
+					ColumnsSql,
 					new { TableName = tableName },
 					cancellationToken: cancellationToken,
-					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)).ToList();
 
-			if (!exists)
+			// No columns at all means no such table: to_regclass returns NULL for a table that does not
+			// exist, so the same query answers both questions and they stay in step.
+			if (actualColumns.Count == 0)
 			{
-				throw new InvalidOperationException(
+				throw new ErasureStoreNotProvisionedException(
 					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
 					$"Either create the schema out of band, or set {nameof(PostgresErasureStoreOptions)}."
-					+ $"{nameof(PostgresErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+					+ $"{nameof(PostgresErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.")
+				{
+					TableName = tableName,
+				};
+			}
+
+			// Named, not counted. An operator reading this at startup needs to know WHICH columns are absent
+			// to choose the migration; "the schema is stale" sends them to diff it by hand.
+			var missing = requiredColumns
+				.Where(required => !actualColumns.Contains(required, StringComparer.Ordinal))
+				.ToList();
+
+			if (missing.Count > 0)
+			{
+				throw new ErasureStoreNotProvisionedException(
+					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
+					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
+					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
+					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
+					+ "this database, then restart.")
+				{
+					TableName = tableName,
+				};
 			}
 		}
 	}
+
+	/// <summary>
+	/// Gets the columns every statement this store issues binds, per table.
+	/// </summary>
+	/// <remarks>
+	/// The request columns are the union of the INSERT and the several UPDATE paths, not the INSERT alone.
+	/// A request is created with a subset and then mutated through execution, completion and cancellation,
+	/// so the columns only an UPDATE names -- the outcome and cancellation fields -- are exactly the ones a
+	/// schema predating those features would lack, and the ones whose absence would otherwise surface at the
+	/// end of an erasure rather than at startup. Compared with <see cref="StringComparer.Ordinal"/> because
+	/// PostgreSQL folds unquoted identifiers to lower case and stores them that way, so these are written as
+	/// the catalogue holds them rather than relying on a case-insensitive match to paper over a mismatch.
+	/// </remarks>
+	private IEnumerable<(string TableName, string[] RequiredColumns)> RequiredSchema =>
+	[
+		(_options.FullRequestsTableName,
+		[
+			"request_id", "data_subject_id_hash", "id_type", "tenant_id", "scope", "legal_basis",
+			"external_reference", "requested_by", "requested_at", "scheduled_execution_at",
+			"executed_at", "completed_at", "cancelled_at", "cancellation_reason", "cancelled_by",
+			"status", "keys_deleted", "records_affected", "certificate_id", "error_message",
+			"data_categories", "created_at", "updated_at",
+		]),
+		(_options.FullCertificatesTableName,
+		[
+			"certificate_id", "request_id", "data_subject_reference", "request_received_at", "completed_at",
+			"method", "summary", "verification", "legal_basis", "signature", "retain_until", "created_at",
+		]),
+	];
+
+	/// <summary>
+	/// Indicates whether a Postgres error is a unique-constraint violation (SQLSTATE 23505).
+	/// </summary>
+	/// <remarks>
+	/// Used as an exception filter so only this one condition is translated. A broad catch would report
+	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
+	/// is worse than not translating at all: the caller would be told the row exists when it does not.
+	/// </remarks>
+	private static bool IsUniqueViolation(PostgresException ex)
+		=> string.Equals(ex.SqlState, PostgresErrorCodes.UniqueViolation, StringComparison.Ordinal);
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
 	{
@@ -735,7 +863,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 				request_id UUID NOT NULL PRIMARY KEY,
 				data_subject_id_hash VARCHAR(128) NOT NULL,
 				id_type INT NOT NULL,
-				tenant_id VARCHAR(256) NULL,
+				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
 				scope INT NOT NULL,
 				legal_basis INT NOT NULL,
 				external_reference VARCHAR(256) NULL,

@@ -34,7 +34,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new MongoDbSnapshotStore(_options, _logger);
+		var store = new MongoDbSnapshotStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -45,7 +45,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSnapshotStore(options: null!, _logger));
+			new MongoDbSnapshotStore(options: null!, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -54,7 +54,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSnapshotStore(_options, logger: null!));
+			new MongoDbSnapshotStore(_options, logger: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -69,7 +69,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbSnapshotStore(invalidOptions, _logger));
+			new MongoDbSnapshotStore(invalidOptions, _logger, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	#endregion Simple Constructor Tests
@@ -88,7 +88,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 			.Returns(database);
 
 		// Act
-		var store = new MongoDbSnapshotStore(client, _options, _logger);
+		var store = new MongoDbSnapshotStore(client, _options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -99,7 +99,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSnapshotStore(client: null!, _options, _logger));
+			new MongoDbSnapshotStore(client: null!, _options, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("client");
 	}
 
@@ -111,7 +111,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSnapshotStore(client, options: null!, _logger));
+			new MongoDbSnapshotStore(client, options: null!, _logger, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -123,7 +123,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSnapshotStore(client, _options, logger: null!));
+			new MongoDbSnapshotStore(client, _options, logger: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -142,8 +142,8 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 			.Returns(database);
 
 		// Act
-		var simpleStore = new MongoDbSnapshotStore(_options, _logger);
-		var clientStore = new MongoDbSnapshotStore(client, _options, _logger);
+		var simpleStore = new MongoDbSnapshotStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
+		var clientStore = new MongoDbSnapshotStore(client, _options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert - Both create valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -158,7 +158,7 @@ public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new MongoDbSnapshotStore(_options, _logger);
+		var store = new MongoDbSnapshotStore(_options, _logger, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();

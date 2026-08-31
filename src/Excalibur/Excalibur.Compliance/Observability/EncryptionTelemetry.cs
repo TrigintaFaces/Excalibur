@@ -70,7 +70,7 @@ public sealed class EncryptionTelemetry : IEncryptionTelemetry, IEncryptionTelem
 		// Operation counter
 		_operationsTotal = Meter.CreateCounter<long>(
 			"dispatch.encryption.operations.total",
-			"count",
+			"{operations}",
 			"Total number of encryption operations");
 
 		// Operation duration histogram
@@ -82,37 +82,37 @@ public sealed class EncryptionTelemetry : IEncryptionTelemetry, IEncryptionTelem
 		// Provider health gauge
 		_providerHealth = Meter.CreateGauge<int>(
 			"dispatch.encryption.provider.health",
-			"score",
+			"{score}",
 			"Health score of encryption providers (0-100)");
 
 		// Migration counter
 		_fieldsMigrated = Meter.CreateCounter<long>(
 			"dispatch.encryption.migration.fields_migrated",
-			"count",
+			"{fields}",
 			"Number of fields migrated between encryption providers");
 
 		// Key rotation counter
 		_keyRotationsTotal = Meter.CreateCounter<long>(
 			"dispatch.encryption.key_rotation.total",
-			"count",
+			"{rotations}",
 			"Total number of key rotations");
 
 		// Bytes processed counter
 		_bytesProcessed = Meter.CreateCounter<long>(
 			"dispatch.encryption.bytes.processed",
-			"bytes",
+			"By",
 			"Total bytes processed by encryption operations");
 
 		// Cache access counter
 		_cacheAccesses = Meter.CreateCounter<long>(
 			"dispatch.encryption.cache.accesses",
-			"count",
+			"{accesses}",
 			"Number of encryption key cache accesses");
 
 		// Active keys gauge
 		_activeKeys = Meter.CreateGauge<int>(
 			"dispatch.encryption.keys.active",
-			"count",
+			"{keys}",
 			"Number of active encryption keys");
 	}
 

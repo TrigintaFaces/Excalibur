@@ -1,14 +1,25 @@
 #nullable enable
+Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainBreak.ContentAltered = 2 -> Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainBreak.None = 0 -> Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainBreak.PredecessorMismatch = 3 -> Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainBreak.StoredLinkageAltered = 4 -> Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainBreak.SuccessorLinkBroken = 5 -> Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainBreak.UntaggedRecord = 1 -> Excalibur.AuditLogging.AuditChainBreak
 Excalibur.AuditLogging.AuditChainLink
 Excalibur.AuditLogging.AuditChainLink.AuditChainLink() -> void
-Excalibur.AuditLogging.AuditChainLink.AuditChainLink(System.ReadOnlyMemory<byte> CanonicalContent, string! Tag) -> void
+Excalibur.AuditLogging.AuditChainLink.AuditChainLink(System.ReadOnlyMemory<byte> CanonicalContent, string! Tag, string? StoredPriorTag) -> void
 Excalibur.AuditLogging.AuditChainLink.CanonicalContent.get -> System.ReadOnlyMemory<byte>
 Excalibur.AuditLogging.AuditChainLink.CanonicalContent.init -> void
+Excalibur.AuditLogging.AuditChainLink.StoredPriorTag.get -> string?
+Excalibur.AuditLogging.AuditChainLink.StoredPriorTag.init -> void
 Excalibur.AuditLogging.AuditChainLink.Tag.get -> string!
 Excalibur.AuditLogging.AuditChainLink.Tag.init -> void
 Excalibur.AuditLogging.AuditChainVerificationResult
 Excalibur.AuditLogging.AuditChainVerificationResult.AuditChainVerificationResult() -> void
-Excalibur.AuditLogging.AuditChainVerificationResult.AuditChainVerificationResult(bool IsValid, int FirstBrokenIndex) -> void
+Excalibur.AuditLogging.AuditChainVerificationResult.AuditChainVerificationResult(bool IsValid, int FirstBrokenIndex, Excalibur.AuditLogging.AuditChainBreak Break) -> void
+Excalibur.AuditLogging.AuditChainVerificationResult.Break.get -> Excalibur.AuditLogging.AuditChainBreak
+Excalibur.AuditLogging.AuditChainVerificationResult.Break.init -> void
 Excalibur.AuditLogging.AuditChainVerificationResult.FirstBrokenIndex.get -> int
 Excalibur.AuditLogging.AuditChainVerificationResult.FirstBrokenIndex.init -> void
 Excalibur.AuditLogging.AuditChainVerificationResult.IsValid.get -> bool
@@ -23,7 +34,7 @@ Excalibur.AuditLogging.AuditRecordCanonicalizer
 Excalibur.AuditLogging.IAuditIntegrityStrategy
 Excalibur.AuditLogging.IAuditIntegrityStrategy.ComputeTagAsync(System.ReadOnlyMemory<byte> canonicalContent, string? priorTag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
 Excalibur.AuditLogging.IAuditIntegrityStrategy.VerifyAsync(System.ReadOnlyMemory<byte> canonicalContent, string? priorTag, string! tag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-Excalibur.AuditLogging.IAuditIntegrityStrategy.VerifyChainAsync(System.Collections.Generic.IReadOnlyList<Excalibur.AuditLogging.AuditChainLink>! chain, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.AuditLogging.AuditChainVerificationResult>
+Excalibur.AuditLogging.IAuditIntegrityStrategy.VerifyChainAsync(System.Collections.Generic.IAsyncEnumerable<Excalibur.AuditLogging.AuditChainLink>! chain, string? anchorPriorTag, Excalibur.AuditLogging.AuditChainLink? successor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.AuditLogging.AuditChainVerificationResult>
 Excalibur.AuditLogging.IAuditSigningKeyProvider
 Excalibur.AuditLogging.IAuditSigningKeyProvider.GetCurrentSigningKeyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(string! KeyId, byte[]! Key)>
 Excalibur.AuditLogging.IAuditSigningKeyProvider.GetSigningKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]?>

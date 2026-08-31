@@ -56,7 +56,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
   <ItemGroup>
-    <!-- TODO (S807): Move to Excalibur.Security.Azure and Excalibur.Security.Aws projects per R0.3/R0.5 architectural fix -->
+    <!-- TODO: Move to Excalibur.Security.Azure and Excalibur.Security.Aws projects -->
     <Compile Remove="AzureServiceBusOptions.cs" />
     <Compile Remove="AzureServiceBusOptionsValidator.cs" />
   </ItemGroup>

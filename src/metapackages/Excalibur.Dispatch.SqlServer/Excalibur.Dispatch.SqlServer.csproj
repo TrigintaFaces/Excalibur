@@ -1,9 +1,9 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Dispatch.SqlServer</PackageId>
-    <Description>Experience metapackage bundling Excalibur.Dispatch with SQL Server event sourcing, outbox, and web hosting. Provides a single AddDispatchWithSqlServer() call for the common SQL Server scenario.</Description>
+    <Description>Experience metapackage bundling Excalibur.Dispatch with SQL Server event sourcing and a SQL Server outbox store. Provides a single AddDispatchWithSqlServer() call for the common SQL Server scenario. The outbox stages messages durably; background delivery is opt-in.</Description>
     <PackageTags>excalibur;dispatch;sqlserver;event-sourcing;outbox;metapackage</PackageTags>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
@@ -27,5 +27,16 @@
     <PackageReference Include="Excalibur.EventSourcing.SqlServer" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Outbox.SqlServer" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Hosting.Web" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <!--
+    Security floor for a Swashbuckle transitive. Central transitive pinning is deliberately off in
+    this directory, so the resolved graph would otherwise take Swashbuckle's own minimum of
+    Microsoft.OpenApi 2.4.1, in which a circular schema reference can StackOverflow-terminate the
+    process (GHSA-v5pm-xwqc-g5wc). PrivateAssets="all" applies the floor to this project's restore
+    without emitting the package onto the metapackage's dependency list, which stays the bundle it
+    names. Consumers reach the same floor through the implementation packages, which declare it.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.Postgres.Erasure;
@@ -126,7 +127,9 @@ public sealed class ComplianceStoreDisposalShould
 			{
 				var store = new PostgresLegalHoldStore(
 					Options.Create(new PostgresLegalHoldStoreOptions { ConnectionString = UnreachablePostgres }),
-					NullLogger<PostgresLegalHoldStore>.Instance);
+					NullLogger<PostgresLegalHoldStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 				return (store, () => store.GetActiveHoldsForDataSubjectAsync("h", null, CancellationToken.None));
 			}
 
@@ -135,7 +138,9 @@ public sealed class ComplianceStoreDisposalShould
 				var store = new PostgresErasureStore(
 					Options.Create(new PostgresErasureStoreOptions { ConnectionString = UnreachablePostgres }),
 					PassThroughHasher.Instance,
-					NullLogger<PostgresErasureStore>.Instance);
+					NullLogger<PostgresErasureStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 				return (store, () => store.GetScheduledRequestsAsync(1, CancellationToken.None));
 			}
 
@@ -145,7 +150,8 @@ public sealed class ComplianceStoreDisposalShould
 					Options.Create(new PostgresDataInventoryStoreOptions { ConnectionString = UnreachablePostgres }),
 					PassThroughHasher.Instance,
 					NullLogger<PostgresDataInventoryStore>.Instance,
-					tenantContext: null);
+					tenantContext: UntenantedContext.Instance,
+					tenantContextOptions: Options.Create(new TenantContextOptions()));
 				return (store, () => store.FindRegistrationsForDataSubjectAsync(
 					"s", DataSubjectIdType.UserId, null, CancellationToken.None));
 			}
@@ -154,7 +160,9 @@ public sealed class ComplianceStoreDisposalShould
 			{
 				var store = new SqlServerLegalHoldStore(
 					Options.Create(new SqlServerLegalHoldStoreOptions { ConnectionString = UnreachableSqlServer }),
-					NullLogger<SqlServerLegalHoldStore>.Instance);
+					NullLogger<SqlServerLegalHoldStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 				return (store, () => store.GetActiveHoldsForDataSubjectAsync("h", null, CancellationToken.None));
 			}
 
@@ -163,7 +171,9 @@ public sealed class ComplianceStoreDisposalShould
 				var store = new SqlServerErasureStore(
 					Options.Create(new SqlServerErasureStoreOptions { ConnectionString = UnreachableSqlServer }),
 					PassThroughHasher.Instance,
-					NullLogger<SqlServerErasureStore>.Instance);
+					NullLogger<SqlServerErasureStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 				return (store, () => store.GetScheduledRequestsAsync(1, CancellationToken.None));
 			}
 
@@ -173,7 +183,8 @@ public sealed class ComplianceStoreDisposalShould
 					Options.Create(new SqlServerDataInventoryStoreOptions { ConnectionString = UnreachableSqlServer }),
 					PassThroughHasher.Instance,
 					NullLogger<SqlServerDataInventoryStore>.Instance,
-					tenantContext: null);
+					tenantContext: UntenantedContext.Instance,
+					tenantContextOptions: Options.Create(new TenantContextOptions()));
 				return (store, () => store.FindRegistrationsForDataSubjectAsync(
 					"s", DataSubjectIdType.UserId, null, CancellationToken.None));
 			}

@@ -22,7 +22,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	public void ThrowWhenArmClientIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AzureLogicAppsJobProvider((IArmClientSeam)null!, CreateOptions(), A.Fake<ILogger<AzureLogicAppsJobProvider>>()));
+			new AzureLogicAppsJobProvider((IArmClientSeam)null!, Opt(CreateOptions()), A.Fake<ILogger<AzureLogicAppsJobProvider>>()));
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	public void ThrowWhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AzureLogicAppsJobProvider(A.Fake<IArmClientSeam>(), CreateOptions(), null!));
+			new AzureLogicAppsJobProvider(A.Fake<IArmClientSeam>(), Opt(CreateOptions()), null!));
 	}
 
 	[Fact]
@@ -44,7 +44,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	{
 		var provider = new AzureLogicAppsJobProvider(
 			A.Fake<IArmClientSeam>(),
-			CreateOptions(),
+			Opt(CreateOptions()),
 			A.Fake<ILogger<AzureLogicAppsJobProvider>>());
 		var method = typeof(AzureLogicAppsJobProvider)
 			.GetMethod("CreateWorkflowDefinition", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -95,7 +95,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	public void BuildWorkflowDefinitionByteIdenticalToReflectionBasedSerialization()
 	{
 		var options = CreateOptions();
-		var provider = new AzureLogicAppsJobProvider(A.Fake<IArmClientSeam>(), options, A.Fake<ILogger<AzureLogicAppsJobProvider>>());
+		var provider = new AzureLogicAppsJobProvider(A.Fake<IArmClientSeam>(), Opt(options), A.Fake<ILogger<AzureLogicAppsJobProvider>>());
 		var method = typeof(AzureLogicAppsJobProvider)
 			.GetMethod("CreateWorkflowDefinition", BindingFlags.NonPublic | BindingFlags.Instance);
 		method.ShouldNotBeNull();
@@ -175,7 +175,7 @@ public sealed class AzureLogicAppsJobProviderShould
 			.ThrowsAsync(new InvalidOperationException("subscription unavailable"));
 		var provider = new AzureLogicAppsJobProvider(
 			armClient,
-			CreateOptions(),
+			Opt(CreateOptions()),
 			A.Fake<ILogger<AzureLogicAppsJobProvider>>());
 
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
@@ -192,7 +192,7 @@ public sealed class AzureLogicAppsJobProviderShould
 			.ThrowsAsync(new InvalidOperationException("subscription unavailable"));
 		var provider = new AzureLogicAppsJobProvider(
 			armClient,
-			CreateOptions(),
+			Opt(CreateOptions()),
 			A.Fake<ILogger<AzureLogicAppsJobProvider>>());
 
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
@@ -213,4 +213,7 @@ public sealed class AzureLogicAppsJobProviderShould
 	{
 		public Task ExecuteAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 	}
+
+	private static Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Azure.AzureLogicAppsOptions> Opt(Excalibur.Jobs.Azure.AzureLogicAppsOptions options)
+		=> Microsoft.Extensions.Options.Options.Create(options);
 }

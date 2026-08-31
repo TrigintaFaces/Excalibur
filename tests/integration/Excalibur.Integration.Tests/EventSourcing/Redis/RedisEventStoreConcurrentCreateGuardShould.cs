@@ -152,7 +152,7 @@ public sealed class RedisEventStoreConcurrentCreateGuardShould : IntegrationTest
 			DatabaseIndex = -1,
 		});
 
-		return new RedisEventStore(connection, options, NullLogger<RedisEventStore>.Instance);
+		return new RedisEventStore(connection, options, NullLogger<RedisEventStore>.Instance, new SingleTenantDefaultContext());
 	}
 
 	private sealed record TestDomainEvent : IDomainEvent
@@ -172,5 +172,13 @@ public sealed class RedisEventStoreConcurrentCreateGuardShould : IntegrationTest
 		public DateTimeOffset OccurredAt { get; init; }
 		public string EventType { get; init; }
 		public IDictionary<string, object>? Metadata => null;
+	}
+
+	/// <summary>Mirrors the framework single-tenant default: always present, always the one canonical tenant.</summary>
+	private sealed class SingleTenantDefaultContext : ITenantContext
+	{
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
 	}
 }

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 public static partial class AzureServiceBusEventSource
 {
-	// Source-generated logging methods (Sprint 362 - EventId Migration)
+	// Source-generated logging methods
 
 	/// <summary>
 	/// Logs successful message processing completion.

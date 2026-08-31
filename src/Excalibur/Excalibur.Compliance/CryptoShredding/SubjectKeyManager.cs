@@ -17,8 +17,8 @@ namespace Excalibur.Compliance.CryptoShredding;
 /// adapter never generates key bytes itself.
 /// </para>
 /// <para>
-/// Destruction delegates to <see cref="IKeyManagementAdmin.DeleteKeyAsync"/> with a zero-day retention so
-/// erasure is immediate, and is idempotent: destroying an absent key is a successful no-op.
+/// Key destruction is not performed here. Erasure is owned by the erasure service, which honours legal holds
+/// and records attestation before destroying a subject's key through <see cref="IKeyManagementAdmin"/>.
 /// </para>
 /// </remarks>
 internal sealed class SubjectKeyManager : ISubjectKeyManager
@@ -26,22 +26,18 @@ internal sealed class SubjectKeyManager : ISubjectKeyManager
     private const string CryptoShredPurpose = "crypto-shred";
 
     private readonly IKeyManagementProvider _keyProvider;
-    private readonly IKeyManagementAdmin _keyAdmin;
     private readonly IDataSubjectHasher _hasher;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubjectKeyManager"/> class.
     /// </summary>
     /// <param name="keyProvider">The key-management provider used to look up and create per-subject keys.</param>
-    /// <param name="keyAdmin">The administrative key surface used to destroy per-subject keys.</param>
     /// <param name="hasher">The data-subject hasher used to derive stable key handles.</param>
     public SubjectKeyManager(
         IKeyManagementProvider keyProvider,
-        IKeyManagementAdmin keyAdmin,
         IDataSubjectHasher hasher)
     {
         _keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
-        _keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
         _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
     }
 
@@ -66,19 +62,5 @@ internal sealed class SubjectKeyManager : ISubjectKeyManager
         }
 
         return keyId;
-    }
-
-    /// <inheritdoc/>
-    public async ValueTask DestroyKeyAsync(string subjectId, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
-
-        var keyId = _hasher.HashDataSubjectId(subjectId);
-
-        // Zero-day retention = request immediate crypto-shred. An absent key yields KeyDestructionState.NotFound,
-        // the idempotent case (already-erased or never-created); no error is raised. Erasure attestation is gated
-        // on the tri-state outcome at the ErasureService call site — only KeyDestructionState.Completed is treated
-        // as irrecoverable-now — so the void outcome here is intentionally not surfaced.
-        _ = await _keyAdmin.DeleteKeyAsync(keyId, retentionDays: 0, cancellationToken).ConfigureAwait(false);
     }
 }

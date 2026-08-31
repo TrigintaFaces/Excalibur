@@ -24,7 +24,7 @@ namespace Excalibur.Compliance.Encryption.DependencyInjection;
 /// Probing registration returns the same verdict under both scope-validation settings and constructs nothing.
 /// AOT-safe: no reflection. Narrow by design — it never widens to the outbox surface (that is a sibling guard).
 /// </remarks>
-internal sealed partial class InboxEncryptionWiringValidator : IHostedService
+internal sealed partial class InboxEncryptionWiringValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 	private readonly ILogger<InboxEncryptionWiringValidator> _logger;
@@ -36,6 +36,12 @@ internal sealed partial class InboxEncryptionWiringValidator : IHostedService
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		var isService = _services.GetRequiredService<IServiceProviderIsService>();
 		var isKeyedService = _services.GetService<IServiceProviderIsKeyedService>();
@@ -54,8 +60,6 @@ internal sealed partial class InboxEncryptionWiringValidator : IHostedService
 				+ "subject key would not erase them. Call AddEventSourcingCryptoShredding() (which wires the "
 				+ "inbox) or AddInboxEncryption() to activate at-rest field encryption for the inbox.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -72,7 +76,7 @@ internal sealed partial class InboxEncryptionWiringValidator : IHostedService
 /// <see cref="IOutboxStore"/> is NOT wired for at-rest field encryption. Sibling of
 /// <see cref="InboxEncryptionWiringValidator"/>, narrow to the outbox surface.
 /// </summary>
-internal sealed partial class OutboxEncryptionWiringValidator : IHostedService
+internal sealed partial class OutboxEncryptionWiringValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 	private readonly ILogger<OutboxEncryptionWiringValidator> _logger;
@@ -84,6 +88,12 @@ internal sealed partial class OutboxEncryptionWiringValidator : IHostedService
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		var isService = _services.GetRequiredService<IServiceProviderIsService>();
 		var isKeyedService = _services.GetService<IServiceProviderIsKeyedService>();
@@ -102,8 +112,6 @@ internal sealed partial class OutboxEncryptionWiringValidator : IHostedService
 				+ "subject key would not erase them. Call AddEventSourcingCryptoShredding() (which wires the "
 				+ "outbox) or AddOutboxEncryption() to activate at-rest field encryption for the outbox.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

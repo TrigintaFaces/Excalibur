@@ -18,6 +18,11 @@
 .PARAMETER SelfTest
     Runs the verdict-logic self-test and exits without publishing.
 
+.PARAMETER ProjectPath
+    Path to the .csproj to publish. Defaults to the AOT sample app. Pass the generated coverage
+    harness from Invoke-AotCoverageGate.ps1 to validate the full IsAotCompatible=true declaring
+    set instead of the hand-maintained sample's reference list.
+
 .PARAMETER Configuration
     Build configuration (default: Release).
 
@@ -36,6 +41,7 @@ param(
     [string]$Runtime = '',
     [string]$OutputPath = './validation-results',
     [string]$BaselinePath = '',
+    [string]$ProjectPath = '',
     [switch]$SelfTest
 )
 
@@ -148,7 +154,7 @@ Write-Log "OutputPath: $OutputPath"
 
 # Locate the AOT sample project
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$aotSampleProject = Join-Path $repoRoot 'samples' '10-aot' 'Excalibur.Dispatch.Aot.Sample' 'Excalibur.Dispatch.Aot.Sample.csproj'
+$aotSampleProject = if ($ProjectPath) { $ProjectPath } else { Join-Path $repoRoot 'samples' '10-aot' 'Excalibur.Dispatch.Aot.Sample' 'Excalibur.Dispatch.Aot.Sample.csproj' }
 
 if (-not (Test-Path $aotSampleProject)) {
     Write-Log "AOT sample project not found at: $aotSampleProject" 'ERROR'
@@ -245,16 +251,41 @@ foreach ($line in ($publishOutput -split "`n")) {
         $code = $matches[1]
         $message = $matches[2].Trim()
 
-        # Try to extract package name from the warning path or assembly reference
+        # ATTRIBUTE BY THE WARNING'S SUBJECT, NEVER BY THE RAW LINE.
+        #
+        # The previous version matched 'Excalibur.Dispatch.([\w.]+)' against $line. Every MSBuild
+        # warning line ENDS with the building project's own file in brackets --
+        #   ... [D:\Excalibur.Dispatch\eng\ci\.aot-coverage-harness\Excalibur.AotCoverageHarness.csproj]
+        # -- and that path always contains the string 'Excalibur.Dispatch'. So any warning with no
+        # Excalibur-owned caller earlier in the line fell through to the TRAILING PATH and was
+        # attributed to Excalibur.Dispatch.
+        #
+        # It mislabelled 1,994 warnings that way. Every one of them names a third-party caller
+        # (Oracle, Azure, MongoDB, Dapper), and Excalibur.Dispatch.csproj has no PackageReference to
+        # any of those packages -- it cannot own them. A report that says otherwise sends someone to
+        # remediate a package that has nothing to remediate.
+        #
+        # $message is the text AFTER the IL code, so the trailing project bracket is still in it.
+        # Strip that first, then read the subject: the token immediately after 'IL####: ' is the type
+        # whose reflection ILC could not prove safe. That is the owner.
+        $subjectText = $message -replace '\s*\[[^\]]*\.(cs|vb|fs)proj\]\s*$', ''
         $packageName = 'Unknown'
-        if ($line -match 'Excalibur\.Dispatch\.([\w.]+)') {
-            $packageName = "Excalibur.Dispatch.$($matches[1])"
-        }
-        elseif ($line -match 'Excalibur\.([\w.]+)') {
-            $packageName = "Excalibur.$($matches[1])"
-        }
-        elseif ($line -match 'Dispatch\.([\w.]+)') {
-            $packageName = "Dispatch.$($matches[1])"
+        if ($subjectText -match '^\s*([A-Za-z][\w]*(?:\.[A-Za-z][\w]*)+)') {
+            $subject = $matches[1]
+            if ($subject -like 'Excalibur.*') {
+                # Own code: keep the assembly-level prefix, not the full type name.
+                $parts = $subject -split '\.'
+                $packageName = if ($parts.Count -ge 3) { "$($parts[0]).$($parts[1]).$($parts[2])" }
+                               elseif ($parts.Count -eq 2) { "$($parts[0]).$($parts[1])" }
+                               else { $subject }
+            }
+            else {
+                # Third-party: attribute to the dependency that owns it, so a reader can see at a
+                # glance that this is not ours to fix by editing our code.
+                $parts = $subject -split '\.'
+                $packageName = if ($parts.Count -ge 2) { "$($parts[0]).$($parts[1]) (third-party)" }
+                               else { "$subject (third-party)" }
+            }
         }
 
         $warning = @{

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Observability.Diagnostics;
 /// <item>80500-80599: Health Checks</item>
 /// </list>
 /// </remarks>
-public static class ObservabilityEventId
+internal static class ObservabilityEventId
 {
 	// ========================================
 	// 80000-80099: Context Flow

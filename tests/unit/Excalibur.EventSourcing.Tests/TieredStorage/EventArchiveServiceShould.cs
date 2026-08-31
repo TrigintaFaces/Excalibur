@@ -5,6 +5,7 @@ using Excalibur.Dispatch;
 using System.Reflection;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.TieredStorage;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -115,6 +116,52 @@ public sealed class EventArchiveServiceShould
 	}
 
 	[Fact]
+	public async Task ReportTheRowsTheHotDeleteActuallyRemoved()
+	{
+		// The load-bearing property is the OUTCOME the operator sees, not that the delete was called:
+		// a hot delete that removes zero rows leaves the events in both tiers, so the cycle must NOT
+		// report an archive. RED before the fix, where 3030 was logged unconditionally.
+		var candidates = new List<ArchiveCandidate> { new(TestTenant, "agg-z", "Order", 3, 3) };
+		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
+			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.Returns(candidates);
+		_ = A.CallTo(() => _hotStore.LoadAsync("agg-z", "Order", A<CancellationToken>._))
+			.Returns(CreateEvents("agg-z", 1, 2, 3));
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-z", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.Returns(3L);
+		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-z", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(0);
+
+		var logger = new CapturingLogger();
+		await InvokeArchiveCycleAsync(CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) }, logger));
+
+		logger.Events.ShouldContain(3031);   // warned that the hot tier still holds the events
+		logger.Events.ShouldNotContain(3030); // and did NOT report an archive
+	}
+
+	[Fact]
+	public async Task ReportAnArchiveWhenTheHotDeleteRemovedRows()
+	{
+		// LIVENESS: the success path still reports 3030, so the safety arm above cannot pass vacuously.
+		var candidates = new List<ArchiveCandidate> { new(TestTenant, "agg-y", "Order", 3, 3) };
+		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
+			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.Returns(candidates);
+		_ = A.CallTo(() => _hotStore.LoadAsync("agg-y", "Order", A<CancellationToken>._))
+			.Returns(CreateEvents("agg-y", 1, 2, 3));
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-y", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.Returns(3L);
+		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-y", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(3);
+
+		var logger = new CapturingLogger();
+		await InvokeArchiveCycleAsync(CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) }, logger));
+
+		logger.Events.ShouldContain(3030);
+		logger.Events.ShouldNotContain(3031);
+	}
+
+	[Fact]
 	public async Task SkipCycleWhenNoPolicyCriteriaConfigured()
 	{
 		var service = CreateService(new ArchivePolicy());
@@ -213,14 +260,29 @@ public sealed class EventArchiveServiceShould
 		await task.ConfigureAwait(false);
 	}
 
-	private EventArchiveService CreateService(ArchivePolicy policy)
+	private EventArchiveService CreateService(ArchivePolicy policy) =>
+		CreateService(policy, NullLogger<EventArchiveService>.Instance);
+
+	private EventArchiveService CreateService(ArchivePolicy policy, ILogger<EventArchiveService> logger)
 	{
 		var pm = new OptionsMonitorWrapper<ArchivePolicy>(policy);
 		var om = new OptionsMonitorWrapper<EventArchiveServiceOptions>(
 			new EventArchiveServiceOptions { ArchiveInterval = TimeSpan.FromHours(1) });
-		return new EventArchiveService(
-			_archiveSource, _hotStore, _coldStore, pm, om,
-			NullLogger<EventArchiveService>.Instance);
+		return new EventArchiveService(_archiveSource, _hotStore, _coldStore, pm, om, logger);
+	}
+
+	/// <summary>Records the event ids the service logged, so a test can assert the reported outcome.</summary>
+	private sealed class CapturingLogger : ILogger<EventArchiveService>
+	{
+		public List<int> Events { get; } = [];
+
+		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+		public bool IsEnabled(LogLevel logLevel) => true;
+
+		public void Log<TState>(
+			LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+			Events.Add(eventId.Id);
 	}
 
 	private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions)

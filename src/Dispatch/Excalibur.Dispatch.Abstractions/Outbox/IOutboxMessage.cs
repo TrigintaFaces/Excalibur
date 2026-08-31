@@ -94,12 +94,18 @@ public interface IOutboxMessage
 
 	/// <summary>
 	/// Gets the tenant identifier this message was produced under, for multi-tenant scope on the persisted
-	/// outbox row. Defaults to <see langword="null"/> so existing providers that do not yet persist tenant
-	/// scope inherit the default unchanged; a provider with a tenant column overrides this to surface the
-	/// stored value (e.g. the Postgres outbox store). Making tenant expressible on the row contract keeps a
-	/// provider from silently re-dropping it.
+	/// outbox row. Defaults to <see langword="null"/> so a producer that carries no tenant inherits the
+	/// default unchanged; an implementation that carries tenant scope overrides this to surface it. Making
+	/// tenant expressible on the row contract keeps a provider from silently re-dropping it.
 	/// </summary>
-	/// <value>The tenant identifier, or <see langword="null"/> when the store does not carry tenant scope.</value>
+	/// <value>The tenant identifier, or <see langword="null"/> when the producer carries no tenant scope.</value>
+	/// <remarks>
+	/// A <see langword="null"/> here means "this producer supplied no tenant". It does <b>not</b> survive a
+	/// store round-trip as a null: a message staged untenanted is drained carrying
+	/// <see cref="TenantScope.UntenantedSentinel"/>, because the untenanted partition has exactly one
+	/// representation on the drain contract. Read the drained value through
+	/// <see cref="KeyedTenantPartition.FromStoredValue(string?)"/> rather than branching on null.
+	/// </remarks>
 	string? TenantId => null;
 
 	/// <summary>

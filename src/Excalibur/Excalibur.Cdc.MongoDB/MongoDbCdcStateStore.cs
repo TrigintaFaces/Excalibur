@@ -298,9 +298,9 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 
 		[BsonElement("resume_token")] public string? ResumeToken { get; set; }
 
-		[BsonElement("last_event_time")] public DateTimeOffset? LastEventTime { get; set; }
+		[BsonElement("last_event_time")] [BsonRepresentation(BsonType.DateTime)] public DateTimeOffset? LastEventTime { get; set; }
 
-		[BsonElement("updated_at")] public DateTimeOffset UpdatedAt { get; set; }
+		[BsonElement("updated_at")] [BsonRepresentation(BsonType.DateTime)] public DateTimeOffset UpdatedAt { get; set; }
 
 		[BsonElement("event_count")] public long EventCount { get; set; }
 	}

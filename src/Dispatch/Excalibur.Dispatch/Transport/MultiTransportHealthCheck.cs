@@ -224,7 +224,9 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 			{
 				var result = await healthChecker.CheckQuickHealthAsync(cancellationToken).ConfigureAwait(false);
 
-				return result.Status != TransportHealthStatus.Unhealthy;
+				// Enumerated positively, not as "anything but Unhealthy": a status that has not
+				// been established yet must not read as healthy enough to route to.
+				return result.Status is TransportHealthStatus.Healthy or TransportHealthStatus.Degraded;
 			}
 			catch
 			{

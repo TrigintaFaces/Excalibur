@@ -26,16 +26,25 @@ Compliance-grade audit stores (SQL Server, PostgreSQL) **hash-chain** every audi
 using Excalibur.Compliance;
 
 // Verify the audit trail for the last 30 days has not been tampered with.
-public static async Task<bool> IsAuditTrailIntactAsync(IAuditQuery audit, CancellationToken ct)
+public static async Task<string> DescribeAuditTrailAsync(IAuditQuery audit, CancellationToken ct)
 {
     AuditIntegrityResult result = await audit.VerifyChainIntegrityAsync(
         startDate: DateTimeOffset.UtcNow.AddDays(-30),
         endDate: DateTimeOffset.UtcNow,
         cancellationToken: ct);
 
-    // result.EventsVerified were checked; if the chain is broken,
-    // result.FirstViolationEventId and result.ViolationDescription pinpoint it.
-    return result.IsValid;
+    return result.Outcome switch
+    {
+        AuditIntegrityOutcome.Verified
+            => $"Intact: {result.EventsVerified} events checked.",
+
+        AuditIntegrityOutcome.ViolationsDetected
+            => $"Tampered at {result.FirstViolationEventId}: {result.ViolationDescription}",
+
+        // The window held no audit events, so nothing was checked and nothing is proven.
+        // This is deliberately a separate outcome: it must never be reported as a pass.
+        _ => "Not exercised: no audit events in this window.",
+    };
 }
 ```
 
@@ -180,10 +189,24 @@ public class OrderController : ControllerBase
         if (result.IsSuccess)
             return Ok();
 
-        return BadRequest(result.ErrorMessage);
+        return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
     }
 }
 ```
+
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `BadRequest(...)` reports a server-side fault to the
+caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Problem(...)`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+:::
 
 :::tip Production Ready
 

@@ -33,6 +33,7 @@ internal static class JobHostServiceCollectionExtensions
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburJobHost(this IServiceCollection services,
 		params Assembly[] assemblies)
 	{
@@ -51,6 +52,7 @@ internal static class JobHostServiceCollectionExtensions
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburJobHost(this IServiceCollection services,
 		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
 		params Assembly[] assemblies)
@@ -67,6 +69,7 @@ internal static class JobHostServiceCollectionExtensions
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> or <paramref name="configureJobs" /> is null. </exception>
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburJobHost(this IServiceCollection services,
 		Action<IJobConfigurator> configureJobs,
 		params Assembly[] assemblies)
@@ -88,6 +91,7 @@ internal static class JobHostServiceCollectionExtensions
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburJobHost(this IServiceCollection services,
 		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
 		Action<IJobConfigurator>? configureJobs,
@@ -95,12 +99,21 @@ internal static class JobHostServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// S804 bd-sdhocq A8: AddExcaliburBaseServices replaced by AddExcalibur + builder context.
-		// Jobs pin a default tenant of AllTenants and enable local client address — these are
-		// Quartz-worker semantics that consumers should not have to configure.
+		// The job host enables the local client address — a Quartz-worker semantic consumers should not have
+		// to configure — and deliberately pins NO default tenant.
+		//
+		// It used to pin a wildcard "all tenants" identifier, which read as "this host spans every tenant"
+		// and did nothing of the sort: no code compared that value against a stored tenant term, so every
+		// row a job wrote landed under a literal tenant named after the wildcard, in a partition no scoped
+		// read would ever return. The intent was not achievable through a tenant value at all.
+		//
+		// Leaving the default unresolved is the honest expression of the same intent. A job host has no
+		// tenant of its own, so it names none, and its rows resolve to the reserved untenanted partition
+		// that every store already understands. A job that genuinely needs to act across every tenant calls
+		// the operation that says so in its name — the name is the control — and a job acting FOR a tenant
+		// resolves that tenant from the work it is processing, not from a host-wide pin.
 		_ = services.AddExcalibur(builder => builder
 			.ScanAssemblies(assemblies)
-			.UseTenant(TenantDefaults.AllTenants)
 			.UseLocalClientAddress());
 
 		// Add Quartz.NET with configuration
@@ -119,8 +132,8 @@ internal static class JobHostServiceCollectionExtensions
 
 		// Register the heartbeat tracker as singleton.
 		// TryAdd* ensures idempotence under repeated AddJobs(...)/AddExcaliburJobHost(...) invocations
-		// — surfaced by the S804 ADR-325 §Secondary paired-test discipline (bd-addjobs-idempotency).
-		services.TryAddSingleton<JobHeartbeatTracker>();
+		// — a repeated registration must not add a second heartbeat tracker or scheduler.
+		services.TryAddSingleton(sp => new JobHeartbeatTracker(sp.GetService<TimeProvider>()));
 
 		// Register the job adapters. TryAdd* for the same idempotence reason as above.
 		services.TryAddTransient<QuartzJobAdapter>();

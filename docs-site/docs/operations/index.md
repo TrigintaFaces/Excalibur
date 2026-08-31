@@ -33,7 +33,7 @@ Operational guidance for running Excalibur in production environments, including
 | Provider | Retry Policy | Recovery Options | CDC Position Recovery |
 |----------|--------------|------------------|----------------------|
 | SQL Server | `SqlServerRetryPolicy` | Automatic reconnect | `CdcRecoveryOptions` |
-| PostgreSQL | `PostgresRetryPolicy` | Automatic reconnect | `PostgresCdcRecoveryOptions` |
+| PostgreSQL | `PostgresDataRequestRetryPolicy` | Automatic reconnect | `CdcOptions.RecoveryStrategy` |
 | CosmosDB | SDK-managed | Automatic | Continuation token |
 | DynamoDB | SDK-managed | Automatic | Stream ARN |
 | MongoDB | Driver pool | Automatic | Resume token |

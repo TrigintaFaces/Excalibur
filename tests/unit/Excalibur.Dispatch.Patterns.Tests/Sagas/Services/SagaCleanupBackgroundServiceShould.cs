@@ -37,7 +37,7 @@ public sealed class SagaCleanupBackgroundServiceShould
 	{
 		// Arrange — a completed saga older than the retention window, in a real in-memory store.
 		var timeProvider = new FakeTimeProvider(Origin);
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid();
 		await store.SaveAsync(
 			new TestSaga { SagaId = sagaId, CompletedAt = Origin - TimeSpan.FromDays(40) },
@@ -77,7 +77,7 @@ public sealed class SagaCleanupBackgroundServiceShould
 	{
 		// Arrange — same aged saga, but automatic cleanup disabled.
 		var timeProvider = new FakeTimeProvider(Origin);
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid();
 		await store.SaveAsync(
 			new TestSaga { SagaId = sagaId, CompletedAt = Origin - TimeSpan.FromDays(40) },
@@ -181,8 +181,24 @@ public sealed class SagaCleanupBackgroundServiceShould
 		await Should.NotThrowAsync(async () =>
 		{
 			await enabledNoStoreService.StartAsync(CancellationToken.None);
-			timeProvider.Advance(options.CleanupInterval);
-			await Task.Yield();
+
+			// Liveness arm: not throwing is the cheap half, and a service that spins forever satisfies it.
+			// The contract is that the no-store cycle BREAKS the loop, so ExecuteTask must run to completion
+			// on its own before anything asks it to stop. Without this, resolving the store in a way that
+			// throws instead of returning null still "passes": the general catch logs and the loop keeps
+			// ticking every interval forever, which is the exact spin the break exists to prevent.
+			//
+			// Advance inside the poll loop so a tick registered slightly after StartAsync returns is not
+			// missed, for the same reason the purge arm above does.
+			await WaitUntilAsync(() =>
+			{
+				timeProvider.Advance(options.CleanupInterval);
+				return Task.FromResult(enabledNoStoreService.ExecuteTask?.IsCompleted == true);
+			});
+			enabledNoStoreService.ExecuteTask?.IsCompleted.ShouldBe(
+				true,
+				"an enabled cleanup cycle that finds no saga store must log and BREAK, not spin every interval.");
+
 			await enabledNoStoreService.StopAsync(CancellationToken.None);
 		});
 	}

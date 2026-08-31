@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.inbox_messages (
     last_attempt_at  TIMESTAMPTZ  NULL,
     lease_expires_at TIMESTAMPTZ  NULL,
     correlation_id   TEXT         NULL,
-    tenant_id        TEXT         NOT NULL,
+    tenant_id        VARCHAR(64)         NOT NULL,
     source           TEXT         NULL,
 
     -- Multi-tenant: tenant is part of identity. The dedup/claim key is the triple.

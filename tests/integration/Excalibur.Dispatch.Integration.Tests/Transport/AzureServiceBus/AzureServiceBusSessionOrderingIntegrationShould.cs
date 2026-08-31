@@ -66,14 +66,17 @@ public sealed class AzureServiceBusSessionOrderingIntegrationShould
 		_fixture.DockerAvailable.ShouldBeTrue("ASB emulator must be available — real-infra session-ordering proof (NFR-1)");
 
 		// Arrange — wire the transport with session consumption enabled (ne79ro), via the PUBLIC fluent
-		// builder. NOTE: requires the additive IAzureServiceBusProcessorBuilder.RequiresSession(bool)
-		// builder method (flagged to Backend, ne79ro thread 17044 — the option was builder-unreachable).
+		// builder. RequiresSession is set directly on the processor options.
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 		_ = services.AddAzureServiceBusTransport(TransportName, sb => sb
 			.ConnectionString(_fixture.ConnectionString)
-			.ConfigureSender(s => s.DefaultEntity(SessionQueue)) // wired receiver resolves entity = Sender.DefaultEntityName ?? name
-			.ConfigureProcessor(p => p.RequiresSession(true).DefaultEntity(SessionQueue)));
+			.ConfigureSender(s => s.DefaultEntityName = SessionQueue) // wired receiver resolves entity = Sender.DefaultEntityName ?? name
+			.ConfigureProcessor(p =>
+			{
+				p.RequiresSession = true;
+				p.DefaultEntityName = SessionQueue;
+			}));
 
 		await using var provider = services.BuildServiceProvider();
 		var receiver = provider.GetRequiredKeyedService<ITransportReceiver>(TransportName);

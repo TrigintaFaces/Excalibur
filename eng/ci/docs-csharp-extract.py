@@ -206,6 +206,10 @@ BCL_DENYLIST = {
     "System", "Microsoft", "Threading", "Tasks", "Collections", "Generic", "Linq",
     "Text", "Json", "Serialization", "IO", "Net", "Http", "Extensions",
     "DependencyInjection", "Logging", "Configuration", "Hosting", "Options",
+    # `Tests` is a namespace ROOT here (Tests.Shared.Fixtures) and a segment of every test
+    # project's namespace -- never a type. Without it, any snippet quoting a test file's
+    # `using`/`namespace` reads as a phantom API.
+    "Tests",
     # very common BCL types
     "Task", "ValueTask", "CancellationToken", "CancellationTokenSource", "Guid",
     "DateTime", "DateTimeOffset", "TimeSpan", "TimeProvider", "String", "Int32",
@@ -346,23 +350,9 @@ def main(argv=None):
 
     blocks = extract_blocks(doc_root, repo_root)
 
-    if args.json:
-        json.dump(blocks, sys.stdout, indent=2)
-        sys.stdout.write("\n")
-        return 0
-
-    # Gate mode: phantom-scan tier-1 blocks.
-    real_symbols = build_real_symbols(repo_root)
-    files = {b["file"] for b in blocks}
-    t1 = [b for b in blocks if b["tier"] == "resolve"]
-    t2 = [b for b in blocks if b["tier"] == "compile"]
-    ignored = [b for b in blocks if b["tier"] == "ignore"]
-
-    # Diff-scope. Symbol resolution stayed repo-wide (build_real_symbols above), so
-    # scoping the gate never weakens phantom detection for the blocks it does scan.
-    #   --gate-lines : HUNK scope — gate a block only if its fenced span intersects a
-    #                  changed line (a snippet the diff actually touched). Preferred.
-    #   --gate-files : whole-file scope — gate every block in a changed file.
+    # Diff-scope is applied to BOTH outputs. It used to be built below, after the early return
+    # for --json, so `--json --gate-files X` accepted the flag and emitted every block in the
+    # tree -- a whole-tree answer wearing a diff-scoped invocation, and silent about it.
     gate_files = _load_gate_files(args.gate_files) if args.gate_files else None
     gate_lines = _load_gate_lines(args.gate_lines) if args.gate_lines else None
 
@@ -376,6 +366,18 @@ def main(argv=None):
         if gate_files is not None:
             return b["file"] in gate_files
         return True
+
+    if args.json:
+        json.dump([b for b in blocks if in_scope(b)], sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    # Gate mode: phantom-scan tier-1 blocks.
+    real_symbols = build_real_symbols(repo_root)
+    files = {b["file"] for b in blocks}
+    t1 = [b for b in blocks if b["tier"] == "resolve"]
+    t2 = [b for b in blocks if b["tier"] == "compile"]
+    ignored = [b for b in blocks if b["tier"] == "ignore"]
 
     phantom_count = 0
     for b in t1:

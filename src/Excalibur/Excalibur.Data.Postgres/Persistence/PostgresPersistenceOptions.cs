@@ -3,9 +3,10 @@
 
 
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Persistence;
+
+using Microsoft.Extensions.Options;
 
 using Npgsql;
 
@@ -23,8 +24,17 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// and resilience settings are in <see cref="Resilience"/>.
 /// </para>
 /// </remarks>
-public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersistenceResilienceOptions, IPersistencePoolingOptions, IPersistenceObservabilityOptions
+public sealed class PostgresPersistenceOptions : IPersistenceOptions
 {
+	/// <summary>
+	/// Gets or sets the provider name. This is the consumer-configured instance name, reported as
+	/// <c>Name</c> on the provider and in its metrics. It identifies <i>which configured instance</i>
+	/// answered, and is distinct from the engine identity reported under the <c>Provider</c> metrics
+	/// key, which is a fixed literal. When unset it defaults to <c>"postgres"</c>.
+	/// </summary>
+	/// <value>The provider name, or <see langword="null"/> to use the default.</value>
+	public string? Name { get; set; }
+
 	/// <summary>
 	/// Gets or sets the connection string for the Postgres database.
 	/// </summary>
@@ -82,6 +92,7 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	/// <value>
 	/// The connection options including TCP keepalive, idle lifetime, pruning, socket buffers, and application identity.
 	/// </value>
+	[ValidateObjectMembers]
 	public PostgresConnectionOptions Connection { get; } = new();
 
 	/// <summary>
@@ -90,6 +101,7 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	/// <value>
 	/// The statement options including caching, auto-prepare, and max prepared statements.
 	/// </value>
+	[ValidateObjectMembers]
 	public PostgresStatementOptions Statements { get; } = new();
 
 	/// <summary>
@@ -98,6 +110,7 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	/// <value>
 	/// The pooling options including pool sizing and enablement.
 	/// </value>
+	[ValidateObjectMembers]
 	public PostgresPersistencePoolingOptions Pooling { get; } = new();
 
 	/// <summary>
@@ -106,63 +119,21 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	/// <value>
 	/// The resilience options including retry attempts and delay.
 	/// </value>
+	[ValidateObjectMembers]
 	public PostgresPersistenceResilienceOptions Resilience { get; } = new();
 
-	// Explicit interface implementations delegating to sub-options.
-	// These maintain compatibility with IPersistenceOptions consumers
-	// (e.g., PersistenceConfiguration) while keeping the root class <=10 properties.
+	private static readonly PostgresPersistenceOptionsAnnotationValidator AnnotationValidator = new();
 
-	/// <inheritdoc />
-	int IPersistenceResilienceOptions.MaxRetryAttempts
-	{
-		get => Resilience.MaxRetryAttempts;
-		set => Resilience.MaxRetryAttempts = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistenceResilienceOptions.RetryDelayMilliseconds
-	{
-		get => Resilience.RetryDelayMilliseconds;
-		set => Resilience.RetryDelayMilliseconds = value;
-	}
-
-	/// <inheritdoc />
-	bool IPersistencePoolingOptions.EnableConnectionPooling
-	{
-		get => Pooling.EnableConnectionPooling;
-		set => Pooling.EnableConnectionPooling = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistencePoolingOptions.MaxPoolSize
-	{
-		get => Pooling.MaxPoolSize;
-		set => Pooling.MaxPoolSize = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistencePoolingOptions.MinPoolSize
-	{
-		get => Pooling.MinPoolSize;
-		set => Pooling.MinPoolSize = value;
-	}
 	/// <summary>
 	/// Validates the options and throws an exception if invalid.
 	/// </summary>
 	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[RequiresUnreferencedCode("Validator.TryValidateObject uses reflection to inspect object properties for validation attributes. Ensure all validated types are annotated with DynamicallyAccessedMembers.")]
 	public void Validate()
 	{
-#pragma warning disable IL2026, IL3050 // ValidationContext and Validator.TryValidateObject use reflection
-		var validationContext = new ValidationContext(this);
-		var validationResults = new List<ValidationResult>();
-
-		if (!Validator.TryValidateObject(this, validationContext, validationResults, validateAllProperties: true))
-#pragma warning restore IL2026, IL3050
+		var annotations = AnnotationValidator.Validate(name: null, this);
+		if (annotations.Failed)
 		{
-			var errors = string.Join("; ", validationResults.Select(static r => r.ErrorMessage));
+			var errors = string.Join("; ", annotations.Failures ?? []);
 			throw new ValidationException($"Postgres persistence options validation failed: {errors}");
 		}
 
@@ -182,9 +153,9 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 			throw new ValidationException("ConnectionString cannot be null or empty");
 		}
 
-		// Validate sub-options
-		Connection.Validate();
-		Statements.Validate();
+		// The generated validator covers every annotation on the nested option objects; this call carries
+		// the one cross-property rule that no annotation can express.
+		Resilience.Validate();
 	}
 
 	/// <summary>
@@ -321,24 +292,6 @@ public sealed class PostgresConnectionOptions
 	/// </value>
 	[Range(0, 1048576, ErrorMessage = "Socket send buffer size must be between 0 and 1048576 bytes")]
 	public int SocketSendBufferSize { get; set; }
-
-	/// <summary>
-	/// Validates the connection options.
-	/// </summary>
-	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
-	internal void Validate()
-	{
-#pragma warning disable IL2026, IL3050 // ValidationContext and Validator.TryValidateObject use reflection
-		var validationContext = new ValidationContext(this);
-		var validationResults = new List<ValidationResult>();
-
-		if (!Validator.TryValidateObject(this, validationContext, validationResults, validateAllProperties: true))
-#pragma warning restore IL2026, IL3050
-		{
-			var errors = string.Join("; ", validationResults.Select(static r => r.ErrorMessage));
-			throw new ValidationException($"Postgres connection options validation failed: {errors}");
-		}
-	}
 }
 
 /// <summary>
@@ -382,22 +335,4 @@ public sealed class PostgresStatementOptions
 	/// </value>
 	[Range(1, 10, ErrorMessage = "Auto prepare min usages must be between 1 and 10")]
 	public int AutoPrepareMinUsages { get; set; } = 2;
-
-	/// <summary>
-	/// Validates the statement options.
-	/// </summary>
-	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
-	internal void Validate()
-	{
-#pragma warning disable IL2026, IL3050 // ValidationContext and Validator.TryValidateObject use reflection
-		var validationContext = new ValidationContext(this);
-		var validationResults = new List<ValidationResult>();
-
-		if (!Validator.TryValidateObject(this, validationContext, validationResults, validateAllProperties: true))
-#pragma warning restore IL2026, IL3050
-		{
-			var errors = string.Join("; ", validationResults.Select(static r => r.ErrorMessage));
-			throw new ValidationException($"Postgres statement options validation failed: {errors}");
-		}
-	}
 }

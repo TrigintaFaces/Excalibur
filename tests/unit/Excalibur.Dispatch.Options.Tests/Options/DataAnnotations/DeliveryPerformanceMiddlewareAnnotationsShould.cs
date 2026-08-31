@@ -22,34 +22,6 @@ public sealed class DeliveryPerformanceMiddlewareAnnotationsShould
 		return Validator.TryValidateObject(instance, new ValidationContext(instance), results, validateAllProperties: true);
 	}
 
-	#region ZeroAllocOptions
-
-	[Fact]
-	public void ZeroAlloc_Succeed_WithDefaults()
-	{
-		var options = new ZeroAllocOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void ZeroAlloc_Fail_WhenContextPoolSizeIsZero()
-	{
-		var options = new ZeroAllocOptions { ContextPoolSize = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(ZeroAllocOptions.ContextPoolSize)));
-	}
-
-	[Fact]
-	public void ZeroAlloc_Fail_WhenMaxBufferSizeIsZero()
-	{
-		var options = new ZeroAllocOptions { MaxBufferSize = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(ZeroAllocOptions.MaxBufferSize)));
-	}
-
-	#endregion
-
 	#region MicroBatchOptions
 
 	[Fact]
@@ -70,61 +42,9 @@ public sealed class DeliveryPerformanceMiddlewareAnnotationsShould
 
 	#endregion
 
-	#region ShardedExecutorOptions
 
-	[Fact]
-	public void ShardedExecutor_Succeed_WithDefaults()
-	{
-		var options = new ShardedExecutorOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
 
-	[Fact]
-	public void ShardedExecutor_Fail_WhenMaxQueueDepthIsZero()
-	{
-		var options = new ShardedExecutorOptions { MaxQueueDepth = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(ShardedExecutorOptions.MaxQueueDepth)));
-	}
 
-	[Fact]
-	public void ShardedExecutor_Fail_WhenShardCountIsNegative()
-	{
-		var options = new ShardedExecutorOptions { ShardCount = -1 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(ShardedExecutorOptions.ShardCount)));
-	}
-
-	#endregion
-
-	#region LeakTrackingOptions
-
-	[Fact]
-	public void LeakTracking_Succeed_WithDefaults()
-	{
-		var options = new LeakTrackingOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void LeakTracking_Fail_WhenMaximumRetainedIsZero()
-	{
-		var options = new LeakTrackingOptions { MaximumRetained = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(LeakTrackingOptions.MaximumRetained)));
-	}
-
-	[Fact]
-	public void LeakTracking_Fail_WhenMinimumRetainedIsNegative()
-	{
-		var options = new LeakTrackingOptions { MinimumRetained = -1 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(LeakTrackingOptions.MinimumRetained)));
-	}
-
-	#endregion
 
 	#region UnifiedBatchingOptions
 

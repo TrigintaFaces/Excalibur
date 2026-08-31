@@ -25,20 +25,23 @@ public sealed class SchemaRegistrySslOptions
 	public string? SslCaLocation { get; set; }
 
 	/// <summary>
-	/// Gets or sets the SSL key location.
+	/// Gets or sets the client keystore presented for mutual TLS.
 	/// </summary>
-	/// <value>The path to the client key file, or <see langword="null"/> if not using mTLS.</value>
-	public string? SslKeyLocation { get; set; }
+	/// <value>
+	/// The path to a PKCS#12 (<c>.p12</c>/<c>.pfx</c>) keystore holding the client certificate and its
+	/// private key, or <see langword="null"/> when not using mTLS.
+	/// </value>
+	/// <remarks>
+	/// A keystore rather than a certificate/key pair because that is the only client-credential shape the
+	/// Schema Registry client accepts. The broker client takes separate PEM files; the registry client does
+	/// not, and a certificate and key configured as separate paths cannot be presented to the registry at
+	/// all — they would read as mutual TLS and produce a one-way TLS connection.
+	/// </remarks>
+	public string? SslKeystoreLocation { get; set; }
 
 	/// <summary>
-	/// Gets or sets the SSL certificate location.
+	/// Gets or sets the password protecting <see cref="SslKeystoreLocation"/>.
 	/// </summary>
-	/// <value>The path to the client certificate file, or <see langword="null"/> if not using mTLS.</value>
-	public string? SslCertificateLocation { get; set; }
-
-	/// <summary>
-	/// Gets or sets the SSL key password.
-	/// </summary>
-	/// <value>The password for the client key, or <see langword="null"/> if unencrypted.</value>
-	public string? SslKeyPassword { get; set; }
+	/// <value>The keystore password, or <see langword="null"/> when no keystore is configured.</value>
+	public string? SslKeystorePassword { get; set; }
 }

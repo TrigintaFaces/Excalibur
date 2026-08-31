@@ -406,17 +406,22 @@ services.Configure<RateLimitingOptions>(options =>
 
 :::tip Pipeline Order
 
-Place `UseThrottling()` **before** `UseRetry()` to prevent retry amplification:
+Throttling always runs outside retry, so a rejected message is rejected once rather than being retried
+into the limiter. You do not arrange this by call order: position comes from each middleware's stage, and
+the pipeline composes the lower-numbered stage as the outer wrapper. Throttling is pre-processing (100),
+exception mapping is post-processing (700), retry and the circuit breaker are error-handling (800).
 
 ```csharp
 dispatch.UseExceptionMapping()
         .UseAuthentication()
         .UseAuthorization()
         .UseValidation()
-        .UseThrottling()     // Before retry
+        .UseThrottling()
         .UseRetry()
         .UseCircuitBreaker();
 ```
+
+Call order decides position only among middleware that share a stage, where registration order applies.
 :::
 
 ## Retry Middleware

@@ -182,13 +182,17 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		// Arrange
 		var info = new JobInstanceInfo("instance-1", "host", CreateTestCapabilities());
 		var originalHeartbeat = info.LastHeartbeat;
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure time difference
+
+		// UpdateHeartbeat already takes the clock, so the gap can be driven rather than slept. That also
+		// lets this be a strict comparison: with a sleep the two stamps could land in the same tick, so
+		// the assertion had to be >= and would have passed even if nothing had been updated.
+		var clock = new FakeTimeProvider(originalHeartbeat.AddSeconds(10));
 
 		// Act
-		info.UpdateHeartbeat(TimeProvider.System);
+		info.UpdateHeartbeat(clock);
 
 		// Assert
-		info.LastHeartbeat.ShouldBeGreaterThanOrEqualTo(originalHeartbeat);
+		info.LastHeartbeat.ShouldBeGreaterThan(originalHeartbeat);
 	}
 
 	[Fact]

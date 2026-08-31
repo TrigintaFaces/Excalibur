@@ -37,6 +37,7 @@ namespace Tests.Shared.Fixtures;
 ///     protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 ///     {
 ///         _container = new MsSqlBuilder()
+///             .WithBoundedMemory()
 ///             .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 ///             .Build();
 ///         await _container.StartAsync(cancellationToken);
@@ -58,10 +59,22 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	/// Gets a value indicating whether Docker is available and the container started successfully.
 	/// </summary>
 	/// <remarks>
-	/// Always <c>true</c> after successful initialization. If Docker is unavailable,
-	/// <see cref="InitializeAsync"/> throws instead of silently degrading.
+	/// <c>false</c> until <see cref="InitializeAsync"/> has actually started the container.
+	/// The default is deliberately <c>false</c>: a fixture that never initialized has not
+	/// earned this flag, and a guard reading it must not be able to report a pass it did not
+	/// earn. If Docker is unavailable, <see cref="InitializeAsync"/> throws instead of
+	/// silently degrading.
 	/// </remarks>
-	public bool DockerAvailable { get; private set; } = true;
+	public bool DockerAvailable { get; private set; }
+
+	/// <summary>
+	/// Gets a value indicating whether <see cref="InitializeContainerAsync"/> completed and
+	/// started a container. Unlike <see cref="DockerAvailable"/>, this is never reset by
+	/// <see cref="MarkUnavailable"/> -- it exists so <see cref="DisposeAsync"/> can dispose a
+	/// container that started successfully but was later marked unavailable by a dependent
+	/// service failure, instead of leaking it.
+	/// </summary>
+	private bool _containerStarted;
 
 	/// <summary>
 	/// Gets the error message if container initialization failed.
@@ -196,6 +209,7 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			{
 				using var cts = new CancellationTokenSource(effectiveTimeout);
 				await InitializeContainerAsync(cts.Token).ConfigureAwait(false);
+				_containerStarted = true;
 				DockerAvailable = true;
 				InitializationError = null;
 				return;
@@ -247,12 +261,16 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	/// Disposes the container resources.
 	/// </summary>
 	/// <remarks>
-	/// Disposal is skipped if the container never started successfully (i.e., <see cref="DockerAvailable"/> is <c>false</c>).
+	/// Disposal is skipped only if a container never actually started. Gated on whether
+	/// <see cref="InitializeContainerAsync"/> succeeded, not on <see cref="DockerAvailable"/>:
+	/// <see cref="MarkUnavailable"/> can flip <see cref="DockerAvailable"/> to <c>false</c>
+	/// AFTER a container has already started (e.g., a dependent service failed), and that
+	/// container still needs disposing.
 	/// Errors during disposal are swallowed to prevent tests from failing due to cleanup issues.
 	/// </remarks>
 	public async ValueTask DisposeAsync()
 	{
-		if (DockerAvailable)
+		if (_containerStarted)
 		{
 			try
 			{

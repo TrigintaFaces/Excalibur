@@ -55,7 +55,6 @@ Excalibur.Data.DataProcessing.DataTaskRequest.ProcessedCursor.get -> string?
 Excalibur.Data.DataProcessing.DataTaskRequest.ProcessedCursor.init -> void
 Excalibur.Data.DataProcessing.DataTaskRequest.RecordType.get -> string!
 Excalibur.Data.DataProcessing.DataTaskRequest.RecordType.init -> void
-Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId
 Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthCheckOptions
 Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthCheckOptions.DataProcessingHealthCheckOptions() -> void
 Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthCheckOptions.DegradedInactivityTimeout.get -> System.TimeSpan
@@ -135,47 +134,6 @@ const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultPr
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultQueueSize = 5000 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultSchemaName = "DataProcessor" -> string!
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultTableName = "DataTaskRequests" -> string!
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ApplicationStopping = 107306 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceDisabled = 107400 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceDrainTimeout = 107405 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceError = 107402 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceProcessedTasks = 107404 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceStarting = 107401 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceStopped = 107403 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.CompletedBatch = 107205 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.CompletedProcessing = 107206 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsecutiveFailureThresholdExceeded = 107210 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerAbortedStaleTask = 107211 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerCanceled = 107207 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerDisposalRequested = 107200 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerError = 107208 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerNotCompletedAsync = 107101 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerNotCompletedSync = 107105 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerTimeoutAsync = 107102 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerTimeoutSync = 107106 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DataTaskStale = 107003 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DeleteTaskFailed = 107005 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeAsync = 107100 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeAsyncError = 107103 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeError = 107107 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeSync = 107104 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.EnqueuingRecords = 107301 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.NoHandlerFound = 107209 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.NoMoreRecordsConsumerExit = 107201 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.NoMoreRecordsProducerExit = 107300 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessingBatch = 107203 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessingDataTaskError = 107001 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessingRecordError = 107204 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessorNotFound = 107000 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerCanceled = 107303 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerCancellationRequested = 107307 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerCompleted = 107305 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerError = 107304 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.QueueEmptyWaiting = 107202 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.SuccessfullyEnqueued = 107302 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.UpdateAttemptsFailed = 107004 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.UpdateCompletedCountMismatch = 107002 -> int
-const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.WaitingForConsumer = 107308 -> int
 const Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.DefaultMessage = "IDataProcessor implementation found but a record type could not be ascertained." -> string!
 const Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.DefaultStatusCode = 500 -> int
 static Excalibur.Data.DataProcessing.DataProcessingBuilderExtensions.AddProcessorsFromAssembly(this Excalibur.Data.DataProcessing.IDataProcessingBuilder! builder, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!

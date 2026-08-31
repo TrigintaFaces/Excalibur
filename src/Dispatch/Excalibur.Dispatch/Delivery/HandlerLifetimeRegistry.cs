@@ -48,42 +48,50 @@ internal sealed class HandlerLifetimeRegistry
 
     private static FrozenDictionary<Type, ServiceLifetime> Build(IServiceCollection services)
     {
-        // Index BOTH the service type and the implementation type, because the scope verdict is queried
-        // by the concrete handler type (entry.HandlerType = ImplementationType) while handlers are often
-        // registered only by interface (e.g. AddScoped<IActionHandler<T>, Handler>()). Scoped is
-        // "stickiest": if any registration that can resolve a type is Scoped, the type needs a scope —
-        // so Scoped never gets overwritten by a Transient/Singleton self-registration of the same type.
-        var map = new Dictionary<Type, ServiceLifetime>();
+        // Model what the container ACTUALLY does, because that is the only thing the scope verdict may
+        // rest on. Microsoft DI resolves a service type using the LAST registered descriptor for it, so
+        // a later AddTransient<Handler>() supersedes an earlier AddScoped<Handler>() and the earlier
+        // descriptor becomes unreachable. Recording the earlier Scoped instead would make the registry
+        // disagree with the provider it describes: the resolver would create a scope to contain a captive
+        // dependency the container can never produce, and the consumer's explicit registration would be
+        // silently ignored.
+        //
+        // Service-type registrations are therefore authoritative and last-wins. Implementation types are
+        // kept only as a FALLBACK for types that are never registered as a service themselves (the
+        // AddScoped<IActionHandler<T>, Handler>() shape, where GetService(Handler) returns null and the
+        // activator constructs the handler directly). A fallback must never override a real service
+        // registration, or last-wins breaks for any handler registered both ways.
+        var serviceTypes = new Dictionary<Type, ServiceLifetime>();
+        var implementationOnly = new Dictionary<Type, ServiceLifetime>();
 
         foreach (var descriptor in services)
         {
-            Record(map, descriptor.ServiceType, descriptor.Lifetime);
+            // A KEYED descriptor is resolvable only through its key: GetService(IFoo) never returns it.
+            // Recording it under the bare service type would make this registry disagree with the
+            // container it models — and because the map is last-wins, a later keyed Singleton would MASK
+            // an earlier non-keyed Scoped registration, so HandlerScopeResolver.Walk would prune that
+            // dependency as provably root-safe and hand back Root for a handler that does capture a
+            // scoped service. The keyed descriptor still feeds the implementation-type fallback below,
+            // where it describes a type that has no bare service registration of its own.
+            if (!descriptor.IsKeyedService)
+            {
+                serviceTypes[descriptor.ServiceType] = descriptor.Lifetime;
+            }
 
-            // ybem93: keyed-safe accessor handles the keyed/non-keyed distinction (wl9s4v).
+            // keyed-safe accessor handles the keyed/non-keyed distinction.
             var implementationType = descriptor.GetImplementationType();
             if (implementationType is not null && implementationType != descriptor.ServiceType)
             {
-                Record(map, implementationType, descriptor.Lifetime);
+                implementationOnly[implementationType] = descriptor.Lifetime;
             }
         }
 
-        return map.ToFrozenDictionary();
-    }
-
-    private static void Record(Dictionary<Type, ServiceLifetime> map, Type type, ServiceLifetime lifetime)
-    {
-        if (map.TryGetValue(type, out var existing))
+        foreach (var (implementationType, lifetime) in implementationOnly)
         {
-            // Never downgrade away from Scoped (the lifetime that requires a DI scope).
-            if (existing == ServiceLifetime.Scoped)
-            {
-                return;
-            }
-
-            map[type] = lifetime == ServiceLifetime.Scoped ? ServiceLifetime.Scoped : lifetime;
-            return;
+            // Only where the type is not resolvable as a service in its own right.
+            _ = serviceTypes.TryAdd(implementationType, lifetime);
         }
 
-        map[type] = lifetime;
+        return serviceTypes.ToFrozenDictionary();
     }
 }

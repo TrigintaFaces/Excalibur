@@ -77,12 +77,11 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 			var services = new ServiceCollection();
 			services.AddLogging();
 
-			// NodeUri MUST be set. This overload of AddOpenSearchProjectionStore builds the store
-			// WITHOUT a client (OpenSearchProjectionStoreExtensions.cs:48) — the store constructs its own
-			// from OpenSearchProjectionStoreOptions.NodeUri, which defaults to https://localhost:9200.
-			// Registering an IOpenSearchClient in DI does not reach it and is therefore not done here.
-			// The container's port is mapped to a random host port, so pointing the store at the
-			// container means setting NodeUri to the fixture's endpoint.
+			// This overload now resolves an IOpenSearchClient from DI when one is registered, and otherwise
+			// connects using OpenSearchProjectionStoreOptions.NodeUri. Nothing is registered here, so the
+			// NodeUri path is what this test exercises — and it must be set, because the default is
+			// https://localhost:9200 while the container's port is mapped to a random host port, so
+			// pointing the store at the container means setting NodeUri to the fixture's endpoint.
 			services.AddOpenSearchProjectionStore<TestOpenSearchProjection>(options =>
 			{
 				options.NodeUri = _fixture.Endpoint.ToString();

@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Represents a token for tracking timeout operations and collecting performance metrics. R7.4: Operation tracking for timeout monitoring.
+/// Represents a token for tracking timeout operations and collecting performance metrics. Operation tracking for timeout monitoring.
 /// </summary>
 public interface ITimeoutOperationToken : IDisposable
 {

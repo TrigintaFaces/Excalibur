@@ -34,12 +34,12 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 		// The EVENTSTOREEVENTS table is a KEYED (tenant-columned) store, so a destructive GDPR erase must
 		// NEVER emit an empty tenant predicate — an unscoped erase against a tenant-columned table would
 		// tombstone every tenant's rows for this aggregate (cross-tenant GDPR data destruction). Route the
-		// scope through the keyed partition: TenantScope.None (or an absent context) becomes the
+		// scope through the keyed partition: default(TenantScope) (or an absent context) becomes the
 		// '__untenanted__' sentinel term, so the partition always yields a concrete, non-null tenant value.
 		// The predicate is UNCONDITIONAL and NULL-safe on the column side (a legacy NULL folds to the
 		// sentinel — Oracle also folds '' to NULL, which is why the sentinel is the non-empty '__untenanted__'
 		// and never ''). A bare `= :TenantId` (no COALESCE) would miss legacy NULL untenanted rows; an empty
-		// predicate would over-erase across tenants — both are the mutants AC-6 forbids. ODP.NET binds by
+		// predicate would over-erase across tenants — both are the mutants the tenant-isolation arms forbid. ODP.NET binds by
 		// position: :UntenantedSentinel appears first (inside COALESCE), then :TenantId.
 		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND COALESCE(TENANTID, :UntenantedSentinel) = :TenantId";

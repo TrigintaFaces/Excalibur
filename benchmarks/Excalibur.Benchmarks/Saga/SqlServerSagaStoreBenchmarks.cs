@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
+using Excalibur.Dispatch;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
@@ -44,7 +45,8 @@ public class SqlServerSagaStoreBenchmarks
 		_sagaStore = new SqlServerSagaStore(
 			ConnectionString!,
 			NullLogger<SqlServerSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			BenchmarkTenantContext.SingleTenant);
 
 		// Ensure schema exists
 		EnsureSchemaAsync().GetAwaiter().GetResult();

@@ -16,8 +16,12 @@ namespace Excalibur.Outbox.Oracle;
 /// <c>GetStatistics</c> without a status column (design-preserving). Distinct from dead-lettering, which is
 /// the terminal move at the retry ceiling.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the post-claim mutation path: the drain has already claimed this row cross-tenant and marks failed it by its globally-unique message id. This store holds no tenant context to filter by - an outbox store reads no ambient tenant context and accepts a tenant only as an explicit argument - so the statement carries no tenant term, and a caller that supplies a message id it did not obtain from a claim reaches the row behind it. Isolation on this table is established where the row is written, by stamping tenant_id")]
 internal sealed class SetOutboxMessageFailed : DataRequest<int>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SetOutboxMessageFailed"/> class.
 	/// </summary>

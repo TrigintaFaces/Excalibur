@@ -41,7 +41,21 @@ public sealed class MongoDbLeaderElectionTakeoverShould : IClassFixture<MongoDbC
 
 	public MongoDbLeaderElectionTakeoverShould(MongoDbContainerFixture fixture) => _fixture = fixture;
 
-	private MongoDbLeaderElection CreateCandidate(string databaseName, string resourceName, string candidateId)
+	/// <remarks>
+	/// The lease and renew intervals are parameters because the two arms need opposite things from them.
+	/// The expiry arm needs a short lease so the wait is short. The still-renewing arm needs a lease long
+	/// enough that a missed renewal slot cannot end it: at a two-second lease and a one-second renew, a
+	/// single scheduling delay under load expires the lease for real, the challenger then takes over
+	/// correctly, and the arm reports a split-brain that did not happen. Raising only the lease keeps the
+	/// property under test identical -- the challenger still contends across many renewals -- while
+	/// requiring a run of consecutive misses rather than one to produce a false red.
+	/// </remarks>
+	private MongoDbLeaderElection CreateCandidate(
+		string databaseName,
+		string resourceName,
+		string candidateId,
+		int leaseSeconds = 2,
+		int renewSeconds = 1)
 	{
 		var client = new MongoClient(_fixture.ConnectionString);
 		var mongoOptions = Options.Create(new MongoDbLeaderElectionOptions
@@ -49,16 +63,16 @@ public sealed class MongoDbLeaderElectionTakeoverShould : IClassFixture<MongoDbC
 			ConnectionString = _fixture.ConnectionString,
 			DatabaseName = databaseName,
 			CollectionName = CollectionName,
-			LeaseDurationSeconds = 2,
-			RenewIntervalSeconds = 1,
+			LeaseDurationSeconds = leaseSeconds,
+			RenewIntervalSeconds = renewSeconds,
 			TimeoutInSeconds = 5,
 			TakeoverGraceSeconds = 0,
 		});
 		var electionOptions = Options.Create(new LeaderElectionOptions
 		{
 			InstanceId = candidateId,
-			LeaseDuration = TimeSpan.FromSeconds(2),
-			RenewInterval = TimeSpan.FromSeconds(1),
+			LeaseDuration = TimeSpan.FromSeconds(leaseSeconds),
+			RenewInterval = TimeSpan.FromSeconds(renewSeconds),
 			RetryInterval = TimeSpan.FromSeconds(1),
 			GracePeriod = TimeSpan.Zero,
 			EnableHealthChecks = false,
@@ -91,8 +105,8 @@ public sealed class MongoDbLeaderElectionTakeoverShould : IClassFixture<MongoDbC
 
 		var db = "takeover_" + Guid.NewGuid().ToString("N");
 		var resource = "res-" + Guid.NewGuid().ToString("N");
-		var incumbent = CreateCandidate(db, resource, "incumbent");
-		var challenger = CreateCandidate(db, resource, "challenger");
+		var incumbent = CreateCandidate(db, resource, "incumbent", leaseSeconds: 12, renewSeconds: 1);
+		var challenger = CreateCandidate(db, resource, "challenger", leaseSeconds: 12, renewSeconds: 1);
 
 		var reasons = new System.Collections.Concurrent.ConcurrentQueue<string>();
 		incumbent.AcquisitionFailed += (_, e) => reasons.Enqueue(e.Reason);
@@ -112,9 +126,16 @@ public sealed class MongoDbLeaderElectionTakeoverShould : IClassFixture<MongoDbC
 
 			// Across several lease+renew cycles the challenger must NEVER seize a still-valid lease.
 			var challengerStole = await WaitUntilAsync(() => challenger.IsLeader, TimeSpan.FromSeconds(6));
+
+			// Check the incumbent FIRST. If it stopped renewing, its lease ended legitimately and any
+			// takeover that followed is correct behaviour, not a stolen lease -- reporting that as a
+			// split-brain would name the wrong defect. The arm's precondition is that the incumbent held
+			// its lease throughout, so state that separately and let it fail on its own terms.
+			incumbent.IsLeader.ShouldBeTrue(
+				"the incumbent must retain leadership throughout; if it did not, its lease ended rather than "
+				+ "being stolen and this arm did not exercise the property it exists to prove");
 			challengerStole.ShouldBeFalse(
 				"a candidate must not take over while the incumbent's lease is still valid ($$NOW < expiresAt)");
-			incumbent.IsLeader.ShouldBeTrue("the incumbent must retain leadership throughout");
 
 			await challenger.StopAsync(CancellationToken.None);
 			await incumbent.StopAsync(CancellationToken.None);

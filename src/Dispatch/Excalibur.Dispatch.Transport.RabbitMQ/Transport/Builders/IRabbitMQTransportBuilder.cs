@@ -66,6 +66,15 @@ internal sealed class RabbitMQTransportBuilder : IRabbitMQTransportBuilder
 	private readonly RabbitMQTransportOptions _options;
 
 	/// <summary>
+	/// The consumer's CloudEvents delegate, handed to the CloudEvents options registration.
+	/// </summary>
+	/// <remarks>
+	/// The adapter binds <c>IOptions&lt;RabbitMqCloudEventOptions&gt;</c> from DI, so a value written onto the transport
+	/// options object is never read. The delegate is carried to that registration instead.
+	/// </remarks>
+	internal Action<RabbitMqCloudEventOptions>? CloudEventsConfigure { get; private set; }
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="RabbitMQTransportBuilder"/> class.
 	/// </summary>
 	/// <param name="options">The transport options to configure.</param>
@@ -138,6 +147,13 @@ internal sealed class RabbitMQTransportBuilder : IRabbitMQTransportBuilder
 	}
 
 	/// <inheritdoc/>
+	public IRabbitMQTransportBuilder RequireTls(bool required)
+	{
+		_options.Connection.Ssl.RequireTls = required;
+		return this;
+	}
+
+	/// <inheritdoc/>
 	public IRabbitMQTransportBuilder ConfigureExchange(Action<IRabbitMQExchangeBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
@@ -184,7 +200,12 @@ internal sealed class RabbitMQTransportBuilder : IRabbitMQTransportBuilder
 	public IRabbitMQTransportBuilder ConfigureCloudEvents(Action<RabbitMqCloudEventOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
+		CloudEventsConfigure = configure;
+
+		// Also applied to the transport options object: the registration copies Exchange settings
+		// out of it into the CloudEvent options, so skipping this would silently drop them.
 		configure(_options.CloudEvents);
+
 		return this;
 	}
 

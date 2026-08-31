@@ -269,7 +269,7 @@ public interface IDeadLetterQueueAdmin
     /// Estate-wide and irreversible: deletes matching entries in every tenant
     /// on an age predicate alone. There is no tenant term in the selection.
     /// </summary>
-    Task<int> PurgeOlderThanAsync(
+    Task<int> PurgeAllTenantsEntriesOlderThanAsync(
         TimeSpan olderThan,
         CancellationToken cancellationToken);
 }
@@ -279,7 +279,7 @@ public interface IDeadLetterQueueAdmin
 
 *Binds the `IDeadLetterQueue` (outbox/transport) family. The `IDeadLetterStore` family scopes every operation to the ambient tenant — see the top of this page. Do not carry this warning across to it.*
 
-**Every operation on `IDeadLetterQueueAdmin` crosses tenant boundaries.** `PurgeOlderThanAsync` selects on an age predicate alone — there is no tenant term in the selection — so it permanently deletes matching entries in **every** tenant, and the deletion is not recoverable.
+**Every operation on `IDeadLetterQueueAdmin` crosses tenant boundaries.** `PurgeAllTenantsEntriesOlderThanAsync` selects on an age predicate alone — there is no tenant term in the selection — so it permanently deletes matching entries in **every** tenant, and the deletion is not recoverable.
 
 A multi-tenant host that resolves this interface into a tenant-facing request path lets one tenant delete another tenant's failed messages. Inject it only into operator tooling that is already authorized across the estate, and never behind an endpoint a tenant can reach.
 
@@ -293,7 +293,7 @@ Keep the two apart at your composition root — and read the note below before a
 
 The shipped `IDeadLetterQueue` implementation resolves its tenant-facing operations within the **ambient tenant**: `GetEntriesAsync`, `GetEntryAsync`, `ReplayAsync` and `GetCountAsync` each carry the ambient tenant scope into the query, so an entry stored under another tenant is not listed, not fetched, not replayable, and not counted from a caller's own context. Counting is included deliberately: a total taken across tenants would disclose another tenant's failure volume even though no entry of theirs is readable. Replay continues to re-enter the tenant the entry was **stored** under, never the caller's — those are two separate properties and both hold.
 
-**Purging is deliberately not scoped, and is not on this interface.** `PurgeAsync` and `PurgeOlderThanAsync` are declared on `IDeadLetterQueueAdmin`, the privileged operator surface, and resolve entries across every tenant **on purpose** — an operator must be able to address any tenant's entry. Do not register the admin interface for tenant-facing injection, and keep it out of tenant-reachable code paths. That is a design boundary, not a gap.
+**Purging is deliberately not scoped, and is not on this interface.** `PurgeAsync` and `PurgeAllTenantsEntriesOlderThanAsync` are declared on `IDeadLetterQueueAdmin`, the privileged operator surface, and resolve entries across every tenant **on purpose** — an operator must be able to address any tenant's entry. Do not register the admin interface for tenant-facing injection, and keep it out of tenant-reachable code paths. That is a design boundary, not a gap.
 
 **Verify before you rely on it.** This describes the shipped SQL Server implementation. A custom `IDeadLetterQueue` you write is scoped only insofar as you scope it, and the interface's own contract documentation is being brought in line with this behaviour — treat your own implementation's isolation as your responsibility to test.
 :::
@@ -486,7 +486,7 @@ public class DeadLetterRecoveryService
 
 ### Cleanup and Purging
 
-The cleanup service below is **operator tooling**. `PurgeOlderThanAsync` deletes across every tenant on age alone, so a service like this belongs in an admin host or a scheduled job that is authorized estate-wide — not in a request path a tenant can reach.
+The cleanup service below is **operator tooling**. `PurgeAllTenantsEntriesOlderThanAsync` deletes across every tenant on age alone, so a service like this belongs in an admin host or a scheduled job that is authorized estate-wide — not in a request path a tenant can reach.
 
 ```csharp
 public class DeadLetterCleanupService
@@ -511,7 +511,7 @@ public class DeadLetterCleanupService
     // Purge entries older than 30 days (admin operation)
     public async Task<int> PurgeOldEntriesAsync(CancellationToken ct)
     {
-        return await _dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(30), ct);
+        return await _dlqAdmin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(30), ct);
     }
 
     // Get count of pending entries
@@ -715,6 +715,7 @@ These providers back the **`IDeadLetterStore` (poison-message) family**. The in-
 |----------|---------|----------|
 | In-Memory | `Dispatch` (included) | Testing, development, single-node |
 | SQL Server | `Excalibur.Data.SqlServer` | SQL Server production |
+| PostgreSQL | `Excalibur.Data.Postgres` | PostgreSQL production |
 | Elasticsearch | `Excalibur.Data.ElasticSearch` | Analytics, search, audit |
 
 ### SQL Server Provider
@@ -733,6 +734,31 @@ builder.Services.AddSqlServerDeadLetterStore(options =>
     options.SchemaName = "dbo";  // default
 });
 ```
+
+### PostgreSQL Provider
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+// Simple registration with connection string
+builder.Services.AddPostgresDeadLetterStore(connectionString);
+
+// Or with full configuration
+builder.Services.AddPostgresDeadLetterStore(options =>
+{
+    options.ConnectionString = connectionString;
+    options.TableName = "dead_letter_messages";  // default
+    options.SchemaName = "public";               // default
+});
+```
+
+:::note Listing worked only from this release onwards
+`GetMessagesAsync` — the listing, filtering and paging call — built a statement whose paging clause ran
+together with the preceding one, so **every** call failed with a syntax error, including a call against
+an empty store and regardless of what you filtered on. If you tried to list dead-lettered messages on
+PostgreSQL against an earlier version and concluded the store was misconfigured, it was not. Storing,
+fetching by id, marking replayed, deleting, counting and cleanup were unaffected.
+:::
 
 ## Best Practices
 

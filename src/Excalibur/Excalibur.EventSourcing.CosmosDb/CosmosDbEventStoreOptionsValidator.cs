@@ -16,6 +16,12 @@ internal sealed class CosmosDbEventStoreOptionsValidator : IValidateOptions<Cosm
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
+		if (string.IsNullOrWhiteSpace(options.DatabaseName))
+		{
+			return ValidateOptionsResult.Fail(
+				$"{nameof(CosmosDbEventStoreOptions.DatabaseName)} is required and must not be empty or whitespace.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.EventsContainerName))
 		{
 			return ValidateOptionsResult.Fail(

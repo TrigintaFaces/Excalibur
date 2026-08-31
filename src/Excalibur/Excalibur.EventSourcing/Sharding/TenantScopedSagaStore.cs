@@ -27,7 +27,11 @@ public sealed class TenantScopedSagaStore : ISagaStore
 	/// Initializes a new instance of the <see cref="TenantScopedSagaStore"/> class.
 	/// </summary>
 	/// <param name="inner">The inner saga store that performs the tenant-scoped persistence.</param>
-	/// <param name="tenantContext">The ambient tenant context whose presence is required on the handling path.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public TenantScopedSagaStore(ISagaStore inner, ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(inner);
@@ -74,7 +78,10 @@ public sealed class TenantScopedSagaStore : ISagaStore
 
 	private void RequireTenant()
 	{
-		if (string.IsNullOrEmpty(_tenantContext.TenantId))
+		// IsNullOrWhiteSpace, matching TenantScope.Scoped: a whitespace tenant must raise the same
+		// TenantRequiredException here as it does inside the inner store's own scope resolution, rather
+		// than passing this check and failing one layer down with a different provenance.
+		if (string.IsNullOrWhiteSpace(_tenantContext.TenantId))
 		{
 			throw new TenantRequiredException();
 		}

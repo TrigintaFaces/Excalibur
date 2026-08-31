@@ -14,6 +14,5 @@ internal interface IValueTaskHandlerInvoker
 	/// <summary>
 	/// Invokes a handler and returns a ValueTask for allocation-free synchronous completion.
 	/// </summary>
-	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	ValueTask<object?> InvokeValueTaskAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken);
 }

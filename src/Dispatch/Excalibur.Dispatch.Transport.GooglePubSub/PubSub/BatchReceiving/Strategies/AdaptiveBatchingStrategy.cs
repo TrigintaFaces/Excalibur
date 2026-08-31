@@ -227,7 +227,7 @@ public sealed partial class AdaptiveBatchingStrategy : IBatchingStrategy
 		}
 	}
 
-	// Source-generated logging methods (Sprint 363 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(GooglePubSubEventId.AdaptiveFlowControlLimit, LogLevel.Debug,
 		"Flow control limiting batch size from {Current} to {Limited}")]
 	private partial void LogFlowControlLimit(int current, int limited);

@@ -71,7 +71,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 				ControlId = ControlCnf001,
 				Name = "Data Classification",
 				Description = "Data is classified according to sensitivity using classification attributes",
-				Implementation = "[PersonalData], [Sensitive], [Confidential] attributes for classification",
+				Implementation = "[PersonalData] and [Sensitive] attributes, the latter carrying a DataClassification level (Internal, Confidential or Restricted)",
 				Type = ControlType.Preventive,
 				Frequency = ControlFrequency.Continuous
 			},
@@ -101,12 +101,12 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 	{
 		var evidence = new List<EvidenceItem>();
 
-		// Classification is available through ADR-053 attributes
-		// [PersonalData], [Sensitive], [Confidential] are built-in
+		// [PersonalData] and [Sensitive] are built in. Confidential is a DataClassification level
+		// carried by [Sensitive], not an attribute of its own.
 
 		evidence.Add(CreateEvidence(
 			EvidenceType.Configuration,
-			"Attribute-based classification available: [PersonalData], [Sensitive], [Confidential]",
+			"Attribute-based classification available: [PersonalData], and [Sensitive] with a DataClassification level of Internal, Confidential or Restricted",
 			nameof(ConfidentialityControlValidator)));
 
 		evidence.Add(CreateEvidence(
@@ -148,7 +148,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 
 		if (_erasureService == null)
 		{
-			// CNF-003's DECLARED disposal control is automated cryptographic erasure (ADR-054). A null
+			// CNF-003's DECLARED disposal control is automated cryptographic erasure. A null
 			// IErasureService means that declared mechanism is ABSENT; returning PASS on unverifiable
 			// "manual procedures apply" would launder a false-green. Surface the gap with visibility
 			// instead (compliance-ASSISTANCE: honesty-of-signal is the value) so an auditor sees the

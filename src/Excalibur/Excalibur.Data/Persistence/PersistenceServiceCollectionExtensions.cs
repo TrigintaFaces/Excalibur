@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Data.Persistence;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -17,48 +14,31 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class PersistenceServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds persistence services to the service collection with default configuration.
+	/// Adds the shared persistence services that every provider package builds on.
 	/// </summary>
+	/// <remarks>
+	/// Individual providers are added — and configured — by their own package extension (for example
+	/// <c>AddExcaliburSqlServer</c>, <c>AddExcaliburPostgres</c>), each of which registers its
+	/// <see cref="IPersistenceProvider" /> under a stable keyed-DI key and, if no provider has claimed it
+	/// yet, under <c>"default"</c>. Resolve a specific provider with
+	/// <c>GetRequiredKeyedService&lt;IPersistenceProvider&gt;(key)</c> or
+	/// <c>[FromKeyedServices(key)]</c>; the non-keyed <see cref="IPersistenceProvider" /> registered here
+	/// forwards to <c>"default"</c>.
+	/// </remarks>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddPersistence(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		return services.AddPersistence(static _ => { });
-	}
-
-	/// <summary>
-	/// Adds persistence services to the service collection.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> An action to configure persistence options. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	public static IServiceCollection AddPersistence(
-		this IServiceCollection services,
-		Action<PersistenceConfiguration> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
 
-		// Create and configure the configuration
-		var configuration = new PersistenceConfiguration();
-		configure(configuration);
-
-		// Register core services
-		services.TryAddSingleton<IPersistenceConfiguration>(configuration);
-		services.TryAddSingleton(configuration);
-		services.TryAddSingleton<IPersistenceProviderFactory, PersistenceProviderFactory>();
 		services.TryAddSingleton<IConnectionStringProvider, ConnectionStringProvider>();
 
-		// Validate configuration
-		_ = services.AddHostedService<PersistenceConfigurationValidator>();
-
-		// bd-x6rg45: fail loud at host start if the consumer forgot to pick a persistence provider.
+		// Fail loud at host start if the consumer forgot to pick a persistence provider.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, PersistencePrerequisiteValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, PersistencePrerequisiteValidator>());
 
 		// Non-keyed IPersistenceProvider convenience alias: forwards to keyed "default" so consumers
 		// can inject IPersistenceProvider directly without [FromKeyedServices("default")].
@@ -66,67 +46,5 @@ public static class PersistenceServiceCollectionExtensions
 			sp.GetRequiredKeyedService<IPersistenceProvider>("default"));
 
 		return services;
-	}
-
-	/// <summary>
-	/// Adds persistence services with configuration from appsettings.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configuration"> The configuration section. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
-	[RequiresDynamicCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
-	public static IServiceCollection AddPersistence(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		return services.AddPersistence(config => ConfigureFromConfiguration(config, configuration));
-	}
-
-	/// <summary>
-	/// Configures persistence from IConfiguration.
-	/// </summary>
-	[RequiresUnreferencedCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
-	[RequiresDynamicCode("Calls Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(Object)")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	private static void ConfigureFromConfiguration(PersistenceConfiguration config, IConfiguration configuration)
-	{
-		// Load global options
-		var globalOptions = configuration.GetSection("Persistence:GlobalOptions");
-		if (globalOptions.Exists())
-		{
-			globalOptions.Bind(config.GlobalOptions);
-		}
-
-		// Load providers
-		var providersSection = configuration.GetSection("Persistence:Providers");
-		foreach (var providerSection in providersSection.GetChildren())
-		{
-			var providerConfig = new PersistenceProviderOptions
-			{
-				Name = providerSection.Key,
-				Type = Enum.Parse<PersistenceProviderType>(
-					providerSection["Type"] ?? "Custom", ignoreCase: true),
-				ConnectionString = providerSection["ConnectionString"] ?? string.Empty,
-			};
-
-			// Bind additional options
-			providerSection.Bind(providerConfig);
-
-			config.Providers[providerSection.Key] = providerConfig;
-		}
-
-		// Set default provider
-		var defaultProvider = configuration["Persistence:DefaultProvider"];
-		if (!string.IsNullOrWhiteSpace(defaultProvider))
-		{
-			config.DefaultProvider = defaultProvider;
-		}
 	}
 }

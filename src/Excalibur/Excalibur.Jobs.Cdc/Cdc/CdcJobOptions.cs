@@ -21,11 +21,11 @@ namespace Excalibur.Jobs.Cdc;
 public sealed class CdcJobOptions : JobOptions
 {
 	/// <summary>
-	/// Gets the list of database configurations required for CDC processing.
+	/// Gets or sets the list of database configurations required for CDC processing.
 	/// </summary>
 	/// <value>
 	/// The list of database configurations required for CDC processing.
 	/// </value>
 	[Required]
-	public required Collection<DatabaseOptions> DatabaseConfigs { get; init; } = [];
+	public Collection<DatabaseOptions> DatabaseConfigs { get; set; } = [];
 }

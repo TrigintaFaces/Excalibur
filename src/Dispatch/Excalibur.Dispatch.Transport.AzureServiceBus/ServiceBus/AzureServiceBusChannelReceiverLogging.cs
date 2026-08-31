@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 internal static partial class AzureServiceBusChannelReceiverLogging
 {
-	// Source-generated logging methods (Sprint 362 - EventId Migration)
+	// Source-generated logging methods
 
 	/// <summary>
 	/// Logs a batch of messages produced from Azure Service Bus.

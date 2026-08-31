@@ -281,6 +281,7 @@ public static class CdcBuilderSqlServerExtensions
 			opt.CommandTimeout = sqlOptions.CommandTimeout;
 			opt.Connection.ConnectionString = sqlOptions.Connection.ConnectionString;
 		});
+		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerCdcOptions>, SqlServerCdcOptionsValidator>());
 
 		// Register source BindConfiguration if set
 		if (sqlBuilder.SourceBindConfigurationPath is not null)
@@ -307,6 +308,7 @@ public static class CdcBuilderSqlServerExtensions
 			opt.SchemaName = stateStoreOptions.SchemaName;
 			opt.TableName = stateStoreOptions.TableName;
 		});
+		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerCdcStateStoreOptions>, SqlServerCdcStateStoreOptionsValidator>());
 
 		// Register state store BindConfiguration if set
 		if (stateStoreBindConfigPath is not null)
@@ -363,13 +365,18 @@ public static class CdcBuilderSqlServerExtensions
 		Func<IServiceProvider, Func<SqlConnection>> sourceConnectionFactory,
 		Func<IServiceProvider, Func<SqlConnection>>? stateConnectionFactory)
 	{
-		// Register default CdcRecoveryOptions if not already registered
-		builder.Services.TryAddSingleton(Options.Create(new CdcRecoveryOptions()));
+		// Route recovery options through the options pipeline so a consumer's Configure<CdcRecoveryOptions>
+		// is honored and the validator below actually runs. Options.Create() bakes a fixed instance that
+		// bypasses both.
+		_ = builder.Services.AddOptions<CdcRecoveryOptions>()
+			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CdcRecoveryOptions>, CdcRecoveryOptionsValidator>());
 
 		// TryAdd the SQL Server IDataAccessPolicyFactory. The CdcProcessor and
 		// DataChangeEventProcessor both require it for Polly-wrapped SQL calls.
 		// Consumers who register their own policy factory retain precedence via
-		// TryAdd semantics. [bd-20ft0e FIX 1]
+		// TryAdd semantics.
 		builder.Services.TryAddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
 
 		// Register the change-event processor factory used by the Quartz CdcJob. Registering it
@@ -456,7 +463,7 @@ public static class CdcBuilderSqlServerExtensions
 			var effectiveFactory = stateConnectionFactory ?? sourceConnectionFactory;
 			var factory = effectiveFactory(sp);
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
-			return new CdcStateStore(factory(), stateStoreOptions);
+			return new CdcStateStore(factory, stateStoreOptions);
 		});
 
 		// Register a single CdcRepository instance shared by both ICdcRepository and ICdcRepositoryLsnMapping.
@@ -488,7 +495,6 @@ public static class CdcBuilderSqlServerExtensions
 									 "IDatabaseOptions is required for CdcProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
-			var stateStoreConnection = stateFactory();
 
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
@@ -506,7 +512,7 @@ public static class CdcBuilderSqlServerExtensions
 				appLifetime,
 				databaseConfig,
 				cdcRepository,
-				stateStoreConnection,
+				stateFactory,
 				stateStoreOptions,
 				policyFactory,
 				timeProvider,
@@ -539,7 +545,6 @@ public static class CdcBuilderSqlServerExtensions
 									 "IDatabaseOptions is required for DataChangeEventProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
-			var stateStoreConnection = stateFactory();
 
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
@@ -548,7 +553,7 @@ public static class CdcBuilderSqlServerExtensions
 				appLifetime,
 				databaseConfig,
 				cdcRepository,
-				stateStoreConnection,
+				stateFactory,
 				stateStoreOptions,
 				sp,
 				policyFactory,

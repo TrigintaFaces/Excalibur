@@ -13,7 +13,7 @@ public sealed class AppendResult
 
 	private AppendResult(
 		bool success,
-		long nextExpectedVersion,
+		long? nextExpectedVersion,
 		long? firstEventPosition,
 		string? errorMessage = null,
 		bool isConcurrencyConflict = false)
@@ -31,9 +31,30 @@ public sealed class AppendResult
 	public bool Success { get; }
 
 	/// <summary>
-	/// Gets the next expected version for the aggregate after this append.
+	/// Gets the version the aggregate's stream is at after this append — the value a subsequent append
+	/// must pass as its expected version — or <see langword="null"/> when this result cannot state one.
 	/// </summary>
-	public long NextExpectedVersion { get; }
+	/// <remarks>
+	/// <para>
+	/// Versions are zero-based, so appending <c>N</c> events to a new stream reports <c>N-1</c> here: this
+	/// is the version of the last event written, not the version the next event will receive. An append
+	/// that carried no events reports back the version it was given.
+	/// </para>
+	/// <para>
+	/// A failed append reports <see langword="null"/> rather than a number, because it has no version to
+	/// report and <c>-1</c> is not free to borrow as a sentinel: under this interface's version base
+	/// <c>-1</c> is the ordinary value meaning <em>this stream does not exist</em>. Reporting it after a
+	/// failure would hand a caller a number asserting the opposite of the truth, which they could pass
+	/// straight back as an expected version and create a stream that already holds events.
+	/// </para>
+	/// <para>
+	/// A concurrency conflict is the one failure that <em>can</em> state a version: the store read the
+	/// stream's actual version in order to detect the conflict, so it reports that measured value here —
+	/// including a genuine <c>-1</c> when the conflict is that the stream does not exist at all.
+	/// </para>
+	/// </remarks>
+	/// <value>The stream's current version after the append, or <see langword="null"/> when unavailable.</value>
+	public long? NextExpectedVersion { get; }
 
 	/// <summary>
 	/// Gets the global stream position of the first event that was appended, or <see langword="null"/>
@@ -96,7 +117,12 @@ public sealed class AppendResult
 	/// Creates a failed append result with custom error.
 	/// </summary>
 	/// <param name="errorMessage">The error message.</param>
-	/// <returns>A failed append result.</returns>
+	/// <returns>A failed append result, reporting no version.</returns>
+	/// <remarks>
+	/// Nothing was appended, so the result states no version: <see cref="NextExpectedVersion"/> is
+	/// <see langword="null"/>. Use <see cref="CreateConcurrencyConflict"/> for the one failure that has a
+	/// version to report.
+	/// </remarks>
 	public static AppendResult CreateFailure(string errorMessage) =>
-		new(success: false, -1, firstEventPosition: null, errorMessage);
+		new(success: false, nextExpectedVersion: null, firstEventPosition: null, errorMessage);
 }

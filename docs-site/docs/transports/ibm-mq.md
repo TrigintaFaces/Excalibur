@@ -28,6 +28,39 @@ dotnet add package Excalibur.Dispatch.Transport.IbmMq
 
 **Dependencies:** `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Transport.Abstractions`, `IBMMQDotnetClient`
 
+:::caution The IBM MQ driver is not open source
+
+`IBMMQDotnetClient` is IBM's own MQ classes for .NET and is **not** distributed under an
+OSI-approved open-source license. The package declares no SPDX license expression; it sets
+`requireLicenseAcceptance` and points at
+[IBM's license terms](https://www.ibm.com/support/customer/csol/terms/?id=L-MKDD-7KHY2Q), and ships
+IBM's terms inside the package under `licenses/`. Those terms open:
+
+> IMPORTANT: READ CAREFULLY
+>
+> Two license agreements are presented below.
+>
+> 1. IBM International License Agreement for Evaluation of Programs
+> 2. IBM International Program License Agreement
+>
+> If Licensee is obtaining the Program for purposes of productive use (other than evaluation, testing,
+> trial "try or buy," or demonstration): By clicking on the "Accept" button below, Licensee accepts the
+> IBM International Program License Agreement, without modification.
+
+The evaluation agreement carries a 90-day evaluation period; the International Program License
+Agreement is the one the terms name for productive use.
+
+Excalibur redistributes no IBM software and asserts nothing about your entitlement on your behalf --
+the same position it takes on the [Oracle driver](../data-providers/oracle.md). Installing this
+package makes NuGet install the driver into your application, so the obligations are yours. Read the
+terms shipped inside the driver package, and the terms at the URL above, and confirm your deployment
+is covered before you ship.
+
+Every [pipeline-integrated transport](./index.md) carries an OSI-approved driver license. Choosing a
+different transport is the remedy if these terms do not suit you.
+
+:::
+
 ## Registration
 
 Register a named transport with `AddIbmMqTransport`. The name is used for multi-transport routing and to resolve the keyed sender/receiver.
@@ -43,6 +76,10 @@ services.AddIbmMqTransport("orders", ibmmq =>
     ibmmq.Channel = "DEV.APP.SVRCONN";
     ibmmq.QueueName = "DEV.QUEUE.1";
 
+    // TLS: IBM MQ negotiates TLS from the CipherSpec agreed on the SVRCONN channel
+    ibmmq.SslCipherSpec = "ANY_TLS12_OR_HIGHER";
+    ibmmq.SslPeerName = "CN=QM1,O=Example";   // optional: pin the queue manager's DN
+
     // Optional
     ibmmq.ReplyToQueue = "DEV.REPLY.1";
     ibmmq.UserId = "app";                 // source credentials from configuration or a secret manager
@@ -52,6 +89,27 @@ services.AddIbmMqTransport("orders", ibmmq =>
     ibmmq.Receive.MaxBatchSize = 10;
     ibmmq.Receive.WaitIntervalMilliseconds = 1000;
     ibmmq.Receive.MaxPayloadBytes = 1_048_576;
+});
+```
+
+### Transport security
+
+The broker can be reached in the clear, so an unencrypted connection is refused by default. The
+refusal happens when the transport is resolved -- while the host is starting -- rather than on the
+first message, and it raises `TransportSecurityException`.
+
+There is no separate "use TLS" switch: a channel with no CipherSpec carries the user id, password and
+every message body in the clear, so `SslCipherSpec` must name the CipherSpec configured on the SVRCONN
+channel. For a developer queue manager, opt out explicitly:
+
+```csharp
+services.AddIbmMqTransport("local-dev", ibmmq =>
+{
+    ibmmq.QueueManager = "QM1";
+    ibmmq.Host = "localhost";
+    ibmmq.Channel = "DEV.APP.SVRCONN";
+    ibmmq.QueueName = "DEV.QUEUE.1";
+    ibmmq.RequireTls = false;   // Developer queue managers only
 });
 ```
 

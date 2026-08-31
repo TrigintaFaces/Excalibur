@@ -19,7 +19,6 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 /// <param name="producer"> The Azure Event Hub producer client for sending messages. </param>
 /// <param name="serializer"> Payload serializer for message body serialization with pluggable format support. </param>
-/// <param name="options"> The Event Hubs specific configuration options. </param>
 /// <param name="logger"> The logger instance for diagnostic information. </param>
 /// <remarks>
 /// <para>
@@ -38,11 +37,8 @@ namespace Excalibur.Dispatch.Transport.Azure;
 internal sealed partial class AzureEventHubMessageBus(
 	EventHubProducerClient producer,
 	IPayloadSerializer serializer,
-	AzureEventHubOptions options,
 	ILogger<AzureEventHubMessageBus> logger) : IMessageBus, IAsyncDisposable
 {
-	// Retain options for future use (e.g., batching, partitioning configuration).
-	private readonly AzureEventHubOptions _options = options;
 
 	/// <summary>
 	/// Publishes a dispatch action to the Event Hub.
@@ -127,7 +123,7 @@ internal sealed partial class AzureEventHubMessageBus(
 		await producer.SendAsync(batch, cancellationToken).ConfigureAwait(false);
 	}
 
-	// Source-generated logging methods (Sprint 362 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(AzureServiceBusEventId.EventHubsActionSent, LogLevel.Information,
 		"Sending action via Azure Event Hub: {Action}")]
 	private partial void LogSendingAction(string action);

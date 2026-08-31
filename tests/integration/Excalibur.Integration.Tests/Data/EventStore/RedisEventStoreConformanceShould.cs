@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Redis;
 
@@ -60,7 +61,7 @@ public sealed class RedisEventStoreConformanceShould : EventStoreConformanceTest
 			DatabaseIndex = -1,
 		});
 
-		return new RedisEventStore(_connection, options, NullLogger<RedisEventStore>.Instance);
+		return new RedisEventStore(_connection, options, NullLogger<RedisEventStore>.Instance, new SingleTenantDefaultContext());
 	}
 
 	/// <inheritdoc/>
@@ -75,5 +76,13 @@ public sealed class RedisEventStoreConformanceShould : EventStoreConformanceTest
 			await _connection.DisposeAsync().ConfigureAwait(false);
 			_connection = null;
 		}
+	}
+
+	/// <summary>Mirrors the framework single-tenant default: always present, always the one canonical tenant.</summary>
+	private sealed class SingleTenantDefaultContext : ITenantContext
+	{
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
 	}
 }

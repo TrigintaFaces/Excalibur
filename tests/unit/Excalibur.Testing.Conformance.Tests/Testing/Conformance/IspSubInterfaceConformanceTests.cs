@@ -43,8 +43,6 @@ public sealed class IspSubInterfaceConformanceTests
 
 		// Data.Abstractions package
 		{ typeof(ICloudNativeOutboxStoreBatch), 4 },
-		{ typeof(IPersistenceMetricsAdmin), 4 },
-		{ typeof(IPersistenceConfigurationAdmin), 3 },
 		{ typeof(IConnectionStringProviderAdmin), 4 },
 	};
 

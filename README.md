@@ -59,7 +59,6 @@ Install the core messaging packages and register handlers:
 
 ```bash
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 ```
 
 ```csharp
@@ -102,6 +101,7 @@ Bring in Excalibur when you need aggregates, event stores, or opinionated hostin
 dotnet add package Excalibur.Domain
 dotnet add package Excalibur.EventSourcing
 dotnet add package Excalibur.EventSourcing.InMemory
+dotnet add package Excalibur.Outbox.SqlServer
 dotnet add package Excalibur.Hosting.Web
 ```
 
@@ -109,7 +109,7 @@ dotnet add package Excalibur.Hosting.Web
 builder.Services
     .AddDispatch(typeof(Program).Assembly)
     .AddInMemoryEventStore()
-    .AddSqlServerOutboxStore(builder.Configuration.GetConnectionString("Default")!);
+    .AddSqlServerOutboxStore(o => o.ConnectionString = builder.Configuration.GetConnectionString("Default")!);
 ```
 
 You continue to dispatch messages through `IDispatcher`; Excalibur layers domain modeling, persistence, and compliance features on top.
@@ -145,16 +145,16 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 ### Key Metrics
 
-From the 20260420 epoch baseline (`benchmarks/baselines/net10.0/dispatch-comparative-20260420/`, BenchmarkDotNet 0.15.8, .NET 10.0.6 / SDK 10.0.202, i9-14900K):
+Median of 7 WarmPath runs on one idle machine (BenchmarkDotNet 0.15.8, .NET 10.0.6 / SDK 10.0.202, i9-14900K). Allocation was byte-identical across all 7 runs; latency varied 6-10% between runs, which is several times BenchmarkDotNet's reported error — that error describes spread within a single process, not reproducibility between processes. Read the byte figures as exact and the nanosecond figures as indicative.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Standard dispatch** | 70.87 ns / 240 B | Full pipeline with context, routing, and correlation (`MediatRWarmPathComparisonBenchmarks`) |
-| **Ultra-local dispatch** | 34.56 ns / 24 B | Lowest-overhead path, near-zero allocation |
-| **Singleton-promoted** | 33.67 ns / 24 B | Cached direct handler path |
+| **Standard dispatch** | 67.7 ns / 240 B | Full pipeline with context, routing, and correlation (`MediatRWarmPathComparisonBenchmarks`) |
+| **Ultra-local dispatch** | 34.8 ns / 24 B | Lowest-overhead path, near-zero allocation |
+| **Singleton-promoted** | 34.5 ns / 24 B | Cached direct handler path |
 | **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
 | **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
-| **100 concurrent commands** | 7,293.79 ns / 19,360 B | Scales linearly (WarmPath — one row under investigation pending methodology-matched rerun) |
+| **100 concurrent commands** | 7,476.0 ns / 19,360 B | Scales linearly (WarmPath) |
 
 **Competitor comparisons** (ns, WarmPath): Dispatch ultra-local **1.28× faster than MediatR** with 6.3× less memory; Dispatch **2.64× faster than Wolverine** on InvokeAsync; Dispatch **leads MassTransit Mediator** on every in-process tier.
 
@@ -169,11 +169,13 @@ From the 20260420 epoch baseline (`benchmarks/baselines/net10.0/dispatch-compara
 ### Quick Configuration
 
 ```csharp
-// Default: Optimized automatically
+using Excalibur.Dispatch.Options.Configuration;
+
+// Optimized automatically by default
 services.AddDispatch();
 
 // Opt-out for development (if needed)
-services.Configure<PerformanceOptions>(o => o.AutoFreezeOnStart = false);
+services.Configure<DispatchOptions>(o => o.CrossCutting.Performance.AutoFreezeOnStart = false);
 ```
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
@@ -186,11 +188,11 @@ For detailed benchmarks, methodology caveats, and raw reports, see:
 
 ## Status & Testing
 
-- **170 NuGet packages** across Dispatch, Excalibur, and hosting families (334 total projects in solution)
-- **Supported frameworks:** .NET 8.0 LTS, .NET 9.0, .NET 10.0
-- **150 of 170 packages** are Native AOT compatible (`IsAotCompatible=true`)
+- **195 NuGet packages** across Dispatch, Excalibur, and hosting families (390 projects in the solution)
+- **Supported framework:** .NET 10.0 (LTS)
+- **160 of 195 packages** are Native AOT compatible (`IsAotCompatible=true`)
 - **112,000+ automated tests** across 10 CI shards (unit, integration, functional, conformance, performance)
-- **21 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
+- **20 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
 
 Run the full suite locally:
 

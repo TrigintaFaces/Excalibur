@@ -93,6 +93,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__)
 _ITEM = re.compile(r"<(?:None|Content)\b[^>]*>", re.IGNORECASE | re.DOTALL)
 _INCLUDE = re.compile(r'Include\s*=\s*"([^"]*)"', re.IGNORECASE)
 _PACK_TRUE = re.compile(r'Pack\s*=\s*"true"', re.IGNORECASE)
+# Mirrors the central ItemGroup's own "'$(IsPackable)' != 'false'" condition. See packs_ddl.
+_IS_PACKABLE_FALSE = re.compile(r"<IsPackable>\s*false\s*</IsPackable>", re.IGNORECASE)
 
 # Build output, not shipped source. A .sql copied into obj/ or bin/ is not evidence that the
 # package ships one, and counting it would inflate the population with artifacts of a prior build.
@@ -111,7 +113,72 @@ def src_root() -> str:
     return os.environ.get("DDL_PACK_SRC_ROOT") or os.path.join(REPO, "src")
 
 
-def packs_ddl(csproj_text: str, pkgdir: str, shipped: list[str]) -> bool:
+def _packed_sql_includes(xml_text: str) -> list[str]:
+    """Include patterns of every <None>/<Content> item that is a .sql AND carries Pack="true".
+
+    Shared by the per-project and the central reader so the two cannot drift into disagreeing
+    about what "a packed .sql item" is.
+    """
+    found: list[str] = []
+    for tag in _ITEM.findall(xml_text):
+        include = _INCLUDE.search(tag)
+        if include and include.group(1).lower().endswith(".sql") and _PACK_TRUE.search(tag):
+            found.append(include.group(1))
+    return found
+
+
+def _glob_selects(pattern: str, pkgdir: str, shipped: list[str]) -> bool:
+    """Does this MSBuild Include glob select at least one of the package's shipped .sql files?"""
+    # A central item addresses the package through $(MSBuildProjectDirectory); a per-project one
+    # is already relative to it. Substituting first makes both absolute and lets one matcher serve.
+    pattern = pattern.replace("$(MSBuildProjectDirectory)", pkgdir.rstrip(os.sep))
+    pattern = pattern.replace("\\", os.sep).replace("/", os.sep)
+    # MSBuild's ** is a recursive-any; fnmatch's * already crosses separators, so a plain
+    # translation is adequate for "does this glob select at least one shipped .sql".
+    pattern = pattern.replace("**" + os.sep, "*").replace("**", "*")
+    full = pattern if os.path.isabs(pattern) else os.path.join(pkgdir.rstrip(os.sep), pattern)
+    return any(fnmatch.fnmatch(s, full) for s in shipped)
+
+
+def central_pack_includes(root: str) -> list[str]:
+    """Packed .sql Include patterns declared in the Directory.Build.props GOVERNING this tree.
+
+    WHY THIS ARM EXISTS, and it is the same lesson this file already teaches twice above.
+
+    The per-project reader below was a complete predicate right up until packing stopped being
+    declared per project. `src/Directory.Build.props` now carries
+
+        <ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('...\\Scripts')">
+          <None Include="...\\Scripts\\**\\*.sql" Pack="true" PackagePath="scripts\\" />
+
+    with a comment saying, in as many words, that it is declared centrally so a package growing a
+    Scripts directory is covered WITHOUT a second edit. From that moment a csproj-only predicate
+    reports UNPACKED for a package whose .sql is demonstrably in its .nupkg — measured by packing
+    Excalibur.Cdc.Postgres and reading `scripts/001_CreateCdcStateSchema.sql` out of the archive,
+    with no csproj entry anywhere.
+
+    That failure runs in the SAFE direction, which is exactly why it could sit here unnoticed: a
+    false FAIL gets "fixed" by adding a redundant csproj entry, and the gate then goes green while
+    still measuring the wrong thing. Every package it would misjudge is one that adopted the
+    central declaration the repository asked for.
+
+    It is read from the props file rather than hardcoded as "anything under Scripts/" on purpose —
+    the header of this file commits to deriving the predicate FROM THE ARTIFACT, never from a
+    directory convention. If the central glob is retired or renamed, this arm follows it; a
+    hardcoded directory would keep passing packages nothing packs.
+    """
+    try:
+        with open(os.path.join(root, "Directory.Build.props"), encoding="utf-8-sig",
+                  errors="replace") as fh:
+            return _packed_sql_includes(fh.read())
+    except OSError:
+        # No governing props (or unreadable): no central arm. The per-project predicate stands
+        # alone, which is what the self-test fixtures exercise.
+        return []
+
+
+def packs_ddl(csproj_text: str, pkgdir: str, shipped: list[str],
+              central: list[str] | None = None) -> bool:
     """True when a packed .sql item exists AND its Include glob actually matches a shipped file.
 
     The glob check is not belt-and-braces, it closes a hole this gate had: a csproj can declare
@@ -120,18 +187,22 @@ def packs_ddl(csproj_text: str, pkgdir: str, shipped: list[str]) -> bool:
     nothing. That is the advertised-but-unwired shape, in the gate written to prevent it. Verified
     against the observable once by packing a real project and reading the .sql out of the .nupkg;
     this check is what makes it hold without a pack step.
+
+    Two ways to be packed, because the build has two: the project's own item, or the central one
+    documented on `central_pack_includes`. Both are still required to SELECT a shipped file, so
+    neither arm can report PACKED for a package that ships nothing.
     """
-    for tag in _ITEM.findall(csproj_text):
-        include = _INCLUDE.search(tag)
-        if not (include and include.group(1).lower().endswith(".sql") and _PACK_TRUE.search(tag)):
-            continue
-        pattern = include.group(1).replace("\\", os.sep).replace("/", os.sep)
-        # MSBuild's ** is a recursive-any; fnmatch's * already crosses separators, so a plain
-        # translation is adequate for "does this glob select at least one shipped .sql".
-        pattern = pattern.replace("**" + os.sep, "*").replace("**", "*")
-        full = os.path.join(pkgdir.rstrip(os.sep), pattern)
-        if any(fnmatch.fnmatch(s, full) for s in shipped):
+    for pattern in _packed_sql_includes(csproj_text):
+        if _glob_selects(pattern, pkgdir, shipped):
             return True
+
+    # The central ItemGroup is conditioned on IsPackable, so a project opting out of packing is not
+    # covered by it — and a non-packable project has no .nupkg for a consumer to obtain anything
+    # from. Honouring the condition keeps this arm from reporting PACKED where nothing ships.
+    if central and not _IS_PACKABLE_FALSE.search(csproj_text):
+        for pattern in central:
+            if _glob_selects(pattern, pkgdir, shipped):
+                return True
     return False
 
 
@@ -168,6 +239,176 @@ def _read_baseline(path: str) -> set[str] | None:
             }
     except OSError:
         return None
+
+
+# A table-name default on an options type: `public string FooTableName { get; set; } = "Foo";`
+# Keyed off the ARTIFACT (the declared default a consumer actually gets) rather than a hand-listed
+# table inventory, which is the shape that has rotted on this tree before.
+_TABLE_DECL = re.compile(
+    r'public\s+string\s+(?P<prop>\w*Table\w*)\s*\{\s*get;\s*set;\s*\}\s*=\s*"(?P<name>[A-Za-z0-9_]+)"'
+)
+
+# Prefix/Suffix/Schema name a FRAGMENT of an identifier, not a table. Looking one up as though it
+# were a table produces a finding that can never be fixed, which is how a gate earns its suppression.
+_NOT_A_TABLE = re.compile(r"(Prefix|Suffix|Schema)$", re.I)
+
+
+def table_baseline_path() -> str:
+    """Resolved per call -- the same trap `src_root` and `baseline_path` document."""
+    return os.environ.get("DDL_TABLES_BASELINE") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "ddl-tables.baseline.txt"
+    )
+
+
+def declared_tables(csprojs: list[str], css: list[str]) -> dict[str, dict[str, str]]:
+    """package -> {table name: declaring .cs} for RELATIONAL packages only."""
+    out: dict[str, dict[str, str]] = {}
+    for csproj in csprojs:
+        pkg = os.path.basename(csproj)[: -len(".csproj")]
+        if pkg.split(".")[-1].lower() not in _RELATIONAL:
+            continue
+        pkgdir = os.path.dirname(csproj) + os.sep
+        found: dict[str, str] = {}
+        for cs in css:
+            if not cs.startswith(pkgdir):
+                continue
+            try:
+                with open(cs, encoding="utf-8-sig", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            for m in _TABLE_DECL.finditer(text):
+                if _NOT_A_TABLE.search(m.group("prop")):
+                    continue
+                found.setdefault(m.group("name"), cs)
+        if found:
+            out[pkg] = found
+    return out
+
+
+def _expand_sqlcmd_setvars(ddl: str) -> str:
+    """Substitute a script's own `:setvar` declarations, the way sqlcmd would before executing it.
+
+    A script may name its tables through SQLCMD variables -- CREATE TABLE [$(Schema)].[$(Table)] --
+    so a consumer who renamed a table sets the variable once instead of editing every reference.
+    That is deliberate: with literal names at every reference, a renamed table gets a second empty
+    decoy created by the guard while the real table goes untouched.
+
+    Matching a literal name against that source finds nothing, and the miss is not a near-miss --
+    the parenthesis in the variable syntax terminates the character run before any name is reached,
+    so no amount of tuning the pattern reaches it. The DDL is present and packed; only the reader
+    was blind.
+
+    Expanding first keeps the predicate derived from what the script DOES, which is what this gate
+    commits to, rather than from a naming convention the script stopped following.
+    """
+    setvars = dict(
+        re.findall(r'^[ \t]*:setvar[ \t]+(\w+)[ \t]+"?([^"\r\n]+?)"?[ \t]*$', ddl, re.I | re.M)
+    )
+    if not setvars:
+        return ddl
+    for name, value in setvars.items():
+        ddl = ddl.replace("$(" + name + ")", value)
+    return ddl
+
+
+def _creates_table(ddl: str, table: str) -> bool:
+    """True when the DDL creates `table`, tolerating [a].[b], "a"."b", a.b, IF NOT EXISTS and
+    SQLCMD variable names."""
+    ddl = _expand_sqlcmd_setvars(ddl)
+    return re.search(
+        r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[^;()]*?[\[."`]?\b' + re.escape(table) + r"\b",
+        ddl,
+        re.I,
+    ) is not None
+
+
+def check_tables(csprojs: list[str], sqls: list[str], css: list[str], out, err) -> int:
+    """THE THIRD QUESTION: does every table this package WRITES TO have obtainable DDL?
+
+    The packing check asks whether a package ships its .sql, and parity asks whether a package
+    ships any at all. A package can pass BOTH while a table it writes to has no CREATE TABLE
+    anywhere -- it ships schema, just not this schema. That gap is invisible to a package-keyed
+    unit, and it is the one that reaches a consumer as a missing table at the first write.
+    """
+    path = table_baseline_path()
+    baseline = _read_baseline(path)
+    if baseline is None:
+        print(f"::error:: REFUSE - cannot read table baseline: {path}", file=err)
+        print("Nothing was measured for table coverage. This is not a pass.", file=err)
+        return 2
+
+    declared = declared_tables(csprojs, css)
+
+    if not declared:
+        # Distinguish "parsed sources and found no table declarations" from "there were no sources
+        # to parse". The first means the parser broke and the check measured nothing; the second is
+        # a tree that legitimately declares none, where the question does not arise.
+        relational_with_sources = any(
+            os.path.basename(c)[: -len(".csproj")].split(".")[-1].lower() in _RELATIONAL
+            and any(f.startswith(os.path.dirname(c) + os.sep) for f in css)
+            for c in csprojs
+        )
+        if relational_with_sources:
+            print(
+                "::error:: REFUSE - relational packages have sources but zero table declarations "
+                "were parsed; the declaration pattern is broken.",
+                file=err,
+            )
+            return 2
+        print("tables: no relational table declarations in scope - not applicable", file=out)
+        return 0
+
+    gaps: list[str] = []
+    examined = 0
+    for pkg, tables in sorted(declared.items()):
+        pkgdir = os.path.dirname(
+            next(c for c in csprojs if os.path.basename(c)[: -len(".csproj")] == pkg)
+        ) + os.sep
+        ddl = ""
+        for sq in (x for x in sqls if x.startswith(pkgdir)):
+            try:
+                with open(sq, encoding="utf-8-sig", errors="replace") as fh:
+                    ddl += fh.read() + "\n"
+            except OSError:
+                continue
+        for table in sorted(tables):
+            examined += 1
+            if not _creates_table(ddl, table):
+                gaps.append(f"{pkg}:{table}")
+
+    fresh = sorted(set(gaps) - baseline)
+    stale = sorted(baseline - set(gaps))
+
+    print(
+        f"tables: declarations examined={examined}  gaps={len(gaps)}  "
+        f"baselined={len(baseline)}  new={len(fresh)}  stale-baseline={len(stale)}",
+        file=out,
+    )
+
+    if fresh:
+        print(
+            f"::error:: {len(fresh)} table(s) are written by a package that ships no DDL for them:",
+            file=err,
+        )
+        for g in fresh:
+            print(f"::error::   {g}", file=err)
+        print(
+            "\nThe package ships schema, so the packing and parity checks both pass -- but a\n"
+            "consumer cannot create THIS table, and the framework does not auto-create it. Add the\n"
+            "CREATE TABLE to the package's shipped .sql, or record the gap in\n"
+            f"{os.path.basename(path)} with the issue that will close it.",
+            file=err,
+        )
+        return 1
+
+    if stale:
+        print(f"::error:: {len(stale)} table-baseline entr(ies) are no longer gaps - prune them:", file=err)
+        for g in stale:
+            print(f"::error::   {g}", file=err)
+        return 1
+
+    return 0
 
 
 def parity_gaps(csprojs: list[str], sqls: list[str]) -> dict[str, dict[str, int]]:
@@ -237,10 +478,11 @@ def check_parity(csprojs: list[str], sqls: list[str], out, err) -> int:
     return 0
 
 
-def walk(root: str) -> tuple[list[str], list[str]]:
-    """One filesystem pass -> (csproj paths, .sql paths). No per-package re-walk."""
+def walk(root: str) -> tuple[list[str], list[str], list[str]]:
+    """One filesystem pass -> (csproj paths, .sql paths, .cs paths). No per-package re-walk."""
     csprojs: list[str] = []
     sqls: list[str] = []
+    css: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _PRUNE]
         for name in filenames:
@@ -249,7 +491,9 @@ def walk(root: str) -> tuple[list[str], list[str]]:
                 csprojs.append(os.path.join(dirpath, name))
             elif lowered.endswith(".sql"):
                 sqls.append(os.path.join(dirpath, name))
-    return sorted(csprojs), sorted(sqls)
+            elif lowered.endswith(".cs"):
+                css.append(os.path.join(dirpath, name))
+    return sorted(csprojs), sorted(sqls), sorted(css)
 
 
 def scan(out=sys.stdout, err=sys.stderr) -> int:
@@ -263,7 +507,8 @@ def scan(out=sys.stdout, err=sys.stderr) -> int:
         print("Nothing was measured. This is not a pass.", file=err)
         return 2
 
-    csprojs, sqls = walk(root)
+    csprojs, sqls, css = walk(root)
+    central = central_pack_includes(root)
 
     shipping: list[tuple[str, int, bool]] = []
     for csproj in csprojs:
@@ -279,7 +524,11 @@ def scan(out=sys.stdout, err=sys.stderr) -> int:
             return 2
         own = [s for s in sqls if s.startswith(pkgdir)]
         shipping.append(
-            (os.path.basename(os.path.dirname(csproj)), count, packs_ddl(text, pkgdir, own))
+            (
+                os.path.basename(os.path.dirname(csproj)),
+                count,
+                packs_ddl(text, pkgdir, own, central),
+            )
         )
 
     for name, count, packed in sorted(shipping, key=lambda r: (not r[2], r[0])):
@@ -309,6 +558,10 @@ def scan(out=sys.stdout, err=sys.stderr) -> int:
     # packing PASS would make the blind half invisible again the moment the visible half went red.
     parity = check_parity(csprojs, sqls, out, err)
 
+    # Asked over a THIRD population (tables a package writes to), for the same reason parity is
+    # asked separately: a package-keyed unit cannot see a missing table inside a compliant package.
+    tables = check_tables(csprojs, sqls, css, out, err)
+
     if offenders:
         print(f"::error:: {len(offenders)} package(s) ship SQL DDL they never pack:", file=err)
         for name, count in offenders:
@@ -324,10 +577,22 @@ def scan(out=sys.stdout, err=sys.stderr) -> int:
         )
         return 1
 
+    # Worst of the three governs. REFUSE outranks FAIL: a check that measured nothing must never
+    # be reported as merely-failing, still less as passing.
+    if 2 in (parity, tables):
+        return 2
+
     if parity != 0:
         return parity
 
-    print("PASS - every package shipping .sql packs it, and no new sibling-parity gap.", file=out)
+    if tables != 0:
+        return tables
+
+    print(
+        "PASS - every package shipping .sql packs it, no new sibling-parity gap, "
+        "and every declared table has obtainable DDL.",
+        file=out,
+    )
     return 0
 
 
@@ -370,8 +635,34 @@ _WRONG_GLOB_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
 """
 
 
+# The central declaration, as it appears in the real src/Directory.Build.props. Written at the
+# fixture ROOT (not inside a package) by the "centralprops" kind, so the central arm of packs_ddl
+# is exercised against a props file rather than against a hardcoded directory name.
+_CENTRAL_PROPS = """<Project>
+  <ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\\Scripts')">
+    <None Include="$(MSBuildProjectDirectory)\\Scripts\\**\\*.sql" Pack="true" PackagePath="scripts\\" />
+  </ItemGroup>
+</Project>
+"""
+
+# A package with NO pack declaration of any kind, shipping its DDL OUTSIDE Scripts/. The central
+# glob cannot reach it, so it stays UNPACKED even when the props file is present -- which is what
+# keeps the central arm from degenerating into "any .sql is fine".
+_NO_PACK_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\\" />
+  </ItemGroup>
+</Project>
+"""
+
+
 def _fixture(root: str, name: str, kind: str) -> None:
     pkg = os.path.join(root, name)
+    if kind == "centralprops":
+        # Not a package: the governing props file for the whole fixture tree.
+        with open(os.path.join(root, "Directory.Build.props"), "w", encoding="utf-8") as fh:
+            fh.write(_CENTRAL_PROPS)
+        return
     if kind == "nosql":
         os.makedirs(pkg, exist_ok=True)
         with open(os.path.join(pkg, f"{name}.csproj"), "w", encoding="utf-8") as fh:
@@ -380,14 +671,42 @@ def _fixture(root: str, name: str, kind: str) -> None:
     # The wrong-glob fixture ships its DDL under Sql/ while its csproj packs Scripts\*.sql, so the
     # declaration is PRESENT and selects NOTHING. A declaration-only predicate calls this PACKED and
     # the package ships no schema -- the hole the glob check closes.
-    ddl_dir = "Sql" if kind == "wrongglob" else "Scripts"
+    ddl_dir = "Sql" if kind in ("wrongglob", "nopack") else "Scripts"
     os.makedirs(os.path.join(pkg, ddl_dir), exist_ok=True)
     with open(os.path.join(pkg, ddl_dir, "001_Schema.sql"), "w", encoding="utf-8") as fh:
-        fh.write("CREATE TABLE Example (Id int);\n")
+        if kind in ("tablevarok", "tablevarmissing"):
+            # A script that names its table through a SQLCMD variable, which is how a consumer
+            # renames a table without editing every reference. The reader must expand these
+            # before matching, or it reports DDL that demonstrably exists as absent.
+            fh.write(':setvar TableName "Example"\n')
+            fh.write("CREATE TABLE [dbo].[$(TableName)] (Id int);\n")
+        else:
+            fh.write("CREATE TABLE Example (Id int);\n")
+
+    # Table-check fixtures: a correctly-packed package whose options declare a table that the
+    # shipped DDL either does ("tableok") or does not ("tablemissing") create. Packing and parity
+    # are both clean for these, so any non-zero verdict must come from the table check itself --
+    # which is what makes the arm a test of THIS half rather than of the packing half.
+    if kind in ("tableok", "tablemissing", "tablevarok", "tablevarmissing"):
+        declared = "Example" if kind in ("tableok", "tablevarok") else "Absent"
+        with open(os.path.join(pkg, "Options.cs"), "w", encoding="utf-8") as fh:
+            fh.write(
+                "namespace Fixture;\n"
+                "public sealed class StoreOptions\n"
+                "{\n"
+                '\tpublic string TableName { get; set; } = "' + declared + '";\n'
+                "}\n"
+            )
+
     body = {
         "packed": _PACKED_CSPROJ,
         "unpacked": _UNPACKED_CSPROJ,
         "wrongglob": _WRONG_GLOB_CSPROJ,
+        "nopack": _NO_PACK_CSPROJ,
+        "tableok": _PACKED_CSPROJ,
+        "tablemissing": _PACKED_CSPROJ,
+        "tablevarok": _PACKED_CSPROJ,
+        "tablevarmissing": _PACKED_CSPROJ,
     }[kind]
     with open(os.path.join(pkg, f"{name}.csproj"), "w", encoding="utf-8") as fh:
         fh.write(body)
@@ -408,6 +727,25 @@ def self_test() -> int:
         (
             "SAFETY   packed glob matching NOTHING is not PACKED",
             [("WrongGlob.Package", "wrongglob")],
+            1,
+        ),
+        # --- central-declaration arms ---------------------------------------------------------
+        # The pair that keeps the Directory.Build.props arm honest. Note the LIVENESS arm reuses
+        # the "unpacked" fixture UNCHANGED -- same csproj, same .sql, no pack attribute on the .sql
+        # item -- and flips from 1 to 0 purely because the props file is present. That is the whole
+        # claim, isolated: the ONLY variable between this arm and the SAFETY arm above it is the
+        # central declaration, so neither can pass for an incidental reason.
+        (
+            "LIVENESS central props pack a project with no csproj entry",
+            [("_Root", "centralprops"), ("Central.Package", "unpacked")],
+            0,
+        ),
+        # And the bound on it: present props must NOT bless a package the central glob cannot
+        # reach. Without this, "read the props" could decay into "assume packed" and the safety arm
+        # above would still pass, because it runs with no props file at all.
+        (
+            "SAFETY   central props do NOT cover .sql outside Scripts/",
+            [("_Root", "centralprops"), ("Outside.Package", "nopack")],
             1,
         ),
         ("REFUSE   empty population is NOT a pass", [("NoDdl.Package", "nosql")], 2),
@@ -437,6 +775,42 @@ def self_test() -> int:
             [("Excalibur.Bare.Postgres", "nosql"), ("Excalibur.Bare.SqlServer", "nosql")],
             2,  # REFUSE: no .sql anywhere -> empty packing population, which is never a PASS
         ),
+        # --- table arms --------------------------------------------------------------------
+        # SAFETY: the case BOTH other halves are structurally blind to. The package ships DDL and
+        # packs it correctly (packing: clean) and has no sibling (parity: undefined), so a 1 here
+        # can only have come from the table check noticing that the declared table is never
+        # created. If this arm ever passes for another reason it has stopped testing anything.
+        (
+            "SAFETY   declared table with no CREATE TABLE is detected",
+            [("Excalibur.Tbl.SqlServer", "tablemissing")],
+            1,
+        ),
+        # LIVENESS: the arm that decides whether this half is worth keeping. A declared table that
+        # IS created must be ALLOWED. Without it, a table check hardcoded to flag every declaration
+        # passes its own safety arm forever, fires on every correctly-provisioned package, and gets
+        # baselined into silence -- at which point the safety arm guards nothing.
+        (
+            "LIVENESS declared table that IS created is allowed",
+            [("Excalibur.Tbl.SqlServer", "tableok")],
+            0,
+        ),
+        # LIVENESS: a table named through a SQLCMD variable is still created. Matching a
+        # literal name against that source finds nothing, and the miss is structural rather
+        # than a near-miss -- the parenthesis in the variable syntax ends the scan before any
+        # name is reached. Without this arm the reader reports shipped, packed DDL as absent,
+        # which is exactly what it did for four outbox tables.
+        (
+            "LIVENESS table named by a SQLCMD variable is seen as created",
+            [("Excalibur.Tbl.SqlServer", "tablevarok")],
+            0,
+        ),
+        # SAFETY: and expanding those variables must not blind the check. A script that
+        # creates one table through a variable while a DIFFERENT one is declared is still a gap.
+        (
+            "SAFETY   variable expansion still detects a missing table",
+            [("Excalibur.Tbl.SqlServer", "tablevarmissing")],
+            1,
+        ),
     ]
 
     print("self-test: proving this gate can report FAIL, PASS and REFUSE")
@@ -451,6 +825,11 @@ def self_test() -> int:
     with open(fixture_baseline, "w", encoding="utf-8") as fh:
         fh.write("# intentionally empty\n")
     os.environ["DDL_PARITY_BASELINE"] = fixture_baseline
+    # The table baseline needs the same treatment for the same reason: left pointing at the real
+    # file, every arm would report its real entries as 'stale' and produce right-looking verdicts
+    # computed over the wrong subject.
+    previous_table_baseline = os.environ.get("DDL_TABLES_BASELINE")
+    os.environ["DDL_TABLES_BASELINE"] = fixture_baseline
     try:
         for label, fixtures, want in arms:
             root = os.path.join(tmp, "src")
@@ -475,6 +854,10 @@ def self_test() -> int:
             os.environ.pop("DDL_PARITY_BASELINE", None)
         else:
             os.environ["DDL_PARITY_BASELINE"] = previous_baseline
+        if previous_table_baseline is None:
+            os.environ.pop("DDL_TABLES_BASELINE", None)
+        else:
+            os.environ["DDL_TABLES_BASELINE"] = previous_table_baseline
         shutil.rmtree(tmp, ignore_errors=True)
 
     print("---")

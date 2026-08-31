@@ -12,32 +12,6 @@ namespace Excalibur.Data.InMemory;
 public sealed class InMemoryPoolingOptions
 {
 	/// <summary>
-	/// Gets or sets a value indicating whether connection pooling is enabled.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if connection pooling is enabled; otherwise, <c>false</c>.
-	/// </value>
-	public bool EnableConnectionPooling { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum pool size.
-	/// </summary>
-	/// <value>
-	/// The maximum pool size.
-	/// </value>
-	[Range(1, int.MaxValue)]
-	public int MaxPoolSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the minimum pool size.
-	/// </summary>
-	/// <value>
-	/// The minimum pool size.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int MinPoolSize { get; set; }
-
-	/// <summary>
 	/// Gets or sets the connection timeout in seconds.
 	/// </summary>
 	/// <value>

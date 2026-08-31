@@ -16,9 +16,15 @@ namespace Excalibur.Dispatch.Messaging;
 public static class DispatchContextInitializer
 {
 	/// <summary>
-	/// Creates a minimal <see cref="MessageContext" /> using a temporary service provider.
+	/// Creates a minimal <see cref="MessageContext" /> using a temporary, empty service provider.
 	/// </summary>
 	/// <returns> A new <see cref="MessageContext" /> instance. </returns>
+	/// <remarks>
+	/// The ambient-tenant fallback (see <see cref="CreateDefaultContext(IServiceProvider)"/>) is sourced
+	/// from <see cref="TenantContextHolder.Current"/>, not from the supplied service provider -- so this
+	/// overload applies it exactly the same as the <see cref="IServiceProvider"/>-taking one, despite its
+	/// throwaway container having nothing registered in it.
+	/// </remarks>
 	public static MessageContext CreateDefaultContext()
 	{
 		var provider = new ServiceCollection().BuildServiceProvider();
@@ -30,6 +36,15 @@ public static class DispatchContextInitializer
 	/// </summary>
 	/// <param name="serviceProvider"> Service provider for resolving scoped services. </param>
 	/// <returns> A new <see cref="MessageContext" /> instance. </returns>
+	/// <remarks>
+	/// Applies the ambient-tenant fallback (<see cref="MessageContextTenantFallbackExtensions.ApplyAmbientTenantFallback"/>):
+	/// when the calling async flow has an ambient tenant established
+	/// (<see cref="TenantContextHolder.Current"/> is not null), it is threaded onto the resulting context.
+	/// A deployment with no ambient tenant established -- including one running single-tenant that never
+	/// calls <see cref="TenantContextHolder.BeginScope"/> at all -- is left untenanted; this fallback does
+	/// not promote such a context to <see cref="TenantDefaults.DefaultTenantId"/>. See the fallback's own
+	/// remarks for why it is deliberately not DI-registration-dependent.
+	/// </remarks>
 	public static MessageContext CreateDefaultContext(IServiceProvider serviceProvider)
 	{
 		var context = MessageContext.CreateForDeserialization(serviceProvider);
@@ -43,6 +58,8 @@ public static class DispatchContextInitializer
 				context.Items[$"baggage.{key}"] = value ?? string.Empty;
 			}
 		}
+
+		context.ApplyAmbientTenantFallback();
 
 		return context;
 	}

@@ -112,7 +112,6 @@ public sealed class ContextPropagationShould
 			TraceParent = "00-12345678901234567890123456789012-1234567890123456-01",
 			TenantId = "tenant-full-001",
 			UserId = "user-full-001",
-			Source = "service-a",
 			MessageType = "OrderCreated",
 		};
 
@@ -127,7 +126,6 @@ public sealed class ContextPropagationShould
 		deserialized.TraceParent.ShouldBe("00-12345678901234567890123456789012-1234567890123456-01");
 		deserialized.TenantId.ShouldBe("tenant-full-001");
 		deserialized.UserId.ShouldBe("user-full-001");
-		deserialized.Source.ShouldBe("service-a");
 		deserialized.MessageType.ShouldBe("OrderCreated");
 	}
 
@@ -191,7 +189,6 @@ public sealed class ContextPropagationShould
 		deserialized.TraceParent.ShouldBe("00-abcdef1234567890abcdef1234567890-abcdef1234567890-01");
 		deserialized.TenantId.ShouldBe("tenant-external-001");
 		deserialized.UserId.ShouldBe("user-external-001");
-		deserialized.Source.ShouldBe("external-service");
 	}
 
 	#endregion

@@ -20,7 +20,6 @@ public sealed class BatchProcessingOptionsShould
         options.ProcessInParallel.ShouldBeTrue();
         options.MaxDegreeOfParallelism.ShouldBe(Environment.ProcessorCount);
         options.ContinueOnError.ShouldBeTrue();
-        options.RetryPolicy.ShouldNotBeNull();
         options.EnableMetrics.ShouldBeTrue();
         options.EnableDeadLetter.ShouldBeTrue();
         options.Collection.MinBatchSize.ShouldBe(1);
@@ -80,17 +79,6 @@ public sealed class BatchProcessingOptionsShould
         var options = new BatchProcessingOptions { ContinueOnError = continueOnError };
 
         options.ContinueOnError.ShouldBe(continueOnError);
-    }
-
-    [Fact]
-    public void AllowSettingRetryPolicy()
-    {
-        var retryPolicy = new BatchRetryOptions { MaxRetryAttempts = 5, BackoffMultiplier = 3.0 };
-        var options = new BatchProcessingOptions { RetryPolicy = retryPolicy };
-
-        options.RetryPolicy.ShouldBe(retryPolicy);
-        options.RetryPolicy.MaxRetryAttempts.ShouldBe(5);
-        options.RetryPolicy.BackoffMultiplier.ShouldBe(3.0);
     }
 
     [Theory]

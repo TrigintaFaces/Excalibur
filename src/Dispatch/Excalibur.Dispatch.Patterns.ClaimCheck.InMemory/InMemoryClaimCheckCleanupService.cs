@@ -70,7 +70,7 @@ internal partial class InMemoryClaimCheckCleanupService(
 		LogCleanupServiceStopped();
 	}
 
-	// Source-generated logging methods (Sprint 369 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(PatternsEventId.InMemoryCleanupDisabled, LogLevel.Information,
 		"In-memory claim check cleanup is disabled")]
 	private partial void LogCleanupDisabled();

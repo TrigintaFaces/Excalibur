@@ -77,7 +77,7 @@ internal sealed class OutboxDashboardModule : IDashboardEndpointModule
 					OutboxJsonContext.Default.OutboxView);
 			}
 
-			var stats = await admin.GetStatisticsAsync(ct).ConfigureAwait(false);
+			var stats = await admin.GetAllTenantsStatisticsAsync(ct).ConfigureAwait(false);
 			var view = new OutboxView
 			{
 				Configured = true,

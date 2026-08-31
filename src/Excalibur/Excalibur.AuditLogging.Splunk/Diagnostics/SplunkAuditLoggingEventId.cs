@@ -5,7 +5,7 @@ namespace Excalibur.AuditLogging.Splunk;
 /// <summary>
 /// Event IDs for Splunk audit exporter diagnostics (93400-93499).
 /// </summary>
-public static class SplunkAuditLoggingEventId
+internal static class SplunkAuditLoggingEventId
 {
 	/// <summary>Splunk event forwarded.</summary>
 	public const int EventForwarded = 93401;

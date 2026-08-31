@@ -134,23 +134,23 @@ internal sealed class KafkaOtelMetrics : IDisposable
 	{
 		MessagesProduced = Meter.CreateCounter<long>(
 			KafkaOtelMetricConstants.Instruments.MessagesProduced,
-			"messages",
+			"{messages}",
 			"Total number of messages produced to Kafka");
 
 		MessagesConsumed = Meter.CreateCounter<long>(
 			KafkaOtelMetricConstants.Instruments.MessagesConsumed,
-			"messages",
+			"{messages}",
 			"Total number of messages consumed from Kafka");
 
 		ConsumerLag = Meter.CreateObservableGauge(
 			KafkaOtelMetricConstants.Instruments.ConsumerLag,
 			() => Interlocked.Read(ref _currentConsumerLag),
-			"messages",
+			"{messages}",
 			"Current consumer lag in number of messages");
 
 		PartitionCount = Meter.CreateUpDownCounter<int>(
 			KafkaOtelMetricConstants.Instruments.PartitionCount,
-			"partitions",
+			"{partitions}",
 			"Number of partitions currently assigned to this consumer");
 	}
 }

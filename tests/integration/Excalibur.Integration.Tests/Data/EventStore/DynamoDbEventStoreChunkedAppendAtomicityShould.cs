@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DynamoDb;
 
@@ -52,7 +53,7 @@ public sealed class DynamoDbEventStoreChunkedAppendAtomicityShould : IClassFixtu
 			CreateTableIfNotExists = true,
 			UseTransactionalWrite = transactional,
 		});
-		return new DynamoDbEventStore(_fixture.Client, _fixture.StreamsClient, options, NullLogger<DynamoDbEventStore>.Instance);
+		return new DynamoDbEventStore(_fixture.Client, _fixture.StreamsClient, options, NullLogger<DynamoDbEventStore>.Instance, UntenantedContext.Instance);
 	}
 
 	private static List<TestDomainEvent> NewBatch(string aggregateId, int count) =>

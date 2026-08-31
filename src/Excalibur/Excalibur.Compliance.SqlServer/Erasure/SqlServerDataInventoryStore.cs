@@ -31,7 +31,34 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 {
 	private readonly SqlServerDataInventoryStoreOptions _options;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+
+	// Deployment MODE, read from TenantContextOptions.RequireTenant (set by AddMultiTenancy()). This is NOT
+	// "is an ITenantContext present": the framework always registers a single-tenant default, so presence
+	// would report every deployment as multi-tenant.
+	private readonly bool _requireTenant;
+	/// <summary>
+	/// Gets the keyed tenant partition this store reads and writes under, resolved in one place so every
+	/// statement it builds binds the same term.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Deployment mode decides the shape, and it is read from <see cref="TenantContextOptions.RequireTenant"/>
+	/// -- the flag the multi-tenancy composition sets -- never inferred from whether an
+	/// <see cref="ITenantContext"/> happens to be registered. The framework always registers a single-tenant
+	/// default context, so presence would make every deployment look multi-tenant; worse, it made the stored
+	/// term depend on whether some UNRELATED feature had registered a context, so two hosts with identical
+	/// inventory configuration filed rows under different tenant identifiers.
+	/// </para>
+	/// <para>
+	/// A single-tenant deployment binds the reserved untenanted partition -- a concrete term, never an absent
+	/// one, and the same term this table's column defaults to. A multi-tenant deployment binds the resolved
+	/// ambient tenant and fails closed when none is established.
+	/// </para>
+	/// </remarks>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		_requireTenant ? KeyedTenantPartition.FromContext(_tenantContext) : KeyedTenantPartition.Untenanted;
+
 	private readonly ILogger<SqlServerDataInventoryStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private volatile bool _disposed;
@@ -44,19 +71,29 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 	/// <param name="dataSubjectHasher">The data-subject hasher.</param>
 	/// <param name="logger">The logger.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Optional
-	/// and last so existing callers keep compiling; a host without multi-tenancy resolves the reserved
-	/// untenanted partition rather than an absent tenant term.
+	/// The ambient tenant context. Required: the store resolves its partition from here in multi-tenant
+	/// mode, and a single-tenant host receives the framework default context, so there is no state in
+	/// which the partition is undecided.
+	/// </param>
+	/// <param name="tenantContextOptions">
+	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode. Required, and required for the reason the
+	/// mode must not be inferred: an omitted binding would be indistinguishable from a deliberate
+	/// declaration of single-tenancy, and the two get different data.
 	/// </param>
 	public SqlServerDataInventoryStore(
 		IOptions<SqlServerDataInventoryStoreOptions> options,
 		IDataSubjectHasher dataSubjectHasher,
 		ILogger<SqlServerDataInventoryStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
+		ArgumentNullException.ThrowIfNull(tenantContext);
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
 		_tenantContext = tenantContext;
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
@@ -84,7 +121,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 	/// </para>
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public async Task SaveRegistrationAsync(
@@ -95,7 +132,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-			MERGE {_options.FullRegistrationsTableName} AS target
+			MERGE {_options.FullRegistrationsTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (VALUES (@TableName, @FieldName, @TenantId)) AS source (TableName, FieldName, TenantId)
 			ON target.TableName = source.TableName
 			   AND target.FieldName = source.FieldName
@@ -207,7 +244,7 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		var dataSubjectIdHash = HashDataSubjectId(dataSubjectId);
 
 		var sql = $@"
-			MERGE {_options.FullDiscoveredLocationsTableName} AS target
+			MERGE {_options.FullDiscoveredLocationsTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (VALUES (@DataSubjectIdHash, @TableName, @FieldName, @RecordId, @TenantId)) AS source
 				(DataSubjectIdHash, TableName, FieldName, RecordId, TenantId)
 			ON target.DataSubjectIdHash = source.DataSubjectIdHash
@@ -360,7 +397,27 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 				      AND d.TenantId = r.TenantId) AS RecordCount
 			FROM {_options.FullRegistrationsTableName} r
 			WHERE r.TenantId IN (@ScopedTenantId, @UntenantedTenantId)
-			ORDER BY r.TableName, r.FieldName";
+
+			UNION ALL
+
+			-- The data map is the record-of-processing-activities artefact handed to a regulator, and
+			-- auto-discovery exists precisely to surface personal data nobody registered. A map built from
+			-- the registrations table alone drops exactly the locations discovery was added to find, so this
+			-- arm returns discovered locations that have no matching registration. Both arms carry the same
+			-- tenant predicate; neither widens the scope of the other.
+			SELECT d.TableName, d.FieldName, MIN(d.DataCategory) AS DataCategory,
+				   CAST(NULL AS NVARCHAR(1024)) AS Description,
+				   CAST(MAX(CAST(d.IsAutoDiscovered AS TINYINT)) AS BIT) AS IsAutoDiscovered,
+				   COUNT(*) AS RecordCount
+			FROM {_options.FullDiscoveredLocationsTableName} d
+			WHERE d.TenantId IN (@ScopedTenantId, @UntenantedTenantId)
+			  AND NOT EXISTS (
+				  SELECT 1 FROM {_options.FullRegistrationsTableName} r2
+				  WHERE r2.TableName = d.TableName AND r2.FieldName = d.FieldName
+					AND r2.TenantId = d.TenantId)
+			GROUP BY d.TableName, d.FieldName
+
+			ORDER BY 1, 2";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -455,6 +512,54 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
 
+		// Runs on BOTH paths, and the auto-create path is the one that needs it. CreateSchemaIfNotExists
+		// guards on table EXISTENCE, so against a database provisioned before the tenant discriminator
+		// existed it creates nothing and reports success — the table is there, it is simply the wrong
+		// shape. Verify likewise only ever asked whether the table exists. Neither notices a missing
+		// column, so without this check a store carrying every tenant-scoped statement would initialize
+		// cleanly and then fail on first use with a raw "Invalid column name" far from its cause.
+		await VerifyTenantDiscriminatorAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Confirms both tables carry the <c>TenantId</c> discriminator every statement this store issues binds.
+	/// </summary>
+	/// <remarks>
+	/// A database whose inventory tables predate the discriminator is not merely missing an optimization: its
+	/// rows carry no ownership at all, so the isolation this store advertises cannot hold for it. Failing at
+	/// startup, naming the migration, is the only honest outcome — the alternative is answering a scoped read
+	/// from a relation that cannot express scope.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table lacks the tenant discriminator.</exception>
+	private async Task VerifyTenantDiscriminatorAsync(CancellationToken cancellationToken)
+	{
+		const string ColumnExistsSql =
+			"SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.columns " +
+			"WHERE object_id = OBJECT_ID(@TableName, 'U') AND name = 'TenantId') THEN 1 ELSE 0 END";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullRegistrationsTableName, _options.FullDiscoveredLocationsTableName })
+		{
+			var hasColumn = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ColumnExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!hasColumn)
+			{
+				throw new InvalidOperationException(
+					$"Table '{tableName}' exists but has no 'TenantId' column, so it cannot record which tenant a "
+					+ "row belongs to. This is the shape created before the tenant discriminator was introduced; "
+					+ "enabling automatic schema creation will NOT repair it, because that path only creates tables "
+					+ "that are absent. Run the shipped migration script "
+					+ "'004_MakeDataInventoryTenantTotal.sql' against this database, then restart. Until then every "
+					+ "read would be unable to distinguish one tenant's registrations from another's.");
+			}
+		}
 	}
 
 	/// <summary>
@@ -518,8 +623,8 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					-- The tenant this registration BELONGS to. NOT NULL with an explicit sentinel default:
 					-- a nullable tenant makes global and forgot-to-set indistinguishable, and the store
 					-- cannot tell which one it is holding.
-					TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL
-						CONSTRAINT DF_{_options.RegistrationsTableName}_TenantId DEFAULT '__untenanted__',
+					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+						CONSTRAINT DF_{_options.RegistrationsTableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
 					Description NVARCHAR(1000) NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
@@ -547,8 +652,8 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					-- The tenant this discovered location belongs to. NOT NULL with an explicit sentinel,
 					-- for the same reason as the registrations table: a nullable tenant cannot distinguish
 					-- global from forgot-to-set.
-					TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL
-						CONSTRAINT DF_{_options.DiscoveredLocationsTableName}_TenantId DEFAULT '__untenanted__',
+					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+						CONSTRAINT DF_{_options.DiscoveredLocationsTableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
 					-- TenantId is in the KEY: two tenants discovering the same record for the same data

@@ -36,16 +36,17 @@ public static class ExceptionMappingPipelineExtensions
 	/// before calling this method.
 	/// </para>
 	/// <para>
-	/// Recommended pipeline order:
-	/// <code>
-	/// builder.ConfigurePipeline("default", pipeline =>
-	/// {
-	///     pipeline.UseTracing();           // First: set up tracing
-	///     pipeline.UseExceptionMapping();  // Second: catch exceptions early
-	///     pipeline.UseRetry();             // Third: retry after conversion
-	///     pipeline.UseCircuitBreaker();    // Fourth: circuit breaker
-	/// });
-	/// </code>
+	/// The order you call this in does not decide where the middleware runs. Position comes from the stage:
+	/// this middleware is post-processing, retry and the circuit breaker are error-handling, and the pipeline
+	/// composes the lower stage as the outer wrapper. Exception mapping therefore always runs outside both,
+	/// whichever order you register them in. Call order decides position only among middleware sharing a
+	/// stage, where it is the registration order that applies.
+	/// </para>
+	/// <para>
+	/// Every exception a handler throws reaches this middleware. Retry runs below it and decides only how
+	/// many attempts a fault gets: a fault it judges permanent is abandoned after one attempt, a transient
+	/// one after the configured attempts, and in both cases the original exception is left to propagate here
+	/// with its type and message intact for your mapper to match on.
 	/// </para>
 	/// </remarks>
 	public static IDispatchBuilder UseExceptionMapping(this IDispatchBuilder builder)

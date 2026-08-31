@@ -40,6 +40,7 @@ public sealed class InMemoryTransportConformanceTests
 	[Fact] public Task Should_Send_And_Receive_Message_RoundTrip_Test() => Should_Send_And_Receive_Message_RoundTrip();
 	[Fact] public Task Should_Preserve_Message_Metadata_Test() => Should_Preserve_Message_Metadata();
 	[Fact] public Task Should_Handle_Concurrent_Messages_Test() => Should_Handle_Concurrent_Messages();
+	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }
 
 /// <summary>In-memory channel sender that serializes each message to a shared JSON queue.</summary>

@@ -21,10 +21,19 @@ namespace Excalibur.EventSourcing.Postgres;
 /// <c>INSERT ... ON CONFLICT ... DO UPDATE</c>.
 /// </para>
 /// <para>
-/// Table DDL:
+/// This store issues no DDL at run time. Provision the table from the
+/// <c>008_CreateCursorMapSchema.sql</c> script shipped in this package's <c>scripts</c> folder
+/// before the first checkpoint; without it every save fails with
+/// <c>42P01: relation "projection_cursor_maps" does not exist</c>.
+/// </para>
+/// <para>
+/// Table DDL — run the script rather than transcribing this. The primary key is what makes the
+/// upsert legal as well as what keeps cursors per-tenant: the save path says
+/// <c>ON CONFLICT (tenant_id, projection_name, stream_id)</c>, and PostgreSQL requires a matching
+/// unique constraint or it rejects every save with <c>42P10</c>.
 /// <code>
 /// CREATE TABLE projection_cursor_maps (
-///     tenant_id VARCHAR(256) NOT NULL,
+///     tenant_id VARCHAR(64) NOT NULL,
 ///     projection_name VARCHAR(256) NOT NULL,
 ///     stream_id VARCHAR(256) NOT NULL,
 ///     position BIGINT NOT NULL,
@@ -37,17 +46,15 @@ public sealed class PostgresCursorMapStore : ICursorMapStore
 {
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<PostgresCursorMapStore> _logger;
-	private readonly ITenantContext? _tenantContext;
-
+	private readonly ITenantContext _tenantContext;
 	/// <summary>
-	/// Initializes a new instance with a connection string.
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
 	/// </summary>
-	/// <param name="connectionString">The PostgreSQL connection string.</param>
-	/// <param name="logger">The logger instance.</param>
-	public PostgresCursorMapStore(string connectionString, ILogger<PostgresCursorMapStore> logger)
-		: this(NpgsqlDataSource.Create(connectionString), logger, null)
-	{
-	}
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance with a connection string and an ambient tenant context.
@@ -55,23 +62,15 @@ public sealed class PostgresCursorMapStore : ICursorMapStore
 	/// <param name="connectionString">The PostgreSQL connection string.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public PostgresCursorMapStore(
 		string connectionString,
 		ILogger<PostgresCursorMapStore> logger,
-		ITenantContext? tenantContext)
+		ITenantContext tenantContext)
 		: this(NpgsqlDataSource.Create(connectionString), logger, tenantContext)
-	{
-	}
-
-	/// <summary>
-	/// Initializes a new instance with an <see cref="NpgsqlDataSource"/>.
-	/// </summary>
-	/// <param name="dataSource">The Npgsql data source for connection management.</param>
-	/// <param name="logger">The logger instance.</param>
-	public PostgresCursorMapStore(NpgsqlDataSource dataSource, ILogger<PostgresCursorMapStore> logger)
-		: this(dataSource, logger, null)
 	{
 	}
 
@@ -81,19 +80,18 @@ public sealed class PostgresCursorMapStore : ICursorMapStore
 	/// <param name="dataSource">The Npgsql data source for connection management.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Cursor
-	/// maps are partitioned by the tenant this resolves -- never by a tenant the caller names, which is
-	/// why no method takes a tenant argument. The two-argument overloads are kept so the existing public
-	/// surface is unchanged: an existing caller compiles untouched and lands in the untenanted partition,
-	/// exactly where its rows already were.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public PostgresCursorMapStore(
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresCursorMapStore> logger,
-		ITenantContext? tenantContext)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(dataSource);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_dataSource = dataSource;
 		_logger = logger;
@@ -110,7 +108,7 @@ public sealed class PostgresCursorMapStore : ICursorMapStore
 	/// </remarks>
 	/// <returns>The reserved partition key for the ambient tenant.</returns>
 	private string ResolveTenantKey() =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyDictionary<string, long>> GetCursorMapAsync(

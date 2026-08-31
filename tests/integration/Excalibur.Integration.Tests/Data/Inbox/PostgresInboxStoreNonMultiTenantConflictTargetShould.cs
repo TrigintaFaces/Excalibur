@@ -6,6 +6,7 @@ using System.Data;
 using Excalibur.Inbox.Postgres;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Npgsql;
 
@@ -21,7 +22,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 // and the ON CONFLICT target were emitted UNCONDITIONALLY:
 //     insertTenantCol = ", tenant_id";
 //     conflictTarget  = "(message_id, handler_type, tenant_id)";
-// A non-MT store (no ITenantContext → TenantScope.FromContext(null) → None → scope.TenantId == null) then ran
+// A non-MT store (no ITenantContext → CurrentTenantScope → None → scope.TenantId == null) then ran
 //     INSERT ... (message_id, handler_type, ..., tenant_id) VALUES (..., NULL)
 //     ON CONFLICT (message_id, handler_type, tenant_id) DO NOTHING
 // against the canonical NON-MT pair-key schema (PK (message_id, handler_type), no unique index covering
@@ -130,7 +131,7 @@ public sealed class PostgresInboxStoreNonMultiTenantConflictTargetShould
 				"on the non-MT pair-key path.");
 	}
 
-	// Non-MT store: NO ITenantContext (tenantContext defaults to null) → TenantScope.FromContext(null) → None → the
+	// Non-MT store: NO ITenantContext (tenantContext defaults to null) → CurrentTenantScope → None → the
 	// store must emit the pair-key conflict target. Direct connection-factory ctor against the real container — the
 	// faithful shape of a single-tenant host that never called AddTenantContext().
 	private PostgresInboxStore CreateNonMultiTenantStore()
@@ -144,10 +145,16 @@ public sealed class PostgresInboxStoreNonMultiTenantConflictTargetShould
 			TableName = TableName,
 		};
 
+		// The store emits the tenant column from the LIVE SCHEMA (EnsureSchemaAsync), not from the context,
+		// and the table this suite provisions has none — so no tenant term is ever bound here and the
+		// non-MT conflict target is still what is under test. A context is required only because the store
+		// resolves its partition before opening a connection; the single-tenant host's context resolves.
 		return new PostgresInboxStore(
 			connectionFactory: _fixture.CreateConnection,
 			options: options,
-			logger: NullLogger<PostgresInboxStore>.Instance);
+			logger: NullLogger<PostgresInboxStore>.Instance,
+			tenantContext: SingleTenantTestContext.Instance,
+			tenantContextOptions: Options.Create(new TenantContextOptions()));
 	}
 
 	// Canonical NON-MT schema: the composite PRIMARY KEY is the PAIR (message_id, handler_type) — there is NO unique

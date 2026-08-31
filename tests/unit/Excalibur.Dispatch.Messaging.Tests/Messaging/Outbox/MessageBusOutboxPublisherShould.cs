@@ -180,7 +180,10 @@ public sealed class MessageBusOutboxPublisherShould
 			RetryCount = 1
 		};
 
-		_ = A.CallTo(() => ((IOutboxStoreAdmin)_outboxStore).GetFailedMessagesAsync(3, null, 100, A<CancellationToken>._))
+		// The retry pass drains through the atomic claim, never a plain read of failed rows: the claim is what
+		// admits a failed message once its backoff floor has elapsed, and it is what stops a second dispatcher
+		// publishing the same row.
+		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(100, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { message });
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -191,6 +194,11 @@ public sealed class MessageBusOutboxPublisherShould
 
 		// Assert
 		result.SuccessCount.ShouldBe(1);
+
+		// The unclaimed read must not be reachable from a path that dispatches.
+		A.CallTo(() => ((IOutboxStoreAdmin)_outboxStore).GetAllTenantsFailedMessagesAsync(
+				A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]

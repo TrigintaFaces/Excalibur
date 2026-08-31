@@ -138,7 +138,7 @@ public sealed class PostgresAuditStoreDepthShould
 		});
 
 		// Act
-		var store = new PostgresAuditStore(options, AuditIntegrityTestStrategy.Create(), tenantContext: null, NullLogger<PostgresAuditStore>.Instance);
+		var store = new PostgresAuditStore(options, AuditIntegrityTestStrategy.Create(), tenantContext: new TestTenantContext(), NullLogger<PostgresAuditStore>.Instance);
 
 		// Assert
 		store.ShouldNotBeNull();

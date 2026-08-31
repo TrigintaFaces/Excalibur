@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.DynamoDb;
 
 /// <summary>
 /// Integration tests for DynamoDB Streams CDC stale position detection and recovery.
-/// Tests the <see cref="DynamoDbStalePositionDetector"/> and <see cref="DynamoDbCdcRecoveryOptions"/>
+/// Tests the <see cref="DynamoDbStalePositionDetector"/>
 /// against mocked AWS exception scenarios.
 /// </summary>
 /// <remarks>
@@ -228,116 +228,4 @@ public sealed class DynamoDbCdcStalePositionIntegrationShould : IntegrationTestB
 	/// 4. Validation fails for invalid configurations (negative delays, invalid refresh intervals)
 	/// </para>
 	/// </remarks>
-	[Fact]
-	public async Task ValidateRecoveryOptions_AndInvokeCallbacks()
-	{
-		// Arrange: Configure recovery options with callback
-		var callbackInvoked = false;
-		CdcPositionResetEventArgs? receivedEventArgs = null;
-
-		var recoveryOptions = new DynamoDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback,
-			MaxRecoveryAttempts = 3,
-			RecoveryAttemptDelay = TimeSpan.FromMilliseconds(100),
-			AutoRefreshExpiredIterators = true,
-			HandleShardSplitsGracefully = true,
-			AlwaysInvokeCallbackOnReset = true,
-			IteratorRefreshInterval = TimeSpan.FromMinutes(10),
-			OnPositionReset = (args, ct) =>
-			{
-				callbackInvoked = true;
-				receivedEventArgs = args;
-				return Task.CompletedTask;
-			}
-		};
-
-		// Act: Validate options - should not throw
-		recoveryOptions.Validate();
-
-		// Create event args for callback test
-		var simulatedException = new InvalidOperationException("Simulated shard split");
-		var eventArgs = DynamoDbStalePositionDetector.CreateEventArgs(
-			simulatedException,
-			"shard-split-processor",
-			streamArn: "arn:aws:dynamodb:us-east-1:123456789:table/SplitTable/stream/2025-01-01",
-			tableName: "SplitTable",
-			shardId: "shard-parent-001");
-
-		// Invoke callback
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
-
-		// Assert: Callback was invoked with correct parameters (now using CdcPositionResetEventArgs)
-		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");
-		_ = receivedEventArgs.ShouldNotBeNull();
-		receivedEventArgs.ProcessorId.ShouldBe("shard-split-processor");
-
-		// Provider-specific properties now in AdditionalContext
-		_ = receivedEventArgs.AdditionalContext.ShouldNotBeNull();
-		receivedEventArgs.AdditionalContext.ShouldContainKey("StreamArn");
-		receivedEventArgs.AdditionalContext["StreamArn"].ShouldBe("arn:aws:dynamodb:us-east-1:123456789:table/SplitTable/stream/2025-01-01");
-		receivedEventArgs.AdditionalContext.ShouldContainKey("TableName");
-		receivedEventArgs.AdditionalContext["TableName"].ShouldBe("SplitTable");
-		receivedEventArgs.AdditionalContext.ShouldContainKey("ShardId");
-		receivedEventArgs.AdditionalContext["ShardId"].ShouldBe("shard-parent-001");
-
-		receivedEventArgs.ProviderType.ShouldBe("DynamoDB");
-		receivedEventArgs.OriginalException.ShouldBe(simulatedException);
-
-		// Assert: Recovery options are correctly configured (now using StalePositionRecoveryStrategy)
-		recoveryOptions.RecoveryStrategy.ShouldBe(StalePositionRecoveryStrategy.InvokeCallback);
-		recoveryOptions.MaxRecoveryAttempts.ShouldBe(3);
-		recoveryOptions.RecoveryAttemptDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
-		recoveryOptions.AutoRefreshExpiredIterators.ShouldBeTrue();
-		recoveryOptions.HandleShardSplitsGracefully.ShouldBeTrue();
-		recoveryOptions.AlwaysInvokeCallbackOnReset.ShouldBeTrue();
-		recoveryOptions.IteratorRefreshInterval.ShouldBe(TimeSpan.FromMinutes(10));
-
-		// Verify other recovery strategies can be configured
-		var throwOptions = new DynamoDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.Throw
-		};
-		throwOptions.Validate(); // Should not throw without callback
-
-		var fallbackEarliestOptions = new DynamoDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest
-		};
-		fallbackEarliestOptions.Validate(); // Should not throw
-
-		var fallbackLatestOptions = new DynamoDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest
-		};
-		fallbackLatestOptions.Validate(); // Should not throw
-
-		// Verify InvokeCallback without callback throws on validation
-		var invalidOptions = new DynamoDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidOptions.Validate());
-
-		// Verify invalid MaxRecoveryAttempts throws
-		var invalidAttemptsOptions = new DynamoDbCdcRecoveryOptions
-		{
-			MaxRecoveryAttempts = 0
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidAttemptsOptions.Validate());
-
-		// Verify negative RecoveryAttemptDelay throws
-		var invalidDelayOptions = new DynamoDbCdcRecoveryOptions
-		{
-			RecoveryAttemptDelay = TimeSpan.FromSeconds(-1)
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidDelayOptions.Validate());
-
-		// Verify invalid IteratorRefreshInterval throws (must be between 0 and 14 minutes)
-		var invalidRefreshOptions = new DynamoDbCdcRecoveryOptions
-		{
-			IteratorRefreshInterval = TimeSpan.FromMinutes(15) // Exceeds 14 minute limit
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidRefreshOptions.Validate());
-	}
 }

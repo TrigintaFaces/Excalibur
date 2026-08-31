@@ -23,7 +23,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var callCount = 0;
 		var result = await adapter.ExecuteAsync<int>(async ct =>
@@ -51,7 +51,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var callCount = 0;
 		await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -75,7 +75,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			UseJitter = false,
 			ShouldRetry = ex => ex is TimeoutException, // Only retry timeouts
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var callCount = 0;
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -98,7 +98,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var callCount = 0;
 		await adapter.ExecuteAsync(async ct =>
@@ -125,7 +125,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			BackoffStrategy = BackoffStrategy.Exponential,
 			UseJitter = false,
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var timestamps = new List<DateTimeOffset>();
 		var callCount = 0;
@@ -160,7 +160,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			MaxRetries = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(100),
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		var callCount = 0;
 		var result = await adapter.ExecuteAsync<string>(async ct =>
@@ -176,7 +176,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Throw_argument_null_for_null_action_typed()
 	{
-		var adapter = new PollyRetryPolicyAdapter(new RetryOptions());
+		var adapter = new PollyRetryPolicyAdapter(Opt(new RetryOptions()));
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => adapter.ExecuteAsync<int>(null!, CancellationToken.None));
@@ -185,7 +185,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 	[Fact]
 	public async Task Throw_argument_null_for_null_action_void()
 	{
-		var adapter = new PollyRetryPolicyAdapter(new RetryOptions());
+		var adapter = new PollyRetryPolicyAdapter(Opt(new RetryOptions()));
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => adapter.ExecuteAsync(null!, CancellationToken.None));
@@ -201,7 +201,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 			BackoffStrategy = BackoffStrategy.Fixed,
 			UseJitter = false,
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
@@ -212,4 +212,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 				throw new TimeoutException("keep retrying");
 			}, cts.Token));
 	}
+
+	private static Microsoft.Extensions.Options.IOptions<RetryOptions> Opt(RetryOptions options)
+		=> Microsoft.Extensions.Options.Options.Create(options);
 }

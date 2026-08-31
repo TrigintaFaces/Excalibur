@@ -703,11 +703,14 @@ public class AggregateLoadHealthCheck : IHealthCheck
 Monitor materialized view infrastructure health:
 
 ```csharp
+// The SQL Server view store is registered separately -- IMaterializedViewsBuilder has no
+// UseSqlServer; the provider entry point is AddSqlServerMaterializedViewStore.
+services.AddSqlServerMaterializedViewStore(() => new SqlConnection(connectionString));
+
 // Registration via fluent builder
 services.AddMaterializedViews(builder =>
 {
     builder.AddBuilder<OrderSummaryView, OrderSummaryViewBuilder>()
-           .UseSqlServer(opts => opts.ConnectionString = connectionString)
            .WithHealthChecks(options =>
            {
                options.Name = "materialized-views";

@@ -34,7 +34,7 @@ namespace Excalibur.Compliance.Encryption;
 /// which allows each byte of the secret to be processed independently.
 /// </para>
 /// </remarks>
-public static class ShamirSecretSharing
+internal static class ShamirSecretSharing
 {
 	// Versioned, self-describing share layout (greenfield — byte format may change freely):
 	//   [version:1][threshold:1][secretLen:2 BE][commitment:32][index:1][data:secretLen]
@@ -162,7 +162,7 @@ public static class ShamirSecretSharing
 		var expectedLength = HeaderLength + secretLength;
 		var commitment = first.AsSpan(CommitmentOffset, CommitmentLength);
 
-		// FR-E8: every supplied share MUST carry identical scheme metadata (version, threshold,
+		// every supplied share MUST carry identical scheme metadata (version, threshold,
 		// secret length, commitment) and the expected total length. Reject inconsistent sets.
 		for (var i = 0; i < shares.Length; i++)
 		{
@@ -182,7 +182,7 @@ public static class ShamirSecretSharing
 			}
 		}
 
-		// FR-E6: reject a share set below the embedded threshold instead of interpolating over
+		// reject a share set below the embedded threshold instead of interpolating over
 		// insufficient shares (which would yield a deterministic but WRONG secret with no error).
 		if (shares.Length < threshold)
 		{
@@ -233,7 +233,7 @@ public static class ShamirSecretSharing
 			secret[byteIndex] = LagrangeInterpolation(xValues, yValues);
 		}
 
-		// FR-E7: verify the reconstructed secret against the embedded commitment with a
+		// verify the reconstructed secret against the embedded commitment with a
 		// constant-time compare. A mismatch (sub-threshold-but-count-met edge, corruption, or
 		// tampering) MUST fail rather than return an incorrect secret as success.
 		Span<byte> actualCommitment = stackalloc byte[CommitmentLength];

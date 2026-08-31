@@ -53,8 +53,14 @@ public sealed class AuthorizationServiceCollectionExtensionsShould
 		services.AddExcaliburAuthorization();
 		services.AddExcaliburAuthorization();
 
-		// Assert — TryAddEnumerable and TryAddSingleton should prevent duplicates
-		var handlerCount = services.Count(sd => sd.ServiceType == typeof(IAuthorizationHandler));
+		// Assert — TryAddEnumerable and TryAddScoped should prevent duplicates.
+		// Count THIS package's handler, not every IAuthorizationHandler: AddExcaliburAuthorization now calls
+		// AddAuthorizationCore, which seats Microsoft's own PassThroughAuthorizationHandler under the same
+		// service type. A total count would pass or fail on how many handlers the framework ships, which is
+		// not what idempotence means here.
+		var handlerCount = services.Count(sd =>
+			sd.ServiceType == typeof(IAuthorizationHandler)
+			&& sd.ImplementationType == typeof(GrantsAuthorizationHandler));
 		handlerCount.ShouldBe(1);
 
 		var authServiceCount = services.Count(sd => sd.ServiceType == typeof(IDispatchAuthorizationService));

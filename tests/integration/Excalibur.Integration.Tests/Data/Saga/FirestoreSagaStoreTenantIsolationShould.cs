@@ -36,7 +36,8 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Firestore")]
-public sealed class FirestoreSagaStoreTenantIsolationShould : IClassFixture<FirestoreSagaStoreContainerFixture>
+[Collection(global::Excalibur.Integration.Tests.FirestoreSerialCollection.CollectionName)]
+public sealed class FirestoreSagaStoreTenantIsolationShould 
 {
 	private const string TenantA = "tenant-A";
 	private const string TenantB = "tenant-B";

@@ -189,7 +189,7 @@ public sealed partial class MessageSigningMiddleware : IDispatchMiddleware
 
 		// Store signature in context (transmitted with the message). The signing service stamped the
 		// EXACT timestamp embedded in the HMAC onto signingContext.SignedAt — transmit that value, not a
-		// fresh UtcNow, so the verifier reproduces the same hash (qtogpu).
+		// fresh UtcNow, so the verifier reproduces the same hash ().
 		context.SetProperty("MessageSignature", signature);
 		context.SetProperty("SignatureAlgorithm", signingContext.Algorithm.ToString());
 		if (signingContext.SignedAt.HasValue)
@@ -233,7 +233,7 @@ public sealed partial class MessageSigningMiddleware : IDispatchMiddleware
 
 		// Restore the transmitted signing timestamp so verification reproduces the signer's HMAC input.
 		// Without this the rebuilt context has no SignedAt and a timestamped signature fails closed
-		// rather than the verifier re-deriving the current time (qtogpu).
+		// rather than the verifier re-deriving the current time ().
 		if (context.TryGetValue<string>("SignedAt", out var signedAtRaw) &&
 			DateTimeOffset.TryParse(signedAtRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var transmittedSignedAt))
 		{

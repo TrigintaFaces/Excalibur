@@ -1,6 +1,6 @@
 ﻿# HIPAA Certification Readiness Checklist
 
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Standard:** HIPAA (Health Insurance Portability and Accountability Act)
 **Focus:** Security Rule + Privacy Rule technical safeguards
 **Status:** Framework capabilities mapped to HIPAA requirements
@@ -533,7 +533,17 @@ public class PatientRecordService
 - Audit log samples (anonymized)
 - Audit log retention policy (6 years)
 - Hash chain integrity verification tests
-- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 27 available)
+- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 30 available)
+
+:::caution The audit kit's SQL binding is partial
+Of this kit's 30 arms, **10 are wired on real SQL Server and real PostgreSQL**; the other 20 run
+against the in-memory store only. The 10 that do run on the SQL providers are the load-bearing ones
+for this control — chain integrity over an intact trail, violation detection when a record is
+rewritten, violation detection when a record is deleted from the middle, and the cross-tenant read
+arms. Cite that specifically. Do not cite "the audit conformance kit passes against our database",
+because two thirds of it did not run there.
+:::
+
 
 **SSP Statement:**
 > "§164.312(b) Audit Controls is satisfied through the Excalibur framework's `IAuditLogger` with tamper-evident hash chain. All ePHI access, modifications, and deletions are logged with user ID, timestamp, and action. Audit logs are retained for 6 years per HIPAA requirements."
@@ -820,7 +830,7 @@ public class TransmissionIntegrityService
 
 **Framework Provides:**
 - Technical safeguards (access control, audit, encryption, authentication, transmission security)
-- Conformance test kits (80 tests: Audit, Erasure, LegalHold, DataInventory)
+- Conformance test kits (Audit, Erasure, LegalHold, DataInventory — 92 arms available to wrap; the count that evidences a control is the one your own run executed)
 - Evidence collection (audit logs, encryption verification)
 
 **Consumer Must Implement:**
@@ -888,9 +898,14 @@ public class TransmissionIntegrityService
 - `docs/security/gdpr-compliance.md` - Erasure (right to access/deletion)
 
 **Conformance Test Results:**
-- `AuditStoreConformanceTestKit` — 27 arms - §164.312(b)
+- `AuditStoreConformanceTestKit` — 30 arms - §164.312(b) *(10 of the 30 are wired on real SQL Server and PostgreSQL — the chain-integrity and tenant-isolation arms; the rest run against in-memory only)*
 - `ErasureStoreConformanceTestKit` — 24 arms - Secure disposal
 - Encryption verification tests - §164.312(a)(2)(iv), §164.312(e)(2)(ii)
+
+The kits carry no test attributes, so an arm is not executed until you declare an attributed
+wrapper for it in your derived class. The counts above describe what the shipped kit offers, not
+what your suite verified. **Record the executed and passed count from your own run and attach its
+output** — that, not the arm count, is what evidences the control.
 
 **Audit Evidence:**
 - Audit log samples (PHI access, modifications, deletions)

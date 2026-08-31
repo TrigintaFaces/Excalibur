@@ -45,14 +45,47 @@ public interface IMultiTransportOutboxStore : IOutboxStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Retrieves the transport delivery records for a message.
+	/// Retrieves the transport delivery records for a message, confined to the caller's own tenant.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// TENANT-CONFINED — the tenant is an explicit argument, never inferred from ambient state. A caller
+	/// that supplies its own <paramref name="tenantId" /> together with another tenant's
+	/// <paramref name="messageId" /> receives an empty result: the message exists, but not inside the
+	/// partition the caller named. Supplying <see langword="null" /> confines the read to the untenanted
+	/// partition (the partition a single-tenant host, or any host that never resolved a tenant for this
+	/// operation, operates in).
+	/// </para>
+	/// <para>
+	/// <paramref name="tenantId" /> is a <strong>confinement the caller opts into, not an authorization
+	/// boundary the store enforces</strong>. This store reads no ambient tenant, so it has nothing to check
+	/// <paramref name="tenantId" /> against: it trusts the value supplied and confines the query to it.
+	/// A caller that passes a tenant id it is not entitled to receives that tenant's rows, exactly as if it
+	/// had called <see cref="IMultiTransportOutboxStoreAdmin.GetAllTenantsTransportDeliveriesAsync" />
+	/// scoped by hand. Establishing that a caller is actually entitled to the tenant it names is the
+	/// caller's own responsibility, at whatever layer resolves the caller's identity.
+	/// </para>
+	/// <para>
+	/// This is the consumer-facing read. The estate-wide read that spans every tenant — the one the
+	/// delivery drain needs to make per-transport decisions on messages it claimed across tenants — is a
+	/// separate, explicitly named operation on the store's administrative surface, not reachable through
+	/// this method.
+	/// </para>
+	/// </remarks>
 	/// <param name="messageId">The message ID.</param>
+	/// <param name="tenantId">
+	/// The tenant to confine this read to, or <see langword="null" /> to confine it to the untenanted
+	/// partition. Trusted as supplied — see the authorization note above.
+	/// </param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>Collection of transport delivery records for the message.</returns>
+	/// <returns>
+	/// Collection of transport delivery records for the message, or an empty collection when the message
+	/// does not belong to <paramref name="tenantId" />'s partition.
+	/// </returns>
 	/// <exception cref="ArgumentException">Thrown when messageId is null or empty.</exception>
 	Task<IEnumerable<OutboundMessageTransport>> GetTransportDeliveriesAsync(
 		string messageId,
+		string? tenantId,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -130,6 +163,33 @@ public interface IMultiTransportOutboxStore : IOutboxStore
 /// </remarks>
 public interface IMultiTransportOutboxStoreAdmin
 {
+	/// <summary>
+	/// Gets the transport delivery records for a message, spanning every tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// DELIBERATELY ESTATE-WIDE — not tenant-confined, and named explicitly rather than left implicit. The
+	/// delivery drain claims outbox rows across every tenant by design (one dispatcher serves every
+	/// tenant, and each claimed row carries its own tenant so the handler re-establishes the owning
+	/// partition before the message is handled); confining this read to an ambient tenant would return
+	/// nothing for every tenanted message and stall multi-transport delivery entirely.
+	/// </para>
+	/// <para>
+	/// Every row this method can return belongs to the one message named by <paramref name="messageId" />,
+	/// and therefore to one tenant — this is not a set that mixes tenants — but the caller receives that
+	/// tenant's rows regardless of which tenant, if any, the caller itself is scoped to. Reserved for the
+	/// drain and other estate-wide operator paths; a tenant-facing consumer read is
+	/// <see cref="IMultiTransportOutboxStore.GetTransportDeliveriesAsync" />.
+	/// </para>
+	/// </remarks>
+	/// <param name="messageId">The message ID.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>Collection of transport delivery records for the message, across every tenant.</returns>
+	/// <exception cref="ArgumentException">Thrown when messageId is null or empty.</exception>
+	Task<IEnumerable<OutboundMessageTransport>> GetAllTenantsTransportDeliveriesAsync(
+		string messageId,
+		CancellationToken cancellationToken);
+
 	/// <summary>
 	/// Gets pending transport deliveries for a specific transport.
 	/// </summary>

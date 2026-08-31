@@ -51,7 +51,7 @@ public sealed class ProvisioningIntegrationShould : UnitTestBase
 
 		// Step 1: Create and persist aggregate
 		var request = new ProvisioningRequest("req-1", "user-1", "Admin", "Role",
-			"idem-1", 10, "requester", [PendingStep]);
+			"idem-1", 10, "requester", [PendingStep], tenantId: "tenant-A");
 		request.SubmitForReview();
 		request.ApproveCurrentStep("manager@example.com", "Approved");
 		await _provisioningStore.SaveRequestAsync(request.ToSummary(), CancellationToken.None);
@@ -99,7 +99,7 @@ public sealed class ProvisioningIntegrationShould : UnitTestBase
 
 		// Create approved request
 		var request = new ProvisioningRequest("req-2", "user-1", "Admin", "Role",
-			"idem-2", 50, "requester", [PendingStep]);
+			"idem-2", 50, "requester", [PendingStep], tenantId: "tenant-A");
 		request.SubmitForReview();
 		request.ApproveCurrentStep("manager");
 		await _provisioningStore.SaveRequestAsync(request.ToSummary(), CancellationToken.None);
@@ -138,7 +138,7 @@ public sealed class ProvisioningIntegrationShould : UnitTestBase
 
 		var step2 = new ApprovalStep("step-2", "SecurityReviewer", null, null, null, null);
 		var request = new ProvisioningRequest("req-3", "user-1", "SensitiveScope", "ActivityGroup",
-			"idem-3", 80, "requester", [PendingStep, step2]);
+			"idem-3", 80, "requester", [PendingStep, step2], tenantId: "tenant-A");
 		request.SubmitForReview();
 		request.ApproveCurrentStep("manager@example.com");
 		request.ApproveCurrentStep("security@example.com");
@@ -205,7 +205,7 @@ public sealed class ProvisioningIntegrationShould : UnitTestBase
 	public async Task ReturnFalse_WhenRequestWasDenied()
 	{
 		var request = new ProvisioningRequest("req-denied", "user-1", "Admin", "Role",
-			"idem-denied", 10, "requester", [PendingStep]);
+			"idem-denied", 10, "requester", [PendingStep], tenantId: "tenant-A");
 		request.SubmitForReview();
 		request.DenyCurrentStep("manager", "Not justified");
 		await _provisioningStore.SaveRequestAsync(request.ToSummary(), CancellationToken.None);

@@ -38,9 +38,4 @@ public sealed class AwsSqsConnectionOptions
 	/// <value> The LocalStack URL. </value>
 	public Uri? LocalStackUrl { get; set; } = new("http://localhost:4566");
 
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate connectivity on startup.
-	/// </summary>
-	/// <value> A value indicating whether to validate connectivity on startup. </value>
-	public bool ValidateOnStartup { get; set; } = true;
 }

@@ -25,7 +25,15 @@ public sealed class ClaimCheckCleanupOptions
 	/// <summary>
 	/// Gets or sets the default time-to-live for stored payloads.
 	/// </summary>
-	/// <value>The default time-to-live for stored payloads.</value>
+	/// <value>
+	/// The default time-to-live for stored payloads. <see cref="TimeSpan.Zero"/> disables expiry and
+	/// retains payloads until they are deleted explicitly. The default is seven days.
+	/// </value>
+	/// <remarks>
+	/// A zero time-to-live means "never expires", matching the absent-expiration semantics of the
+	/// in-memory and distributed cache entry options in the framework. It does not mean "expires
+	/// immediately": a payload stored with a zero time-to-live remains retrievable indefinitely.
+	/// </remarks>
 	public TimeSpan DefaultTtl { get; set; } = TimeSpan.FromDays(7);
 
 	/// <summary>

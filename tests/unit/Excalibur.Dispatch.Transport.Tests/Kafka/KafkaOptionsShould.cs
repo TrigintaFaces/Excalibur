@@ -22,7 +22,6 @@ public sealed class KafkaOptionsShould : UnitTestBase
 		options.Topic.ShouldBe(string.Empty);
 		options.BootstrapServers.ShouldBe("localhost:9092");
 		options.ConsumerGroup.ShouldBe("dispatch-consumer");
-		options.EnableEncryption.ShouldBeFalse();
 		options.Consumer.MaxBatchSize.ShouldBe(100);
 		options.Consumer.MaxBatchWaitMs.ShouldBe(1000);
 		options.Consumer.EnableAutoCommit.ShouldBeFalse();

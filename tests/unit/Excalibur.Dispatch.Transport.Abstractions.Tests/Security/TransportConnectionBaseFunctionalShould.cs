@@ -26,6 +26,8 @@ public sealed class TransportConnectionBaseFunctionalShould
 			return Task.CompletedTask;
 		}
 
+		protected override string TransportLabel => "TestTransport";
+
 		protected override bool IsConnectionSecure() => true;
 
 		protected override async ValueTask DisposeCoreAsync()
@@ -40,6 +42,8 @@ public sealed class TransportConnectionBaseFunctionalShould
 		public InsecureConnection(TransportSecurityOptions? options = null) : base(options) { }
 
 		protected override Task EstablishConnectionAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+		protected override string TransportLabel => "TestTransport";
 
 		protected override bool IsConnectionSecure() => false;
 	}
@@ -63,6 +67,28 @@ public sealed class TransportConnectionBaseFunctionalShould
 
 		await Should.ThrowAsync<TransportSecurityException>(
 			() => conn.ConnectAsync(CancellationToken.None));
+	}
+
+	/// <summary>
+	/// The base-class refusal must report the transport FAMILY, the same value the transport's own
+	/// posture class stamps -- not the name of the class that happened to throw.
+	/// </summary>
+	/// <remarks>
+	/// A consumer branching on <see cref="TransportSecurityException.TransportName"/> otherwise sees one
+	/// value from a posture refusal and a different one from a connect-time refusal of the same transport.
+	/// This asserts the class name is NOT what surfaces, which is what the base class used to emit.
+	/// </remarks>
+	[Fact]
+	public async Task Report_the_transport_family_not_the_class_name_when_refusing()
+	{
+		var options = new TransportSecurityOptions { RequireTls = true };
+		await using var conn = new InsecureConnection(options);
+
+		var exception = await Should.ThrowAsync<TransportSecurityException>(
+			() => conn.ConnectAsync(CancellationToken.None));
+
+		exception.TransportName.ShouldBe("TestTransport");
+		exception.TransportName.ShouldNotBe(nameof(InsecureConnection));
 	}
 
 	[Fact]

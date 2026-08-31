@@ -9,6 +9,9 @@ namespace Excalibur.Data.DataProcessing.Requests;
 /// <summary>
 /// Represents a data request to select pending data tasks from the data processing system.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.NoTenantDimension,
+	"The data-processing task queue has no tenant dimension: its table declares no tenant column, and a task is addressed by its own identifier. This is a statement about the schema as it exists, not a judgement that tenant-owned work never flows through it.")]
 internal sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskRequest>>
 {
 	/// <summary>

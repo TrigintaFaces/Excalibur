@@ -96,6 +96,41 @@ public sealed class FirestoreSnapshotStoreOptionsShould : UnitTestBase
 		options.MaxBatchSize.ShouldBe(500);
 	}
 
+	/// <summary>
+	/// Pins the shipped contended-write retry budget. The store's contention behaviour is now
+	/// configurable, and these two defaults are what a consumer gets when they configure nothing --
+	/// so they are the values that describe the store as shipped, not an arbitrary starting point.
+	/// A change here changes what an uncontended-to-contended write costs every existing consumer.
+	/// </summary>
+	/// <remarks>
+	/// 16 is a spin guard, not a writer budget. The store's contended write takes no lock, so a writer is
+	/// re-attempted only because another writer's write landed and strictly raised the stored version --
+	/// which means it needs at most one extra attempt per concurrent writer holding a lower version, and
+	/// reaching the bound is a fault rather than an expected outcome. Measured against ten concurrent
+	/// savers on a real emulator, over twenty runs, the deepest any writer reached was attempt 5. The
+	/// earlier default of 40 was sized for a write that waited on a document lock, which this one does
+	/// not. Raising this pins a longer wait before contention is reported, not a more correct store.
+	/// </remarks>
+	[Fact]
+	public void HaveDefaultMaxContendedWriteAttemptsOf16()
+	{
+		// Arrange & Act
+		var options = new FirestoreSnapshotStoreOptions();
+
+		// Assert
+		options.MaxContendedWriteAttempts.ShouldBe(16);
+	}
+
+	[Fact]
+	public void HaveDefaultContendedWriteBackoffOf25Milliseconds()
+	{
+		// Arrange & Act
+		var options = new FirestoreSnapshotStoreOptions();
+
+		// Assert
+		options.ContendedWriteBackoffMilliseconds.ShouldBe(25);
+	}
+
 	#endregion Default Values Tests
 
 	#region Property Setters Tests

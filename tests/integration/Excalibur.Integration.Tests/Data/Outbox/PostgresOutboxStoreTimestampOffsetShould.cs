@@ -126,11 +126,18 @@ public sealed class PostgresOutboxStoreTimestampOffsetShould : IClassFixture<Pos
 		stored.ShouldNotBeNull(
 			"a backoff scheduled with a non-zero-offset instant must be recorded. If this threw, the backoff "
 			+ "path binds the raw DateTimeOffset and Npgsql rejected it — the retry is silently lost.");
-		stored.Value.ToUniversalTime().ShouldBe(
-			nextAttemptAt.ToUniversalTime(),
-			TimeSpan.FromMilliseconds(1),
-			"the recorded retry instant must be the moment the caller asked for; a shifted next_attempt_at "
-			+ "re-delivers early (or strands the message), and nothing reports it.");
+		// The backoff is persisted as the DELAY the caller asked for, re-anchored on the database's own clock,
+		// so the assertion is on the delay rather than on the caller's absolute instant. That is the stronger
+		// check for the property this arm exists to guard: if the non-zero offset were dropped or read as
+		// local wall-clock, the delay would be wrong by the whole offset -- hours, not milliseconds -- and
+		// this fails loudly. Asserting the instant instead would assert that the dispatcher and the database
+		// agree about the time, which is exactly the assumption the claim path must not make.
+		var serverNow = await ServerNowAsync().ConfigureAwait(false);
+		(stored.Value - serverNow).ShouldBe(
+			TimeSpan.FromMinutes(5),
+			TimeSpan.FromSeconds(10),
+			"the recorded retry must be the 5-minute delay the caller asked for, measured from the server "
+			+ "clock the claim predicate compares against. A dropped or mis-read offset shifts this by hours.");
 	}
 
 	/// <summary>
@@ -179,6 +186,15 @@ public sealed class PostgresOutboxStoreTimestampOffsetShould : IClassFixture<Pos
 
 	private async Task<DateTimeOffset?> NextAttemptAtAsync(string messageId) =>
 		await ScalarAsync<DateTimeOffset?>("next_attempt_at", messageId).ConfigureAwait(false);
+
+	/// <summary>Reads the database's own clock — the one the claim predicate compares against.</summary>
+	/// <returns>The server's current instant.</returns>
+	private async Task<DateTimeOffset> ServerNowAsync()
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+		return await connection.ExecuteScalarAsync<DateTimeOffset>("SELECT now()").ConfigureAwait(false);
+	}
 
 	private async Task<T?> ScalarAsync<T>(string column, string messageId)
 	{

@@ -15,7 +15,7 @@ namespace Excalibur.Saga.Tests.Orchestration;
 [Trait("Component", "Saga")]
 public sealed class InMemorySagaStoreShould
 {
-	private readonly InMemorySagaStore _sut = new();
+	private readonly InMemorySagaStore _sut = new(new TestTenantContext());
 
 	#region LoadAsync Tests
 

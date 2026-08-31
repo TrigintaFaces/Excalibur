@@ -89,4 +89,20 @@ public sealed class AwsKmsOptions
 		alias += $"-{keyId}";
 		return alias;
 	}
+
+	/// <summary>
+	/// Builds the alias for one specific version of a logical key.
+	/// </summary>
+	/// <param name="keyId">The logical key identifier.</param>
+	/// <param name="version">The version number.</param>
+	/// <returns>The version-scoped alias.</returns>
+	/// <remarks>
+	/// Rotation repoints the unversioned alias at the newest key, so without a per-version alias a
+	/// superseded key becomes unreachable the moment it is rotated out — it still exists and can still
+	/// decrypt, but nothing can name it. Giving every version its own alias keeps the version history in
+	/// KMS, where it is durable, rather than in a process-local dictionary that does not survive a restart
+	/// and cannot be shared between instances.
+	/// </remarks>
+	public string BuildVersionAlias(string keyId, int version) =>
+		$"{BuildKeyAlias(keyId)}-v{version.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 }

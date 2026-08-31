@@ -17,7 +17,7 @@ namespace Excalibur.Data.InMemory.Diagnostics;
 /// <item>105500-105599: Transaction</item>
 /// </list>
 /// </remarks>
-public static class DataInMemoryEventId
+internal static class DataInMemoryEventId
 {
 	// ========================================
 	// 105000-105099: Connection/Initialization
@@ -137,6 +137,9 @@ public static class DataInMemoryEventId
 
 	/// <summary>Failed to persist on async dispose.</summary>
 	public const int FailedToPersistOnAsyncDispose = 105409;
+
+	/// <summary>Disposal skipped the configured persist-to-disk flush.</summary>
+	public const int PersistOnDisposeSkipped = 105410;
 
 	// ========================================
 	// 105500-105599: Transaction

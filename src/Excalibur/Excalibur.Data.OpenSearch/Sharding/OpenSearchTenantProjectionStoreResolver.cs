@@ -51,8 +51,8 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 
 	private IProjectionStore<TProjection> CreateStore(ShardInfo shardInfo)
 	{
-		var indexPrefix = shardInfo.IndexPrefix ?? _defaultOptions.IndexPrefix;
-		var nodeUri = shardInfo.ConnectionString ?? _defaultOptions.NodeUri;
+		var indexPrefix = shardInfo.RequireCoordinate(shardInfo.IndexPrefix, nameof(ShardInfo.IndexPrefix));
+		var nodeUri = shardInfo.RequireCoordinate(shardInfo.ConnectionString, nameof(ShardInfo.ConnectionString));
 		var perShardOptions = new OpenSearchProjectionStoreOptions
 		{
 			NodeUri = nodeUri,

@@ -28,18 +28,27 @@ namespace Excalibur.Saga.Orchestration;
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval. </param>
 /// <param name="options"> Saga runtime options (concurrency, timeout, and retry policy) applied to event processing. </param>
 /// <param name="logger"> Logger for saga coordination activities, errors, and performance metrics. </param>
-[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break when trimming",
-	Justification = "HandleEventInternalAsync is preserved via DI registration and reflection is only used in JIT mode")]
 public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, ISagaStore sagaStore, IOptions<SagaOptions> options, ILogger<SagaCoordinator> logger)
 	: ISagaCoordinator, IDisposable
 {
 	private const int MaxCacheEntries = 1024;
+	// The non-keyed ISagaStore is a forwarding alias to the keyed "default" store, and it answers null
+	// when nothing backs it — the DI contract for a service that is not registered. Injection is where
+	// that absence has to become loud, because from here on the store is dereferenced. Hosts that run
+	// hosted services are already stopped at startup by the saga prerequisite validator; this covers the
+	// ones that resolve the coordinator without ever starting a host.
+	private readonly ISagaStore _sagaStore = sagaStore ?? throw new InvalidOperationException(
+		"Sagas are configured but no ISagaStore is registered. Register a persistent saga store (for "
+		+ "example a provider's UseSqlServer(...) extension) or opt into the in-memory store via "
+		+ "AddInMemorySagaStore().");
 
-	// Runtime policy from SagaOptions (8wq7pa): concurrency gate + per-event timeout + bounded retry,
+
+	// Runtime policy from SagaOptions: concurrency gate + per-event timeout + bounded retry,
 	// applied uniformly in ProcessEventAsync. Singleton coordinator → the semaphore is a process-wide gate.
 	private readonly SagaOptions _options = options.Value;
 	private readonly SemaphoreSlim _concurrencyGate = new(options.Value.MaxConcurrency, options.Value.MaxConcurrency);
 
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: a static field initializer cannot carry RequiresUnreferencedCode, and this GetMethod call reflects only over this type's own member, which the JIT path at MakeGenericMethod requires. The AOT path does not reach it - it uses ISagaDispatchRegistry instead.")]
 	private static readonly MethodInfo HandleEventInternalMethodInfo =
 		typeof(SagaCoordinator).GetMethod(
 			nameof(HandleEventInternalAsync),
@@ -63,10 +72,6 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("This method uses reflection to invoke generic HandleEventAsyncInternal method with runtime types")]
 	[RequiresDynamicCode("This method uses MakeGenericMethod with runtime types")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "ISagaCoordinator interface is kept clean for AOT consumers. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported branching.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "ISagaCoordinator interface is kept clean for AOT consumers. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported branching.")]
 	public async Task ProcessEventAsync(
 		IMessageContext messageContext,
 		ISagaEvent evt,
@@ -93,7 +98,7 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 		var sagaStateType = sagaInfo.StateType;
 
-		// Apply the SagaOptions runtime policy (8wq7pa): bound global concurrency, a per-event timeout,
+		// Apply the SagaOptions runtime policy: bound global concurrency, a per-event timeout,
 		// and bounded retry around the actual saga dispatch. Resolution above (registry lookups) is not
 		// gated/retried — only the handler execution is.
 		await _concurrencyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -247,15 +252,15 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			// version-0 state that then collides on save with the already-persisted saga
 			// (ConcurrencyException: expected version 0, actual version 1).
 			var sagaId = Guid.Parse(evt.SagaId);
-			sagaState = await sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false)
+			sagaState = await _sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false)
 				?? new TSagaState { SagaId = sagaId };
 		}
 		else
 		{
-			sagaState = await sagaStore.LoadAsync<TSagaState>(Guid.Parse(evt.SagaId), cancellationToken).ConfigureAwait(false);
+			sagaState = await _sagaStore.LoadAsync<TSagaState>(Guid.Parse(evt.SagaId), cancellationToken).ConfigureAwait(false);
 			if (sagaState is null)
 			{
-				// Invoke the registered ISagaNotFoundHandler<TSaga> extension point (ckavfs / ADR-336).
+				// Invoke the registered ISagaNotFoundHandler<TSaga> extension point.
 				// The default LoggingNotFoundHandler<TSaga> is registered out of the box, so this is normally
 				// satisfiable and logs the not-found event. A consumer can register a custom handler to
 				// dead-letter / park / compensate the orphaned continuation instead of silently dropping it.
@@ -277,7 +282,7 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		// A saga that was ALREADY completed before this event does not process further events
 		// (SagaState.Completed contract). Skip without re-persisting, which also avoids a spurious version
 		// bump/overwrite on a finished workflow. This is checked at load time, so the event that itself
-		// completes the saga still proceeds and persists its completion below (bd-eszc06).
+		// completes the saga still proceeds and persists its completion below.
 		if (sagaState.Completed)
 		{
 			LogSagaAlreadyCompleted(evt.SagaId, evt.GetType().Name);
@@ -315,12 +320,12 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Store-owns-increment (optimistic concurrency, bd-eszc06): SagaState.Version is the loaded token; the
+		// Store-owns-increment (optimistic concurrency,): SagaState.Version is the loaded token; the
 		// store compares it and persists the bump (writing the new version back), throwing ConcurrencyException if
 		// another handler advanced the saga since we loaded it. No caller version arithmetic.
-		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
+		await _sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
 
-		// Save-then-dispatch (lc178k): the saga buffered the commands/events it emitted during HandleAsync;
+		// Save-then-dispatch: the saga buffered the commands/events it emitted during HandleAsync;
 		// now that its state is durably persisted, flush them in emit order. A SaveAsync failure above throws
 		// before reaching here -> nothing was dispatched, and the messages re-buffer on the next delivery.
 		await saga.FlushPendingDispatchesAsync(cancellationToken).ConfigureAwait(false);

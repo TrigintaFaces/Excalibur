@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-// Use Excalibur.EventSourcing as canonical source (AD-251-2)
+// Use Excalibur.EventSourcing as canonical source
 
 namespace Excalibur.EventSourcing.DependencyInjection;
 
@@ -67,7 +67,6 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// replay when <see cref="UpcastingOptions.EnableAutoUpcastOnReplay" /> is enabled and <see cref="IUpcastingPipeline" /> is registered.
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate>(
@@ -89,8 +88,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
-				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
-				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
+				opts,
 				autoSnapshotOptions: sp.GetService<IOptionsMonitor<AutoSnapshotOptions>>(),
 				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
 				snapshotManager: sp.GetService<ISnapshotManager>(),
@@ -98,8 +96,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
 				outboxStore: sp.GetKeyedService<IOutboxStore>("default"),
 				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
-				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
-				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>());
 		});
 
 		return this;
@@ -114,7 +111,6 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// <param name="configureOptions"> Optional per-aggregate repository configuration (e.g., outbox staging strategy). </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks> Use this method for aggregates with non-string keys (e.g., Guid, int). </remarks>
-	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate, TKey>(
@@ -132,8 +128,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
-				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
-				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
+				opts,
 				autoSnapshotOptions: sp.GetService<IOptionsMonitor<AutoSnapshotOptions>>(),
 				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
 				snapshotManager: sp.GetService<ISnapshotManager>(),
@@ -141,8 +136,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
 				outboxStore: sp.GetKeyedService<IOutboxStore>("default"),
 				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
-				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
-				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>());
 		});
 
 		return this;
@@ -167,7 +161,6 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// </code>
 	/// </para>
 	/// </remarks>
-	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate, TKey>()
@@ -210,25 +203,50 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	}
 
 	/// <summary>
-	/// Resolves repository options, merging global defaults with per-aggregate overrides.
+	/// The default <see cref="EventSourcedRepositoryOptions.TargetSnapshotVersion" />, shared with
+	/// <see cref="SnapshotUpgradingOptions.CurrentSnapshotVersion" />. A value equal to this default
+	/// carries no intent, so it never overrides a more specific source.
 	/// </summary>
+	private const int DefaultTargetSnapshotVersion = 1;
+
+	/// <summary>
+	/// Resolves repository options, folding the framework-wide <see cref="UpcastingOptions" /> and
+	/// <see cref="SnapshotUpgradingOptions" /> in as defaults, then the <see cref="EventSourcedRepositoryOptions" />
+	/// global registration, then the per-aggregate override.
+	/// </summary>
+	/// <remarks>
+	/// The two enabling flags COMBINE (logical OR) across sources rather than overwrite, so registering
+	/// the dedicated <see cref="EventSourcedRepositoryOptions" /> can never silently turn off what
+	/// <see cref="UpcastingOptions" /> or <see cref="SnapshotUpgradingOptions" /> already turned on.
+	/// </remarks>
 	private static IOptions<EventSourcedRepositoryOptions> ResolveRepositoryOptions<TAggregate>(
 		IServiceProvider sp,
 		Action<EventSourcedRepositoryOptions>? configureOptions)
 	{
-		// Start from global options if registered
-		var globalOptions = sp.GetService<IOptions<EventSourcedRepositoryOptions>>()?.Value;
-		var options = new EventSourcedRepositoryOptions();
+		var upcastingOptions = sp.GetService<IOptions<UpcastingOptions>>()?.Value;
+		var snapshotUpgradingOptions = sp.GetService<IOptions<SnapshotUpgradingOptions>>()?.Value;
 
+		var options = new EventSourcedRepositoryOptions
+		{
+			EnableAutoUpcast = upcastingOptions?.EnableAutoUpcastOnReplay ?? false,
+			EnableAutoSnapshotUpgrade = snapshotUpgradingOptions?.EnableAutoUpgradeOnLoad ?? false,
+			TargetSnapshotVersion = snapshotUpgradingOptions?.CurrentSnapshotVersion ?? DefaultTargetSnapshotVersion,
+		};
+
+		var globalOptions = sp.GetService<IOptions<EventSourcedRepositoryOptions>>()?.Value;
 		if (globalOptions is not null)
 		{
-			options.EnableAutoUpcast = globalOptions.EnableAutoUpcast;
-			options.EnableAutoSnapshotUpgrade = globalOptions.EnableAutoSnapshotUpgrade;
-			options.TargetSnapshotVersion = globalOptions.TargetSnapshotVersion;
+			options.EnableAutoUpcast |= globalOptions.EnableAutoUpcast;
+			options.EnableAutoSnapshotUpgrade |= globalOptions.EnableAutoSnapshotUpgrade;
+			if (globalOptions.TargetSnapshotVersion != DefaultTargetSnapshotVersion)
+			{
+				options.TargetSnapshotVersion = globalOptions.TargetSnapshotVersion;
+			}
+
 			options.OutboxStagingStrategy = globalOptions.OutboxStagingStrategy;
 		}
 
-		// Apply per-aggregate overrides
+		// Apply per-aggregate overrides last, so they win outright over both folded sources.
 		configureOptions?.Invoke(options);
 
 		return Microsoft.Extensions.Options.Options.Create(options);

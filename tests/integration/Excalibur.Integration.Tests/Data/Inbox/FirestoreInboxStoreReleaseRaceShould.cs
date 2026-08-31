@@ -26,7 +26,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 [Trait("Category", "Integration")]
 [Trait("Database", "Firestore")]
 [Trait("Component", "Inbox")]
-public sealed class FirestoreInboxStoreReleaseRaceShould : IClassFixture<FirestoreInboxStoreContainerFixture>
+public sealed class FirestoreInboxStoreReleaseRaceShould 
 {
 	private const string HandlerType = "TestHandler";
 	private readonly FirestoreInboxStoreContainerFixture _fixture;
@@ -45,7 +45,7 @@ public sealed class FirestoreInboxStoreReleaseRaceShould : IClassFixture<Firesto
 			ProjectId = _fixture.ProjectId,
 			CollectionName = _fixture.CollectionName,
 		});
-		return new FirestoreInboxStore(_fixture.Db, options, NullLogger<FirestoreInboxStore>.Instance);
+		return new FirestoreInboxStore(_fixture.Db, options, NullLogger<FirestoreInboxStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	[Fact]

@@ -53,9 +53,21 @@ public sealed class ClaimCheckReference
 	/// Gets or sets the expiration time for the stored payload.
 	/// </summary>
 	/// <value>
-	/// The expiration time for the stored payload.
+	/// The expiration time for the stored payload, or <see langword="null"/> when the payload never
+	/// expires.
 	/// </value>
 	public DateTimeOffset? ExpiresAt { get; set; }
+
+	/// <summary>
+	/// Determines whether the stored payload has expired as of the supplied instant.
+	/// </summary>
+	/// <param name="asOf">The instant to evaluate expiry against, in UTC.</param>
+	/// <returns>
+	/// <see langword="true"/> if <see cref="ExpiresAt"/> has a value that is at or before
+	/// <paramref name="asOf"/>; otherwise, <see langword="false"/>. A reference with no
+	/// <see cref="ExpiresAt"/> never expires and always returns <see langword="false"/>.
+	/// </returns>
+	public bool IsExpired(DateTimeOffset asOf) => ExpiresAt.HasValue && asOf >= ExpiresAt.Value;
 
 	/// <summary>
 	/// Gets or sets additional metadata associated with the claim.

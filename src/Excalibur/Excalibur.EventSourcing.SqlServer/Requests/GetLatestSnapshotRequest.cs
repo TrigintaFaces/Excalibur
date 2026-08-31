@@ -25,8 +25,8 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope. When <see cref="TenantScope.None"/> (the non-multi-tenant default), no tenant
-	/// predicate or parameter is emitted; when tenant-scoped, the query is restricted to the tenant's rows
+	/// The tenant scope. The tenant predicate and its parameter are emitted unconditionally — an untenanted
+	/// scope binds the reserved sentinel — so the query is restricted to one partition's rows
 	/// (<c>AND TenantId = @TenantId</c>) in the same atomic statement. A tenant-scoped read cannot be
 	/// constructed without a tenant, so a predicate-less all-tenants query while tenancy is active is
 	/// unrepresentable.
@@ -121,8 +121,7 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		}
 
 		Dictionary<string, JsonElement>? raw;
-#pragma warning disable IL2026, IL3050 // Metadata deserialization inherently uses reflection (matches SqlServerEventStore precedent)
-		raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadata);
+		raw = JsonSerializer.Deserialize(metadata, SqlServerSnapshotJsonContext.Default.DictionaryStringJsonElement);
 #pragma warning restore IL2026, IL3050
 		if (raw is null)
 		{

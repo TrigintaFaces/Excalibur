@@ -24,15 +24,9 @@ public sealed class AuthorizationModelsShould
 	}
 
 	[Fact]
-	public void DefineIndeterminateEffect()
+	public void HaveTwoEffectValues()
 	{
-		AuthorizationEffect.Indeterminate.ShouldBe((AuthorizationEffect)2);
-	}
-
-	[Fact]
-	public void HaveThreeEffectValues()
-	{
-		Enum.GetValues<AuthorizationEffect>().Length.ShouldBe(3);
+		Enum.GetValues<AuthorizationEffect>().Length.ShouldBe(2);
 	}
 
 	// AuthorizationDecision tests
@@ -152,11 +146,11 @@ public sealed class AuthorizationModelsShould
 	{
 		var grantedOn = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var grant = new Grant(
-			"user-1", null, null, "role", "viewer",
+			"user-1", null, "tenant-1", "role", "viewer",
 			null, "admin", grantedOn);
 
 		grant.FullName.ShouldBeNull();
-		grant.TenantId.ShouldBeNull();
+		grant.TenantId.ShouldBe("tenant-1");
 		grant.ExpiresOn.ShouldBeNull();
 	}
 
@@ -164,8 +158,8 @@ public sealed class AuthorizationModelsShould
 	public void SupportGrantRecordEquality()
 	{
 		var ts = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-		var g1 = new Grant("user-1", null, null, "role", "admin", null, "system", ts);
-		var g2 = new Grant("user-1", null, null, "role", "admin", null, "system", ts);
+		var g1 = new Grant("user-1", null, "tenant-1", "role", "admin", null, "system", ts);
+		var g2 = new Grant("user-1", null, "tenant-1", "role", "admin", null, "system", ts);
 
 		g1.ShouldBe(g2);
 	}

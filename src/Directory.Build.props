@@ -1,6 +1,6 @@
 <Project>
 	<!-- ============================================================================================
-       Sprint 325 T0.2: Project Classification Metadata (AD-325-2)
+       Project Classification Metadata
        ============================================================================================
        All projects under src/ are classified as "Shipping" by default.
        - IsPackable=true (NuGet package generation enabled)
@@ -31,7 +31,7 @@
 		<Nullable>enable</Nullable>
 
 		<!-- ============================================================================================
-         Multi-Targeting Visual Studio Fix (Sprint 376)
+         Multi-Targeting Visual Studio Fix
          ============================================================================================
          VS has race conditions when building multiple TFMs in parallel. These settings:
          1. DisableFastUpToDateCheck - Prevents VS from using stale references
@@ -44,7 +44,7 @@
 		<!-- CRITICAL: Disable reference assembly compilation to fix CS0006 in VS multi-targeting -->
 		<CompileUsingReferenceAssemblies>false</CompileUsingReferenceAssemblies>
 
-		<!-- Code Quality - R0.8 Requirement -->
+		<!-- Code Quality -->
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<WarningLevel>9999</WarningLevel>
 		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -54,9 +54,41 @@
 		<!-- Documentation -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-		<!-- AOT Compatibility -->
-		<IsAotCompatible>true</IsAotCompatible>
-		<IsTrimmable>true</IsTrimmable>
+		<!-- AOT Compatibility.
+		     OPT-IN, not inherited. IsAotCompatible is a promise a consumer reads: it says ILC can prove
+		     this package's reflection paths safe under trimming. A default of `true` makes that promise
+		     on a package's behalf, and a package that later takes a reflecting dependency keeps the
+		     promise automatically while it stops being true.
+		     That is not hypothetical. Excalibur.Compliance.Pdf's own csproj states "AOT status of the
+		     PDF export path is UNVERIFIED ... IsAotCompatible is deliberately not set here for that
+		     reason" - and the inherited default resolved it to `true` anyway, publishing the claim its
+		     author had explicitly declined to make.
+		     Cost of this default is ~zero: 164 projects declare `true` explicitly and 45 declare
+		     `false` explicitly, and an explicit value always wins over the default, so only the single
+		     project that was relying on inheritance changes - to what its own comment already says.
+		     Setting this to `true` on a package should follow evidence, not convention:
+		     eng/ci/Invoke-AotCoverageGate.ps1 publishes a package under ILC and reports what it finds. -->
+		<IsAotCompatible>false</IsAotCompatible>
+		<!-- Trimmability is DERIVED, never asserted by convention.
+		     IsTrimmable=true emits an assembly attribute telling a consumer's trimmer it is safe to trim
+		     this package's code. Setting it for every project by default made that promise on behalf of
+		     packages that had never been analysed - the same defect fixed one property above for the
+		     ahead-of-time claim, still live one line below it.
+		     It is not set here. A project declaring IsAotCompatible=true gets IsTrimmable=true derived by
+		     the SDK, because ahead-of-time compatibility implies trimmability; the converse does not hold
+		     and the SDK deliberately does not derive it. So the claim now follows the evidence.
+		     The ANALYZER is kept on unconditionally below. Dropping the claim must not drop the analysis -
+		     that trade buys honest metadata by going blind, and blind is how the metadata drifted. -->
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<!-- The trim analyzer above covers the IL2xxx codes only. The dynamic-code codes IL3050/IL3051
+		     come from a SEPARATE analyzer, which the SDK derives from IsAotCompatible=true - so every
+		     project that honestly declared `false` above thereby switched dynamic-code detection off.
+		     That is the going-blind the paragraph above exists to prevent, still live one property later.
+		     Enabled here unconditionally and independently of the claim: a package may be unable to
+		     promise ahead-of-time compatibility and still need to know the moment it acquires a new
+		     reflective path. A project the analyzer genuinely cannot serve - a netstandard Roslyn
+		     component - sets false in its own csproj, which wins over this default. -->
+		<EnableAotAnalyzer>true</EnableAotAnalyzer>
 
 		<!-- Deterministic Builds -->
 		<DeterministicSourcePaths>true</DeterministicSourcePaths>
@@ -72,7 +104,7 @@
 		<PackageOutputPath>$(MSBuildThisFileDirectory)../artifacts/packages</PackageOutputPath>
 
 		<!-- ============================================================================================
-         Sprint 318 T3.1: Multi-License Stack (AD-318-1)
+         Multi-License Stack
          ============================================================================================
          License stack: Excalibur 1.0, AGPL-3.0-or-later, SSPL-1.0, Apache-2.0
          Using PackageLicenseFile instead of PackageLicenseExpression because:
@@ -84,7 +116,7 @@
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 
-		<!-- Package Metadata - R0.4 Requirement -->
+		<!-- Package Metadata -->
 		<!-- Version computed by MinVer from git tags (Polly pattern).
 		     Tag format: v10.0.0-alpha.1 → PackageVersion 10.0.0-alpha.1
 		     Commits after tag auto-increment: 10.0.0-alpha.2, .3, etc.
@@ -118,29 +150,69 @@
 		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+		<!-- A bare filename is not a route: a consumer reads this field on a package listing, where
+		     there is no repository checkout to open. The versioning policy page states the release
+		     stages and what each one promises about API stability, and it is reachable from the
+		     listing itself. -->
+		<PackageReleaseNotes>Release notes and versioning policy: https://docs.excalibur-dispatch.dev/docs/migration/version-upgrades</PackageReleaseNotes>
 		<PackageIcon>icon.png</PackageIcon>
+
+		<!-- The pre-release warning belongs in the package's own description, not only in the
+		     documentation. The SemVer pre-release suffix is the canonical machine-readable signal and
+		     it already does its job: such packages are flagged in the gallery UI and are excluded
+		     from default resolution unless the consumer opts in. What the suffix cannot carry is what
+		     the instability actually means for someone who has already opted in and is reading the
+		     description to decide whether to adopt.
+		
+		     Set here rather than in 199 project files so it cannot be declared inconsistently, and
+		     appended by the target in Directory.Build.targets rather than written into each
+		     description, so no project can carry the notice without carrying the version that
+		     justifies it. -->
+		<PreReleaseNotice>PRE-RELEASE: the public API is not frozen and may change between pre-release builds. Not recommended for production use. Known issues: https://docs.excalibur-dispatch.dev/docs/known-issues</PreReleaseNotice>
 		<!-- Banned API analyzer policy -->
 		<EnableBannedApiAnalyzers Condition="'$(EnableBannedApiAnalyzers)' == ''">true</EnableBannedApiAnalyzers>
 		<BannedApiStrict Condition="'$(BannedApiStrict)' == ''">false</BannedApiStrict>
 		<BannedSymbolsFile Condition="'$(BannedSymbolsFile)' == ''">$(MSBuildThisFileDirectory)..\eng\banned\BannedSymbols.txt</BannedSymbolsFile>
 	</PropertyGroup>
 
-	<!-- LICENSE inclusion is centralized in Directory.Build.targets (AD-320-1)
+	<!-- LICENSE inclusion is centralized in Directory.Build.targets
 	     Suppress NU5118 (duplicate file warning) for pack stability
-	     CA1873 (logging arg evaluation) — Sprint 565: fixed in Compliance/Dispatch core, remaining in transport packages -->
+	     CA1873 (logging arg evaluation) — fixed in Compliance/Dispatch core, remaining in transport packages -->
 	<PropertyGroup>
-		<!-- RS0016: Public API tracking ENABLED (Sprint 643). PublicAPI.Shipped.txt baselines populated.
+		<!-- RS0016: Public API tracking ENABLED. PublicAPI.Shipped.txt baselines populated.
 		     New public API additions will trigger RS0016 warnings requiring explicit declaration.
 		     RS0027: Optional parameter backcompat, alpha consumers expect breaking changes.
 		     RS0041: Oblivious reference types in System.Text.Json source generated code (uncontrollable). -->
-		<!-- CA1812: Internal class never instantiated — false positive for DI-registered types (IValidateOptions, health checks, etc.)
+		<!-- CA1812: Internal class never instantiated. Suppressed on a MEASURED false-positive rate, not an
+			     assertion. Census of all 405 solution projects with CA1812 un-suppressed: 635 hits — 14 in src,
+			     608 in tests, 13 in samples. Every one of the 14 src hits was checked individually against its
+			     registration site and all 14 are DI-registered (12 via ServiceDescriptor.Singleton<IValidateOptions<T>,…>
+			     or TryAddSingleton<TService,TImpl>, one activity registered through AddActivity<T,…>). The rate in
+			     src is 14/14 — the analyzer cannot see container construction, so it finds no real dead type here and
+			     re-arming it for any subset of packages buys nothing. The test and sample hits are handler/middleware
+			     doubles instantiated by the dispatcher's own reflection, the same blind spot. Re-measure before changing
+			     this: the justification is the number, and the number can move.
 			     CA1859: Use concrete types when possible — perf optimization suggestion, not correctness; causes excessive churn in interface-heavy framework code
 			     See: https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1812#when-to-suppress-warnings -->
-			<!-- CA1823: Unused private field — overlaps with IDE0052, tracked for incremental cleanup
+			<!-- CA1823: Unused private field — SUPPRESSION REMOVED (from this list and from the identical list
+			     in tests/Directory.Build.props). The reason originally given was overlap with IDE0052, which does
+			     not hold: IDE0052 reports a private member ASSIGNED and never read, CA1823 reports a field never
+			     REFERENCED at all — disjoint populations — and tests/Directory.Build.props sets
+			     EnforceCodeStyleInBuild=false, so IDE0052 never ran on the test tree at all.
+			     The census recorded here previously read '38 distinct hits, 8 src / 30 tests' and said removal was
+			     blocked on triaging them. THAT NUMBER WAS STALE. Re-measured across the whole solution — 209 src and
+			     100 test projects, CA1823 forced to warning so the build COMPLETED rather than stopping at the first
+			     error, exit 0 with zero build errors — the real population was ONE: a superseded duplicate-key
+			     constant in Excalibur.Inbox.MongoDB, removed in the same change as this line.
+			     The near-zero was only accepted after a positive control planted in the TEST tree confirmed an unused
+			     private field there does fire CA1823 — that subtree held 30 of the claimed 38, and a subtree that
+			     never compiled reports the same clean zero as a genuinely clean one.
+			     What caught this was the re-measure instruction on CA1812 above, firing in the opposite direction from
+			     the one it was written for. Trust that instruction over any figure in this file, including these:
+			     a count is only as good as its last measurement.
 			     CA1711: Identifier suffix — false positive for domain types (EventArgs, Queue, EventHandler) -->
-			<!-- NU1510: net10 SDK package-pruning hint (informational; package cleanup tracked by Workstream B of S797) -->
-			<NoWarn>$(NoWarn);NU5118;CA1873;RS0027;RS0041;CA1812;CA1859;CA1823;CA1711;NU1510</NoWarn>
+			<!-- NU1510: net10 SDK package-pruning hint (informational; package cleanup) -->
+			<NoWarn>$(NoWarn);NU5118;CA1873;RS0027;RS0041;CA1812;CA1859;CA1711;NU1510</NoWarn>
 		<!-- RS0016/RS0017: Treated as errors (via TreatWarningsAsErrors) to enforce public API baseline accuracy -->
 	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
@@ -193,6 +265,20 @@
 
 	<PropertyGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And '$(BannedApiStrict)' != 'true'">
 		<WarningsNotAsErrors>$(WarningsNotAsErrors);RS0030</WarningsNotAsErrors>
+	</PropertyGroup>
+
+	<!-- IDE0052 (private member assigned and never read) is armed as a warning in .editorconfig. It is
+	     held out of TreatWarningsAsErrors while the population measured at the moment it was re-armed
+	     is worked down: eng/ci/ide0052-baseline.txt is the frozen ledger and
+	     eng/ci/ide0052-ratchet-gate.sh fails any site not already in it, so the count can only shrink.
+	     Set Ide0052Strict=true to promote it to a hard error; delete this block once the ledger is
+	     empty. Mirrors the BannedApiStrict toggle above. -->
+	<PropertyGroup Condition="'$(Ide0052Strict)' != 'true'">
+		<WarningsNotAsErrors>$(WarningsNotAsErrors);IDE0052</WarningsNotAsErrors>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Ide0052Strict)' == 'true'">
+		<WarningsAsErrors>$(WarningsAsErrors);IDE0052</WarningsAsErrors>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And '$(BannedApiStrict)' == 'true'">

@@ -206,7 +206,7 @@ public abstract class MinimalWiringConformanceTestKit<TBuilderExtension>
 			case MinimalWiringBucket.ProgressiveEnhancement:
 				if (ExpectedResolvableServices.Count == 0)
 				{
-					// SENTINEL review F1 (msg 1361): Bucket A/C rows MUST declare at least one
+					// SENTINEL review F1: Bucket A/C rows MUST declare at least one
 					// expected-resolvable service. A silent no-assert green would mask coverage
 					// gaps — particularly harmful once the source generator emits rows at volume.
 					throw new TestFixtureAssertionException(
@@ -287,7 +287,7 @@ public abstract class MinimalWiringConformanceTestKit<TBuilderExtension>
 			// Bucket B throws on the first call in an empty container; idempotence is not
 			// a meaningful assertion until the required sibling is registered. The concrete
 			// pin MUST declare PreRegisterOverride so Idempotence can be exercised once
-			// siblings are present (SENTINEL review F2 msg 1361 — no silent green pass).
+			// siblings are present — no silent green pass.
 			if (PreRegisterOverride is null)
 			{
 				throw new TestFixtureAssertionException(

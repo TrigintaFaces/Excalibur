@@ -6,6 +6,7 @@ using System.Reflection;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
+using Excalibur.EventSourcing.Decorators;
 
 using Microsoft.Extensions.Options;
 
@@ -27,7 +28,8 @@ namespace Excalibur.EventSourcing.Encryption.Decorators;
 /// </remarks>
 /// <typeparam name="TProjection">The projection type.</typeparam>
 public sealed class EncryptingProjectionStoreDecorator<
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection> : IProjectionStore<TProjection>
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>
+	: IsolatingProjectionStoreDecorator<TProjection>
 	where TProjection : class
 {
 	private readonly IProjectionStore<TProjection> _inner;
@@ -46,8 +48,9 @@ public sealed class EncryptingProjectionStoreDecorator<
 		IProjectionStore<TProjection> inner,
 		IEncryptionProviderRegistry registry,
 		IOptions<EncryptionOptions> options)
+		: base(inner)
 	{
-		_inner = inner ?? throw new ArgumentNullException(nameof(inner));
+		_inner = Inner;
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_defaultContext = new EncryptionContext
@@ -68,7 +71,9 @@ public sealed class EncryptingProjectionStoreDecorator<
 	}
 
 	/// <inheritdoc/>
-	public async Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public override async Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
 	{
 		var projection = await _inner.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
 		if (projection is null)
@@ -80,7 +85,9 @@ public sealed class EncryptingProjectionStoreDecorator<
 	}
 
 	/// <inheritdoc/>
-	public async Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken)
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public override async Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(projection);
 
@@ -101,7 +108,7 @@ public sealed class EncryptingProjectionStoreDecorator<
 	}
 
 	/// <inheritdoc/>
-	public Task DeleteAsync(string id, CancellationToken cancellationToken)
+	public override Task DeleteAsync(string id, CancellationToken cancellationToken)
 	{
 		var mode = _options.Value.Mode;
 
@@ -115,7 +122,9 @@ public sealed class EncryptingProjectionStoreDecorator<
 	}
 
 	/// <inheritdoc/>
-	public async Task<IReadOnlyList<TProjection>> QueryAsync(
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public override async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
 		CancellationToken cancellationToken)
@@ -132,9 +141,104 @@ public sealed class EncryptingProjectionStoreDecorator<
 	}
 
 	/// <inheritdoc/>
-	public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken)
+	public override Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken)
 	{
 		return _inner.CountAsync(filters, cancellationToken);
+	}
+
+	/// <summary>
+	/// Wraps a capability of the decorated store so its results are decrypted before a caller sees them.
+	/// </summary>
+	/// <param name="serviceType">The capability interface being resolved.</param>
+	/// <returns>A decrypting view over the capability, or <see langword="null"/> when the inner store lacks it.</returns>
+	/// <remarks>
+	/// Every projection this store returns has to pass through the same decryption the base surface applies.
+	/// A capability handed over unwrapped would return the stored ciphertext, so each is fronted by a view
+	/// that decrypts the page it produces.
+	/// </remarks>
+	protected override object? WrapCapability(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IPageableProjectionStore<TProjection>)
+			&& Inner.GetService(typeof(IPageableProjectionStore<TProjection>)) is IPageableProjectionStore<TProjection> pageable)
+		{
+			return new DecryptingPageableView(this, pageable);
+		}
+
+		if (serviceType == typeof(ICursorProjectionStore<TProjection>)
+			&& Inner.GetService(typeof(ICursorProjectionStore<TProjection>)) is ICursorProjectionStore<TProjection> cursor)
+		{
+			return new DecryptingCursorView(this, cursor);
+		}
+
+		return null;
+	}
+
+	private async Task<List<TProjection>> DecryptAllAsync(
+		IEnumerable<TProjection> projections,
+		CancellationToken cancellationToken)
+	{
+		var results = new List<TProjection>();
+
+		foreach (var projection in projections)
+		{
+			results.Add(await DecryptProjectionAsync(projection, cancellationToken).ConfigureAwait(false));
+		}
+
+		return results;
+	}
+
+	private sealed class DecryptingPageableView(
+		EncryptingProjectionStoreDecorator<TProjection> outer,
+		IPageableProjectionStore<TProjection> capability)
+		: ProjectionStoreCapabilityView<TProjection>(outer), IPageableProjectionStore<TProjection>
+	{
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task<PagedResult<TProjection>> QueryPagedAsync(
+			IDictionary<string, object>? filters,
+			int pageNumber,
+			int pageSize,
+			QueryOptions? options,
+			CancellationToken cancellationToken)
+		{
+			var page = await capability
+				.QueryPagedAsync(filters, pageNumber, pageSize, options, cancellationToken)
+				.ConfigureAwait(false);
+
+			var decrypted = await outer.DecryptAllAsync(page.Items, cancellationToken).ConfigureAwait(false);
+
+			return new PagedResult<TProjection>(decrypted, page.PageNumber, page.PageSize, page.TotalItems);
+		}
+	}
+
+	private sealed class DecryptingCursorView(
+		EncryptingProjectionStoreDecorator<TProjection> outer,
+		ICursorProjectionStore<TProjection> capability)
+		: ProjectionStoreCapabilityView<TProjection>(outer), ICursorProjectionStore<TProjection>
+	{
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		public async Task<CursorPagedResult<TProjection>> QueryCursorAsync(
+			IDictionary<string, object>? filters,
+			string? cursor,
+			int pageSize,
+			CancellationToken cancellationToken)
+		{
+			var page = await capability
+				.QueryCursorAsync(filters, cursor, pageSize, cancellationToken)
+				.ConfigureAwait(false);
+
+			var decrypted = await outer.DecryptAllAsync(page.Items, cancellationToken).ConfigureAwait(false);
+
+			return new CursorPagedResult<TProjection>(
+				decrypted,
+				page.PageSize,
+				page.TotalRecords,
+				page.NextCursor,
+				page.PreviousCursor);
+		}
 	}
 
 	[UnconditionalSuppressMessage(

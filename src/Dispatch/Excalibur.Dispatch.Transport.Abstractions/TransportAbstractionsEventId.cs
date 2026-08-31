@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions;
 /// <item>21000-21099: Resilience/Reconnect</item>
 /// </list>
 /// </remarks>
-public static class TransportAbstractionsEventId
+internal static class TransportAbstractionsEventId
 {
 	// ========================================
 	// 20000-20099: Core Abstractions

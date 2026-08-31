@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Transport.Aws;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -35,8 +36,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// {
 ///     sns.TopicArn("arn:aws:sns:us-east-1:123456789:my-topic")
 ///        .Region("us-east-1")
-///        .EnableEncryption("alias/my-kms-key")
-///        .MapTopic&lt;OrderCreated&gt;("arn:aws:sns:us-east-1:123456789:orders-topic");
+///        .EnableEncryption("alias/my-kms-key");
 /// });
 /// </code>
 /// </example>
@@ -76,15 +76,13 @@ public static class AwsSnsTransportServiceCollectionExtensions
 	/// services.AddAwsSnsTransport("orders", sns =>
 	/// {
 	///     sns.TopicArn("arn:aws:sns:us-east-1:123456789:orders-topic")
-	///        .Region("us-east-1")
-	///        .MapTopic&lt;OrderCreated&gt;("arn:aws:sns:us-east-1:123456789:orders-topic");
+	///        .Region("us-east-1");
 	/// });
 	///
 	/// services.AddAwsSnsTransport("payments", sns =>
 	/// {
 	///     sns.TopicArn("arn:aws:sns:us-west-2:123456789:payments-topic")
-	///        .Region("us-west-2")
-	///        .MapTopic&lt;PaymentReceived&gt;("arn:aws:sns:us-west-2:123456789:payments-topic");
+	///        .Region("us-west-2");
 	/// });
 	/// </code>
 	/// </example>
@@ -97,16 +95,21 @@ public static class AwsSnsTransportServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Create and configure options via builder
-		var transportOptions = new AwsSnsTransportOptions { Name = name };
-		var builder = new AwsSnsTransportBuilder(transportOptions);
-		configure(builder);
+		// The client registration branches on the configured region, so the value is needed eagerly,
+		// before the container is built. The consumer's delegate is therefore applied twice, to two
+		// instances of the SAME canonical type: once here to decide the registrations, and once inside
+		// Configure below against the instance the options system owns, which is what every resolved
+		// component reads. Applying one delegate twice is not a copy — there is no field list to fall
+		// out of date, so a property the builder sets but the registration forgets to carry cannot
+		// exist. Options-configuration delegates are already required to be re-runnable.
+		var transportOptions = new AwsSnsOptions();
+		configure(new AwsSnsTransportBuilder(transportOptions));
 
 		// Register core AWS SNS services
-		RegisterAwsSnsServices(services, transportOptions);
+		RegisterAwsSnsServices(services, name, transportOptions);
 
 		// Register SNS options
-		RegisterOptions(services, transportOptions);
+		RegisterOptions(services, name, configure);
 
 		// Register the transport adapter with the transport factory
 		RegisterTransportAdapter(services, name);
@@ -151,30 +154,67 @@ public static class AwsSnsTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterAwsSnsServices(
 		IServiceCollection services,
-		AwsSnsTransportOptions transportOptions)
+		string name,
+		AwsSnsOptions transportOptions)
 	{
-		// Register AWS SNS client
+		// Register AWS SNS client. Every connection setting is mapped onto the SDK's own config: a
+		// service URL that did not reach the client would send a host aimed at a local emulator or a
+		// VPC endpoint to the real SNS service instead, and static keys that did not reach it would
+		// fall back to the ambient credential chain under a configuration that reads as explicit.
 		services.TryAddSingleton<IAmazonSimpleNotificationService>(sp =>
-		{
-			if (!string.IsNullOrEmpty(transportOptions.Region))
-			{
-				var region = Amazon.RegionEndpoint.GetBySystemName(transportOptions.Region);
-				return new AmazonSimpleNotificationServiceClient(region);
-			}
-
-			return new AmazonSimpleNotificationServiceClient();
-		});
+			CreateSnsClient(transportOptions.Connection));
 
 		// Register SNS message bus
 		services.TryAddSingleton(sp =>
 		{
 			var client = sp.GetRequiredService<IAmazonSimpleNotificationService>();
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
-			var options = sp.GetRequiredService<IOptions<AwsSnsOptions>>().Value;
+			var options = sp.GetRequiredService<IOptionsMonitor<AwsSnsOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<AwsSnsMessageBus>>();
 
 			return new AwsSnsMessageBus(client, serializer, options, logger);
 		});
+
+		// Server-side encryption on SNS is a topic attribute, so a requested KMS key has to be applied
+		// to the topic at start-up; without this the key would stay in configuration and never reach AWS.
+		// The service is inert unless the consumer asked for encryption.
+		// One applier PER NAMED TRANSPORT, each reading its own named options. Registering the type
+		// itself would collapse two named transports onto a single applier reading one configuration.
+		_ = services.AddSingleton<IHostedService>(sp => new AwsSnsTopicEncryptionService(
+			sp.GetRequiredService<IAmazonSimpleNotificationService>(),
+			sp.GetRequiredService<IOptionsMonitor<AwsSnsOptions>>(),
+			name,
+			sp.GetRequiredService<ILogger<AwsSnsTopicEncryptionService>>()));
+	}
+
+	/// <summary>
+	/// Builds the SNS client from the configured connection options.
+	/// </summary>
+	/// <param name="connection">The configured connection options.</param>
+	/// <returns>The configured SNS client.</returns>
+	private static AmazonSimpleNotificationServiceClient CreateSnsClient(AwsSnsConnectionOptions connection)
+	{
+		var config = new AmazonSimpleNotificationServiceConfig
+		{
+			MaxErrorRetry = connection.MaxErrorRetry,
+			Timeout = connection.Timeout,
+			UseHttp = connection.UseHttp,
+		};
+
+		if (connection.ServiceUrl is not null)
+		{
+			// ServiceURL and RegionEndpoint are mutually exclusive in the SDK; an explicit endpoint wins.
+			config.ServiceURL = connection.ServiceUrl.ToString();
+		}
+		else if (!string.IsNullOrEmpty(connection.RegionEndpoint))
+		{
+			config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(connection.RegionEndpoint);
+		}
+
+		return string.IsNullOrEmpty(connection.AccessKey) || string.IsNullOrEmpty(connection.SecretKey)
+			? new AmazonSimpleNotificationServiceClient(config)
+			: new AmazonSimpleNotificationServiceClient(
+				new Amazon.Runtime.BasicAWSCredentials(connection.AccessKey, connection.SecretKey), config);
 	}
 
 	/// <summary>
@@ -182,21 +222,15 @@ public static class AwsSnsTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterOptions(
 		IServiceCollection services,
-		AwsSnsTransportOptions transportOptions)
+		string name,
+		Action<IAwsSnsTransportBuilder> configure)
 	{
-		// Map AwsSnsTransportOptions to existing AwsSnsOptions
-		_ = services.AddOptions<AwsSnsOptions>()
-			.Configure(options =>
-			{
-				options.TopicArn = transportOptions.TopicArn ?? string.Empty;
-				options.EnableEncryption = transportOptions.EnableEncryption;
-				options.KmsMasterKeyId = transportOptions.KmsMasterKeyId;
-				options.ContentBasedDeduplication = transportOptions.ContentBasedDeduplication;
-				options.RawMessageDelivery = transportOptions.RawMessageDelivery;
-				options.Connection.RegionEndpoint = transportOptions.Region;
-				options.Connection.MaxErrorRetry = transportOptions.MaxErrorRetry;
-				options.Connection.Timeout = transportOptions.Timeout;
-			})
+		// The builder is a VIEW over the instance the options system owns: the consumer's own delegate
+		// IS the configure delegate. There is no second options model and no field-by-field carry, so
+		// "the builder collected a value the registration forgot to map" is not expressible here.
+		// NAMED, so two transports of the same type no longer overwrite one another's configuration.
+		_ = services.AddOptions<AwsSnsOptions>(name)
+			.Configure(options => configure(new AwsSnsTransportBuilder(options)))
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -270,31 +304,11 @@ public interface IAwsSnsTransportBuilder
 	IAwsSnsTransportBuilder EnableEncryption(string kmsMasterKeyId);
 
 	/// <summary>
-	/// Enables content-based deduplication for FIFO topics.
-	/// </summary>
-	/// <returns>The builder for chaining.</returns>
-	IAwsSnsTransportBuilder EnableContentBasedDeduplication();
-
-	/// <summary>
-	/// Enables raw message delivery for subscriptions.
-	/// </summary>
-	/// <returns>The builder for chaining.</returns>
-	IAwsSnsTransportBuilder EnableRawMessageDelivery();
-
-	/// <summary>
 	/// Configures the AWS SNS options.
 	/// </summary>
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The builder for chaining.</returns>
-	IAwsSnsTransportBuilder ConfigureOptions(Action<AwsSnsTransportOptions> configure);
-
-	/// <summary>
-	/// Maps a message type to a specific topic ARN.
-	/// </summary>
-	/// <typeparam name="T">The message type.</typeparam>
-	/// <param name="topicArn">The topic ARN for this message type.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAwsSnsTransportBuilder MapTopic<T>(string topicArn);
+	IAwsSnsTransportBuilder ConfigureOptions(Action<AwsSnsOptions> configure);
 }
 
 /// <summary>
@@ -302,13 +316,16 @@ public interface IAwsSnsTransportBuilder
 /// </summary>
 internal sealed class AwsSnsTransportBuilder : IAwsSnsTransportBuilder
 {
-	private readonly AwsSnsTransportOptions _options;
+	private readonly AwsSnsOptions _options;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="AwsSnsTransportBuilder"/> class.
+	/// Initializes a new instance of the <see cref="AwsSnsTransportBuilder"/> class as a view over
+	/// <paramref name="options"/>. The builder does not own the instance; each fluent call writes
+	/// straight into the caller's options, including the nested connection group, so there is no
+	/// second model to translate out of afterwards.
 	/// </summary>
 	/// <param name="options">The transport options to configure.</param>
-	public AwsSnsTransportBuilder(AwsSnsTransportOptions options)
+	public AwsSnsTransportBuilder(AwsSnsOptions options)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 	}
@@ -325,7 +342,7 @@ internal sealed class AwsSnsTransportBuilder : IAwsSnsTransportBuilder
 	public IAwsSnsTransportBuilder Region(string region)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(region);
-		_options.Region = region;
+		_options.Connection.RegionEndpoint = region;
 		return this;
 	}
 
@@ -333,94 +350,18 @@ internal sealed class AwsSnsTransportBuilder : IAwsSnsTransportBuilder
 	public IAwsSnsTransportBuilder EnableEncryption(string kmsMasterKeyId)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(kmsMasterKeyId);
+		// Both fields are load-bearing: the topic-encryption hosted service returns early unless
+		// EnableEncryption is set, and then demands the key.
 		_options.EnableEncryption = true;
 		_options.KmsMasterKeyId = kmsMasterKeyId;
 		return this;
 	}
 
 	/// <inheritdoc/>
-	public IAwsSnsTransportBuilder EnableContentBasedDeduplication()
-	{
-		_options.ContentBasedDeduplication = true;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IAwsSnsTransportBuilder EnableRawMessageDelivery()
-	{
-		_options.RawMessageDelivery = true;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IAwsSnsTransportBuilder ConfigureOptions(Action<AwsSnsTransportOptions> configure)
+	public IAwsSnsTransportBuilder ConfigureOptions(Action<AwsSnsOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		configure(_options);
 		return this;
 	}
-
-	/// <inheritdoc/>
-	public IAwsSnsTransportBuilder MapTopic<T>(string topicArn)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(topicArn);
-		_options.TopicMappings[typeof(T)] = topicArn;
-		return this;
-	}
-}
-
-/// <summary>
-/// Configuration options for AWS SNS transport.
-/// </summary>
-public sealed class AwsSnsTransportOptions
-{
-	/// <summary>
-	/// Gets or sets the transport name for multi-transport routing.
-	/// </summary>
-	public string? Name { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS region for the SNS client.
-	/// </summary>
-	public string? Region { get; set; }
-
-	/// <summary>
-	/// Gets or sets the default topic ARN for publishing messages.
-	/// </summary>
-	public string? TopicArn { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable encryption.
-	/// </summary>
-	public bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets the KMS master key ID for encryption.
-	/// </summary>
-	public string? KmsMasterKeyId { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable content-based deduplication.
-	/// </summary>
-	public bool ContentBasedDeduplication { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use raw message delivery.
-	/// </summary>
-	public bool RawMessageDelivery { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum number of error retries. Default is 3.
-	/// </summary>
-	public int MaxErrorRetry { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the request timeout. Default is 30 seconds.
-	/// </summary>
-	public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Gets the message type to topic ARN mappings.
-	/// </summary>
-	public Dictionary<Type, string> TopicMappings { get; } = new();
 }

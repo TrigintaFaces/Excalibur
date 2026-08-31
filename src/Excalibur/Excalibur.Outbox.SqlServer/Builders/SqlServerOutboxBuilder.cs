@@ -123,14 +123,6 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
-	public ISqlServerOutboxBuilder DeadLetterTableName(string tableName)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-		_options.Tables.DeadLetterTableName = tableName;
-		return this;
-	}
-
 	/// <summary>Sets the command timeout for SQL operations.</summary>
 	public ISqlServerOutboxBuilder CommandTimeout(TimeSpan timeout)
 	{

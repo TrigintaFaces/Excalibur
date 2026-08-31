@@ -37,8 +37,6 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerMaterializedViewAtomicityShould : IClassFixture<SqlServerOutboxStoreContainerFixture>
 {
-	private const string ViewType = "CounterView";
-
 	private readonly SqlServerOutboxStoreContainerFixture _fixture;
 
 	public SqlServerMaterializedViewAtomicityShould(SqlServerOutboxStoreContainerFixture fixture) => _fixture = fixture;
@@ -46,7 +44,10 @@ public sealed class SqlServerMaterializedViewAtomicityShould : IClassFixture<Sql
 	private sealed record CounterView(int Count);
 
 	private SqlServerMaterializedViewStore NewStore() =>
-		new(() => new SqlConnection(_fixture.ConnectionString), NullLogger<SqlServerMaterializedViewStore>.Instance);
+		new(
+			() => new SqlConnection(_fixture.ConnectionString),
+			NullLogger<SqlServerMaterializedViewStore>.Instance,
+			TenantViewFixture.SingleTenant);
 
 	private async Task<SqlServerMaterializedViewStore> ReadyStoreAsync()
 	{
@@ -132,4 +133,19 @@ public sealed class SqlServerMaterializedViewAtomicityShould : IClassFixture<Sql
 		(await fresh.GetPositionAsync(viewName, CancellationToken.None).ConfigureAwait(false))
 			.ShouldBe(10, "a lower incoming position via SavePositionAsync must never rewind a higher checkpoint (monotonic)");
 	}
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

@@ -3,7 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
@@ -20,19 +19,17 @@ namespace Excalibur.Caching.AdaptiveTtl;
 public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, IAsyncDisposable
 {
 	private static readonly Meter CacheMeter = new(CachingTelemetryConstants.MeterName, CachingTelemetryConstants.Version);
-	private static readonly ActivitySource CacheActivitySource = new(CachingTelemetryConstants.ActivitySourceName, CachingTelemetryConstants.Version);
-
 	private static readonly Counter<long> HitCounter =
-		CacheMeter.CreateCounter<long>("caching.adaptive_ttl.hits", "hits", "Number of adaptive TTL cache hits");
+		CacheMeter.CreateCounter<long>("caching.adaptive_ttl.hits", "{hits}", "Number of adaptive TTL cache hits");
 
 	private static readonly Counter<long> MissCounter =
-		CacheMeter.CreateCounter<long>("caching.adaptive_ttl.misses", "misses", "Number of adaptive TTL cache misses");
+		CacheMeter.CreateCounter<long>("caching.adaptive_ttl.misses", "{misses}", "Number of adaptive TTL cache misses");
 
 	private static readonly Histogram<double> TtlHistogram =
 		CacheMeter.CreateHistogram<double>("caching.adaptive_ttl.ttl_seconds", "s", "Adaptive TTL values in seconds");
 
 	private static readonly Counter<long> MetadataCleanupCounter =
-		CacheMeter.CreateCounter<long>("caching.adaptive_ttl.metadata_cleanups", "cleanups", "Number of metadata entries cleaned up");
+		CacheMeter.CreateCounter<long>("caching.adaptive_ttl.metadata_cleanups", "{cleanups}", "Number of metadata entries cleaned up");
 
 	private readonly IDistributedCache _innerCache;
 	private readonly IAdaptiveTtlStrategy _ttlStrategy;
@@ -40,7 +37,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 	private readonly ISystemLoadMonitor _loadMonitor;
 	private readonly TimeProvider _timeProvider;
 	private readonly ConcurrentDictionary<string, CacheEntryMetadata> _metadata;
-	private readonly Timer _cleanupTimer;
+	private readonly ITimer _cleanupTimer;
 	private long _lastKnownSystemLoadBits = BitConverter.DoubleToInt64Bits(0.5d);
 	private volatile bool _disposed;
 
@@ -73,7 +70,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 		_metadata = new ConcurrentDictionary<string, CacheEntryMetadata>(StringComparer.Ordinal);
 
 		// Cleanup old metadata every 5 minutes
-		_cleanupTimer = new Timer(CleanupMetadata, state: null, dueTime: TimeSpan.FromMinutes(5), period: TimeSpan.FromMinutes(5));
+		_cleanupTimer = _timeProvider.CreateTimer(CleanupMetadata, state: null, dueTime: TimeSpan.FromMinutes(5), period: TimeSpan.FromMinutes(5));
 	}
 
 	/// <summary>

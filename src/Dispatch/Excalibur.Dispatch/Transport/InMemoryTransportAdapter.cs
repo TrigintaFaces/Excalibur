@@ -53,8 +53,9 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 
 	private long _successfulMessages;
 	private long _failedMessages;
-	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
-	private TransportHealthStatus _lastStatus = TransportHealthStatus.Healthy;
+	// MinValue means "no health check has completed yet" -- it must not read as a recent check.
+	private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
+	private TransportHealthStatus _lastStatus = TransportHealthStatus.Unknown;
 
 	private readonly record struct PendingMessage(object TransportMessage, IDispatcher Dispatcher);
 
@@ -99,14 +100,6 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 	public IReadOnlyDictionary<string, IDispatchMessage> SentMessages => _sentMessages;
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "In-memory transport adapter dispatches messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "In-memory transport adapter dispatches messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	public async Task<IMessageResult> ReceiveAsync(
 		object transportMessage,
 		IDispatcher dispatcher,
@@ -302,6 +295,9 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 		TransportHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(context);
+		cancellationToken.ThrowIfCancellationRequested();
+
 		var stopwatch = ValueStopwatch.StartNew();
 
 		var data = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -349,6 +345,8 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 	/// <inheritdoc />
 	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		var stopwatch = ValueStopwatch.StartNew();
 
 		var status = IsRunning
@@ -374,6 +372,8 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 	/// <inheritdoc />
 	public Task<TransportHealthMetrics> GetHealthMetricsAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		var successRate = _totalMessages > 0
 			? (double)_successfulMessages / _totalMessages
 			: 1.0;

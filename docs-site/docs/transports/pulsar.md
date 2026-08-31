@@ -37,7 +37,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddPulsarTransport("events", pulsar =>
 {
-    pulsar.ServiceUrl("pulsar://localhost:6650")
+    pulsar.ServiceUrl("pulsar+ssl://pulsar.internal:6651")
           .Topic("orders")
           .SubscriptionName("order-processors")
           .SubscriptionType(PulsarSubscriptionType.Shared);
@@ -49,7 +49,26 @@ To register with the default name (`pulsar`), omit the name argument:
 ```csharp
 services.AddPulsarTransport(pulsar =>
 {
+    pulsar.ServiceUrl("pulsar+ssl://pulsar.internal:6651")
+          .Topic("orders")
+          .SubscriptionName("order-processors");
+});
+```
+
+### Transport security
+
+The broker can be reached in the clear, so an unencrypted connection is refused by default. The
+refusal happens when the transport is resolved -- while the host is starting -- rather than on the
+first message, and it raises `TransportSecurityException`.
+
+The scheme is the whole posture: `pulsar://` and `http://` are plaintext, `pulsar+ssl://` and
+`https://` are not. For a local broker, opt out explicitly with `RequireTls(false)`:
+
+```csharp
+services.AddPulsarTransport("local-dev", pulsar =>
+{
     pulsar.ServiceUrl("pulsar://localhost:6650")
+          .RequireTls(false)   // Local brokers only: the auth token travels in the clear
           .Topic("orders")
           .SubscriptionName("order-processors");
 });

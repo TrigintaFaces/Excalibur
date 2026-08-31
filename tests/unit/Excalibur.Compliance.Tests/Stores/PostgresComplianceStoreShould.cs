@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -19,6 +21,19 @@ public sealed class PostgresComplianceStoreShould
 {
 	private readonly ILogger<PostgresComplianceStore> _logger = NullLogger<PostgresComplianceStore>.Instance;
 
+	/// <summary>
+	/// A single-tenant host's context. The store now takes the context and the deployment mode as separate,
+	/// required inputs, so these arms state both explicitly instead of letting an omitted argument decide.
+	/// </summary>
+	private sealed class SingleTenantTestContext : ITenantContext
+	{
+		public static readonly SingleTenantTestContext Instance = new();
+
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
+	}
+
 	[Fact]
 	public void ThrowWhenConnectionFactoryIsNull()
 	{
@@ -30,7 +45,8 @@ public sealed class PostgresComplianceStoreShould
 			() => new PostgresComplianceStore(
 				(Func<NpgsqlConnection>)null!,
 				options,
-				null,
+				SingleTenantTestContext.Instance,
+				MsOptions.Create(new TenantContextOptions()),
 				_logger));
 	}
 
@@ -45,7 +61,8 @@ public sealed class PostgresComplianceStoreShould
 			() => new PostgresComplianceStore(
 				factory,
 				(PostgresComplianceOptions?)null,
-				null,
+				SingleTenantTestContext.Instance,
+				MsOptions.Create(new TenantContextOptions()),
 				_logger));
 	}
 
@@ -61,7 +78,8 @@ public sealed class PostgresComplianceStoreShould
 			() => new PostgresComplianceStore(
 				factory,
 				options,
-				null,
+				SingleTenantTestContext.Instance,
+				MsOptions.Create(new TenantContextOptions()),
 				null!));
 	}
 
@@ -72,7 +90,8 @@ public sealed class PostgresComplianceStoreShould
 		Should.Throw<ArgumentNullException>(
 			() => new PostgresComplianceStore(
 				(IOptions<PostgresComplianceOptions>)null!,
-				null,
+				SingleTenantTestContext.Instance,
+				MsOptions.Create(new TenantContextOptions()),
 				_logger));
 	}
 
@@ -84,7 +103,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new PostgresComplianceStore(options, null, null!));
+			() => new PostgresComplianceStore(options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), null!));
 	}
 
 	[Fact]
@@ -95,7 +114,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(options, null, _logger));
+			() => new PostgresComplianceStore(options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger));
 	}
 
 	[Fact]
@@ -106,7 +125,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(options, null, _logger));
+			() => new PostgresComplianceStore(options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger));
 	}
 
 	[Theory]
@@ -124,7 +143,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(factory, options, null, _logger));
+			() => new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger));
 	}
 
 	[Theory]
@@ -140,7 +159,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(factory, options, null, _logger));
+			() => new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger));
 	}
 
 	[Theory]
@@ -155,7 +174,7 @@ public sealed class PostgresComplianceStoreShould
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
 
 		// Act -- should not throw
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -173,7 +192,7 @@ public sealed class PostgresComplianceStoreShould
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
 
 		// Act -- should not throw
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -185,7 +204,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -201,7 +220,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -217,7 +236,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -233,7 +252,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -246,7 +265,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, null, _logger);
+		var store = new PostgresComplianceStore(factory, options, SingleTenantTestContext.Instance, MsOptions.Create(new TenantContextOptions()), _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(

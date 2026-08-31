@@ -10,53 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.OrderingKey;
 public sealed class OrderingKeyOptionsShould
 {
 	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new OrderingKeyOptions();
-
-		// Assert
-		options.MaxConcurrentOrderingKeys.ShouldBe(Environment.ProcessorCount);
-		options.MaxMessagesPerOrderingKey.ShouldBe(1000);
-		options.RemoveEmptyQueues.ShouldBeTrue();
-		options.QueueCleanupTimeout.ShouldBe(TimeSpan.FromMinutes(5));
-		options.EnableMetrics.ShouldBeTrue();
-		options.MessageStaleTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.EnforceStrictOrdering.ShouldBeFalse();
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
-	}
-
-	[Fact]
-	public void AllowSettingAllProperties()
-	{
-		// Arrange & Act
-		var options = new OrderingKeyOptions
-		{
-			MaxConcurrentOrderingKeys = 8,
-			MaxMessagesPerOrderingKey = 500,
-			RemoveEmptyQueues = false,
-			QueueCleanupTimeout = TimeSpan.FromMinutes(10),
-			EnableMetrics = false,
-			MessageStaleTimeout = TimeSpan.FromSeconds(60),
-			EnforceStrictOrdering = true,
-			MaxRetryAttempts = 5,
-			RetryDelay = TimeSpan.FromSeconds(2),
-		};
-
-		// Assert
-		options.MaxConcurrentOrderingKeys.ShouldBe(8);
-		options.MaxMessagesPerOrderingKey.ShouldBe(500);
-		options.RemoveEmptyQueues.ShouldBeFalse();
-		options.QueueCleanupTimeout.ShouldBe(TimeSpan.FromMinutes(10));
-		options.EnableMetrics.ShouldBeFalse();
-		options.MessageStaleTimeout.ShouldBe(TimeSpan.FromSeconds(60));
-		options.EnforceStrictOrdering.ShouldBeTrue();
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(2));
-	}
-
-	[Fact]
 	public void ValidateThrowWhenMaxConcurrentOrderingKeysZero()
 	{
 		// Arrange
@@ -76,28 +29,6 @@ public sealed class OrderingKeyOptionsShould
 		// Act & Assert
 		Should.Throw<ArgumentException>(() => options.Validate())
 			.Message.ShouldContain("MaxMessagesPerOrderingKey");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenQueueCleanupTimeoutZero()
-	{
-		// Arrange
-		var options = new OrderingKeyOptions { QueueCleanupTimeout = TimeSpan.Zero };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("QueueCleanupTimeout");
-	}
-
-	[Fact]
-	public void ValidateThrowWhenMessageStaleTimeoutZero()
-	{
-		// Arrange
-		var options = new OrderingKeyOptions { MessageStaleTimeout = TimeSpan.Zero };
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MessageStaleTimeout");
 	}
 
 	[Fact]

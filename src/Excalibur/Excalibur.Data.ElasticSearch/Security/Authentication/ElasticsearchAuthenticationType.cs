@@ -29,20 +29,11 @@ public enum ElasticsearchAuthenticationType
 	/// </summary>
 	Base64ApiKey = 3,
 
-	/// <summary>
-	/// Certificate-based mutual TLS authentication for maximum security.
-	/// </summary>
-	CertificateAuthentication = 4,
 
 	/// <summary>
 	/// OAuth 2.0 / OpenID Connect authentication with token refresh support.
 	/// </summary>
 	OAuth2 = 5,
-
-	/// <summary>
-	/// SAML-based authentication for enterprise single sign-on integration.
-	/// </summary>
-	Saml = 6,
 
 	/// <summary>
 	/// Service account authentication for machine-to-machine communication.

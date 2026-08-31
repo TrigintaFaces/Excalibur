@@ -236,7 +236,7 @@ var orderId = context.GetOrderId();
 
 :::info Ambient Tenant Context
 
-The current tenant is exposed as the ambient `ITenantContext` (registered via `AddTenantContext()`, which `AddExcaliburA3()` calls for you). Its `TenantId` reads the tenant established for the current execution flow by `TenantContextHolder.BeginScope`. The configured default is `TenantContextOptions.DefaultTenantId` (`"Default"`).
+The current tenant is exposed as the ambient `ITenantContext` (registered via `AddTenantContext()`, which `AddExcaliburA3()` calls for you). That context reports whichever tenant the current execution flow has established through `TenantContextHolder.BeginScope` — it does not select a tenant of its own, and no framework component substitutes one when the scope is empty. On `Excalibur.Hosting.Web`, the per-request middleware opens that scope from the request's `X-Tenant-Id` header or `tenantId` query value (both must parse as a `Guid`); when a request supplies neither, the scope is opened with no tenant and `ITenantContext.HasTenant` reports `false`. A single-tenant deployment that wants every operation to run under one identity opens the scope itself, using the framework's single-tenant identifier `TenantDefaults.DefaultTenantId`. Read that identifier from the constant rather than copying its literal value — it is the identity your rows are stored under, so a hardcoded copy that drifts from it silently changes which rows an operation can see.
 
 ```csharp
 services.AddExcaliburA3()
@@ -353,11 +353,11 @@ When messages cross service boundaries:
 ```csharp
 public class OutboxMiddleware : IDispatchMiddleware
 {
-    private readonly IOutboxStore _outboxStore;
+    private readonly IOutboxWriter _outboxWriter;
 
-    public OutboxMiddleware(IOutboxStore outboxStore)
+    public OutboxMiddleware(IOutboxWriter outboxWriter)
     {
-        _outboxStore = outboxStore;
+        _outboxWriter = outboxWriter;
     }
 
     public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PostProcessing;
@@ -370,14 +370,9 @@ public class OutboxMiddleware : IDispatchMiddleware
     {
         var result = await nextDelegate(message, context, cancellationToken);
 
-        // Include context in outbox message
-        var outboxMessage = new OutboxMessage
-        {
-            CorrelationId = context.CorrelationId,
-            Metadata = context.Items
-        };
-
-        await _outboxStore.SaveAsync(outboxMessage, cancellationToken);
+        // The writer captures the ambient context — correlation, causation and the
+        // context items — onto the staged message; nothing to copy by hand.
+        await _outboxWriter.WriteAsync(message, destination: "orders", cancellationToken);
 
         return result;
     }

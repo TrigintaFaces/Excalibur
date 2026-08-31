@@ -29,6 +29,7 @@ internal sealed class IndexTemplateManager(IOpenSearchClient client, ILogger<Ind
 	private readonly ILogger<IndexTemplateManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression on this member: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this path off both.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch low-level API requires runtime serialization of opaque JSON payloads.")]
 	public async Task<bool> CreateOrUpdateTemplateAsync(string templateName, IndexTemplateConfiguration template,
 		CancellationToken cancellationToken)
@@ -173,6 +174,7 @@ internal sealed class IndexTemplateManager(IOpenSearchClient client, ILogger<Ind
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression on this member: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this path off both.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "OpenSearch low-level API requires runtime serialization of opaque JSON payloads.")]
 	public async Task<bool> CreateOrUpdateComponentTemplateAsync(string templateName, ComponentTemplateConfiguration template,
 		CancellationToken cancellationToken)

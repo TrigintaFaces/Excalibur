@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Security;
 
 using Microsoft.AspNetCore.DataProtection;
@@ -36,11 +37,42 @@ public static class SecurityMiddlewareExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		// Add all security components with default configuration
-		_ = services.AddMessageEncryption(configuration.GetSection("Security:Encryption"));
-		_ = services.AddMessageSigning(configuration.GetSection("Security:Signing"));
-		_ = services.AddRateLimiting(configuration.GetSection("Security:RateLimiting"));
-		_ = services.AddJwtAuthentication(configuration.GetSection("Security:Authentication"));
+		// Every component is composed only when its own Enabled key says so, which is what makes this
+		// overload and the delegate overload agree: both compose exactly what the host named. Encryption
+		// was the last one still composed unconditionally, so a host that had set
+		// Security:Encryption:Enabled to false got encryption anyway and had to rely on the middleware
+		// no-opping at runtime -- a setting that reported one thing and did another.
+		var encryptionSection = configuration.GetSection("Security:Encryption");
+		if (bool.TryParse(encryptionSection["Enabled"], out var encryptionEnabled) && encryptionEnabled)
+		{
+			_ = services.AddMessageEncryption(encryptionSection);
+		}
+
+		// Signing needs an IKeyProvider the consumer must supply, so composing it for a host that never
+		// asked for it puts an unsatisfiable dependency in the dispatch pipeline. Absent configuration,
+		// signing is not composed at all.
+		var signingSection = configuration.GetSection("Security:Signing");
+		if (bool.TryParse(signingSection["Enabled"], out var signingEnabled) && signingEnabled)
+		{
+			_ = services.AddMessageSigning(signingSection);
+		}
+
+		// Rate limiting and authentication are gated for the same reason. Composing authentication
+		// unconditionally put JwtTokenValidationOptions into the container for every host, and its
+		// validator then refuses startup unless an issuer, an audience and a signing key are configured --
+		// so a host that asked only for encryption, or only for signing, could not start, and the message
+		// named JWT settings it had never heard of.
+		var rateLimitingSection = configuration.GetSection("Security:RateLimiting");
+		if (bool.TryParse(rateLimitingSection["Enabled"], out var rateLimitingEnabled) && rateLimitingEnabled)
+		{
+			_ = services.AddRateLimiting(rateLimitingSection);
+		}
+
+		var authenticationSection = configuration.GetSection("Security:Authentication");
+		if (bool.TryParse(authenticationSection["Enabled"], out var authenticationEnabled) && authenticationEnabled)
+		{
+			_ = services.AddJwtAuthentication(authenticationSection);
+		}
 
 		return services;
 	}
@@ -162,7 +194,10 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<EncryptionOptions>, EncryptionOptionsValidator>());
 
-		// Add DataProtection with Azure Key Vault if configured
+		// The key ring is deliberately left at the host's default. Attaching a cloud key provider here
+		// would force a cloud dependency on every consumer of this package; a host that wants one
+		// configures it on AddDataProtection itself, and EncryptionOptionsValidator refuses the
+		// key-location options rather than letting them read as honoured.
 		_ = services.AddDataProtection()
 			.SetApplicationName("Excalibur.Security");
 
@@ -171,6 +206,12 @@ public static class SecurityMiddlewareExtensions
 
 		// Register middleware concrete type for pipeline resolution
 		services.TryAddTransient<MessageEncryptionMiddleware>();
+
+		// Add to the dispatch pipeline. The pipeline discovers middleware by enumerating
+		// IEnumerable<IDispatchMiddleware> from DI; registering only the concrete type above
+		// leaves the middleware inert. Ordering is by Stage, so registration order is irrelevant.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Transient<IDispatchMiddleware, MessageEncryptionMiddleware>());
 
 		return services;
 	}
@@ -228,18 +269,24 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SigningOptions>, SigningOptionsValidator>());
 
-		// IKeyProvider is NOT registered here: it is a required deployment decision the consumer must make
-		// explicitly (a configuration/secret-backed provider, Excalibur.Security.Azure, or Excalibur.Security.Aws).
-		// HmacMessageSigningService requires one, so fail loud at host startup when signing is enabled but none
-		// is registered — never a deferred first-resolve crash, never silently inert (FR-4, f9cn09).
+		// IKeyProvider is NOT registered here: signing key material is a deployment decision the consumer
+		// must make explicitly (a configuration/secret-backed provider, Excalibur.Security.Azure, or
+		// Excalibur.Security.Aws). The framework never mints signing keys on the consumer's behalf — a
+		// key nobody chose produces signatures nothing else can verify, and an unverifiable signature is
+		// rejected as an authorization failure on every other instance. Fail loud at host startup instead.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, SigningKeyProviderStartupValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, SigningKeyProviderStartupValidator>());
 
 		// Register signing service
 		services.TryAddSingleton<IMessageSigningService, HmacMessageSigningService>();
 
 		// Register middleware
 		services.TryAddTransient<MessageSigningMiddleware>();
+
+		// Add to the dispatch pipeline (see AddMessageEncryption for why this is required).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Transient<IDispatchMiddleware, MessageSigningMiddleware>());
 
 		return services;
 	}
@@ -288,12 +335,24 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, RsaSignatureAlgorithmProvider>());
 
+		// CompositeMessageSigningService takes the same IKeyProvider dependency as the HMAC service, and
+		// the same rule applies: the consumer supplies it, and its absence fails loud at host startup.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, SigningKeyProviderStartupValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, SigningKeyProviderStartupValidator>());
+
 		// Composite replaces HMAC-only service (Replace ensures single registration)
 		services.RemoveAll<IMessageSigningService>();
 		services.AddSingleton<IMessageSigningService, CompositeMessageSigningService>();
 
 		// Register middleware (same as AddMessageSigning)
 		services.TryAddTransient<MessageSigningMiddleware>();
+
+		// Add to the dispatch pipeline. TryAddEnumerable de-duplicates on the
+		// (service type, implementation type) pair, so composing both AddMessageSigning and
+		// AddAsymmetricSigning yields a single MessageSigningMiddleware in the pipeline.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Transient<IDispatchMiddleware, MessageSigningMiddleware>());
 
 		return services;
 	}
@@ -353,6 +412,11 @@ public static class SecurityMiddlewareExtensions
 		// Register middleware as singleton for shared rate limiters
 		services.TryAddSingleton<RateLimitingMiddleware>();
 
+		// Add to the dispatch pipeline. Singleton to match the concrete registration above:
+		// the rate limiters it owns are shared state and must not be duplicated per resolution.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IDispatchMiddleware, RateLimitingMiddleware>());
+
 		return services;
 	}
 
@@ -411,6 +475,10 @@ public static class SecurityMiddlewareExtensions
 
 		// Register middleware
 		services.TryAddTransient<JwtAuthenticationMiddleware>();
+
+		// Add to the dispatch pipeline (see AddMessageEncryption for why this is required).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Transient<IDispatchMiddleware, JwtAuthenticationMiddleware>());
 
 		return services;
 	}

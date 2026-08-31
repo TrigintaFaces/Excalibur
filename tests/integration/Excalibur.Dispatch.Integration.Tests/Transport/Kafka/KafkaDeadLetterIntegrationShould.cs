@@ -399,6 +399,10 @@ public sealed class KafkaDeadLetterIntegrationShould
 		var kafkaOptions = Microsoft.Extensions.Options.Options.Create(new KafkaOptions
 		{
 			BootstrapServers = _fixture.BootstrapServers!,
+
+			// The test container has no TLS listener, so this fixture opts out of the shipping
+			// fail-closed posture explicitly rather than the transport quietly connecting in the clear.
+			RequireTls = false,
 		});
 
 		var dlqOptions = Microsoft.Extensions.Options.Options.Create(new KafkaDeadLetterOptions

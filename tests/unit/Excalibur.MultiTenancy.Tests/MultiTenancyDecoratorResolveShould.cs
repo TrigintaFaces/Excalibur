@@ -26,7 +26,7 @@ public sealed class MultiTenancyDecoratorResolveShould
     public void Throw_WhenRowDiscriminatorWrapsATenantUnawareSagaStore()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<ISagaStore>(new NoopSagaStore()); // no capability marker → tenant-unaware provider
+        services.AddSingleton<ISagaStore>(new NoopSagaStore(A.Fake<ITenantContext>())); // no capability marker → tenant-unaware provider
 
         var ex = Should.Throw<InvalidOperationException>(() =>
             services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
@@ -40,9 +40,9 @@ public sealed class MultiTenancyDecoratorResolveShould
     public void ResolveTheFailClosedSagaDecorator_WhenTheSagaStoreProvesTenantCapability()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<ISagaStore>(new NoopSagaStore());
+        services.AddSingleton<ISagaStore>(new NoopSagaStore(A.Fake<ITenantContext>()));
         // Real marker via the dep-gated seam (the bare fake is now structurally unimplementable).
-        services.AddTenantScopedStore<ISagaStore, NoopSagaStore>((_, _) => new NoopSagaStore());
+        services.AddTenantAwareStore<ISagaStore, NoopSagaStore>(sp => new NoopSagaStore(sp.GetRequiredService<ITenantContext>()));
 
         services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
@@ -74,8 +74,10 @@ public sealed class MultiTenancyDecoratorResolveShould
         services.AddSingleton<ITenantContext>(new TestTenantContext("tenant-A"));
         // The projection seam registers the interface (scoped) AND the family marker together, dep-gating
         // ITenantContext — the real production wiring (the bare fake is now structurally unimplementable).
-        services.AddTenantScopedProjectionStore<IProjectionStore<TestProjection>, IProjectionStore<object>>(
-            (_, _) => new NoopProjectionStore<TestProjection>());
+        // The store type is the seam's evidence: the marker is emitted because THIS type's constructor
+        // requires an ITenantContext, so a store that ignores the tenant cannot be registered here at all.
+        services.AddTenantScopedProjectionStore<IProjectionStore<TestProjection>, TenantReadingProjectionStore<TestProjection>, IProjectionStore<object>>(
+            sp => new TenantReadingProjectionStore<TestProjection>(sp.GetRequiredService<ITenantContext>()));
 
         services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 

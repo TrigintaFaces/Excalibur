@@ -6,24 +6,22 @@ using Azure.Messaging.ServiceBus;
 namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>
-/// Fluent builder interface for configuring Azure Service Bus transport.
+/// Fluent configuration for the Azure Service Bus transport.
 /// </summary>
 /// <remarks>
-/// <para>
-/// This interface follows the Microsoft-style fluent builder pattern.
-/// It provides the single entry point for Azure Service Bus transport configuration.
-/// </para>
-/// <para>
-/// All methods return <c>this</c> for method chaining, enabling a fluent configuration experience.
-/// </para>
+/// The builder is a view over the <see cref="AzureServiceBusOptions"/> instance the options system owns:
+/// every call writes into the options the transport's own components resolve, so there is no second
+/// model and nothing to carry between them. Settings that are plain values are reached through
+/// <see cref="ConfigureSender"/>, <see cref="ConfigureProcessor"/> and <see cref="ConfigureOptions"/>,
+/// which hand you the options directly; the builder itself carries only operations that do more than
+/// assign — <see cref="MapEntity{TMessage}"/> appends to a routing table.
 /// </remarks>
 /// <example>
 /// <code>
 /// services.AddAzureServiceBusTransport("orders", sb =>
 /// {
 ///     sb.ConnectionString("Endpoint=sb://...")
-///       .ConfigureSender(sender => sender.EnableBatching(true))
-///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls(20))
+///       .ConfigureProcessor(processor => processor.MaxConcurrentCalls = 20)
 ///       .MapEntity&lt;OrderCreated&gt;("orders-topic");
 /// });
 /// </code>
@@ -31,206 +29,94 @@ namespace Excalibur.Dispatch.Transport.Azure;
 public interface IAzureServiceBusTransportBuilder
 {
 	/// <summary>
-	/// Configures the Azure Service Bus connection string.
+	/// Sets the connection string used to authenticate against Service Bus.
 	/// </summary>
 	/// <param name="connectionString">The Service Bus connection string.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null, empty, or whitespace.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// The connection string must include the Endpoint and SharedAccessKeyName.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.ConnectionString("Endpoint=sb://mynamespace.servicebus.windows.net/;SharedAccessKeyName=...");
-	/// </code>
-	/// </example>
+	/// <returns>The builder for chaining.</returns>
 	IAzureServiceBusTransportBuilder ConnectionString(string connectionString);
 
 	/// <summary>
-	/// Configures the Azure Service Bus using a fully qualified namespace with managed identity.
+	/// Authenticates against the given namespace with a managed identity instead of a connection string.
 	/// </summary>
-	/// <param name="fullyQualifiedNamespace">The Service Bus fully qualified namespace.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="fullyQualifiedNamespace"/> is null, empty, or whitespace.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// This method configures the transport to use Azure Managed Identity for authentication.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.FullyQualifiedNamespace("mynamespace.servicebus.windows.net");
-	/// </code>
-	/// </example>
+	/// <param name="fullyQualifiedNamespace">The fully-qualified namespace, for example <c>my-bus.servicebus.windows.net</c>.</param>
+	/// <returns>The builder for chaining.</returns>
 	IAzureServiceBusTransportBuilder FullyQualifiedNamespace(string fullyQualifiedNamespace);
 
 	/// <summary>
-	/// Configures the transport type for Service Bus connections.
+	/// Sets the transport protocol used for the connection.
 	/// </summary>
-	/// <param name="transportType">The transport type (AMQP TCP or AMQP WebSockets).</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Use <see cref="ServiceBusTransportType.AmqpWebSockets"/> when behind a firewall
-	/// that blocks AMQP over TCP.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.TransportType(ServiceBusTransportType.AmqpWebSockets);
-	/// </code>
-	/// </example>
+	/// <param name="transportType">The transport type.</param>
+	/// <returns>The builder for chaining.</returns>
 	IAzureServiceBusTransportBuilder TransportType(ServiceBusTransportType transportType);
 
 	/// <summary>
-	/// Configures the sender (producer) settings using a fluent builder.
+	/// Configures how messages are sent.
 	/// </summary>
-	/// <param name="configure">The sender configuration action.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Use this method to configure message publishing settings such as batching,
-	/// default entity name, and message properties.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.ConfigureSender(sender =>
-	/// {
-	///     sender.DefaultEntity("orders-queue")
-	///           .EnableBatching(true)
-	///           .MaxBatchSizeBytes(256 * 1024);
-	/// });
-	/// </code>
-	/// </example>
-	IAzureServiceBusTransportBuilder ConfigureSender(Action<IAzureServiceBusSenderBuilder> configure);
+	/// <param name="configure">Receives the sender options to configure.</param>
+	/// <returns>The builder for chaining.</returns>
+	IAzureServiceBusTransportBuilder ConfigureSender(Action<AzureServiceBusSenderOptions> configure);
 
 	/// <summary>
-	/// Configures the processor (consumer) settings using a fluent builder.
+	/// Configures how messages are received.
 	/// </summary>
-	/// <param name="configure">The processor configuration action.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Use this method to configure message consumption settings such as concurrency,
-	/// auto-completion, and lock renewal.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.ConfigureProcessor(processor =>
-	/// {
-	///     processor.DefaultEntity("orders-queue")
-	///              .MaxConcurrentCalls(20)
-	///              .PrefetchCount(100)
-	///              .AutoCompleteMessages(false);
-	/// });
-	/// </code>
-	/// </example>
-	IAzureServiceBusTransportBuilder ConfigureProcessor(Action<IAzureServiceBusProcessorBuilder> configure);
+	/// <param name="configure">Receives the processor options to configure.</param>
+	/// <returns>The builder for chaining.</returns>
+	IAzureServiceBusTransportBuilder ConfigureProcessor(Action<AzureServiceBusProcessorOptions> configure);
 
 	/// <summary>
-	/// Configures CloudEvents format options.
+	/// Configures the CloudEvents behavior registered alongside this transport.
 	/// </summary>
-	/// <param name="configure">The CloudEvents configuration action.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// CloudEvents provide a standardized message format for interoperability.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.ConfigureCloudEvents(ce =>
-	/// {
-	///     ce.EnableDuplicateDetection(true)
-	///       .DuplicateDetectionWindow(TimeSpan.FromMinutes(5))
-	///       .MaxDeliveryCount(10);
-	/// });
-	/// </code>
-	/// </example>
+	/// <param name="configure">Receives the CloudEvents options to configure.</param>
+	/// <returns>The builder for chaining.</returns>
 	IAzureServiceBusTransportBuilder ConfigureCloudEvents(Action<AzureServiceBusCloudEventOptions> configure);
 
 	/// <summary>
-	/// Maps a message type to a specific queue or topic.
+	/// Configures any option on the transport, including those without a dedicated fluent method.
 	/// </summary>
-	/// <typeparam name="TMessage">The message type to map.</typeparam>
-	/// <param name="entityName">The queue or topic name for this message type.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="entityName"/> is null, empty, or whitespace.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// When a mapping exists for a message type, the transport will send that
-	/// message to the specified queue or topic instead of using the default entity.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.MapEntity&lt;OrderCreated&gt;("orders-topic")
-	///   .MapEntity&lt;PaymentReceived&gt;("payments-queue");
-	/// </code>
-	/// </example>
-	IAzureServiceBusTransportBuilder MapEntity<TMessage>(string entityName) where TMessage : class;
+	/// <param name="configure">Receives the transport options to configure.</param>
+	/// <returns>The builder for chaining.</returns>
+	IAzureServiceBusTransportBuilder ConfigureOptions(Action<AzureServiceBusOptions> configure);
 
 	/// <summary>
-	/// Sets a prefix to apply to entity names.
+	/// Routes messages of <typeparamref name="TMessage"/> to a specific queue or topic, overriding the
+	/// sender's default entity.
 	/// </summary>
-	/// <param name="prefix">The entity name prefix (e.g., "myapp-", "prod-").</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="prefix"/> is null, empty, or whitespace.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// The prefix is applied to entity names that are automatically derived from
-	/// message type names, helping to organize entities by application or environment.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sb.WithEntityPrefix("myapp-prod-");
-	/// // Messages of type OrderCreated would go to "myapp-prod-ordercreated"
-	/// </code>
-	/// </example>
-	IAzureServiceBusTransportBuilder WithEntityPrefix(string prefix);
+	/// <typeparam name="TMessage">The message type to route.</typeparam>
+	/// <param name="entityName">The queue or topic name to route it to.</param>
+	/// <returns>The builder for chaining.</returns>
+	IAzureServiceBusTransportBuilder MapEntity<TMessage>(string entityName) where TMessage : class;
 }
 
 /// <summary>
-/// Internal implementation of the Azure Service Bus transport builder.
+/// Default <see cref="IAzureServiceBusTransportBuilder"/>, a view over the options being configured.
 /// </summary>
 internal sealed class AzureServiceBusTransportBuilder : IAzureServiceBusTransportBuilder
 {
-	private readonly AzureServiceBusTransportOptions _options;
+	private readonly AzureServiceBusOptions _options;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="AzureServiceBusTransportBuilder"/> class.
+	/// Initializes a new instance of the <see cref="AzureServiceBusTransportBuilder"/> class over
+	/// <paramref name="options"/>. The builder does not own the instance and never copies out of it.
 	/// </summary>
-	/// <param name="options">The transport options to configure.</param>
-	public AzureServiceBusTransportBuilder(AzureServiceBusTransportOptions options)
+	/// <param name="options">The options this builder configures.</param>
+	public AzureServiceBusTransportBuilder(AzureServiceBusOptions options)
 	{
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+		ArgumentNullException.ThrowIfNull(options);
+		_options = options;
 	}
+
+	/// <summary>
+	/// Gets the CloudEvents configuration the consumer supplied, if any. CloudEvents options are a
+	/// separate registration with its own entry point, so the delegate is handed on rather than its
+	/// values being copied into a nested duplicate.
+	/// </summary>
+	public Action<AzureServiceBusCloudEventOptions>? CloudEventsConfigure { get; private set; }
 
 	/// <inheritdoc/>
 	public IAzureServiceBusTransportBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		_options.ConnectionString = connectionString;
-		_options.UseManagedIdentity = false;
 		return this;
 	}
 
@@ -238,7 +124,7 @@ internal sealed class AzureServiceBusTransportBuilder : IAzureServiceBusTranspor
 	public IAzureServiceBusTransportBuilder FullyQualifiedNamespace(string fullyQualifiedNamespace)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(fullyQualifiedNamespace);
-		_options.FullyQualifiedNamespace = fullyQualifiedNamespace;
+		_options.Namespace = fullyQualifiedNamespace;
 		_options.UseManagedIdentity = true;
 		return this;
 	}
@@ -251,24 +137,18 @@ internal sealed class AzureServiceBusTransportBuilder : IAzureServiceBusTranspor
 	}
 
 	/// <inheritdoc/>
-	public IAzureServiceBusTransportBuilder ConfigureSender(Action<IAzureServiceBusSenderBuilder> configure)
+	public IAzureServiceBusTransportBuilder ConfigureSender(Action<AzureServiceBusSenderOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
-
-		var builder = new AzureServiceBusSenderBuilder(_options.Sender);
-		configure(builder);
-
+		configure(_options.Sender);
 		return this;
 	}
 
 	/// <inheritdoc/>
-	public IAzureServiceBusTransportBuilder ConfigureProcessor(Action<IAzureServiceBusProcessorBuilder> configure)
+	public IAzureServiceBusTransportBuilder ConfigureProcessor(Action<AzureServiceBusProcessorOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
-
-		var builder = new AzureServiceBusProcessorBuilder(_options.Processor);
-		configure(builder);
-
+		configure(_options.Processor);
 		return this;
 	}
 
@@ -276,7 +156,15 @@ internal sealed class AzureServiceBusTransportBuilder : IAzureServiceBusTranspor
 	public IAzureServiceBusTransportBuilder ConfigureCloudEvents(Action<AzureServiceBusCloudEventOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
-		configure(_options.CloudEvents);
+		CloudEventsConfigure = configure;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAzureServiceBusTransportBuilder ConfigureOptions(Action<AzureServiceBusOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(configure);
+		configure(_options);
 		return this;
 	}
 
@@ -285,14 +173,6 @@ internal sealed class AzureServiceBusTransportBuilder : IAzureServiceBusTranspor
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(entityName);
 		_options.EntityMappings[typeof(TMessage)] = entityName;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IAzureServiceBusTransportBuilder WithEntityPrefix(string prefix)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
-		_options.EntityPrefix = prefix;
 		return this;
 	}
 }

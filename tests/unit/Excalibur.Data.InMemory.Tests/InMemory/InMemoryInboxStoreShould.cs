@@ -17,7 +17,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 	public InMemoryInboxStoreShould()
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
-		_store = new InMemoryInboxStore(options, NullLogger<InMemoryInboxStore>.Instance);
+		_store = new InMemoryInboxStore(options, NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 	}
 
 	public ValueTask DisposeAsync() => _store.DisposeAsync();
@@ -73,7 +73,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 	public void ThrowWhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new InMemoryInboxStore(null!, NullLogger<InMemoryInboxStore>.Instance));
+			() => new InMemoryInboxStore(null!, NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
 		Should.Throw<ArgumentNullException>(
-			() => new InMemoryInboxStore(options, null!));
+			() => new InMemoryInboxStore(options, null!, UntenantedContext.Instance));
 	}
 
 	// d2afxn: a Failed entry is RE-ADMITTABLE on redelivery (retry) — mirrors the lease-store CAS predicate.
@@ -93,16 +93,16 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		const string messageId = "msg-lease-failed-readmit";
 		const string handlerType = "TestHandler";
 
-		(await _store.TryClaimAsync(messageId, handlerType, lease, CancellationToken.None))
-			.ShouldBeTrue("the initial claim acquires the lease");
+		(await _store.TryAcquireLeaseAsync(messageId, handlerType, lease, CancellationToken.None))
+			.ShouldNotBeNull("the initial claim acquires the lease");
 		await _store.MarkFailedAsync(messageId, handlerType, "handler boom", CancellationToken.None);
 
 		var afterFail = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
 		afterFail.ShouldNotBeNull();
 		afterFail!.Status.ShouldBe(InboxStatus.Failed);
 
-		(await _store.TryClaimAsync(messageId, handlerType, lease, CancellationToken.None))
-			.ShouldBeTrue("a Failed entry MUST be re-admittable on redelivery (at-least-once + idempotent-handler contract)");
+		(await _store.TryAcquireLeaseAsync(messageId, handlerType, lease, CancellationToken.None))
+			.ShouldNotBeNull("a Failed entry MUST be re-admittable on redelivery (at-least-once + idempotent-handler contract)");
 
 		var afterReclaim = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
 		afterReclaim.ShouldNotBeNull();
@@ -122,6 +122,39 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		afterSecondFail.RetryCount.ShouldBe(
 			2,
 			"RetryCount MUST be monotonic across re-admits (2 failed attempts => 2), not reset to 0/1 on re-admittance");
+	}
+
+	// A lease claim over an EXISTING entry must re-admit that entry, not replace it. The claim is the step
+	// that hands a drain the message it is about to redeliver, so a claim that empties the payload destroys
+	// the very thing it was taken out to protect — and it does so silently, because the entry is still there
+	// and still in the right status.
+	//
+	// The arms discriminate: each asserts a distinct field the replacement dropped. A constant-returning
+	// implementation cannot satisfy them, and a replacement that copies forward only SOME fields fails on
+	// whichever it left out — which is the failure mode being locked, since the pre-fix code copied ReceivedAt
+	// and RetryCount and dropped the rest.
+	[Fact]
+	public async Task Preserve_the_stored_message_when_a_lease_claims_an_existing_entry()
+	{
+		const string messageId = "msg-lease-preserves-payload";
+		const string handlerType = "TestHandler";
+		byte[] payload = [7, 8, 9];
+		var metadata = new Dictionary<string, object>(StringComparer.Ordinal) { ["origin"] = "queue-a" };
+
+		_ = await _store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", payload, metadata, CancellationToken.None);
+
+		(await _store.TryAcquireLeaseAsync(messageId, handlerType, TimeSpan.FromSeconds(30), CancellationToken.None))
+			.ShouldNotBeNull("a Received entry is claimable");
+
+		var afterClaim = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
+		afterClaim.ShouldNotBeNull();
+		afterClaim!.Status.ShouldBe(InboxStatus.Processing);
+
+		afterClaim.Payload.ShouldBe(payload, "the claim must not empty the payload it is about to redeliver");
+		afterClaim.MessageType.ShouldBe(
+			"TestMessageType", "without the message type the surviving payload cannot be resolved to a type");
+		afterClaim.Metadata.ShouldContainKeyAndValue("origin", "queue-a");
 	}
 
 	[Fact]
@@ -277,7 +310,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		await _store.CreateEntryAsync("msg-2", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
 		await _store.MarkProcessedAsync("msg-1", "handler", CancellationToken.None);
 
-		var stats = await _store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await _store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(2);
 		stats.ProcessedEntries.ShouldBe(1);
 	}
@@ -288,7 +321,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		await _store.CreateEntryAsync("msg-1", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
 		await _store.CreateEntryAsync("msg-2", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
 
-		var entries = await _store.GetAllEntriesAsync(CancellationToken.None);
+		var entries = await _store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		entries.Count().ShouldBe(2);
 	}
 
@@ -316,7 +349,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		// Zero retention removes all processed entries at or before the cleanup instant.
 		// Poll until the entry ages past the provider's cleanup cutoff to avoid same-tick flakiness.
 		var removed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			async () => await _store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false) > 0,
+			async () => await _store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false) > 0,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
 			TimeSpan.FromMilliseconds(20));
 		removed.ShouldBeTrue();
@@ -334,7 +367,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 
 		// After dispose, operations should throw ObjectDisposedException
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => _store.GetAllEntriesAsync(CancellationToken.None).AsTask());
+			() => _store.GetAllTenantsEntriesAsync(CancellationToken.None).AsTask());
 	}
 
 	[Fact]
@@ -345,14 +378,14 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		await _store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => _store.GetAllEntriesAsync(CancellationToken.None).AsTask());
+			() => _store.GetAllTenantsEntriesAsync(CancellationToken.None).AsTask());
 	}
 
 	[Fact]
 	public async Task CapacityLimit_EvictsOldestEntry()
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions { MaxEntries = 2 });
-		await using var store = new InMemoryInboxStore(options, NullLogger<InMemoryInboxStore>.Instance);
+		await using var store = new InMemoryInboxStore(options, NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 
 		await store.CreateEntryAsync("msg-1", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
 		await store.CreateEntryAsync("msg-2", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
@@ -360,7 +393,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		// Adding a third entry should evict the oldest
 		await store.CreateEntryAsync("msg-3", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
 
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(2);
 	}
 }

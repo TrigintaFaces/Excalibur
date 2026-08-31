@@ -38,18 +38,6 @@ public sealed class FixedLongPollingStrategyShould
 	}
 
 	[Fact]
-	public void CreateWithConfiguration()
-	{
-		var config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"),
-		};
-		config.Polling.MaxWaitTimeSeconds = 15;
-		var strategy = new FixedLongPollingStrategy(config);
-		strategy.Name.ShouldBe("Fixed");
-	}
-
-	[Fact]
 	public async Task ReturnFixedWaitTime()
 	{
 		// Arrange

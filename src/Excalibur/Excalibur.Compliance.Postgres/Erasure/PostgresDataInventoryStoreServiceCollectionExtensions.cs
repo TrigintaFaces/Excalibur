@@ -39,7 +39,18 @@ public static class PostgresDataInventoryStoreServiceCollectionExtensions
 				PostgresDataInventoryStoreOptionsValidator>());
 
 		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
-		services.TryAddSingleton<PostgresDataInventoryStore>();
+		// The store's constructor REQUIRES both the ambient context and the tenant-context options, and it is
+		// registered here by type, so both must resolve. AddDefaultTenantContext registers the single-tenant
+		// default context and the TenantContextOptions binding; TryAdd keeps a host's own context, which the
+		// multi-tenancy composition replaces with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+		// Through the tenant-aware seam rather than a bare TryAdd. The store requires an ambient
+		// ITenantContext and binds its term on every statement it builds, and IDataInventoryStore is a
+		// tenant-owned contract -- so registered plainly it attested nothing and a multi-tenant host was
+		// refused for a store that is correct. The seam resolves the context (fail-closed), constructs the
+		// store with it, and emits the tenant-scoping capability in the same act, so the attestation cannot
+		// exist apart from the wiring it describes.
+		_ = services.AddTenantAwareStore<IDataInventoryStore, PostgresDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<PostgresDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<PostgresDataInventoryStore>());
 
@@ -72,10 +83,6 @@ public static class PostgresDataInventoryStoreServiceCollectionExtensions
 	/// <param name="connectionStringName">The connection string name from configuration.</param>
 	/// <param name="configure">Optional additional configuration.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresDataInventoryStoreFromConfiguration(
 		this IServiceCollection services,
 		string connectionStringName,
@@ -104,7 +111,18 @@ public static class PostgresDataInventoryStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresDataInventoryStoreOptions>,
 				PostgresDataInventoryStoreOptionsValidator>());
 
-		services.TryAddSingleton<PostgresDataInventoryStore>();
+		// The store's constructor REQUIRES both the ambient context and the tenant-context options, and it is
+		// registered here by type, so both must resolve. AddDefaultTenantContext registers the single-tenant
+		// default context and the TenantContextOptions binding; TryAdd keeps a host's own context, which the
+		// multi-tenancy composition replaces with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+		// Through the tenant-aware seam rather than a bare TryAdd. The store requires an ambient
+		// ITenantContext and binds its term on every statement it builds, and IDataInventoryStore is a
+		// tenant-owned contract -- so registered plainly it attested nothing and a multi-tenant host was
+		// refused for a store that is correct. The seam resolves the context (fail-closed), constructs the
+		// store with it, and emits the tenant-scoping capability in the same act, so the attestation cannot
+		// exist apart from the wiring it describes.
+		_ = services.AddTenantAwareStore<IDataInventoryStore, PostgresDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<PostgresDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<PostgresDataInventoryStore>());
 

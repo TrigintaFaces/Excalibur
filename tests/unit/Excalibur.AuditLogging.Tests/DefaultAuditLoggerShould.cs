@@ -167,14 +167,14 @@ public sealed class DefaultAuditLoggerShould
     {
         var startDate = DateTimeOffset.UtcNow.AddDays(-1);
         var endDate = DateTimeOffset.UtcNow;
-        var expectedResult = AuditIntegrityResult.Valid(100, startDate, endDate);
+        var expectedResult = AuditIntegrityResult.Verified(100, startDate, endDate, isHashChained: true);
 
         A.CallTo(() => _fakeStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
             .Returns(expectedResult);
 
         var result = await _sut.VerifyIntegrityAsync(startDate, endDate, CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
         result.EventsVerified.ShouldBe(100);
     }
 
@@ -206,15 +206,15 @@ public sealed class DefaultAuditLoggerShould
     {
         var startDate = DateTimeOffset.UtcNow.AddDays(-1);
         var endDate = DateTimeOffset.UtcNow;
-        var invalidResult = AuditIntegrityResult.Invalid(
-            50, startDate, endDate, "evt-bad", "Hash mismatch", 1);
+        var invalidResult = AuditIntegrityResult.ViolationsDetected(
+            50, startDate, endDate, "evt-bad", "Hash mismatch", 1, isHashChained: true);
 
         A.CallTo(() => _fakeStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
             .Returns(invalidResult);
 
         var result = await _sut.VerifyIntegrityAsync(startDate, endDate, CancellationToken.None);
 
-        result.IsValid.ShouldBeFalse();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
         result.FirstViolationEventId.ShouldBe("evt-bad");
     }
 

@@ -20,7 +20,7 @@ public sealed class DynamoDbOptions
 	/// Gets or sets the name of the provider instance.
 	/// </summary>
 	[Required]
-	public string Name { get; set; } = "DynamoDb";
+	public string Name { get; set; } = "dynamodb";
 
 	/// <summary>
 	/// Gets or sets the default table name.

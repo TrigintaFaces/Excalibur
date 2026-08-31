@@ -16,6 +16,8 @@ namespace Excalibur.Data.Tests.CosmosDb.Cdc.Builders;
 public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 {
 	private const string SourceConnectionString = "AccountEndpoint=https://source-cosmos.documents.azure.com:443/;AccountKey=dGVzdA==;";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "Every test configures the state store by name alone, so no test here proves the state store can live on a connection distinct from the change source. Held until one does.")]
 	private const string StateConnectionString = "AccountEndpoint=https://state-cosmos.documents.azure.com:443/;AccountKey=dGVzdA==;";
 
 	// --- WithStateStore(Action<ICdcStateStoreBuilder>) ---

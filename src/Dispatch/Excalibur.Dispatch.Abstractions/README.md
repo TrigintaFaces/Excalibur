@@ -22,7 +22,7 @@ This package contains the foundational abstractions for Dispatch messaging. Use 
 - `IIntegrationEvent` - Cross-boundary integration events
 - `IDispatchHandler<T>` - Message handler interface
 - `IDispatcher` - Message dispatch interface
-- `IMessageMiddleware` - Middleware pipeline interface
+- `IDispatchMiddleware` - Middleware pipeline interface
 - `IMessageContext` - Per-message context and metadata
 
 ## Quick Start
@@ -37,13 +37,13 @@ public record GetOrder(string OrderId) : IDispatchDocument;
 // Define a handler
 public class CreateOrderHandler : IDispatchHandler<CreateOrder>
 {
-    public Task<IDispatchResult> HandleAsync(
+    public Task<IMessageResult> HandleAsync(
         CreateOrder message,
         IMessageContext context,
         CancellationToken cancellationToken)
     {
         // Handle command
-        return Task.FromResult<IDispatchResult>(MessageResult.Success());
+        return Task.FromResult(MessageResult.Success());
     }
 }
 ```
@@ -60,4 +60,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

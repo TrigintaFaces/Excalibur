@@ -15,7 +15,7 @@ namespace Excalibur.LeaderElection.Diagnostics;
 /// - 183000-183999: Redis
 /// - 184000-184999: SqlServer
 /// </remarks>
-public static class LeaderElectionEventId
+internal static class LeaderElectionEventId
 {
 	// ========================================
 	// 180000-180999: Core (InMemory)
@@ -120,6 +120,9 @@ public static class LeaderElectionEventId
 
 	/// <summary>Consul fencing token domain exhausted; leadership relinquished (fail-closed).</summary>
 	public const int ConsulFencingTokenExhausted = 181024;
+
+	/// <summary>Consul leadership relinquished locally after the grace period elapsed without a confirmed renewal.</summary>
+	public const int ConsulGracePeriodElapsed = 181025;
 
 	// ========================================
 	// 182000-182099: Kubernetes

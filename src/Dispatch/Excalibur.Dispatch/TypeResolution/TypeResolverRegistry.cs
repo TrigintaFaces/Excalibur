@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
+
 namespace Excalibur.Dispatch.TypeResolution;
 
 /// <summary>
@@ -12,9 +14,20 @@ namespace Excalibur.Dispatch.TypeResolution;
 /// </remarks>
 internal static class TypeResolverRegistry
 {
-	private static readonly List<ITypeResolver> Resolvers = [];
-
 	private static readonly Lock Lock = new();
+
+	/// <summary>
+	/// Successful resolutions, keyed by type name. Populated only on a hit, so the entry count is
+	/// bounded by the set of types the registered resolvers can actually produce; an unresolvable
+	/// name never allocates an entry.
+	/// </summary>
+	private static readonly ConcurrentDictionary<string, Type> Cache = new(StringComparer.Ordinal);
+
+	/// <summary>
+	/// The registered resolvers, replaced wholesale on every mutation. Readers take the reference once
+	/// and walk a snapshot, so resolution never takes a lock and never blocks a concurrent registration.
+	/// </summary>
+	private static volatile ITypeResolver[] _resolvers = [];
 
 
 	/// <summary>
@@ -27,10 +40,14 @@ internal static class TypeResolverRegistry
 
 		lock (Lock)
 		{
-			if (!Resolvers.Contains(resolver))
+			if (Array.IndexOf(_resolvers, resolver) >= 0)
 			{
-				Resolvers.Add(resolver);
+				return;
 			}
+
+			// Appended, so a later resolver can never shadow a name an earlier one already answered --
+			// which is why an existing cached answer stays valid across a registration.
+			_resolvers = [.. _resolvers, resolver];
 		}
 	}
 
@@ -42,14 +59,18 @@ internal static class TypeResolverRegistry
 	/// <returns> True if the type was resolved, false otherwise. </returns>
 	public static bool TryResolveType(string typeName, out Type? type)
 	{
-		lock (Lock)
+		if (Cache.TryGetValue(typeName, out var cached))
 		{
-			foreach (var resolver in Resolvers)
+			type = cached;
+			return true;
+		}
+
+		foreach (var resolver in _resolvers)
+		{
+			if (resolver.TryGetType(typeName, out type) && type is not null)
 			{
-				if (resolver.TryGetType(typeName, out type))
-				{
-					return true;
-				}
+				Cache[typeName] = type;
+				return true;
 			}
 		}
 
@@ -65,7 +86,8 @@ internal static class TypeResolverRegistry
 	{
 		lock (Lock)
 		{
-			Resolvers.Clear();
+			_resolvers = [];
+			Cache.Clear();
 		}
 	}
 }

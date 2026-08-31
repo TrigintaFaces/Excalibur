@@ -16,6 +16,20 @@ public interface IPulsarTransportBuilder
 	IPulsarTransportBuilder ServiceUrl(string serviceUrl);
 
 	/// <summary>
+	/// Sets whether a plaintext broker URL is refused. Enabled by default.
+	/// </summary>
+	/// <param name="required">
+	/// <see langword="true"/> to require an encrypted scheme (<c>pulsar+ssl</c> or <c>https</c>);
+	/// <see langword="false"/> to accept a plaintext <c>pulsar://</c> broker.
+	/// </param>
+	/// <returns>The builder for chaining.</returns>
+	/// <remarks>
+	/// This is the opt-out for a broker reached over a channel that is already encrypted, or for local
+	/// development against <c>pulsar://localhost:6650</c>.
+	/// </remarks>
+	IPulsarTransportBuilder RequireTls(bool required);
+
+	/// <summary>
 	/// Sets the Pulsar topic name.
 	/// </summary>
 	/// <param name="topic">The topic name.</param>

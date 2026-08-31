@@ -9,7 +9,7 @@ namespace Excalibur.Security.Aws;
 /// <remarks>
 /// These event IDs are in the Cloud Credential Stores range defined in Excalibur.Security.
 /// </remarks>
-public static class AwsSecurityEventId
+internal static class AwsSecurityEventId
 {
 	/// <summary>AWS Secrets Manager credential store created.</summary>
 	public const int AwsSecretsManagerCredentialStoreCreated = 70901;

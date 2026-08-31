@@ -11,19 +11,6 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 public sealed class LongPollingOptions
 {
-	/// <summary>Gets or sets the queue URL for polling.</summary>
-	[Required]
-	public Uri? QueueUrl { get; set; }
-
-	/// <summary>Gets or sets a value indicating whether to use FIFO queue.</summary>
-	public bool IsFifoQueue { get; set; }
-
-	/// <summary>Gets or sets receive message group ID for FIFO queues.</summary>
-	public string? ReceiveRequestAttemptId { get; set; }
-
-	/// <summary>Gets or sets a value indicating whether to delete messages after processing.</summary>
-	public bool DeleteAfterProcessing { get; set; } = true;
-
 	/// <summary>Gets the polling configuration.</summary>
 	public LongPollingTimingOptions Polling { get; } = new();
 
@@ -50,18 +37,12 @@ public sealed class LongPollingTimingOptions
 	[Range(0, 20)]
 	public int MaxWaitTimeSeconds { get; set; } = 20;
 
-	/// <summary>Gets or sets minimum wait time for long polling in seconds.</summary>
-	public int MinWaitTimeSeconds { get; set; } = 1;
-
-	/// <summary>Gets or sets maximum number of messages to retrieve (1-10).</summary>
-	[Range(1, 10)]
-	public int MaxNumberOfMessages { get; set; } = 10;
-
-	/// <summary>Gets or sets polling interval in milliseconds.</summary>
-	public int PollingIntervalMs { get; set; } = 1000;
-
 	/// <summary>Gets or sets maximum messages per receive operation.</summary>
 	public int MaxMessagesPerReceive { get; set; } = 10;
+
+	/// <summary>Gets or sets minimum wait time for long polling in seconds.</summary>
+	[Range(0, 20)]
+	public int MinWaitTimeSeconds { get; set; } = 1;
 
 	/// <summary>Gets maximum wait time as TimeSpan.</summary>
 	public TimeSpan MaxWaitTime => TimeSpan.FromSeconds(MaxWaitTimeSeconds);
@@ -73,10 +54,6 @@ public sealed class LongPollingTimingOptions
 /// <summary>Visibility timeout configuration.</summary>
 public sealed class LongPollingVisibilityOptions
 {
-	/// <summary>Gets or sets visibility timeout in seconds (0-43200).</summary>
-	[Range(0, 43200)]
-	public int VisibilityTimeoutSeconds { get; set; } = 30;
-
 	/// <summary>Gets or sets a value indicating whether to enable visibility timeout optimization.</summary>
 	public bool EnableOptimization { get; set; } = true;
 
@@ -88,12 +65,6 @@ public sealed class LongPollingVisibilityOptions
 /// <summary>Processing configuration.</summary>
 public sealed class LongPollingProcessingOptions
 {
-	/// <summary>Gets or sets batch size for processing.</summary>
-	public int BatchSize { get; set; } = 10;
-
-	/// <summary>Gets or sets timeout for processing a single message.</summary>
-	public TimeSpan ProcessingTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
 	/// <summary>Gets or sets a value indicating whether to enable request coalescing.</summary>
 	public bool EnableRequestCoalescing { get; set; } = true;
 
@@ -104,11 +75,6 @@ public sealed class LongPollingProcessingOptions
 /// <summary>Retry configuration.</summary>
 public sealed class LongPollingRetryOptions
 {
-	/// <summary>Gets or sets maximum retry attempts.</summary>
-	public int MaxAttempts { get; set; } = 3;
-
-	/// <summary>Gets or sets retry delay in milliseconds.</summary>
-	public int DelayMs { get; set; } = 1000;
 }
 
 /// <summary>Adaptive polling configuration.</summary>
@@ -134,9 +100,4 @@ public sealed class LongPollingAdaptiveOptions
 /// <summary>Message attribute configuration.</summary>
 public sealed class LongPollingAttributeOptions
 {
-	/// <summary>Gets or sets message attributes to retrieve.</summary>
-	public string[] MessageAttributeNames { get; set; } = ["All"];
-
-	/// <summary>Gets or sets system message attributes to retrieve.</summary>
-	public string[] SystemAttributeNames { get; set; } = ["All"];
 }

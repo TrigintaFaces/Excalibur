@@ -18,14 +18,6 @@ public sealed class AwsSnsCloudEventOptions
 	public bool IncludeMessageAttributes { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable message filtering based on CloudEvent attributes.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable message filtering based on CloudEvent attributes.
-	/// </value>
-	public bool EnableMessageFiltering { get; set; }
-
-	/// <summary>
 	/// Gets or sets the subject for SNS messages containing CloudEvents.
 	/// </summary>
 	/// <value>

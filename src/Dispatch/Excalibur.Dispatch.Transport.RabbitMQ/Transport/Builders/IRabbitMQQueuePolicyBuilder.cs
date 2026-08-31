@@ -9,16 +9,6 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 public interface IRabbitMQQueuePolicyBuilder
 {
 	/// <summary>
-	/// Sets whether messages are automatically acknowledged on delivery.
-	/// </summary>
-	/// <param name="autoAck"><see langword="true"/> for auto-ack; <see langword="false"/> for manual ack.</param>
-	/// <returns>The builder for chaining.</returns>
-	/// <remarks>
-	/// Manual acknowledgment (autoAck=false) is recommended for reliable message processing.
-	/// </remarks>
-	IRabbitMQQueueBuilder AutoAck(bool autoAck = false);
-
-	/// <summary>
 	/// Sets the message time-to-live for messages in this queue.
 	/// </summary>
 	/// <param name="ttl">The TTL duration.</param>

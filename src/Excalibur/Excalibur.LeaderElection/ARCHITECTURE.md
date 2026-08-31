@@ -32,8 +32,8 @@ Sub-guarantees:
 | **SQL Server** | `sp_getapplock` (exclusive, session-owned) on a hardened, non-pooled connection — the lock *is* the claim | Connection-session scoped; verified by reading the app-lock mode back, yielding a three-state answer | Present, minted from a dedicated `SEQUENCE` inside the acquire path before leadership is declared; fail-closed if the mint cannot complete | Strict comparison against elapsed monotonic time. Supports an **accelerate-only** early relinquish on a definitive loss — it can only shorten time-to-relinquish, never extend past the grace period |
 | **PostgreSQL** | `pg_try_advisory_lock` on a dedicated, non-pooled session — the advisory lock *is* the claim | Connection-session scoped; verified by re-reading the lock's presence for this backend | Present, minted from a dedicated `SEQUENCE` inside the acquire path before leadership is declared; fail-closed | Strict comparison against elapsed monotonic time. Deliberately has **no** accelerate path, so grace is the sole bound |
 | **Redis** | `SET key value NX PX ttl` — the single-shot set-if-absent is the claim | **Server-side TTL** is the real expiry; renewal is an owner-token compare-then-extend script, so a non-owner cannot extend | Present, minted by incrementing a separate counter key **after** the claim succeeds; fail-closed — the just-acquired lock is released if the mint fails | Expiry safety rests entirely on the Redis server's TTL and never on a client clock; the client-side grace only governs how quickly a candidate self-demotes after a renewal fault |
-| **Consul** | Session-scoped KV acquire — the Consul server enforces one holder per session | Session TTL, renewed on a timer, plus a lock delay that defers reacquisition after invalidation | Present, minted by a bounded compare-and-swap on a separate counter key after the acquire succeeds; fail-closed | **Delegated entirely to the Consul server** (session TTL and lock delay). See *Known gaps* — the framework-level grace option is not consulted by this provider |
-| **InMemory** | First-come-first-served insert into a process-local dictionary | **None** — leadership ends only on stop, dispose, or the unhealthy step-down path | **None.** The tenure's fencing token is always null, by design for a single-process implementation | Not applicable — no lease timestamp exists |
+| **Consul** | Session-scoped KV acquire — the Consul server enforces one holder per session | Session TTL, renewed on a timer, plus a lock delay that defers reacquisition after invalidation | Present, minted by a bounded compare-and-swap on a separate counter key after the acquire succeeds; fail-closed | Grace period, enforced client-side on the renewal and monitor paths, on top of the Consul server's session TTL and lock delay |
+| **InMemory** | First-come-first-served insert into a process-local dictionary, taken **only while the candidate is running** — the acquisition re-reads its own lifecycle state after the insert and hands the resource straight back if it stopped in between, because the timer callback and the start path can both be racing a shutdown and an entry check cannot establish the invariant. Release is a **compare-and-remove against the releasing candidate's own id**, so a candidate can only ever relinquish its own tenure — its shutdown, dispose, and unhealthy step-down paths are separate and none excludes the others, so a release that merely removed *the resource* could delete a successor's record | **None** — leadership ends only on stop, dispose, or the unhealthy step-down path | **None.** The tenure's fencing token is always null, by design for a single-process implementation | Not applicable — no lease timestamp exists |
 
 **Fencing co-atomicity is a spectrum, and it matters.** Kubernetes advances its token in the same write that
 transfers leadership. SQL Server, PostgreSQL, Consul, Redis, and MongoDB's default path mint the token in a
@@ -69,6 +69,25 @@ under concurrent contention (safety) *and* acquisition, renewal-over-time, and t
 | M2 transfer | `LeaderChange_NewCandidateBecomesLeader_WhenCurrentLeaderStops`, `LeaderChange_CompetitorReceivesLeaderChangedEvent` |
 | Release | `StopAsync_RelinquishesLeadership`, `StopAsync_RaisesLostLeadershipEvent` |
 | Idempotence | `StartAsync_IsIdempotent`, `StopAsync_IsIdempotent`, `StopAsync_BeforeStart_DoesNotThrow` |
+
+**The in-memory provider carries one additional arm outside the shared kit**, because it is the only
+provider whose release paths are not serialised by a backing system:
+`InMemoryLeaderElectionStaleReleaseShould` drives two of a leader's own release paths into each other
+while a successor acquires between them, and fails if the successor is left believing it leads after its
+record has been removed by someone else. **M1 admits no window here** — the exception clause in the
+guarantee is bounded by lease expiry, and this provider has none — so any such interleaving is a plain
+violation rather than a permitted transient. Its liveness twin asserts that stopping, disposing, and
+stepping down still hand leadership on; a release predicate tightened until it never releases would
+otherwise satisfy the safety arm while wedging the resource shut forever.
+
+**A second additional arm, `InMemoryLeaderElectionStoppedAcquireShould`, binds the lifecycle half of the
+same guarantee**: a candidate holds the resource only while it is running. Without expiry, a resource
+taken by a candidate that has already stopped is held forever — its own dispose will not reclaim it,
+because dispose stops first and a second stop returns without releasing — so every other candidate fails
+permanently. The safety arms race a start against a stop, and a lease-renewal tick against a stop; the
+liveness arms assert that a running candidate still acquires, still keeps the resource across renewal
+ticks, and can still stand again after stopping, so a guard that released every acquisition would not
+pass.
 
 > ### ⚠ Two of seven providers run this kit. Five are UNVERIFIED.
 >
@@ -106,11 +125,6 @@ under concurrent contention (safety) *and* acquisition, renewal-over-time, and t
   leads, or drive failover logic.** Treat a null as "unknown", never as "no leader". Use `CurrentLeadership`
   on the instance itself to answer *am I the leader*, which every provider answers correctly, and fence the
   protected resource rather than addressing the leader by identity.
-- **The Consul provider does not consult the framework-level grace period.** The option is available on the
-  shared options type and this provider never reads it; expiry and reacquisition delay are delegated to the
-  Consul server's session TTL and lock delay instead. That delegation may well be the correct design — Consul
-  owns the session — but the framework-level knob therefore has no effect on this provider, and a consumer
-  tuning it would see nothing change. Treat the setting as inert here until the intended behaviour is ruled.
 - **The in-memory provider has no lease expiry at all.** A leader that stops responding without disposing
   retains leadership indefinitely within its process. It is a development and testing implementation.
 - **Fencing is only as strong as the resource that honours it.** A fencing token that no downstream store

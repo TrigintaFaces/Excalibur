@@ -27,10 +27,15 @@ internal sealed class TenantRoutingSagaStore : ISagaStore
 	// Binds each saga instance to the tenant it was resolved under, so a later save under a different
 	// ambient tenant (cross-tenant step, background timeout, retry on a drifted scope) is detected
 	// instead of silently writing to the wrong shard. The decorator is Scoped, so this map lives for the
-	// scope and needs no eviction. (93ilgc — ambient-with-guard; see SaveAsync for the structural assert.)
+	// scope and needs no eviction. (ambient-with-guard; see SaveAsync for the structural assert.)
 	private readonly ConcurrentDictionary<Guid, string> _loadedTenants = new();
 
-	internal TenantRoutingSagaStore(
+	// Public on a type that is internal sealed, so this widens nothing outside the assembly. It is public
+	// because AddTenantAwareStore derives the tenancy mechanism from the PUBLIC constructors, and an
+	// internal one is invisible to that probe: the seam would classify this store as having no tenancy
+	// mechanism and emit no capability marker, which is the opposite of the truth -- it reads the ambient
+	// tenant below and refuses without one.
+	public TenantRoutingSagaStore(
 		ITenantStoreResolver<ISagaStore> resolver,
 		ITenantContext tenantContext)
 	{
@@ -124,15 +129,14 @@ internal sealed class TenantRoutingSagaStore : ISagaStore
 			"estate-wide while every other shard kept growing. Drive retention per shard: establish each " +
 			"tenant's scope and call PurgeCompletedBeforeAsync once per tenant.");
 
-	private string ResolveTenant()
-	{
-		var tenantId = _tenantContext.TenantId;
-		if (string.IsNullOrEmpty(tenantId))
-		{
-			throw new InvalidOperationException(
-				"No ambient tenant is resolved. Ensure the tenant is established (TenantContextHolder.BeginScope) before accessing the saga store.");
-		}
-
-		return tenantId;
-	}
+	/// <summary>
+	/// Resolves the ambient tenant, failing closed when none is established.
+	/// </summary>
+	/// <returns>The ambient tenant identifier.</returns>
+	/// <exception cref="TenantRequiredException">
+	/// No tenant is resolved. The guard is <see cref="TenantScope.FromContext(ITenantContext)"/> rather than a
+	/// local null check, so this path throws the same documented type as every other tenant-required path in
+	/// the framework — a consumer's <c>catch (TenantRequiredException)</c> handler covers routing too.
+	/// </exception>
+	private string ResolveTenant() => TenantScope.FromContext(_tenantContext).TenantId;
 }

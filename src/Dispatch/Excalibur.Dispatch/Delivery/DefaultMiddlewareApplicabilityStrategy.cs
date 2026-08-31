@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -12,22 +11,33 @@ namespace Excalibur.Dispatch.Delivery;
 /// </summary>
 internal sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplicabilityStrategy
 {
+	private const int MaxCacheEntries = 1024;
+
+	/// <summary>
+	/// Classification is a pure function of the message type, so it is computed once per type. Bounded so a
+	/// host that sees an unbounded variety of message types cannot grow this without limit.
+	/// </summary>
+	private static readonly ConcurrentDictionary<Type, MessageKinds> KindsByType = new();
+
 	/// <summary>
 	/// Determines the message kinds for a given message type.
 	/// </summary>
-	public static MessageKinds DetermineMessageKinds(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces |
-									DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
-		Type messageType)
+	public static MessageKinds DetermineMessageKinds(Type messageType)
 	{
 		ArgumentNullException.ThrowIfNull(messageType);
 
+		if (KindsByType.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
+
 		var kinds = MessageKinds.None;
 
-		// Check for IDispatchAction (including generic variants)
-		// Uses manual loop to avoid LINQ iterator allocation
-		if (typeof(IDispatchAction).IsAssignableFrom(messageType) ||
-			ImplementsGenericInterface(messageType, typeof(IDispatchAction<>)))
+		// Covers the generic variants too: IDispatchAction<TResponse> derives from IDispatchAction, so a type
+		// implementing the generic form is assignable to the non-generic one. Enumerating the type's interfaces
+		// to find the generic definition would answer the same question and would require reflection the
+		// trimmer cannot follow.
+		if (typeof(IDispatchAction).IsAssignableFrom(messageType))
 		{
 			kinds |= MessageKinds.Action;
 		}
@@ -46,39 +56,21 @@ internal sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplic
 
 		if (kinds == MessageKinds.None)
 		{
-			kinds = UnclassifiedMessage.FailClosed(messageType);
+			// Deliberately not cached. The fall-through emits a signal naming the unclassified type, and a
+			// cached answer would emit it once and then stay silent for every later message of that type —
+			// which is the silence the signal exists to break.
+			return UnclassifiedMessage.FailClosed(messageType);
+		}
+
+		if (KindsByType.Count < MaxCacheEntries)
+		{
+			_ = KindsByType.TryAdd(messageType, kinds);
 		}
 
 		return kinds;
 	}
 
-	/// <summary>
-	/// Checks if a type implements a specific generic interface definition.
-	/// Uses manual loop to avoid LINQ iterator allocation.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool ImplementsGenericInterface(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type,
-		Type genericInterfaceDefinition)
-	{
-		var interfaces = type.GetInterfaces();
-		foreach (var iface in interfaces)
-		{
-			if (iface.IsGenericType && iface.GetGenericTypeDefinition() == genericInterfaceDefinition)
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2072:'messageType' argument does not satisfy 'DynamicallyAccessedMemberTypes.Interfaces' in call",
-		Justification =
-			"The message.GetType() call returns the actual runtime type of the message which should have interfaces preserved via source generation.")]
 	public MessageKinds DetermineMessageKinds<T>(T message)
 		where T : IDispatchMessage
 	{
@@ -103,11 +95,7 @@ internal sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplic
 	/// <summary>
 	/// Determines whether middleware should be applied based on the middleware's configuration and message type.
 	/// </summary>
-	public bool IsMiddlewareApplicable(
-		IDispatchMiddleware middleware,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces |
-									DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
-		Type messageType)
+	public bool IsMiddlewareApplicable(IDispatchMiddleware middleware, Type messageType)
 	{
 		ArgumentNullException.ThrowIfNull(middleware);
 		ArgumentNullException.ThrowIfNull(messageType);

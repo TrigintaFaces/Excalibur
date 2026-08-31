@@ -270,4 +270,440 @@ public sealed class AdvertisedRegistrationSeamGuardShould
 		wired.ShouldHaveSingleItem().Verdict.ShouldBe(
 			DocumentationVerdict.Pass, "the same sentence is true once the seam is wired");
 	}
+
+	// ---------- the inverse guard: a composition that must DECIDE handler registration ----------
+
+	// The guard above asks whether a declared seam has any caller. This one asks the opposite: whether
+	// every caller of a seam made a decision the seam itself no longer makes for them.
+	//
+	// AddDispatch(Action<IDispatchBuilder>) used to discover handlers from the entry assembly whenever
+	// its lambda named none. That fallback is gone, and every method that composes dispatch on a
+	// consumer behalf now has to say what happens to handler registration. Nine such methods existed
+	// when the fallback was removed and not one of them said anything; the shipped result was a
+	// documented one-line entry point that registered no handlers at all.
+	//
+	// Enumerating the callers would only re-state the list as it stands today. The property is asserted
+	// instead: a method that composes dispatch either names the discovery, or appears below with a
+	// written reason.
+
+	/// <summary>
+	/// A method that composes dispatch on behalf of a consumer, and whether it names the entry-assembly
+	/// handler discovery.
+	/// </summary>
+	internal sealed record DispatchComposition(string Path, string MethodName, bool NamesEntryAssemblyDiscovery);
+
+	/// <summary>
+	/// Every composing method found, plus the call sites that belonged to no method declaration.
+	/// </summary>
+	/// <remarks>
+	/// <paramref name="UnattributedCallSites" /> exists because the survey is per-method: a composing call
+	/// in a field initialiser or a top-level statement would be invisible to it, and invisible is
+	/// indistinguishable from compliant. A non-zero count means the survey missed something, not that the
+	/// repository is clean.
+	/// </remarks>
+	internal sealed record DispatchCompositionSurvey(
+		IReadOnlyList<DispatchComposition> Compositions,
+		int UnattributedCallSites);
+
+	/// <summary>
+	/// Methods allowed to compose dispatch without naming <c>AddHandlersFromEntryAssembly</c>, each with
+	/// the reason it needs no such call. A method reaches this list by argument, never by convenience.
+	/// </summary>
+	private static readonly Dictionary<string, string> HandlerRegistrationExemptions = new(StringComparer.Ordinal)
+	{
+		["AddDispatchWithDefaults"] =
+			"takes the handler assembly as a parameter and registers its handlers by name",
+	};
+
+	/// <summary>
+	/// Surveys every method that invokes <c>AddDispatch</c> with at least one argument.
+	/// </summary>
+	/// <param name="sources">The files to search. Supplied by the caller, never discovered here.</param>
+	/// <returns>The survey.</returns>
+	/// <remarks>
+	/// The predicate is "an <c>AddDispatch</c> invocation carrying at least one argument", which is a
+	/// deliberate over-approximation of "reaches the <c>Action&lt;IDispatchBuilder&gt;</c> overload".
+	/// Overload resolution needs a semantic model and this guard parses syntax only, so the choice is
+	/// between over- and under-inclusion. Over-inclusion costs one allowlist entry with a written reason;
+	/// under-inclusion is how the defect shipped. A zero-argument call is excluded because it resolves to
+	/// the assembly overload, which discovers the entry assembly itself.
+	/// </remarks>
+	internal static DispatchCompositionSurvey SurveyDispatchCompositions(IEnumerable<SourceFile> sources)
+	{
+		ArgumentNullException.ThrowIfNull(sources);
+
+		var compositions = new List<DispatchComposition>();
+		var unattributed = 0;
+
+		foreach (var file in sources)
+		{
+			var root = CSharpSyntaxTree.ParseText(file.Text).GetRoot();
+
+			var composingCalls = root.DescendantNodes()
+				.OfType<InvocationExpressionSyntax>()
+				.Count(IsComposingCall);
+
+			if (composingCalls == 0)
+			{
+				continue;
+			}
+
+			var attributed = 0;
+
+			foreach (var method in root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>())
+			{
+				var callsHere = method.DescendantNodes()
+					.OfType<InvocationExpressionSyntax>()
+					.Count(IsComposingCall);
+
+				if (callsHere == 0)
+				{
+					continue;
+				}
+
+				attributed += callsHere;
+
+				var namesDiscovery = method.DescendantNodes()
+					.OfType<InvocationExpressionSyntax>()
+					.Any(static invocation => InvokedNameOf(invocation) == "AddHandlersFromEntryAssembly");
+
+				compositions.Add(new DispatchComposition(file.Path, NameOfMethod(method), namesDiscovery));
+			}
+
+			unattributed += composingCalls - attributed;
+		}
+
+		return new DispatchCompositionSurvey(compositions, unattributed);
+	}
+
+	private static bool IsComposingCall(InvocationExpressionSyntax invocation) =>
+		InvokedNameOf(invocation) == "AddDispatch" && invocation.ArgumentList.Arguments.Count > 0;
+
+	private static string NameOfMethod(BaseMethodDeclarationSyntax method) => method switch
+	{
+		MethodDeclarationSyntax named => named.Identifier.ValueText,
+		ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
+		_ => method.Kind().ToString(),
+	};
+
+	// ---------- SAFETY: a composing method that decides nothing is a finding ----------
+
+	private static readonly SourceFile ComposerThatDecidesNothing = new(
+		"src/Some.Package/SilentComposer.cs",
+		"""
+		public static class SilentComposer
+		{
+			public static IServiceCollection AddSomethingSilent(this IServiceCollection services) =>
+				services.AddDispatch(dispatch => dispatch.UseObservability());
+		}
+		""");
+
+	private static readonly SourceFile ComposerThatDecides = new(
+		"src/Some.Package/DecidingComposer.cs",
+		"""
+		public static class DecidingComposer
+		{
+			public static IServiceCollection AddSomethingDeciding(
+				this IServiceCollection services,
+				Action<IDispatchBuilder>? configure) =>
+				services.AddDispatch(configure ?? (static d => d.AddHandlersFromEntryAssembly()));
+		}
+		""");
+
+	[Fact]
+	public void Flag_a_composing_method_that_never_names_the_entry_assembly_discovery()
+	{
+		var survey = SurveyDispatchCompositions([ComposerThatDecidesNothing]);
+
+		survey.Compositions.ShouldHaveSingleItem().NamesEntryAssemblyDiscovery.ShouldBeFalse(
+			"the lambda names no handler and the overload no longer discovers any, so this composition "
+			+ "registers nothing and says nothing about it");
+		survey.UnattributedCallSites.ShouldBe(0);
+	}
+
+	[Fact]
+	public void Clear_a_composing_method_that_names_the_entry_assembly_discovery()
+	{
+		SurveyDispatchCompositions([ComposerThatDecides])
+			.Compositions.ShouldHaveSingleItem().NamesEntryAssemblyDiscovery.ShouldBeTrue(
+				"the null branch names the discovery, so the decision is stated at the call site");
+	}
+
+	[Fact]
+	public void Ignore_a_zero_argument_AddDispatch_call()
+	{
+		var zeroArgument = new SourceFile(
+			"src/Some.Package/ZeroConfigComposer.cs",
+			"""
+			public static class ZeroConfigComposer
+			{
+				public static void Compose(IServiceCollection services) => services.AddDispatch();
+			}
+			""");
+
+		SurveyDispatchCompositions([zeroArgument]).Compositions.ShouldBeEmpty(
+			"a no-argument call resolves to the assembly overload, which discovers the entry assembly "
+			+ "itself, so there is no decision left for the caller to make");
+	}
+
+	[Fact]
+	public void Notice_a_composing_call_that_belongs_to_no_method()
+	{
+		var fieldInitialiser = new SourceFile(
+			"src/Some.Package/InitialiserComposer.cs",
+			"""
+			public static class InitialiserComposer
+			{
+				private static readonly IServiceCollection Composed =
+					new ServiceCollection().AddDispatch(static d => d.UseObservability());
+			}
+			""");
+
+		SurveyDispatchCompositions([fieldInitialiser]).UnattributedCallSites.ShouldBe(
+			1,
+			"a call the per-method survey cannot see must be reported, not silently treated as compliant");
+	}
+
+	// ---------- the real repository ----------
+
+	// ---------- the third guard: a subsystem that bootstraps dispatch must not SCAN on the way ----------
+
+	// The guard above governs the lambda overload. This one governs the other end of the same seam.
+	//
+	// A no-argument AddDispatch() resolves to AddDispatch(params Assembly[]), which -- when the caller
+	// named no assembly -- discovers handlers from Assembly.GetEntryAssembly(). That is the right
+	// behaviour for a CONSUMER who called it: they asked for zero-config and they got it, and the
+	// overload carries the trimming and dynamic-code annotations that say so.
+	//
+	// It is the wrong behaviour for one of our own subsystems bootstrapping the dispatch primitives it
+	// needs. A consumer registering an outbox asked for an outbox; the reflective scan of their own entry
+	// assembly is imposed on them by a package they never asked to scan anything, and it lands whether or
+	// not they have already configured handlers by hand. The pipeline is what those call sites want, and
+	// AddDispatchPipeline() registers exactly that -- including the handler registry -- and scans nothing.
+	//
+	// Entry-assembly discovery has a named, annotated, opt-in home: AddHandlersFromEntryAssembly(). A
+	// composition that wants it says so. This guard asserts nothing in src/ takes it implicitly.
+
+	/// <summary>
+	/// Methods allowed to call the zero-argument <c>AddDispatch()</c>, each with the reason the implicit
+	/// entry-assembly scan is correct for that call site.
+	/// </summary>
+	/// <remarks>
+	/// Empty, and that is the intended state: no composition in <c>src/</c> currently needs the implicit
+	/// scan. The dictionary exists so a future call site that genuinely does can be admitted by a written
+	/// argument rather than by weakening the guard.
+	/// </remarks>
+	private static readonly Dictionary<string, string> ImplicitEntryAssemblyScanExemptions =
+		new(StringComparer.Ordinal);
+
+	private static bool IsImplicitlyScanningCall(InvocationExpressionSyntax invocation) =>
+		InvokedNameOf(invocation) == "AddDispatch" && invocation.ArgumentList.Arguments.Count == 0;
+
+	/// <summary>
+	/// Surveys every method that invokes the zero-argument <c>AddDispatch()</c>.
+	/// </summary>
+	/// <param name="sources">The files to search. Supplied by the caller, never discovered here.</param>
+	/// <returns>One entry per call site: the file it was found in and the method that contains it.</returns>
+	internal static IReadOnlyList<string> SurveyImplicitEntryAssemblyScans(IEnumerable<SourceFile> sources)
+	{
+		ArgumentNullException.ThrowIfNull(sources);
+
+		var found = new List<string>();
+
+		foreach (var file in sources)
+		{
+			var root = CSharpSyntaxTree.ParseText(file.Text).GetRoot();
+
+			foreach (var method in root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>())
+			{
+				var callsHere = method.DescendantNodes()
+					.OfType<InvocationExpressionSyntax>()
+					.Count(IsImplicitlyScanningCall);
+
+				for (var occurrence = 0; occurrence < callsHere; occurrence++)
+				{
+					found.Add($"{file.Path} :: {NameOfMethod(method)}");
+				}
+			}
+		}
+
+		return found;
+	}
+
+	// ---------- SAFETY: a bootstrapping call that scans is a finding ----------
+
+	[Fact]
+	public void Flag_a_subsystem_that_bootstraps_dispatch_with_the_scanning_overload()
+	{
+		var scanningBootstrap = new SourceFile(
+			"src/Some.Package/ScanningBootstrap.cs",
+			"""
+			public static class ScanningBootstrap
+			{
+				public static IServiceCollection AddSomeSubsystem(this IServiceCollection services)
+				{
+					services.AddDispatch();
+					return services;
+				}
+			}
+			""");
+
+		SurveyImplicitEntryAssemblyScans([scanningBootstrap]).ShouldHaveSingleItem().ShouldBe(
+			"src/Some.Package/ScanningBootstrap.cs :: AddSomeSubsystem",
+			"a zero-argument AddDispatch() discovers the consumer's entry assembly, which a subsystem "
+			+ "bootstrapping its own dispatch primitives never asked for and cannot opt them out of");
+	}
+
+	// ---------- LIVENESS: the pipeline-only bootstrap is clean ----------
+
+	[Fact]
+	public void Clear_a_subsystem_that_bootstraps_dispatch_with_the_pipeline_only_entry_point()
+	{
+		var pipelineBootstrap = new SourceFile(
+			"src/Some.Package/PipelineBootstrap.cs",
+			"""
+			public static class PipelineBootstrap
+			{
+				public static IServiceCollection AddSomeSubsystem(this IServiceCollection services)
+				{
+					services.AddDispatchPipeline();
+					return services;
+				}
+			}
+			""");
+
+		SurveyImplicitEntryAssemblyScans([pipelineBootstrap]).ShouldBeEmpty(
+			"AddDispatchPipeline registers the primitives and the handler registry and scans nothing");
+	}
+
+	// ---------- LIVENESS: an argument-carrying call is a different overload ----------
+
+	[Fact]
+	public void Ignore_an_AddDispatch_call_that_carries_an_argument()
+	{
+		SurveyImplicitEntryAssemblyScans([ComposerThatDecides]).ShouldBeEmpty(
+			"a call carrying an argument reaches an overload that discovers nothing on its own; whether "
+			+ "it decides handler registration is the neighbouring guard's question");
+	}
+
+	// ---------- LIVENESS: a mention is not a call ----------
+
+	[Fact]
+	public void Not_count_a_documented_AddDispatch_call_as_an_implicit_scan()
+	{
+		var documented = new SourceFile(
+			"src/Some.Package/DocumentedBootstrap.cs",
+			"""
+			public static class DocumentedBootstrap
+			{
+				/// <example><code>services.AddDispatch();</code></example>
+				public static IServiceCollection AddSomeSubsystem(this IServiceCollection services)
+				{
+					services.AddDispatchPipeline();
+					return services;
+				}
+			}
+			""");
+
+		SurveyImplicitEntryAssemblyScans([documented]).ShouldBeEmpty(
+			"an example in a doc comment invokes nothing");
+	}
+
+	// ---------- the real repository ----------
+
+	[Fact]
+	public void Refuse_an_implicit_entry_assembly_scan_anywhere_in_the_shipped_source()
+	{
+		var sources = ShippedSources();
+
+		// Positive control on the same population, the same parser and the same call-site predicate
+		// shape: the neighbouring survey finds AddDispatch call sites here. Without it, an empty result
+		// below is indistinguishable from a survey that silently stopped reading files.
+		SurveyDispatchCompositions(sources).Compositions.ShouldNotBeEmpty(
+			"the control must find AddDispatch call sites in src/ or the verdict below is vacuous");
+
+		var scanning = SurveyImplicitEntryAssemblyScans(sources)
+			.Where(site => !ImplicitEntryAssemblyScanExemptions.ContainsKey(
+				site[(site.LastIndexOf(" :: ", StringComparison.Ordinal) + 4)..]))
+			.OrderBy(static site => site, StringComparer.Ordinal)
+			.ToList();
+
+		scanning.ShouldBeEmpty(
+			"These methods call the zero-argument AddDispatch(), which discovers handlers by scanning "
+			+ "the consumer's entry assembly. A subsystem bootstrapping its own dispatch primitives "
+			+ "imposes that reflective scan on a consumer who asked for the subsystem, not for a scan, "
+			+ "and who cannot opt out of it.\n"
+			+ "  (a) the call wants the pipeline and the handler registry -> call AddDispatchPipeline(), "
+			+ "which registers both and scans nothing;\n"
+			+ "  (b) the call genuinely needs the consumer's entry assembly -> say so by calling "
+			+ "AddHandlersFromEntryAssembly(), or add the method to "
+			+ "ImplicitEntryAssemblyScanExemptions with the reason.\nScanning:\n    "
+			+ string.Join("\n    ", scanning));
+	}
+
+	/// <summary>
+	/// Every C# source file that ships, excluding build output.
+	/// </summary>
+	/// <returns>The repository-relative path and text of each file.</returns>
+	private static List<SourceFile> ShippedSources()
+	{
+		var repositoryRoot = TestHelpers.GetRepositoryRoot();
+
+		var sources = Directory
+			.EnumerateFiles(Path.Combine(repositoryRoot, "src"), "*.cs", SearchOption.AllDirectories)
+			.Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+				&& !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Select(path => new SourceFile(Path.GetRelativePath(repositoryRoot, path), File.ReadAllText(path)))
+			.ToList();
+
+		sources.ShouldNotBeEmpty("the source population must be non-empty or every verdict is vacuous");
+
+		return sources;
+	}
+
+	[Fact]
+	public void Require_every_dispatch_composing_method_in_the_repository_to_decide_handler_registration()
+	{
+		var repositoryRoot = TestHelpers.GetRepositoryRoot();
+
+		var sources = Directory
+			.EnumerateFiles(Path.Combine(repositoryRoot, "src"), "*.cs", SearchOption.AllDirectories)
+			.Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+				&& !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Select(path => new SourceFile(Path.GetRelativePath(repositoryRoot, path), File.ReadAllText(path)))
+			.ToList();
+
+		sources.ShouldNotBeEmpty("the source population must be non-empty or every verdict below is vacuous");
+
+		var survey = SurveyDispatchCompositions(sources);
+
+		survey.Compositions.ShouldNotBeEmpty(
+			"no composing method was found at all, which means the survey stopped working rather than "
+			+ "that the repository stopped composing dispatch");
+
+		survey.UnattributedCallSites.ShouldBe(
+			0,
+			"a composing call outside any method declaration is outside the reach of this guard; teach "
+			+ "the survey to see it before trusting the verdict below");
+
+		var undecided = survey.Compositions
+			.Where(composition =>
+				!composition.NamesEntryAssemblyDiscovery
+				&& !HandlerRegistrationExemptions.ContainsKey(composition.MethodName))
+			.Select(composition => $"{composition.Path} :: {composition.MethodName}")
+			.OrderBy(static description => description, StringComparer.Ordinal)
+			.ToList();
+
+		undecided.ShouldBeEmpty(
+			"These methods compose dispatch through AddDispatch(Action<IDispatchBuilder>), which no "
+			+ "longer discovers handlers when the lambda names none. Each one has to decide, and the "
+			+ "decision is yours to make:\n"
+			+ "  (a) the caller supplied no configuration, so this composition should discover the "
+			+ "handlers of the consumer application -> call AddHandlersFromEntryAssembly() on that "
+			+ "branch;\n"
+			+ "  (b) this composition registers its handlers by another route, or deliberately registers "
+			+ "none -> add the method name to HandlerRegistrationExemptions with the reason.\n"
+			+ "Leaving it as it is is neither: it ships an entry point that silently registers no "
+			+ "handlers.\nUndecided:\n    " + string.Join("\n    ", undecided));
+	}
 }

@@ -88,7 +88,13 @@ The method returns `string?`:
 - **Returns a string** → The processor loads that view instance, applies the event, and saves it
 - **Returns `null`** → The event is skipped—no view is updated
 
-Combined with `ViewName`, this forms a unique key: `(ViewName, ViewId)` → one view instance.
+Combined with the ambient tenant and `ViewName`, this forms a unique key:
+`(tenant, ViewName, ViewId)` → one view instance.
+
+The tenant term is resolved from the ambient tenant context, never passed as an argument, so a caller
+can neither widen a lookup by omitting it nor redirect one by naming another tenant. A single-tenant
+host receives the framework default context and operates as the one canonical tenant, so nothing about
+the calling code changes.
 
 ### Example: Order Summary View
 
@@ -161,18 +167,19 @@ public string? GetViewId(IDomainEvent @event) => @event switch
 
 Each builder uses **different keys** from the same event to build different kinds of projections.
 
-### Position Tracking Per View
+### Position Tracking Per View, Per Tenant
 
-Position is tracked **per `ViewName`**, not globally. This enables independent catch-up for each view:
+Position is tracked **per tenant, per `ViewName`** — not globally, and not per view name alone. This
+enables independent catch-up for each view, and it keeps one tenant's progress from advancing another's:
 
 ```sql
 SELECT * FROM materialized_view_positions;
 
-| view_name              | position | updated_at          |
-|------------------------|----------|---------------------|
-| OrderSummary           | 15234    | 2026-02-05 12:00:00 |
-| CustomerOrderHistory   | 15234    | 2026-02-05 12:00:00 |
-| DailyRevenue           | 15100    | 2026-02-05 11:55:00 |  -- lagging behind
+| tenant_id | view_name              | position | updated_at          |
+|-----------|------------------------|----------|---------------------|
+| acme      | OrderSummary           | 15234    | 2026-02-05 12:00:00 |
+| acme      | CustomerOrderHistory   | 15234    | 2026-02-05 12:00:00 |
+| contoso   | OrderSummary           | 15100    | 2026-02-05 11:55:00 |  -- lagging behind
 ```
 
 This enables:
@@ -528,8 +535,15 @@ services.AddSqlServerMaterializedViewStore(opts =>
 **Storage:** JSON in `nvarchar(max)` column with MERGE upserts.
 
 **Tables:**
-- `MaterializedViews` (ViewName, ViewId, Data, CreatedAt, UpdatedAt)
-- `MaterializedViewPositions` (ViewName, Position, CreatedAt, UpdatedAt)
+- `MaterializedViews` (Id, TenantId, ViewName, ViewId, Data, CreatedAt, UpdatedAt) —
+  unique on (TenantId, ViewName, ViewId)
+- `MaterializedViewPositions` (Id, TenantId, ViewName, Position, CreatedAt, UpdatedAt) —
+  unique on (TenantId, ViewName)
+
+`Id` is a surrogate identity used as the clustered key. The natural key is enforced by a UNIQUE
+constraint instead, because at these column widths it exceeds SQL Server's 900-byte clustered index
+key limit. The store creates both tables in this shape via `EnsureSchemaAsync`; an existing database
+is converted by the `005_MakeMaterializedViewsTenantTotal.sql` script shipped in the package.
 
 ### PostgreSQL
 
@@ -540,8 +554,13 @@ services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connec
 **Storage:** JSONB with `INSERT ON CONFLICT` upserts.
 
 **Tables:** (snake_case)
-- `materialized_views` (view_name, view_id, data, created_at, updated_at)
-- `materialized_view_positions` (view_name, position, created_at, updated_at)
+- `materialized_views` (tenant_id, view_name, view_id, data, created_at, updated_at) —
+  primary key (tenant_id, view_name, view_id)
+- `materialized_view_positions` (tenant_id, view_name, position, created_at, updated_at) —
+  primary key (tenant_id, view_name)
+
+The `003_MakeMaterializedViewsTenantTotal.sql` script shipped in the package creates both tables in
+this shape, and converts them if they already exist in the older un-partitioned form.
 
 ### MongoDB
 
@@ -561,7 +580,7 @@ services.AddMaterializedViews(builder =>
 });
 ```
 
-**Storage:** BSON documents with composite IDs (`viewName:viewId`).
+**Storage:** BSON documents with tenant-partitioned composite IDs (`t{len}:{tenantId}:{viewName}:{viewId}`).
 
 **Collections:**
 - `materialized_views`

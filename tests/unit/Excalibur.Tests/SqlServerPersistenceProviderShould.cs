@@ -1,305 +1,201 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Data;
-
-using Excalibur.Data;
 using Excalibur.Data.Persistence;
-using Excalibur.Data.SqlServer;
+using Excalibur.Data.SqlServer.Persistence;
+
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 
 using IPersistenceProvider = Excalibur.Data.Persistence.IPersistenceProvider;
 
 namespace Excalibur.Tests;
 
 /// <summary>
-///     Unit tests for SqlServerPersistenceProvider using the DataRequest pattern. Tests SQL Server specific features, bulk operations, and
-///     performance optimizations.
+/// Unit tests for the SQL Server persistence provider, resolved through the production
+/// <c>AddSqlServerPersistence</c> registration so that the contract is asserted on the instance a
+/// consumer actually gets rather than on a hand-assembled one.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class SqlServerPersistenceProviderShould : IDisposable
 {
-	private readonly ILogger<SqlServerPersistenceProvider> _logger;
-	private readonly IOptions<SqlServerProviderOptions> _options;
+	private const string TestConnectionString =
+		"Server=localhost;Database=test;User Id=sa;Password=Test123!;TrustServerCertificate=true"; // pragma: allowlist secret
+
+	private readonly ServiceProvider _services;
 	private readonly SqlServerPersistenceProvider _provider;
-	private readonly SqlServerProviderOptions _optionsValue;
 
 	public SqlServerPersistenceProviderShould()
 	{
-		_logger = A.Fake<ILogger<SqlServerPersistenceProvider>>();
-		_optionsValue = new SqlServerProviderOptions
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
 		{
-			Connection =
-			{
-				ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;",
-				ApplicationName = "TestApp",
-			},
-			Pooling =
-			{
-				EnablePooling = true,
-				MinPoolSize = 2,
-				MaxPoolSize = 20,
-			},
-			EnableMars = true,
-			CommandTimeout = 30,
-		};
-		_options = Microsoft.Extensions.Options.Options.Create(_optionsValue);
-		_provider = new SqlServerPersistenceProvider(_options, _logger);
+			options.ConnectionString = TestConnectionString;
+			options.CommandTimeout = 30;
+			options.Connection.ApplicationName = "TestApp";
+			options.Connection.EnableMars = true;
+			options.Pooling.EnableConnectionPooling = true;
+			options.Pooling.MinPoolSize = 2;
+			options.Pooling.MaxPoolSize = 20;
+		});
+
+		_services = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = false,
+			ValidateScopes = true,
+		});
+
+		_provider = (SqlServerPersistenceProvider)_services.GetRequiredService<ISqlPersistenceProvider>();
 	}
 
 	[Fact]
-	public void InitializeWithCorrectProperties()
+	public void HonourTheConfiguredInstanceNameInsteadOfAFixedLiteral()
 	{
-		// Assert
-		_ = _provider.ShouldNotBeNull();
-		_provider.Name.ShouldBe("SqlServer");
+		// Liveness arm for the identity contract: the default-name assertion above is also satisfied by a
+		// provider that ignores its options entirely, so this proves the configured value actually reaches
+		// the reported Name. Together they pin both halves: unset falls back, set is honoured.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
+		{
+			options.Name = "orders-primary";
+			options.ConnectionString = TestConnectionString;
+		});
+
+		using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = false,
+			ValidateScopes = true,
+		});
+
+		var sut = (SqlServerPersistenceProvider)provider.GetRequiredService<ISqlPersistenceProvider>();
+
+		sut.Name.ShouldBe("orders-primary");
+	}
+
+	[Fact]
+	public void ExposeTheExpectedIdentityAndCapabilityFlags()
+	{
+		// The registration above configures no name, so the provider falls back to the engine default.
+		// "Name" is the configured instance name, not the class name it used to report.
+		_provider.Name.ShouldBe("sqlserver");
 		_provider.ProviderType.ShouldBe("SQL");
 		_provider.SupportsBulkOperations.ShouldBeTrue();
 		_provider.SupportsStoredProcedures.ShouldBeTrue();
+		_provider.DatabaseType.ShouldBe("SqlServer");
 	}
 
 	[Fact]
-	public async Task ExecuteAsyncWithValidDataRequest()
+	public void ImplementTheSqlAndBasePersistenceContracts()
 	{
-		// Arrange
-		var request = A.Fake<IDataRequest<IDbConnection, int>>();
-		var expectedResult = 42;
-
-		_ = A.CallTo(() => request.ResolveAsync(A<IDbConnection>._))
-			.Returns(Task.FromResult(expectedResult));
-
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public async Task ExecuteBatchAsyncWithMultipleRequests()
-	{
-		// Arrange
-		var requests = new List<IDataRequest<IDbConnection, object>>
-		{
-			A.Fake<IDataRequest<IDbConnection, object>>(), A.Fake<IDataRequest<IDbConnection, object>>(),
-		};
-
-		foreach (var request in requests)
-		{
-			_ = A.CallTo(() => request.ResolveAsync(A<IDbConnection>._))
-				.Returns(Task.FromResult(new object()));
-		}
-
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public async Task ExecuteBulkAsyncWithBulkData()
-	{
-		// Arrange
-		var tableName = "users";
-		var data = new List<object> { new { Name = "John" }, new { Name = "Jane" } };
-
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public async Task ExecuteStoredProcedureAsyncWithProcedureName()
-	{
-		// Arrange
-		var procedureName = "sp_GetUserCount";
-		var parameters = new { MinAge = 18 };
-
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public void CreateTransactionScopeWithDefaultIsolationLevel()
-	{
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public void CreateTransactionScopeWithSnapshotIsolation()
-	{
-		// Arrange
-		var isolationLevel = IsolationLevel.Snapshot;
-		var timeout = TimeSpan.FromMinutes(1);
-
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public async Task ExecuteInTransactionAsyncWithTransactionScope()
-	{
-		// Arrange
-		var request = A.Fake<IDataRequest<IDbConnection, int>>();
-		var transactionScope = A.Fake<ITransactionScope>();
-
-		// Act & Assert - Verify the method signature exists
-	}
-
-	[Fact]
-	public async Task GetMetricsAsyncReturnsProviderStatistics()
-	{
-		// Act & Assert - Verify the method signature exists
-		await Task.CompletedTask;
-	}
-
-	[Fact]
-	public async Task GetConnectionPoolStatsAsyncReturnsPoolInformation()
-	{
-		// Act & Assert - Verify the method signature exists
-		await Task.CompletedTask;
-	}
-
-	[Fact]
-	public void ProviderImplementsISqlPersistenceProvider()
-	{
-		// Assert
 		_ = _provider.ShouldBeAssignableTo<ISqlPersistenceProvider>();
 		_ = _provider.ShouldBeAssignableTo<IPersistenceProvider>();
 	}
 
 	[Fact]
-	public void ProviderIsDisposable()
+	public void ImplementBothDisposalContracts()
 	{
-		// Assert
 		_ = _provider.ShouldBeAssignableTo<IDisposable>();
 		_ = _provider.ShouldBeAssignableTo<IAsyncDisposable>();
 	}
 
 	[Fact]
-	public void ProviderHasCorrectProperties()
+	public void AnswerBothOptionalCapabilityQueries()
 	{
-		// Assert - Provider may enrich connection string with additional parameters
-		_provider.Name.ShouldBe("SqlServer");
-		_provider.ProviderType.ShouldBe("SQL");
-		_provider.SupportsBulkOperations.ShouldBeTrue();
-		_provider.SupportsStoredProcedures.ShouldBeTrue();
+		_provider.GetService(typeof(IPersistenceProviderHealth)).ShouldNotBeNull();
+		_provider.GetService(typeof(IPersistenceProviderTransaction)).ShouldNotBeNull();
+	}
 
-		// Validate key connection string properties using SqlConnectionStringBuilder
-		// The provider may add ServerCertificate=False or other parameters
-		var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(_provider.ConnectionString);
+	[Fact]
+	public void DeclineACapabilityItDoesNotOffer() => _provider.GetService(typeof(IServiceProvider)).ShouldBeNull();
+
+	[Fact]
+	public void ReportTheConfiguredConnectionStringVerbatim()
+	{
+		// The property is the configured value, not an enriched one; enrichment is applied per connection.
+		var builder = new SqlConnectionStringBuilder(_provider.ConnectionString);
+
 		builder.DataSource.ShouldBe("localhost");
 		builder.InitialCatalog.ShouldBe("test");
 		builder.UserID.ShouldBe("sa");
-		// Provider should have preserved or enriched with Application Name
-		builder.ApplicationName.ShouldNotBeNullOrEmpty();
 	}
 
 	[Fact]
-	public void DisposeDoesNotThrow() =>
-		// Act & Assert
-		Should.NotThrow(_provider.Dispose);
-
-	[Fact]
-	public async Task DisposeAsyncDoesNotThrow() =>
-		// Act & Assert
-		await Should.NotThrowAsync(() => _provider.DisposeAsync().AsTask()).ConfigureAwait(false);
-
-	[Fact]
-	public async Task TestConnectionAsyncValidatesConnectivity()
+	public void ApplyTheConfiguredConnectionSettingsToTheConnectionsItCreates()
 	{
-		// Act & Assert - Verify the method signature exists
-		await Task.CompletedTask;
+		using var connection = _provider.CreateConnection();
+
+		var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
+
+		builder.DataSource.ShouldBe("localhost");
+		builder.InitialCatalog.ShouldBe("test");
+		builder.ApplicationName.ShouldBe("TestApp");
+		builder.MultipleActiveResultSets.ShouldBeTrue();
+		builder.Pooling.ShouldBeTrue();
+		builder.MinPoolSize.ShouldBe(2);
+		builder.MaxPoolSize.ShouldBe(20);
 	}
 
 	[Fact]
-	public void RetryPolicyIsConfigured() =>
-		// Assert
-		_ = _provider.RetryPolicy.ShouldNotBeNull();
+	public void ExposeTheRetryPolicySuppliedByTheRegistration() => _ = _provider.RetryPolicy.ShouldNotBeNull();
 
 	[Fact]
-	public void OptionsValidationWorks() =>
-		// Act & Assert
+	public void CreateATransactionScope() => _ = _provider.CreateTransactionScope().ShouldNotBeNull();
+
+	[Fact]
+	public void CreateATransactionScopeWithAnExplicitIsolationLevelAndTimeout() =>
+		_ = _provider.CreateTransactionScope(System.Data.IsolationLevel.Snapshot, TimeSpan.FromMinutes(1))
+			.ShouldNotBeNull();
+
+	[Fact]
+	public void NotThrowOnDispose() => Should.NotThrow(_provider.Dispose);
+
+	[Fact]
+	public void NotThrowWhenDisposedTwice() =>
 		Should.NotThrow(() =>
 		{
-			if (string.IsNullOrEmpty(_optionsValue.Connection.ConnectionString))
-			{
-				throw new ArgumentException("Connection string cannot be empty");
-			}
-
-			if (_optionsValue.Pooling.MinPoolSize > _optionsValue.Pooling.MaxPoolSize)
-			{
-				throw new ArgumentException("MinPoolSize cannot be greater than MaxPoolSize");
-			}
-
-			if (_optionsValue.CommandTimeout < 0)
-			{
-				throw new ArgumentException("CommandTimeout cannot be negative");
-			}
+			_provider.Dispose();
+			_provider.Dispose();
 		});
 
 	[Fact]
-	public void OptionsValidationFailsWithInvalidConnectionString()
+	public async Task NotThrowOnAsyncDispose() =>
+		await Should.NotThrowAsync(() => _provider.DisposeAsync().AsTask()).ConfigureAwait(false);
+
+	[Fact]
+	public void ValidateOptionsAndRejectAnEmptyConnectionString()
 	{
-		// Arrange
-		var invalidOptions = new SqlServerProviderOptions
+		var options = new SqlServerPersistenceOptions { ConnectionString = string.Empty };
+
+		_ = Should.Throw<Exception>(options.Validate);
+	}
+
+	[Fact]
+	public void ValidateOptionsAndRejectANegativeCommandTimeout()
+	{
+		var options = new SqlServerPersistenceOptions
 		{
-			Connection = { ConnectionString = "" }, // Invalid empty connection string
+			ConnectionString = TestConnectionString,
+			CommandTimeout = -1,
 		};
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			string.IsNullOrEmpty(invalidOptions.Connection.ConnectionString)
-				? throw new ArgumentException("Connection string cannot be empty")
-				: true);
+		_ = Should.Throw<Exception>(options.Validate);
 	}
 
 	[Fact]
-	public void OptionsValidationFailsWithInvalidPoolSize()
+	public void ValidateOptionsAndAcceptAWellFormedConfiguration()
 	{
-		// Arrange
-		var invalidOptions = new SqlServerProviderOptions
+		var options = new SqlServerPersistenceOptions
 		{
-			Connection = { ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;" },
-			Pooling =
-			{
-				MinPoolSize = 10,
-				MaxPoolSize = 5, // Invalid: min > max
-			},
+			ConnectionString = TestConnectionString,
+			CommandTimeout = 30,
 		};
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			invalidOptions.Pooling.MinPoolSize > invalidOptions.Pooling.MaxPoolSize
-				? throw new ArgumentException("MinPoolSize cannot be greater than MaxPoolSize")
-				: true);
-	}
-
-	[Fact]
-	public void OptionsValidationFailsWithNegativeCommandTimeout()
-	{
-		// Arrange
-		var invalidOptions = new SqlServerProviderOptions
-		{
-			Connection = { ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;" },
-			CommandTimeout = -1, // Invalid negative timeout
-		};
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			invalidOptions.CommandTimeout < 0 ? throw new ArgumentException("CommandTimeout cannot be negative") : true);
-	}
-
-	[Fact]
-	public void SqlServerSpecificPropertiesAreConfiguredCorrectly()
-	{
-		// Assert
-		_optionsValue.EnableMars.ShouldBeTrue();
-		_optionsValue.Connection.ApplicationName.ShouldBe("TestApp");
-		_optionsValue.CommandTimeout.ShouldBe(30);
-		_optionsValue.Pooling.MinPoolSize.ShouldBe(2);
-		_optionsValue.Pooling.MaxPoolSize.ShouldBe(20);
-		_optionsValue.Pooling.EnablePooling.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ProviderSupportsAdvancedSqlServerFeatures()
-	{
-		// Assert - These properties should be available based on SQL Server capabilities
-		_provider.SupportsBulkOperations.ShouldBeTrue();
-		_provider.SupportsStoredProcedures.ShouldBeTrue();
-		// SQL Server supports transactions, savepoints, and MARS
+		Should.NotThrow(options.Validate);
 	}
 
 	/// <inheritdoc/>
-	public void Dispose() => _provider?.Dispose();
+	public void Dispose() => _services.Dispose();
 }

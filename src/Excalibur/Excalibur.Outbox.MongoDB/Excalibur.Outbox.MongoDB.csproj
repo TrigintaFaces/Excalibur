@@ -16,6 +16,13 @@
     <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Declared directly, not inherited transitively: this package's public surface names
+         MongoDB.Driver.IMongoClient (IMongoDBOutboxBuilder.Client/ClientFactory and the
+         MongoDbOutboxStore constructor), so the driver is a direct dependency of the contract,
+         not an implementation detail of a package we reference. -->
+    <PackageReference Include="MongoDB.Driver" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

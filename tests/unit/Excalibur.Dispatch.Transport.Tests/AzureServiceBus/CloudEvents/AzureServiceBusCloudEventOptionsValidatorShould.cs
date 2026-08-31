@@ -25,41 +25,6 @@ public sealed class AzureServiceBusCloudEventOptionsValidatorShould
 	public void FailWhenOptionsIsNull() =>
 		_validator.Validate(null, null!).Failed.ShouldBeTrue();
 
-	[Theory]
-	[InlineData(0)]
-	[InlineData(-1)]
-	public void FailWhenMaxMessageSizeBytesIsNotPositive(long value)
-	{
-		var result = _validator.Validate(null, new AzureServiceBusCloudEventOptions { MaxMessageSizeBytes = value });
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AzureServiceBusCloudEventOptions.MaxMessageSizeBytes));
-	}
-
-	[Theory]
-	[InlineData(0)]
-	[InlineData(-1)]
-	public void FailWhenMaxDeliveryCountIsNotPositive(int value)
-	{
-		var result = _validator.Validate(null, new AzureServiceBusCloudEventOptions { MaxDeliveryCount = value });
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AzureServiceBusCloudEventOptions.MaxDeliveryCount));
-	}
-
-	[Fact]
-	public void FailWhenDuplicateDetectionEnabledWithNonPositiveWindow()
-	{
-		var result = _validator.Validate(null, new AzureServiceBusCloudEventOptions
-		{
-			EnableDuplicateDetection = true,
-			DuplicateDetectionWindow = TimeSpan.Zero,
-		});
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AzureServiceBusCloudEventOptions.DuplicateDetectionWindow));
-	}
-
 	[Fact]
 	public void FailWhenTimeToLiveIsNonPositive_WhenSet()
 	{

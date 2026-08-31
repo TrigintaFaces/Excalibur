@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
@@ -29,11 +30,13 @@ public static class MongoDbTenantShardingExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton<ITenantStoreResolver<IEventStore>>(sp =>
 			new MongoDbTenantEventStoreResolver(
 				sp.GetRequiredService<ITenantShardMap>(),
 				sp.GetRequiredService<ILoggerFactory>(),
 				sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>(),
+				sp.GetRequiredService<ITenantContext>(),
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>()));
 

@@ -81,6 +81,12 @@ var bootstrapServers = builder.Configuration["Kafka:BootstrapServers"]
 builder.Services.AddKafkaTransport("kafka", kafka =>
 {
 	_ = kafka.BootstrapServers(bootstrapServers)
+		// This sample talks to a local broker with no TLS listener, so it turns the requirement off
+		// explicitly. Against a real cluster, delete this line and set the protocol instead:
+		//     .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+		// Leaving it on is the default: the transport refuses to build a client that would carry
+		// credentials and payloads in the clear.
+		.RequireTls(false)
 		.ConfigureProducer(producer =>
 		{
 			_ = producer.ClientId("dispatch-sensor-producer")

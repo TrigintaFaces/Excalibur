@@ -49,17 +49,3 @@ public interface ICloudNativePattern
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	Task StopAsync(CancellationToken cancellationToken);
 }
-
-/// <summary>
-/// Provides health status information for a cloud-native pattern.
-/// </summary>
-public interface ICloudNativePatternHealth
-{
-	/// <summary>
-	/// Gets the current health status of the pattern.
-	/// </summary>
-	/// <value>
-	/// The current health status of the pattern.
-	/// </value>
-	PatternHealthStatus HealthStatus { get; }
-}

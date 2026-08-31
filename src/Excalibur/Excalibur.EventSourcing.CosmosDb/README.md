@@ -19,22 +19,18 @@ dotnet add package Excalibur.EventSourcing.CosmosDb
 ## Configuration
 
 ```csharp
-services.AddCosmosDbEventStore(options =>
-{
-    options.EventsContainerName = "events";
-    options.PartitionKeyPath = "/streamId";
-    options.UseTransactionalBatch = true;
-    options.MaxBatchSize = 100;
-    options.ChangeFeedPollIntervalMs = 1000;
-    options.CreateContainerIfNotExists = true;
-    options.ContainerThroughput = 400;
-});
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseCosmosDb(cosmos => cosmos
+        .ConnectionString("AccountEndpoint=...;AccountKey=...")
+        .DatabaseName("mydb")
+        .ContainerName("events"))));
 ```
 
 Or via configuration:
 
 ```csharp
-services.AddCosmosDbEventStore(configuration.GetSection("CosmosDbEventStore"));
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseCosmosDb(cosmos => cosmos.BindConfiguration("CosmosDbEventStore"))));
 ```
 
 ## Usage

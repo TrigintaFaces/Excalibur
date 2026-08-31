@@ -71,6 +71,12 @@ public static class DispatchSecurityAwsServiceCollectionExtensions
 	/// Key material is stored as the secret's binary payload, retrieved keys are cached with a bounded
 	/// TTL, and an unknown key fails closed (a <see cref="SigningException"/> is thrown — no key is minted
 	/// on the retrieval path).
+	/// <para>
+	/// This is an explicit provider selection, so it takes precedence over any <see cref="IKeyProvider"/>
+	/// already registered. The framework registers none of its own — it never mints signing keys — so a
+	/// host that calls this has named the only provider in play. To supply a different one instead,
+	/// register it after this call.
+	/// </para>
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional configuration for the provider options.</param>
@@ -96,7 +102,7 @@ public static class DispatchSecurityAwsServiceCollectionExtensions
 			AwsSecretsManagerKeyProviderOptionsValidator>());
 
 		services.TryAddSingleton(TimeProvider.System);
-		services.TryAddSingleton<IKeyProvider>(sp => new AwsSecretsManagerKeyProvider(
+		services.AddSingleton<IKeyProvider>(sp => new AwsSecretsManagerKeyProvider(
 			sp.GetRequiredService<ILogger<AwsSecretsManagerKeyProvider>>(),
 			sp.GetRequiredService<IOptions<AwsSecretsManagerKeyProviderOptions>>(),
 			sp.GetRequiredService<TimeProvider>()));

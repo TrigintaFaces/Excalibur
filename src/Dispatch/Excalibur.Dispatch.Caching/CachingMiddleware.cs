@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Collections.Immutable;
 using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Reflection;
@@ -56,6 +57,10 @@ namespace Excalibur.Dispatch.Caching;
 /// <code>services.AddCachePolicy&lt;MyQuery, MyCachePolicy&gt;();</code>
 /// </para>
 /// </remarks>
+[SuppressMessage(
+	"Design",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification = "The caching middleware is the single seam every cacheable message kind, cache store, serializer and diagnostic surface passes through; the entry-attribution guard added here reads types it already handled.")]
 internal sealed class CachingMiddleware(
 	IMeterFactory meterFactory,
 	HybridCache cache,
@@ -86,6 +91,20 @@ internal sealed class CachingMiddleware(
 
 	// Random.Shared is thread-safe (.NET 6+) -- no need for ThreadStatic
 
+	// Cache keys whose value factory is running on THIS logical call. HybridCache collapses concurrent
+	// callers of one key onto a single in-flight operation, so a cached handler that dispatches -- directly
+	// or transitively -- a message resolving to the SAME key would join its own stampede and await a
+	// completion only its own caller can produce. That is a cycle in the wait-for graph, and it does not
+	// resolve.
+	//
+	// It used to be survivable by accident: a per-caller deadline sat around the cache call and turned the
+	// cycle into a timeout plus a duplicate execution. That deadline was removed because it also bounded
+	// handler execution and destroyed stampede protection, which means the accidental escape is gone and
+	// the cycle would now hang for good. AsyncLocal flows into the nested dispatch, so re-entry is
+	// detectable exactly where it happens -- and a thrown error naming both messages is worth far more to
+	// the consumer than a hang with no stack to read.
+	private static readonly AsyncLocal<ImmutableHashSet<string>?> KeysInFlight = new();
+
 	private readonly CacheOptions _options = options.Value;
 	private readonly IResultCachePolicy? _globalPolicy = globalPolicy ?? options.Value.GlobalPolicy;
 	private bool _startupWarningEmitted;
@@ -95,9 +114,13 @@ internal sealed class CachingMiddleware(
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL2046:RequiresUnreferencedCode mismatch",
-		Justification = "AOT-safe: JIT path uses reflection; AOT path uses CachePolicyRegistry + CachedObjectMessageResult -- see GetMessagePolicy/ShouldCache/CreateCachedMessageResult")]
+		Justification = "This implementation reflects; IDispatchMiddleware does not declare that, because a consumer-authored "
+		+ "middleware need not reflect and must not inherit the claim. This type is internal, so the requirement cannot reach a "
+		+ "consumer through it; it is declared on the caching registration methods, which is where a consumer opts in.")]
 	[UnconditionalSuppressMessage("AOT", "IL3051:RequiresDynamicCode mismatch",
-		Justification = "AOT-safe: JIT path uses MakeGenericType; AOT path uses CachePolicyRegistry populated at DI composition time -- see GetMessagePolicy/ShouldCache")]
+		Justification = "This implementation requires runtime code generation; IDispatchMiddleware does not declare that, because "
+		+ "a consumer-authored middleware need not. This type is internal, so the requirement is declared on the caching "
+		+ "registration methods, which is where a consumer opts in.")]
 	[RequiresUnreferencedCode("JIT path uses MakeGenericType and Type.GetInterfaces for dynamic cache policy resolution. AOT path uses CachePolicyRegistry.")]
 	[RequiresDynamicCode("JIT path uses MakeGenericType for CachedMessageResult<T> and IResultCachePolicy<T> resolution. AOT path uses registry lookups.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -186,11 +209,13 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
 		}
 
-#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
-		return _cacheableInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
-			type.GetInterfaces()
-				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
-#pragma warning restore IL2111
+		var resolved = messageType.GetInterfaces()
+			.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
+
+		// Resolution is a pure function of the type, so a lost race stores the same answer.
+		_ = _cacheableInterfaceCache.TryAdd(messageType, resolved);
+
+		return resolved;
 	}
 
 	/// <summary>
@@ -212,11 +237,13 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
 		}
 
-#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
-		return _actionInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
-			type.GetInterfaces()
-				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)));
-#pragma warning restore IL2111
+		var resolved = messageType.GetInterfaces()
+			.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
+
+		// Resolution is a pure function of the type, so a lost race stores the same answer.
+		_ = _actionInterfaceCache.TryAdd(messageType, resolved);
+
+		return resolved;
 	}
 
 	/// <summary>
@@ -270,9 +297,8 @@ internal sealed class CachingMiddleware(
 	/// </summary>
 	/// <param name="cachedResult">The cached value to deserialize.</param>
 	/// <returns>The deserialized value.</returns>
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize(String, Type, JsonSerializerOptions)")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "ResolveTypeByName and JsonSerializer.Deserialize are used for runtime cache deserialization. Types are preserved by DI registration.")]
+	[RequiresUnreferencedCode("Resolves the stored type name against the loaded assemblies and deserializes by System.Type, both of which require types that trimming may remove.")]
+	[RequiresDynamicCode("Deserializes the stored value by System.Type, which requires runtime code generation.")]
 	private static object DeserializeCachedValue(CachedValue cachedResult)
 	{
 		var cachedValue = cachedResult.Value;
@@ -315,14 +341,17 @@ internal sealed class CachingMiddleware(
 	/// <param name="message">The message to process.</param>
 	/// <param name="context">The message context.</param>
 	/// <param name="nextDelegate">The next middleware delegate.</param>
+	/// <param name="logger">Logger used to report an entry whose stored type does not match the requested one.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The message result.</returns>
+	[RequiresUnreferencedCode("Calls DeserializeCachedValue, which resolves the stored type name by reflection.")]
 	[RequiresDynamicCode("Calls DeserializeCachedValue which uses dynamic code for deserialization")]
-	private static async Task<IMessageResult> HandleCachedResultAsync(
+	private static async Task<(IMessageResult Result, bool ServedFromCache)> HandleCachedResultAsync(
 		CachedValue? cachedResult,
 		IDispatchMessage message,
 		IMessageContext context,
 		DispatchRequestDelegate nextDelegate,
+		ILogger logger,
 		CancellationToken cancellationToken)
 	{
 		// If we have a cache hit
@@ -338,11 +367,28 @@ internal sealed class CachingMiddleware(
 					context.Result = ExtractReturnValue(originalMessageResult);
 				}
 
-				return (IMessageResult)originalResult;
+				return ((IMessageResult)originalResult, false);
 			}
 
 			if (cachedResult is { ShouldCache: true, Value: not null })
 			{
+				// A cache key does not commit to the action that produced it. On the ICacheable<T> path the
+				// key is whatever GetCacheKey() returns, so two action types can return the same string and
+				// address one entry. The response-type check further down catches that only when the two
+				// declare DIFFERENT response types; where they share one — a name query and an email query
+				// both returning string — the stored value is indistinguishable from a legitimate hit, and
+				// the second caller would receive the first's data. Attribute the entry to its storing
+				// action instead, and decline one that is not this action's. Checked before deserializing:
+				// there is no reason to reconstruct a value that cannot be served.
+				if (!BelongsToAction(cachedResult.ActionTypeName, message.GetType()))
+				{
+					// Fail open, matching the response-type mismatch below: serve a freshly computed result
+					// rather than another action's value. The entry is left for its owner to overwrite or
+					// expire, so the colliding action simply goes uncached rather than evicting in a loop.
+					LogCachedActionMismatch(logger, cachedResult.ActionTypeName, DescribeActionType(message.GetType()));
+					return (await nextDelegate(message, context, cancellationToken).ConfigureAwait(false), false);
+				}
+
 				// Cache hit - deserialize value and return directly without calling handler
 				var cachedValue = DeserializeCachedValue(cachedResult);
 
@@ -359,9 +405,18 @@ internal sealed class CachingMiddleware(
 
 					// Create CachedMessageResult<T> using reflection
 					var resultInstance = CreateCachedMessageResult(returnType, cachedValue);
+					if (resultInstance is null)
+					{
+						// The entry under this key holds another type. Fail open: drop to the handler and
+						// serve a freshly computed result rather than returning the wrong type. The stale
+						// entry is left for its owner to overwrite or expire.
+						LogCachedValueTypeMismatch(logger, returnType.FullName, cachedValue.GetType().FullName);
+						return (await nextDelegate(message, context, cancellationToken).ConfigureAwait(false), false);
+					}
+
 					context.Result = cachedValue;
 
-					return resultInstance;
+					return (resultInstance, true);
 				}
 
 #pragma warning disable IL2075 // GetInterfaces on runtime type for diagnostic message only
@@ -379,7 +434,7 @@ internal sealed class CachingMiddleware(
 		}
 
 		// Fallback
-		return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		return (await nextDelegate(message, context, cancellationToken).ConfigureAwait(false), false);
 	}
 
 	/// <summary>
@@ -391,6 +446,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="nextDelegate">The next middleware delegate.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The message result.</returns>
+	[RequiresUnreferencedCode("Calls HandleCachedResultAsync, which resolves the stored type name by reflection.")]
 	[RequiresDynamicCode("Calls HandleCachedResultAsync which uses dynamic code for deserialization")]
 	private async Task<IMessageResult> HandleInterfaceCacheableReflectionAsync(
 		IDispatchMessage message,
@@ -456,7 +512,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="message">The message to check.</param>
 	/// <returns>True if the message type should be cached; otherwise, false.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "Policy evaluation is acceptable when caching is enabled")]
+		Justification = "GetMessagePolicy and ShouldCache take the registry path when RuntimeFeature.IsDynamicCodeSupported is false, and the ahead-of-time compiler substitutes that switch and removes the MakeGenericType branch, so no dynamic code is reachable here.")]
 	private bool ShouldCacheMessageType(IDispatchMessage message)
 	{
 		// Pre-check: only verify the policy decision (ShouldCache), not result-dependent checks
@@ -476,7 +532,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The cached value.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "ShouldCache is only called when caching is enabled and AOT limitations are acceptable")]
+		Justification = "GetMessagePolicy and ShouldCache take the registry path when RuntimeFeature.IsDynamicCodeSupported is false, and the ahead-of-time compiler substitutes that switch and removes the MakeGenericType branch, so no dynamic code is reachable here.")]
 	private async Task<CachedValue> CreateAttributeCacheValueAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -506,6 +562,7 @@ internal sealed class CachingMiddleware(
 			ShouldCache = shouldCache,
 			HasExecuted = true,
 			TypeName = returnValue?.GetType().AssemblyQualifiedName,
+			ActionTypeName = DescribeActionType(message.GetType()),
 		};
 	}
 
@@ -552,7 +609,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The cached value.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "ShouldCache is only called when caching is enabled and AOT limitations are acceptable")]
+		Justification = "GetMessagePolicy and ShouldCache take the registry path when RuntimeFeature.IsDynamicCodeSupported is false, and the ahead-of-time compiler substitutes that switch and removes the MakeGenericType branch, so no dynamic code is reachable here.")]
 	private async Task<CachedValue> CreateCacheValueAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -593,6 +650,7 @@ internal sealed class CachingMiddleware(
 			ShouldCache = shouldCache,
 			HasExecuted = true,
 			TypeName = returnValue?.GetType().AssemblyQualifiedName,
+			ActionTypeName = DescribeActionType(message.GetType()),
 		};
 	}
 
@@ -605,6 +663,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="nextDelegate">The next middleware delegate.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The message result.</returns>
+	[RequiresUnreferencedCode("Calls HandleCachedResultAsync, which resolves the stored type name by reflection.")]
 	[RequiresDynamicCode("Calls HandleCachedResultAsync which uses dynamic code for deserialization")]
 	private async Task<IMessageResult> HandleAttributeCacheableAsync(
 		IDispatchMessage message,
@@ -636,8 +695,14 @@ internal sealed class CachingMiddleware(
 
 	/// <summary>
 	/// Executes the cache lookup-or-create for a key with resilience: honors the cache circuit breaker
-	/// (skip-when-open), the per-operation timeout, and <see cref="CacheResilienceOptions.EnableFallback"/>
-	/// fail-open on a non-cancellation cache-backend error.
+	/// (skip-when-open) and <see cref="CacheResilienceOptions.EnableFallback"/> fail-open on a
+	/// non-cancellation cache-backend error.
+	/// <para>
+	/// The operation carries no deadline of its own. It is shared by every concurrent caller of the same
+	/// key and it runs the handler inside itself, so a deadline placed here would bound handler execution
+	/// and would be abandoned per-caller, destroying that sharing. Backend latency is bounded one layer
+	/// down, by <see cref="TimeoutDistributedCache"/>.
+	/// </para>
 	/// </summary>
 	/// <param name="key">The cache key.</param>
 	/// <param name="valueFactory">Factory that executes the handler and produces the value to cache.</param>
@@ -648,6 +713,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="nextDelegate">The next middleware delegate.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The resolved message result.</returns>
+	[RequiresUnreferencedCode("Calls CompleteCacheOperationAsync, which resolves the stored type name by reflection.")]
 	[RequiresDynamicCode("Calls CompleteCacheOperationAsync which uses dynamic code for deserialization")]
 	private async Task<IMessageResult> ExecuteWithCacheAsync(
 		string key,
@@ -659,7 +725,7 @@ internal sealed class CachingMiddleware(
 		DispatchRequestDelegate nextDelegate,
 		CancellationToken cancellationToken)
 	{
-		// yi59t5: when the cache circuit breaker is open, skip the cache entirely and execute the handler
+		// when the cache circuit breaker is open, skip the cache entirely and execute the handler
 		// directly (fail-open). This avoids paying the per-request CacheTimeout while the backend is
 		// known-unhealthy and gives it the configured OpenDuration to recover.
 		if (IsCacheBreakerOpen())
@@ -667,17 +733,73 @@ internal sealed class CachingMiddleware(
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Use cache with timeout
-		using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		cts.CancelAfter(_options.Behavior.CacheTimeout);
-
+		// No per-caller deadline is placed around GetOrCreateAsync. HybridCache runs the value factory --
+		// the handler -- inside this call, and shares one in-flight operation between every concurrent
+		// caller of the same key. A deadline here therefore bounds handler execution, and each caller
+		// abandons the shared operation independently the moment its own timer fires: with a 200 ms budget
+		// and a 400 ms handler, five concurrent callers produced SIX handler executions, because the
+		// shared factory was cancelled and all five then fell open and ran the handler themselves. That is
+		// worse than no caching, and it lands on exactly the slow handlers caching exists to protect.
+		//
+		// Backend latency is bounded where it is actually spent instead -- TimeoutDistributedCache bounds
+		// each L2 call by Behavior.CacheTimeout from INSIDE the shared operation, so one slow read yields
+		// one timeout, every waiting caller shares that outcome, and single-flight survives.
 		var sw = ValueStopwatch.StartNew();
 		CachedValue? cachedResult;
+
+		// The cache runs the value factory -- which invokes the handler -- INSIDE GetOrCreateAsync, so a
+		// fault raised by the factory's BODY and one raised by the CACHE escape that call at the same point.
+		// They need opposite responses: a backend outage should fall open and run the handler, while a
+		// handler that has already run and thrown must not be run a second time. Recording the fault here is
+		// what lets the fail-open clause below tell them apart -- it is the last place the distinction still
+		// exists. This is the same line the file draws for result handling after the try: ONLY a
+		// cache-BACKEND failure fails open.
+		Exception? factoryFault = null;
+
+		async ValueTask<CachedValue> GuardedFactoryAsync(CancellationToken factoryToken)
+		{
+			try
+			{
+				return await valueFactory(factoryToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (factoryToken.IsCancellationRequested)
+			{
+				// The cache stack cancelled THIS factory -- it cancels by cancelling the token it handed in,
+				// so an OperationCanceledException raised while that token is cancelled did not originate in
+				// the handler's own logic. Deliberately NOT recorded as a factory fault: the cancellation
+				// clause below must still fall open and run the handler, which for this case has not run.
+				throw;
+			}
+			catch (Exception ex)
+			{
+				// Rethrown unchanged, so the caller observes exactly what its handler threw, with the
+				// original stack trace. Nothing about this guard is observable from outside. A cancellation
+				// reaching here has an UNCANCELLED factory token, so it is the handler's own -- the handler
+				// ran, and must not run again.
+				factoryFault = ex;
+				throw;
+			}
+		}
+
+		var inFlight = KeysInFlight.Value ?? ImmutableHashSet<string>.Empty;
+		if (inFlight.Contains(key))
+		{
+			throw new CacheReentrancyException(
+				$"Cached handler re-entered its own cache key '{key}' while producing it. A handler whose "
+				+ "result is cached dispatched another message that resolves to the same cache key, directly "
+				+ "or through a further dispatch. The inner dispatch would wait for the outer one to finish "
+				+ "and the outer cannot finish until the inner returns, so the request would never complete. "
+				+ "Give the messages distinct cache keys, or move the nested dispatch outside the cached "
+				+ "handler.",
+				key);
+		}
+
+		KeysInFlight.Value = inFlight.Add(key);
 		try
 		{
 			cachedResult = await cache.GetOrCreateAsync(
 				key,
-				valueFactory,
+				GuardedFactoryAsync,
 				new HybridCacheEntryOptions
 				{
 					Expiration = expiration,
@@ -686,33 +808,67 @@ internal sealed class CachingMiddleware(
 						: HybridCacheEntryFlags.None,
 				},
 				tags,
-				cts.Token).ConfigureAwait(false);
+				cancellationToken).ConfigureAwait(false);
 
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
-			RecordCacheSuccess();
+
+			// Deliberately NOT recording breaker success here. A normal return no longer means the backend
+			// was healthy: TimeoutDistributedCache bounds each backend call and degrades a slow one to a
+			// miss, so GetOrCreateAsync returns normally while the backend is failing every request.
+			// Asserting success here would hold the breaker closed forever against a dead backend -- every
+			// request paying the deadline twice and nothing ever cached. Backend health is reported by the
+			// decorator, which is the only component that can observe it.
 		}
-		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested
+			&& factoryFault is null)
 		{
-			// Cache timeout - execute without caching. Real caller cancellation propagates.
-			// A timeout is a cache-backend health signal, so it counts toward the breaker.
+			// A cancellation that is neither the caller's nor the handler's came from the cache stack -
+			// execute without caching. Real caller cancellation propagates. It is a cache-backend health
+			// signal, so it counts toward the breaker.
+			//
+			// The two ARE distinguishable, and the factory token is where: the cache stack cancels by
+			// cancelling the token it passes the factory, so a cancellation raised while that token is
+			// uncancelled is the handler's own and is recorded as a factory fault above. Without this test a
+			// handler that throws OperationCanceledException for its own reasons -- a domain deadline, a
+			// linked token of its own -- falls open and runs a second time, performing its side effect twice
+			// for one dispatch.
 			_cacheTimeoutCounter.Add(1);
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
-			RecordCacheFailure(exception: null);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
-		catch (Exception ex) when (ex is not OperationCanceledException && _options.Resilience.EnableFallback)
+		catch (Exception ex) when (ex is not OperationCanceledException
+			and not CacheReentrancyException
+			&& factoryFault is null
+			&& _options.Resilience.EnableFallback)
 		{
-			// yi59t5: a non-cancellation cache-backend error (e.g. a RedisConnectionException that errors
+			// a non-cancellation cache-backend error (e.g. a RedisConnectionException that errors
 			// FAST rather than slow) must NOT, under default options, become an application-level failure.
 			// Fall back to executing the handler directly (fail-open, like IDistributedCache/HybridCache
 			// skip-on-failure). When EnableFallback is false the error propagates (explicit fail-closed).
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
-			RecordCacheFailure(ex);
+
+			// The decorator already recorded this against the breaker on its way past; recording again here
+			// would count one backend failure twice and trip the breaker at half its configured threshold.
 			logger.LogWarning(
 				ex,
 				"Cache operation failed for key {CacheKey}; falling back to direct handler execution (EnableFallback=true).",
 				key);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			// Restore rather than Remove: AsyncLocal copy-on-write means a nested dispatch may have
+			// published its own set, and assigning the value captured on entry is what unwinds this frame
+			// exactly.
+			//
+			// Scope of the effect, measured rather than assumed: an AsyncLocal write inside an async method
+			// does not flow back to that method's caller, because the state machine restores the captured
+			// ExecutionContext at the end of the first synchronous segment. Writes therefore travel DOWN
+			// into the value factory -- which is what lets the guard above see an outer key at all -- and
+			// never back UP. So this restore does not, and cannot, protect a caller further out; its one
+			// reachable effect is to unwind this frame before CompleteCacheOperationAsync runs after the
+			// try. It is kept for that.
+			KeysInFlight.Value = inFlight;
 		}
 
 		// Result handling (deserialization, poison-marker eviction, tag registration) runs OUTSIDE the
@@ -731,28 +887,7 @@ internal sealed class CachingMiddleware(
 			&& _options.Resilience.CircuitBreaker.Enabled
 			&& cacheCircuitBreaker.State == CircuitState.Open;
 
-	/// <summary>
-	/// Records a successful cache operation against the circuit breaker, if one is configured and enabled.
-	/// </summary>
-	private void RecordCacheSuccess()
-	{
-		if (cacheCircuitBreaker is not null && _options.Resilience.CircuitBreaker.Enabled)
-		{
-			cacheCircuitBreaker.RecordSuccess();
-		}
-	}
 
-	/// <summary>
-	/// Records a failed cache operation against the circuit breaker, if one is configured and enabled.
-	/// </summary>
-	/// <param name="exception">The exception that caused the failure, if any.</param>
-	private void RecordCacheFailure(Exception? exception)
-	{
-		if (cacheCircuitBreaker is not null && _options.Resilience.CircuitBreaker.Enabled)
-		{
-			cacheCircuitBreaker.RecordFailure(exception);
-		}
-	}
 
 	/// <summary>
 	/// Determines if a result should be cached based on policies and attributes.
@@ -874,8 +1009,7 @@ internal sealed class CachingMiddleware(
 		return _globalPolicy?.ShouldCache(message, result) ?? true;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Assembly.GetType is used for runtime cache deserialization. Types are preserved by DI registration.")]
+	[RequiresUnreferencedCode("Searches the loaded assemblies for the stored type name, which requires a type that trimming may remove.")]
 	private static Type? ResolveTypeByName(string typeName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
@@ -908,9 +1042,91 @@ internal sealed class CachingMiddleware(
 		return null;
 	}
 
-	[RequiresDynamicCode("JIT path uses Type.MakeGenericType to construct CachedMessageResult<T>.")]
-	private static IMessageResult CreateCachedMessageResult(Type returnType, object cachedValue)
+	/// <summary>Reports a cache entry whose stored value is not of the type the requesting action expects.</summary>
+	/// <param name="logger"> The logger to report through. </param>
+	/// <param name="expectedType"> The type the requesting action declared as its response. </param>
+	/// <param name="actualType"> The type actually found under the cache key. </param>
+	private static void LogCachedValueTypeMismatch(ILogger logger, string? expectedType, string? actualType) =>
+		logger.LogWarning(
+			"Cache entry holds '{ActualType}' but the requesting action expects '{ExpectedType}'. Two action types "
+			+ "share a cache key. Serving the handler instead; give the actions distinct ICacheable<T>.GetCacheKey() values.",
+			actualType,
+			expectedType);
+
+	/// <summary>Reports a cache entry that a different action type stored.</summary>
+	/// <param name="logger"> The logger to report through. </param>
+	/// <param name="storingAction"> The action identity recorded on the entry, if any. </param>
+	/// <param name="requestingAction"> The action identity requesting the entry. </param>
+	private static void LogCachedActionMismatch(ILogger logger, string? storingAction, string? requestingAction) =>
+		logger.LogWarning(
+			"Cache entry was stored by '{StoringAction}' but '{RequestingAction}' requested it. Two action types "
+			+ "share a cache key. Serving the handler instead; give the actions distinct "
+			+ "ICacheable<T>.GetCacheKey() values.",
+			storingAction,
+			requestingAction);
+
+	/// <summary>
+	/// Describes an action type for cache-entry attribution, or <see langword="null" /> when the type cannot
+	/// be identified.
+	/// </summary>
+	/// <param name="actionType"> The runtime type of the action. </param>
+	/// <returns> The attribution string, or <see langword="null" /> when the type has no full name. </returns>
+	/// <remarks>
+	/// <para>
+	/// The assembly's simple name qualifies the type name so that two assemblies declaring the same type name
+	/// stay distinct, while omitting the version, culture and public key so that upgrading a package does not
+	/// invalidate every entry a consumer has stored. This is deliberately not the assembly-qualified name used
+	/// by <see cref="CachedValue.TypeName" />, which needs maximum resolvability rather than stability because
+	/// it drives deserialization.
+	/// </para>
+	/// <para>
+	/// Internal rather than private so a test can build a correctly attributed entry from a type rather than
+	/// by repeating this format as a literal, which would silently rot if the format ever changed.
+	/// </para>
+	/// </remarks>
+	internal static string? DescribeActionType(Type actionType)
 	{
+		var fullName = actionType.FullName;
+		return fullName is null ? null : $"{actionType.Assembly.GetName().Name}/{fullName}";
+	}
+
+	/// <summary>
+	/// Determines whether an entry stored under <paramref name="storedActionTypeName" /> may be served to
+	/// <paramref name="requestingActionType" />.
+	/// </summary>
+	/// <param name="storedActionTypeName"> The action identity recorded on the entry, if any. </param>
+	/// <param name="requestingActionType"> The runtime type of the action requesting the entry. </param>
+	/// <returns>
+	/// <see langword="true" /> only when both identities are known and equal. An entry that carries no
+	/// identity — written before this attribution existed, or by an action whose type could not be named —
+	/// is not attributable, so it is never served; the caller falls through to the handler.
+	/// </returns>
+	private static bool BelongsToAction(string? storedActionTypeName, Type requestingActionType)
+	{
+		var requesting = DescribeActionType(requestingActionType);
+
+		return storedActionTypeName is not null
+			&& requesting is not null
+			&& string.Equals(storedActionTypeName, requesting, StringComparison.Ordinal);
+	}
+
+	[RequiresDynamicCode("JIT path uses Type.MakeGenericType to construct CachedMessageResult<T>.")]
+	private static IMessageResult? CreateCachedMessageResult(Type returnType, object cachedValue)
+	{
+		// A cache key is not unique across action types. The key comes from the action itself via
+		// ICacheable<T>.GetCacheKey(), so two different actions can return the same string and address one
+		// entry — "user:{UserId}" on both a user query and a permissions query is ordinary code. Handing
+		// that entry to the wrong action returns another type's data to the caller.
+		//
+		// The dynamic-code path below happens to catch this, because invoking the generic wrapper's
+		// constructor with a mismatched value throws. The ahead-of-time path takes object? and does not,
+		// so it would return the wrong type silently and only where no test that runs under dynamic code
+		// can observe it. The check therefore lives here, above the split, where both paths share it.
+		if (!returnType.IsInstanceOfType(cachedValue))
+		{
+			return null;
+		}
+
 		if (!RuntimeFeature.IsDynamicCodeSupported)
 		{
 			// AOT path: MakeGenericType is unavailable. Use non-generic wrapper.
@@ -958,6 +1174,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="nextDelegate">The next middleware delegate.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The resolved message result.</returns>
+	[RequiresUnreferencedCode("Calls HandleCachedResultAsync, which resolves the stored type name by reflection.")]
 	[RequiresDynamicCode("Calls HandleCachedResultAsync which uses dynamic code for deserialization")]
 	private async Task<IMessageResult> CompleteCacheOperationAsync(
 		string key,
@@ -973,7 +1190,7 @@ internal sealed class CachingMiddleware(
 		// removes it.
 		var freshlyExecuted = context.Items.ContainsKey("Dispatch:OriginalResult");
 
-		// 5hucve: HybridCache stores whatever the factory returns — including non-cacheable
+		// HybridCache stores whatever the factory returns — including non-cacheable
 		// (ShouldCache=false) markers, because HybridCacheEntryFlags are per-call and cannot be set from
 		// inside the factory. When the handler just executed and produced a non-cacheable result, evict the
 		// stored marker so a subsequent identical request re-evaluates the handler instead of getting a
@@ -982,10 +1199,11 @@ internal sealed class CachingMiddleware(
 		{
 			await RemovePoisonMarkerAsync(key, cancellationToken).ConfigureAwait(false);
 		}
+		else
+		{
+		}
 
-		RecordHitOrMiss(cachedResult, context);
-
-		// td9o0t: register a tag→key mapping exactly when a cacheable tagged entry is persisted — gate on the
+		// register a tag→key mapping exactly when a cacheable tagged entry is persisted — gate on the
 		// cache OUTCOME (ShouldCache:true, Value:not null), not on "did the local factory run". This both
 		// stops registering tags for non-cacheable markers AND registers the key when an entry was resolved
 		// from shared L2 without the local factory running (cross-instance tag invalidation).
@@ -996,7 +1214,16 @@ internal sealed class CachingMiddleware(
 			await RegisterTagKeysAsync(tagTracker, key, tags, cancellationToken).ConfigureAwait(false);
 		}
 
-		return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
+		// Recorded AFTER the read-side guards, not before. An entry those guards reject is not served — the
+		// handler runs — so counting it on the way in overstates the hit rate by exactly the number of key
+		// collisions, which is the population the guards exist to catch.
+		var (result, servedFromCache) = await HandleCachedResultAsync(
+				cachedResult, message, context, nextDelegate, logger, cancellationToken)
+			.ConfigureAwait(false);
+
+		RecordHitOrMiss(servedFromCache);
+
+		return result;
 	}
 
 	/// <summary>
@@ -1043,15 +1270,13 @@ internal sealed class CachingMiddleware(
 	/// <summary>
 	/// Records a cache hit or miss metric based on whether the result was served from cache.
 	/// </summary>
-	/// <param name="cachedResult">The cached value returned from HybridCache.</param>
-	/// <param name="context">The message context (used to detect fresh execution via OriginalResult key).</param>
-	private void RecordHitOrMiss(CachedValue? cachedResult, IMessageContext context)
+	/// <param name="servedFromCache">
+	/// <see langword="true" /> when a stored entry was actually returned to the caller; <see langword="false" />
+	/// when the handler ran, including when a read-side guard declined the stored entry.
+	/// </param>
+	private void RecordHitOrMiss(bool servedFromCache)
 	{
-		// ixaf7i: a result served from cache (handler NOT executed this request) is a hit regardless of the
-		// cached value being null or its stored policy flag; a fresh handler execution is a miss. Distinguish
-		// purely by the authoritative fresh-execution signal (Dispatch:OriginalResult), set only in the factory.
-		if (cachedResult?.HasExecuted == true
-			&& !context.Items.ContainsKey("Dispatch:OriginalResult"))
+		if (servedFromCache)
 		{
 			_cacheHitCounter.Add(1);
 		}

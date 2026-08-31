@@ -1,0 +1,59 @@
+# Conformance bases that live under tests/ and are derived by real provider suites.
+#
+# Read eng/ci/conformance-fork-gate.sh for why this file exists. In short: every arm in
+# Excalibur.Testing.Conformance is a contract we impose on a consumer who implements their own
+# provider. A family verified against a base that lives under tests/ is verified against a contract
+# the consumer cannot obtain, and the two drift with nothing detecting it.
+#
+# THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
+#   - A name NOT listed here is a FAIL on its first appearance.
+#   - A name listed here that no longer matches a live fork is ALSO a FAIL -- remove it.
+# So the list can only shrink. Removing a line is the fix; adding one should be argued, not assumed.
+#
+# The outbox family is deliberately ABSENT: its internal base was deleted and all eight providers
+# plus the kit's own self-test now derive the published kit. That is the shape every entry below
+# should eventually take.
+#
+# ---------------------------------------------------------------------------------------------
+# CATEGORY A -- SHADOWS. A published kit for this family EXISTS, and the providers derive the
+# private base instead. These are the true forks: two contracts for one family, ours and theirs.
+# ---------------------------------------------------------------------------------------------
+EventStoreConformanceTestBase
+InboxStoreConformanceTestBase
+LeaderElectionConformanceTestBase
+SagaStoreConformanceTestBase
+# One private type shadows the published transport kit. The published kit carries far fewer arms
+# than the base our own transports are held to, so a consumer writing a transport gets the smaller
+# contract.
+#
+# Two further entries stood here (a provider-fixture base and the specification derived from it).
+# They are removed because the suites deriving them were deleted, not repointed: those five
+# provider suites ran every arm against an in-process double and touched no broker, so they were
+# labelled as integration coverage while being incapable of failing for a reason originating in
+# the transport they named. The real per-transport suites live alongside this entry's base and
+# provision actual brokers.
+TransportConformanceTestBase
+# Name-mismatch shadow: the published kit is SnapshotStoreConformanceTestKit while the private base
+# drops the "Store" segment. A family census keyed on the name alone reports this pair as unrelated,
+# which is exactly how it stayed invisible.
+SnapshotConformanceTestBase
+#
+# ---------------------------------------------------------------------------------------------
+# CATEGORY B -- UNPUBLISHED CONTRACTS. No kit for this family ships at all, so a consumer
+# implementing one of these has no conformance suite to derive -- a coverage gap rather than a
+# fork. Closing these means publishing a kit, not just repointing a deriver.
+# ---------------------------------------------------------------------------------------------
+CircuitBreakerConformanceBase
+EventSerializerTypeNameRoundTripConformanceTestBase
+SerializerConformanceTestsBase
+SagaStoreRetentionConformanceTestBase
+SagaTimeoutStoreConformanceTestBase
+# Both live in the test tree only; no kit ships for either family (verified: zero shipped types
+# matching their kit name). A consumer writing their own message-bus adapter or transport health
+# checker therefore has no suite to derive, while our own adapters are held to these arms. That is
+# Category B: a coverage gap, not a fork -- closing it means publishing the kit from
+# Excalibur.Testing.Conformance, which adds public API and is a product decision rather than a
+# mechanical move. Tracked.
+MessageBusAdapterConformanceTests
+TransportHealthCheckerConformanceTests
+

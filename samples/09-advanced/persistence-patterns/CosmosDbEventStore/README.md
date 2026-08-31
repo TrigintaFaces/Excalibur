@@ -63,11 +63,14 @@ export CosmosDb__ConnectionString="AccountEndpoint=https://..."
 
 ## Partition Key Strategy
 
-Events are partitioned by **stream ID** (`aggregateType:aggregateId`):
+Events are partitioned by **stream ID**, which is the owning tenant followed by the aggregate type and id:
 
 ```
-/streamId = "BankAccountAggregate:12345678-1234-1234-1234-123456789abc"
+/streamId = "t:__default__:BankAccountAggregate:12345678-1234-1234-1234-123456789abc"
 ```
+
+This sample runs single-tenant, so the tenant segment is the framework's default tenant identifier. A
+multi-tenant host resolves a real tenant and gets a different partition per tenant.
 
 ### Why Stream ID?
 
@@ -77,6 +80,7 @@ Events are partitioned by **stream ID** (`aggregateType:aggregateId`):
 | **Efficient Queries** | Loading an aggregate reads one partition |
 | **Transactional Writes** | Multiple events can be written atomically |
 | **Optimistic Concurrency** | Version conflicts detected per stream |
+| **Tenant Confinement** | The tenant is part of the key, so two tenants holding the same aggregate id get separate partitions and separate version sequences |
 
 ### Alternative: Partition by Aggregate Type
 
@@ -153,8 +157,8 @@ Events are stored as JSON documents:
 
 ```json
 {
-  "id": "BankAccountAggregate:abc123:1",
-  "streamId": "BankAccountAggregate:abc123",
+  "id": "t:__default__:BankAccountAggregate:abc123:1",
+  "streamId": "t:__default__:BankAccountAggregate:abc123",
   "eventId": "evt-456",
   "aggregateId": "abc123",
   "aggregateType": "BankAccountAggregate",

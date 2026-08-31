@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -78,6 +78,7 @@ public static class OutboxBuilderRedisExtensions
 		_ = builder.Services.Configure<RedisOutboxOptions>(opt =>
 		{
 			opt.ConnectionString = options.ConnectionString;
+			opt.ConnectionSuppliedExternally = options.ConnectionSuppliedExternally;
 			opt.KeyPrefix = options.KeyPrefix;
 			if (redisBuilder.DatabaseValue.HasValue)
 			{
@@ -103,20 +104,26 @@ public static class OutboxBuilderRedisExtensions
 		// Register ConnectionMultiplexer based on connection path
 		if (hasBuilderConnection)
 		{
-			RegisterBuilderManagedMultiplexer(builder.Services, redisBuilder, options);
+			RegisterBuilderManagedMultiplexer(builder.Services, redisBuilder);
 		}
 		else if (redisBuilder.ConnectionStringValue is not null)
 		{
 			var connStr = redisBuilder.ConnectionStringValue;
-			builder.Services.TryAddSingleton(_ => ConnectionMultiplexer.Connect(connStr));
+			builder.Services.TryAddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(connStr));
 		}
 
 		// Register store services (use constructor with ConnectionMultiplexer when available)
 		if (hasBuilderConnection || redisBuilder.ConnectionStringValue is not null)
 		{
-			builder.Services.TryAddSingleton(sp =>
+			// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker as part
+			// of THIS registration, so the marker cannot exist without the store it attests. It is the
+			// partitioned seam rather than the scoped one because this store reads no ambient tenant on any
+			// path: it persists the tenant on the hash it writes and hands that value back on the drain, so
+			// the owning tenant is re-established from the row. That seam takes no ITenantContext, so there
+			// is no dependency here to be handed to the factory and silently discarded.
+			builder.Services.AddTenantAwareStore<IOutboxStore, RedisOutboxStore>(sp =>
 			{
-				var connection = sp.GetRequiredService<ConnectionMultiplexer>();
+				var connection = sp.GetRequiredService<IConnectionMultiplexer>();
 				var opts = sp.GetRequiredService<IOptions<RedisOutboxOptions>>();
 				var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisOutboxStore>>();
 				return new RedisOutboxStore(connection, opts, logger);
@@ -124,7 +131,11 @@ public static class OutboxBuilderRedisExtensions
 		}
 		else
 		{
-			builder.Services.TryAddSingleton<RedisOutboxStore>();
+			// Same partitioned attestation on the DI-constructed branch. Both branches are registration call
+			// sites for the same contract, so a marker emitted on only one of them would leave the other
+			// shape rejected by row-discriminator multi-tenancy while looking fixed.
+			builder.Services.AddTenantAwareStore<IOutboxStore, RedisOutboxStore>(
+				static sp => ActivatorUtilities.CreateInstance<RedisOutboxStore>(sp));
 		}
 
 		builder.Services.AddKeyedSingleton<IOutboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisOutboxStore>());
@@ -134,36 +145,19 @@ public static class OutboxBuilderRedisExtensions
 
 	private static void RegisterBuilderManagedMultiplexer(
 		IServiceCollection services,
-		RedisOutboxBuilder redisBuilder,
-		RedisOutboxOptions options)
+		RedisOutboxBuilder redisBuilder)
 	{
-		const string sentinel = "builder-managed-multiplexer:6379";
-
-		// Set sentinel so the store's options validation passes
-		options.ConnectionString = sentinel;
-
-		_ = services.Configure<RedisOutboxOptions>(opt =>
-		{
-			opt.ConnectionString = sentinel;
-		});
-
+		// The host owns the connection on this path, so the store is handed the multiplexer directly and
+		// never reads RedisOutboxOptions.ConnectionString. Nothing is written to that option here: a
+		// placeholder would be indistinguishable from a real endpoint and would silently override whatever
+		// the host configured.
 		if (redisBuilder.MultiplexerInstance is not null)
 		{
-			var multiplexer = redisBuilder.MultiplexerInstance;
-			services.TryAddSingleton(multiplexer);
-
-			// Store requires concrete ConnectionMultiplexer
-			services.TryAddSingleton(sp =>
-				(ConnectionMultiplexer)sp.GetRequiredService<IConnectionMultiplexer>());
+			services.TryAddSingleton(redisBuilder.MultiplexerInstance);
 		}
 		else if (redisBuilder.MultiplexerFactoryFunc is not null)
 		{
-			var factory = redisBuilder.MultiplexerFactoryFunc;
-			services.TryAddSingleton(factory);
-
-			// Store requires concrete ConnectionMultiplexer
-			services.TryAddSingleton(sp =>
-				(ConnectionMultiplexer)sp.GetRequiredService<IConnectionMultiplexer>());
+			services.TryAddSingleton(redisBuilder.MultiplexerFactoryFunc);
 		}
 	}
 }

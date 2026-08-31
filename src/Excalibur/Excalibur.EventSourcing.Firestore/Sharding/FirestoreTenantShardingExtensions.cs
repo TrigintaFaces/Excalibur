@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Firestore;
@@ -28,11 +29,13 @@ public static class FirestoreTenantShardingExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton<ITenantStoreResolver<IEventStore>>(sp =>
 			new FirestoreTenantEventStoreResolver(
 				sp.GetRequiredService<ITenantShardMap>(),
 				sp.GetRequiredService<ILoggerFactory>(),
-				sp.GetRequiredService<IOptions<FirestoreEventStoreOptions>>()));
+				sp.GetRequiredService<IOptions<FirestoreEventStoreOptions>>(),
+				sp.GetRequiredService<ITenantContext>()));
 
 		return builder;
 	}

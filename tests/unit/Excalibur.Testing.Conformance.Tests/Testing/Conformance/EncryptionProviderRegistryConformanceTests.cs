@@ -154,4 +154,7 @@ public sealed class EncryptionProviderRegistryConformanceTests : EncryptionProvi
 		public Task<bool> ValidateFipsComplianceAsync(CancellationToken cancellationToken) =>
 			Task.FromResult(false);
 	}
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

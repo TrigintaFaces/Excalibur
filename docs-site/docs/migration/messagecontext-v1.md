@@ -188,7 +188,7 @@ public class ValidationMiddleware : IDispatchMiddleware
         {
             // Use SetItem for validation errors (unpredictable structure)
             context.SetItem("ValidationErrors", _errors);
-            return MessageResult.Failure("Validation failed");
+            return MessageResult.Failed("Validation failed");
         }
 
         return await nextDelegate(message, context, cancellationToken);
@@ -233,7 +233,7 @@ using Excalibur.Dispatch.Features;
 public async Task Handler_ShouldUseUserIdFromContext()
 {
     // Arrange - create context with features
-    var context = new MessageContext
+    IMessageContext context = new MessageContext
     {
         MessageId = Guid.NewGuid().ToString(),
         CorrelationId = Guid.NewGuid().ToString()
@@ -262,7 +262,7 @@ public async Task Handler_ShouldUseUserIdFromContext()
 public void CreateChildContext_ShouldPropagateCrossCuttingConcerns()
 {
     // Arrange
-    var parent = new MessageContext
+    IMessageContext parent = new MessageContext
     {
         MessageId = "parent-123",
         CorrelationId = "correlation-456"

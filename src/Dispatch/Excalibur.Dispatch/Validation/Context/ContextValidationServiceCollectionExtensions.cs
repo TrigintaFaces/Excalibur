@@ -26,11 +26,7 @@ public static class ContextValidationServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> Optional configuration. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddContextValidation(
 		this IServiceCollection services,
 		IConfiguration? configuration = null)

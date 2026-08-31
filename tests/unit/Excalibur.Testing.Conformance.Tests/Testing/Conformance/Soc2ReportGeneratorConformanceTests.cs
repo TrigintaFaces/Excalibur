@@ -156,4 +156,8 @@ public sealed class Soc2ReportGeneratorConformanceTests : Soc2ReportGeneratorCon
 		GetTestResultsAsync_ShouldRespectPeriod();
 
 	#endregion GetTestResultsAsync Method Tests
+
+	[Fact]
+	public override Task ConformanceSuite_ShouldWireEveryArm() =>
+		base.ConformanceSuite_ShouldWireEveryArm();
 }

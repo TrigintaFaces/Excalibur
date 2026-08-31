@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.MongoDB;
 using Excalibur.EventSourcing;
 
@@ -39,7 +40,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Act
-		var store = new MongoDbEventStore(_options, _logger);
+		var store = new MongoDbEventStore(_options, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -50,7 +51,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbEventStore(options: null!, _logger));
+			new MongoDbEventStore(options: null!, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -59,7 +60,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbEventStore(_options, logger: null!));
+			new MongoDbEventStore(_options, logger: null!, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -81,7 +82,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbEventStore(invalidOptions, _logger));
+			new MongoDbEventStore(invalidOptions, _logger, UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -98,7 +99,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbEventStore(invalidOptions, _logger));
+			new MongoDbEventStore(invalidOptions, _logger, UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -115,7 +116,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbEventStore(invalidOptions, _logger));
+			new MongoDbEventStore(invalidOptions, _logger, UntenantedContext.Instance));
 	}
 
 	[Fact]
@@ -132,7 +133,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbEventStore(invalidOptions, _logger));
+			new MongoDbEventStore(invalidOptions, _logger, UntenantedContext.Instance));
 	}
 
 	#endregion Options Validation Tests
@@ -143,7 +144,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	public void Store_ImplementsIEventStore()
 	{
 		// Act
-		var store = new MongoDbEventStore(_options, _logger);
+		var store = new MongoDbEventStore(_options, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IEventStore>();
@@ -153,7 +154,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	public void Store_ImplementsIAsyncDisposable()
 	{
 		// Act
-		var store = new MongoDbEventStore(_options, _logger);
+		var store = new MongoDbEventStore(_options, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IAsyncDisposable>();
@@ -170,6 +171,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 		var store = new MongoDbEventStore(
 			_options,
 			_logger,
+			UntenantedContext.Instance,
 			internalSerializer: null,
 			payloadSerializer: null);
 
@@ -185,6 +187,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 			new MongoDbEventStore(
 				options: null!,
 				_logger,
+				UntenantedContext.Instance,
 				internalSerializer: null,
 				payloadSerializer: null));
 		exception.ParamName.ShouldBe("options");
@@ -198,6 +201,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 			new MongoDbEventStore(
 				_options,
 				logger: null!,
+				UntenantedContext.Instance,
 				internalSerializer: null,
 				payloadSerializer: null));
 		exception.ParamName.ShouldBe("logger");
@@ -211,7 +215,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new MongoDbEventStore(_options, _logger);
+		var store = new MongoDbEventStore(_options, _logger, UntenantedContext.Instance);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();
@@ -223,7 +227,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CompletesSuccessfully()
 	{
 		// Arrange
-		var store = new MongoDbEventStore(_options, _logger);
+		var store = new MongoDbEventStore(_options, _logger, UntenantedContext.Instance);
 
 		// Act
 		await store.DisposeAsync();
@@ -243,7 +247,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 		var defaultOptions = Options.Create(new MongoDbEventStoreOptions());
 
 		// Act
-		var store = new MongoDbEventStore(defaultOptions, _logger);
+		var store = new MongoDbEventStore(defaultOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -263,7 +267,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbEventStore(customOptions, _logger);
+		var store = new MongoDbEventStore(customOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -283,7 +287,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbEventStore(sslOptions, _logger);
+		var store = new MongoDbEventStore(sslOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -304,7 +308,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 		});
 
 		// Act
-		var store = new MongoDbEventStore(timeoutOptions, _logger);
+		var store = new MongoDbEventStore(timeoutOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();

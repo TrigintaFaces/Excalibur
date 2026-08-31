@@ -26,7 +26,7 @@ namespace Excalibur.Data.ElasticSearch.Monitoring;
 /// <param name="performanceDiagnostics"> The performance diagnostics service. </param>
 /// <param name="options"> The monitoring configuration options. </param>
 /// <param name="logger"> The logger for monitoring operations. </param>
-public sealed class ElasticsearchMonitoringService(
+internal sealed class ElasticsearchMonitoringService(
 	ElasticsearchMetrics metrics,
 	ElasticsearchActivitySource activitySource,
 	ElasticsearchRequestLogger requestLogger,

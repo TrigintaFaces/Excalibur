@@ -19,7 +19,7 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// <remarks>
 /// <para>
 /// Uses tenant_id as the partition key for optimal query patterns where grants
-/// are typically queried by tenant scope. Null tenants use "__null__" as the partition key.
+/// are typically queried by tenant scope.
 /// </para>
 /// <para>
 /// Uses PutItemAsync for save operations (upsert) and UpdateItemAsync for soft deletes.
@@ -32,6 +32,14 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
+
+	/// <summary>
+	/// Whether this store constructed <see cref="_client"/> itself and must therefore dispose it.
+	/// A client supplied by the consumer is owned by the consumer: disposing it here would terminate
+	/// every other user of that shared instance. Dispose exactly what you created.
+	/// </summary>
+	private readonly bool _ownsClient;
+
 	private volatile bool _initialized;
 	private volatile bool _disposed;
 
@@ -53,6 +61,9 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 		_options.Validate();
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
+
+		// No client was supplied, so InitializeAsync constructs one below. This store owns it.
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -73,6 +84,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
+		_ownsClient = false;
 		_options = options.Value;
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
@@ -111,7 +123,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 				};
 
 				_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
-				LogGrantRevoked(userId, tenantId ?? "null", grantType, qualifier);
+				LogGrantRevoked(userId, tenantId, grantType, qualifier);
 				return 1;
 			}
 			else
@@ -125,7 +137,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 				};
 
 				_ = await _client!.DeleteItemAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
-				LogGrantDeleted(userId, tenantId ?? "null", grantType, qualifier);
+				LogGrantDeleted(userId, tenantId, grantType, qualifier);
 				return 1;
 			}
 		}
@@ -185,7 +197,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = GrantItem.CreatePK(tenantId);
+		var pk = tenantId;
 
 		var expressionValues = new Dictionary<string, AttributeValue>
 		{
@@ -329,7 +341,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 
 		_ = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
-		LogGrantSaved(grant.UserId, grant.TenantId ?? "null", grant.GrantType, grant.Qualifier);
+		LogGrantSaved(grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier);
 		return 1;
 	}
 
@@ -370,7 +382,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 				var grant = GrantItem.FromItem(item);
 				if (grant is not null)
 				{
-					var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
+					var key = $"{grant.TenantId}:{grant.GrantType}:{grant.Qualifier}";
 					result[key] = grant;
 				}
 			}
@@ -439,7 +451,12 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -452,7 +469,12 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);

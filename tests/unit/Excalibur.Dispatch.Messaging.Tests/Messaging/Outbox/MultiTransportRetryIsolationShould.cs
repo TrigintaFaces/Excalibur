@@ -21,10 +21,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 /// </para>
 /// <list type="bullet">
 ///   <item>the per-delivery <c>if (delivery.Status != TransportDeliveryStatus.Pending) continue;</c> filter
-///     (line 728) — the structural guarantee that a <c>Sent</c> transport is never re-published; and</item>
+///     (line 739) — the structural guarantee that a <c>Sent</c> transport is never re-published; and</item>
 ///   <item>the demand-load of <c>TransportDeliveries</c> on the retry path via
-///     <c>IMultiTransportOutboxStore.GetTransportDeliveriesAsync</c> (lines 711-715) — so the retry decides
-///     against per-transport state, not a shared/global flag.</item>
+///     <c>IMultiTransportOutboxStoreAdmin.GetAllTenantsTransportDeliveriesAsync</c> (lines 722-726) — so the
+///     retry decides against per-transport state, not a shared/global flag. The drain claims across every
+///     tenant, so this demand-load goes through the estate-wide admin read, not the tenant-confined consumer
+///     read.</item>
 /// </list>
 ///
 /// <para>
@@ -33,7 +35,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 /// <list type="bullet">
 ///   <item>Remove the <c>!= Pending</c> filter (line 728) and a retry re-publishes the already-<c>Sent</c>
 ///     transport → the healthy adapter is invoked → <c>MustNotHaveHappened()</c> on it fails.</item>
-///   <item>Remove the demand-load (lines 713-715) and the GetFailed retry path sees zero deliveries →
+///   <item>Remove the demand-load (lines 722-726) and the GetFailed retry path sees zero deliveries →
 ///     returns early → the sick transport is never retried → the "sick adapter invoked" assertion fails.</item>
 ///   <item>Short-circuit the fan-out on the first transport failure (a shared failure flag) → the healthy
 ///     transport is never sent → the "healthy adapter sent + marked Sent" assertion fails.</item>
@@ -139,12 +141,14 @@ public sealed class MultiTransportRetryIsolationShould
 		// Arrange
 		var storeBase = CreateMultiTransportStore();
 		var store = storeBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
-		var storeAdmin = storeBase.ShouldBeAssignableTo<IOutboxStoreAdmin>();
+		var multiAdmin = storeBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 		var (healthy, sick, registry) = CreateTransports();
 
 		var publisher = new MessageBusOutboxPublisher(storeBase, _serializer, registry, _serviceProvider, _logger);
 
-		// Message carries NO pre-loaded deliveries -> forces the demand-load branch (lines 711-715).
+		// Message carries NO pre-loaded deliveries -> forces the demand-load branch. The drain claims across
+		// every tenant, so the demand-load goes through the estate-wide admin read, not the tenant-confined
+		// consumer read.
 		var message = new OutboundMessage("OrderCreated", [4, 5, 6], "orders")
 		{
 			IsMultiTransport = true,
@@ -158,9 +162,10 @@ public sealed class MultiTransportRetryIsolationShould
 			new(message.Id, SickTransport) { Destination = "sick-dest", Status = TransportDeliveryStatus.Pending }
 		};
 
-		_ = A.CallTo(() => storeAdmin.GetFailedMessagesAsync(A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
+		// The retry pass drains through the atomic claim, so the message reaches the transport under a lease.
+		_ = A.CallTo(() => storeBase.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { message });
-		_ = A.CallTo(() => store.GetTransportDeliveriesAsync(message.Id, A<CancellationToken>._))
+		_ = A.CallTo(() => multiAdmin.GetAllTenantsTransportDeliveriesAsync(message.Id, A<CancellationToken>._))
 			.Returns(deliveries);
 
 		// Act

@@ -271,82 +271,61 @@ public class OrderCreatedV1ToV2Upcaster : IMessageUpcaster<OrderCreatedV1, Order
 
 ## Database Schema
 
-### SQL Server Schema
+The SQL Server and Postgres providers **never issue `CREATE TABLE` at run time**. Provision the
+tables before the first append, or the first write fails — `Invalid object name 'EventStoreEvents'`
+on SQL Server, `42P01: relation "events" does not exist` on Postgres.
 
-The SQL Server provider does **not** create these tables. You must create them before
-first use — the schema below is the one the provider reads and writes.
+### Where the schema lives
 
-The names below are the **defaults** (`EventStoreSchema` = `dbo`, `EventStoreTable` = `EventStoreEvents`,
-`SnapshotStoreTable` = `EventStoreSnapshots`). If you override any of them in
-`SqlServerEventSourcingOptions`, rename the corresponding object here to match — the provider does not
-discover a differently-named table, it fails the read.
+Each provider package ships its DDL as numbered scripts, packed into the NuGet package under
+`scripts/`. Those files are the authoritative definition of the tables the provider reads and
+writes — they are derived from the store's own statements, column for column, and each carries a
+header explaining why every column is shaped the way it is.
 
-```sql
--- Events table
-CREATE TABLE [dbo].[EventStoreEvents] (
-    -- Assigned by the database and read back via OUTPUT INSERTED.Position.
-    -- Must be IDENTITY: the insert never supplies a value for it.
-    [Position]       BIGINT IDENTITY(1,1) NOT NULL,
-    [EventId]        NVARCHAR(256)  NOT NULL,
-    [AggregateId]    NVARCHAR(256)  NOT NULL,
-    [AggregateType]  NVARCHAR(256)  NOT NULL,
-    [EventType]      NVARCHAR(512)  NOT NULL,
-    -- MUST be nullable. Erasure sets EventData to NULL to tombstone an event while
-    -- preserving its position in the stream; a NOT NULL column makes erasure fail.
-    [EventData]      VARBINARY(MAX) NULL,
-    [Metadata]       VARBINARY(MAX) NULL,
-    [Version]        BIGINT         NOT NULL,
-    [Timestamp]      DATETIMEOFFSET NOT NULL,
-    -- The event store is a keyed multi-tenant table: every row carries a tenant term, so this column is
-    -- NOT NULL and part of the tenant-discriminated unique key. A single-tenant (unscoped) host stores the
-    -- reserved '__untenanted__' sentinel here — never NULL — so an un-partitioned, all-tenants read or
-    -- erase is unrepresentable. The sentinel is a concrete value because a NULL discriminator cannot
-    -- participate in a unique constraint on any provider.
-    [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL,
-    CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
-    CONSTRAINT [UQ_Events_AggregateVersion] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
-);
+| Package | Create scripts | Migrations |
+|---------|----------------|------------|
+| `Excalibur.EventSourcing.SqlServer` | `001_CreateEventStoreSchema.sql`, `002_CreateSnapshotSchema.sql`, `008_CreateCursorMapSchema.sql` | `003`–`007`, `009` |
+| `Excalibur.EventSourcing.Postgres` | `001_CreateSnapshotSchema.sql`, `004_CreateEventStoreSchema.sql`, `008_CreateCursorMapSchema.sql` | `002`, `003`, `005`–`007` |
 
--- Stream reads order by Version within an aggregate.
-CREATE INDEX [IX_EventStoreEvents_Aggregate]
-    ON [dbo].[EventStoreEvents] ([AggregateId], [AggregateType], [Version]);
+To read them from a restored package:
 
--- Migrating an existing Events table to tenant keying: backfill any legacy NULL tenant to the sentinel
--- BEFORE adding the NOT NULL and unique-key constraints, or existing untenanted rows become unreadable
--- (a tenant predicate binding the sentinel will not match a NULL row):
---     UPDATE [dbo].[EventStoreEvents] SET [TenantId] = '__untenanted__' WHERE [TenantId] IS NULL;
-
--- Snapshots table
-CREATE TABLE [dbo].[EventStoreSnapshots] (
-    [SnapshotId]     NVARCHAR(256)  NULL,
-    [AggregateId]    NVARCHAR(256)  NOT NULL,
-    [AggregateType]  NVARCHAR(256)  NOT NULL,
-    [Version]        BIGINT         NOT NULL,
-    [Data]           VARBINARY(MAX) NOT NULL,
-    -- DATETIME2, not DATETIMEOFFSET: the read path maps this to DateTime and re-stamps
-    -- UTC kind, which a DATETIMEOFFSET column does not round-trip through.
-    [CreatedAt]      DATETIME2      NOT NULL,
-    [Metadata]       VARBINARY(MAX) NULL,
-    -- The reserved '__untenanted__' sentinel in a single-tenant host -- never NULL and never
-    -- an empty string. NOT NULL because SQL Server does not allow a nullable column in a
-    -- primary key.
-    --
-    -- Deliberately NO DEFAULT. The store always supplies this column -- a single-tenant
-    -- save writes the '__untenanted__' sentinel explicitly, not by omission. A DEFAULT here would be
-    -- unreachable in normal operation and harmful in abnormal operation: it would let an
-    -- INSERT that omitted the tenant succeed silently, taking the default and colliding
-    -- every tenant onto one row. Without it, such a statement fails outright.
-    [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2  NOT NULL,
-    -- One row per aggregate PER TENANT. Saves MERGE on these columns, and the read path
-    -- issues a single-row query with no TOP 1 -- a second row makes it throw. Without
-    -- TenantId in the key, two tenants holding the same aggregate id ARE that second row.
-    CONSTRAINT [PK_EventStoreSnapshots_Aggregate] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
-);
+```bash
+# The scripts sit alongside lib/ in the package folder your restore populated.
+ls ~/.nuget/packages/excalibur.eventsourcing.sqlserver/<version>/scripts/
 ```
+
+Run the create scripts once against a new database. The remaining numbered scripts are **migrations** —
+apply the ones later than the version you provisioned at, in ascending order.
+
+:::caution Provision from the scripts, not from a transcription of them
+This page used to restate the `CREATE TABLE` statements inline. A reader who copied that block got a
+snapshot table with a `DATETIME2` column where the store binds `DateTimeOffset`, and every snapshot read
+on that database failed. The shipped scripts are the single copy kept in step with the store, and they
+are the only copy with an upgrade path — provision from them rather than from any restatement, this
+page's included.
+:::
+
+### Object names
+
+The scripts target the **defaults** — on SQL Server, `EventStoreSchema` = `dbo`,
+`EventStoreTable` = `EventStoreEvents`, `SnapshotStoreTable` = `EventStoreSnapshots`. If you override any
+of them in `SqlServerEventSourcingOptions`, rename the corresponding object in the script to match: the
+provider does not discover a differently-named table, it fails the read.
+
+### Migrating a table you provisioned before tenant keying
+
+The event store is a keyed multi-tenant table: every row carries a tenant term, and an unscoped host
+stores the reserved `__untenanted__` sentinel rather than `NULL`. Legacy `NULL` tenants must be
+backfilled to the sentinel **before** the `NOT NULL` and unique-key constraints are added — a tenant
+predicate binding the sentinel does not match a `NULL` row, so those rows become unreadable otherwise.
+The shipped migration scripts do this in the correct order; use them rather than hand-writing the
+`ALTER`.
+
 
 ### Migrations
 
-The SQL Server provider ships a migration **runner**, not migration **scripts**. It discovers `.sql` files
+The SQL Server provider ships a migration **runner** in addition to the schema scripts above. The runner
+discovers `.sql` files
 embedded as manifest resources in an assembly *you* nominate, records what it has applied in a
 `__MigrationHistory` table it creates itself, and applies anything pending at startup before the
 application begins serving.
@@ -361,8 +340,9 @@ options.MigrationNamespace = "MyApp.Migrations";        // resource-name prefix 
 Scripts are applied in ascending order of the portion of the resource name after the namespace prefix, so
 name them to sort correctly (`001_...`, `002_...`). A checksum is recorded per applied migration.
 
-**This does not create the event-store tables for you.** Nothing in the package embeds the schema above —
-provision it yourself (the DDL in this section), or supply it as your own first migration script.
+**This runner does not create the event-store tables for you.** It applies only the migrations it finds in
+the assembly you nominate, and embeds none of its own. Provision the tables from the shipped `scripts/`
+described above, or embed those scripts in your migration assembly as its first migrations.
 
 ## Configuration Options
 
@@ -375,8 +355,6 @@ provision it yourself (the DDL in this section), or supply it as your own first 
 | `EventStoreTable` | `"EventStoreEvents"` | Name of events table |
 | `SnapshotStoreSchema` | `"dbo"` | Database schema for the snapshots table |
 | `SnapshotStoreTable` | `"EventStoreSnapshots"` | Name of snapshots table |
-| `OutboxSchema` | `"dbo"` | Database schema for the partitioned outbox table |
-| `OutboxTable` | `"EventSourcedOutbox"` | Name of partitioned outbox table (unified outbox uses `services.AddExcalibur(x => x.AddOutbox(...))`) |
 | `HealthChecks.RegisterHealthChecks` | `true` | Whether to register health checks |
 
 All schema and table names are validated against SQL injection using `SqlIdentifierValidator` (alphanumeric + underscore whitelist, bracket-escaped in queries).
@@ -417,9 +395,12 @@ For **multi-tenant** scenarios, do not register one event store per tenant by ha
 multi-tenancy, which scopes a **declared set of tenant-owned contracts** — the event store, projections,
 sagas, the inbox, the outbox, and event-store erasure — through a single ambient tenant context, and is
 **fail-closed** for those contracts (an operation with no ambient tenant throws rather than running
-unscoped). It does **not** scope every store you register: anything outside that set — including the audit
-store, the compliance/data-inventory stores, and the dead-letter queue — is left unscoped, with no error
-raised. See [multi-tenancy](../multi-tenancy.md) for the full set and what it excludes:
+unscoped). It does **not** write a tenant predicate into every store you register — but a store outside that
+set is no longer ignored either: any contract declared tenant-owned, including the audit store, the
+compliance and data-inventory stores, the snapshot store and the dead-letter queue, must present a tenant
+capability from its provider's registration, and one that presents none is **refused at startup by name**.
+See [multi-tenancy](../multi-tenancy.md) for what is wrapped, what is only verified, and the contracts that
+have no capable provider yet:
 
 ```csharp
 // Ambient tenant context (resolved from the message pipeline)
@@ -430,9 +411,40 @@ services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscrimina
 ```
 
 - **`RowDiscriminator`** — a single shared store with a `TenantId` predicate applied inside every query.
-  `AddMultiTenancy` wraps the registered tenant-owned contracts — `IEventStore`, `IProjectionStore<T>`,
-  `ISagaStore`, `IInboxStore`, `IOutboxStore` and `IEventStoreErasure` — with its tenant-scoping decorator.
-  Stores outside that set are not wrapped.
+  `AddMultiTenancy` reads which contracts are tenant-owned from the contracts themselves rather than from a
+  fixed list, so one added later — including one you declare — is covered when it is declared. It does
+  **three different things**, and which applies decides who is responsible for the tenant predicate:
+
+  | Contract | What `AddMultiTenancy` does |
+  |---|---|
+  | `IEventStore`, `IProjectionStore<T>`, `ISagaStore` | **Decorated** — wrapped in a fail-closed tenant-scoping decorator. |
+  | `IInboxStore`, `IOutboxStore`, `IEventStoreErasure`, `IErasureStore`, `ILegalHoldStore` | **Gated only** — verified at registration, **not** wrapped. |
+  | Any other tenant-owned contract — e.g. `IAuditStore`, `IComplianceStore`, `IDataInventoryStore`, `ISnapshotStore`, `IDeadLetterQueue` | **Refused** unless its provider attests a tenant capability. Nothing is wrapped and no predicate is added. |
+
+  A gated contract must apply the tenant predicate **itself**. `AddMultiTenancy` requires each one to
+  present a capability emitted by its provider's registration, and **refuses to start if it is absent** — so
+  an `IInboxStore` or `IOutboxStore` from a provider that never routes through a tenant-aware registration
+  fails at startup rather than leaking. Writing one on the assumption that the framework will scope it is the
+  mistake this table exists to prevent.
+
+  `IOutboxStore` is gated on a **different** capability from the rest. It must prove the tenant travels *on
+  the row* — stamped on enqueue, returned on drain — not that it filters on the ambient tenant. Its drain is
+  **deliberately estate-wide**: one pass carries every tenant's messages and scopes each individually, so a
+  store filtering on the ambient tenant would find none, claim the empty set, and stall. What the gate reads in either case is a registration-time capability, not your queries: it can
+  reject a provider that never claims tenant awareness, and it cannot verify that the predicate you wrote is
+  correct.
+
+  Those five are left unwrapped deliberately. The outbox drain is cross-tenant by design: one pass carries
+  every tenant's messages and scopes each one individually, so a tenant-scoped decorator would find no
+  ambient tenant, claim the empty set, and stall the drain. The inbox already filters on its composite
+  `(TenantId, MessageId, HandlerType)` key. Erasure, erasure-request and legal-hold sweeps run from
+  background services with no ambient tenant, where a decorator would either refuse every erasure or widen
+  it across tenants.
+
+  A tiered **cold** store (`IColdEventStore`) is gated separately, and combining `RowDiscriminator` with a
+  cold leg that is not tenant-aware **fails fast at startup** — that combination is refused, not degraded.
+
+  Stores outside these eight are neither decorated nor gated, and no error is raised for them.
 - **`Sharding`** — a dedicated store per tenant, selected per operation by tenant-aware routing. Register
   the shard map and provider store resolvers, then select `TenantIsolationStrategy.Sharding` (which wires
   the same routing as `EnableTenantSharding(...)`).

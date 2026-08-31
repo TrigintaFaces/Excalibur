@@ -5,7 +5,7 @@ namespace Excalibur.AuditLogging.GoogleCloud;
 /// <summary>
 /// Event IDs for Google Cloud Logging audit exporter diagnostics (93500-93519).
 /// </summary>
-public static class GoogleCloudAuditLoggingEventId
+internal static class GoogleCloudAuditLoggingEventId
 {
 	/// <summary>Google Cloud event forwarded.</summary>
 	public const int EventForwarded = 93510;

@@ -24,8 +24,6 @@ public interface IActivityGroupService
 	/// </summary>
 	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	Task SyncActivityGroupsAsync(CancellationToken cancellationToken);
 
 	/// <summary>
@@ -34,8 +32,6 @@ public interface IActivityGroupService
 	/// <param name="userId"> The unique identifier of the user whose grants will be synchronized. </param>
 	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	Task SyncActivityGroupGrantsAsync(string userId, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -43,7 +39,5 @@ public interface IActivityGroupService
 	/// </summary>
 	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	Task SyncAllActivityGroupGrantsAsync(CancellationToken cancellationToken);
 }

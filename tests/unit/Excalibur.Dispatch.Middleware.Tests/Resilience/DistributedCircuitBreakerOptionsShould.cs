@@ -23,7 +23,6 @@ public sealed class DistributedCircuitBreakerOptionsShould : UnitTestBase
 		options.ConsecutiveFailureThreshold.ShouldBe(5);
 		options.SuccessThresholdToClose.ShouldBe(3);
 		options.SyncInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MetricsRetention.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
@@ -115,18 +114,5 @@ public sealed class DistributedCircuitBreakerOptionsShould : UnitTestBase
 
 		// Assert
 		options.SyncInterval.ShouldBe(TimeSpan.FromSeconds(10));
-	}
-
-	[Fact]
-	public void MetricsRetention_CanBeCustomized()
-	{
-		// Arrange
-		var options = new DistributedCircuitBreakerOptions();
-
-		// Act
-		options.MetricsRetention = TimeSpan.FromHours(1);
-
-		// Assert
-		options.MetricsRetention.ShouldBe(TimeSpan.FromHours(1));
 	}
 }

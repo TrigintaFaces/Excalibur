@@ -48,7 +48,7 @@ public sealed class PulsarTransportDiResolutionShould
 		// depend on the full dispatch core registration.
 		services.AddSingleton(A.Fake<IPayloadSerializer>());
 		services.AddPulsarTransport(TransportName, pulsar =>
-			pulsar.ServiceUrl("pulsar://localhost:6650").Topic("orders"));
+			pulsar.ServiceUrl("pulsar://localhost:6650").RequireTls(false).Topic("orders"));
 		return services.BuildServiceProvider();
 	}
 }

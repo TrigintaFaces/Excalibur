@@ -16,13 +16,27 @@
 # (the DDL got authored) FAILS as STALE, so this file cannot silently accumulate entries that
 # forgive nothing. A suppression list nobody prunes becomes a way to hide the next regression.
 
-Excalibur.EventSourcing:Sqlite
-Excalibur.Outbox:Oracle
-Excalibur.Outbox:Postgres
 
-# Excalibur_Dispatch-le37uz — unlike the gaps above, this one does not block a consumer:
+# Unlike the gaps above, this one does not block a consumer:
 # the Postgres CDC state store issues CREATE TABLE IF NOT EXISTS on first use, so the table
 # appears without a script. It is listed because operators who provision schema separately,
 # and run the application without table-creation rights, still have nothing to run — the same
 # reason the SqlServer provider requires an explicit script rather than auto-creating.
-Excalibur.Cdc:Postgres
+
+# NOT A GAP, and this entry differs in kind from the two above: it is not deferred work and no
+# bead will close it, because there is no schema for this package to ship.
+#
+# Excalibur.Data.MySql is a connection-layer package. It contains a persistence provider, a health
+# check, pooling and retry options and a transaction scope, and nothing else — no store, no table
+# name option, and no statement of any kind: grep finds zero INSERT, zero SELECT and zero
+# CREATE TABLE across its sources. A consumer installing it cannot fail on a missing table because
+# it never addresses one.
+#
+# It began failing the parity check when its relational siblings Data.SqlServer and Data.Postgres
+# started shipping dead-letter DDL, which is the check behaving exactly as intended: it compares
+# packages by family and cannot know that this sibling has no store behind it. That distinction has
+# to be recorded by a human, so it is recorded here.
+#
+# If a store is ever added to this package, DELETE THIS ENTRY rather than extending it. The reason
+# above stops being true the moment the package writes to a table.
+Excalibur.Data:MySql

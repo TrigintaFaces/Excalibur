@@ -246,7 +246,6 @@ public static class CdcBuilderPostgresExtensions
 			opt.Replication.AutoCreateSlot = pgOptions.Replication.AutoCreateSlot;
 			opt.Replication.UseBinaryProtocol = pgOptions.Replication.UseBinaryProtocol;
 			opt.TableNames = pgOptions.TableNames;
-			opt.RecoveryOptions = pgOptions.RecoveryOptions;
 		});
 
 		if (pgBuilder.SourceBindConfigurationPath is not null)
@@ -278,7 +277,6 @@ public static class CdcBuilderPostgresExtensions
 				.ValidateOnStart();
 		}
 
-		builder.Services.TryAddSingleton(Options.Create(new PostgresCdcRecoveryOptions()));
 
 		var stateFactory = ResolveStateFactory(pgBuilder, stateBuilder);
 
@@ -304,7 +302,7 @@ public static class CdcBuilderPostgresExtensions
 			var optionsValue = options.Value;
 			optionsValue.ConnectionString = connection.ConnectionString;
 
-			// 14z4ao: wire optional fatal-handoff + shared failure classifier (both no-ops when unregistered).
+			// wire optional fatal-handoff + shared failure classifier (both no-ops when unregistered).
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<PostgresDataChangeEvent>>>();
 			var failureClassifier = sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>();
 

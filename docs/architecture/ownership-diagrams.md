@@ -35,11 +35,9 @@ graph TB
         E3["Excalibur.Hosting.AzureFunctions<br/><i>Azure Functions infrastructure</i>"]
         E4["Excalibur.Hosting.AwsLambda<br/><i>Lambda infrastructure</i>"]
         E5["Excalibur.Hosting.GoogleCloudFunctions<br/><i>GCP infrastructure</i>"]
-        E6["Excalibur.Hosting.Serverless<br/><i>Serverless infrastructure</i>"]
         E7["Excalibur.Hosting.Jobs<br/><i>Background job infrastructure</i>"]
     end
 
-    E6 --> D5
     E3 --> D2
     E4 --> D3
     E5 --> D4
@@ -55,7 +53,6 @@ graph TB
     style E3 fill:#fff3e0
     style E4 fill:#fff3e0
     style E5 fill:#fff3e0
-    style E6 fill:#fff3e0
     style E7 fill:#fff3e0
 ```
 

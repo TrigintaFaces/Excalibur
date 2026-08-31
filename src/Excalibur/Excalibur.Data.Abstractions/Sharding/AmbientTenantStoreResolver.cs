@@ -25,5 +25,5 @@ internal sealed class AmbientTenantStoreResolver<TStore> : IAmbientTenantStoreRe
 	}
 
 	/// <inheritdoc />
-	public TStore ResolveCurrent() => _resolver.Resolve(_context.TenantId ?? string.Empty);
+	public TStore ResolveCurrent() => _resolver.Resolve(TenantScope.FromContext(_context).TenantId);
 }

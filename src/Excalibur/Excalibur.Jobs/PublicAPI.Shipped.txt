@@ -3,28 +3,20 @@ Excalibur.Jobs.Core.ConfigurationExtensions
 Excalibur.Jobs.Core.IJobOptionsHostedWatcherService
 Excalibur.Jobs.Core.JobHeartbeatTracker
 Excalibur.Jobs.Core.JobHeartbeatTracker.GetLastHeartbeat(string! jobName) -> System.DateTimeOffset?
-Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker() -> void
 Excalibur.Jobs.Core.JobHeartbeatTracker.RecordHeartbeat(string! jobName) -> void
 Excalibur.Jobs.Core.JobOptions
 Excalibur.Jobs.Core.JobOptions.CronSchedule.get -> string!
-Excalibur.Jobs.Core.JobOptions.CronSchedule.init -> void
 Excalibur.Jobs.Core.JobOptions.DegradedThreshold.get -> System.TimeSpan
-Excalibur.Jobs.Core.JobOptions.DegradedThreshold.init -> void
 Excalibur.Jobs.Core.JobOptions.Disabled.get -> bool
-Excalibur.Jobs.Core.JobOptions.Disabled.init -> void
 Excalibur.Jobs.Core.JobOptions.JobGroup.get -> string!
-Excalibur.Jobs.Core.JobOptions.JobGroup.init -> void
 Excalibur.Jobs.Core.JobOptions.JobName.get -> string!
-Excalibur.Jobs.Core.JobOptions.JobName.init -> void
 Excalibur.Jobs.Core.JobOptions.JobOptions() -> void
 Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.get -> System.TimeSpan
-Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.init -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.Dispose() -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.JobOptionsHostedWatcherService(Quartz.ISchedulerFactory! schedulerFactory, Microsoft.Extensions.Options.IOptionsMonitor<TOptions!>! configMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions!>!>! logger) -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Jobs.Diagnostics.JobsEventId
 Excalibur.Jobs.Jobs.HealthCheckJob
 Excalibur.Jobs.Jobs.HealthCheckJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Jobs.HealthCheckJob.HealthCheckJob(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService! healthCheckService, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Jobs.HealthCheckJob!>! logger) -> void
@@ -73,71 +65,6 @@ Excalibur.Jobs.Quartz.QuartzJobOptions.JobKey.get -> string!
 Excalibur.Jobs.Quartz.QuartzJobOptions.QuartzJobOptions(string! jobKey, string! cronExpression) -> void
 Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions
 abstract Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.GetAggregateIdsAsync(System.IServiceProvider! serviceProvider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TKey>!>!
-const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobCompleted = 147201 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobError = 147202 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobNoTablesConfigured = 147204 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobStarting = 147200 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.CdcProcessingError = 147203 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ConfigurationChangeDetected = 147102 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.CouldNotResolveJobType = 147301 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.DataProcessingJobCompleted = 147251 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.DataProcessingJobError = 147252 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.DataProcessingJobStarting = 147250 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorCreatingJobConfigWatcherService = 147111 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorExecutingJob = 147305 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorHandlingConfigurationChange = 147103 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorStartingJobWatcherService = 147105 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorStoppingJobWatcherService = 147108 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ExecutingGenericJob = 147602 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ExecutingJob = 147302 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.GenericContextDeserializationFailed = 147600 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.GenericContextNotFoundOrInvalid = 147601 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.GenericJobCompletedSuccessfully = 147603 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.GenericJobExecutionFailed = 147604 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckData = 147504 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckError = 147503 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckJobCompleted = 147501 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckJobFailed = 147505 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckJobStarting = 147500 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckWarning = 147502 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.InitialConfigurationLoaded = 147101 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.JobCompletedSuccessfully = 147304 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.JobDoesNotImplementInterface = 147303 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.JobTypeNotFoundOrInvalid = 147300 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.JobWatcherServiceStartedSuccessfully = 147104 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.JobWatcherServiceStoppedSuccessfully = 147107 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxJobExecutionCompleted = 147521 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxJobExecutionFailed = 147522 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxJobExecutionStarting = 147520 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobCompleted = 147512 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobFailed = 147514 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobStarting = 147510 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorNoMessages = 147513 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorOutboxMissing = 147511 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorSkippedNotLeader = 147515 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.PausingJob = 147109 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ProjectionRebuildJobCompleted = 147812 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ProjectionRebuildJobFailed = 147813 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ProjectionRebuildJobStarting = 147810 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ProjectionRebuildProcessorMissing = 147811 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisInstanceDeserializationFailed = 147404 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisInstanceRegistered = 147402 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisInstanceUnregistered = 147403 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisJobCompletionReported = 147409 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisJobDistributed = 147407 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLeaderDeserializationFailed = 147406 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLeaderElected = 147405 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLockAcquired = 147400 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLockAcquisitionFailed = 147401 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.RedisNoInstanceAvailable = 147408 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.ResumingJob = 147110 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.SnapshotCreationDependenciesMissing = 147801 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.SnapshotCreationJobCancelled = 147803 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.SnapshotCreationJobCompleted = 147802 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.SnapshotCreationJobFailed = 147804 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.SnapshotCreationJobStarting = 147800 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.StartingJobWatcherService = 147100 -> int
-const Excalibur.Jobs.Diagnostics.JobsEventId.StoppingJobWatcherService = 147106 -> int
 const Excalibur.Jobs.Outbox.OutboxJob.JobConfigSectionName = "Jobs:OutboxJob" -> string!
 static Excalibur.Jobs.Core.ConfigurationExtensions.GetJobConfiguration<TOptions>(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! jobConfigSectionName) -> TOptions
 static Excalibur.Jobs.Outbox.OutboxJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
@@ -148,3 +75,10 @@ static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddJobInstances<TJob>(thi
 static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddRecurringJob<TJob>(this Excalibur.Jobs.Quartz.IJobConfigurator! configurator, System.TimeSpan interval, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddJobWatcher<TJob, TOptions>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> void
 static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddQuartzWithJobs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Quartz.IServiceCollectionQuartzConfigurator!>? withJobs) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker(System.TimeProvider? timeProvider = null) -> void
+Excalibur.Jobs.Core.JobOptions.JobName.set -> void
+Excalibur.Jobs.Core.JobOptions.JobGroup.set -> void
+Excalibur.Jobs.Core.JobOptions.CronSchedule.set -> void
+Excalibur.Jobs.Core.JobOptions.DegradedThreshold.set -> void
+Excalibur.Jobs.Core.JobOptions.Disabled.set -> void
+Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.set -> void

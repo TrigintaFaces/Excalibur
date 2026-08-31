@@ -4,6 +4,7 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 
+using Excalibur.Dispatch;
 using Excalibur.Saga.CosmosDb;
 
 namespace Excalibur.Data.Tests.CosmosDb;
@@ -33,31 +34,51 @@ public sealed class CosmosDbSagaDocumentShould
 	#region CreateId Tests
 
 	[Fact]
-	public void CreateId_ReturnsGuidAsString()
+	public void CreateId_ComposesTheOwningTenantWithTheSagaId()
 	{
 		// Arrange
 		var sagaId = Guid.NewGuid();
 		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
 
 		// Act
-		var result = createIdMethod.Invoke(null, new object[] { sagaId });
+		var result = createIdMethod.Invoke(null, new object[] { "tenant-a", sagaId });
 
 		// Assert
-		result.ShouldBe(sagaId.ToString());
+		result.ShouldBe($"t:tenant-a:{sagaId}");
 	}
 
 	[Fact]
-	public void CreateId_ReturnsEmptyGuidString_ForEmptyGuid()
+	public void CreateId_GivesTwoTenantsDistinctDocumentIds_ForTheSameSagaId()
+	{
+		// The saga identifier is a business correlation key, so two tenants legitimately run a saga at the
+		// same one. If the document ID did not carry the tenant they would address ONE document, and the
+		// ownership check that correctly refuses a cross-tenant overwrite would also refuse the second tenant
+		// its own saga -- a denial of creation wearing the costume of an isolation control.
+
+		// Arrange
+		var sagaId = Guid.NewGuid();
+		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
+
+		// Act
+		var idForA = createIdMethod.Invoke(null, new object[] { "tenant-a", sagaId });
+		var idForB = createIdMethod.Invoke(null, new object[] { "tenant-b", sagaId });
+
+		// Assert
+		idForA.ShouldNotBe(idForB);
+	}
+
+	[Fact]
+	public void CreateId_CarriesTheUntenantedSentinel_SoNoIdIsProducedWithoutATenantSegment()
 	{
 		// Arrange
 		var sagaId = Guid.Empty;
 		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
 
 		// Act
-		var result = createIdMethod.Invoke(null, new object[] { sagaId });
+		var result = createIdMethod.Invoke(null, new object[] { TenantScope.Untenanted.TenantId, sagaId });
 
 		// Assert
-		result.ShouldBe(Guid.Empty.ToString());
+		result.ShouldBe($"t:{TenantScope.Untenanted.TenantId}:{Guid.Empty}");
 	}
 
 	#endregion

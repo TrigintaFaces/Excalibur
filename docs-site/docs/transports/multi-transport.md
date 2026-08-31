@@ -103,6 +103,35 @@ builder.Services.AddKafkaTransport("kafka-analytics", kafka =>
 });
 ```
 
+### What a name isolates, and what it does not
+
+**Each named registration configures its own options instance, and that is what the transport under that
+name reads.** Two named registrations of the same transport can carry different queues, topics, regions,
+credentials, or encryption keys, and neither overwrites the other.
+
+:::info If you registered two of the same transport before, check which configuration you were running
+This did not always hold. A named registration used to write the same *unnamed* options instance as
+every other registration of that transport, so whichever registered last silently supplied the settings
+for **both** — two SQS transports named for different queues ran against one queue, and a per-transport
+KMS key could not reach its own queue. If you worked around this by splitting hosts, or by keeping the
+two configurations deliberately identical, you can stop.
+:::
+
+**What a name does not isolate: the underlying provider client and message bus.** Those are registered
+**by type**, first-registration-wins, so two named registrations of one transport still share a single
+client and bus instance. In practice that means:
+
+| Per name | Shared across every name of that transport |
+| --- | --- |
+| Options — queue/topic, region, endpoints, FIFO selectors, payload limits, encryption key | The provider SDK client (for example one `IAmazonSQS`) |
+| The keyed sender and receiver routing resolves | The message bus singleton |
+| Start-up services that apply configuration to the broker | |
+
+So two names against **different queues on one account** work as you expect. Two names that need
+**different credentials, different accounts, or different broker endpoints** do not — the shared client
+is built once, from the first registration. Register the client yourself before the transports if you
+need to control it, or keep genuinely separate connections in separate hosts.
+
 ## Routing Strategies
 
 :::info IIntegrationEvent Constraint

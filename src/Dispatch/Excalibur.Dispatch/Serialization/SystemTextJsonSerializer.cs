@@ -49,7 +49,7 @@ public sealed class SystemTextJsonSerializer : ISerializer
 			// hostile deeply-nested payload into unbounded recursion (stack overflow). 64 matches the
 			// framework's configured DispatchJsonSerializer; it also equals STJ's implicit default, so
 			// pinning it changes no behavior today while making the bound explicit and immune to a
-			// future framework/runtime default change. See bd-qvbzm4. Callers supplying their own
+			// future framework/runtime default change. See. Callers supplying their own
 			// options own their depth bound.
 			MaxDepth = 64
 		};

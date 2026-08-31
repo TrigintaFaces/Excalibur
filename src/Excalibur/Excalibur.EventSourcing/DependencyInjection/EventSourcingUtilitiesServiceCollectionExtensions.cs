@@ -117,11 +117,8 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Enables GDPR crypto-shredding across the durable message-bearing stores: registers the per-subject
-	/// crypto-shred services and wires at-rest per-subject field encryption for the event store, the inbox, and
-	/// the outbox, so a data subject's <c>[PersonalData]</c> fields are encrypted at rest under the subject's key
-	/// — making the "destroy the key = erase the subject across all stored copies" guarantee real rather than
-	/// inert.
+	/// Registers the per-subject crypto-shred services and wires at-rest field encryption for the event store,
+	/// the inbox, and the outbox.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for method chaining.</returns>
@@ -133,10 +130,17 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	/// wraps it.
 	/// </para>
 	/// <para>
+	/// <strong>Only the event store is keyed per data subject.</strong> Destroying a subject's key there
+	/// crypto-shreds that subject's event history. The inbox and outbox decorators encrypt under a single
+	/// configured context, not per subject — destroying one subject's key does <em>not</em> render that
+	/// subject's inbox or outbox payloads unrecoverable, because they were never encrypted under it. Where an
+	/// erasure guarantee must extend to messages in flight on those two surfaces, bound retention instead, so
+	/// the payloads age out.
+	/// </para>
+	/// <para>
 	/// This covers the event store, inbox, and outbox automatically. Projection stores are registered per
-	/// projection type, so they cannot be auto-covered: encrypt each projection explicitly with
-	/// <c>AddProjectionEncryption&lt;TProjection&gt;()</c> per registered projection type that carries personal
-	/// data.
+	/// projection type, so they cannot be auto-covered: call <c>AddProjectionEncryption&lt;TProjection&gt;()</c>
+	/// per registered projection type that carries personal data — it carries the same single-context caveat.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddEventSourcingCryptoShredding(this IServiceCollection services)
@@ -159,20 +163,26 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 
 	/// <summary>
 	/// Decorates the registered <see cref="IProjectionStore{TProjection}"/> for the given projection type with
-	/// per-subject field-level encryption so a data subject's <c>[PersonalData]</c> projection fields are
-	/// encrypted at rest under the subject's own key, and destroying that key renders only that subject's
-	/// personal fields unrecoverable.
+	/// at-rest field encryption under a single configured context.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type whose store is decorated.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>
+	/// <para>
 	/// Requires an <see cref="IEncryptionProviderRegistry"/> and <see cref="EncryptionOptions"/> to be registered.
 	/// Projection stores are registered per projection type, so encryption is opt-in per type and cannot be
 	/// auto-wired by <see cref="AddEventSourcingCryptoShredding"/> (which covers the event store, inbox, and
 	/// outbox): call this once for each registered projection type that carries personal data. The decorator
 	/// wraps the existing registration at its own lifetime and sits immediately above the store (encryption is
 	/// innermost, so bytes reach the store already encrypted; a tenant-scoping decorator, if present, wraps it).
+	/// </para>
+	/// <para>
+	/// <strong>This is not keyed per data subject.</strong> Encryption here uses a single configured context,
+	/// not a per-subject key, so destroying one subject's crypto-shred key leaves this projection's payloads
+	/// recoverable — projections are rebuildable from the event stream, so erasure on this surface is achieved
+	/// by rebuilding from a stream with the subject's events erased, not by key destruction.
+	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddProjectionEncryption<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
@@ -491,7 +501,7 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	private static TService ResolveOriginal<TService>(ServiceDescriptor descriptor, IServiceProvider sp)
 		where TService : class
 	{
-		// ybem93: read implementation members through the keyed-safe accessors (raw reads throw on
+		// read implementation members through the keyed-safe accessors (raw reads throw on
 		// keyed descriptors on .NET 8+).
 		if (descriptor.GetImplementationInstance() is TService instance)
 		{

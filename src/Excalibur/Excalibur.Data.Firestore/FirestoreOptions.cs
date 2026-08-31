@@ -15,7 +15,7 @@ public sealed class FirestoreOptions
 	/// Gets or sets the provider name.
 	/// </summary>
 	[Required]
-	public string Name { get; set; } = "Firestore";
+	public string Name { get; set; } = "firestore";
 
 	/// <summary>
 	/// Gets or sets the Google Cloud project ID.

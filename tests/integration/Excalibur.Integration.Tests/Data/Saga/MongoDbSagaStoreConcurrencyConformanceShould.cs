@@ -56,7 +56,7 @@ public sealed class MongoDbSagaStoreConcurrencyConformanceShould : SagaStoreConf
 
 		// The store self-initializes its client, collection, and indexes lazily from the connection string.
 		return Task.FromResult<ISagaStore>(
-			new MongoDbSagaStore(options, NullLogger<MongoDbSagaStore>.Instance, new DispatchJsonSerializer()));
+			new MongoDbSagaStore(options, NullLogger<MongoDbSagaStore>.Instance, new DispatchJsonSerializer(), SingleTenantTestContext.Instance));
 	}
 
 	/// <inheritdoc/>

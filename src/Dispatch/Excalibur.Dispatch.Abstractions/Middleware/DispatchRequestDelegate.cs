@@ -4,7 +4,7 @@
 
 namespace Excalibur.Dispatch;
 
-// R0.8: Identifiers should not have incorrect suffix - Delegate is appropriate for this delegate type
+// Identifiers should not have incorrect suffix - Delegate is appropriate for this delegate type
 #pragma warning disable CA1711
 /// <summary>
 /// Represents a delegate that defines the signature for handling dispatch requests in the middleware pipeline.

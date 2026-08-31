@@ -26,7 +26,10 @@ public sealed class InMemoryAuditAnnotationStoreShould
             .Returns(TestActorId);
 
         _timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 4, 11, 12, 0, 0, TimeSpan.Zero));
-        _sut = new InMemoryAuditAnnotationStore(_fakeActorProvider, _timeProvider);
+        _sut = new InMemoryAuditAnnotationStore(
+            TestScopeFactory.For(actorProvider: _fakeActorProvider),
+            _timeProvider,
+            TestTenantHosts.SingleTenantHost());
     }
 
     // ========================================
@@ -34,17 +37,34 @@ public sealed class InMemoryAuditAnnotationStoreShould
     // ========================================
 
     [Fact]
-    public void Throw_when_actor_provider_is_null()
+    public void Throw_when_scope_factory_is_null()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new InMemoryAuditAnnotationStore(null!, _timeProvider));
+            new InMemoryAuditAnnotationStore(null!, _timeProvider, TestTenantHosts.SingleTenantHost()));
     }
 
     [Fact]
     public void Throw_when_time_provider_is_null()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new InMemoryAuditAnnotationStore(_fakeActorProvider, null!));
+            new InMemoryAuditAnnotationStore(
+                TestScopeFactory.For(actorProvider: _fakeActorProvider),
+                null!,
+                TestTenantHosts.SingleTenantHost()));
+    }
+
+    [Fact]
+    public void Throw_when_tenant_context_is_null()
+    {
+        // The tenant context is a required dependency, not an optional one that degrades to an
+        // untenanted default: the store keys every annotation by the ambient tenant, so a null context
+        // has no partition to resolve. Rejecting it at construction keeps that undecided state
+        // unreachable rather than surfacing as a cross-tenant read later.
+        Should.Throw<ArgumentNullException>(() =>
+            new InMemoryAuditAnnotationStore(
+                TestScopeFactory.For(actorProvider: _fakeActorProvider),
+                _timeProvider,
+                null!));
     }
 
     // ========================================

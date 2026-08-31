@@ -15,10 +15,7 @@ public sealed class KeyManagementOptionsShould
 		var sut = new KeyManagementOptions();
 
 		sut.Provider.ShouldBe(KeyManagementProvider.Local);
-		sut.EndpointUrl.ShouldBeNull();
-		sut.AuthenticationConfig.ShouldBeNull();
 		sut.KeyRotationInterval.ShouldBe(TimeSpan.FromDays(90));
-		sut.RequireHsm.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -27,16 +24,10 @@ public sealed class KeyManagementOptionsShould
 		var sut = new KeyManagementOptions
 		{
 			Provider = KeyManagementProvider.AzureKeyVault,
-			EndpointUrl = "https://myvault.vault.azure.net",
-			AuthenticationConfig = "managed-identity",
 			KeyRotationInterval = TimeSpan.FromDays(30),
-			RequireHsm = true,
 		};
 
 		sut.Provider.ShouldBe(KeyManagementProvider.AzureKeyVault);
-		sut.EndpointUrl.ShouldBe("https://myvault.vault.azure.net");
-		sut.AuthenticationConfig.ShouldBe("managed-identity");
 		sut.KeyRotationInterval.ShouldBe(TimeSpan.FromDays(30));
-		sut.RequireHsm.ShouldBeTrue();
 	}
 }

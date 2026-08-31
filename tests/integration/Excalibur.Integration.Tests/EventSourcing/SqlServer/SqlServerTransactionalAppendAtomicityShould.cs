@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -39,26 +40,26 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
 {
     private MsSqlContainer? _container;
     private string? _connectionString;
-    private bool _dockerAvailable;
+    private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
     public async ValueTask InitializeAsync()
     {
         try
         {
             _container = new MsSqlBuilder()
+                .WithBoundedMemory()
                 .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
                 .Build();
 
             await _container.StartAsync().ConfigureAwait(false);
             _connectionString = _container.GetConnectionString();
-            _dockerAvailable = true;
+            _requiredContainer.MarkStarted();
 
             await InitializeDatabaseAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Docker initialization failed: {ex.Message}");
-            _dockerAvailable = false;
+            throw _requiredContainer.Failed(ex);
         }
     }
 
@@ -86,10 +87,7 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
     [Fact]
     public async Task RollBackEventsAndOutboxWhenStageOutboxThrows()
     {
-        if (!_dockerAvailable)
-        {
-            return;
-        }
+        _requiredContainer.Require();
 
         var store = (ITransactionalEventStore)CreateEventStore();
         var aggId = "agg-" + Guid.NewGuid().ToString("N");
@@ -127,10 +125,7 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
     [Fact]
     public async Task NotInvokeStageOutboxAndPersistNothingOnConcurrencyConflict()
     {
-        if (!_dockerAvailable)
-        {
-            return;
-        }
+        _requiredContainer.Require();
 
         var store = (ITransactionalEventStore)CreateEventStore();
         var aggId = "agg-" + Guid.NewGuid().ToString("N");
@@ -167,7 +162,7 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
     // not be collateral damage of a TestContainers start cascade under full-suite load.
 
     private IEventStore CreateEventStore() =>
-        new SqlServerEventStore(_connectionString!, NullLogger<SqlServerEventStore>.Instance);
+        new SqlServerEventStore(_connectionString!, NullLogger<SqlServerEventStore>.Instance, SingleTenantTestContext.Instance);
 
     private async Task<int> CountEventsAsync(string aggregateId)
     {
@@ -261,7 +256,8 @@ public sealed class SqlServerEventStoreMarkerContractShould
     {
         // Lazy connection factory ⇒ never opened for a pure type assertion; no container required.
         IEventStore store = new SqlServerEventStore(
-            "Server=unused;Database=unused;", NullLogger<SqlServerEventStore>.Instance);
+            "Server=unused;Database=unused;", NullLogger<SqlServerEventStore>.Instance,
+            SingleTenantTestContext.Instance);
 
         store.ShouldBeAssignableTo<ITransactionalEventStore>("SqlServerEventStore must expose the transactional seam");
         typeof(IEventStore).IsAssignableFrom(typeof(ITransactionalEventStore))

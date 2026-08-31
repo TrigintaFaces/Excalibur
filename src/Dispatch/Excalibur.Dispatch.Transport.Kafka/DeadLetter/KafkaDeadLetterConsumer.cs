@@ -86,13 +86,14 @@ internal sealed partial class KafkaDeadLetterConsumer : IDisposable
 		ArgumentNullException.ThrowIfNull(kafkaOptions);
 		ArgumentNullException.ThrowIfNull(dlqOptions);
 
-		var config = new ConsumerConfig
-		{
-			BootstrapServers = kafkaOptions.Value.BootstrapServers,
-			GroupId = dlqOptions.Value.ConsumerGroupId,
-			AutoOffsetReset = AutoOffsetReset.Earliest,
-			EnableAutoCommit = false,
-		};
+		// Built through the shared builder rather than by hand: the hand-built configuration carried
+		// none of the connection settings in AdditionalConfig, so a dead-letter drain against a
+		// TLS-only broker connected -- or tried to -- in plaintext regardless of how the transport
+		// itself was configured. The group and offset policy are dead-letter-specific and override it.
+		var config = KafkaConsumerConfigBuilder.Build(kafkaOptions.Value);
+		config.GroupId = dlqOptions.Value.ConsumerGroupId;
+		config.AutoOffsetReset = AutoOffsetReset.Earliest;
+		config.EnableAutoCommit = false;
 
 		return new ConsumerBuilder<string, byte[]>(config).Build();
 	}

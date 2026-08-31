@@ -148,7 +148,7 @@ public sealed class MessageEnvelopeBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert — each setter's value is present on the built envelope (RED if Build() discards it).
-		envelope.Timestamp.ShouldBe(timestamp);
+		envelope.ReceivedTimestampUtc.ShouldBe(timestamp);
 		envelope.AcknowledgeAsync.ShouldBeSameAs(onAcknowledge);
 		envelope.RejectAsync.ShouldBeSameAs(onReject);
 	}

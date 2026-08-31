@@ -10,8 +10,7 @@ namespace Excalibur.Jobs.Azure.Internal;
 /// Default <see cref="IArmClientSeam"/> implementation that forwards to a
 /// real <see cref="ArmClient"/>. This adapter is the only place in the
 /// jobs path that touches the live Azure Resource Manager SDK client type
-/// — tests substitute at the seam, never at the SDK type directly
-/// (ADR-142 §D7).
+/// — tests substitute at the seam, never at the SDK type directly.
 /// </summary>
 internal sealed class ArmClientAdapter : IArmClientSeam
 {

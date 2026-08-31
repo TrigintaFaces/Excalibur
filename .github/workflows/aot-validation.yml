@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'samples/10-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
+      - 'eng/ci/Invoke-AotCoverageGate.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
       - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
       - 'eng/ci/aot-warning-baseline.json'
@@ -17,6 +18,7 @@ on:
       - 'src/**'
       - 'samples/10-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
+      - 'eng/ci/Invoke-AotCoverageGate.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
       - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
       - 'eng/ci/aot-warning-baseline.json'
@@ -293,6 +295,62 @@ jobs:
           name: aot-smoke-test-log
           path: aot-smoke-test.log
 
+  aot-coverage-gate:
+    name: AOT Coverage Gate (declaring-set derived, report-only)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    needs: aot-publish-validation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Verify the declaring-set classifier can still fail
+        shell: pwsh
+        run: |
+          ./eng/ci/Invoke-AotCoverageGate.ps1 -SelfTest
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::AOT coverage gate self-test failed -- the declaring-set classifier cannot be trusted"
+            exit $LASTEXITCODE
+          }
+
+      - name: Run AOT coverage gate
+        shell: pwsh
+        run: |
+          # REPORT-ONLY, NOT ENFORCING -- this step cannot fail the build no matter what it finds.
+          # FLIP CONDITION: once a run completes
+          # with zero Errored/Refused runs and a human has triaged Findings to zero (fixed, or the
+          # IsAotCompatible declaration removed per-package), remove the "|| $true"-style swallow
+          # below and the "notice"/non-blocking framing so a real failure fails this job, matching
+          # aot-publish-validation. Until that flip happens, this job proves nothing was silently
+          # broken; it does not prove anything is fixed.
+          pwsh -File ./eng/ci/Invoke-AotCoverageGate.ps1 -Configuration Release -OutputPath ./aot-coverage-results
+          $exitCode = $LASTEXITCODE
+          $reportPath = './aot-coverage-results/aot-coverage-gate-report.json'
+          $declaring = 'unknown'; $published = 'unknown'; $findings = 'unknown'
+          if (Test-Path $reportPath) {
+            $report = Get-Content $reportPath -Raw | ConvertFrom-Json
+            $declaring = $report.DeclaringProjects
+            $published = $report.PublishedProjects
+            $findings = $report.Findings
+          }
+          $summary = "AOT coverage gate: REPORT-ONLY, does not fail the build. $declaring declaring projects, $published published/analyzed, $findings findings. Blocking once a clean baseline is established."
+          Write-Host "::notice::$summary"
+          "## $summary" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage gate results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: aot-coverage-gate-results
+          path: aot-coverage-results/
+
   aot-build-analysis:
     name: AOT Build Analysis (report-only)
     runs-on: ubuntu-latest
@@ -336,3 +394,33 @@ jobs:
             aot-build-analysis/aot-build-analysis.json
             aot-build-analysis/aot-build-analysis.md
             aot-build-analysis/*.log
+
+  aot-acceptance-arms:
+    name: AOT Annotation Placement (acceptance arms)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      # The gate must be able to report each of PASS / FAIL / REFUSE before its verdict is
+      # believed. Runs first and costs seconds: a green from a gate that cannot go red is
+      # the exact false-safety this job exists to remove.
+      - name: Verify the acceptance arms can still fail
+        run: bash eng/ci/aot-acceptance-arms.sh --self-test
+
+      # BLOCKING - both arms together pin WHERE the ahead-of-time annotations sit. The safety
+      # arm alone proves nothing: a source-generated composition building clean is equally
+      # consistent with the annotations sitting on members no consumer compiler ever reads.
+      # The liveness arm requires an assembly-scanning composition to warn with BOTH IL2026
+      # and IL3050, and the fail-fast arm requires a composition with no event serializer to
+      # be rejected at startup rather than trading a build warning for a runtime failure.
+      - name: Run the acceptance arms
+        run: bash eng/ci/aot-acceptance-arms.sh both

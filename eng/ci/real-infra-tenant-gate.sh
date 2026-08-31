@@ -120,9 +120,26 @@ if ! printf '%s' "$output" | bash "${_GATE_DIR}/assert-tests-executed.sh" --filt
     exit $EXIT_REFUSE
 fi
 
-# ── 4. Verdict from the suite exit code (>=1 test ran). ──
-if [ "$suite_rc" -ne 0 ]; then
-    err "FAIL: a real-infra tenant-isolation test failed (suite exit ${suite_rc}) — a real cross-tenant RED on committed content."
+# ── 4. Verdict from the REPORTED RESULTS, not from the process exit code. ──
+#      `dotnet test` over a .slnf exits NON-ZERO when any project in it matched no test, and prints
+#      "No test matches the given testcase filter" for that project. Step 3 already establishes that
+#      per-project no-match is benign as long as SOME project ran — that is the whole reason the
+#      aggregate helper exists. Taking the verdict from $suite_rc anyway re-imported the exact signal
+#      step 3 was written to discount, and reported it as "a real cross-tenant RED on committed
+#      content": a tenancy-failure message raised by a filter that simply did not select anything in
+#      a sibling project. Measured on this tree: a clean run over the production filter reported FAIL
+#      with zero failing tests.
+#
+#      So: count what actually failed. A missing assembly is neither a pass nor a tenancy failure --
+#      it is a run we could not evaluate, which is REFUSE.
+if printf '%s' "$output" | grep -qE 'test source file .* was not found|could not be found\.'; then
+    err "REFUSE: an assembly in '${SLNF}' was not present to run, so this gate evaluated an INCOMPLETE set. Build the filter's projects before invoking it; a missing assembly is not a passing one."
+    exit $EXIT_REFUSE
+fi
+
+failed_total="$(printf '%s' "$output" | grep -oE 'Failed: +[0-9]+' | awk '{s+=$2} END{print s+0}')"
+if [ "${failed_total:-0}" -gt 0 ]; then
+    err "FAIL: ${failed_total} real-infra tenant-isolation test(s) failed — a real cross-tenant RED on committed content."
     exit $EXIT_FAIL
 fi
 

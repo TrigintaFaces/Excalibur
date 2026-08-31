@@ -297,7 +297,7 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 	/// <summary>
 	/// Resolves a connection string from external sources.
 	/// </summary>
-	// R0.8: Remove unused parameter - cancellationToken reserved for future Key Vault integration
+	// Remove unused parameter - cancellationToken reserved for future Key Vault integration
 	private ValueTask<string?> ResolveFromExternalSourceAsync(string name, CancellationToken cancellationToken)
 	{
 		// Check for environment variable override
@@ -325,7 +325,7 @@ internal sealed partial class ConnectionStringProvider : IConnectionStringProvid
 	/// <summary>
 	/// Loads connection strings from external sources.
 	/// </summary>
-	// R0.8: Remove unused parameter - cancellationToken reserved for future external secret store integration
+	// Remove unused parameter - cancellationToken reserved for future external secret store integration
 	private ValueTask LoadFromExternalSourcesAsync(CancellationToken cancellationToken)
 	{
 		// This method would integrate with external secret stores For now, just log that it was called

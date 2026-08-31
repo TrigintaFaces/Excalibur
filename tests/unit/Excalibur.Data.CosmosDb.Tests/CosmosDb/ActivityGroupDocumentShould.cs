@@ -30,23 +30,6 @@ public sealed class ActivityGroupDocumentShould
 		_documentType = assembly.GetType("Excalibur.Data.CosmosDb.Authorization.ActivityGroupDocument")!;
 	}
 
-	#region NullTenantPartitionKey Tests
-
-	[Fact]
-	public void NullTenantPartitionKey_HasCorrectValue()
-	{
-		// Arrange
-		var field = _documentType.GetField("NullTenantPartitionKey", BindingFlags.Static | BindingFlags.NonPublic);
-
-		// Act
-		var value = (string)field!.GetValue(null)!;
-
-		// Assert
-		value.ShouldBe("__null__");
-	}
-
-	#endregion
-
 	#region CreateId Tests
 
 	[Fact]
@@ -61,50 +44,6 @@ public sealed class ActivityGroupDocumentShould
 		// Assert
 		result.ShouldBe("user-1:tenant-1:activity-group:editors");
 	}
-
-	[Fact]
-	public void CreateId_HandlesNullTenant()
-	{
-		// Arrange
-		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)createIdMethod!.Invoke(null, new object?[] { "user-1", null, "activity-group", "editors" })!;
-
-		// Assert
-		result.ShouldBe("user-1:null:activity-group:editors");
-	}
-
-	#endregion
-
-	#region GetPartitionKey Tests
-
-	[Fact]
-	public void GetPartitionKey_ReturnsTenantId_WhenNotNull()
-	{
-		// Arrange
-		var getPartitionKeyMethod = _documentType.GetMethod("GetPartitionKey", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)getPartitionKeyMethod!.Invoke(null, new object?[] { "tenant-1" })!;
-
-		// Assert
-		result.ShouldBe("tenant-1");
-	}
-
-	[Fact]
-	public void GetPartitionKey_ReturnsNullTenantPartitionKey_WhenNull()
-	{
-		// Arrange
-		var getPartitionKeyMethod = _documentType.GetMethod("GetPartitionKey", BindingFlags.Public | BindingFlags.Static);
-
-		// Act
-		var result = (string)getPartitionKeyMethod!.Invoke(null, new object?[] { null })!;
-
-		// Assert
-		result.ShouldBe("__null__");
-	}
-
 	#endregion
 
 	#region Default Value Tests
@@ -121,27 +60,15 @@ public sealed class ActivityGroupDocumentShould
 	}
 
 	[Fact]
-	public void TenantId_DefaultsToNullTenantPartitionKey()
+	public void TenantId_DefaultsToEmptyString()
 	{
 		// Arrange & Act
 		var document = Activator.CreateInstance(_documentType);
 		var property = _documentType.GetProperty("TenantId");
 
 		// Assert
-		property.GetValue(document).ShouldBe("__null__");
+		property.GetValue(document).ShouldBe(string.Empty);
 	}
-
-	[Fact]
-	public void OriginalTenantId_DefaultsToNull()
-	{
-		// Arrange & Act
-		var document = Activator.CreateInstance(_documentType);
-		var property = _documentType.GetProperty("OriginalTenantId");
-
-		// Assert
-		property.GetValue(document).ShouldBeNull();
-	}
-
 	[Fact]
 	public void UserId_DefaultsToEmptyString()
 	{

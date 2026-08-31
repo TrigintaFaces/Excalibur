@@ -67,7 +67,37 @@ services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 services.AddGeneratedServices();
 ```
 
-### 4. Publish
+### 4. Register the AOT Handler Activator
+
+Generated direct dispatch resolves discovered handlers straight from the container, so most
+messages never reach a handler activator at all. Anything the generator did not cover falls back
+to `IHandlerActivator`, and the activator Dispatch registers by default compiles expressions —
+which Native AOT does not allow, so it throws rather than guessing. Register `AotHandlerActivator`
+to close that fallback:
+
+```csharp
+using Excalibur.Dispatch.Delivery.Handlers;
+
+// Before AddDispatch: Dispatch registers its default activator only if none is present.
+services.AddSingleton<IHandlerActivator, AotHandlerActivator>();
+
+services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
+services.AddGeneratedServices();
+```
+
+`AotHandlerActivator` resolves the handler from the service provider, falling back to constructor
+injection when the handler is not registered, and applies the message context through the
+`IMessageContextAware` interface. It reflects over no handler member and compiles no expression.
+
+Two consequences for handlers reached through this path:
+
+- A handler receives the message context only if it implements `IMessageContextAware`. Context
+  applied by property injection is not available, because discovering the property needs the
+  reflection Native AOT rules out.
+- A handler must be registered in the container, or expose a public constructor whose parameters
+  the container can supply.
+
+### 5. Publish
 
 ```bash
 dotnet publish -c Release
@@ -424,6 +454,14 @@ If you see trimming warnings:
 2. Handlers must implement `IActionHandler<T>`, `IEventHandler<T>`, or `IDocumentHandler<T>`
 3. Handler interfaces must be from `Excalibur.Dispatch.Delivery` namespace
 4. Clean and rebuild after adding new handlers
+
+### "HandlerActivator cannot activate handler ... does not support runtime code generation"
+
+A message reached the default expression-compiling activator in a build where dynamic code is
+unavailable. Register `AotHandlerActivator` before `AddDispatch`, as shown in
+[Register the AOT Handler Activator](#4-register-the-aot-handler-activator). If the handler should
+have been covered by generated dispatch instead, check that it is discovered — see
+[Handlers Not Discovered](#handlers-not-discovered).
 
 ### Result Factory Not Working Under AOT
 

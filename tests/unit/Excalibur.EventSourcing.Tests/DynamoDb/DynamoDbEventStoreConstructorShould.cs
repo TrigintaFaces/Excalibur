@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBv2;
 
@@ -41,7 +42,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	public void Constructor_WithValidParameters_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
+		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -52,7 +53,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new DynamoDbEventStore(client: null!, _streamsClient, _validOptions, _logger));
+			new DynamoDbEventStore(client: null!, _streamsClient, _validOptions, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("client");
 	}
 
@@ -61,7 +62,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new DynamoDbEventStore(_client, streamsClient: null!, _validOptions, _logger));
+			new DynamoDbEventStore(_client, streamsClient: null!, _validOptions, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("streamsClient");
 	}
 
@@ -70,7 +71,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new DynamoDbEventStore(_client, _streamsClient, options: null!, _logger));
+			new DynamoDbEventStore(_client, _streamsClient, options: null!, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -79,7 +80,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new DynamoDbEventStore(_client, _streamsClient, _validOptions, logger: null!));
+			new DynamoDbEventStore(_client, _streamsClient, _validOptions, logger: null!, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -91,7 +92,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	public void ProviderType_ReturnsDynamoDb()
 	{
 		// Arrange
-		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
+		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger, UntenantedContext.Instance);
 
 		// Act & Assert
 		store.CloudProvider.ShouldBe(CloudPersistenceProviderType.DynamoDb);
@@ -105,7 +106,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
+		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger, UntenantedContext.Instance);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();
@@ -118,7 +119,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange - Injected clients should not be disposed by the store
 		// The DI container is responsible for disposing injected dependencies
-		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
+		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger, UntenantedContext.Instance);
 
 		// Act
 		await store.DisposeAsync();
@@ -132,7 +133,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange - Injected clients should not be disposed by the store
 		// The DI container is responsible for disposing injected dependencies
-		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
+		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger, UntenantedContext.Instance);
 
 		// Act
 		await store.DisposeAsync();

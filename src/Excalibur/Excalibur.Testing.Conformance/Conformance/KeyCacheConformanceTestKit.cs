@@ -48,7 +48,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class KeyCacheConformanceTestKit
+public abstract class KeyCacheConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh key cache instance for testing.
@@ -94,7 +94,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that GetOrAddAsync throws ArgumentNullException for null keyId.
 	/// </summary>
-	protected virtual async Task GetOrAddAsync_NullKeyId_ShouldThrowArgumentNullException()
+	public virtual async Task GetOrAddAsync_NullKeyId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -130,7 +130,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that GetOrAddAsync throws ArgumentNullException for null factory.
 	/// </summary>
-	protected virtual async Task GetOrAddAsync_NullFactory_ShouldThrowArgumentNullException()
+	public virtual async Task GetOrAddAsync_NullFactory_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -168,7 +168,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that GetOrAddAsync calls factory and caches result.
 	/// </summary>
-	protected virtual async Task GetOrAddAsync_CacheMiss_ShouldCallFactoryAndCache()
+	public virtual async Task GetOrAddAsync_CacheMiss_ShouldCallFactoryAndCache()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -215,7 +215,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that GetOrAddAsync returns cached value without calling factory on second call.
 	/// </summary>
-	protected virtual async Task GetOrAddAsync_CacheHit_ShouldNotCallFactory()
+	public virtual async Task GetOrAddAsync_CacheHit_ShouldNotCallFactory()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -259,7 +259,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that GetOrAddAsync with TTL throws ArgumentNullException for null keyId.
 	/// </summary>
-	protected virtual async Task GetOrAddAsync_WithTtl_NullKeyId_ShouldThrowArgumentNullException()
+	public virtual async Task GetOrAddAsync_WithTtl_NullKeyId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -300,7 +300,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that TryGet throws ArgumentNullException for null keyId.
 	/// </summary>
-	protected virtual void TryGet_NullKeyId_ShouldThrowArgumentNullException()
+	public virtual void TryGet_NullKeyId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -333,7 +333,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that TryGet returns null for missing key.
 	/// </summary>
-	protected virtual void TryGet_MissingKey_ShouldReturnNull()
+	public virtual void TryGet_MissingKey_ShouldReturnNull()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -361,7 +361,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that TryGet returns cached value after Set.
 	/// </summary>
-	protected virtual void TryGet_AfterSet_ShouldReturnCachedValue()
+	public virtual void TryGet_AfterSet_ShouldReturnCachedValue()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -401,7 +401,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Set throws ArgumentNullException for null keyMetadata.
 	/// </summary>
-	protected virtual void Set_NullKeyMetadata_ShouldThrowArgumentNullException()
+	public virtual void Set_NullKeyMetadata_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -434,7 +434,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Set increases Count.
 	/// </summary>
-	protected virtual void Set_ShouldIncreaseCount()
+	public virtual void Set_ShouldIncreaseCount()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -464,7 +464,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Set with TTL throws ArgumentNullException for null keyMetadata.
 	/// </summary>
-	protected virtual void Set_WithTtl_NullKeyMetadata_ShouldThrowArgumentNullException()
+	public virtual void Set_WithTtl_NullKeyMetadata_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -501,7 +501,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Remove throws ArgumentNullException for null keyId.
 	/// </summary>
-	protected virtual void Remove_NullKeyId_ShouldThrowArgumentNullException()
+	public virtual void Remove_NullKeyId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -534,7 +534,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Remove removes cached entry.
 	/// </summary>
-	protected virtual void Remove_ExistingKey_ShouldRemoveEntry()
+	public virtual void Remove_ExistingKey_ShouldRemoveEntry()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -574,7 +574,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Invalidate throws ArgumentNullException for null keyId.
 	/// </summary>
-	protected virtual void Invalidate_NullKeyId_ShouldThrowArgumentNullException()
+	public virtual void Invalidate_NullKeyId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -607,7 +607,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Invalidate removes cached entry.
 	/// </summary>
-	protected virtual void Invalidate_ExistingKey_ShouldRemoveEntry()
+	public virtual void Invalidate_ExistingKey_ShouldRemoveEntry()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -647,7 +647,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Clear removes all cached entries.
 	/// </summary>
-	protected virtual void Clear_ShouldRemoveAllEntries()
+	public virtual void Clear_ShouldRemoveAllEntries()
 	{
 		// Arrange
 		var cache = CreateCache();
@@ -691,7 +691,7 @@ public abstract class KeyCacheConformanceTestKit
 	/// <summary>
 	/// Verifies that Count reflects actual cache state.
 	/// </summary>
-	protected virtual void Count_ShouldReflectCacheState()
+	public virtual void Count_ShouldReflectCacheState()
 	{
 		// Arrange
 		var cache = CreateCache();

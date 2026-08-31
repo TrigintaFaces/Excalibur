@@ -248,14 +248,49 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		activeKey.Status.ShouldBe(KeyStatus.Active);
 	}
 
-	[Fact]
-	public async Task GetActiveKey_CreatesKey_WhenNotExists()
-	{
-		// Act - GetActiveKey with no purpose should create default key
-		var activeKey = await _provider.GetActiveKeyAsync(null, CancellationToken.None);
+	// A getter must not provision a customer master key. The two arms below are a pair: the first alone
+	// would be satisfied by a provider that answered null to everything, and the second alone would be
+	// satisfied by one that answered with any key at all.
+	//
+	// Both are scoped by a purpose unique to the run rather than by asking for the default key, because
+	// this LocalStack container is shared with the other AWS suites under one alias prefix — "no key
+	// exists" is only ever true of a purpose nothing else has used.
 
-		// Assert
+	[Fact]
+	public async Task GetActiveKey_ReturnsNull_AndProvisionsNothing_WhenNoKeyHasThatPurpose()
+	{
+		// Arrange
+		var purpose = $"unused-purpose-{Guid.NewGuid():N}";
+
+		// Act
+		var activeKey = await _provider.GetActiveKeyAsync(purpose, CancellationToken.None);
+
+		// Assert - the documented "or null" answer.
+		activeKey.ShouldBeNull();
+
+		// And nothing was created on the way to that answer. A key is billable, durable and
+		// security-relevant, so it is something a caller asks for explicitly through RotateKeyAsync.
+		var afterwards = await _provider.ListKeysAsync(null, purpose, CancellationToken.None);
+		afterwards.ShouldBeEmpty();
+	}
+
+	[Fact]
+	public async Task GetActiveKey_ReturnsTheKeyRecordedForThatPurpose()
+	{
+		// Arrange
+		var purpose = $"purpose-{Guid.NewGuid():N}";
+		var keyId = $"active-by-purpose-{Guid.NewGuid():N}";
+
+		var created = await _provider.RotateKeyAsync(
+			keyId, EncryptionAlgorithm.Aes256Gcm, purpose, null, CancellationToken.None);
+		created.Success.ShouldBeTrue();
+
+		// Act
+		var activeKey = await _provider.GetActiveKeyAsync(purpose, CancellationToken.None);
+
+		// Assert - the purpose selects the key recorded for it, not a key whose id happens to contain it.
 		_ = activeKey.ShouldNotBeNull();
+		activeKey.KeyId.ShouldBe(keyId);
 		activeKey.Status.ShouldBe(KeyStatus.Active);
 	}
 

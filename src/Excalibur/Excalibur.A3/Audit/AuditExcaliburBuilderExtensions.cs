@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Hosting.Builders;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -25,6 +27,8 @@ public static class AuditExcaliburBuilderExtensions
 	///     .AddAudit());
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Audit serializes the audited request with the reflection-based JSON serializer to record it; a trimmed host must leave auditing unregistered or supply a source-generated serializer resolver.")]
+	[RequiresDynamicCode("Audit serializes the audited request with the reflection-based JSON serializer to record it, which requires runtime code generation.")]
 	public static IExcaliburBuilder AddAudit(this IExcaliburBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

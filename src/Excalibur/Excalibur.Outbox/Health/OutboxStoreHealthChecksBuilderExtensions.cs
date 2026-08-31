@@ -15,7 +15,7 @@ public static class OutboxStoreHealthChecksBuilderExtensions
 {
 	/// <summary>
 	/// Adds a health check that probes outbox store connectivity via
-	/// <see cref="IOutboxStoreAdmin.GetStatisticsAsync"/>.
+	/// <see cref="IOutboxStoreAdmin.GetAllTenantsStatisticsAsync"/>.
 	/// </summary>
 	/// <param name="builder">The health checks builder.</param>
 	/// <param name="name">The health check name. Default is "outbox-store".</param>

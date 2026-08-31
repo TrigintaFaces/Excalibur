@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
@@ -307,7 +308,7 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 		// No ambient tenant: these arms exercise the single-tenant host shape, which is the configuration a
 		// consumer gets when they never register an ITenantContext. The store folds a null context onto the
 		// untenanted partition rather than emitting a tenant-blind statement, so this stays a concrete term.
-		return new SqlServerDeadLetterStore(options, tenantContext: null, logger);
+		return new SqlServerDeadLetterStore(options, tenantContext: new TestTenantContext(TenantScope.UntenantedSentinel), logger);
 	}
 
 	private static DeadLetterMessage CreateTestDeadLetterMessage(

@@ -322,33 +322,6 @@ namespace Excalibur.Security {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Lazy re-encryption failed.
-        /// </summary>
-        internal static string LazyReEncryptionMiddleware_ReEncryptionFailed {
-            get {
-                return ResourceManager.GetString("LazyReEncryptionMiddleware_ReEncryptionFailed", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Lazy re-encryption failed: {0}.
-        /// </summary>
-        internal static string LazyReEncryptionMiddleware_ReEncryptionFailedFormat {
-            get {
-                return ResourceManager.GetString("LazyReEncryptionMiddleware_ReEncryptionFailedFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Unknown error.
-        /// </summary>
-        internal static string LazyReEncryptionMiddleware_UnknownError {
-            get {
-                return ResourceManager.GetString("LazyReEncryptionMiddleware_UnknownError", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Encrypted payload not found in context.
         /// </summary>
         internal static string MessageEncryptionMiddleware_EncryptedPayloadNotFound {

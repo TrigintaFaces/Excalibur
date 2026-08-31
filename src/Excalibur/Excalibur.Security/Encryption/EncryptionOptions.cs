@@ -63,19 +63,33 @@ public sealed class EncryptionOptions
 	public int KeyRotationIntervalDays { get; set; } = 90;
 
 	/// <summary>
-	/// Gets or sets the Azure Key Vault URL if using Key Vault for key storage.
+	/// Gets or sets the Azure Key Vault URL naming where encryption keys are held.
 	/// </summary>
 	/// <value>
-	/// The Azure Key Vault URL for key storage, or <see langword="null"/> if not using Azure Key Vault.
+	/// <see langword="null"/> - the only accepted value. Any other value is refused at startup.
 	/// </value>
+	/// <remarks>
+	/// Message encryption protects its keys with the host's Data Protection key ring, and this package
+	/// does not attach an external key provider to it. Naming a vault here would therefore leave keys
+	/// protected locally while the configuration read as though a managed vault held them, so a non-null
+	/// value fails validation rather than downgrading silently. Configure the key ring on the host
+	/// instead, before adding message encryption.
+	/// </remarks>
 	public Uri? AzureKeyVaultUrl { get; set; }
 
 	/// <summary>
-	/// Gets or sets the AWS KMS key ARN if using AWS KMS.
+	/// Gets or sets the AWS KMS key ARN naming where encryption keys are held.
 	/// </summary>
 	/// <value>
-	/// The AWS KMS key ARN, or <see langword="null"/> if not using AWS KMS.
+	/// <see langword="null"/> - the only accepted value. Any other value is refused at startup.
 	/// </value>
+	/// <remarks>
+	/// Message encryption protects its keys with the host's Data Protection key ring, and this package
+	/// does not attach an external key provider to it. Naming a KMS key here would therefore leave keys
+	/// protected locally while the configuration read as though KMS held them, so a non-empty value
+	/// fails validation rather than downgrading silently. Configure the key ring on the host instead,
+	/// before adding message encryption.
+	/// </remarks>
 	public string? AwsKmsKeyArn { get; set; }
 
 	/// <summary>

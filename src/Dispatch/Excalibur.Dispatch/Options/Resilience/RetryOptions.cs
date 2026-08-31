@@ -73,7 +73,10 @@ public sealed class RetryOptions
 	/// Gets the exception types that should trigger retries.
 	/// </summary>
 	/// <remarks>
-	/// If empty, all exceptions except those in <see cref="NonRetryableExceptions"/> will be retried.
+	/// If empty, no allowlist is applied and the shared failure classifier decides: only exceptions it
+	/// classifies as transient are retried. Permanent and poison faults — deserialization, validation,
+	/// argument and authorization failures — are abandoned after the first attempt, not retried.
+	/// <see cref="NonRetryableExceptions"/> is checked first either way and always wins.
 	/// </remarks>
 	/// <value>The set of exceptions eligible for retries.</value>
 	public HashSet<Type> RetryableExceptions { get; } = [];

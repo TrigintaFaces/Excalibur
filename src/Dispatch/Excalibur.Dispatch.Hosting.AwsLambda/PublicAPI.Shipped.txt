@@ -1,39 +1,6 @@
 #nullable enable
-Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId
 Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaSnapStartHooks
 Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupCompleted = 50162 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupFailed = 50163 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupStarting = 50161 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdInstanceDetected = 50153 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdStartOptimizationCompleted = 50151 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdStartOptimizationDisabled = 50155 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdStartOptimizationStarted = 50150 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringHost = 50102 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringMetrics = 50110 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringServices = 50100 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringXRayTracing = 50109 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ExecutingHandler = 50104 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ExecutionCancelled = 50106 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ExecutionTimedOut = 50107 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.HandlerExecuted = 50105 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.HandlerFailed = 50108 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.HostConfigured = 50103 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.JitWarmupCompleted = 50166 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.JitWarmupFailed = 50167 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.JitWarmupStarting = 50165 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ProvisionedConcurrencyActive = 50154 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ServicesConfigured = 50101 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ServicesWarmedUp = 50157 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupCompleted = 50159 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupFailed = 50160 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupStarting = 50158 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SnapStartHookRegistered = 50168 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SnapStartHookRegistrationFailed = 50170 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SnapStartWarmupRunning = 50169 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmInstanceDetected = 50152 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmingUpServices = 50156 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.XRayTracingEnabled = 50164 -> int
 static Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaSnapStartHooks.RegisterWarmup(Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer! optimizer, Microsoft.Extensions.Logging.ILogger! logger) -> void
 static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

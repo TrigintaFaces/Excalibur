@@ -24,7 +24,7 @@ internal partial class AwsLambdaColdStartOptimizer(
 	private readonly ILogger<AwsLambdaColdStartOptimizer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	// bfak2b — the "running on AWS Lambda?" decision is read from configuration (an Options flag defaulted at
+	// the "running on AWS Lambda?" decision is read from configuration (an Options flag defaulted at
 	// the composition root from AWS_LAMBDA_FUNCTION_NAME), not a direct environment read on each evaluation.
 	public override bool IsEnabled => _options.ColdStartOptimizationEnabled;
 

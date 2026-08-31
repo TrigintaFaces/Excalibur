@@ -65,7 +65,7 @@ If you need to register handlers at runtime (rare), disable auto-freeze:
 ```csharp
 builder.Services.Configure<DispatchOptions>(options =>
 {
-    options.Performance.AutoFreezeOnStart = false;
+    options.CrossCutting.Performance.AutoFreezeOnStart = false;
 });
 ```
 

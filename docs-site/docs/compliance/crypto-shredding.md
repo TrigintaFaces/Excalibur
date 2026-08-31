@@ -120,19 +120,41 @@ The read path is deliberately asymmetric:
 
 `ISubjectKeyManager` owns the per-subject key lifecycle:
 
+- **`GetOrCreateKeyAsync(subjectId, ct)`** returns the subject's key handle, minting a new cryptographically-random key (via the key-management provider) if the subject does not yet have one.
+
+**Destroying a subject key is an erasure operation, and the erasure service owns it.** There is deliberately no direct "destroy this subject's key" call on the key manager: key destruction is irreversible, so it must not be reachable on a path that bypasses the legal-hold check. Route every crypto-shred through `IErasureService`, which evaluates legal holds *before* any key is destroyed and records the destruction on the completion certificate.
+
 ```csharp
-public sealed class SubjectEraser(ISubjectKeyManager keys)
+// Registration. The key-shred-only opt-in is REQUIRED when no data-inventory
+// discovery source is registered — without it the erasure registration is
+// rejected at startup, because a completion certificate must never be issued
+// over coverage that was never verified.
+builder.Services.AddInMemoryErasureStore();
+builder.Services.AddGdprErasure(options => options.KeyShredOnlyErasure = true);
+```
+
+```csharp
+public sealed class SubjectEraser(IErasureService erasure)
 {
-    // Crypto-shred a data subject: destroys every version of the subject's key.
-    public ValueTask EraseAsync(string subjectId, CancellationToken ct)
-        => keys.DestroyKeyAsync(subjectId, ct);
+    // Crypto-shred a data subject: files the erasure request that destroys the subject's key.
+    public async Task<ErasureResult> EraseAsync(string subjectId, string requestedBy, CancellationToken ct)
+    {
+        var request = new ErasureRequest
+        {
+            DataSubjectId = subjectId,
+            IdType = DataSubjectIdType.UserId,
+            LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+            RequestedBy = requestedBy,
+        };
+
+        return await erasure.RequestErasureAsync(request, ct).ConfigureAwait(false);
+    }
 }
 ```
 
-- **`GetOrCreateKeyAsync(subjectId, ct)`** returns the subject's key handle, minting a new cryptographically-random key (via the key-management provider) if the subject does not yet have one.
-- **`DestroyKeyAsync(subjectId, ct)`** crypto-erases the subject by destroying **every version** of the subject's key, with immediate (zero-day retention) effect. Once destroyed, all data encrypted under that key is permanently unrecoverable. The operation is **idempotent**: destroying an already-destroyed or never-created subject key completes successfully without error.
+`RequestErasureAsync` files the request and returns immediately. The returned `ErasureResult` carries `ScheduledExecutionTime` (when the configured grace period elapses) and, if the subject is under a legal hold, the `BlockingHold` that is holding the erasure. The hosted scheduler registered by `AddGdprErasure` executes the request when the grace period expires and no hold applies; destroying the subject's key is part of that execution. The subject's own key handle is destroyed **even when the data inventory does not enumerate it**, so the crypto-shred does not depend on inventory coverage.
 
-Because erasure is a single key destruction, every field and record encrypted under that subject's key becomes undecryptable at once — no per-record mutation is required for the encrypted values.
+Because erasure is a single key destruction, every field and record encrypted under that subject's key becomes undecryptable at once — no per-record mutation is required for the encrypted values. Once destroyed, all data encrypted under that key is permanently unrecoverable.
 
 ## What's Next
 

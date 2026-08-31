@@ -39,7 +39,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() => new SqlServerSagaStore(
 			connectionString: null!,
 			_logger,
-			_serializer));
+			_serializer,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -49,7 +50,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() => new SqlServerSagaStore(
 			connectionString: string.Empty,
 			_logger,
-			_serializer));
+			_serializer,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -59,7 +61,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() => new SqlServerSagaStore(
 			connectionString: "   ",
 			_logger,
-			_serializer));
+			_serializer,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -69,7 +72,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaStore(
 			connectionString: "Server=localhost;Database=TestDb",
 			logger: null!,
-			_serializer));
+			_serializer,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -79,7 +83,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaStore(
 			connectionString: "Server=localhost;Database=TestDb",
 			_logger,
-			serializer: null!));
+			serializer: null!,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -89,7 +94,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		var store = new SqlServerSagaStore(
 			connectionString: "Server=localhost;Database=TestDb",
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -106,7 +112,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaStore(
 			connectionFactory: null!,
 			_logger,
-			_serializer));
+			_serializer,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -119,7 +126,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaStore(
 			factory,
 			logger: null!,
-			_serializer));
+			_serializer,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -132,7 +140,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaStore(
 			factory,
 			_logger,
-			serializer: null!));
+			serializer: null!,
+			tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -145,7 +154,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		var store = new SqlServerSagaStore(
 			factory,
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -167,7 +177,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		var store = new SqlServerSagaStore(
 			factory,
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		// Assert - factory is stored but not called during construction
 		_ = store.ShouldNotBeNull();
@@ -188,12 +199,14 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		var simpleStore = new SqlServerSagaStore(
 			connectionString,
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		var advancedStore = new SqlServerSagaStore(
 			() => new SqlConnection(connectionString),
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		// Assert - Both should be valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -213,7 +226,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		var store = new SqlServerSagaStore(
 			connectionString,
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -230,7 +244,8 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 		var store = new SqlServerSagaStore(
 			connectionString: "Server=localhost;Database=TestDb",
 			_logger,
-			_serializer);
+			_serializer,
+			tenantContext: new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(

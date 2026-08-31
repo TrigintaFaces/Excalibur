@@ -11,7 +11,6 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.ErrorHandling;
-using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 
 using Microsoft.Extensions.DependencyInjection;

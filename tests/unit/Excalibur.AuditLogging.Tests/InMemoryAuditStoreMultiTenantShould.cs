@@ -13,7 +13,7 @@ namespace Excalibur.AuditLogging.Tests;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryAuditStoreMultiTenantShould : IDisposable
 {
-    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create());
+    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
     public void Dispose() => _sut.Dispose();
 
     private static AuditEvent CreateEvent(string eventId, string? tenantId = null) =>

@@ -13,24 +13,9 @@ Excalibur.Security.Aws.AwsSecretsManagerKeyProviderOptions.RotatedKeySizeBytes.g
 Excalibur.Security.Aws.AwsSecretsManagerKeyProviderOptions.RotatedKeySizeBytes.set -> void
 Excalibur.Security.Aws.AwsSecretsManagerKeyProviderOptions.SecretNamePrefix.get -> string?
 Excalibur.Security.Aws.AwsSecretsManagerKeyProviderOptions.SecretNamePrefix.set -> void
-Excalibur.Security.Aws.AwsSecurityEventId
 Excalibur.Security.Aws.ISecurityAwsBuilder
 Excalibur.Security.Aws.ISecurityAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Security.Aws.ISecurityAwsBuilder!
 Excalibur.Security.Aws.ISecurityAwsBuilder.Region(string! region) -> Excalibur.Security.Aws.ISecurityAwsBuilder!
 Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerCredentialStoreCreated = 70901 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerKeyCacheHit = 70928 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerKeyNotFound = 70929 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerKeyOperationFailed = 70932 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerKeyRetrieved = 70927 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerKeyRotated = 70931 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerKeyStored = 70930 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRequestFailed = 70923 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieveFailed = 70924 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieved = 70922 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieving = 70920 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerSecretNotFound = 70921 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStored = 70926 -> int
-const Excalibur.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStoring = 70925 -> int
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddAwsSecretsManagerKeyProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Aws.AwsSecretsManagerKeyProviderOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddDispatchSecurityAws(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Aws.ISecurityAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

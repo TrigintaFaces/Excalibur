@@ -47,7 +47,15 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	/// Always <see langword="true"/> after successful initialization; if Docker is unavailable,
 	/// <see cref="InitializeAsync"/> throws (unless <see cref="AllowGracefulDegradation"/> is set).
 	/// </summary>
-	public bool DockerAvailable { get; private set; } = true;
+	public bool DockerAvailable { get; private set; }
+
+	/// <summary>
+	/// Whether <see cref="InitializeContainerAsync"/> completed and started a container. Unlike
+	/// <see cref="DockerAvailable"/> this is never cleared by <see cref="MarkUnavailable"/>, so
+	/// <see cref="DisposeAsync"/> can still dispose a container that started and was only later
+	/// marked unavailable by a dependent service failing, rather than leaking it.
+	/// </summary>
+	private bool _containerStarted;
 
 	/// <summary>Gets the error message if container initialization failed; otherwise <see langword="null"/>.</summary>
 	public string? InitializationError { get; private set; }
@@ -90,6 +98,7 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			{
 				using var cts = new CancellationTokenSource(ContainerStartTimeout);
 				await InitializeContainerAsync(cts.Token).ConfigureAwait(false);
+				_containerStarted = true;
 				DockerAvailable = true;
 				InitializationError = null;
 				return;
@@ -125,7 +134,10 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	{
 		GC.SuppressFinalize(this);
 
-		if (!DockerAvailable)
+		// Gated on whether a container actually STARTED, not on DockerAvailable: MarkUnavailable can
+		// flip DockerAvailable to false AFTER a container is running -- a dependent service failing,
+		// say -- and that container still has to be disposed. Gating on availability leaked it.
+		if (!_containerStarted)
 		{
 			return;
 		}

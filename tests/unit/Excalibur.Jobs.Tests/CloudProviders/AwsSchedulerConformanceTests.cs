@@ -38,12 +38,12 @@ public sealed class AwsSchedulerConformanceTests : SchedulerConformanceTestKit, 
 		_client = new CapturingAmazonSchedulerClient();
 		return new AwsSchedulerJobProvider(
 			_client,
-			new AwsSchedulerOptions
+			Microsoft.Extensions.Options.Options.Create(new AwsSchedulerOptions
 			{
 				TargetArn = "arn:aws:lambda:us-east-1:123456789012:function:jobs",
 				ExecutionRoleArn = "arn:aws:iam::123456789012:role/excalibur-jobs",
 				TimeZone = "UTC",
-			},
+			}),
 			A.Fake<ILogger<AwsSchedulerJobProvider>>());
 	}
 
@@ -94,4 +94,7 @@ public sealed class AwsSchedulerConformanceTests : SchedulerConformanceTestKit, 
 			return Task.FromResult(new CreateScheduleResponse());
 		}
 	}
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

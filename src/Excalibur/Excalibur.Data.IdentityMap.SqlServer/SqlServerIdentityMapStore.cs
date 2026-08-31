@@ -94,7 +94,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 		CancellationToken cancellationToken)
 	{
 		var sql = $"""
-			MERGE {_options.QualifiedTableName} AS target
+			MERGE {_options.QualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @ExternalSystem AS ExternalSystem, @ExternalId AS ExternalId, @AggregateType AS AggregateType) AS source
 			ON target.ExternalSystem = source.ExternalSystem
 			   AND target.ExternalId = source.ExternalId
@@ -131,7 +131,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 		// Use MERGE with OUTPUT to atomically insert-or-return in a single round trip.
 		// The $action column indicates whether the row was INSERTed or matched (existing).
 		var sql = $"""
-			MERGE {_options.QualifiedTableName} AS target
+			MERGE {_options.QualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @ExternalSystem AS ExternalSystem, @ExternalId AS ExternalId, @AggregateType AS AggregateType) AS source
 			ON target.ExternalSystem = source.ExternalSystem
 			   AND target.ExternalId = source.ExternalId

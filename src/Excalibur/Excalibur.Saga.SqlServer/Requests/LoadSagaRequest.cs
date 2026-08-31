@@ -30,8 +30,8 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// <param name="scope">
 	/// The tenant scope for row-level tenant scoping. When tenant-scoped, the load is restricted to the
 	/// current tenant's saga (<c>AND TenantId = @TenantId</c>) so a tenant can never load another tenant's
-	/// saga by id. When <see cref="TenantScope.None"/> (the non-multi-tenant path) no tenant predicate is
-	/// applied (byte-identical un-scoped behavior). A tenant-scoped scope cannot be constructed without a
+	/// saga by id. An untenanted scope binds the reserved sentinel, so the predicate is applied either way.
+	/// A tenant-scoped scope cannot be constructed without a
 	/// tenant, so a predicate-less load while tenancy is active is unrepresentable.
 	/// </param>
 	public LoadSagaRequest(
@@ -44,9 +44,9 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
-		// Read the authoritative Version column (bd-eszc06) so the loaded state carries the persisted
+		// Read the authoritative Version column so the loaded state carries the persisted
 		// optimistic-concurrency version, which the store then uses as the compare-and-swap basis on save.
-		// Type-isolation (1f5om2): scope the load to BOTH SagaId AND SagaType. The store persists SagaType on
+		// Type-isolation: scope the load to BOTH SagaId AND SagaType. The store persists SagaType on
 		// save, so loading by SagaId alone would return a saga of a DIFFERENT type that happens to share the
 		// Guid, then deserialize its StateJson into the wrong TSagaState (silent data corruption). A typed
 		// LoadAsync<TSagaState>(id) must return null when no saga of that type exists at the id — the contract

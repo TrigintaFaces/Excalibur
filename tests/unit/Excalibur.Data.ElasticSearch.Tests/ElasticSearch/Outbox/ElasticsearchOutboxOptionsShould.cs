@@ -16,7 +16,11 @@ public sealed class ElasticsearchOutboxOptionsShould
 		sut.IndexName.ShouldBe("excalibur-outbox");
 		sut.DefaultBatchSize.ShouldBe(100);
 		sut.RefreshPolicy.ShouldBe("wait_for");
-		sut.SentMessageRetentionDays.ShouldBe(7);
+
+		// The claim lease must default to a usable value: zero or negative would make every claimed
+		// message instantly reclaimable by another poller, re-creating duplicate delivery by default.
+		sut.LeaseTimeoutSeconds.ShouldBe(300);
+		sut.ProcessorId.ShouldBeNull();
 	}
 
 	[Fact]
@@ -27,12 +31,14 @@ public sealed class ElasticsearchOutboxOptionsShould
 			IndexName = "custom-outbox",
 			DefaultBatchSize = 500,
 			RefreshPolicy = "false",
-			SentMessageRetentionDays = 14,
+			LeaseTimeoutSeconds = 45,
+			ProcessorId = "poller-1",
 		};
 
 		sut.IndexName.ShouldBe("custom-outbox");
 		sut.DefaultBatchSize.ShouldBe(500);
 		sut.RefreshPolicy.ShouldBe("false");
-		sut.SentMessageRetentionDays.ShouldBe(14);
+		sut.LeaseTimeoutSeconds.ShouldBe(45);
+		sut.ProcessorId.ShouldBe("poller-1");
 	}
 }

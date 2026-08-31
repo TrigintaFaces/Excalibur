@@ -23,7 +23,7 @@
 -- below with that real tenant id instead of the sentinel.
 
 -- 1) Add the TenantId column NOT NULL, anchoring existing rows to the reserved sentinel.
-ALTER TABLE INBOX_MESSAGES ADD (TenantId VARCHAR2(255) DEFAULT '__untenanted__' NOT NULL);
+ALTER TABLE INBOX_MESSAGES ADD (TenantId VARCHAR2(64) DEFAULT '__untenanted__' NOT NULL);
 
 -- 2) Rebuild the unique key: drop the pair PK, add the triple PK.
 ALTER TABLE INBOX_MESSAGES DROP CONSTRAINT PK_INBOX_MESSAGES;

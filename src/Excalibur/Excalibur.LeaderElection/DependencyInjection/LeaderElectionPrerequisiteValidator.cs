@@ -25,7 +25,7 @@ namespace Excalibur.LeaderElection.DependencyInjection;
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class LeaderElectionPrerequisiteValidator : IHostedService
+internal sealed class LeaderElectionPrerequisiteValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -36,6 +36,12 @@ internal sealed class LeaderElectionPrerequisiteValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		if (_services.GetKeyedService<ILeaderElection>("default") is null)
 		{
 			throw new InvalidOperationException(
@@ -44,8 +50,6 @@ internal sealed class LeaderElectionPrerequisiteValidator : IHostedService
 				"le => le.UseInMemory(), le => le.UseSqlServer(sql => sql.ConnectionString(...)), " +
 				"or le => le.UseRedis(r => r.ConnectionString(...)) — before host startup.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

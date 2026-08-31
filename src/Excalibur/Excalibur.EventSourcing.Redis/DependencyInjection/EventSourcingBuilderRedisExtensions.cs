@@ -132,14 +132,26 @@ public static class EventSourcingBuilderRedisExtensions
 			builder.Services.TryAddSingleton(_ => ConnectionMultiplexer.Connect(connStr));
 		}
 
-		// Register event store
-		builder.Services.TryAddSingleton<RedisEventStore>();
+		// Both stores' constructors now require ITenantContext (RedisEventStore since; RedisSnapshotStore
+		// already did), so the default context is registered once, before either store, rather than wedged
+		// between them as it was when only the snapshot store needed it.
+		_ = builder.Services.AddDefaultTenantContext();
+
+		// Register event store. AddTenantAwareStore (not a bare TryAddSingleton) builds the store AND emits
+		// the ITenantScopingCapability<IEventStore> marker inseparably -- constructed via
+		// ActivatorUtilities so every constructor dependency (including the now-required ITenantContext) is
+		// resolved from the container, matching every other IEventStore provider's registration seam. Before
+		// this, RedisEventStore was registered through a bare TryAddSingleton with no marker at all: the
+		// advertised-but-unwired shape AddMultiTenancy's fail-closed gate exists to catch.
+		builder.Services.AddTenantAwareStore<IEventStore, RedisEventStore>();
 		builder.Services.AddKeyedSingleton<IEventStore>("redis", (sp, _) => sp.GetRequiredService<RedisEventStore>());
 		builder.Services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("redis"));
 
-		// Register snapshot store
-		builder.Services.TryAddSingleton<RedisSnapshotStore>();
+		// Register snapshot store. Same seam as the event store above -- RedisSnapshotStore already required
+		// ITenantContext, but was likewise registered through a bare TryAddSingleton with no capability
+		// marker emitted.
+		builder.Services.AddTenantAwareStore<ISnapshotStore, RedisSnapshotStore>();
 		builder.Services.AddKeyedSingleton<ISnapshotStore>("redis", (sp, _) => sp.GetRequiredService<RedisSnapshotStore>());
 		builder.Services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("redis"));

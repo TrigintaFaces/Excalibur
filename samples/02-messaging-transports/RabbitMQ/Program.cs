@@ -81,6 +81,10 @@ var connectionString = builder.Configuration["RabbitMq:ConnectionString"]
 builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
 	_ = rmq.ConnectionString(connectionString)
+		// This sample talks to the plaintext broker from its docker-compose file, so it opts out of
+		// the transport's secure-by-default posture explicitly. A deployment against a real broker
+		// uses an 'amqps://' connection string and leaves this off.
+		.RequireTls(false)
 		.ConfigureExchange(exchange =>
 		{
 			_ = exchange.Name("dispatch.events")

@@ -105,4 +105,8 @@ public sealed class KeyRotationAlertHandlerConformanceTests : KeyRotationAlertHa
 		HandleRotationSuccessAsync_NullBothVersions_ShouldCompleteSuccessfully();
 
 	#endregion HandleRotationSuccessAsync Tests
+
+	[Fact]
+	public override Task ConformanceSuite_ShouldWireEveryArm() =>
+		base.ConformanceSuite_ShouldWireEveryArm();
 }

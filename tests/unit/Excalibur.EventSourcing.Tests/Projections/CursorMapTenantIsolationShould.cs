@@ -37,8 +37,11 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 /// <para>
 /// This arm still exercises the in-memory store, because that is what makes the property provable without
 /// infrastructure. <b>It is therefore NOT evidence for the SQL providers</b> -- no unit test can bind those
-/// without a real database, and their equivalent arms belong in the integration suite. Read this as
-/// "the contract is expressible and the in-memory implementation honours it", never as subsystem coverage.
+/// without a real database. Their equivalent arms now exist and run against real containers:
+/// <c>PostgresCursorMapTenantIsolationShould</c> and <c>SqlServerCursorMapTenantIsolationShould</c> in the
+/// integration suite construct each SQL store and hold it to the same safety and liveness pair. Read this
+/// arm as "the contract is expressible and the in-memory implementation honours it", and read those two as
+/// the evidence for the sentence above.
 /// </para>
 /// <para>
 /// Direction of failure matters. A cursor moved FORWARD by another tenant means the projector skips events
@@ -111,7 +114,7 @@ public sealed class CursorMapTenantIsolationShould
 	[Fact]
 	public async Task StillReturnATenantsOwnSavedCursor()
 	{
-		var store = new InMemoryCursorMapStore();
+		var store = new InMemoryCursorMapStore(new FixedTenantContext("tenant-a"));
 
 		await store.SaveCursorMapAsync(
 			SharedProjectionName,
@@ -138,7 +141,7 @@ public sealed class CursorMapTenantIsolationShould
 	[Fact]
 	public async Task NotShareACursorBetweenDifferentProjections()
 	{
-		var store = new InMemoryCursorMapStore();
+		var store = new InMemoryCursorMapStore(new FixedTenantContext("tenant-a"));
 
 		await store.SaveCursorMapAsync(
 			SharedProjectionName,

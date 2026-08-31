@@ -16,11 +16,11 @@ namespace Excalibur.EventSourcing.Projections;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Different projection types run concurrently via <c>Task.WhenAll</c> (R27.20).
+/// Different projection types run concurrently via <c>Task.WhenAll</c>.
 /// Within each projection, events are applied sequentially in commit order.
 /// </para>
 /// <para>
-/// Partial failure semantics (R27.20a): if some projections succeed and others fail,
+/// Partial failure semantics: if some projections succeed and others fail,
 /// the successful writes remain committed. Only the failed projection needs recovery
 /// via <see cref="IProjectionRecovery"/>.
 /// </para>
@@ -75,7 +75,7 @@ internal sealed class InlineProjectionProcessor
 			return;
 		}
 
-		// Run all inline projection types concurrently (R27.20). Each projection runs in its own
+		// Run all inline projection types concurrently. Each projection runs in its own
 		// DI scope: IProjectionStore<T> is scoped, but this processor is a singleton, so resolving
 		// stores from a captured root provider would throw under scope validation ("Cannot resolve
 		// scoped service ... from root provider"). A scope per projection also isolates scoped state
@@ -86,7 +86,7 @@ internal sealed class InlineProjectionProcessor
 			tasks[i] = ApplyInScopeAsync(inlineRegistrations[i], events, context, cancellationToken);
 		}
 
-		// Collect exceptions from all tasks (R27.20a: partial failure --
+		// Collect exceptions from all tasks (partial failure --
 		// successful writes stay committed, only failed projections need recovery)
 		var exceptions = new List<Exception>();
 		for (var j = 0; j < tasks.Length; j++)
@@ -101,7 +101,7 @@ internal sealed class InlineProjectionProcessor
 			{
 				exceptions.Add(ex);
 
-				// Fire-and-forget observability -- metrics MUST NOT propagate (R27.51)
+				// Fire-and-forget observability -- metrics MUST NOT propagate
 				try
 				{
 					var projectionType = inlineRegistrations[j].ProjectionType.Name;

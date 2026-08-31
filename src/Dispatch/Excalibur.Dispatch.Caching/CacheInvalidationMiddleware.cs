@@ -43,15 +43,15 @@ internal sealed partial class CacheInvalidationMiddleware(
 
 	private readonly Counter<long> _invalidationCounter =
 		meterFactory.Create(DispatchCachingTelemetryConstants.MeterName)
-			.CreateCounter<long>("dispatch.cache.invalidations", "invalidations", "Number of cache invalidation operations");
+			.CreateCounter<long>("dispatch.cache.invalidations", "{invalidations}", "Number of cache invalidation operations");
 
 	private readonly Counter<long> _tagsInvalidatedCounter =
 		meterFactory.Create(DispatchCachingTelemetryConstants.MeterName)
-			.CreateCounter<long>("dispatch.cache.tags_invalidated", "tags", "Number of cache tags invalidated");
+			.CreateCounter<long>("dispatch.cache.tags_invalidated", "{tags}", "Number of cache tags invalidated");
 
 	private readonly Counter<long> _keysInvalidatedCounter =
 		meterFactory.Create(DispatchCachingTelemetryConstants.MeterName)
-			.CreateCounter<long>("dispatch.cache.keys_invalidated", "keys", "Number of cache keys invalidated");
+			.CreateCounter<long>("dispatch.cache.keys_invalidated", "{keys}", "Number of cache keys invalidated");
 
 	private static readonly ConcurrentDictionary<Type, InvalidateCacheAttribute?> _attributeCache = new();
 
@@ -95,7 +95,7 @@ internal sealed partial class CacheInvalidationMiddleware(
 
 		var attr = GetInvalidateCacheAttribute(message.GetType());
 
-		// w5iuyn: by default invalidation runs ONLY after the handler returns successfully. When the action opts
+		// by default invalidation runs ONLY after the handler returns successfully. When the action opts
 		// in via [InvalidateCache(InvalidateOnFailure = true)], invalidation also runs when the handler throws
 		// (e.g. a command that committed a partial write before failing) — but the handler's original exception
 		// is always the one surfaced, because invalidation is fail-open and never throws.
@@ -171,7 +171,7 @@ internal sealed partial class CacheInvalidationMiddleware(
 
 			var tags = BuildTagList(invalidatorTags, attr?.Tags);
 
-			// f8pdos: fold each logical direct key through the key builder (with the invalidating dispatch's
+			// fold each logical direct key through the key builder (with the invalidating dispatch's
 			// tenant/user identity) so it equals the SHA256(tenant:user:key) a cacheable query stored. A raw
 			// logical key can never match the stored key, so without this the direct-key path is inert.
 			var storageKeys = BuildStorageKeys(invalidatorKeys, hasKeys, context);
@@ -182,7 +182,7 @@ internal sealed partial class CacheInvalidationMiddleware(
 				_tagsInvalidatedCounter.Add(tags.Count);
 			}
 
-			// f8pdos: count only keys that resolved to a real storage-key removal target.
+			// count only keys that resolved to a real storage-key removal target.
 			if (storageKeys.Count > 0)
 			{
 				_keysInvalidatedCounter.Add(storageKeys.Count);

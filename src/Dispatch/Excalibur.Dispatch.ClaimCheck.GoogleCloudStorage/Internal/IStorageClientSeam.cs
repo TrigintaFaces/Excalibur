@@ -14,11 +14,9 @@ namespace Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Internal;
 /// this public.
 /// </summary>
 /// <remarks>
-/// Follows the ADR-142 §D7 canonical template set by
-/// <c>IServiceBusClient</c> (S798, <c>bd-wy56o5</c>): flat use-case methods,
-/// not SDK topology mirroring. Data-shaped SDK types
-/// (<see cref="Object"/>) cross the seam — they are property bags and
-/// are safe to construct directly.
+/// The seam exposes flat use-case methods rather than mirroring the SDK's
+/// client topology. Data-shaped SDK types (<see cref="Object"/>) cross the
+/// seam — they are property bags and are safe to construct directly.
 /// </remarks>
 internal interface IStorageClientSeam
 {

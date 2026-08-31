@@ -174,7 +174,7 @@ public static class SqlServerAuditServiceCollectionExtensions
 
 	private static void RegisterSqlServerAuditStoreCore(IServiceCollection services)
 	{
-		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider (qa71t5) —
+		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider —
 		// SqlServerAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
 
@@ -197,22 +197,42 @@ public static class SqlServerAuditServiceCollectionExtensions
 		// a multi-tenant host has already registered its own and TryAdd leaves that untouched.
 		_ = services.AddDefaultTenantContext();
 
-		services.TryAddSingleton<SqlServerAuditStore>();
+		// Registered through the capability seam rather than a bare TryAddSingleton. SqlServerAuditStore takes
+		// ITenantContext, and every read it builds binds the ambient tenant term (the query filter is a
+		// scope, not a caller-supplied filter), so the seam derives the ambient-scoping mechanism from the
+		// constructor and emits ITenantScopingCapability<IAuditStore> as part of the same act. Without that
+		// marker a host wiring this store alongside the row discriminator is refused at startup, because
+		// IAuditStore carries [TenantOwned] and nothing attested the store honours it.
+		//
+		// The estate-wide scope recorded for this provider in ARCHITECTURE.md is chain VERIFICATION only,
+		// enumerated per partition. It is not the store's tenancy mechanism, and the partitioned marker
+		// would be the wrong attestation here: that one states the tenant is re-established from the row
+		// and never inferred from ambient state, which is the opposite of what this store does.
+		_ = services.AddTenantAwareStore<IAuditStore, SqlServerAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<SqlServerAuditStore>());
 	}
 
 	private static void RegisterSqlServerAuditAnnotationStoreCore(IServiceCollection services)
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		// Built by an explicit factory rather than by type activation, because the store's ITenantContext
 		// is OPTIONAL: a single-tenant host registers none, and type activation would demand every
 		// constructor parameter be resolvable and fail at resolve time for that supported shape. GetService
 		// yields null there, which the store reads as the untenanted partition — a concrete tenant term,
 		// not an absent one — so a host that never opted into multi-tenancy still emits a scoped predicate.
+		// The actor provider is NOT resolved here. This is a singleton and a consumer's actor provider is
+		// per-caller state -- resolving it at this point binds one caller's identity for the life of the
+		// container, and that identity is written to each row as the annotation's author. The store opens
+		// a scope per operation instead.
 		services.TryAddSingleton(sp => new SqlServerAuditAnnotationStore(
 			sp.GetRequiredService<IOptions<SqlServerAuditAnnotationStoreOptions>>(),
-			sp.GetRequiredService<IAuditActorProvider>(),
+			sp.GetRequiredService<IServiceScopeFactory>(),
 			sp.GetRequiredService<TimeProvider>(),
-			sp.GetService<ITenantContext>(),
+			sp.GetRequiredService<ITenantContext>(),
 			sp.GetRequiredService<ILogger<SqlServerAuditAnnotationStore>>()));
 
 		// Registered under the core package's inner-store KEY, and deliberately NOT as IAuditAnnotationStore.

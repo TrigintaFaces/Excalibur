@@ -45,15 +45,16 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<ILegalHoldStore> marker in the same act, so a store that was never
-		// handed the context cannot carry a truthful-looking capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<ILegalHoldStore, SqlServerLegalHoldStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<ILegalHoldStore> marker in the same act, so
+		// a store that was never handed the context cannot carry a truthful-looking capability and pass
+		// the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<ILegalHoldStore, SqlServerLegalHoldStore>(sp =>
 			new SqlServerLegalHoldStore(
 				sp.GetRequiredService<IOptions<SqlServerLegalHoldStoreOptions>>(),
 				sp.GetRequiredService<ILogger<SqlServerLegalHoldStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 
@@ -103,15 +104,16 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<ILegalHoldStore> marker in the same act, so a store that was never
-		// handed the context cannot carry a truthful-looking capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<ILegalHoldStore, SqlServerLegalHoldStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<ILegalHoldStore> marker in the same act, so
+		// a store that was never handed the context cannot carry a truthful-looking capability and pass
+		// the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<ILegalHoldStore, SqlServerLegalHoldStore>(sp =>
 			new SqlServerLegalHoldStore(
 				sp.GetRequiredService<IOptions<SqlServerLegalHoldStoreOptions>>(),
 				sp.GetRequiredService<ILogger<SqlServerLegalHoldStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 

@@ -31,7 +31,7 @@ namespace Excalibur.AuditLogging;
 /// change the outcome: a role provider registered after the annotation services still satisfies it.
 /// </para>
 /// </remarks>
-internal sealed class AuditAnnotationRoleProviderValidator : IHostedService
+internal sealed class AuditAnnotationRoleProviderValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProviderIsService _isService;
 
@@ -59,7 +59,12 @@ internal sealed class AuditAnnotationRoleProviderValidator : IHostedService
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
+		Validate();
+		return Task.CompletedTask;
+	}
 
+	public void Validate()
+	{
 		if (_isService.IsService(typeof(IAuditAnnotationStore))
 			&& !_isService.IsService(typeof(IAuditRoleProvider)))
 		{
@@ -71,8 +76,6 @@ internal sealed class AuditAnnotationRoleProviderValidator : IHostedService
 				+ $"services.AddScoped<{nameof(IAuditRoleProvider)}, MyRoleProvider>() — or do not register "
 				+ "audit annotations.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	/// <summary>

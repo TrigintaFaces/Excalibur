@@ -31,8 +31,6 @@ public sealed class CdcChangeDetectorStaleLsnShould : UnitTestBase
 	private static readonly byte[] MinLsn = [0x00, 0x00, 0x00, 0x05];
 	// Max LSN returned by GetMaxPositionAsync
 	private static readonly byte[] MaxLsn = [0x00, 0x00, 0x00, 0x0A];
-	// Next LSN after MinLsn (returned after processing)
-	private static readonly byte[] NextLsn = [0x00, 0x00, 0x00, 0x06];
 
 	private const string CaptureInstance = "dbo_Orders";
 

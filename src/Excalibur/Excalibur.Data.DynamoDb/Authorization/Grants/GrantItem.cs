@@ -14,7 +14,7 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses tenant_id as the partition key (PK) with "__null__" for null tenant values
+/// Uses tenant_id as the partition key (PK)
 /// to support efficient partition-based queries while maintaining consistency.
 /// </para>
 /// <para>
@@ -24,11 +24,6 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// </remarks>
 internal static class GrantItem
 {
-	/// <summary>
-	/// The value used for null tenant IDs in the partition key.
-	/// </summary>
-	internal const string NullTenantPartitionKey = "__null__";
-
 	/// <summary>
 	/// The prefix for grant sort keys.
 	/// </summary>
@@ -40,7 +35,6 @@ internal static class GrantItem
 	private const string SkAttr = "sk";
 	private const string UserIdAttr = "user_id";
 	private const string FullNameAttr = "full_name";
-	private const string OriginalTenantIdAttr = "original_tenant_id";
 	private const string GrantTypeAttr = "grant_type";
 	private const string QualifierAttr = "qualifier";
 	private const string ExpiresOnAttr = "expires_on";
@@ -93,14 +87,6 @@ internal static class GrantItem
 	public static string UserIdAttribute => UserIdAttr;
 
 	/// <summary>
-	/// Creates the partition key (tenant_id) for the given tenant ID.
-	/// </summary>
-	/// <param name="tenantId">The tenant identifier.</param>
-	/// <returns>The partition key value.</returns>
-	public static string CreatePK(string? tenantId) =>
-		tenantId ?? NullTenantPartitionKey;
-
-	/// <summary>
 	/// Creates the sort key for a grant.
 	/// </summary>
 	/// <param name="userId">The user identifier.</param>
@@ -117,8 +103,8 @@ internal static class GrantItem
 	/// <param name="grantType">The grant type.</param>
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The GSI sort key value.</returns>
-	public static string CreateGsiSK(string? tenantId, string grantType, string qualifier) =>
-		$"{tenantId ?? "null"}#GRANT#{grantType}#{qualifier}";
+	public static string CreateGsiSK(string tenantId, string grantType, string qualifier) =>
+		$"{tenantId}#GRANT#{grantType}#{qualifier}";
 
 	/// <summary>
 	/// Converts a <see cref="Grant"/> to a DynamoDB item.
@@ -131,7 +117,7 @@ internal static class GrantItem
 
 		var item = new Dictionary<string, AttributeValue>
 		{
-			[PkAttr] = new() { S = CreatePK(grant.TenantId) },
+			[PkAttr] = new() { S = grant.TenantId },
 			[SkAttr] = new() { S = CreateSK(grant.UserId, grant.GrantType, grant.Qualifier) },
 			[UserIdAttr] = new() { S = grant.UserId },
 			[GrantTypeAttr] = new() { S = grant.GrantType },
@@ -147,11 +133,6 @@ internal static class GrantItem
 		if (grant.FullName is not null)
 		{
 			item[FullNameAttr] = new() { S = grant.FullName };
-		}
-
-		if (grant.TenantId is not null)
-		{
-			item[OriginalTenantIdAttr] = new() { S = grant.TenantId };
 		}
 
 		if (grant.ExpiresOn.HasValue)
@@ -190,11 +171,7 @@ internal static class GrantItem
 			fullName = fullNameAttr.S;
 		}
 
-		string? tenantId = null;
-		if (item.TryGetValue(OriginalTenantIdAttr, out var tenantAttr) && !string.IsNullOrEmpty(tenantAttr.S))
-		{
-			tenantId = tenantAttr.S;
-		}
+		var tenantId = item[PkAttr].S;
 
 		DateTimeOffset? expiresOn = null;
 		if (item.TryGetValue(ExpiresOnAttr, out var expiresAttr) && !string.IsNullOrEmpty(expiresAttr.S))
@@ -222,11 +199,11 @@ internal static class GrantItem
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The key attributes.</returns>
 	public static Dictionary<string, AttributeValue> CreateKey(
-		string? tenantId,
+		string tenantId,
 		string userId,
 		string grantType,
 		string qualifier) =>
-		new() { [PkAttr] = new() { S = CreatePK(tenantId) }, [SkAttr] = new() { S = CreateSK(userId, grantType, qualifier) } };
+		new() { [PkAttr] = new() { S = tenantId }, [SkAttr] = new() { S = CreateSK(userId, grantType, qualifier) } };
 
 	/// <summary>
 	/// Creates update expression items for marking a grant as revoked (soft delete).

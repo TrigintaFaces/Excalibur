@@ -87,6 +87,7 @@ public sealed class NonDeterministicApiInWorkflowAnalyzer : DiagnosticAnalyzer
             // Elapsed-time counters advance with real time and never replay identically.
             [("System.Environment", "TickCount")] = new("ctx.UtcNowAsync", UtcNowMethod),
             [("System.Environment", "TickCount64")] = new("ctx.UtcNowAsync", UtcNowMethod),
+
             [("System.Diagnostics.Stopwatch", "GetTimestamp")] = new("ctx.UtcNowAsync", UtcNowMethod),
             [("System.Diagnostics.Stopwatch", "StartNew")] = new("ctx.UtcNowAsync", UtcNowMethod),
         };

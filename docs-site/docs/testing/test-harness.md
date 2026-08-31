@@ -173,7 +173,7 @@ harness.Dispatched.Clear();
 
 ```csharp
 // Defined in: Excalibur.Dispatch.Testing/MessageContextBuilder.cs
-var context = new MessageContextBuilder()
+IMessageContext context = new MessageContextBuilder()
     .WithCorrelationId("corr-001")
     .WithTenantId("acme-corp")
     .WithUserId("user-42")
@@ -181,7 +181,9 @@ var context = new MessageContextBuilder()
     .Build();
 
 context.CorrelationId.ShouldBe("corr-001");
-context.TenantId.ShouldBe("acme-corp");
+
+// Tenant, user, session and workflow are carried on the identity feature.
+context.GetOrCreateIdentityFeature().TenantId.ShouldBe("acme-corp");
 ```
 
 ### Available Methods
@@ -211,7 +213,7 @@ context.TenantId.ShouldBe("acme-corp");
 Pass arbitrary data through the context using `WithItem`:
 
 ```csharp
-var context = new MessageContextBuilder()
+IMessageContext context = new MessageContextBuilder()
     .WithItem("FeatureFlags", new Dictionary<string, bool> { ["NewPricing"] = true })
     .WithItem("RequestId", "req-abc-123")
     .Build();

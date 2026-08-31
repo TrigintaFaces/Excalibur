@@ -69,14 +69,14 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		var options = new Dispatch.Transport.Azure.AzureServiceBusOptions
 		{
 			ConnectionString = "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=test",
-			QueueName = "test-queue",
-			MaxConcurrentCalls = 16
 		};
+		options.Sender.DefaultEntityName = "test-queue";
+		options.Processor.MaxConcurrentCalls = 16;
 
 		// Assert
 		options.ConnectionString.ShouldNotBeNullOrEmpty();
-		options.QueueName.ShouldBe("test-queue");
-		options.MaxConcurrentCalls.ShouldBe(16);
+		options.Sender.DefaultEntityName.ShouldBe("test-queue");
+		options.Processor.MaxConcurrentCalls.ShouldBe(16);
 	}
 
 	[Fact]
@@ -87,13 +87,11 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		{
 			Region = "us-east-1",
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-			Consumer = { MaxNumberOfMessages = 10 }
 		};
 
 		// Assert
 		options.Region.ShouldBe("us-east-1");
 		options.QueueUrl.ToString().ShouldContain("test-queue");
-		options.Consumer.MaxNumberOfMessages.ShouldBe(10);
 	}
 
 	#endregion

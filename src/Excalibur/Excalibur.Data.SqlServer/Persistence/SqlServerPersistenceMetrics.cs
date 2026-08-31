@@ -99,120 +99,120 @@ public class SqlServerPersistenceMetrics : IDisposable
 		// Initialize counters
 		_connectionsCreated = _meter.CreateCounter<long>(
 			"sqlserver.connections.created",
-			"connections",
+			"{connections}",
 			"Total number of SQL Server connections created");
 
 		_queriesExecuted = _meter.CreateCounter<long>(
 			"sqlserver.queries.executed",
-			"queries",
+			"{queries}",
 			"Total number of queries executed");
 
 		_commandsExecuted = _meter.CreateCounter<long>(
 			"sqlserver.commands.executed",
-			"commands",
+			"{commands}",
 			"Total number of commands executed");
 
 		_transactionsStarted = _meter.CreateCounter<long>(
 			"sqlserver.transactions.started",
-			"transactions",
+			"{transactions}",
 			"Total number of transactions started");
 
 		_transactionsCommitted = _meter.CreateCounter<long>(
 			"sqlserver.transactions.committed",
-			"transactions",
+			"{transactions}",
 			"Total number of transactions committed");
 
 		_transactionsRolledBack = _meter.CreateCounter<long>(
 			"sqlserver.transactions.rolledback",
-			"transactions",
+			"{transactions}",
 			"Total number of transactions rolled back");
 
 		_retryCount = _meter.CreateCounter<long>(
 			"sqlserver.retries",
-			"retries",
+			"{retries}",
 			"Total number of retry attempts");
 
 		_errorCount = _meter.CreateCounter<long>(
 			"sqlserver.errors",
-			"errors",
+			"{errors}",
 			"Total number of errors");
 
 		_deadlockCount = _meter.CreateCounter<long>(
 			"sqlserver.deadlocks",
-			"deadlocks",
+			"{deadlocks}",
 			"Total number of deadlocks detected");
 
 		// Initialize histograms
 		_queryDuration = _meter.CreateHistogram<double>(
 			"sqlserver.query.duration",
-			"milliseconds",
+			"ms",
 			"Duration of query execution");
 
 		_commandDuration = _meter.CreateHistogram<double>(
 			"sqlserver.command.duration",
-			"milliseconds",
+			"ms",
 			"Duration of command execution");
 
 		_transactionDuration = _meter.CreateHistogram<double>(
 			"sqlserver.transaction.duration",
-			"milliseconds",
+			"ms",
 			"Duration of transaction execution");
 
 		_connectionWaitTime = _meter.CreateHistogram<double>(
 			"sqlserver.connection.wait_time",
-			"milliseconds",
+			"ms",
 			"Time spent waiting for a connection");
 
 		_batchSize = _meter.CreateHistogram<double>(
 			"sqlserver.batch.size",
-			"commands",
+			"{commands}",
 			"Number of commands in a batch");
 
 		// Initialize gauges
 		_activeConnectionsGauge = _meter.CreateObservableGauge(
 			"sqlserver.connections.active",
 			_activeConnections.Values.Sum,
-			"connections",
+			"{connections}",
 			"Number of active SQL Server connections");
 
 		_activeTransactionsGauge = _meter.CreateObservableGauge(
 			"sqlserver.transactions.active",
 			_activeTransactions.Values.Sum,
-			"transactions",
+			"{transactions}",
 			"Number of active transactions");
 
 		// CDC metrics
 		_cdcEventsProcessed = _meter.CreateCounter<long>(
 			"sqlserver.cdc.events.processed",
-			"events",
+			"{events}",
 			"Total number of CDC events processed");
 
 		_cdcProcessingDuration = _meter.CreateHistogram<double>(
 			"sqlserver.cdc.processing.duration",
-			"milliseconds",
+			"ms",
 			"Duration of CDC event processing");
 
 		_cdcLagSeconds = _meter.CreateObservableGauge(
 			"sqlserver.cdc.lag",
 			() => _currentCdcLag,
-			"seconds",
+			"s",
 			"CDC processing lag in seconds");
 
 		// Cache metrics
 		_cacheHits = _meter.CreateCounter<long>(
 			"sqlserver.cache.hits",
-			"hits",
+			"{hits}",
 			"Total number of cache hits");
 
 		_cacheMisses = _meter.CreateCounter<long>(
 			"sqlserver.cache.misses",
-			"misses",
+			"{misses}",
 			"Total number of cache misses");
 
 		_cacheHitRatio = _meter.CreateObservableGauge(
 			"sqlserver.cache.hit_ratio",
 			() => _totalCacheRequests > 0 ? (double)_totalCacheHits / _totalCacheRequests : 0,
-			"ratio",
+			"1",
 			"Cache hit ratio");
 	}
 

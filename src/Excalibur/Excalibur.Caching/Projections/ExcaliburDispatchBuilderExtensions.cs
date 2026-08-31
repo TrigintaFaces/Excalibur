@@ -91,7 +91,7 @@ public static class ExcaliburDispatchBuilderExtensions
 		return builder;
 	}
 
-	// AddProjectionCaching(IDispatchBuilder) was removed per S804 / bd-sdhocq A15:
+	// AddProjectionCaching(IDispatchBuilder) was removed / A15:
 	// projection caching is a sub-concern of event sourcing, not dispatch. The canonical
 	// path is now IEventSourcingBuilder.AddProjectionCaching(...) in
 	// Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions.

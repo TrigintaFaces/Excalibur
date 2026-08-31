@@ -14,9 +14,7 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// make this public.
 /// </summary>
 /// <remarks>
-/// Fifth of the 6 γ seams per COMPASS S798 msg 1746 ruling. Seam 2 of 4 in
-/// the S802 Path 4 multi-seam split per COMPASS msg 1940. <c>Store</c>
-/// suffix per S799 msg 1799 domain-role naming precedent.
+/// The <c>Store</c> suffix names the consumer's domain role.
 /// Size: 3 methods.
 /// </remarks>
 internal interface ISchemaHistoryStore

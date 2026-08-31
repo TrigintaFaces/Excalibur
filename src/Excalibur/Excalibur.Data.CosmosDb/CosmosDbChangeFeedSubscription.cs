@@ -29,7 +29,7 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 	private readonly string _checkpointKey;
 
 	// Guards _cts so a stop/start cycle can atomically retire the canceled source and install a fresh one
-	// (o9y64z): StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
+	// StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
 	// ReadChangesAsync would link a permanently-canceled token and yield-break immediately.
 	private readonly System.Threading.Lock _ctsLock = new();
 	private CancellationTokenSource _cts = new();
@@ -85,7 +85,7 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 
 		LogStarting(SubscriptionId);
 
-		// Recreate the CTS if a prior StopAsync canceled it, so stop→start actually resumes (o9y64z).
+		// Recreate the CTS if a prior StopAsync canceled it, so stop→start actually resumes.
 		lock (_ctsLock)
 		{
 			if (_cts.IsCancellationRequested)
@@ -202,7 +202,7 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 			// checkpoint is persisted only AFTER the consumer has processed (pulled) every document in the
 			// page (post-yield, below) — never before — so a crash mid-page resumes from BEFORE the page
 			// (at-least-once); persisting first would advance past unprocessed changes (at-most-once /
-			// silent skip). bd-ydln24 / SA seam 17195.
+			// silent skip). / SA seam 17195.
 			var pageContinuationToken = response.ContinuationToken;
 			CurrentContinuationToken = pageContinuationToken;
 

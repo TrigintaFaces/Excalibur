@@ -52,16 +52,26 @@
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
+  <!-- Saga provider packages whose standalone Add*SagaStore entry points ensure core saga registration
+       themselves, the way AddExcaliburSaga ensures AddDispatch. They call the internal AddExcaliburSaga
+       aggregator rather than each re-registering the non-keyed store alias, which would put one contract's
+       alias in seven places. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Saga.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.Saga.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.Saga.Oracle" />
+  </ItemGroup>
+
   <!-- Enable testing of internal types -->
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Saga.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Tests" />
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
-    <!-- S795 A2: IVT granted to test assemblies that retain direct access to the
-         AddExcaliburSaga aggregator per COMPASS msg 1498 §1 — migration to
+    <!-- IVT granted to test assemblies that retain direct access to the
+         AddExcaliburSaga aggregator — migration to
          IExcaliburBuilder.AddSagas() would force >2 file / >1h rewrite of
-         existing test fixtures that predate the S792 bridge. -->
+         existing test fixtures that predate the bridge. -->
     <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
     <InternalsVisibleTo Include="Excalibur.Data.DynamoDb.Tests" />

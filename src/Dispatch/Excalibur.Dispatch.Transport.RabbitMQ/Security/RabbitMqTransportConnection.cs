@@ -59,6 +59,9 @@ internal sealed class RabbitMqTransportConnection : TransportConnectionBase
 		_connectionFactory = connectionFactory;
 	}
 
+	/// <inheritdoc/>
+	protected override string TransportLabel => RabbitMqSecurityPosture.TransportLabel;
+
 	/// <summary>
 	/// Gets the underlying RabbitMQ connection.
 	/// </summary>
@@ -126,9 +129,10 @@ internal sealed class RabbitMqTransportConnection : TransportConnectionBase
 			return false;
 		}
 
-		// Check that the connection is open and SSL is enabled on the endpoint
-		// This verifies the actual wire protocol security, not just configuration
-		return _connection.IsOpen && _connection.Endpoint.Ssl.Enabled;
+		// The endpoint's TLS settings are the resolved ones the wire was built from. "Carries TLS" is
+		// defined once, in RabbitMqSecurityPosture, so this class and the registration that gates every
+		// client cannot drift into disagreeing about what an encrypted connection is.
+		return _connection.IsOpen && RabbitMqSecurityPosture.CarriesTls(_connection.Endpoint.Ssl);
 	}
 
 	/// <inheritdoc/>

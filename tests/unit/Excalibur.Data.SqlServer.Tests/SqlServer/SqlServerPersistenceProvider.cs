@@ -107,10 +107,11 @@ public class SqlServerPersistenceProvider : IPersistenceProvider
 	private readonly ILogger<SqlServerPersistenceProvider> _logger;
 	private bool _disposed;
 
-	public SqlServerPersistenceProvider(IOptions<SqlServerProviderOptions> options, ILogger<SqlServerPersistenceProvider> logger)
+	public SqlServerPersistenceProvider(IOptions<SqlServerProviderOptions> options, ILogger<SqlServerPersistenceProvider> logger, string connectionString)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		_options = options.Value;
+		ConnectionString = connectionString;
 		_logger = logger;
 		RetryPolicy = new TestDataRequestRetryPolicy();
 	}
@@ -125,20 +126,10 @@ public class SqlServerPersistenceProvider : IPersistenceProvider
 	public bool IsAvailable => true;
 
 	/// <inheritdoc/>
-	public string ConnectionString => _options.Connection.ConnectionString;
+	public string ConnectionString { get; }
 
 	/// <inheritdoc/>
 	public IDataRequestRetryPolicy RetryPolicy { get; }
-
-	/// <inheritdoc/>
-	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken = default)
-		where TConnection : IDisposable
-	{
-		_logger.LogDebug("Executing request in SQL Server");
-		return Task.FromResult(default(TResult)!);
-	}
 
 	/// <inheritdoc/>
 	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
@@ -181,13 +172,6 @@ public class SqlServerPersistenceProvider : IPersistenceProvider
 	{
 		_logger.LogDebug("Initializing SQL Server provider");
 		return Task.CompletedTask;
-	}
-
-	/// <inheritdoc/>
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken = default)
-	{
-		_logger.LogDebug("Getting connection pool stats from SQL Server");
-		return Task.FromResult<IDictionary<string, object>?>(new Dictionary<string, object>());
 	}
 
 	public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class

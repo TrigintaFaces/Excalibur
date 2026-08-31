@@ -25,7 +25,7 @@ namespace Excalibur.Workflows;
 /// reflection. Presence of the marker is the door; the restart-durable dedup lock is the lock.
 /// </para>
 /// </remarks>
-internal sealed class WorkflowSignalInboxDurabilityValidator : IHostedService
+internal sealed class WorkflowSignalInboxDurabilityValidator : IHostedService, IStartupPrerequisiteValidator
 {
     private readonly IServiceProvider _services;
 
@@ -35,6 +35,12 @@ internal sealed class WorkflowSignalInboxDurabilityValidator : IHostedService
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
+    {
+    	Validate();
+    	return Task.CompletedTask;
+    }
+
+    public void Validate()
     {
         // Probe REGISTRATION, never RESOLUTION — the marker is a registration-time presence signal emitted
         // by the durable provider's Add* call, inseparable from the durable wiring it attests.
@@ -51,8 +57,6 @@ internal sealed class WorkflowSignalInboxDurabilityValidator : IHostedService
                 "on restart. Call AddSqlServerWorkflowSignalInbox(...) (or another durable provider) to wire a " +
                 "durable signal inbox.");
         }
-
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

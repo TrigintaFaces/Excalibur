@@ -104,19 +104,6 @@ public sealed class TelemetryTransportSenderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task Record_DurationHistogram_On_Send()
-	{
-		A.CallTo(() => _innerSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
-			.Returns(SendResult.Success("msg-1"));
-
-		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
-		await sut.SendAsync(TransportMessage.FromString("hello"), CancellationToken.None);
-
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
-	}
-
-	[Fact]
 	public async Task Record_BatchSize_Histogram_On_BatchSend()
 	{
 		A.CallTo(() => _innerSender.SendBatchAsync(A<IReadOnlyList<TransportMessage>>._, A<CancellationToken>._))
@@ -152,62 +139,6 @@ public sealed class TelemetryTransportSenderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task Record_DurationHistogram_On_BatchSend_Exception()
-	{
-		A.CallTo(() => _innerSender.SendBatchAsync(A<IReadOnlyList<TransportMessage>>._, A<CancellationToken>._))
-			.Throws(new TimeoutException("batch timeout"));
-
-		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
-
-		await Should.ThrowAsync<TimeoutException>(
-			() => sut.SendBatchAsync(
-				[TransportMessage.FromString("a"), TransportMessage.FromString("b")],
-				CancellationToken.None));
-
-		_recordedCounters.ShouldContain(c =>
-			c.Name == TransportTelemetryConstants.MetricNames.MessagesSendFailed && c.Value == 2);
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
-	}
-
-	[Fact]
-	public async Task Record_BatchSize_FailedCount_And_Duration_On_BatchSend_Exception()
-	{
-		A.CallTo(() => _innerSender.SendBatchAsync(A<IReadOnlyList<TransportMessage>>._, A<CancellationToken>._))
-			.Throws(new TimeoutException("batch timeout"));
-
-		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
-		var messages = new[]
-		{
-			TransportMessage.FromString("a"),
-			TransportMessage.FromString("b"),
-			TransportMessage.FromString("c"),
-		};
-
-		await Should.ThrowAsync<TimeoutException>(() => sut.SendBatchAsync(messages, CancellationToken.None));
-
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.BatchSize && (int)h.Value == 3);
-		_recordedCounters.ShouldContain(c =>
-			c.Name == TransportTelemetryConstants.MetricNames.MessagesSendFailed && c.Value == 3);
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
-	}
-
-	[Fact]
-	public async Task Record_DurationHistogram_On_Failed_Send_Result()
-	{
-		A.CallTo(() => _innerSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
-			.Returns(SendResult.Failure(new SendError { Code = "validation", Message = "invalid payload" }));
-
-		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
-		_ = await sut.SendAsync(TransportMessage.FromString("hello"), CancellationToken.None);
-
-		_recordedHistograms.ShouldContain(h =>
-			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
-	}
-
-	[Fact]
 	public void Throw_When_Meter_Is_Null()
 	{
 		Should.Throw<ArgumentNullException>(
@@ -236,5 +167,16 @@ public sealed class TelemetryTransportSenderShould : IDisposable
 		_meterListener.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();
+	}
+	[Fact]
+	public async Task Not_Record_Any_Duration_Histogram()
+	{
+		// Operation duration is recorded once, by the transport adapter beneath this decorator.
+		// Recording it here too produced two instruments for one quantity, which a dashboard
+		// aggregating either one would double-count. This asserts the duplicate stays gone.
+		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
+		_ = await sut.SendAsync(TransportMessage.FromString("hello"), CancellationToken.None);
+
+		_recordedHistograms.ShouldNotContain(h => h.Name.Contains("duration", StringComparison.Ordinal));
 	}
 }

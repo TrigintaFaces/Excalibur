@@ -1,7 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.DynamoDb.Snapshots;
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -74,10 +75,15 @@ public sealed class DynamoDbSnapshotStoreExtensionsShould
 			options.TableName = "snapshots";
 		});
 
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISnapshotStore) &&
-			sd.ImplementationType == typeof(DynamoDbSnapshotStore));
+		// Assert - the contract is registered, the concrete store is registered, AND the tenant-scoping
+		// capability is attested. The alias is now a factory over the concrete type the tenant-aware seam
+		// registers, so ImplementationType is null on it; asserting the descriptor SHAPE pinned the old bare
+		// AddSingleton and says nothing about tenancy. The marker assertion is the strengthening: without it
+		// AddMultiTenancy(RowDiscriminator) refuses every host that selects this provider.
+		services.ShouldContain(static sd => sd.ServiceType == typeof(ISnapshotStore));
+		services.ShouldContain(static sd => sd.ServiceType == typeof(DynamoDbSnapshotStore));
+		services.ShouldContain(
+			static sd => sd.ServiceType == typeof(ITenantScopingCapability<ISnapshotStore>));
 	}
 
 	#endregion
@@ -158,10 +164,15 @@ public sealed class DynamoDbSnapshotStoreExtensionsShould
 			options.TableName = "snapshots";
 		});
 
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISnapshotStore) &&
-			sd.ImplementationType == typeof(DynamoDbSnapshotStore));
+		// Assert - the contract is registered, the concrete store is registered, AND the tenant-scoping
+		// capability is attested. The alias is now a factory over the concrete type the tenant-aware seam
+		// registers, so ImplementationType is null on it; asserting the descriptor SHAPE pinned the old bare
+		// AddSingleton and says nothing about tenancy. The marker assertion is the strengthening: without it
+		// AddMultiTenancy(RowDiscriminator) refuses every host that selects this provider.
+		services.ShouldContain(static sd => sd.ServiceType == typeof(ISnapshotStore));
+		services.ShouldContain(static sd => sd.ServiceType == typeof(DynamoDbSnapshotStore));
+		services.ShouldContain(
+			static sd => sd.ServiceType == typeof(ITenantScopingCapability<ISnapshotStore>));
 	}
 
 	#endregion

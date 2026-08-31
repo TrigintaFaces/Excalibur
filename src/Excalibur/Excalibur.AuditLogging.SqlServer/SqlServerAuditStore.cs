@@ -38,7 +38,15 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	// a consumer who renames it fix one site and silently leave the other pointing at nothing.
 	private readonly string _annotationsTableName;
 
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly ILogger<SqlServerAuditStore> _logger;
 	private readonly SemaphoreSlim _hashChainLock = new(1, 1);
 	private volatile bool _disposed;
@@ -50,12 +58,13 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 		IOptions<SqlServerAuditOptions> options,
 		IOptions<SqlServerAuditAnnotationStoreOptions> annotationOptions,
 		IAuditIntegrityStrategy integrity,
-		ITenantContext? tenantContext,
+		ITenantContext tenantContext,
 		ILogger<SqlServerAuditStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		ArgumentNullException.ThrowIfNull(annotationOptions);
 		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -76,6 +85,23 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	}
 
 	/// <summary>
+	/// The tenant term as this table means it, with every spelling of "no tenant" — a NULL column, and the
+	/// reserved sentinel — reconciled onto one value.
+	/// </summary>
+	/// <remarks>
+	/// Composed into every statement that filters or groups on tenant, so the predicate a record is written
+	/// under and the partitioning verification reads it back under cannot drift onto different notions of
+	/// which rows share a chain. Binds <c>@UntenantedSentinel</c>.
+	/// </remarks>
+	private const string CanonicalTenantSql = "COALESCE(TenantId, @UntenantedSentinel)";
+
+	/// <summary>
+	/// The application term as this table means it, with a null and an empty application name folded onto
+	/// one value. Binds <c>@NoApplicationSentinel</c>.
+	/// </summary>
+	private const string CanonicalApplicationSql = "COALESCE(NULLIF([ApplicationName], ''), @NoApplicationSentinel)";
+
+	/// <summary>
 	/// Adds the tenant scope to a query being built. This is the <strong>only</strong> place the tenant
 	/// predicate is constructed: the NULL-safe form and the ambient resolution are stated once, so a second
 	/// read path cannot acquire a subtly different one.
@@ -90,7 +116,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	/// </remarks>
 	private void AddTenantScope(List<string> whereClauses, DynamicParameters parameters)
 	{
-		whereClauses.Add("COALESCE(TenantId, @UntenantedSentinel) = @TenantId");
+		whereClauses.Add($"{CanonicalTenantSql} = @TenantId");
 		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 		parameters.Add("@TenantId", ResolveTenantTerm());
 	}
@@ -107,9 +133,9 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	/// </exception>
 	private string ResolveTenantTerm()
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 
-		return scope.IsScoped ? scope.TenantId! : KeyedTenantPartition.Untenanted.TenantId;
+		return scope.TenantId;
 	}
 
 	/// <inheritdoc />
@@ -131,10 +157,9 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 			await _hashChainLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
-				// Get the previous event's hash for chain linking (scoped by tenant + application)
-				var lastEvent = await GetLastEventInternalAsync(auditEvent.TenantId, auditEvent.ApplicationName, cancellationToken)
+				// The head of the chain partition this record joins, scoped by tenant and application.
+				previousHash = await GetChainHeadTagAsync(auditEvent.ApplicationName, cancellationToken)
 					.ConfigureAwait(false);
-				previousHash = lastEvent?.EventHash;
 
 				// Compute hash for this event
 				eventHash = await ComputeEventTagAsync(auditEvent, previousHash, cancellationToken).ConfigureAwait(false);
@@ -272,12 +297,14 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// Selected by sequence bounds rather than on the timestamp directly. Records are chained in write
+		// order, so a record written between two in-range records but stamped outside them is still a link in
+		// the chain; selecting on the timestamp alone would leave a hole indistinguishable from a deletion.
 		var sql = $@"
-			SELECT EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-				   ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
-				   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
+			SELECT {IntegrityColumnsSql}
 			FROM {_options.FullyQualifiedTableName}
-			WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate
+			WHERE SequenceNumber >= ({RangeLowerBoundSql})
+			  AND SequenceNumber <= ({RangeUpperBoundSql})
 			ORDER BY SequenceNumber ASC";
 
 		var rows = await connection.QueryAsync<AuditEventRow>(
@@ -285,63 +312,251 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
-		var events = rows.ToList();
+		var events = rows.Select(MapToAuditEvent).ToList();
 		if (events.Count == 0)
 		{
-			return AuditIntegrityResult.Valid(0, startDate, endDate);
+			return AuditIntegrityResult.NoEventsInScope(startDate, endDate);
 		}
 
-		var violationCount = 0;
-		string? firstViolationEventId = null;
-		string? violationDescription = null;
+		var partitions = await BuildVerificationPartitionsAsync(connection, events, startDate, endDate, cancellationToken)
+			.ConfigureAwait(false);
 
-		for (var i = 0; i < events.Count; i++)
+		var result = await AuditChainVerifier
+			.VerifyAsync(_integrity, partitions, startDate, endDate, _options.EnableHashChain, cancellationToken)
+			.ConfigureAwait(false);
+
+		if (result.Outcome == AuditIntegrityOutcome.ViolationsDetected)
 		{
-			cancellationToken.ThrowIfCancellationRequested();
+			LogIntegrityViolationDetected(result.FirstViolationEventId!, result.ViolationDescription!);
+		}
+		else
+		{
+			LogIntegrityVerificationPassed(events.Count, startDate, endDate);
+		}
 
-			var row = events[i];
-			var auditEvent = MapToAuditEvent(row);
+		return result;
+	}
 
-			// Re-canonicalize the live reloaded fields and verify the keyed tag (Option ii); a missing tag is a violation.
-			var verified = row.EventHash is not null
-				&& await _integrity.VerifyAsync(
-					AuditEventCanonicalizer.Canonicalize(auditEvent), row.PreviousEventHash, row.EventHash, cancellationToken)
-					.ConfigureAwait(false);
+	/// <summary>
+	/// The lowest sequence number in the verified window. Shared between the record selection and the anchor
+	/// lookup so the two cannot drift onto different left edges.
+	/// </summary>
+	private string RangeLowerBoundSql =>
+		$@"SELECT MIN(SequenceNumber) FROM {_options.FullyQualifiedTableName}
+		   WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate";
 
-			if (!verified)
+	/// <summary>
+	/// The highest sequence number in the verified window. Shared between the record selection and the
+	/// successor lookup so the two cannot drift onto different right edges.
+	/// </summary>
+	private string RangeUpperBoundSql =>
+		$@"SELECT MAX(SequenceNumber) FROM {_options.FullyQualifiedTableName}
+		   WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate";
+
+	/// <summary>
+	/// The integrity-covered columns, in one place. The in-range records and the successor that pins the
+	/// range's right edge must be canonicalized from identical projections; stating the list twice is how the
+	/// two would come to differ, and a successor canonicalized from a narrower row fails to verify against an
+	/// intact chain.
+	/// </summary>
+	private const string IntegrityColumnsSql =
+		@"EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
+		  ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
+		  SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash";
+
+	/// <summary>
+	/// Loads, for every chain partition, the tag of the record immediately preceding the verified window.
+	/// </summary>
+	/// <remarks>
+	/// Without these a range slice is indistinguishable from a chain that begins at genesis, so records
+	/// deleted from the front of the range would go unreported. A partition with no earlier record is absent
+	/// from the result, which is how the caller learns its first in-range record genuinely is the genesis one.
+	/// </remarks>
+	private async Task<Dictionary<AuditChainKey, string?>> LoadChainAnchorsAsync(
+		SqlConnection connection,
+		DateTimeOffset startDate,
+		DateTimeOffset endDate,
+		CancellationToken cancellationToken)
+	{
+		var sql = $@"
+			SELECT TenantId, [ApplicationName], EventHash
+			FROM (
+				SELECT TenantId, [ApplicationName], EventHash,
+					   ROW_NUMBER() OVER (
+						   PARTITION BY {CanonicalTenantSql}, {CanonicalApplicationSql}
+						   ORDER BY SequenceNumber DESC) AS RowNum
+				FROM {_options.FullyQualifiedTableName}
+				WHERE SequenceNumber < ({RangeLowerBoundSql})
+			) AS Anchors
+			WHERE Anchors.RowNum = 1";
+
+		var anchorRows = await connection.QueryAsync<ChainAnchorRow>(
+				new CommandDefinition(
+					sql,
+					new
+					{
+						StartDate = startDate,
+						EndDate = endDate,
+						UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
+						NoApplicationSentinel = string.Empty
+					},
+					commandTimeout: _options.CommandTimeoutSeconds,
+					cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		var anchors = new Dictionary<AuditChainKey, string?>();
+		foreach (var anchor in anchorRows)
+		{
+			anchors[AuditChainKey.For(anchor.TenantId, anchor.ApplicationName)] = anchor.EventHash;
+		}
+
+		return anchors;
+	}
+
+	/// <summary>
+	/// Loads, for every chain partition, the record immediately following the verified window.
+	/// </summary>
+	/// <remarks>
+	/// This is the right edge, and it is the mirror of the anchor. Delete records from the end of a range and
+	/// the survivors still chain perfectly to one another and to the anchor: the loop holds, and nothing in
+	/// the examined records mentions the removed suffix, so there is nothing left inside the range to detect.
+	/// The record that follows the range is the only one still carrying the tag of what was there, and its
+	/// keyed MAC cannot be recomputed without the signing key. A partition whose range runs to the end of its
+	/// chain has no successor and is absent from the result — that case is the trail's irreducible blind spot
+	/// and needs an attestation kept where the audit writer cannot reach it.
+	/// </remarks>
+	private async Task<Dictionary<AuditChainKey, AuditEvent>> LoadChainSuccessorsAsync(
+		SqlConnection connection,
+		DateTimeOffset startDate,
+		DateTimeOffset endDate,
+		CancellationToken cancellationToken)
+	{
+		var sql = $@"
+			SELECT {IntegrityColumnsSql}
+			FROM (
+				SELECT {IntegrityColumnsSql},
+					   ROW_NUMBER() OVER (
+						   PARTITION BY {CanonicalTenantSql}, {CanonicalApplicationSql}
+						   ORDER BY SequenceNumber ASC) AS RowNum
+				FROM {_options.FullyQualifiedTableName}
+				WHERE SequenceNumber > ({RangeUpperBoundSql})
+			) AS Successors
+			WHERE Successors.RowNum = 1";
+
+		var successorRows = await connection.QueryAsync<AuditEventRow>(
+				new CommandDefinition(
+					sql,
+					new
+					{
+						StartDate = startDate,
+						EndDate = endDate,
+						UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
+						NoApplicationSentinel = string.Empty
+					},
+					commandTimeout: _options.CommandTimeoutSeconds,
+					cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		var successors = new Dictionary<AuditChainKey, AuditEvent>();
+		foreach (var row in successorRows)
+		{
+			var successor = MapToAuditEvent(row);
+			successors[AuditChainKey.For(successor.TenantId, successor.ApplicationName)] = successor;
+		}
+
+		return successors;
+	}
+
+	/// <summary>
+	/// Builds the partitions <see cref="AuditChainVerifier"/> walks, honoring what the write path actually
+	/// did.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// With hash chaining enabled, <see cref="StoreAsync"/> carries each record's tag forward as the next
+	/// record's prior tag, so linkage (D2) is meaningful and is verified across the whole partition.
+	/// </para>
+	/// <para>
+	/// With hash chaining <b>disabled</b>, <see cref="StoreAsync"/> signs every record independently with a
+	/// null prior tag — there is no chain, by the store's own configuration. Asserting linkage anyway (the
+	/// enabled path's grouped, tag-carried-forward partitions) would carry each record's tag forward as the
+	/// next one's <em>expected</em> prior tag regardless, and report an untouched trail as tampered, because
+	/// nothing was ever chained to break. Each record is instead verified as its own single-record
+	/// partition, asserting only what the write path established: that record's own content integrity (D1)
+	/// against the null prior tag it was actually signed with. Deletion, insertion, and reordering are
+	/// undetectable while chaining is disabled — that is the configuration's tradeoff, not a defect in this
+	/// verification, and it is why <see cref="SqlServerAuditOptions.EnableHashChain"/> exists as an explicit
+	/// opt-out rather than being silently assumed.
+	/// </para>
+	/// </remarks>
+	private async Task<List<AuditChainPartition>> BuildVerificationPartitionsAsync(
+		SqlConnection connection,
+		List<AuditEvent> events,
+		DateTimeOffset startDate,
+		DateTimeOffset endDate,
+		CancellationToken cancellationToken)
+	{
+		if (!_options.EnableHashChain)
+		{
+			return events
+				.ConvertAll(e => AuditChainPartition.FromList(anchorPriorTag: null, events: [e], successor: null));
+		}
+
+		var anchors = await LoadChainAnchorsAsync(connection, startDate, endDate, cancellationToken).ConfigureAwait(false);
+		var successors = await LoadChainSuccessorsAsync(connection, startDate, endDate, cancellationToken).ConfigureAwait(false);
+		return BuildChainPartitions(events, anchors, successors);
+	}
+
+	/// <summary>
+	/// Groups the window's records into the chain partitions they were written under, preserving write order
+	/// within each.
+	/// </summary>
+	/// <remarks>
+	/// The grouping key must match the one the write path chains over — tenant and application. Verifying
+	/// without it compares each record against whichever record happens to sit next to it in the global
+	/// sequence, which on an estate holding more than one tenant or application is a record from a different
+	/// chain, and reports an intact trail as tampered.
+	/// </remarks>
+	private static List<AuditChainPartition> BuildChainPartitions(
+		List<AuditEvent> orderedEvents,
+		Dictionary<AuditChainKey, string?> anchors,
+		Dictionary<AuditChainKey, AuditEvent> successors)
+	{
+		var grouped = new Dictionary<AuditChainKey, List<AuditEvent>>();
+		var order = new List<AuditChainKey>();
+
+		foreach (var auditEvent in orderedEvents)
+		{
+			var key = AuditChainKey.For(auditEvent.TenantId, auditEvent.ApplicationName);
+			if (!grouped.TryGetValue(key, out var bucket))
 			{
-				violationCount++;
-				firstViolationEventId ??= row.EventId;
-				violationDescription ??= $"Integrity tag mismatch for event {row.EventId}";
-
-				LogIntegrityHashMismatch(row.EventId);
+				bucket = [];
+				grouped[key] = bucket;
+				order.Add(key);
 			}
 
-			// Verify chain link (except for first event)
-			if (i > 0 && row.PreviousEventHash != events[i - 1].EventHash)
-			{
-				violationCount++;
-				firstViolationEventId ??= row.EventId;
-				violationDescription ??= $"Chain link broken at event {row.EventId}: previous hash mismatch";
-
-				LogIntegrityChainBroken(row.EventId);
-			}
+			bucket.Add(auditEvent);
 		}
 
-		if (violationCount > 0)
+		var partitions = new List<AuditChainPartition>(order.Count);
+		foreach (var key in order)
 		{
-			return AuditIntegrityResult.Invalid(
-				events.Count,
-				startDate,
-				endDate,
-				firstViolationEventId!,
-				violationDescription!,
-				violationCount);
+			_ = anchors.TryGetValue(key, out var anchorPriorTag);
+			_ = successors.TryGetValue(key, out var successor);
+			partitions.Add(AuditChainPartition.FromList(anchorPriorTag, grouped[key], successor));
 		}
 
-		LogIntegrityVerificationPassed(events.Count, startDate, endDate);
+		return partitions;
+	}
 
-		return AuditIntegrityResult.Valid(events.Count, startDate, endDate);
+	/// <summary>A chain partition's key together with the tag of its last record before the verified window.</summary>
+	private sealed class ChainAnchorRow
+	{
+		public string? TenantId { get; set; }
+
+		public string? ApplicationName { get; set; }
+
+		public string? EventHash { get; set; }
 	}
 
 	/// <inheritdoc />
@@ -613,6 +828,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 		return (whereClauses, parameters);
 	}
 
+
 	private static AuditEvent MapToAuditEvent(AuditEventRow row)
 	{
 		return new AuditEvent
@@ -629,7 +845,7 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 			ResourceClassification = row.ResourceClassification.HasValue
 				? (DataClassification)row.ResourceClassification.Value
 				: null,
-			TenantId = row.TenantId,
+			TenantId = AuditChainKey.SignedTenantId(row.TenantId),
 			ApplicationName = row.ApplicationName,
 			CorrelationId = row.CorrelationId,
 			SessionId = row.SessionId,
@@ -712,7 +928,75 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 			 @ResourceId, @ResourceType, @ResourceClassification, @TenantId, @ApplicationName, @CorrelationId,
 			 @SessionId, @IpAddress, @UserAgent, @Reason, @Metadata, @PreviousEventHash, @EventHash)";
 
-		return await connection.ExecuteScalarAsync<long>(
+		try
+		{
+			return await connection.ExecuteScalarAsync<long>(
+					new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
+						cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
+		{
+			// This method inserts; it does not upsert. A caller that re-stores an existing event id — the
+			// shape a retried publisher produces — is making a mistake the shipped conformance contract
+			// already names (StoreAsync_DuplicateId_ShouldThrowInvalidOperationException). The raw provider
+			// type is the wrong way to tell them: it forces every consumer to reference the SQL Server client
+			// and know its error numbers just to catch a condition the abstraction already defines, and it is
+			// a driver type the framework otherwise keeps behind IDataRequest. The filter is narrow on
+			// purpose — only a duplicate-key violation is translated, so a connection failure, a timeout, or a
+			// constraint we did not anticipate still surfaces unchanged rather than being reported as a
+			// duplicate.
+			throw new InvalidOperationException(
+				$"An audit event with id '{auditEvent.EventId}' already exists.", ex);
+		}
+	}
+
+	/// <summary>
+	/// Indicates whether a SQL Server error is a primary-key or unique-index violation (2627 / 2601).
+	/// </summary>
+	/// <remarks>
+	/// Used as an exception filter so only this one condition is translated. A broad catch would report
+	/// an unrelated failure — a dropped connection, a timeout, a check constraint — as a duplicate, which
+	/// is worse than not translating at all: the caller would be told the row exists when it does not.
+	/// </remarks>
+	private static bool IsDuplicateKeyViolation(SqlException ex)
+		=> ex.Number is 2627 or 2601;
+
+	/// <summary>
+	/// Reads the tag at the head of the chain partition a record is about to be appended to.
+	/// </summary>
+	/// <param name="applicationName">The application the record belongs to, or <see langword="null"/>/empty for none.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>The head record's tag, or <see langword="null"/> when the partition is empty.</returns>
+	/// <remarks>
+	/// Distinct from the last-event query, which deliberately spans applications. The application term is
+	/// applied unconditionally here, with every spelling of "no application" folded onto one value, so that
+	/// each record joins exactly one chain. Omitting the term for a record carrying no application name
+	/// would chain it to whichever record was written last across all applications, interleaving two chains
+	/// that verification must later separate — and no grouping on read can recover a partition the write
+	/// never kept apart.
+	/// </remarks>
+	private async Task<string?> GetChainHeadTagAsync(string? applicationName, CancellationToken cancellationToken)
+	{
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var whereClauses = new List<string>();
+		var parameters = new DynamicParameters();
+
+		AddTenantScope(whereClauses, parameters);
+
+		whereClauses.Add($"{CanonicalApplicationSql} = COALESCE(NULLIF(@ApplicationName, ''), @NoApplicationSentinel)");
+		parameters.Add("@ApplicationName", applicationName);
+		parameters.Add("@NoApplicationSentinel", string.Empty);
+
+		var sql = $@"
+			SELECT TOP 1 EventHash
+			FROM {_options.FullyQualifiedTableName}
+			WHERE {string.Join(" AND ", whereClauses)}
+			ORDER BY SequenceNumber DESC";
+
+		return await connection.ExecuteScalarAsync<string?>(
 				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
@@ -763,11 +1047,8 @@ internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditSt
 	[LoggerMessage(LogLevel.Debug, "Stored audit event {EventId} with sequence {SequenceNumber}")]
 	private partial void LogStoredAuditEvent(string eventId, long sequenceNumber);
 
-	[LoggerMessage(LogLevel.Warning, "Integrity violation detected for event {EventId}: hash mismatch")]
-	private partial void LogIntegrityHashMismatch(string eventId);
-
-	[LoggerMessage(LogLevel.Warning, "Integrity violation detected for event {EventId}: chain link broken")]
-	private partial void LogIntegrityChainBroken(string eventId);
+	[LoggerMessage(LogLevel.Warning, "Audit integrity violation detected at event {EventId}: {Description}")]
+	private partial void LogIntegrityViolationDetected(string eventId, string description);
 
 	[LoggerMessage(LogLevel.Information,
 		"Integrity verification passed for {EventCount} events from {StartDate} to {EndDate}")]

@@ -60,27 +60,27 @@ internal sealed class TelemetryTransportSubscriber : DelegatingTransportSubscrib
 
 		_receivedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesReceived,
-			"messages",
+			"{messages}",
 			"Total messages received by subscriber handler");
 
 		_acknowledgedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesAcknowledged,
-			"messages",
+			"{messages}",
 			"Total messages acknowledged by subscriber handler");
 
 		_rejectedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesRejected,
-			"messages",
+			"{messages}",
 			"Total messages rejected by subscriber handler");
 
 		_requeuedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesRequeued,
-			"messages",
+			"{messages}",
 			"Total messages requeued by subscriber handler");
 
 		_handlerErrorCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.HandlerErrors,
-			"errors",
+			"{errors}",
 			"Total handler errors during subscriber message processing");
 
 		_handlerDurationHistogram = meter.CreateHistogram<double>(

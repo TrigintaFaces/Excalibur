@@ -20,16 +20,15 @@ Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.UseConsistentReads.get -> bool
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.UseConsistentReads.set -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.Validate() -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.CleanupAllTenantsProcessedEntriesAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxEntry!>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.Dispose() -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.DynamoDbInboxStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.DynamoDb.DynamoDbInboxStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.DynamoDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.DynamoDb.DynamoDbInboxStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.DynamoDbInboxStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.DynamoDb.DynamoDbInboxStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.DynamoDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.DynamoDb.DynamoDbInboxStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetAllTenantsEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetAllTenantsStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxEntry?>
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -49,3 +48,4 @@ Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder.TableName(string! tableName) -> E
 Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder.TablePrefix(string! prefix) -> Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder!
 Microsoft.Extensions.DependencyInjection.InboxBuilderDynamoDbExtensions
 static Microsoft.Extensions.DependencyInjection.InboxBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.DynamoDb.IDynamoDBInboxBuilder!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.GetAllTenantsFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>

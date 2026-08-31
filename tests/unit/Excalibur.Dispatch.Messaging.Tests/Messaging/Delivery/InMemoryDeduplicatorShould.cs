@@ -215,10 +215,10 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	{
 		using var sut = CreateCappedDeduplicator(maxEntries: 1);
 		(await sut.TryClaimAsync("claim-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue();
+			.ShouldNotBeNull();
 
 		(await sut.TryClaimAsync("claim-2", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeFalse();
+			.ShouldBeNull();
 	}
 
 	[Fact]

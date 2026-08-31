@@ -58,7 +58,8 @@ public sealed class ElasticsearchInboxStoreConformanceShould : InboxStoreConform
 		var store = new ElasticsearchInboxStore(
 			_fixture.Client,
 			options,
-			NullLogger<ElasticsearchInboxStore>.Instance);
+			NullLogger<ElasticsearchInboxStore>.Instance,
+			SingleTenantTestContext.Instance);
 
 		return Task.FromResult<IInboxStore>(store);
 	}

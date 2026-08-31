@@ -31,17 +31,25 @@ public sealed class InMemoryPersistenceProviderConformanceTests : PersistencePro
 	protected override string ExpectedProviderType => "InMemory";
 
 	/// <inheritdoc />
-	protected override string ExpectedProviderName => "ConformanceTest";
 
 	/// <inheritdoc />
-	protected override IPersistenceProvider CreateProvider()
+	protected override IReadOnlyCollection<Type> RequiredCapabilities =>
+		// IPersistenceProviderTransaction is deliberately absent. This store overwrites entries in
+		// place, so it retains no prior value and cannot express a rollback; it declines the capability
+		// at discovery. The transaction arms below stay wired and take the kit's declined path.
+		[typeof(IPersistenceProviderHealth), typeof(IPersistenceProviderConnection)];
+
+	/// <inheritdoc />
+	protected override IPersistenceProvider CreateProvider(string providerName)
 	{
-		var options = Options.Create(new InMemoryProviderOptions { Name = ExpectedProviderName });
+		var options = Options.Create(new InMemoryProviderOptions { Name = providerName });
 		return new InMemoryPersistenceProvider(options, _logger);
 	}
 
 	[Fact] public void Provider_ShouldHaveNonNullName_Test() => Provider_ShouldHaveNonNullName();
 	[Fact] public void Provider_ShouldHaveExpectedName_Test() => Provider_ShouldHaveExpectedName();
+	[Fact] public void Provider_NameShouldRoundTripEveryConfiguredName_Test() => Provider_NameShouldRoundTripEveryConfiguredName();
+	[Fact] public Task Provider_NameShouldBeStableAcrossLifecycle_Test() => Provider_NameShouldBeStableAcrossLifecycle();
 	[Fact] public void Provider_ShouldHaveNonNullProviderType_Test() => Provider_ShouldHaveNonNullProviderType();
 	[Fact] public void Provider_ShouldHaveExpectedProviderType_Test() => Provider_ShouldHaveExpectedProviderType();
 	[Fact] public void Provider_ShouldHaveNonNullConnectionString_Test() => Provider_ShouldHaveNonNullConnectionString();
@@ -50,11 +58,16 @@ public sealed class InMemoryPersistenceProviderConformanceTests : PersistencePro
 	[Fact] public void CreateTransactionScope_WithIsolationLevel_ShouldReturnScope_Test() => CreateTransactionScope_WithIsolationLevel_ShouldReturnScope();
 	[Fact] public void CreateTransactionScope_WithTimeout_ShouldReturnScope_Test() => CreateTransactionScope_WithTimeout_ShouldReturnScope();
 	[Fact] public Task GetMetricsAsync_ShouldReturnNonNullDictionary_Test() => GetMetricsAsync_ShouldReturnNonNullDictionary();
+	[Fact] public Task TestConnectionAsync_ShouldReachTheDatabase_WithoutAnExplicitInitialize_Test() => TestConnectionAsync_ShouldReachTheDatabase_WithoutAnExplicitInitialize();
 	[Fact] public Task GetMetricsAsync_ShouldContainProviderKey_Test() => GetMetricsAsync_ShouldContainProviderKey();
 	[Fact] public void Dispose_ShouldNotThrow_Test() => Dispose_ShouldNotThrow();
 	[Fact] public void Dispose_CalledMultipleTimes_ShouldNotThrow_Test() => Dispose_CalledMultipleTimes_ShouldNotThrow();
 	[Fact] public Task DisposeAsync_ShouldNotThrow_Test() => DisposeAsync_ShouldNotThrow();
 	[Fact] public void IsAvailable_AfterDispose_ShouldBeFalse_Test() => IsAvailable_AfterDispose_ShouldBeFalse();
+	[Fact] public void Provider_ShouldOfferRequiredCapabilities_Test() => Provider_ShouldOfferRequiredCapabilities();
+	[Fact] public void ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers_Test() => ConformanceSuite_ShouldDeclareEveryCapabilityTheProviderOffers();
 	[Fact] public void Provider_ShouldImplementIDisposable_Test() => Provider_ShouldImplementIDisposable();
 	[Fact] public void Provider_ShouldImplementIAsyncDisposable_Test() => Provider_ShouldImplementIAsyncDisposable();
+	[Fact] public Task ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted_Test() => ExecuteBatchAsync_WhenARequestFails_ShouldLeaveNothingCommitted();
+	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

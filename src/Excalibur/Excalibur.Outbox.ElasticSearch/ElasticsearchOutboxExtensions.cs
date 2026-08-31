@@ -33,7 +33,13 @@ public static class ElasticsearchOutboxExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchOutboxOptions>, ElasticsearchOutboxOptionsValidator>());
-		services.TryAddSingleton<ElasticsearchOutboxStore>();
+		// AddTenantAwareStore emits ITenantPartitionedCapability<IOutboxStore> as part of THIS registration,
+		// so the attestation cannot exist without the store it describes. It is the partitioned seam rather
+		// than the scoped one because this store reads no ambient tenant on any path: it records the tenant
+		// on each document and returns it on drain, so the owning tenant is re-established from the document.
+		// That seam takes no ITenantContext, so there is no dependency here to be handed over and silently
+		// discarded. Without it, row-discriminator multi-tenancy refuses every host that selects this provider.
+		_ = services.AddTenantAwareStore<IOutboxStore, ElasticsearchOutboxStore>();
 		services.AddKeyedSingleton<IOutboxStore>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchOutboxStore>());
 		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("elasticsearch"));

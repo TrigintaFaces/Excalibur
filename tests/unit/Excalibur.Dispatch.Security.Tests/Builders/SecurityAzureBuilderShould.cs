@@ -33,21 +33,7 @@ public sealed class SecurityAzureBuilderShould : UnitTestBase
         builder.KeyPrefixValue.ShouldBe("my-prefix");
     }
 
-    [Fact]
-    public void EnableServiceBusValidation_SetTrueOnBuilder()
-    {
-        var builder = CreateBuilder();
-        builder.EnableServiceBusValidation();
-        builder.ServiceBusValidationEnabled.ShouldBeTrue();
-    }
 
-    [Fact]
-    public void EnableServiceBusValidation_SetFalseOnBuilder()
-    {
-        var builder = CreateBuilder();
-        builder.EnableServiceBusValidation(false);
-        builder.ServiceBusValidationEnabled.ShouldBeFalse();
-    }
 
     [Fact]
     public void BindConfiguration_StoreConfigPath()
@@ -65,8 +51,7 @@ public sealed class SecurityAzureBuilderShould : UnitTestBase
         var builder = CreateBuilder();
         var result = ((ISecurityAzureBuilder)builder)
             .VaultUri("https://my-vault.vault.azure.net/")
-            .KeyPrefix("test")
-            .EnableServiceBusValidation();
+            .KeyPrefix("test");
         result.ShouldBeSameAs(builder);
     }
 
@@ -155,12 +140,6 @@ public sealed class SecurityAzureBuilderShould : UnitTestBase
         builder.KeyPrefixValue.ShouldBeNull();
     }
 
-    [Fact]
-    public void DefaultState_ServiceBusValidationEnabled()
-    {
-        var builder = CreateBuilder();
-        builder.ServiceBusValidationEnabled.ShouldBeTrue();
-    }
 
     [Fact]
     public void DefaultState_BindConfigurationPathIsNull()

@@ -19,10 +19,8 @@ public sealed class RbacAuditStoreMetaAuditShould
         IAuditLogger? metaLogger = null) =>
         new(
             _innerStore,
-            _roleProvider,
-            metaLogger ?? _metaAuditLogger,
-            NullLogger<RbacAuditStore>.Instance,
-            actorProvider);
+            TestScopeFactory.For(_roleProvider, actorProvider, metaLogger ?? _metaAuditLogger),
+            NullLogger<RbacAuditStore>.Instance);
 
     [Fact]
     public async Task Log_meta_audit_on_get_by_id_with_actor_provider()
@@ -159,7 +157,7 @@ public sealed class RbacAuditStoreMetaAuditShould
         A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
             .Returns(AuditLogRole.Administrator);
         A.CallTo(() => _innerStore.VerifyChainIntegrityAsync(start, end, A<CancellationToken>._))
-            .Returns(AuditIntegrityResult.Valid(0, start, end));
+            .Returns(AuditIntegrityResult.NoEventsInScope(start, end));
 
         await sut.VerifyChainIntegrityAsync(start, end, CancellationToken.None);
 

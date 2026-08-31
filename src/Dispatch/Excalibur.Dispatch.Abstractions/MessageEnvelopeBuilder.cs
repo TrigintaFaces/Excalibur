@@ -111,7 +111,7 @@ public sealed class MessageEnvelopeBuilder<T>
 
 		if (_timestamp is { } timestamp)
 		{
-			envelope.Timestamp = timestamp;
+			envelope.ReceivedTimestampUtc = timestamp;
 		}
 
 		return envelope;

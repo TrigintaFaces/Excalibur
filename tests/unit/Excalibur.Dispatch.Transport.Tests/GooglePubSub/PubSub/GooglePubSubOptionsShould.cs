@@ -10,23 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.PubSub;
 public sealed class GooglePubSubOptionsShould
 {
 	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new GooglePubSubOptions();
-
-		// Assert
-		options.Connection.ProjectId.ShouldBe(string.Empty);
-		options.Connection.TopicId.ShouldBe(string.Empty);
-		options.Connection.SubscriptionId.ShouldBe(string.Empty);
-		options.EnableEncryption.ShouldBeFalse();
-		options.MaxConcurrentMessages.ShouldBe(0);
-		options.Subscriber.ShouldNotBeNull();
-		options.Telemetry.ShouldNotBeNull();
-		options.Compression.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void GenerateCorrectSubscriptionName()
 	{
 		// Arrange & Act
@@ -58,63 +41,6 @@ public sealed class GooglePubSubOptionsShould
 
 		// Assert
 		options.Connection.TopicName.ShouldBe("projects/my-project/topics/my-topic");
-	}
-
-	[Fact]
-	public void AllowSettingSubscriberSubOptions()
-	{
-		// Arrange & Act
-		var options = new GooglePubSubOptions
-		{
-			Subscriber =
-			{
-				MaxPullMessages = 200,
-				AckDeadlineSeconds = 120,
-				EnableAutoAckExtension = false,
-				MaxConcurrentAcks = 50,
-				DeadLetter =
-				{
-					Enable = true,
-					TopicId = "dlq-topic",
-				},
-			},
-		};
-
-		// Assert
-		options.Subscriber.MaxPullMessages.ShouldBe(200);
-		options.Subscriber.AckDeadlineSeconds.ShouldBe(120);
-		options.Subscriber.EnableAutoAckExtension.ShouldBeFalse();
-		options.Subscriber.MaxConcurrentAcks.ShouldBe(50);
-		options.Subscriber.DeadLetter.Enable.ShouldBeTrue();
-		options.Subscriber.DeadLetter.TopicId.ShouldBe("dlq-topic");
-	}
-
-	[Fact]
-	public void AllowSettingTelemetrySubOptions()
-	{
-		// Arrange & Act
-		var options = new GooglePubSubOptions
-		{
-			Telemetry =
-			{
-				EnableOpenTelemetry = false,
-				ExportToCloudMonitoring = true,
-				OtlpEndpoint = "http://otel:4317",
-				TelemetryExportIntervalSeconds = 30,
-				EnableTracePropagation = false,
-				IncludeMessageAttributesInTraces = true,
-				TracingSamplingRatio = 0.5,
-			},
-		};
-
-		// Assert
-		options.Telemetry.EnableOpenTelemetry.ShouldBeFalse();
-		options.Telemetry.ExportToCloudMonitoring.ShouldBeTrue();
-		options.Telemetry.OtlpEndpoint.ShouldBe("http://otel:4317");
-		options.Telemetry.TelemetryExportIntervalSeconds.ShouldBe(30);
-		options.Telemetry.EnableTracePropagation.ShouldBeFalse();
-		options.Telemetry.IncludeMessageAttributesInTraces.ShouldBeTrue();
-		options.Telemetry.TracingSamplingRatio.ShouldBe(0.5);
 	}
 
 	[Fact]

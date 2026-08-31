@@ -52,7 +52,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class ControlValidationServiceConformanceTestKit
+public abstract class ControlValidationServiceConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh control validation service instance for testing.
@@ -101,7 +101,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.ValidateControlAsync"/> returns a result for registered controls.
 	/// </summary>
-	protected virtual async Task ValidateControlAsync_RegisteredControl_ShouldReturnResult()
+	public virtual async Task ValidateControlAsync_RegisteredControl_ShouldReturnResult()
 	{
 		// Arrange
 		var service = CreateService();
@@ -134,7 +134,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.ValidateControlAsync"/> returns result with required properties.
 	/// </summary>
-	protected virtual async Task ValidateControlAsync_RegisteredControl_ShouldReturnResultWithRequiredProperties()
+	public virtual async Task ValidateControlAsync_RegisteredControl_ShouldReturnResultWithRequiredProperties()
 	{
 		// Arrange
 		var service = CreateService();
@@ -173,7 +173,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.ValidateControlAsync"/> returns failure for unregistered controls.
 	/// </summary>
-	protected virtual async Task ValidateControlAsync_UnregisteredControl_ShouldReturnFailure()
+	public virtual async Task ValidateControlAsync_UnregisteredControl_ShouldReturnFailure()
 	{
 		// Arrange
 		var service = CreateService();
@@ -208,7 +208,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.ValidateCriterionAsync"/> returns results for registered criterion.
 	/// </summary>
-	protected virtual async Task ValidateCriterionAsync_RegisteredCriterion_ShouldReturnResults()
+	public virtual async Task ValidateCriterionAsync_RegisteredCriterion_ShouldReturnResults()
 	{
 		// Arrange
 		var service = CreateService();
@@ -236,7 +236,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.ValidateCriterionAsync"/> validates all controls in criterion.
 	/// </summary>
-	protected virtual async Task ValidateCriterionAsync_RegisteredCriterion_ShouldValidateAllControls()
+	public virtual async Task ValidateCriterionAsync_RegisteredCriterion_ShouldValidateAllControls()
 	{
 		// Arrange
 		var service = CreateService();
@@ -263,7 +263,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.ValidateCriterionAsync"/> returns empty for unregistered criterion.
 	/// </summary>
-	protected virtual async Task ValidateCriterionAsync_UnregisteredCriterion_ShouldReturnEmpty()
+	public virtual async Task ValidateCriterionAsync_UnregisteredCriterion_ShouldReturnEmpty()
 	{
 		// Arrange
 		var service = CreateService();
@@ -289,7 +289,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.RunControlTestAsync"/> returns a result for registered controls.
 	/// </summary>
-	protected virtual async Task RunControlTestAsync_RegisteredControl_ShouldReturnResult()
+	public virtual async Task RunControlTestAsync_RegisteredControl_ShouldReturnResult()
 	{
 		// Arrange
 		var service = CreateService();
@@ -323,7 +323,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.RunControlTestAsync"/> result has valid properties.
 	/// </summary>
-	protected virtual async Task RunControlTestAsync_RegisteredControl_ShouldReturnResultWithValidProperties()
+	public virtual async Task RunControlTestAsync_RegisteredControl_ShouldReturnResultWithValidProperties()
 	{
 		// Arrange
 		var service = CreateService();
@@ -369,7 +369,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.RunControlTestAsync"/> returns failure for unregistered controls.
 	/// </summary>
-	protected virtual async Task RunControlTestAsync_UnregisteredControl_ShouldReturnFailure()
+	public virtual async Task RunControlTestAsync_UnregisteredControl_ShouldReturnFailure()
 	{
 		// Arrange
 		var service = CreateService();
@@ -399,7 +399,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.GetAvailableControls"/> returns a non-null list.
 	/// </summary>
-	protected virtual void GetAvailableControls_ShouldNotBeNull()
+	public virtual void GetAvailableControls_ShouldNotBeNull()
 	{
 		// Arrange
 		var service = CreateService();
@@ -418,7 +418,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.GetAvailableControls"/> returns control IDs from validators.
 	/// </summary>
-	protected virtual void GetAvailableControls_WithValidators_ShouldReturnControlIds()
+	public virtual void GetAvailableControls_WithValidators_ShouldReturnControlIds()
 	{
 		// Arrange
 		var service = CreateService();
@@ -457,7 +457,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.GetControlsForCriterion"/> returns a non-null list.
 	/// </summary>
-	protected virtual void GetControlsForCriterion_ShouldNotBeNull()
+	public virtual void GetControlsForCriterion_ShouldNotBeNull()
 	{
 		// Arrange
 		var service = CreateService();
@@ -477,7 +477,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.GetControlsForCriterion"/> returns controls for registered criterion.
 	/// </summary>
-	protected virtual void GetControlsForCriterion_RegisteredCriterion_ShouldReturnControls()
+	public virtual void GetControlsForCriterion_RegisteredCriterion_ShouldReturnControls()
 	{
 		// Arrange
 		var service = CreateService();
@@ -504,7 +504,7 @@ public abstract class ControlValidationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidationService.GetControlsForCriterion"/> returns empty for unregistered criterion.
 	/// </summary>
-	protected virtual void GetControlsForCriterion_UnregisteredCriterion_ShouldReturnEmpty()
+	public virtual void GetControlsForCriterion_UnregisteredCriterion_ShouldReturnEmpty()
 	{
 		// Arrange
 		var service = CreateService();

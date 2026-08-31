@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Extensions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Extensions;
@@ -38,7 +39,7 @@ public sealed class ExceptionExtensionsShould
 		var result = exception.GetErrorCode();
 
 		// Assert
-		result.ShouldBe(123);
+		result.ShouldBe("123");
 	}
 
 	[Fact]
@@ -65,7 +66,7 @@ public sealed class ExceptionExtensionsShould
 		var result = exception.GetErrorCode();
 
 		// Assert
-		result.ShouldBe(456);
+		result.ShouldBe("456");
 	}
 
 	[Fact]
@@ -79,7 +80,7 @@ public sealed class ExceptionExtensionsShould
 		var result = exception.GetErrorCode();
 
 		// Assert
-		result.ShouldBe(789);
+		result.ShouldBe("789");
 	}
 
 	[Fact]
@@ -94,7 +95,7 @@ public sealed class ExceptionExtensionsShould
 		var result = aggEx.GetErrorCode();
 
 		// Assert
-		result.ShouldBe(111);
+		result.ShouldBe("111");
 	}
 
 	[Fact]
@@ -233,6 +234,25 @@ public sealed class ExceptionExtensionsShould
 		result.ShouldBe(418);
 	}
 
+	[Fact]
+	public void GetErrorCode_WithDispatchException_ReturnsTheCodeTheExceptionCarries()
+	{
+		// The accessor filtered candidate properties on int, and DispatchException.ErrorCode is text, so
+		// the framework's own error-code accessor could never see the framework's own error code.
+		var exception = new MessagingException(ErrorCodes.MessageRoutingFailed, "routing failed");
+
+		exception.GetErrorCode().ShouldBe(ErrorCodes.MessageRoutingFailed);
+	}
+
+	[Fact]
+	public void GetErrorCode_WithDispatchExceptionInnerException_ReturnsTheInnerCode()
+	{
+		var inner = new MessagingException(ErrorCodes.MessageDuplicate, "duplicate");
+		var exception = new InvalidOperationException("outer", inner);
+
+		exception.GetErrorCode().ShouldBe(ErrorCodes.MessageDuplicate);
+	}
+
 	#endregion
 
 	#region GetErrorCodeOrDefault Tests
@@ -244,7 +264,7 @@ public sealed class ExceptionExtensionsShould
 		Exception exception = null!;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => exception.GetErrorCodeOrDefault());
+		_ = Should.Throw<ArgumentNullException>(() => exception.GetErrorCodeOrDefault("none"));
 	}
 
 	[Fact]
@@ -254,10 +274,10 @@ public sealed class ExceptionExtensionsShould
 		var exception = new ExceptionWithErrorCode(999);
 
 		// Act
-		var result = exception.GetErrorCodeOrDefault();
+		var result = exception.GetErrorCodeOrDefault("none");
 
 		// Assert
-		result.ShouldBe(999);
+		result.ShouldBe("999");
 	}
 
 	[Fact]
@@ -267,10 +287,10 @@ public sealed class ExceptionExtensionsShould
 		var exception = new InvalidOperationException("Test");
 
 		// Act
-		var result = exception.GetErrorCodeOrDefault();
+		var result = exception.GetErrorCodeOrDefault("none");
 
 		// Assert
-		result.ShouldBe(-1);
+		result.ShouldBe("none");
 	}
 
 	[Fact]
@@ -280,10 +300,10 @@ public sealed class ExceptionExtensionsShould
 		var exception = new InvalidOperationException("Test");
 
 		// Act
-		var result = exception.GetErrorCodeOrDefault(0);
+		var result = exception.GetErrorCodeOrDefault("custom");
 
 		// Assert
-		result.ShouldBe(0);
+		result.ShouldBe("custom");
 	}
 
 	#endregion
@@ -382,9 +402,9 @@ public sealed class ExceptionExtensionsShould
 		var result3 = exception.GetErrorCode();
 
 		// Assert - All should return same value (cache is used)
-		result1.ShouldBe(123);
-		result2.ShouldBe(123);
-		result3.ShouldBe(123);
+		result1.ShouldBe("123");
+		result2.ShouldBe("123");
+		result3.ShouldBe("123");
 	}
 
 	[Fact]
@@ -419,7 +439,7 @@ public sealed class ExceptionExtensionsShould
 		var result = exception.GetErrorCode();
 
 		// Assert - Property takes precedence
-		result.ShouldBe(100);
+		result.ShouldBe("100");
 	}
 
 	[Fact]

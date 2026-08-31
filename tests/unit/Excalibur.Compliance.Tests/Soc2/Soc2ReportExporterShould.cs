@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.IO.Compression;
+using System.Security.Cryptography;
+
 using Excalibur.Compliance;
+using Excalibur.Compliance.Pdf;
 using Excalibur.Compliance.Soc2;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,13 +15,19 @@ namespace Excalibur.Compliance.Tests.Soc2;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
+[Collection(QuestPdfLicenseCollection.Name)]
 public sealed class Soc2ReportExporterShould
 {
 	private readonly Soc2ReportExporter _sut;
 
 	public Soc2ReportExporterShould()
 	{
-		_sut = new Soc2ReportExporter(NullLogger<Soc2ReportExporter>.Instance, TimeProvider.System);
+		// The PDF renderer stands in for the Excalibur.Compliance.Pdf package a consumer installs when
+		// they want PDF export. The behaviour when it is absent is covered by Soc2PdfExportOptInShould.
+		_sut = new Soc2ReportExporter(
+				NullLogger<Soc2ReportExporter>.Instance,
+				TimeProvider.System,
+				new QuestPdfSoc2PdfRenderer(TimeProvider.System));
 	}
 
 	[Fact]
@@ -357,6 +367,97 @@ public sealed class Soc2ReportExporterShould
 
 		// Assert
 		result.FileName.ShouldContain("type1");
+	}
+
+	// --- Evidence-package encryption: the option is refused, never silently dropped. ---
+	//
+	// The package is a plain ZIP and ZipArchive cannot encrypt entries. The failure this pair locks is
+	// the one that leaves no trace: a caller sets a password, gets bytes back, and hands an auditor an
+	// unencrypted evidence package believing it is protected. Both arms are on the SAME options object
+	// so the only difference between them is the password itself.
+
+	[Fact]
+	public async Task RefuseEvidencePackageWhenAnEncryptionPasswordIsSet()
+	{
+		var report = CreateReport();
+
+		var error = await Should.ThrowAsync<NotSupportedException>(
+			() => _sut.ExportWithEvidenceAsync(
+				report,
+				[],
+				new EvidencePackageOptions { EncryptionPassword = "correct-horse" },
+				CancellationToken.None));
+
+		// Names the option and the remedy, so the refusal is actionable without reading our source.
+		error.Message.ShouldContain(nameof(EvidencePackageOptions.EncryptionPassword));
+		error.Message.ShouldContain("encrypt ExportResult.Data yourself");
+
+		// And the password itself never reaches the message.
+		error.Message.ShouldNotContain("correct-horse");
+	}
+
+	[Fact]
+	public async Task ProduceEvidencePackageWhenNoEncryptionPasswordIsSet()
+	{
+		var report = CreateReport();
+
+		var result = await _sut.ExportWithEvidenceAsync(
+			report,
+			[],
+			new EvidencePackageOptions(),
+			CancellationToken.None);
+
+		result.Data.ShouldNotBeEmpty();
+		result.ContentType.ShouldBe("application/zip");
+	}
+
+	[Fact]
+	public async Task ChecksumTheFilesTheEvidencePackageActuallyEmbeds()
+	{
+		// The load-bearing property is that an auditor can verify the package, not that a checksums file
+		// exists. The predicate behind the old listing could never match, so the shipped default handed an
+		// auditor a checksums file that named nothing while the package carried real report bytes.
+		var report = CreateReport();
+
+		var result = await _sut.ExportWithEvidenceAsync(
+			report,
+			[],
+			new EvidencePackageOptions { IncludeChecksums = true },
+			CancellationToken.None);
+
+		using var archive = new ZipArchive(new MemoryStream(result.Data), ZipArchiveMode.Read);
+
+		var embedded = archive.Entries
+			.Where(e => e.FullName.StartsWith("report/", StringComparison.Ordinal))
+			.ToList();
+		embedded.ShouldNotBeEmpty("the package must embed at least one report file for this arm to mean anything");
+
+		var checksumEntry = archive.GetEntry("checksums.sha256");
+		_ = checksumEntry.ShouldNotBeNull();
+
+		using var reader = new StreamReader(checksumEntry.Open());
+		var text = await reader.ReadToEndAsync();
+
+		var listed = text.ReplaceLineEndings("\n").Split('\n')
+			.Select(l => l.Trim())
+			.Where(l => l.Length > 0 && !l.StartsWith('#'))
+			.ToList();
+
+		listed.Count.ShouldBe(
+			embedded.Count,
+			"every file the package embeds must be listed, or the checksums file asserts integrity coverage it does not have");
+
+		foreach (var entry in embedded)
+		{
+			using var entryStream = entry.Open();
+			using var buffer = new MemoryStream();
+			await entryStream.CopyToAsync(buffer);
+			var expected = Convert.ToHexString(SHA256.HashData(buffer.ToArray())).ToLowerInvariant();
+
+			listed.ShouldContain(
+				$"{expected}  {entry.FullName}",
+				$"the listed checksum for {entry.FullName} must be the hash of the bytes actually in the package");
+		}
 	}
 
 	private static Soc2Report CreateReport(

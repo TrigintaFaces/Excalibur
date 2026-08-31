@@ -24,8 +24,6 @@ public interface IZeroAllocationMiddleware
 	/// <summary>
 	/// Processes the message without allocations.
 	/// </summary>
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	ValueTask<(MiddlewareResult Result, MiddlewareContext Context)> ProcessAsync(
 			MessageEnvelope<IDispatchMessage> envelope,
 			MiddlewareContext context,

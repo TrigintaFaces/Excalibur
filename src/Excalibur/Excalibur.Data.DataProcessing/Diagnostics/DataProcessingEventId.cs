@@ -16,7 +16,7 @@ namespace Excalibur.Data.DataProcessing.Diagnostics;
 /// <item>107400-107499: Data Processing Background Service</item>
 /// </list>
 /// </remarks>
-public static class DataProcessingEventId
+internal static class DataProcessingEventId
 {
 	// ========================================
 	// 107000-107099: Data Orchestration Manager

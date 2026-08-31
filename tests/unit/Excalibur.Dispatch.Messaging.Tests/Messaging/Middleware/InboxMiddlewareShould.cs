@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Serialization;
@@ -276,7 +277,7 @@ public sealed class InboxMiddlewareShould
 
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:context-msg-id-123", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult<LeaseToken?>(new LeaseToken("test-lease")));
 
 		var wasCalled = new[] { false };
 
@@ -307,7 +308,7 @@ public sealed class InboxMiddlewareShould
 		// Claim succeeds (true = first writer) -> not a duplicate -> handler runs.
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:new-msg-123", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult<LeaseToken?>(new LeaseToken("test-lease")));
 
 		var wasCalled = new[] { false };
 
@@ -335,7 +336,7 @@ public sealed class InboxMiddlewareShould
 		// Claim fails (false) -> already claimed/processed -> duplicate -> handler skipped.
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:duplicate-msg-123", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+			.Returns(Task.FromResult<LeaseToken?>(null));
 
 		var wasCalled = new[] { false };
 
@@ -359,7 +360,7 @@ public sealed class InboxMiddlewareShould
 
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:new-msg-456", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult<LeaseToken?>(new LeaseToken("test-lease")));
 
 		// Act
 		var result = await middleware.InvokeAsync(
@@ -371,7 +372,7 @@ public sealed class InboxMiddlewareShould
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:new-msg-456", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _claim.ReleaseAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _claim.ReleaseAsync(A<string>._, A<LeaseToken>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -386,7 +387,7 @@ public sealed class InboxMiddlewareShould
 
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:fail-msg-789", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult<LeaseToken?>(new LeaseToken("test-lease")));
 
 		// Act
 		var result = await middleware.InvokeAsync(
@@ -395,7 +396,7 @@ public sealed class InboxMiddlewareShould
 		// Assert - on handler failure the claim MUST be released so a redelivery can re-admit the message.
 		result.Succeeded.ShouldBeFalse();
 		_ = A.CallTo(() => _claim.ReleaseAsync(
-			"inbox:fail-msg-789", A<CancellationToken>._))
+			"inbox:fail-msg-789", A<LeaseToken>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -410,7 +411,7 @@ public sealed class InboxMiddlewareShould
 
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:throw-msg-101", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult<LeaseToken?>(new LeaseToken("test-lease")));
 
 		ValueTask<IMessageResult> ThrowingDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> throw new InvalidOperationException("Handler exploded");
@@ -421,7 +422,7 @@ public sealed class InboxMiddlewareShould
 
 		// On a thrown handler the claim MUST be released so the message stays retryable on redelivery.
 		_ = A.CallTo(() => _claim.ReleaseAsync(
-			"inbox:throw-msg-101", A<CancellationToken>._))
+			"inbox:throw-msg-101", A<LeaseToken>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -437,7 +438,7 @@ public sealed class InboxMiddlewareShould
 
 		_ = A.CallTo(() => _claim.TryClaimAsync(
 			"inbox:expiry-msg-202", TimeSpan.FromHours(12), A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult<LeaseToken?>(new LeaseToken("test-lease")));
 
 		// Act
 		_ = await middleware.InvokeAsync(
@@ -611,6 +612,43 @@ public sealed class InboxMiddlewareShould
 		_ = A.CallTo(() => _inboxStore.MarkProcessedAsync(
 			"success-msg-305", A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task WriteTheQualifiedMessageTypeName_SoTheDrainCanResolveIt_FullInboxMode()
+	{
+		// Arrange
+		var middleware = CreateMiddleware(omitDeduplicator: true);
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext();
+		context.SetItem<object>("MessageId", "typename-msg-1");
+
+		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
+			"typename-msg-1", A<string>._, A<CancellationToken>._))
+			.Returns(new ValueTask<InboxEntry?>((InboxEntry?)null));
+
+		string? writtenTypeName = null;
+		_ = A.CallTo(() => _inboxStore.CreateEntryAsync(
+			"typename-msg-1",
+			A<string>._,
+			A<string>._,
+			A<byte[]>._,
+			A<IDictionary<string, object>>._,
+			A<CancellationToken>._))
+			.Invokes(call => writtenTypeName = (string?)call.Arguments[2])
+			.Returns(new ValueTask<InboxEntry>(new InboxEntry { MessageId = "typename-msg-1" }));
+
+		// Act
+		_ = await middleware.InvokeAsync(message, context, SuccessDelegate(), CancellationToken.None);
+
+		// Assert -- the simple name is ambiguous across namespaces and the registry refuses an ambiguous
+		// name, so writing one here would strand the entry: it never resolves, never drains, and retries
+		// until it dead-letters. This is the same form the outbox stages and the explicit inbox API writes.
+		writtenTypeName.ShouldBe(typeof(FakeDispatchMessage).FullName);
+
+		MessageTypeRegistry.RegisterType(typeof(FakeDispatchMessage));
+		MessageTypeRegistry.TryGetType(writtenTypeName!, out var resolved).ShouldBeTrue();
+		resolved.ShouldBe(typeof(FakeDispatchMessage));
 	}
 
 	[Fact]

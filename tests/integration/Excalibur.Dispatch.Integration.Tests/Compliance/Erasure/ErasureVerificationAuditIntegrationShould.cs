@@ -22,6 +22,17 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Erasure;
 [Trait("Component", "Platform")]
 public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 {
+	/// <summary>
+	/// The one tenant these arms operate as. It is applied to BOTH sides deliberately: the audit store
+	/// partitions writes by the EVENT's own tenant and confines reads to the AMBIENT one, so an event
+	/// stamped with a different tenant than the reader resolves is stored and then permanently invisible
+	/// to the reader that stored it. In production the two agree because the audit context stamps the
+	/// event from the same ambient tenant; these arms hand-build events, so they must do it themselves.
+	/// Pinning both to the erasure request's own tenant is what makes the audit arm assert that the
+	/// completion evidence is FOUND, rather than pass by finding nothing under an unrelated partition.
+	/// </summary>
+	private const string TenantId = "tenant-1";
+
 	private readonly IErasureStore _fakeErasureStore;
 	private readonly IErasureCertificateStore _fakeCertStore;
 	private readonly IKeyManagementProvider _fakeKeyProvider;
@@ -38,7 +49,7 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 		_fakeCertStore = A.Fake<IErasureCertificateStore>();
 		_fakeKeyProvider = A.Fake<IKeyManagementProvider>();
 		_fakeInventoryService = A.Fake<IDataInventoryService>();
-		_auditStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		_auditStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), new TestTenantContext(TenantId));
 		_logger = A.Fake<ILogger<ErasureVerificationService>>();
 
 		// Wire up GetService to return the certificate sub-store
@@ -320,7 +331,7 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 			RequestId = requestId,
 			DataSubjectIdHash = "hash-abc123",
 			IdType = DataSubjectIdType.UserId,
-			TenantId = "tenant-1",
+			TenantId = TenantId,
 			Scope = ErasureScope.User,
 			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
 			Status = status,
@@ -370,7 +381,13 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 			Timestamp = timestamp ?? DateTimeOffset.UtcNow,
 			ActorId = "system",
 			ResourceId = requestId.ToString(),
-			ResourceType = "ErasureRequest"
+			ResourceType = "ErasureRequest",
+
+			// Stamped, because the store partitions the write by THIS value and confines the read to the
+			// ambient tenant. Leaving it null files the event under the untenanted partition, where the
+			// verification service — running as this tenant — can never see it, and every audit-trail arm
+			// then passes or fails for a reason that has nothing to do with the audit trail.
+			TenantId = TenantId
 		};
 
 		_ = await _auditStore.StoreAsync(auditEvent, CancellationToken.None);

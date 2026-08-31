@@ -34,7 +34,10 @@ public sealed class CosmosDbInboxStoreTransactionalShould
 			SharedPartitionKey = sharedPartitionKey,
 		};
 
-		return new CosmosDbInboxStore(Options.Create(options), A.Fake<ILogger<CosmosDbInboxStore>>());
+		return new CosmosDbInboxStore(
+			Options.Create(options),
+			A.Fake<ILogger<CosmosDbInboxStore>>(),
+			tenantContext: TestTenantContext.SingleTenant);
 	}
 
 	[Fact]

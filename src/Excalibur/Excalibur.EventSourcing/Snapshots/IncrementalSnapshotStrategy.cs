@@ -10,7 +10,7 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// <summary>
 /// Snapshot strategy that uses incremental (delta-based) snapshots.
 /// Triggers a snapshot save on every commit (deltas are cheap), and
-/// triggers full compaction when delta count reaches the threshold (R27.64).
+/// triggers full compaction when delta count reaches the threshold.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,7 +19,7 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// deltas only contain changes, not the full state.
 /// </para>
 /// <para>
-/// Integrates with the existing <see cref="ISnapshotStrategy"/> framework (R27.66).
+/// Integrates with the existing <see cref="ISnapshotStrategy"/> framework.
 /// </para>
 /// </remarks>
 public sealed class IncrementalSnapshotStrategy : ISnapshotStrategy

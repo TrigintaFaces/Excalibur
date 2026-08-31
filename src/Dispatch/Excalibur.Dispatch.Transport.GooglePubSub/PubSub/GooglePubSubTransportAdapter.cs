@@ -48,8 +48,9 @@ internal sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, 
 	private long _totalMessages;
 	private long _successfulMessages;
 	private long _failedMessages;
-	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
-	private TransportHealthStatus _lastStatus = TransportHealthStatus.Healthy;
+	// MinValue means "no health check has completed yet" -- it must not read as a recent check.
+	private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
+	private TransportHealthStatus _lastStatus = TransportHealthStatus.Unknown;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GooglePubSubTransportAdapter"/> class.
@@ -206,8 +207,8 @@ internal sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, 
 		LogStarting();
 		IsRunning = true;
 
-		_lastStatus = TransportHealthStatus.Healthy;
-
+		// Health is deliberately NOT set here: starting the adapter contacts nothing,
+		// so it establishes no health. It stays Unknown until a health probe completes.
 		return Task.CompletedTask;
 	}
 

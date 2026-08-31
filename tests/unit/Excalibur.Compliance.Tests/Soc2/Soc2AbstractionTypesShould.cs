@@ -232,13 +232,9 @@ public sealed class Soc2AbstractionTypesShould
 		var options = new ReportOptions();
 
 		options.Categories.ShouldBeNull();
-		options.IncludeDetailedEvidence.ShouldBeTrue();
 		options.IncludeTestResults.ShouldBeTrue();
 		options.TenantId.ShouldBeNull();
 		options.CustomTitle.ShouldBeNull();
-		options.IncludeManagementAssertion.ShouldBeTrue();
-		options.IncludeSystemDescription.ShouldBeTrue();
-		options.MaxEvidenceItemsPerCriterion.ShouldBeNull();
 	}
 
 	[Fact]

@@ -32,7 +32,7 @@ public sealed class AddMultiTenancyShould
         // Emit the REAL tenant-scoping capability marker via the dep-gated seam (the old bare fake is
         // now structurally unimplementable). The seam registers a concrete NoopEventStore + the marker;
         // the AddSingleton<IEventStore> above is the interface the decorator wraps.
-        services.AddTenantScopedStore<IEventStore, NoopEventStore>((_, _) => new NoopEventStore());
+        services.AddTenantAwareStore<IEventStore, NoopEventStore>(sp => new NoopEventStore(sp.GetRequiredService<ITenantContext>()));
 
         services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
@@ -56,7 +56,7 @@ public sealed class AddMultiTenancyShould
         // Emit the REAL tenant-scoping capability marker via the dep-gated seam (the old bare fake is
         // now structurally unimplementable). The seam registers a concrete NoopEventStore + the marker;
         // the AddSingleton<IEventStore> above is the interface the decorator wraps.
-        services.AddTenantScopedStore<IEventStore, NoopEventStore>((_, _) => new NoopEventStore());
+        services.AddTenantAwareStore<IEventStore, NoopEventStore>(sp => new NoopEventStore(sp.GetRequiredService<ITenantContext>()));
         services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
         using var provider = services.BuildServiceProvider();
@@ -81,7 +81,7 @@ public sealed class AddMultiTenancyShould
         var services = new ServiceCollection();
         // Models the CosmosDb/DynamoDb/InMemory inbox stores: a plain IInboxStore registration that emits NO
         // ITenantScopingCapability<IInboxStore> marker (those providers register via plain TryAddSingleton /
-        // keyed singletons, never through the dep-gated AddTenantScopedStore seam).
+        // keyed singletons, never through the dep-gated AddTenantAwareStore seam).
         services.AddSingleton<IInboxStore>(A.Fake<IInboxStore>());
 
         // (safety) AddMultiTenancy(RowDiscriminator) rejects the tenancy-unaware inbox store at COMPOSITION time,
@@ -103,7 +103,7 @@ public sealed class AddMultiTenancyShould
         services.AddSingleton<IInboxStore>(A.Fake<IInboxStore>());
         // A tenant-aware inbox provider (e.g. SqlServer) registers its store through the dep-gated seam — the
         // ONLY path that emits ITenantScopingCapability<IInboxStore>. Emit it the same way here.
-        services.AddTenantScopedStore<IInboxStore, NoopInboxStore>((_, _) => new NoopInboxStore());
+        services.AddTenantAwareStore<IInboxStore, NoopInboxStore>(sp => new NoopInboxStore(sp.GetRequiredService<ITenantContext>()));
 
         // (liveness) with the capability present the gate PASSES — proving it rejects the MISSING marker, not
         // every inbox store (a gate that rejected everything would be the cheapest way to look safe).
@@ -121,7 +121,7 @@ public sealed class AddMultiTenancyShould
     public void FailFastAtComposition_WhenStrategyIsUnspecified()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IEventStore>(new NoopEventStore());
+        services.AddSingleton<IEventStore>(new NoopEventStore(A.Fake<ITenantContext>()));
 
         // (safety) an unset strategy is rejected at AddMultiTenancy call time, before any store is wired.
         var ex = Should.Throw<InvalidOperationException>(() =>
@@ -133,11 +133,11 @@ public sealed class AddMultiTenancyShould
     public void NotThrowAtComposition_ForAValidStrategy()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IEventStore>(new NoopEventStore());
+        services.AddSingleton<IEventStore>(new NoopEventStore(A.Fake<ITenantContext>()));
         // Emit the REAL tenant-scoping capability marker via the dep-gated seam (the old bare fake is
         // now structurally unimplementable). The seam registers a concrete NoopEventStore + the marker;
         // the AddSingleton<IEventStore> above is the interface the decorator wraps.
-        services.AddTenantScopedStore<IEventStore, NoopEventStore>((_, _) => new NoopEventStore());
+        services.AddTenantAwareStore<IEventStore, NoopEventStore>(sp => new NoopEventStore(sp.GetRequiredService<ITenantContext>()));
 
         // (liveness) a valid strategy composes without throwing — the guard rejects the bad value, not every value.
         Should.NotThrow(() =>
@@ -218,5 +218,76 @@ public sealed class AddMultiTenancyShould
         // (liveness) valid options materialize and carry the chosen strategy — the pipeline is not rejecting everything.
         var options = provider.GetRequiredService<IOptions<MultiTenancyOptions>>().Value;
         options.Strategy.ShouldBe(TenantIsolationStrategy.RowDiscriminator);
+    }
+
+    // ---- The keyed-default forwarding alias is not a store: it must not pull a contract into the gate ----
+
+    [Fact]
+    public void NotFailFast_WhenOnlyTheForwardingAliasIsPresentForAnUnregisteredSnapshotStore()
+    {
+        var services = new ServiceCollection();
+
+        // The real shape of a correctly-configured host: event sourcing, a tenant-capable event store, and
+        // NO snapshot store. Snapshots are optional, but AddEventSourcing registers a non-keyed ISnapshotStore
+        // alias forwarding to a keyed "default" that will never exist, because it cannot know at that point
+        // whether a provider will supply one later.
+        _ = services.AddExcalibur(static x => x.AddEventSourcing());
+        services.AddTenantAwareStore<IEventStore, NoopEventStore>(
+            static sp => new NoopEventStore(sp.GetRequiredService<ITenantContext>()));
+        services.AddKeyedSingleton<IEventStore>("default", static (sp, _) => sp.GetRequiredService<NoopEventStore>());
+
+        // (liveness) the gate admits the host. Counting the alias as a registration made it demand a tenant
+        // capability of ISnapshotStore, naming a store the consumer never registered and could not fix.
+        Should.NotThrow(() =>
+            services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
+
+        using var provider = services.BuildServiceProvider();
+
+        // Non-vacuity: admitting the host did not cost the confinement it exists to apply. The event store —
+        // which IS registered — still resolves through the fail-closed decorator.
+        _ = provider.GetRequiredKeyedService<IEventStore>("default").ShouldBeOfType<TenantScopedEventStore>();
+    }
+
+    [Fact]
+    public void FailFastAtComposition_WhenANonKeyedSnapshotStoreLacksTheTenantScopingCapability()
+    {
+        var services = new ServiceCollection();
+        _ = services.AddExcalibur(static x => x.AddEventSourcing());
+        services.AddTenantAwareStore<IEventStore, NoopEventStore>(
+            static sp => new NoopEventStore(sp.GetRequiredService<ITenantContext>()));
+        services.AddKeyedSingleton<IEventStore>("default", static (sp, _) => sp.GetRequiredService<NoopEventStore>());
+
+        // A REAL snapshot store, registered the plainest way a consumer can: non-keyed, no capability marker,
+        // sitting in the collection beside the framework's forwarding alias for the same contract. This is the
+        // registration shape the alias skip could have swallowed, and the one that must never be swallowed.
+        services.AddSingleton<ISnapshotStore>(A.Fake<ISnapshotStore>());
+
+        // (safety) the gate still refuses it. Skipping forwarders narrowed the predicate to descriptors the
+        // framework itself created; every store a consumer registers is still counted.
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
+
+        ex.Message.ShouldContain(nameof(ISnapshotStore));
+    }
+
+    [Fact]
+    public void FailFastAtComposition_WhenAKeyedSnapshotStoreLacksTheTenantScopingCapability()
+    {
+        var services = new ServiceCollection();
+        _ = services.AddExcalibur(static x => x.AddEventSourcing());
+        services.AddTenantAwareStore<IEventStore, NoopEventStore>(
+            static sp => new NoopEventStore(sp.GetRequiredService<ITenantContext>()));
+        services.AddKeyedSingleton<IEventStore>("default", static (sp, _) => sp.GetRequiredService<NoopEventStore>());
+
+        // The provider-shaped registration: a keyed "default" snapshot store with no capability marker. The
+        // alias now has something to forward to, so this host genuinely holds a snapshot store the framework
+        // cannot confine.
+        services.AddKeyedSingleton<ISnapshotStore>("default", static (_, _) => A.Fake<ISnapshotStore>());
+
+        // (safety) rejected, for the store itself rather than for the alias standing in front of it.
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            services.AddMultiTenancy(static o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
+
+        ex.Message.ShouldContain(nameof(ISnapshotStore));
     }
 }

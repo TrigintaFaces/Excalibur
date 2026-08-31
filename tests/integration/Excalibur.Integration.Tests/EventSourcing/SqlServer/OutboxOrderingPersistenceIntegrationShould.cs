@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -45,26 +46,26 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -91,10 +92,7 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task PersistAndRoundTripTheOrderingColumns()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 		var store = CreateOutboxStore();
@@ -121,10 +119,7 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ClaimSamePartitionMessagesInAscendingSequenceOrder()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 		var store = CreateOutboxStore();
@@ -158,17 +153,18 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 	/// rather than the plain <c>MarkFailedAsync</c>. The plain path applies the R1 failure-backoff FLOOR
 	/// (<c>Processing.FailureBackoffFloorSeconds</c>, default 30s), which is a SECOND re-claim gate independent
 	/// of the lease — so <c>leaseTimeoutSeconds: 0</c> alone does not make the rows re-claimable and this test
-	/// would observe an empty batch. Supplying an explicit elapsed schedule isolates the property under test
-	/// (claim ORDERING) from the backoff gate, and keeps the test deterministic with no wall-clock wait.
+	/// would observe an empty batch. The elapsed schedule does not BYPASS that gate — no configuration can,
+	/// because the store always supplies a floor and the two are always composed. It satisfies the gate: the
+	/// column is written as the later of the caller's delay and F, which with the floor at zero resolves to
+	/// the server's current instant, so the rows are due on the next claim with no wall-clock wait. What
+	/// isolates the property under test (claim ORDERING) is that both rows clear the gate at the same
+	/// instant, leaving <c>SequenceNumber</c> as the only thing that can order them.
 	/// </para>
 	/// </summary>
 	[Fact]
 	public async Task RestorePartitionOrderingOnReclaimAfterFailure()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 
@@ -192,7 +188,17 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 			.Where(m => m.PartitionKey == partition)
 			.ToList();
 		firstClaim.Count.ShouldBe(3);
-		var elapsed = DateTimeOffset.UtcNow.AddSeconds(-1);
+		// The floor is stamped from the TEST HOST's clock and judged by the DATABASE SERVER's, and those are
+		// two different clocks: a containerised SQL Server's clock stalls under load and then catches up.
+		// Measured on this machine by a sibling suite, sampling a container's clock across fifty host-side
+		// 2.5s waits, six advanced by only 345-541ms. One second of margin is inside that error, so a row
+		// whose floor is "one second ago" on the host can still read as future-dated on the server and be
+		// withheld from the re-claim -- which is exactly the intermittent this arm produced ([1,2] instead
+		// of [1,2,3]). Minutes of margin cost nothing here because this arm asserts claim ORDERING, not the
+		// due-gate boundary; the sibling scheduled-delivery arm in this same file already uses AddMinutes(-1)
+		// for the same reason. Widening the margin does not soften the assertion: a row that is genuinely
+		// not due, or that is claimed out of sequence, still fails.
+		var elapsed = DateTimeOffset.UtcNow.AddMinutes(-5);
 		foreach (var id in staged)
 		{
 			await store.MarkFailedWithBackoffAsync(
@@ -210,8 +216,8 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 
 	/// <summary>
 	/// AC-R2.1 (full extent) — the ordering columns also round-trip through the failed-retry and scheduled
-	/// delivery read paths, not only the primary claim. Both <c>GetFailedMessagesAsync</c> and
-	/// <c>GetScheduledMessagesAsync</c> hydrate the SAME <c>OutboxMessageRow</c> and feed (re-)delivery, so a
+	/// delivery read paths, not only the primary claim. Both <c>GetAllTenantsFailedMessagesAsync</c> and
+	/// <c>GetAllTenantsScheduledMessagesAsync</c> hydrate the SAME <c>OutboxMessageRow</c> and feed (re-)delivery, so a
 	/// round-trip that dropped the columns there would be a silent ordering inconsistency on a delivery path
 	/// (SA ruling, OPCOM 15393 — KEEP in-lane). RED pre-fix: those request SELECTs did not project the columns,
 	/// so the rows hydrated with <c>PartitionKey == null</c> / <c>SequenceNumber == 0</c>.
@@ -219,10 +225,7 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task RoundTripOrderingColumnsThroughTheFailedAndScheduledReadPaths()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllMessagesAsync();
 		var store = CreateOutboxStore();
@@ -235,7 +238,7 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 		await store.StageMessageAsync(failed, CancellationToken.None);
 		await store.MarkFailedAsync(failed.Id, "boom", 1, CancellationToken.None);
 
-		var failedRead = (await store.GetFailedMessagesAsync(5, null, 50, CancellationToken.None))
+		var failedRead = (await store.GetAllTenantsFailedMessagesAsync(5, null, 50, CancellationToken.None))
 			.Single(m => m.Id == failed.Id);
 		failedRead.PartitionKey.ShouldBe("failed-partition");
 		failedRead.GroupKey.ShouldBe("failed-group");
@@ -249,7 +252,7 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 		scheduled.ScheduledAt = DateTimeOffset.UtcNow.AddMinutes(-1);
 		await store.StageMessageAsync(scheduled, CancellationToken.None);
 
-		var scheduledRead = (await store.GetScheduledMessagesAsync(DateTimeOffset.UtcNow, 50, CancellationToken.None))
+		var scheduledRead = (await store.GetAllTenantsScheduledMessagesAsync(DateTimeOffset.UtcNow, 50, CancellationToken.None))
 			.Single(m => m.Id == scheduled.Id);
 		scheduledRead.PartitionKey.ShouldBe("scheduled-partition");
 		scheduledRead.GroupKey.ShouldBe("scheduled-group");
@@ -280,6 +283,17 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 			{
 				CommandTimeoutSeconds = 30,
 				LeaseTimeoutSeconds = leaseTimeoutSeconds,
+				// These arms exercise the NextAttemptAt gate, so the floor is set to zero rather than
+				// left at its default, which would otherwise hold the message for 30s and mask what
+				// they assert. Note what zero does and does not do: it does NOT take a no-floor code
+				// path. The store always supplies this value, so the composed branch is always the one
+				// taken, and the column receives the later of the caller's delay and F. At F = 0 that
+				// resolves to "the later of the caller's delay and now", so an already-elapsed schedule
+				// yields exactly now on the server clock -- due immediately, which is what these arms
+				// need. Zero is also outside the option's documented range, and is used here only
+				// because a direct store construction bypasses options validation.
+				// The floor itself is covered by SqlServerOutboxBackoffFloorClampShould.
+				FailureBackoffFloorSeconds = 0,
 			},
 		};
 

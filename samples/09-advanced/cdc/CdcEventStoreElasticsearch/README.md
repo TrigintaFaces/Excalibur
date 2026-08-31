@@ -258,7 +258,10 @@ See `Projections/CustomerOrderCountView.cs` for the complete
 
 ### Event Store Schema Issues
 
-The framework does **not** auto-create tables. Run Section 2 of `scripts/setup-databases.sql` against SQL Server #2 (port 1434) before starting the application. To verify the tables exist:
+The framework does **not** auto-create tables: `Excalibur.EventSourcing.SqlServer` ships DDL under its
+`Scripts/` folder and executes none of it at startup. `scripts/setup-databases.sh` applies Section 2 of
+`scripts/setup-databases.sql` to SQL Server #2 (port 1434) for you — if you skipped that script, run it
+before starting the application. To verify the tables exist:
 
 ```sql
 USE EventStore;

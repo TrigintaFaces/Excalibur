@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -30,27 +31,26 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			Console.WriteLine(ex.ToString());
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -78,10 +78,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	[Fact]
 	public async Task SucceedWithParallelAppendsToDifferentAggregates()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		const int parallelCount = 5;
 		var aggregateIds = Enumerable.Range(0, parallelCount)
@@ -144,10 +141,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	[Fact]
 	public async Task DetectConflictWithParallelAppendsToSameAggregate()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var aggregateId = Guid.NewGuid().ToString();
 		var aggregateType = "TestAggregate";
@@ -188,10 +182,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	[Fact]
 	public async Task ReturnConsistentStateWhenReadingDuringWrite()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var aggregateId = Guid.NewGuid().ToString();
 		var aggregateType = "TestAggregate";
@@ -248,10 +239,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	[Fact]
 	public async Task SucceedWithSequentialAppendsUsingCorrectVersions()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -297,10 +285,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	[Fact]
 	public async Task RejectStaleWriterAfterAnotherWriterSucceeds()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var aggregateId = Guid.NewGuid().ToString();
 		var aggregateType = "TestAggregate";
@@ -331,7 +316,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	private IEventStore CreateEventStore()
 	{
 		var logger = NullLogger<SqlServerEventStore>.Instance;
-		return new SqlServerEventStore(_connectionString!, logger);
+		return new SqlServerEventStore(_connectionString!, logger, SingleTenantTestContext.Instance);
 	}
 
 	private Task InitializeDatabaseAsync() =>

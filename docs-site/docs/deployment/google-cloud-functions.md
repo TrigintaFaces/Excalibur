@@ -110,8 +110,8 @@ public class Startup : FunctionsStartup
     <PackageReference Include="Google.Cloud.Functions.Hosting" Version="2.2.2" />
     <PackageReference Include="Google.Cloud.Functions.Framework" Version="2.2.0" />
 
-    <PackageReference Include="Excalibur.Dispatch" Version="1.0.0" />
-    <PackageReference Include="Excalibur.Outbox.SqlServer" Version="1.0.0" />
+    <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
+    <PackageReference Include="Excalibur.Outbox.SqlServer" Version="10.0.0" />
   </ItemGroup>
 </Project>
 ```

@@ -25,7 +25,7 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope, or <see cref="TenantScope.None"/> in a single-tenant host.
+	/// The tenant scope. An untenanted scope binds the reserved sentinel rather than omitting the term.
 	/// </param>
 	/// <param name="schema">The schema name for the snapshot store table. Default: "public".</param>
 	/// <param name="table">The snapshot store table name. Default: "event_store_snapshots".</param>
@@ -103,8 +103,7 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		}
 
 		Dictionary<string, JsonElement>? raw;
-#pragma warning disable IL2026, IL3050 // Metadata deserialization inherently uses reflection (matches the SqlServer/Oracle snapshot store precedent)
-		raw = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadata);
+		raw = JsonSerializer.Deserialize(metadata, PostgresSnapshotJsonContext.Default.DictionaryStringJsonElement);
 #pragma warning restore IL2026, IL3050
 		if (raw is null)
 		{

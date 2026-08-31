@@ -1,7 +1,7 @@
 # CM-8: Software Bill of Materials (SBOM)
 
 **Control:** NIST 800-53 Rev 5 CM-8 - Information System Component Inventory
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Status:** IMPLEMENTED
 **Implementation Date:** 2026-01-01
 

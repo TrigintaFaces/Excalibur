@@ -27,13 +27,27 @@ namespace Excalibur.Security;
 /// <param name="logger">The logger instance for diagnostics and monitoring.</param>
 /// <param name="options">The input validation configuration options.</param>
 /// <param name="validators">The collection of custom validators to apply.</param>
-/// <param name="securityEventLogger">The security event logger for audit trail.</param>
-/// <remarks> Initializes a new instance of the <see cref="InputValidationMiddleware" /> class. </remarks>
+/// <param name="securityEventLogger">
+/// The optional security event logger for the audit trail, or <see langword="null"/> when the host has
+/// not registered one.
+/// </param>
+/// <remarks>
+/// <para> Initializes a new instance of the <see cref="InputValidationMiddleware" /> class. </para>
+/// <para>
+/// The security event logger is optional because it is a telemetry sink for the control, not the control
+/// itself: validation runs, and rejects, whether or not an audit trail is configured. A required
+/// dependency here would mean that registering input validation without also registering security
+/// auditing produced a dispatch pipeline that could not be enumerated — a container that fails to build
+/// over a missing log destination. When it is absent, every event this middleware would have audited is
+/// still written to <paramref name="logger"/>, so nothing is dropped silently; register security
+/// auditing to route those events to the audit trail as well.
+/// </para>
+/// </remarks>
 public sealed partial class InputValidationMiddleware(
 	ILogger<InputValidationMiddleware> logger,
 	InputValidationOptions options,
 	IEnumerable<IInputValidator> validators,
-	ISecurityEventLogger securityEventLogger) : IDispatchMiddleware
+	ISecurityEventLogger? securityEventLogger = null) : IDispatchMiddleware
 {
 	/// <summary>
 	/// Maximum number of entries allowed in the property reflection cache.
@@ -47,8 +61,7 @@ public sealed partial class InputValidationMiddleware(
 	private readonly InputValidationOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 	private readonly List<IInputValidator> _validators = validators?.ToList() ?? throw new ArgumentNullException(nameof(validators));
 
-	private readonly ISecurityEventLogger _securityEventLogger =
-		securityEventLogger ?? throw new ArgumentNullException(nameof(securityEventLogger));
+	private readonly ISecurityEventLogger? _securityEventLogger = securityEventLogger;
 
 	/// <inheritdoc />
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Validation;
@@ -112,12 +125,15 @@ public sealed partial class InputValidationMiddleware(
 		catch (Exception ex)
 		{
 			LogUnexpectedValidationError(message.GetType().Name, ex);
-			await _securityEventLogger.LogSecurityEventAsync(
-				SecurityEventType.ValidationError,
-				$"Validation error for {message.GetType().Name}: {ex.Message}",
-				SecuritySeverity.Medium,
-				cancellationToken,
-				context).ConfigureAwait(false);
+			if (_securityEventLogger is not null)
+			{
+				await _securityEventLogger.LogSecurityEventAsync(
+					SecurityEventType.ValidationError,
+					$"Validation error for {message.GetType().Name}: {ex.Message}",
+					SecuritySeverity.Medium,
+					cancellationToken,
+					context).ConfigureAwait(false);
+			}
 			throw;
 		}
 	}
@@ -427,13 +443,17 @@ public sealed partial class InputValidationMiddleware(
 	{
 		var severity = validationContext.IsSuspicious ? SecuritySeverity.High : SecuritySeverity.Medium;
 
-		// Log security event
-		await _securityEventLogger.LogSecurityEventAsync(
-			SecurityEventType.ValidationFailure,
-			$"Input validation failed: {string.Join(", ", validationContext.Errors)}",
-			severity,
-			cancellationToken,
-			validationContext.Context).ConfigureAwait(false);
+		// Log security event to the audit trail when one is configured. The ILogger record below is
+		// written either way, so an unaudited host still sees every validation failure.
+		if (_securityEventLogger is not null)
+		{
+			await _securityEventLogger.LogSecurityEventAsync(
+				SecurityEventType.ValidationFailure,
+				$"Input validation failed: {string.Join(", ", validationContext.Errors)}",
+				severity,
+				cancellationToken,
+				validationContext.Context).ConfigureAwait(false);
+		}
 
 		// Log detailed information for investigation
 		LogValidationFailed(

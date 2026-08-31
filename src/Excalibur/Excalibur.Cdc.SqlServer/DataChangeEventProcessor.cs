@@ -3,6 +3,7 @@
 
 
 
+using System.Data;
 using System.Collections.Frozen;
 
 using Excalibur.Data.SqlServer.Diagnostics;
@@ -34,7 +35,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	/// </param>
 	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
 	/// <param name="cdcRepository"> The CDC repository for querying change data. </param>
-	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
+	/// <param name="stateStoreConnectionFactory"> The SQL connection for persisting CDC state. </param>
 	/// <param name="stateStoreOptions"> The CDC state store options. </param>
 	/// <param name="serviceProvider"> The service provider for dependency injection. </param>
 	/// <param name="policyFactory"> The factory for creating data access policies. </param>
@@ -51,14 +52,14 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			IHostApplicationLifetime appLifetime,
 			IDatabaseOptions dbConfig,
 			CdcRepository cdcRepository,
-			SqlConnection stateStoreConnection,
+			Func<IDbConnection> stateStoreConnectionFactory,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
 			TimeProvider timeProvider,
 			ILogger<DataChangeEventProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = null)
-			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions)
+			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnectionFactory, stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -75,7 +76,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			IHostApplicationLifetime appLifetime,
 			IDatabaseOptions dbConfig,
 			CdcRepository cdcRepository,
-			SqlConnection stateStoreConnection,
+			Func<IDbConnection> stateStoreConnectionFactory,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
@@ -83,7 +84,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			ILogger<DataChangeEventProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions,
 			ICdcIdempotencyFilter? idempotencyFilter)
-			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions, idempotencyFilter)
+			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnectionFactory, stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions, idempotencyFilter)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);

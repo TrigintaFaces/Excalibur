@@ -75,9 +75,11 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 			new OrderPayload("order-1"), DeadLetterReason.MaxRetriesExceeded, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Operator: no ambient tenant at all. Reaches the entry — inspection and replay are estate-wide on
-		// this surface — and must run it under the tenant STORED on the entry, not under "no tenant".
-		var operatorReplayed = await QueueFor(null, Handler).ReplayAsync(entryId, CancellationToken.None)
+		// Operator: no ambient tenant at all, and it must SAY it wants the estate. ReplayAllTenantsEntryAsync
+		// is the named operator seam; the entry is reached because the call site spelled the intent, not
+		// because a scope was left unset. It must then run under the tenant STORED on the entry.
+		var operatorReplayed = await QueueFor(null, Handler)
+			.ReplayAllTenantsEntryAsync(entryId, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// A DIFFERENT tenant is ambient. It must not reach the entry AT ALL: a tenant-scoped caller
@@ -135,26 +137,58 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 			new OrderPayload("order-2"), DeadLetterReason.MaxRetriesExceeded, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Estate-wide inspect: an admin surface sees the entry regardless of ambient tenant (by design).
-		var entries = await QueueFor(null).GetEntriesAsync(CancellationToken.None, null).ConfigureAwait(false);
+		// Estate-wide inspect, through the NAMED operator seam. An admin surface sees the entry regardless of
+		// ambient tenant because the caller asked for the estate by name.
+		var entries = await QueueFor(null).GetAllTenantsEntriesAsync(null, CancellationToken.None)
+			.ConfigureAwait(false);
 		entries.Select(e => e.Id).ShouldContain(entryId,
 			"the estate-wide admin inspect path must surface the entry — a queue that returns nothing would " +
 			"satisfy every cross-tenant SAFETY assertion while being completely inert");
 
-		var replayed = await QueueFor(null, Handler).ReplayAsync(entryId, CancellationToken.None).ConfigureAwait(false);
+		var replayed = await QueueFor(null, Handler)
+			.ReplayAllTenantsEntryAsync(entryId, CancellationToken.None)
+			.ConfigureAwait(false);
 
 		replayed.ShouldBeTrue("the replay must actually run — an inert replay proves nothing");
 		replayedUnder.ShouldBe(TenantA, "the round trip must land back in the originating tenant");
 	}
 
-	// PARKED — arm 3 ("tenant B holding tenant A's entry id is refused on read/replay/purge") is
-	// REMOVED, not deleted: its full body is preserved on the tracker. It asserted a tenancy contract
-	// that IS NOT WRITTEN DOWN: `grep -ci "tenant" IDeadLetterQueue.cs` returns 0, so neither
-	// "tenant-scoped" nor "estate-wide" is stated for GetEntryAsync/ReplayAsync. Asserting either one
-	// here would hardcode an undecided contract into a lock and manufacture a requirement by test.
-	// It returns — unchanged if scoping is ruled required — once the contract is DECIDED and WRITTEN
-	// on the interface. Until then arms 1-2 below lock the one property that IS documented: replay
-	// re-enters the STORED tenant, never the caller's.
+	[Fact]
+	public async Task RefuseTheScopedReadPathToAForeignTenantsEntryWhileTheNamedOperatorSeamReachesIt()
+	{
+		// This is the arm that was PARKED because the contract was not written down. It is written down now:
+		// IDeadLetterQueue states it is tenant-scoped, and estate-wide inspection lives on the admin surface
+		// under names that say so. The two halves are asserted against the SAME entry id so the difference
+		// is attributable to the operation called and to nothing else.
+		await EnsureSchemaAsync().ConfigureAwait(false);
+
+		var entryId = await QueueFor(TenantA).EnqueueAsync(
+			new OrderPayload("order-3"), DeadLetterReason.MaxRetriesExceeded, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// SAFETY — the SCOPED read refuses a foreign tenant's entry. Entries carry the failed message body,
+		// so this is the half that must not regress: RED if the scoped path is ever widened back to the
+		// estate, which is exactly what an unconditional predicate-less query would do.
+		var scopedMiss = await QueueFor(TenantB).GetEntryAsync(entryId, CancellationToken.None)
+			.ConfigureAwait(false);
+		scopedMiss.ShouldBeNull(
+			"a tenant-scoped caller must not read another tenant's dead-letter entry, body included");
+
+		// LIVENESS — and the entry is genuinely there. Without this the assertion above is satisfied by a
+		// store that has stopped returning anything to anyone, which is the failure the scoped read cannot
+		// be allowed to hide behind.
+		var operatorHit = await QueueFor(TenantB).GetAllTenantsEntryAsync(entryId, CancellationToken.None)
+			.ConfigureAwait(false);
+		operatorHit.ShouldNotBeNull(
+			"the named estate-wide seam must reach the same entry — otherwise the miss above proves nothing");
+		operatorHit.Id.ShouldBe(entryId);
+	}
+
+	// The arm above was PARKED while the tenancy contract for GetEntryAsync/ReplayAsync was undecided:
+	// asserting either scoping or estate-wide reach would have manufactured a requirement by test. The
+	// contract is now stated on the interface — tenant-scoped on IDeadLetterQueue, estate-wide under
+	// explicitly named operations on IDeadLetterQueueAdmin — so the arm binds a written contract rather
+	// than inventing one.
 
 	/// <param name="tenantId">
 	/// The caller's tenant, or <see langword="null"/> for an operator with no tenant established.
@@ -166,14 +200,24 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 			() => new SqlConnection(_fixture.ConnectionString),
 			new SqlServerDeadLetterQueueOptions(),
 			NullLogger<SqlServerDeadLetterQueue>.Instance,
-			replayHandler,
-			// A NULL context for the operator, not a context that resolves null. The two are different
-			// states and only one of them is "no tenant": a null ITenantContext is the single-tenant /
-			// no-tenancy path, while a PRESENT context resolving nothing means tenancy is active and
-			// unresolved, which fails closed with TenantRequiredException rather than silently emitting a
-			// predicate-less query. Modelling the operator as the second threw before reaching the
-			// assertion — the operator replay this arm exists to cover never ran.
-			tenantId is null ? null : new FixedTenantContext(tenantId));
+			// The operator is modelled as the reserved untenanted partition: it is the term an absent
+			// context used to resolve to, and it is the nearest constructible state now that the context is
+			// required. It is NOT equivalent for these arms, and that is deliberately left visible rather
+			// than papered over.
+			//
+			// The operator arms below need an ESTATE-WIDE read — they reach an entry stored under TenantA —
+			// and they no longer get it from this parameter. AmbientScope() returns the caller's partition
+			// on every path and no value here yields null, which is deliberate: estate-wide reach must not
+			// be obtainable by leaving something unset. The arms call the NAMED seams instead
+			// (GetAllTenantsEntriesAsync / ReplayAllTenantsEntryAsync), which pass the null scope
+			// themselves. So this parameter now decides only which partition a SCOPED call addresses.
+			//
+			// A context resolving null is still not the substitute: tenancy active and unresolved fails
+			// closed with TenantRequiredException, which threw before the assertion was ever reached.
+			tenantId is null
+				? UntenantedTestTenantContext.Instance
+				: new FixedTenantContext(tenantId),
+			replayHandler);
 
 	private async Task EnsureSchemaAsync()
 	{

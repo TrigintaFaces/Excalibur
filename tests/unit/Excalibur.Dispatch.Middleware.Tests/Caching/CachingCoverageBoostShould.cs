@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Focused tests to increase code coverage for Excalibur.Dispatch.Caching from 88.4% to 95%+.
 /// Targets uncovered paths in CachingMiddleware (factory delegates, ExtractReturnValue,
 /// DeserializeCachedValue, ShouldCacheBasedOnPolicy branches), CacheInvalidationMiddleware
-/// fallback paths, CachedValueJsonConverter edge cases, and LruCache GetOrAdd race path.
+/// fallback paths, and CachedValueJsonConverter edge cases.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Caching)]
@@ -331,6 +331,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = jsonElement,
@@ -355,8 +356,8 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	public async Task InvokeAsync_CacheHit_WithJsonElementValue_DeserializationFails_CatchBlockHit()
 	{
 		// Arrange - cache hit where TypeName resolves to a real type but JSON is incompatible,
-		// triggering the catch block in DeserializeCachedValue. Value stays as JsonElement,
-		// which then causes Activator.CreateInstance to fail for CachedMessageResult<string>.
+		// triggering the catch block in DeserializeCachedValue. The value stays a JsonElement, which is
+		// not the string this action returns.
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableAction(); // IDispatchAction<string>
 
@@ -373,27 +374,35 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = jsonElement,
 				TypeName = typeof(DateTime).AssemblyQualifiedName // valid type but incompatible JSON
 			}));
 
-		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
-			new(A.Fake<IMessageResult>());
+		var handlerRan = false;
+		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
+		{
+			handlerRan = true;
+			return new(A.Fake<IMessageResult>());
+		}
 
-		// Act - DeserializeCachedValue catch block is hit, value stays as JsonElement,
-		// then cached wrapper construction fails with an argument type mismatch
-		await Should.ThrowAsync<ArgumentException>(async () =>
-			await middleware.InvokeAsync(message, _context, Next, _ct));
+		// Act - the stored value cannot be served as the action's response type, so the entry is treated as
+		// a miss and the handler runs. This previously surfaced as an ArgumentException thrown out of the
+		// cache layer into the caller, which let a corrupt entry fail an otherwise serviceable request.
+		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
+
+		_ = result.ShouldNotBeNull();
+		handlerRan.ShouldBeTrue("an entry that cannot be served as the requested type must fall through to the handler");
 	}
 
 	[Fact]
 	public async Task InvokeAsync_CacheHit_WithJsonElementValue_EmptyTypeName_SkipsDeserialization()
 	{
 		// Arrange - cache hit with Value as JsonElement but empty TypeName.
-		// DeserializeCachedValue skips the if block (IsNullOrEmpty is true),
-		// value stays as JsonElement, then cached wrapper construction fails.
+		// DeserializeCachedValue skips the if block (IsNullOrEmpty is true), so the value stays a
+		// JsonElement, which is not the string this action returns.
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableAction(); // IDispatchAction<string>
 		var jsonElement = JsonSerializer.Deserialize<JsonElement>("\"hello\"");
@@ -407,25 +416,35 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = jsonElement,
 				TypeName = "" // empty type name
 			}));
 
-		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
-			new(A.Fake<IMessageResult>());
+		var handlerRan = false;
+		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
+		{
+			handlerRan = true;
+			return new(A.Fake<IMessageResult>());
+		}
 
-		// Act - JsonElement stays as-is since TypeName is empty, then wrapper construction fails
-		await Should.ThrowAsync<ArgumentException>(async () =>
-			await middleware.InvokeAsync(message, _context, Next, _ct));
+		// Act - the stored value cannot be served as the action's response type, so the entry is treated as
+		// a miss and the handler runs. This previously surfaced as an ArgumentException thrown out of the
+		// cache layer into the caller, which let a corrupt entry fail an otherwise serviceable request.
+		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
+
+		_ = result.ShouldNotBeNull();
+		handlerRan.ShouldBeTrue("an entry that cannot be served as the requested type must fall through to the handler");
 	}
 
 	[Fact]
 	public async Task InvokeAsync_CacheHit_WithJsonElementValue_InvalidTypeName_TypeGetTypeReturnsNull()
 	{
-		// Arrange - cache hit where TypeName does not resolve (Type.GetType returns null),
-		// so deserialization is skipped, value stays as JsonElement
+		// Arrange - cache hit where TypeName does not resolve (Type.GetType returns null), so
+		// deserialization is skipped and the value stays a JsonElement, which is not the string this
+		// action returns.
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableAction(); // IDispatchAction<string>
 		var jsonElement = JsonSerializer.Deserialize<JsonElement>("42");
@@ -439,18 +458,27 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = jsonElement,
 				TypeName = "NonExistent.Type.That.DoesNot.Exist, FakeAssembly"
 			}));
 
-		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
-			new(A.Fake<IMessageResult>());
+		var handlerRan = false;
+		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
+		{
+			handlerRan = true;
+			return new(A.Fake<IMessageResult>());
+		}
 
-		// Act - type resolution fails, value stays as JsonElement, wrapper construction fails
-		await Should.ThrowAsync<ArgumentException>(async () =>
-			await middleware.InvokeAsync(message, _context, Next, _ct));
+		// Act - the stored value cannot be served as the action's response type, so the entry is treated as
+		// a miss and the handler runs. This previously surfaced as an ArgumentException thrown out of the
+		// cache layer into the caller, which let a corrupt entry fail an otherwise serviceable request.
+		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
+
+		_ = result.ShouldNotBeNull();
+		handlerRan.ShouldBeTrue("an entry that cannot be served as the requested type must fall through to the handler");
 	}
 
 	[Fact]
@@ -470,6 +498,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableCustomPayloadAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = jsonElement,
@@ -508,6 +537,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableGuidAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = jsonElement,
@@ -559,6 +589,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttrCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "test",
@@ -824,70 +855,6 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Assert
 		A.CallTo(() => hybridCache.RemoveAsync(
 			A<IEnumerable<string>>.That.Contains("sk:dist-key"), _ct)).MustHaveHappened();
-	}
-
-	// =========================================================================
-	// LruCache: GetOrAdd covering race condition double-check path
-	// =========================================================================
-
-	[Fact]
-	public void LruCache_GetOrAdd_WhenKeyAlreadyExists_ReturnsExistingValue()
-	{
-		// Arrange
-		using var cache = new LruCache<string, int>(10);
-		cache.Set("key1", 100);
-
-		// Act - GetOrAdd should return existing value, not call factory
-		var factoryCalled = false;
-		var result = cache.GetOrAdd("key1", _ =>
-		{
-			factoryCalled = true;
-			return 200;
-		});
-
-		// Assert
-		result.ShouldBe(100);
-		factoryCalled.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void LruCache_GetOrAdd_WhenKeyDoesNotExist_CallsFactory()
-	{
-		// Arrange
-		using var cache = new LruCache<string, int>(10);
-
-		// Act
-		var result = cache.GetOrAdd("new-key", _ => 42);
-
-		// Assert
-		result.ShouldBe(42);
-		cache.Count.ShouldBe(1);
-	}
-
-	[Fact]
-	public void LruCache_GetOrAdd_WithTtl_SetsExpiration()
-	{
-		// Arrange
-		using var cache = new LruCache<string, int>(10, defaultTtl: TimeSpan.FromMinutes(5));
-
-		// Act
-		var result = cache.GetOrAdd("ttl-key", _ => 99, TimeSpan.FromSeconds(30));
-
-		// Assert
-		result.ShouldBe(99);
-		cache.TryGetValue("ttl-key", out var val).ShouldBeTrue();
-		val.ShouldBe(99);
-	}
-
-	[Fact]
-	public void LruCache_GetOrAdd_WithNullFactory_ThrowsArgumentNullException()
-	{
-		// Arrange
-		using var cache = new LruCache<string, int>(10);
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			cache.GetOrAdd("key", null!));
 	}
 
 	// =========================================================================

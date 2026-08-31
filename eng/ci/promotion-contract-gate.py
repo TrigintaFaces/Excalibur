@@ -21,6 +21,9 @@ The contract these assertions bind:
   A5  The draft-until-published ordering still holds.
   A6  There is exactly one canonical package artifact and no rival name to choose instead.
   A7  This gate's own workflow is triggered by edits to the workflows it asserts about.
+  A8  Nothing rewrites the promoted bytes after they have been measured: the producing
+      workflow signs BEFORE it hashes and attests, the release workflow signs nowhere at
+      all, and the push is preceded by a provenance re-check.
 
 WHAT IT CANNOT PROVE
 --------------------
@@ -62,6 +65,7 @@ RELEASE_WF = "release.yml"
 OFFICIAL_WF = "official-build.yml"
 REHEARSAL_WF = "release-rehearsal.yml"
 ADMISSION_JOB = "build-packages"
+PUBLISH_JOB = "publish-nuget"
 
 SHIPPING_FILTER = "ShippingOnly.slnf"
 
@@ -70,6 +74,10 @@ RE_BUILD_SHIPPING = re.compile(r"\bdotnet\s+build\b[^\n]*" + re.escape(SHIPPING_
 RE_SHA_VERIFY = re.compile(r"\bsha256sum\s+(-c|--check)\b")
 RE_SHA_PRODUCE = re.compile(r"\bsha256sum\b")
 RE_ATTEST_VERIFY = re.compile(r"\bgh\s+attestation\s+verify\b")
+# `dotnet nuget sign` rewrites a .nupkg IN PLACE, so WHERE it runs decides whether every
+# measurement taken of a package describes the package that ships.
+RE_NUGET_SIGN = re.compile(r"\bdotnet\s+nuget\s+sign\b")
+RE_NUGET_PUSH = re.compile(r"\bdotnet\s+nuget\s+push\b")
 RE_SBOM_TOOL = re.compile(r"cyclonedx|\bsbom\b", re.I)
 RE_VERSION_WORD = re.compile(r"version", re.I)
 RE_MISMATCH = re.compile(r"mismatch|does not match|!=|-ne\b|differs", re.I)
@@ -428,6 +436,73 @@ def check(workflows):
                         "A7",
                         f"{REHEARSAL_WF} '{event}' paths do not include {required}; the one edit "
                         "these assertions exist to catch is the edit that would not trigger them"))
+
+    # -- A8: nothing rewrites the promoted bytes after they are measured -----------------
+    #
+    # A signature is not metadata sitting beside a package -- it becomes an entry in the
+    # archive, so applying one CHANGES THE FILE. Every statement this pipeline makes about a
+    # package is a statement about bytes: the hash manifest, the provenance attestation, and
+    # the install test performed against a staging feed. Sign after those and all three
+    # describe a file that no longer exists, while the pipeline goes on reporting that these
+    # bytes were validated -- a claim false of every byte a consumer receives, on every
+    # release that signs.
+    #
+    # The property is ORDER, so it is asserted as order rather than as presence. Signed at the
+    # origin before the manifest, exactly one artifact exists from pack through push.
+    if release:
+        for job_name, job in jobs_of(release).items():
+            for step in steps_of(job):
+                if RE_NUGET_SIGN.search(step_run(step)):
+                    problems.append(Problem(
+                        "A8",
+                        f"{RELEASE_WF} job '{job_name}' runs `dotnet nuget sign`, which rewrites "
+                        "the promoted packages in place; what it published would not be what was "
+                        "hashed, attested and install-tested, and the release would report bytes "
+                        "as validated that no consumer will ever receive"))
+                    break
+
+    if producer:
+        pname, pjob = producer
+        psteps = steps_of(pjob)
+        sign_at = next((i for i, st in enumerate(psteps) if RE_NUGET_SIGN.search(step_run(st))), None)
+        hash_at = next((i for i, st in enumerate(psteps) if RE_SHA_PRODUCE.search(step_run(st))), None)
+        if sign_at is None:
+            problems.append(Problem(
+                "A8",
+                f"producer job '{pname}' never runs `dotnet nuget sign`; with no signing step at "
+                "the origin, the only remaining place to sign is downstream of every measurement "
+                "-- which is precisely the defect this assertion exists to prevent"))
+        elif hash_at is not None and sign_at > hash_at:
+            problems.append(Problem(
+                "A8",
+                f"producer job '{pname}' signs at step {sign_at} but hashes at step {hash_at}; the "
+                "manifest and the attestation would then describe the UNSIGNED bytes, so every "
+                "downstream check would be verifying a file that no longer exists"))
+
+    # The last thing before the irreversible act must be the one check a substitution cannot
+    # simply rewrite. SHA256SUMS.txt travels INSIDE the artifact, so re-running it downstream
+    # proves only self-consistency -- anything that replaced the packages replaced the manifest
+    # with them. The attestation was minted at the origin and does not travel with the bytes.
+    if release:
+        publisher = jobs_of(release).get(PUBLISH_JOB)
+        if publisher:
+            qsteps = steps_of(publisher)
+            push_at = next((i for i, st in enumerate(qsteps) if RE_NUGET_PUSH.search(step_run(st))), None)
+            verify_at = next((i for i, st in enumerate(qsteps) if RE_ATTEST_VERIFY.search(step_run(st))), None)
+            if push_at is not None and verify_at is None:
+                problems.append(Problem(
+                    "A8",
+                    f"'{PUBLISH_JOB}' pushes without re-verifying provenance first; between "
+                    "admission and the push the set crosses an artifact store where it is "
+                    "identified by NAME rather than by content, and the attestation is the only "
+                    "statement here that did not travel with the bytes"))
+            elif push_at is not None and verify_at > push_at:
+                problems.append(Problem(
+                    "A8",
+                    f"'{PUBLISH_JOB}' re-verifies provenance at step {verify_at}, after the push "
+                    f"at step {push_at}; a registry version is immutable, so a check that runs "
+                    "after the push cannot stop anything"))
+
     return problems
 
 
@@ -442,6 +517,9 @@ def compliant_fixtures():
                 "permissions": {"id-token": "write", "attestations": "write"},
                 "steps": [
                     {"name": "Pack", "run": "dotnet pack eng/ci/shards/ShippingOnly.slnf -o packages"},
+                    # Before the hash, deliberately: signing rewrites the package, so a manifest
+                    # taken first would describe a file that no longer exists.
+                    {"name": "Sign", "run": "dotnet nuget sign packages/*.nupkg --certificate-path $CERT --overwrite"},
                     {"name": "Hash", "run": "sha256sum *.nupkg | tee SHA256SUMS.txt"},
                     {"name": "Receipt", "run": "echo '{}' > packages/build-receipt.json"},
                     {"name": "SBOM", "run": "dotnet CycloneDX ./src -o ./sbom -F Json"},
@@ -487,7 +565,12 @@ def compliant_fixtures():
             },
             "publish-nuget": {
                 "needs": ["staging-validation", "create-release"],
-                "steps": [{"uses": "actions/download-artifact@v8", "with": {"name": "packages"}}],
+                "steps": [
+                    {"uses": "actions/download-artifact@v8", "with": {"name": "packages"}},
+                    {"name": "Re-verify provenance",
+                     "run": "gh attestation verify packages/*.nupkg --repo $GITHUB_REPOSITORY"},
+                    {"name": "Push", "run": "dotnet nuget push packages/*.nupkg -s https://api.nuget.org/v3/index.json"},
+                ],
             },
             "finalize-release": {
                 "needs": ["publish-nuget"],
@@ -527,6 +610,16 @@ def _admission(wfs):
 
 def _producer(wfs):
     return wfs[OFFICIAL_WF]["jobs"]["official-build"]
+
+
+def _move_sign_after_hash(job):
+    """The exact regression this assertion exists for: signing that drifted downstream of the
+    measurement it invalidates."""
+    steps = job["steps"]
+    sign = next(s for s in steps if "dotnet nuget sign" in str(s.get("run") or ""))
+    steps.remove(sign)
+    at = next(i for i, s in enumerate(steps) if "sha256sum" in str(s.get("run") or ""))
+    steps.insert(at + 1, sign)
 
 
 def _drop_step(job, token):
@@ -596,6 +689,17 @@ MUTATIONS = [
          {"uses": "actions/upload-artifact@v7", "with": {"name": "build-artifacts", "path": "./packages/*.nupkg"}})),
     ("A7", "the rehearsal stops firing on producer edits",
      lambda w: w[REHEARSAL_WF][True]["push"].__setitem__("paths", [".github/workflows/release.yml"])),
+    # The four shapes of "the bytes changed after they were measured". The first is the defect as
+    # it was actually found; the second is the same defect one job upstream.
+    ("A8", "the release workflow signs the packages it publishes",
+     lambda w: w[RELEASE_WF]["jobs"][PUBLISH_JOB]["steps"].append(
+         {"name": "Sign", "run": "dotnet nuget sign packages/*.nupkg --overwrite"})),
+    ("A8", "the producer signs AFTER hashing",
+     lambda w: _move_sign_after_hash(_producer(w))),
+    ("A8", "the producer stops signing altogether",
+     lambda w: _drop_step(_producer(w), "dotnet nuget sign")),
+    ("A8", "the push is no longer preceded by a provenance re-check",
+     lambda w: _drop_step(w[RELEASE_WF]["jobs"][PUBLISH_JOB], "gh attestation verify")),
 ]
 
 
@@ -713,7 +817,10 @@ def main(argv=None):
           "an official build, and gates every consumer behind itself (A4); that the release is "
           "created as a draft and finalized only on a successful publish, without always() (A5); "
           "that exactly one package artifact name exists and no rival is uploaded or downloaded "
-          "(A6); and that the rehearsal fires on edits to both workflows it asserts about (A7).")
+          "(A6); that the rehearsal fires on edits to both workflows it asserts about (A7); and "
+          "that nothing rewrites the promoted bytes after they are measured -- the producer signs "
+          "before it hashes, the release workflow signs nowhere, and the push is preceded by a "
+          "provenance re-check (A8).")
     return EXIT_PASS
 
 

@@ -18,7 +18,7 @@ namespace Excalibur.Data.CosmosDb.Authorization;
 /// <remarks>
 /// <para>
 /// Uses tenant_id as the partition key for optimal query patterns where activity group grants
-/// are typically queried by tenant scope. Null tenants use "__null__" as the partition key.
+/// are typically queried by tenant scope.
 /// </para>
 /// <para>
 /// Uses UpsertItemAsync for insert operations to handle duplicates gracefully.
@@ -30,6 +30,16 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 	private readonly ILogger<CosmosDbActivityGroupGrantStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
+	/// <summary>
+	/// Whether this store created the Cosmos client it holds, and may therefore dispose it.
+	/// </summary>
+	/// <remarks>
+	/// A store handed the host's shared client must not dispose it: the client is a singleton several
+	/// features share, and disposing it leaves every other feature throwing ObjectDisposedException from
+	/// a call that names this store's disposal rather than anything the caller did. The flag is set only
+	/// on the path that constructs one.
+	/// </remarks>
+	private bool _ownsClient;
 	private Container? _container;
 	private volatile bool _initialized;
 	private volatile bool _disposed;
@@ -49,6 +59,27 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbActivityGroupGrantStore"/> class over a client the host owns.
+	/// </summary>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="client">The Cosmos client registered by the host. Borrowed, never disposed here.</param>
+	/// <remarks>
+	/// Selected by dependency injection whenever a <see cref="CosmosClient"/> is registered, which the
+	/// Cosmos registration does. Borrowing that client is what keeps a host enabling several Cosmos
+	/// features on one connection pool rather than one per feature, and the store does not dispose it.
+	/// </remarks>
+	public CosmosDbActivityGroupGrantStore(
+		IOptions<CosmosDbAuthorizationOptions> options,
+		ILogger<CosmosDbActivityGroupGrantStore> logger,
+		CosmosClient client)
+		: this(options, logger)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		_client = client;
 	}
 
 	/// <inheritdoc/>
@@ -141,7 +172,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 	public async Task<int> InsertActivityGroupGrantAsync(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,
@@ -155,7 +186,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		var document = new ActivityGroupDocument
 		{
 			Id = ActivityGroupDocument.CreateId(userId, tenantId, grantType, qualifier),
-			TenantId = ActivityGroupDocument.GetPartitionKey(tenantId),
+			TenantId = tenantId,
 			OriginalTenantId = tenantId,
 			UserId = userId,
 			FullName = fullName,
@@ -229,7 +260,13 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 			}
 
 			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
+			// Only when the host supplied none. A store that borrows the registered client shares its
+			// connection pool with every other Cosmos feature instead of opening a second one.
+			if (_client is null)
+			{
+				_client = CreateClient(clientOptions);
+				_ownsClient = true;
+			}
 
 			var database = _client.GetDatabase(_options.DatabaseName);
 			_container = database.GetContainer(_options.ActivityGroupsContainerName);
@@ -255,7 +292,12 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -268,7 +310,12 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);

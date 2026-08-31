@@ -73,11 +73,27 @@ public static class SagaBuilderCosmosDbExtensions
 		CosmosDbSagaOptions options,
 		bool hasBuilderConnection)
 	{
-		// Register store-specific options from builder state
+		// Register store-specific options from builder state.
+		//
+		// The connection travels with the database and container names. It is not enough to hand it to the
+		// CosmosClient registered below: the store's options are validated independently, and a connection
+		// that exists only inside a client registration leaves those options describing no account at all.
+		// Because the builder's connection verbs are mutually exclusive, at most one of these is non-null,
+		// and the client-instance path leaves both null and supplies its own value afterwards.
 		_ = builder.Services.Configure<CosmosDbSagaOptions>(opt =>
 		{
 			opt.DatabaseName = options.DatabaseName;
 			opt.ContainerName = options.ContainerName;
+
+			if (cosmosBuilder.ConnectionStringValue is not null)
+			{
+				opt.Client.ConnectionString = cosmosBuilder.ConnectionStringValue;
+			}
+			else if (cosmosBuilder.EndpointValue is not null)
+			{
+				opt.Client.AccountEndpoint = cosmosBuilder.EndpointValue;
+				opt.Client.AccountKey = cosmosBuilder.AuthKeyValue;
+			}
 		});
 
 		// Register BindConfiguration if set
@@ -113,7 +129,13 @@ public static class SagaBuilderCosmosDbExtensions
 		}
 
 		// Register store services
-		builder.Services.TryAddSingleton<CosmosDbSagaStore>();
+		_ = builder.Services.AddDefaultTenantContext();
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the
+		// store through THIS path, while the sibling entry point in the same package looks done.
+		_ = builder.Services.AddTenantAwareStore<ISagaStore, CosmosDbSagaStore>();
 		builder.Services.AddKeyedSingleton<ISagaStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbSagaStore>());
 		builder.Services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("cosmosdb"));

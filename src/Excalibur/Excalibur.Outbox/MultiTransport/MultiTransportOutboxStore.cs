@@ -7,6 +7,8 @@ using Excalibur.Outbox.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Outbox.MultiTransport;
 
 /// <summary>

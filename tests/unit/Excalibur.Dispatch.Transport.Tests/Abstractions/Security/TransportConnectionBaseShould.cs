@@ -42,6 +42,11 @@ public sealed class TransportConnectionBaseShould
         var ex = await Should.ThrowAsync<TransportSecurityException>(
             sut.ConnectAsync(CancellationToken.None));
         ex.Message.ShouldContain("TLS");
+        ex.FailureReason.ShouldBe(TransportSecurityFailureReason.TlsNotEnabled);
+        // The refusal names the transport FAMILY, not the class that threw: a consumer branching on
+        // TransportName must see the same value from a connect-time refusal and a posture refusal.
+        ex.TransportName.ShouldBe("TestTransport");
+        ex.TransportName.ShouldNotBe(nameof(TestConnection));
     }
 
     [Fact]
@@ -108,6 +113,8 @@ public sealed class TransportConnectionBaseShould
             EstablishConnectionCalled = true;
             return Task.CompletedTask;
         }
+
+        protected override string TransportLabel => "TestTransport";
 
         protected override bool IsConnectionSecure() => _isSecure;
 

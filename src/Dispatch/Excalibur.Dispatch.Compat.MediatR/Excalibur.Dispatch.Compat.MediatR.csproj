@@ -8,7 +8,7 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
-    <!-- One-way dependency: compat -> canonical Dispatch. Canonical NEVER references compat (ADR-341). -->
+    <!-- One-way dependency: compat -> canonical Dispatch. Canonical NEVER references compat. -->
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
@@ -17,7 +17,7 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-  <!-- ADR-341 §9 Option B2: ship the compat source generator as an analyzer asset of THIS package, so a
+  <!-- ship the compat source generator as an analyzer asset of THIS package, so a
        single Compat.MediatR reference gives a consumer the AOT-safe registration generator. -->
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Compat.MediatR.SourceGenerators\Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj"

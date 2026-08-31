@@ -22,7 +22,11 @@ public static class TenantLeaderElectionFactoryExtensions
 	/// Composes a tenant-qualified lease resource name (<c>{resourceName}:{tenantId}</c>)
 	/// from the current ambient tenant, failing closed when no tenant is resolved.
 	/// </summary>
-	/// <param name="tenantContext"> The ambient tenant accessor. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="resourceName"> The base resource name to qualify. </param>
 	/// <returns> The tenant-qualified resource name. </returns>
 	/// <exception cref="System.ArgumentNullException"> <paramref name="tenantContext"/> is <see langword="null"/>. </exception>
@@ -44,7 +48,11 @@ public static class TenantLeaderElectionFactoryExtensions
 	/// Creates a leader election whose lease is scoped to the current ambient tenant.
 	/// </summary>
 	/// <param name="factory"> The leader-election factory. </param>
-	/// <param name="tenantContext"> The ambient tenant accessor. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="resourceName"> The base resource to elect a leader for; qualified with the tenant. </param>
 	/// <param name="candidateId"> Optional candidate ID (defaults to the instance ID). </param>
 	/// <returns> A leader election instance scoped to the current tenant. </returns>
@@ -64,7 +72,11 @@ public static class TenantLeaderElectionFactoryExtensions
 	/// Creates a health-based leader election whose lease is scoped to the current ambient tenant.
 	/// </summary>
 	/// <param name="factory"> The leader-election factory. </param>
-	/// <param name="tenantContext"> The ambient tenant accessor. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="resourceName"> The base resource to elect a leader for; qualified with the tenant. </param>
 	/// <param name="candidateId"> Optional candidate ID (defaults to the instance ID). </param>
 	/// <returns> A health-based leader election instance scoped to the current tenant. </returns>

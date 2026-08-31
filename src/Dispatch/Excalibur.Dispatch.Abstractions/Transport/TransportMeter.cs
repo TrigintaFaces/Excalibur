@@ -21,8 +21,8 @@ namespace Excalibur.Dispatch.Transport;
 ///   <item><c>dispatch.transport.messages_sent_total</c> - Counter of messages sent</item>
 ///   <item><c>dispatch.transport.messages_received_total</c> - Counter of messages received</item>
 ///   <item><c>dispatch.transport.errors_total</c> - Counter of transport errors</item>
-///   <item><c>dispatch.transport.send_duration_ms</c> - Histogram of send operation durations</item>
-///   <item><c>dispatch.transport.receive_duration_ms</c> - Histogram of receive operation durations</item>
+///   <item><c>dispatch.transport.send.duration</c> - Histogram of send operation durations</item>
+///   <item><c>dispatch.transport.receive.duration</c> - Histogram of receive operation durations</item>
 ///   <item><c>dispatch.transport.connection_status</c> - Gauge of connection status (0=disconnected, 1=connected)</item>
 /// </list>
 /// </para>
@@ -46,7 +46,7 @@ public static class TransportMeter
 	/// </summary>
 	private static readonly Counter<long> MessagesSentCounter = Meter.CreateCounter<long>(
 		"dispatch.transport.messages_sent_total",
-		unit: "messages",
+		unit: "{messages}",
 		description: "Total number of messages sent through transports");
 
 	/// <summary>
@@ -54,7 +54,7 @@ public static class TransportMeter
 	/// </summary>
 	private static readonly Counter<long> MessagesReceivedCounter = Meter.CreateCounter<long>(
 		"dispatch.transport.messages_received_total",
-		unit: "messages",
+		unit: "{messages}",
 		description: "Total number of messages received from transports");
 
 	/// <summary>
@@ -62,23 +62,23 @@ public static class TransportMeter
 	/// </summary>
 	private static readonly Counter<long> ErrorsCounter = Meter.CreateCounter<long>(
 		"dispatch.transport.errors_total",
-		unit: "errors",
+		unit: "{errors}",
 		description: "Total number of transport errors");
 
 	/// <summary>
 	/// Histogram for send operation duration.
 	/// </summary>
 	private static readonly Histogram<double> SendDurationHistogram = Meter.CreateHistogram<double>(
-		"dispatch.transport.send_duration_ms",
-		unit: "milliseconds",
+		"dispatch.transport.send.duration",
+		unit: "ms",
 		description: "Duration of send operations");
 
 	/// <summary>
 	/// Histogram for receive operation duration.
 	/// </summary>
 	private static readonly Histogram<double> ReceiveDurationHistogram = Meter.CreateHistogram<double>(
-		"dispatch.transport.receive_duration_ms",
-		unit: "milliseconds",
+		"dispatch.transport.receive.duration",
+		unit: "ms",
 		description: "Duration of receive operations");
 
 	/// <summary>
@@ -86,7 +86,7 @@ public static class TransportMeter
 	/// </summary>
 	private static readonly Counter<long> TransportStartsCounter = Meter.CreateCounter<long>(
 		"dispatch.transport.starts_total",
-		unit: "starts",
+		unit: "{starts}",
 		description: "Total number of transport starts");
 
 	/// <summary>
@@ -94,7 +94,7 @@ public static class TransportMeter
 	/// </summary>
 	private static readonly Counter<long> TransportStopsCounter = Meter.CreateCounter<long>(
 		"dispatch.transport.stops_total",
-		unit: "stops",
+		unit: "{stops}",
 		description: "Total number of transport stops");
 
 	/// <summary>
@@ -119,7 +119,7 @@ public static class TransportMeter
 						new KeyValuePair<string, object?>("transport_type", kvp.Value.TransportType)));
 				}
 			},
-			unit: "status",
+			unit: "{status}",
 			description: "Transport connection status (0=disconnected, 1=connected)");
 
 		// Create observable gauge for pending messages (queue depth)
@@ -135,7 +135,7 @@ public static class TransportMeter
 						new KeyValuePair<string, object?>("transport_type", kvp.Value.TransportType)));
 				}
 			},
-			unit: "messages",
+			unit: "{messages}",
 			description: "Number of pending messages in transport queue");
 	}
 

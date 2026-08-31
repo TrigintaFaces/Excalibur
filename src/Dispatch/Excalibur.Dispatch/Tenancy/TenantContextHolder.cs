@@ -10,12 +10,6 @@ namespace Excalibur.Dispatch;
 /// </summary>
 public static class TenantContextHolder
 {
-	/// <summary>
-	/// The <see cref="IMessageContext.Items"/> key a producer/transport sets to carry the tenant id into a
-	/// dispatched message, which <c>ITenantResolver</c> reads on the receiving side.
-	/// </summary>
-	public const string TenantIdItemKey = "excalibur.dispatch.tenant-id";
-
 	private static readonly AsyncLocal<string?> Ambient = new();
 
 	/// <summary>Gets the current ambient tenant id, or <see langword="null"/> when none is established.</summary>

@@ -48,7 +48,7 @@ BEGIN
         NextAttemptAt      DATETIMEOFFSET   NULL,
         LeaseExpiresAtUtc  DATETIMEOFFSET   NULL,
         CorrelationId      NVARCHAR(255)    NULL,
-        TenantId           NVARCHAR(255) COLLATE Latin1_General_BIN2    NOT NULL,
+        TenantId           NVARCHAR(64) COLLATE Latin1_General_BIN2    NOT NULL,
         Source             NVARCHAR(255)    NULL,
 
         -- Multi-tenant: tenant is part of identity. The dedup/claim key is the triple.

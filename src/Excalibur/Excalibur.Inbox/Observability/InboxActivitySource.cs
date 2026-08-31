@@ -97,7 +97,7 @@ public static class InboxActivitySource
 	}
 
 	/// <summary>
-	/// Starts an activity for a CleanupAsync inbox operation.
+	/// Starts an activity for a CleanupAllTenantsProcessedEntriesAsync inbox operation.
 	/// </summary>
 	public static Activity? StartCleanupActivity()
 	{

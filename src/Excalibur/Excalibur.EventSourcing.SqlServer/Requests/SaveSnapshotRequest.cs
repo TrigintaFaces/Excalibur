@@ -15,7 +15,8 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 
 /// <summary>
 /// Data request to save (upsert) a snapshot for an aggregate.
-/// Uses MERGE for atomic insert-or-update semantics.
+/// Upserts with a guarded UPDATE-then-INSERT so that writers for different aggregates take row locks
+/// on a primary-key seek rather than key-range locks, which is what lets concurrent saves proceed.
 /// </summary>
 public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 {
@@ -25,9 +26,8 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 	/// <param name="snapshot">The snapshot to save.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope, or <see cref="TenantScope.None"/> in a single-tenant host. The tenant is part of
-	/// the merge key in every case: a single-tenant row is keyed under the empty-string sentinel the schema
-	/// defaults to, not outside the key. Two tenants holding the same aggregate identifier therefore occupy
+	/// The tenant scope. The tenant is part of the merge key in every case: an untenanted row is keyed under
+	/// the reserved sentinel the schema defaults to, not outside the key. Two tenants holding the same aggregate identifier therefore occupy
 	/// separate rows, and an unscoped save cannot match a tenant-scoped row.
 	/// </param>
 	/// <param name="schema">The schema name for the snapshot store table. Default: "dbo".</param>
@@ -44,7 +44,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		var qualifiedTable = SqlTableName.Format(schema, table);
 
 		// Untenanted rows use the reserved '__untenanted__' sentinel, bound through KeyedTenantPartition.
-		// The tenant is part of the MERGE UNIQUE key, and encoding untenanted as a concrete non-empty value
+		// The tenant is part of the UNIQUE key the upsert matches on, and encoding untenanted as a concrete non-empty value
 		// (never NULL, never '') keeps the upsert an upsert: the sentinel is collision-proof (Scoped()
 		// rejects it, so no real tenant can claim the partition), read and write agree on it, and it never
 		// crosses the tenant boundary. See ARCHITECTURE.md (tenant isolation).
@@ -58,30 +58,61 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		// a table holding tenant rows for the same aggregate would MATCH a tenant's row and overwrite it.
 		// Single-tenant is not "no tenant" here -- it is the '' sentinel the DDL defaults to, so every
 		// statement keys on the full triple and the unscoped path stops being a second statement.
-		const string tenantKeyPredicate = " AND target.TenantId = source.TenantId";
-		const string tenantSourceColumn = ", @TenantId";
-		const string tenantSourceName = ", TenantId";
+		const string tenantUpdatePredicate = " AND TenantId = @TenantId";
 		const string tenantInsertColumn = ", TenantId";
-		const string tenantInsertValue = ", source.TenantId";
+		const string tenantInsertParameter = ", @TenantId";
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		// A serializable MERGE here DEADLOCKED writers for DIFFERENT aggregates. The key-range locks its
+		// seek takes on the nonclustered primary key are per-aggregate and harmless; the collision is one
+		// level down, in the CLUSTERED index. That index is (AggregateType, TenantId) -- deliberately, to
+		// stay inside SQL Server's 900-byte clustered key cap, which the full 1148-byte triple exceeds --
+		// so every snapshot of one type and tenant shares a single clustered key value. Concurrent inserts
+		// each held their own primary-key range and then waited on that one shared clustered range, which
+		// closes the cycle. Nothing retried it: this store resolves requests on a raw connection and never
+		// passes through the retry policy that classifies 1205 as transient.
+		//
+		// Try-update-then-insert takes ROW locks on a primary-key seek and no key-range locks at all, so
+		// writers for distinct aggregates cannot contend. The remaining race is narrow and self-converging:
+		// two callers inserting the SAME key, where the primary key -- still the full triple, still enforced
+		// -- lets exactly one win and the loser converges by re-running the update. The monotonicity guard
+		// is preserved verbatim as `Version < @Version`, so a stale save remains a no-op, and every
+		// statement still keys on the full triple, so tenant isolation is unchanged.
 		var sql = $"""
-			MERGE INTO {qualifiedTable} WITH (HOLDLOCK, ROWLOCK, UPDLOCK) AS target
-			USING (SELECT @SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt, @Metadata{tenantSourceColumn})
-			    AS source (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata{tenantSourceName})
-			ON target.AggregateId = source.AggregateId
-			   AND target.AggregateType = source.AggregateType{tenantKeyPredicate}
-			WHEN MATCHED AND source.Version > target.Version THEN
-			    UPDATE SET
-			        SnapshotId = source.SnapshotId,
-			        Version = source.Version,
-			        Data = source.Data,
-			        CreatedAt = source.CreatedAt,
-			        Metadata = source.Metadata
-			WHEN NOT MATCHED THEN
-			    INSERT (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata{tenantInsertColumn})
-			    VALUES (source.SnapshotId, source.AggregateId, source.AggregateType,
-			            source.Version, source.Data, source.CreatedAt, source.Metadata{tenantInsertValue});
+			BEGIN TRY
+			    UPDATE {qualifiedTable}
+			       SET SnapshotId = @SnapshotId,
+			           Version = @Version,
+			           Data = @Data,
+			           CreatedAt = @CreatedAt,
+			           Metadata = @Metadata
+			     WHERE AggregateId = @AggregateId
+			       AND AggregateType = @AggregateType{tenantUpdatePredicate}
+			       AND [Version] < @Version;
+
+			    IF @@ROWCOUNT = 0 AND NOT EXISTS (
+			        SELECT 1 FROM {qualifiedTable}
+			         WHERE AggregateId = @AggregateId
+			           AND AggregateType = @AggregateType{tenantUpdatePredicate})
+			        INSERT INTO {qualifiedTable}
+			            (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata{tenantInsertColumn})
+			        VALUES (@SnapshotId, @AggregateId, @AggregateType,
+			                @Version, @Data, @CreatedAt, @Metadata{tenantInsertParameter});
+			END TRY
+			BEGIN CATCH
+			    IF ERROR_NUMBER() IN (2627, 2601)
+			        UPDATE {qualifiedTable}
+			           SET SnapshotId = @SnapshotId,
+			               Version = @Version,
+			               Data = @Data,
+			               CreatedAt = @CreatedAt,
+			               Metadata = @Metadata
+			         WHERE AggregateId = @AggregateId
+			           AND AggregateType = @AggregateType{tenantUpdatePredicate}
+			           AND [Version] < @Version;
+			    ELSE
+			        THROW;
+			END CATCH;
 			""";
 #pragma warning restore CA2100
 

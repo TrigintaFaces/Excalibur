@@ -43,11 +43,13 @@
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.LeaderElection.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
   <!-- Enable testing of internal types -->
@@ -55,8 +57,8 @@
     <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
     <InternalsVisibleTo Include="Excalibur.Outbox.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
-    <!-- S795 A4: IVT granted to test assemblies that retain direct aggregator
-         access per COMPASS msg 1498 §1. -->
+    <!-- IVT granted to test assemblies that retain direct aggregator
+         access to the aggregator. -->
     <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
     <InternalsVisibleTo Include="Excalibur.Data.DynamoDb.Tests" />
@@ -67,5 +69,8 @@
     <InternalsVisibleTo Include="Excalibur.Data.Tests" />
     <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
     <InternalsVisibleTo Include="Excalibur.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.CosmosDb" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.DynamoDb" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Firestore" />
   </ItemGroup>
 </Project>

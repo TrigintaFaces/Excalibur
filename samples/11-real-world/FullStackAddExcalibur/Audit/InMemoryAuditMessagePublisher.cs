@@ -17,7 +17,7 @@ namespace FullStackAddExcalibur.Audit;
 /// Real deployments publish to Kafka, RabbitMQ, SNS, Event Hubs, or an
 /// ElasticSearch audit index. The contract is the same in every case:
 /// receive the <see cref="ActivityAudited"/> record from the
-/// <see cref="AuditMiddleware"/> and move it to durable storage.
+/// audit middleware and move it to durable storage.
 /// </remarks>
 public sealed class InMemoryAuditMessagePublisher : IAuditMessagePublisher
 {

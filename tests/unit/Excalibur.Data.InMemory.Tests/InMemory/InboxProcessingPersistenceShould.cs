@@ -24,7 +24,7 @@ public sealed class InboxProcessingPersistenceShould
 	private const string Handler = "TestHandler";
 
 	private static InMemoryInboxStore CreateStore() =>
-		new(Options.Create(new InMemoryInboxOptions()), NullLogger<InMemoryInboxStore>.Instance);
+		new(Options.Create(new InMemoryInboxOptions()), NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 
 	private static async Task<InMemoryInboxStore> CreateStoreWithEntryAsync()
 	{

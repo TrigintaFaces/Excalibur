@@ -24,7 +24,8 @@ namespace Excalibur.Inbox.MongoDB;
 /// Uses InsertOneAsync with unique index on (messageId, handlerType) for atomic first-writer-wins semantics.
 /// The tenant is a component of the composite dedup identity, so the write/dedup/claim paths and keyed reads
 /// are isolated by construction — two tenants carrying the same message id never dedup against each other.
-/// Catches MongoWriteException with duplicate key error (11000) for conflict detection.
+/// Detects write conflicts by the driver's duplicate-key error category, so an insert that loses a race
+/// is reported as an already-present entry rather than as a failure.
 /// <para>
 /// The <see cref="IInboxStoreAdmin"/> operator surface (<c>GetAllEntries</c>, <c>GetFailedEntries</c>,
 /// <c>GetStatistics</c>, <c>Cleanup</c>) queries <c>Filter.Empty</c> and is <b>estate-wide by design</b>:
@@ -36,17 +37,23 @@ namespace Excalibur.Inbox.MongoDB;
 /// </remarks>
 [SuppressMessage("Maintainability", "CA1506:AvoidExcessiveClassCoupling",
 	Justification = "Large provider store; the tenant-isolation additions (ITenantContext + TenantScope) are the minimal necessary for the P0 cross-tenant dedup-key fix, and the remaining coupling is inherent to the MongoDB driver surface and the multi-interface inbox contract.")]
-public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, ILeasedInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, IAsyncDisposable
 {
-	private const int DuplicateKeyErrorCode = 11000;
-
 	private readonly MongoDbInboxOptions _options;
 	private readonly ILogger<MongoDbInboxStore> _logger;
 
 	// Ambient tenant context. When active, the tenant is composed INTO the unique _id (via ScopedId) so two
 	// tenants' identical (messageId, handlerType) can never collide on the dedup key, and is stamped on write.
 	// When null / no resolved tenant (non-multi-tenant), keys and rows are byte-identical to the un-scoped form.
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
@@ -68,11 +75,15 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	/// </summary>
 	/// <param name="options">The MongoDB inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
-	/// <param name="tenantContext">Optional ambient tenant context; when active it scopes the dedup <c>_id</c> and stamps the tenant on write (null = non-multi-tenant, byte-identical behavior).</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public MongoDbInboxStore(
 		IOptions<MongoDbInboxOptions> options,
 		ILogger<MongoDbInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -80,6 +91,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_ownsClient = true;
 	}
@@ -90,12 +102,16 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	/// <param name="client">An existing MongoDB client.</param>
 	/// <param name="options">The MongoDB inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
-	/// <param name="tenantContext">Optional ambient tenant context; when active it scopes the dedup <c>_id</c> and stamps the tenant on write (null = non-multi-tenant, byte-identical behavior).</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public MongoDbInboxStore(
 		IMongoClient client,
 		IOptions<MongoDbInboxOptions> options,
 		ILogger<MongoDbInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -105,6 +121,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_database = client.GetDatabase(_options.DatabaseName);
 		_collection = _database.GetCollection<MongoDbInboxDocument>(_options.CollectionName);
@@ -114,16 +131,16 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	// dedup/claim key — and thus every keyed read/write/claim — is tenant-isolated by construction.
 	private string ScopedId(string messageId, string handlerType)
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
-		return MongoDbInboxDocument.CreateId(messageId, handlerType, scope.IsScoped ? scope.TenantId : null);
+		var scope = CurrentTenantScope;
+		return MongoDbInboxDocument.CreateId(messageId, handlerType, scope.TenantId);
 	}
 
 	// The tenant to stamp on a written row: the ambient tenant when scoped, else the supplied fallback
 	// (the entry's own tenant, or null for the minimal claim/mark documents) — byte-identical when non-MT.
 	private string? StampTenant(string? fallback = null)
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
-		return scope.IsScoped ? scope.TenantId : fallback;
+		var scope = CurrentTenantScope;
+		return scope.TenantId;
 	}
 
 	/// <inheritdoc/>
@@ -175,24 +192,32 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var id = ScopedId(messageId, handlerType);
-		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
-
-		var existing = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
-					   ?? throw new InvalidOperationException(
-						   $"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-
-		if (existing.Status == (int)InboxStatus.Processed)
-		{
-			throw new InvalidOperationException(
-				$"Inbox entry already processed for message '{messageId}' and handler '{handlerType}'.");
-		}
+		// ONE conditional update, not a read followed by a write. The terminal check has to be part of
+		// the write's own predicate: as a separate read, two callers both observe a non-terminal entry
+		// and both proceed to finalize it.
+		var idOnly = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			idOnly,
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
 
 		var update = Builders<MongoDbInboxDocument>.Update
 			.Set(d => d.Status, (int)InboxStatus.Processed)
 			.Set(d => d.ProcessedAt, DateTimeOffset.UtcNow)
 			.Set(d => d.LastError, null);
 
-		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		if (result.MatchedCount == 0)
+		{
+			// The decision was atomic; only telling the two failure causes apart needs a second read,
+			// and only on the path that is already failing.
+			var existing = await _collection!.Find(idOnly).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+			throw new InvalidOperationException(
+				existing is null
+					? $"Inbox entry not found for message '{messageId}' and handler '{handlerType}'."
+					: $"Inbox entry already processed for message '{messageId}' and handler '{handlerType}'.");
+		}
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
 	}
@@ -206,19 +231,26 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var id = ScopedId(messageId, handlerType);
-		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+		var idOnly = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+
+		// Processed is absorbing: the predicate refuses rather than demoting a finalized entry back to
+		// Processing, which would re-admit the message and run the handler again. It sits on the write
+		// itself, so a concurrent finalize between the existence read below and the update is also
+		// refused. The existence read stays separate because a refusal and an absent document are the
+		// same matched count, and only absence is an error here.
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			idOnly,
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
+
+		_ = await _collection!.Find(idOnly).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException(
+				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
 		var update = Builders<MongoDbInboxDocument>.Update
 			.Set(d => d.Status, (int)InboxStatus.Processing)
 			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow);
 
-		var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-		if (result.MatchedCount == 0)
-		{
-			throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-		}
+		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 	}
@@ -294,7 +326,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<bool> TryClaimAsync(
+	public async ValueTask<LeaseToken?> TryAcquireLeaseAsync(
 		string messageId,
 		string handlerType,
 		TimeSpan leaseDuration,
@@ -331,7 +363,16 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 			.SetOnInsert(d => d.MessageType, "Unknown")
 			.SetOnInsert(d => d.TenantId, StampTenant())
 			.SetOnInsert(d => d.Status, (int)InboxStatus.Received)
-			.SetOnInsert(d => d.ReceivedAt, DateTimeOffset.UtcNow);
+			.SetOnInsert(d => d.ReceivedAt, DateTimeOffset.UtcNow)
+
+			// RetryCount MUST be written on insert. The retry drain filters on 'retryCount < maxRetries',
+			// and in MongoDB a range comparison does NOT match a document where the field is ABSENT -- so a
+			// lease-created entry without it is invisible to that read forever. It is the clause that
+			// excluded the abandoned entry, not the expired-lease clause beside it: an entry whose
+			// processor died was permanently stranded, with no processor holding it and nothing able to
+			// select it again. The relational providers never showed this because their column carries a
+			// NOT NULL DEFAULT 0, so the field always exists; only a schemaless store can omit it.
+			.SetOnInsert(d => d.RetryCount, 0);
 
 		try
 		{
@@ -357,6 +398,16 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 					new BsonDocument
 					{
 						{ "status", (int)InboxStatus.Processing },
+
+						// Only a real lease can expire. A claim taken through the two-argument overload is held
+						// until its own caller finalises or releases it — it carries no expiry, and its
+						// 'leaseExpiresAt' is null (the mapped field is nullable, so it is written explicitly)
+						// or absent on an entry stored before the field was mapped. Both must fail this branch:
+						// the aggregation comparison below orders null BELOW every date, so without this type
+						// test a live, lease-less claim reads as long expired and is handed to a second caller
+						// while the first is still running its handler. Requiring the date is what makes the
+						// double grant inexpressible rather than merely unlikely.
+						{ "leaseExpiresAt", new BsonDocument("$type", "date") },
 						{ "$expr", new BsonDocument("$lt", new BsonArray { "$leaseExpiresAt", "$$NOW" }) }
 					}
 				}
@@ -374,24 +425,33 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 
 		PipelineDefinition<MongoDbInboxDocument, MongoDbInboxDocument> pipeline = claimPipeline;
 
-		var result = await _collection!.UpdateOneAsync(
+		// Read the POST-IMAGE, not the inputs. The term has to be the value the server resolved from its own
+		// $$NOW inside this one atomic step; anything recomputed here is a different number that the row does
+		// not carry. $$NOW is documented to hold the same value throughout a single pipeline, so the guard
+		// above (leaseExpiresAt STRICTLY less than $$NOW) and the write below ($$NOW plus the duration) read
+		// the same instant - which is what makes a newly written term strictly greater than the one it
+		// displaced, and therefore usable as an identity rather than a deadline.
+		//
+		// That scope is per-PIPELINE. The driver documentation is silent on whether $$NOW is re-evaluated
+		// across separate operations inside one multi-document transaction, so batching an acquisition and
+		// its finalisation into a shared transaction is NOT known to be safe here: if the clock were held
+		// for the transaction, two terms would compare equal and this fence would stop discriminating
+		// without failing. Keep each operation on its own transaction.
+		var claimedDoc = await _collection!.FindOneAndUpdateAsync(
 			claimFilter,
 			Builders<MongoDbInboxDocument>.Update.Pipeline(pipeline),
-			new UpdateOptions { IsUpsert = false },
+			new FindOneAndUpdateOptions<MongoDbInboxDocument> { IsUpsert = false, ReturnDocument = ReturnDocument.After },
 			cancellationToken).ConfigureAwait(false);
 
-		var claimed = result.ModifiedCount > 0;
-
-		if (claimed)
-		{
-			_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
-		}
-		else
+		if (claimedDoc?.LeaseExpiresAt is not { } grantedExpiry)
 		{
 			_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return null;
 		}
 
-		return claimed;
+		_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+
+		return ToLeaseToken(grantedExpiry);
 	}
 
 	/// <inheritdoc/>
@@ -458,9 +518,17 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var id = ScopedId(messageId, handlerType);
-		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+		var idOnly = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
 
-		_ = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+		// Processed is absorbing: the predicate refuses rather than demoting a finalized entry to
+		// Failed, which would make it re-admittable and run the handler again. It sits on the write
+		// itself, so a concurrent finalize between the existence read below and the update is also
+		// refused.
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			idOnly,
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
+
+		_ = await _collection!.Find(idOnly).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
 			?? throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
@@ -468,6 +536,9 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 			.Set(d => d.Status, (int)InboxStatus.Failed)
 			.Set(d => d.LastError, errorMessage)
 			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
+			// The attempt is over, so its lease goes with it. A Failed entry has no holder; leaving a term on
+			// it would leave a value a later comparison could match.
+			.Set(d => d.LeaseExpiresAt, null)
 			.Inc(d => d.RetryCount, 1);
 
 		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -487,18 +558,27 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var id = ScopedId(messageId, handlerType);
-		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
+		var idOnly = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
 
-		_ = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+		// Processed is absorbing: the predicate refuses rather than demoting a finalized entry to
+		// Failed, which would make it re-admittable and run the handler again. It sits on the write
+		// itself, so a concurrent finalize between the existence read below and the update is also
+		// refused.
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			idOnly,
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed));
+
+		_ = await _collection!.Find(idOnly).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
 			?? throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
 		// Set RetryCount EXACTLY (.Set, not .Inc) so a transient short-circuit leaves the entry
-		// re-admittable without consuming a delivery attempt (FR-4).
+		// re-admittable without consuming a delivery attempt.
 		var update = Builders<MongoDbInboxDocument>.Update
 			.Set(d => d.Status, (int)InboxStatus.Failed)
 			.Set(d => d.LastError, errorMessage)
 			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
+			.Set(d => d.LeaseExpiresAt, null)
 			.Set(d => d.RetryCount, retryCount);
 
 		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -507,7 +587,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -516,13 +596,33 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var filterBuilder = Builders<MongoDbInboxDocument>.Filter;
+
+		// The drain's re-admission predicate. A Failed document is retryable, and so is a Processing
+		// document whose lease has run out: that is a processor that died holding the entry, and admitting
+		// it is the only way it ever reaches a terminal state. Without the expired-lease arm, leasing the
+		// drain would move a document to Processing and never select it again -- trading a duplicate
+		// dispatch for a permanently stranded entry, which is the worse failure.
+		//
+		// Expiry is compared against the SERVER clock ('$$NOW'), never an app-side clock, for the same
+		// reason the lease CAS is: competing processors must not decide expiry with skewed local clocks.
+		// The '$type: date' guard is load-bearing -- a claim taken through the lease-less overload carries
+		// a null leaseExpiresAt, which means "no expiry", never "expired", and must not be admitted here.
+		var expiredLease = new BsonDocument
+		{
+			{ "status", (int)InboxStatus.Processing },
+			{ "leaseExpiresAt", new BsonDocument("$type", "date") },
+			{ "$expr", new BsonDocument("$lt", new BsonArray { "$leaseExpiresAt", "$$NOW" }) }
+		};
+
 		var filter = filterBuilder.And(
-			filterBuilder.Eq(d => d.Status, (int)InboxStatus.Failed),
+			filterBuilder.Or(
+				filterBuilder.Eq(d => d.Status, (int)InboxStatus.Failed),
+				new BsonDocumentFilterDefinition<MongoDbInboxDocument>(expiredLease)),
 			filterBuilder.Lt(d => d.RetryCount, maxRetries));
 
 		if (olderThan.HasValue)
 		{
-			filter = filterBuilder.And(filter, filterBuilder.Lt(d => d.LastAttemptAt, olderThan.Value));
+			filter = filterBuilder.And(filter, StoredInstantBefore("lastAttemptAt", olderThan.Value));
 		}
 
 		var documents = await _collection!
@@ -535,7 +635,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -548,7 +648,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -577,7 +677,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
@@ -585,7 +685,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 
 		var filter = Builders<MongoDbInboxDocument>.Filter.And(
 			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Status, (int)InboxStatus.Processed),
-			Builders<MongoDbInboxDocument>.Filter.Lt(d => d.ProcessedAt, olderThan));
+			StoredInstantBefore("processedAt", olderThan));
 
 		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 
@@ -596,6 +696,9 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	/// <inheritdoc/>
 	/// <remarks>The MongoDB store implements <see cref="IClaimableInboxStore"/> directly.</remarks>
 	public bool SupportsClaim => true;
+
+	/// <inheritdoc/>
+	public bool SupportsLeasedClaim => true;
 
 	/// <inheritdoc/>
 	/// <remarks>The MongoDB store implements <see cref="IProcessingTrackingInboxStore"/> directly.</remarks>
@@ -609,6 +712,18 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	/// standalone server; when disabled callers fall back to the at-least-once idempotent claim protocol.
 	/// </remarks>
 	public bool SupportsTransactional => _options.EnableTransactions;
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// This store's only transactional seam is the scoped one, so this tracks
+	/// <see cref="SupportsTransactional"/> exactly. A caller reading the union flag and casting to
+	/// <see cref="ITransactionalInboxStore"/> would fail; this is the flag it can act on.
+	/// </remarks>
+	public bool SupportsScopedTransactional => _options.EnableTransactions;
+
+	/// <inheritdoc/>
+	/// <remarks>This store records no per-entry next-attempt time.</remarks>
+	public bool SupportsBackoffScheduling => false;
 
 	/// <inheritdoc/>
 	public async ValueTask<bool> TryProcessTransactionallyAsync(
@@ -760,6 +875,46 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 	[LoggerMessage(DataMongoDbEventId.InboxCleanedUp, LogLevel.Information, "Cleaned up {Count} inbox entries")]
 	private static partial void LogCleanedUpEntries(ILogger logger, int count, Exception? exception);
 
+	/// <summary>
+	/// Matches entries whose instant field — in either durable shape — precedes <paramref name="value"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Instants on this document are stored as BSON dates. An entry written by a previously published
+	/// version of this package is on disk in the driver's default shape for a
+	/// <see cref="DateTimeOffset"/> — a <c>{ DateTime, Ticks, Offset }</c> sub-document — and nothing
+	/// rewrites it. Query operators are type-bracketed, so <c>processedAt &lt; date</c> does not match a
+	/// sub-document: it does not compare wrongly, it does not match at all.
+	/// </para>
+	/// <para>
+	/// Left bare, that hides every pre-upgrade entry from the two queries that bound this collection's
+	/// growth. A processed entry is never reaped by <see cref="CleanupAllTenantsProcessedEntriesAsync"/>
+	/// and — because a TTL index likewise ignores a field that is not a date — is not expired by the TTL
+	/// index declared over the same field either, so it is retained indefinitely. A failed entry is never
+	/// returned by <see cref="GetAllTenantsFailedEntriesAsync"/>, so it is never re-admitted for retry. The second
+	/// branch reads the date out of the sub-document, so those entries are found.
+	/// </para>
+	/// <para>
+	/// A field that is absent or null matches neither branch, which is the same exclusion the plain
+	/// comparison performed. The sub-document branch compares the <c>DateTime</c> member, which carries
+	/// millisecond precision; sub-millisecond ordering within a legacy entry is not recoverable from it,
+	/// and is immaterial to a retention cutoff measured in hours or days.
+	/// </para>
+	/// </remarks>
+	/// <param name="field">The document element name.</param>
+	/// <param name="value">The exclusive upper bound.</param>
+	/// <returns>A filter matching either stored shape.</returns>
+	private static FilterDefinition<MongoDbInboxDocument> StoredInstantBefore(string field, DateTimeOffset value)
+	{
+		var bound = new BsonDateTime(value.UtcDateTime);
+
+		return new BsonDocument("$or", new BsonArray
+		{
+			new BsonDocument(field, new BsonDocument("$lt", bound)),
+			new BsonDocument(field + ".DateTime", new BsonDocument("$lt", bound)),
+		});
+	}
+
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
 		if (_initialized)
@@ -824,4 +979,100 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IProcessingTracking
 			_ = _initLock.Release();
 		}
 	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> CompleteAsync(string messageId, string handlerType, LeaseToken lease, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// The term, not the status, separates this caller from the one that replaced it: at this instant the
+		// document is legitimately Processing either way, so only leaseExpiresAt says whose it is. The
+		// comparison rides inside the write predicate, so a lapsed holder matches no document.
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, ScopedId(messageId, handlerType)),
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed),
+			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.LeaseExpiresAt, FromLeaseToken(lease)));
+
+		var update = Builders<MongoDbInboxDocument>.Update
+			.Set(d => d.Status, (int)InboxStatus.Processed)
+			.Set(d => d.ProcessedAt, DateTimeOffset.UtcNow)
+			.Set(d => d.LastError, null);
+
+		var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		if (result.MatchedCount == 0)
+		{
+			_logger.LogDebug("Lease-fenced complete rejected (term lapsed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return false;
+		}
+
+		LogProcessedEntry(_logger, messageId, handlerType, null);
+
+		return true;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> FailAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		string errorMessage,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var filter = Builders<MongoDbInboxDocument>.Filter.And(
+			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, ScopedId(messageId, handlerType)),
+			Builders<MongoDbInboxDocument>.Filter.Ne(d => d.Status, (int)InboxStatus.Processed),
+			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.LeaseExpiresAt, FromLeaseToken(lease)));
+
+		var update = Builders<MongoDbInboxDocument>.Update
+			.Set(d => d.Status, (int)InboxStatus.Failed)
+			.Set(d => d.LastError, errorMessage)
+			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
+			.Set(d => d.LeaseExpiresAt, null)
+			.Inc(d => d.RetryCount, 1);
+
+		var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		if (result.MatchedCount == 0)
+		{
+			_logger.LogDebug("Lease-fenced fail rejected (term lapsed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return false;
+		}
+
+		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+
+		return true;
+	}
+
+	/// <summary>
+	/// Renders a server-written lease expiry as the opaque ownership term handed back to the caller.
+	/// </summary>
+	/// <remarks>
+	/// Encoded as Unix milliseconds because a BSON date IS millisecond-precision: the encoding is therefore
+	/// exact in both directions, with no format or sub-millisecond rounding to lose.
+	/// </remarks>
+	private static LeaseToken ToLeaseToken(DateTime leaseExpiresAtUtc) =>
+		new(new DateTimeOffset(DateTime.SpecifyKind(leaseExpiresAtUtc, DateTimeKind.Utc))
+			.ToUnixTimeMilliseconds()
+			.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+	/// <summary>
+	/// Recovers the BSON date a term was rendered from, for comparison inside a write predicate.
+	/// </summary>
+	private static DateTime FromLeaseToken(LeaseToken lease) =>
+		DateTimeOffset.FromUnixTimeMilliseconds(
+			long.Parse(lease.Value, System.Globalization.CultureInfo.InvariantCulture)).UtcDateTime;
 }

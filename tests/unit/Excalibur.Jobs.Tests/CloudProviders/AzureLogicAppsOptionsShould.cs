@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Azure.Core;
-
 using Excalibur.Jobs.Azure;
 
 namespace Excalibur.Jobs.Tests.CloudProviders;
@@ -23,7 +21,7 @@ public sealed class AzureLogicAppsOptionsShould
 		};
 
 		// Assert
-		options.Location.ShouldBe(AzureLocation.EastUS);
+		options.Location.ShouldBe("eastus");
 		options.Tags.ShouldNotBeNull();
 		options.Tags.ShouldBeEmpty();
 	}
@@ -56,22 +54,6 @@ public sealed class AzureLogicAppsOptionsShould
 
 		// Assert
 		options.SubscriptionId.ShouldBe("my-sub-id");
-	}
-
-	[Fact]
-	public void AllowSettingLocation()
-	{
-		// Act
-		var options = new AzureLogicAppsOptions
-		{
-			ResourceGroupName = "rg",
-			SubscriptionId = "sub",
-			JobExecutionEndpoint = "https://test.com",
-			Location = AzureLocation.WestEurope,
-		};
-
-		// Assert
-		options.Location.ShouldBe(AzureLocation.WestEurope);
 	}
 
 	[Fact]

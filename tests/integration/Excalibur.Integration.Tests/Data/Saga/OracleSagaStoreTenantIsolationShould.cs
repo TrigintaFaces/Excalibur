@@ -23,7 +23,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// <summary>
 /// Independent (author≠impl) NON-SKIPPED real-Oracle tenant-isolation lock for the row-discriminator saga
 /// store. The Oracle saga store threads the ambient <see cref="ITenantContext"/> through
-/// <see cref="TenantScope.FromContext(ITenantContext?)"/> so its Save MERGE gains
+/// <see cref="TenantScope.FromContext(ITenantContext)"/> so its Save MERGE gains
 /// <c>AND target.TenantId = :TenantId</c> on the match and its Load gains <c>AND TenantId = :TenantId</c> —
 /// a saga operation under one tenant can never match, load, or overwrite another tenant's saga with the same id.
 /// </summary>

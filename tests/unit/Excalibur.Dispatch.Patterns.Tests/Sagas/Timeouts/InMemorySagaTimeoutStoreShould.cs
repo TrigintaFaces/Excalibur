@@ -36,7 +36,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 	public async Task StoreTimeoutWhenScheduled()
 	{
 		// Arrange
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var timeout = CreateTimeout("saga-001", "timeout-001", DateTime.UtcNow.AddMinutes(5));
 
 		// Act
@@ -53,7 +53,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 	public async Task RemoveSpecificTimeoutWhenCancelled()
 	{
 		// Arrange
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid().ToString();
 		var timeout1 = CreateTimeout(sagaId, "timeout-001", DateTime.UtcNow.AddMinutes(5));
 		var timeout2 = CreateTimeout(sagaId, "timeout-002", DateTime.UtcNow.AddMinutes(10));
@@ -81,7 +81,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 	public async Task RemoveAllTimeoutsForSagaWhenCancelAllCalled()
 	{
 		// Arrange
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var sagaId1 = Guid.NewGuid().ToString();
 		var sagaId2 = Guid.NewGuid().ToString();
 
@@ -105,7 +105,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 	public async Task ReturnOrderedDueTimeoutsWhenQueried()
 	{
 		// Arrange
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var now = DateTime.UtcNow;
 		var sagaId = Guid.NewGuid().ToString();
 
@@ -136,7 +136,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 	public async Task RemoveTimeoutWhenMarkedDelivered()
 	{
 		// Arrange
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid().ToString();
 		var timeout = CreateTimeout(sagaId, "timeout-delivered", DateTime.UtcNow.AddMinutes(-1));
 
@@ -163,7 +163,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 	public async Task HandleConcurrentOperationsWithoutCorruption()
 	{
 		// Arrange
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var now = DateTime.UtcNow;
 		const int operationCount = 100;
 		var sagaId = Guid.NewGuid().ToString();

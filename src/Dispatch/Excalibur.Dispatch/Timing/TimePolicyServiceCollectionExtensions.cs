@@ -14,7 +14,7 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring time policy services. R7.4: Service registration for configurable timeout handling.
+/// Extension methods for configuring time policy services. Service registration for configurable timeout handling.
 /// </summary>
 public static class TimePolicyServiceCollectionExtensions
 {
@@ -23,8 +23,6 @@ public static class TimePolicyServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimePolicyOptions types are preserved through DI registration and have well-defined properties")]
 	public static IServiceCollection AddTimePolicy(this IServiceCollection services)
 	{
 		services.TryAddSingleton<ITimePolicy, DefaultTimePolicy>();
@@ -50,10 +48,6 @@ public static class TimePolicyServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration instance. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimePolicyOptions types are preserved through DI registration and have well-defined properties")]
-	[UnconditionalSuppressMessage("AotAnalysis", "IL3050:RequiresDynamicCode",
-		Justification = "TimePolicyOptions has known serializable properties")]
 	public static IServiceCollection AddTimePolicy(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -77,8 +71,6 @@ public static class TimePolicyServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure the time policy options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimePolicyOptions types are preserved through DI registration and have well-defined properties")]
 	public static IServiceCollection AddTimePolicy(this IServiceCollection services, Action<TimePolicyOptions> configureOptions)
 	{
 		services.TryAddSingleton<ITimePolicy, DefaultTimePolicy>();
@@ -100,8 +92,6 @@ public static class TimePolicyServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Optional action to configure the time policy options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimePolicyOptions types are preserved through DI registration and have well-defined properties")]
 	public static IServiceCollection AddTimePolicyWithoutMonitoring(
 		this IServiceCollection services,
 		Action<TimePolicyOptions>? configureOptions = null)
@@ -129,8 +119,6 @@ public static class TimePolicyServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure adaptive timeout options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimePolicyOptions types are preserved through DI registration and have well-defined properties")]
 	public static IServiceCollection AddAdaptiveTimeouts(
 		this IServiceCollection services,
 		Action<TimePolicyOptions>? configureOptions = null)
@@ -145,7 +133,6 @@ public static class TimePolicyServiceCollectionExtensions
 			.Configure(options =>
 			{
 				options.Adaptive.UseAdaptiveTimeouts = true;
-				options.Observability.IncludeTimeoutMetrics = true;
 				configureOptions?.Invoke(options);
 			})
 			.ValidateOnStart();

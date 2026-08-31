@@ -71,8 +71,8 @@ public sealed class PostgresProjectionStoreSqlInjectionShould : IClassFixture<Po
 		_store = new PostgresProjectionStore<TestOrderProjection>(
 			_fixture.ConnectionString,
 			new LoggerFactory().CreateLogger<PostgresProjectionStore<TestOrderProjection>>(),
-			TableName,
-			tenantContext: tenantContext);
+			tenantContext: tenantContext,
+			tableName: TableName);
 	}
 
 	public async ValueTask DisposeAsync()

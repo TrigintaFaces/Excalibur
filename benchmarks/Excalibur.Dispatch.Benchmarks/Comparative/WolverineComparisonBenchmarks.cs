@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Wolverine;
 
@@ -28,7 +29,7 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// <remarks>
 /// Framework Versions:
 /// - Excalibur: 1.0.0 (local build)
-/// - Wolverine: 5.2.0
+/// - Wolverine: 5.31.1
 ///
 /// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
 /// comparison against Wolverine's InvokeAsync (bare in-process handler call).
@@ -84,7 +85,6 @@ public class WolverineComparisonBenchmarks
 			{
 				options.UseLightMode = true;
 				options.EnablePipelineSynthesis = false;
-				options.Features.EnableCacheMiddleware = false;
 				options.Features.EnableMetrics = false;
 				options.Features.EnableAuthorization = false;
 				options.Features.ValidateMessageSchemas = false;
@@ -103,6 +103,12 @@ public class WolverineComparisonBenchmarks
 
 		// Setup Wolverine (local bus only, no external transports)
 		_wolverineHost = await Host.CreateDefaultBuilder()
+			// Host.CreateDefaultBuilder installs Console, Debug and EventSource logging providers. The
+			// Dispatch side of every comparison is a bare ServiceCollection with no provider, so leaving
+			// these on measures Wolverine's logging pipeline against our silence — a per-message console
+			// write inside the measured region, biasing the result in our favour. Clear them so both
+			// sides log nothing and the comparison is of dispatch overhead.
+			.ConfigureLogging(logging => logging.ClearProviders())
 			.UseWolverine(opts =>
 			{
 				// Local bus only (no external transports for fair comparison)
@@ -121,8 +127,40 @@ public class WolverineComparisonBenchmarks
 
 		_wolverineBus = _wolverineHost.Services.GetRequiredService<IMessageBus>();
 
+		await VerifyInlineFanOutInvokesBothHandlers();
+
 		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
 		WarmupAndFreezeDispatchCaches();
+	}
+
+	/// <summary>
+	/// Proves the fan-out row measures BOTH handlers before any timing is collected.
+	/// </summary>
+	/// <remarks>
+	/// The fan-out row calls <c>InvokeAsync</c> and does not await a completion tracker, because Wolverine
+	/// runs merged non-sticky handlers inline. That is a claim about Wolverine's code generation, so it is
+	/// verified here rather than assumed: if a future Wolverine version routed the second handler through a
+	/// queue, or if a handler were made sticky, the row would silently measure half the work and report it
+	/// as a speedup. This throws instead.
+	/// </remarks>
+	private async Task VerifyInlineFanOutInvokesBothHandlers()
+	{
+		var probeId = Guid.NewGuid();
+		var bothHandlersSignalled = WolverineBenchmarkCompletionTracker.Register(probeId, expectedSignals: 2);
+
+		await _wolverineBus!.InvokeAsync(new WolverineEventMessage { Message = "fanout-probe", BenchmarkId = probeId });
+
+		// InvokeAsync has already returned. If the handlers ran inline, both signals are in and this task is
+		// already complete; a short grace period only guards scheduler jitter, it does not wait for a queue.
+		if (bothHandlersSignalled != await Task.WhenAny(bothHandlersSignalled, Task.Delay(TimeSpan.FromSeconds(5))))
+		{
+			throw new InvalidOperationException(
+				"Wolverine InvokeAsync did not invoke both event handlers inline. The fan-out benchmark would "
+				+ "measure fewer handlers than the Dispatch row it is compared against, producing a false "
+				+ "speedup. Check whether a handler became sticky or Wolverine changed its handler merging.");
+		}
+
+		WolverineBenchmarkCompletionTracker.Reset();
 	}
 
 	/// <summary>
@@ -217,20 +255,37 @@ public class WolverineComparisonBenchmarks
 	}
 
 	/// <summary>
-	/// Wolverine: Event publishing (PublishAsync - local bus).
+	/// Wolverine: Event fan-out to 2 handlers, invoked inline.
 	/// </summary>
-	[Benchmark(Description = "Wolverine: Event publish")]
+	/// <remarks>
+	/// <para>
+	/// This row previously used <c>PublishAsync</c> plus a completion tracker. That awaited real handler
+	/// execution, so it was not the never-awaits defect — but it compared Wolverine's LOCAL QUEUE against
+	/// Dispatch running both handlers on the calling thread. The published 53.7x result was therefore
+	/// measuring a thread-pool handoff and a cross-thread continuation, not dispatch overhead.
+	/// </para>
+	/// <para>
+	/// <c>InvokeAsync</c> is the parity call. Wolverine merges every non-sticky handler for a message type
+	/// into a single generated <c>HandleAsync</c> that runs them inline and sequentially; the queue-based
+	/// fan-out path is reachable only when EVERY handler is sticky, which requires <c>[StickyHandler]</c> or
+	/// <c>AddStickyHandler</c>. This benchmark uses neither, so both handlers run inline here — matching the
+	/// Dispatch side's execution model rather than its API name.
+	/// </para>
+	/// <para>
+	/// That both handlers genuinely run is asserted once at startup by
+	/// <see cref="VerifyInlineFanOutInvokesBothHandlers"/>. Without it, a change that silently invoked one
+	/// handler would make this row ~2x faster and look like an improvement.
+	/// </para>
+	/// </remarks>
+	[Benchmark(Description = "Wolverine: Event to 2 handlers (inline)")]
 	public async Task Wolverine_EventPublish()
 	{
-		var benchmarkId = Guid.NewGuid();
-		var completionTask = WolverineBenchmarkCompletionTracker.Register(benchmarkId, expectedSignals: 2);
 		var @event = new WolverineEventMessage
 		{
 			Message = "test",
-			BenchmarkId = benchmarkId,
+			BenchmarkId = Guid.Empty,
 		};
-		await _wolverineBus.PublishAsync(@event);
-		await completionTask.WaitAsync(QueueCompletionTimeout);
+		await _wolverineBus.InvokeAsync(@event);
 	}
 
 	// ============================================================================

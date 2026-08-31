@@ -31,7 +31,34 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 {
 	private readonly PostgresDataInventoryStoreOptions _options;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+
+	// Deployment MODE, read from TenantContextOptions.RequireTenant (set by AddMultiTenancy()). This is NOT
+	// "is an ITenantContext present": the framework always registers a single-tenant default, so presence
+	// would report every deployment as multi-tenant.
+	private readonly bool _requireTenant;
+	/// <summary>
+	/// Gets the keyed tenant partition this store reads and writes under, resolved in one place so every
+	/// statement it builds binds the same term.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Deployment mode decides the shape, and it is read from <see cref="TenantContextOptions.RequireTenant"/>
+	/// -- the flag the multi-tenancy composition sets -- never inferred from whether an
+	/// <see cref="ITenantContext"/> happens to be registered. The framework always registers a single-tenant
+	/// default context, so presence would make every deployment look multi-tenant; worse, it made the stored
+	/// term depend on whether some UNRELATED feature had registered a context, so two hosts with identical
+	/// inventory configuration filed rows under different tenant identifiers.
+	/// </para>
+	/// <para>
+	/// A single-tenant deployment binds the reserved untenanted partition -- a concrete term, never an absent
+	/// one, and the same term this table's column defaults to. A multi-tenant deployment binds the resolved
+	/// ambient tenant and fails closed when none is established.
+	/// </para>
+	/// </remarks>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		_requireTenant ? KeyedTenantPartition.FromContext(_tenantContext) : KeyedTenantPartition.Untenanted;
+
 	private readonly ILogger<PostgresDataInventoryStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private volatile bool _disposed;
@@ -40,15 +67,33 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresDataInventoryStore"/> class.
 	/// </summary>
+	/// <param name="options"> The store options, including schema and table names. </param>
+	/// <param name="dataSubjectHasher"> Hashes data-subject identifiers before they reach storage. </param>
+	/// <param name="logger"> The logger. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: the store resolves its partition from here in multi-tenant
+	/// mode, and a single-tenant host receives the framework default context, so there is no state in
+	/// which the partition is undecided.
+	/// </param>
+	/// <param name="tenantContextOptions">
+	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode. Required, and required for the reason the
+	/// mode must not be inferred: an omitted binding would be indistinguishable from a deliberate
+	/// declaration of single-tenancy, and the two get different data.
+	/// </param>
 	public PostgresDataInventoryStore(
 		IOptions<PostgresDataInventoryStoreOptions> options,
 		IDataSubjectHasher dataSubjectHasher,
 		ILogger<PostgresDataInventoryStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
+		ArgumentNullException.ThrowIfNull(tenantContext);
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
 		_tenantContext = tenantContext;
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
@@ -63,7 +108,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 	/// depends on which database you happen to run.
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public async Task SaveRegistrationAsync(
@@ -279,8 +324,19 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// ScopedTenantId MUST be bound. The scoping predicate was added to this query without its
+		// parameter, so PostgreSQL resolved the unbound placeholder as an identifier and every call threw
+		// 42703 "column scopedtenantid does not exist" — this read path did not work at all against a real
+		// server. The SQL Server twin binds both terms and was unaffected, which is why running the shared
+		// conformance kit against BOTH engines is what surfaced it.
 		var rows = await connection.QueryAsync<DiscoveredLocationRow>(
-			new CommandDefinition(sql, new { DataSubjectIdHash = HashDataSubjectId(dataSubjectId) },
+			new CommandDefinition(
+				sql,
+				new
+				{
+					DataSubjectIdHash = HashDataSubjectId(dataSubjectId),
+					ScopedTenantId = CurrentTenantTerm,
+				},
 				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToDataLocation()).ToList();
@@ -293,6 +349,11 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		// The data map is the record-of-processing-activities artefact handed to a regulator, and
+		// auto-discovery exists precisely to surface personal data nobody registered. A map built from the
+		// registrations table alone drops exactly the locations discovery was added to find, so the second
+		// arm returns discovered locations that have no matching registration. Both arms carry the same
+		// tenant predicate; neither widens the scope of the other.
 		var sql = $@"
 			SELECT r.table_name, r.field_name, r.data_category, r.description,
 				   FALSE AS is_auto_discovered,
@@ -301,7 +362,22 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				      AND d.tenant_id = r.tenant_id) AS record_count
 			FROM {_options.FullRegistrationsTableName} r
 			WHERE r.tenant_id IN (@ScopedTenantId, @UntenantedTenantId)
-			ORDER BY r.table_name, r.field_name";
+
+			UNION ALL
+
+			SELECT d.table_name, d.field_name, MIN(d.data_category) AS data_category,
+				   CAST(NULL AS VARCHAR(1024)) AS description,
+				   BOOL_OR(d.is_auto_discovered) AS is_auto_discovered,
+				   COUNT(*) AS record_count
+			FROM {_options.FullDiscoveredLocationsTableName} d
+			WHERE d.tenant_id IN (@ScopedTenantId, @UntenantedTenantId)
+			  AND NOT EXISTS (
+				  SELECT 1 FROM {_options.FullRegistrationsTableName} r2
+				  WHERE r2.table_name = d.table_name AND r2.field_name = d.field_name
+					AND r2.tenant_id = d.tenant_id)
+			GROUP BY d.table_name, d.field_name
+
+			ORDER BY 1, 2";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -396,6 +472,57 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
 
+		// Runs on BOTH paths, and the auto-create path is the one that needs it. CREATE TABLE IF NOT
+		// EXISTS guards on table EXISTENCE, so against a database provisioned before the tenant
+		// discriminator existed it creates nothing and reports success — the table is there, it is simply
+		// the wrong shape. Verify likewise only ever asked whether the table exists. Neither notices a
+		// missing column, so without this check a store carrying every tenant-scoped statement would
+		// initialize cleanly and then fail on first use with a raw provider error far from its cause.
+		await VerifyTenantDiscriminatorAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Confirms both tables carry the <c>tenant_id</c> discriminator every statement this store issues binds.
+	/// </summary>
+	/// <remarks>
+	/// A database whose inventory tables predate the discriminator is not merely missing an optimization: its
+	/// rows carry no ownership at all, so the isolation this store advertises cannot hold for it. Failing at
+	/// startup, naming the migration, is the only honest outcome — the alternative is answering a scoped read
+	/// from a relation that cannot express scope.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table lacks the tenant discriminator.</exception>
+	private async Task VerifyTenantDiscriminatorAsync(CancellationToken cancellationToken)
+	{
+		// Resolved through to_regclass rather than by splitting the configured name: the option already
+		// carries a quoted, schema-qualified identifier and re-parsing it here would be a second place to
+		// get quoting wrong.
+		const string ColumnExistsSql =
+			"SELECT EXISTS (SELECT 1 FROM pg_attribute " +
+			"WHERE attrelid = to_regclass(@TableName) AND attname = 'tenant_id' AND NOT attisdropped)";
+
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullRegistrationsTableName, _options.FullDiscoveredLocationsTableName })
+		{
+			var hasColumn = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ColumnExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!hasColumn)
+			{
+				throw new InvalidOperationException(
+					$"Table '{tableName}' exists but has no 'tenant_id' column, so it cannot record which tenant a "
+					+ "row belongs to. This is the shape created before the tenant discriminator was introduced; "
+					+ "enabling automatic schema creation will NOT repair it, because that path only creates tables "
+					+ "that are absent. Run the shipped migration script "
+					+ "'003_MakeDataInventoryTenantTotal.sql' against this database, then restart. Until then every "
+					+ "read would be unable to distinguish one tenant's registrations from another's.");
+			}
+		}
 	}
 
 	/// <summary>
@@ -449,7 +576,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				description VARCHAR(1000) NULL,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
-				tenant_id VARCHAR(255) NOT NULL DEFAULT '__untenanted__',
+				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
 				PRIMARY KEY (table_name, field_name, tenant_id)
 			)";
 
@@ -468,7 +595,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				is_auto_discovered BOOLEAN NOT NULL DEFAULT TRUE,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
-				tenant_id VARCHAR(255) NOT NULL DEFAULT '__untenanted__',
+				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
 				PRIMARY KEY (data_subject_id_hash, table_name, field_name, record_id, tenant_id)
 			)";
 

@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Delivery;
 // CA1005: The three type parameters are necessary for type-safe event sourcing projections: TProjection - The projection type, TKey - The
 // aggregate/projection key type, TEvent - The specific event type These cannot be reduced without losing compile-time type safety in the
 // event handling pipeline.
-// R0.8: Avoid excessive parameters on generic types
+// Avoid excessive parameters on generic types
 #pragma warning disable CA1005
 
 /// <summary>

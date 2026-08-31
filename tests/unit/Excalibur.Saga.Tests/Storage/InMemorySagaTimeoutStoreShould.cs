@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
+
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Storage;
 
@@ -17,7 +19,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 
 	public InMemorySagaTimeoutStoreShould()
 	{
-		_store = new InMemorySagaTimeoutStore();
+		_store = new InMemorySagaTimeoutStore(new TestTenantContext());
 	}
 
 	#region ScheduleTimeoutAsync Tests
@@ -342,6 +344,65 @@ public sealed class InMemorySagaTimeoutStoreShould
 	}
 
 	#endregion Interface Implementation Tests
+
+	#region Tenant Partition Tests
+
+	/// <summary>
+	/// The partition a scheduled timeout is stamped with must be the one the rest of the framework
+	/// addresses.
+	/// </summary>
+	/// <remarks>
+	/// This store resolved its partition by feeding an ambient read into the fold that rehydrates a value
+	/// read back from storage. That fold maps an absent value onto the untenanted sentinel, which is the
+	/// right answer for a column that holds no tenant and the wrong one for a context that was never
+	/// established. On a single-tenant host the ambient value is never set, so every timeout was written
+	/// into the reserved untenanted partition while every other store in the framework writes the default
+	/// tenant identity. Nothing threw, and the timeout fired against a partition the saga does not live in.
+	/// </remarks>
+	[Fact]
+	public async Task ScheduleTimeoutAsync_OnASingleTenantHost_StampsTheDefaultTenantNotTheUntenantedSentinel()
+	{
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
+
+		await store.ScheduleTimeoutAsync(CreateTimeout("timeout-tenancy", "saga-tenancy"), CancellationToken.None);
+		var due = await store.GetDueTimeoutsAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+
+		var stamped = due.ShouldHaveSingleItem();
+		stamped.TenantId.ShouldBe(TenantDefaults.DefaultTenantId);
+		stamped.TenantId.ShouldNotBe(TenantScope.UntenantedSentinel);
+	}
+
+	/// <summary>
+	/// A host that requires a tenant and has established none must be refused, not quietly given a
+	/// partition.
+	/// </summary>
+	/// <remarks>
+	/// This is the loud half of the same correction. The previous behaviour answered the question anyway —
+	/// with the untenanted sentinel — so the timeout was scheduled successfully, delivered under a tenant
+	/// the saga was never saved under, and the saga simply never completed. There was no exception and no
+	/// log line to find afterwards. Refusing at the point the partition cannot be decided keeps the failure
+	/// where it can be diagnosed.
+	/// </remarks>
+	[Fact]
+	public async Task ScheduleTimeoutAsync_WhenTheContextResolvesNoTenant_RefusesRatherThanStampingSilently()
+	{
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext(tenantId: null));
+
+		_ = await Should.ThrowAsync<TenantRequiredException>(async () =>
+			await store.ScheduleTimeoutAsync(CreateTimeout("timeout-none", "saga-none"), CancellationToken.None));
+	}
+
+	/// <summary>
+	/// The tenant context is a required dependency: a store that could be built without one would resolve a
+	/// different partition depending on whether a context happened to be registered.
+	/// </summary>
+	[Fact]
+	public void Constructor_WithNullTenantContext_ThrowsArgumentNullException()
+	{
+		_ = Should.Throw<ArgumentNullException>(() => new InMemorySagaTimeoutStore(tenantContext: null!));
+	}
+
+	#endregion Tenant Partition Tests
 
 	private static SagaTimeout CreateTimeout(string timeoutId, string sagaId, DateTime? dueAt = null)
 	{

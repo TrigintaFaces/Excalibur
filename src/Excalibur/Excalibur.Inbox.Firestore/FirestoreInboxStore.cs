@@ -20,7 +20,10 @@ namespace Excalibur.Inbox.Firestore;
 /// </summary>
 /// <remarks>
 /// Uses CreateAsync for atomic first-writer-wins semantics.
-/// Document path: {CollectionName}/{messageId}_{handlerType}
+/// Document path: {CollectionName}/{documentId}, where the id is composed injectively from the
+/// tenant, message id, and handler type. Percent-encoding the terms also escapes '/', which Firestore
+/// reads as a path separator — an unescaped one in a message id addressed a nested collection, so the
+/// entry was written somewhere the matching read never looked.
 /// Catches RpcException with StatusCode.AlreadyExists for conflict detection.
 /// </remarks>
 public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
@@ -38,7 +41,15 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 	private readonly FirestoreInboxOptions _options;
 	private readonly ILogger<FirestoreInboxStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
 	// Serialises first-time initialisation. Without it concurrent first callers each run the
@@ -56,13 +67,14 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// <param name="options">The Firestore inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. An absent context
-	/// resolves to the reserved untenanted term, so the document id has the same shape either way.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public FirestoreInboxStore(
 		IOptions<FirestoreInboxOptions> options,
 		ILogger<FirestoreInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -70,6 +82,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -80,13 +93,15 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// <param name="options">The Firestore inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public FirestoreInboxStore(
 		FirestoreDb db,
 		IOptions<FirestoreInboxOptions> options,
 		ILogger<FirestoreInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(db);
 		ArgumentNullException.ThrowIfNull(options);
@@ -96,6 +111,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_collection = db.Collection(_options.CollectionName);
 		_initialized = true;
@@ -284,37 +300,37 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		// Previously only AlreadyExists was caught, so an Aborted escaped as a raw RpcException and the
 		// method threw instead of returning the true/false its contract promises — the caller saw a handler
 		// failure and the dedup outcome for that delivery was left ambiguous.
-		for (var attempt = 0; ; attempt++)
-		{
-			try
+		//
+		// Which failures are transient, how many attempts, and how long to wait are the provider's shared
+		// retry policy's answer, not this method's. A second answer written here is how the two contending
+		// paths on this document came to disagree with each other and with the policy the provider
+		// advertises. The retry is bounded inside the executor rather than by a catch filter here.
+		return await FirestoreRetryExecutor.ExecuteAsync(
+			async ct =>
 			{
-				// CreateAsync fails if document already exists
-				_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
-				LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
-				return true;
-			}
-			catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-			{
+				try
+				{
+					// CreateAsync fails if document already exists
+					_ = await docRef.CreateAsync(data, ct).ConfigureAwait(false);
+					LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
+					return true;
+				}
+				catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+				{
 				// First-writer-wins resolved against us.
 				//
 				// AMBIGUITY, stated because it is not removable without a schema change: if a PRIOR attempt
 				// in this loop actually committed but its response was lost, the winner was us, and we still
 				// report false. Distinguishing the two needs a writer identity stamped on the document.
-				// False is the safe direction here — the framework's own caller
-				// (IdempotentHandlerMiddleware) invokes this AFTER the handler has already succeeded and
-				// discards the result, so a conservative "duplicate" cannot skip work; and for any consumer
-				// using the result as a claim, refusing a claim we may not hold is the fail-safe answer.
-				LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
-				return false;
-			}
-			catch (RpcException ex) when (ex.StatusCode == StatusCode.Aborted && attempt < ReleaseMaxRetries - 1)
-			{
-				// Transient same-document contention: back off and re-attempt. Bounded, so a genuinely stuck
-				// document still surfaces rather than spinning.
-				await Task.Delay(TimeSpan.FromMilliseconds(50 * (attempt + 1)), cancellationToken)
-					.ConfigureAwait(false);
-			}
-		}
+					// False is the safe direction here — the framework's own caller
+					// (the inbox middleware) invokes this AFTER the handler has already succeeded and
+					// discards the result, so a conservative "duplicate" cannot skip work; and for any consumer
+					// using the result as a claim, refusing a claim we may not hold is the fail-safe answer.
+					LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
+					return false;
+				}
+			},
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -331,6 +347,11 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		// Atomic first-writer-wins claim into the NON-TERMINAL Processing state. CreateAsync fails with
 		// AlreadyExists on conflict (already claimed/processed) => not claimed. Finalized via MarkProcessedAsync,
 		// removed via ReleaseAsync.
+		//
+		// This path contends for the same document as TryMarkAsProcessedAsync and for the same reason, so it
+		// needs the same treatment of transient contention. It did not have it: a first Aborted left here as
+		// a raw RpcException, so the claim threw under exactly the concurrency it exists to arbitrate, and a
+		// caller asking "did I win this message" got an exception instead of an answer.
 		var now = DateTimeOffset.UtcNow;
 		var data = new Dictionary<string, object>
 		{
@@ -341,17 +362,22 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			["receivedAt"] = Timestamp.FromDateTimeOffset(now)
 		};
 
-		try
-		{
-			_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
-			LogTryClaimSuccess(_logger, messageId, handlerType, null);
-			return true;
-		}
-		catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-		{
-			LogTryClaimDuplicate(_logger, messageId, handlerType, null);
-			return false;
-		}
+		return await FirestoreRetryExecutor.ExecuteAsync(
+			async ct =>
+			{
+				try
+				{
+					_ = await docRef.CreateAsync(data, ct).ConfigureAwait(false);
+					LogTryClaimSuccess(_logger, messageId, handlerType, null);
+					return true;
+				}
+				catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+				{
+					LogTryClaimDuplicate(_logger, messageId, handlerType, null);
+					return false;
+				}
+			},
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -493,7 +519,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		var docRef = _collection!.Document(docId);
 
 		// Set retryCount EXACTLY (not FieldValue.Increment) so a transient short-circuit leaves the entry
-		// re-admittable without consuming a delivery attempt (FR-4).
+		// re-admittable without consuming a delivery attempt.
 		await MarkFailedConditionalAsync(
 			docRef,
 			new Dictionary<string, object>
@@ -556,7 +582,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -581,7 +607,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -591,7 +617,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -635,7 +661,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
@@ -713,7 +739,48 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// <para>Every call site routes through here, so the write id and the lookup id cannot drift apart.</para>
 	/// </remarks>
 	private string GetDocumentId(string messageId, string handlerType) =>
-		$"{KeyedTenantPartition.FromContext(_tenantContext).TenantId}_{messageId}_{handlerType}";
+		ComposeDocumentId(CurrentTenantPartition.TenantId, messageId, handlerType);
+
+	/// <summary>
+	/// The store's document-id contract, expressed as a pure function of its three terms so it can be
+	/// exercised directly. It delegates to the shared injective composition: putting the tenant term in
+	/// the id is only sound if the composition is unambiguous, and joining on a separator the terms may
+	/// themselves contain is not — distinct entries render one id and the later message is dropped as a
+	/// duplicate that never existed.
+	/// </summary>
+	/// <param name="tenantId">The tenant term the entry belongs to.</param>
+	/// <param name="messageId">The message identifier being deduplicated.</param>
+	/// <param name="handlerType">The handler the message is being deduplicated for.</param>
+	/// <returns>The document id for the entry.</returns>
+	internal static string ComposeDocumentId(string tenantId, string messageId, string handlerType)
+	{
+		var documentId = DocumentIdPrefix + InboxDocumentKey.Compose(tenantId, messageId, handlerType);
+		InboxDocumentKey.ThrowIfExceedsIdLimit(documentId, MaxDocumentIdUtf8Bytes, "Firestore");
+		return documentId;
+	}
+
+	/// <summary>
+	/// Firestore refuses a document id longer than 1500 bytes. The prefix counts toward it, so the check
+	/// runs on the finished id. It is checked here rather than left to the server so the failure names the
+	/// cause, and so it surfaces identically on the read path.
+	/// </summary>
+	private const int MaxDocumentIdUtf8Bytes = 1500;
+
+	/// <summary>
+	/// Prefixes every composed document id. Firestore reserves ids matching <c>__.*__</c> and rejects a
+	/// write that uses one, and the reserved untenanted tenant term is itself <c>__untenanted__</c> — so
+	/// without this, every id in a deployment that does not use multi-tenancy begins <c>__</c>, and the
+	/// write is rejected outright whenever the handler type name happens to end in <c>__</c>. A constant
+	/// leading character the pattern cannot start with removes that whole class: the id can no longer
+	/// match, whatever the terms contain.
+	/// </summary>
+	/// <remarks>
+	/// It is a constant, so it does not affect injectivity — a constant prefix over an injective
+	/// composition is still injective. It is deliberately not a version marker: a versioned id shape would
+	/// invite reading more than one shape at a time, which is the compatibility fallback this store does
+	/// not have and should not grow.
+	/// </remarks>
+	private const string DocumentIdPrefix = "inbox:";
 
 	private static Dictionary<string, object> CreateDocumentData(InboxEntry entry)
 	{
@@ -839,8 +906,13 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 			if (!string.IsNullOrEmpty(_options.EmulatorHost))
 			{
-				builder.EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly;
-				_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
+				// Point this client at the emulator directly. The process-wide FIRESTORE_EMULATOR_HOST
+				// variable is first-write-wins, so routing through it lets a second store silently talk to
+				// another store's emulator. Endpoint and EmulatorDetection.EmulatorOnly are mutually
+				// exclusive -- setting both throws -- so an explicit endpoint with insecure credentials is
+				// the combination that reaches an emulator per instance.
+				builder.Endpoint = _options.EmulatorHost;
+				builder.ChannelCredentials = ChannelCredentials.Insecure;
 			}
 
 			if (!string.IsNullOrEmpty(_options.CredentialsPath))

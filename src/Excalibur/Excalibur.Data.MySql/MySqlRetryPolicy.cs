@@ -86,16 +86,46 @@ public sealed partial class MySqlRetryPolicy : IRelationalDataRequestRetryPolicy
 			.Or<InvalidOperationException>(ex => ex.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase))
 			.WaitAndRetryAsync(
 				MaxRetryAttempts,
-				retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+				CalculateDelay,
 				onRetry: (exception, timeSpan, retryCount, context) =>
 					LogRetryAttempt(retryCount, timeSpan.TotalMilliseconds, exception));
 	}
+
+	/// <summary>
+	/// Gets the ceiling on any single backoff delay.
+	/// </summary>
+	/// <value> The ceiling on any single backoff delay. Thirty seconds, matching the other providers. </value>
+	private static TimeSpan MaxRetryDelay => TimeSpan.FromSeconds(30);
 
 	/// <inheritdoc/>
 	public int MaxRetryAttempts { get; }
 
 	/// <inheritdoc/>
 	public TimeSpan BaseRetryDelay { get; }
+
+	/// <summary>
+	/// Calculates the backoff delay before a retry attempt, grown exponentially from
+	/// <see cref="BaseRetryDelay" /> and bounded by <see cref="MaxRetryDelay" />.
+	/// </summary>
+	/// <param name="retryAttempt"> The retry attempt number (1-based). </param>
+	/// <returns> The delay to wait before retrying, never exceeding <see cref="MaxRetryDelay" />. </returns>
+	/// <remarks>
+	/// <para>
+	/// The schedule is grown from the configured base delay. It previously ignored
+	/// <see cref="BaseRetryDelay" /> entirely and returned two raised to the attempt number, in seconds -
+	/// so the property this type advertises as the base of its backoff described a schedule it was not
+	/// using, and the delay had no ceiling at all.
+	/// </para>
+	/// <para>
+	/// Composed with a minimum, so the ceiling can only ever tighten the wait; relaxing it requires
+	/// turning the minimum into a maximum rather than any ordinary edit.
+	/// </para>
+	/// </remarks>
+	internal TimeSpan CalculateDelay(int retryAttempt)
+	{
+		var exponential = BaseRetryDelay.TotalMilliseconds * Math.Pow(2, retryAttempt - 1);
+		return TimeSpan.FromMilliseconds(Math.Min(exponential, MaxRetryDelay.TotalMilliseconds));
+	}
 
 	/// <inheritdoc/>
 	public async Task<TResult> ResolveAsync<TConnection, TResult>(

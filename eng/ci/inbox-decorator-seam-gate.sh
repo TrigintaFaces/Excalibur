@@ -53,6 +53,9 @@ set -uo pipefail
 
 E_PASS=0; E_FAIL=1; E_REFUSE=2; E_SELFTEST=3
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 REPO_ROOT="${INBOXSEAM_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}"
 cd "$REPO_ROOT" || exit $E_REFUSE
 
@@ -161,6 +164,9 @@ sweep() {
 
     echo ""
     echo "inbox-decorators-evaluated=$decos missing-scoped-seam=$missing"
+    # The denominator, in the standard machine-readable form: what was EXAMINED, not only what was
+    # FOUND. A "0 missing" over a zero denominator is a query that stopped matching, wearing a green.
+    gate_denominator "$decos" "inbox decorator(s)" || return $E_REFUSE
 
     if [ "$decos" -lt "$INBOXSEAM_MIN_DECOS" ]; then
         echo "inbox-decorator-seam-gate: REFUSE — evaluated $decos decorators (floor=$INBOXSEAM_MIN_DECOS)."

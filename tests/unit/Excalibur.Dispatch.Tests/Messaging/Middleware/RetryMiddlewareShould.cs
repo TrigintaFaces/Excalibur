@@ -96,17 +96,16 @@ public sealed class RetryMiddlewareShould
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
 
-        var result = await sut.InvokeAsync(
-            message, context,
-            (_, _, _) => throw new TimeoutException("always fails"),
-            CancellationToken.None);
+        // A retryable exception exhausted to the cap propagates the ORIGINAL exception. Retry decides how
+        // many attempts a fault gets; it does not decide what the fault is, so it does not restate it as a
+        // result of its own.
+        var thrown = await Should.ThrowAsync<TimeoutException>(
+            () => sut.InvokeAsync(
+                message, context,
+                (_, _, _) => throw new TimeoutException("always fails"),
+                CancellationToken.None).AsTask());
 
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails.ShouldNotBeNull();
-        // jj9gon/qu3182 (S852) F-5 flip: a retryable exception (TimeoutException → classifier Transient)
-        // exhausted to the cap now converges on the distinct, reachable RetryExhausted terminal — it no
-        // longer falls through to the generic "RetryError". STRENGTHENED to assert the new contract.
-        result.ProblemDetails!.Type.ShouldBe("RetryExhausted");
+        thrown.Message.ShouldBe("always fails");
     }
 
     [Fact]
@@ -120,13 +119,20 @@ public sealed class RetryMiddlewareShould
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
 
-        var result = await sut.InvokeAsync(
-            message, context,
-            (_, _, _) => throw new ArgumentException("bad arg"),
-            CancellationToken.None);
+        var callCount = 0;
 
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails!.Type.ShouldBe("RetryError");
+        var thrown = await Should.ThrowAsync<ArgumentException>(
+            () => sut.InvokeAsync(
+                message, context,
+                (_, _, _) =>
+                {
+                    callCount++;
+                    throw new ArgumentException("bad arg");
+                },
+                CancellationToken.None).AsTask());
+
+        thrown.Message.ShouldBe("bad arg");
+        callCount.ShouldBe(1);
     }
 
     [Fact]
@@ -140,13 +146,20 @@ public sealed class RetryMiddlewareShould
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
 
-        var result = await sut.InvokeAsync(
-            message, context,
-            (_, _, _) => throw new InvalidOperationException("invalid"),
-            CancellationToken.None);
+        var callCount = 0;
 
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails!.Type.ShouldBe("RetryError");
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(
+            () => sut.InvokeAsync(
+                message, context,
+                (_, _, _) =>
+                {
+                    callCount++;
+                    throw new InvalidOperationException("invalid");
+                },
+                CancellationToken.None).AsTask());
+
+        thrown.Message.ShouldBe("invalid");
+        callCount.ShouldBe(1);
     }
 
     [Fact]
@@ -192,16 +205,14 @@ public sealed class RetryMiddlewareShould
     // never a silent drop / flip-to-success. (The durable legs — Outbox/Inbox DLQ + terminal status
     // — are regression-locked in their own subsystem tests; this guards the in-process leg.)
     //
-    // These pin the BEHAVIORAL contract (Succeeded == false after genuine attempt-cap exhaustion) AND,
-    // since the jj9gon/qu3182 (S852) restructure, the distinct terminal Type. They are NON-VACUOUS: each
-    // goes RED if the exhaustion path is mutated to swallow the failure, return Success, or revert to the
-    // generic "RetryError".
+    // These pin the BEHAVIORAL contract on both exhaustion paths, which leave the middleware by different
+    // mechanisms and must each stay fail-loud. Exhaustion by repeated EXCEPTION rethrows the original, so
+    // the consumer's exception type and message survive for their mapper and typed handler to match on.
+    // Exhaustion by repeated FAILED RESULT returns the downstream's own result unchanged, because there is
+    // no exception to raise and substituting one would discard what the pipeline below produced.
     //
-    // jj9gon (S852, RetryMiddleware.cs:212-241): the `Type = "RetryExhausted"` terminal is now the SINGLE
-    // REACHABLE exhaustion terminal — BOTH the retryable-exception path and the transient-failed-result
-    // path break out of the loop and converge on it (it also emits dispatch.retry.exhausted exactly once,
-    // fixing the qu3182 exception-path undercount). The old "currently unreachable / dead branch" note is
-    // obsolete. So these locks now assert the reachable `RetryExhausted` Type on both code paths.
+    // They are NON-VACUOUS: each goes RED if an exhaustion path is mutated to swallow the failure, return
+    // Success, or convert the fault into a retry-shaped result of the middleware's own.
 
     [Fact]
     public async Task ExhaustedRetries_ViaRetryableException_ReturnFailLoudTerminal_NeverSilentDrop()
@@ -222,20 +233,19 @@ public sealed class RetryMiddlewareShould
         var callCount = 0;
 
         // Act — a transient fault that never recovers across all attempts.
-        var result = await sut.InvokeAsync(
-            A.Fake<IDispatchMessage>(), new MessageContext(),
-            (_, _, _) =>
-            {
-                callCount++;
-                throw new TransientTestException("transient — never recovers");
-            },
-            CancellationToken.None);
+        var thrown = await Should.ThrowAsync<TransientTestException>(
+            () => sut.InvokeAsync(
+                A.Fake<IDispatchMessage>(), new MessageContext(),
+                (_, _, _) =>
+                {
+                    callCount++;
+                    throw new TransientTestException("transient — never recovers");
+                },
+                CancellationToken.None).AsTask());
 
-        // Assert (LIVENESS) — fail-loud exhaustion terminal, never silent; genuine exhaustion (every attempt used).
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails.ShouldNotBeNull();
-        result.ProblemDetails!.Type.ShouldBe("RetryExhausted"); // jj9gon: reachable distinct terminal (exception path)
-        result.ProblemDetails!.Detail.ShouldNotBeNullOrWhiteSpace(); // the failure is surfaced, not dropped
+        // Assert (LIVENESS) — fail-loud, never silent; the ORIGINAL exception reaches the caller with its
+        // type and message intact, and every attempt was used.
+        thrown.Message.ShouldBe("transient — never recovers");
         callCount.ShouldBe(options.MaxAttempts);
     }
 
@@ -254,20 +264,19 @@ public sealed class RetryMiddlewareShould
         var callCount = 0;
 
         // Act
-        var result = await sut.InvokeAsync(
-            A.Fake<IDispatchMessage>(), new MessageContext(),
-            (_, _, _) =>
-            {
-                callCount++;
-                throw new InvalidOperationException("non-retryable floor exception — must not be retried");
-            },
-            CancellationToken.None);
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(
+            () => sut.InvokeAsync(
+                A.Fake<IDispatchMessage>(), new MessageContext(),
+                (_, _, _) =>
+                {
+                    callCount++;
+                    throw new InvalidOperationException("non-retryable floor exception — must not be retried");
+                },
+                CancellationToken.None).AsTask());
 
-        // Assert (SAFETY) — rejected after ONE attempt via the non-retryable terminal; still fail-loud (no silent
-        // drop), but NOT the exhaustion terminal because it was never retried.
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails.ShouldNotBeNull();
-        result.ProblemDetails!.Type.ShouldBe("RetryError"); // non-retryable terminal, NOT RetryExhausted
+        // Assert (SAFETY) — declined after ONE attempt; still fail-loud (no silent drop), and the caller sees
+        // the original exception rather than a retry-shaped substitute.
+        thrown.Message.ShouldBe("non-retryable floor exception — must not be retried");
         callCount.ShouldBe(1); // the floor holds — never retried, even though allowlisted
     }
 
@@ -295,10 +304,13 @@ public sealed class RetryMiddlewareShould
             },
             CancellationToken.None);
 
-        // Assert — exhaustion never flips a persistent failure to success.
+        // Assert — exhaustion never flips a persistent failure to success, and it returns the DOWNSTREAM's
+        // own failure rather than substituting a retry-shaped one. There is no exception here to raise, so
+        // the result the pipeline below produced is what the caller should see.
         result.Succeeded.ShouldBeFalse();
         result.ProblemDetails.ShouldNotBeNull();
-        result.ProblemDetails!.Type.ShouldBe("RetryExhausted"); // jj9gon: reachable distinct terminal (failed-result path)
+        result.ProblemDetails!.Type.ShouldBe("Error");
+        result.ProblemDetails!.Detail.ShouldBe("transient — never recovers");
         callCount.ShouldBe(3);
     }
 
@@ -335,13 +347,20 @@ public sealed class RetryMiddlewareShould
         var context = new MessageContext();
 
         // IOException is not in the retryable list, so should not retry
-        var result = await sut.InvokeAsync(
-            message, context,
-            (_, _, _) => throw new IOException("io error"),
-            CancellationToken.None);
+        var callCount = 0;
 
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails!.Type.ShouldBe("RetryError");
+        var thrown = await Should.ThrowAsync<IOException>(
+            () => sut.InvokeAsync(
+                message, context,
+                (_, _, _) =>
+                {
+                    callCount++;
+                    throw new IOException("io error");
+                },
+                CancellationToken.None).AsTask());
+
+        thrown.Message.ShouldBe("io error");
+        callCount.ShouldBe(1);
     }
 
     [Fact]
@@ -358,13 +377,20 @@ public sealed class RetryMiddlewareShould
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
 
-        var result = await sut.InvokeAsync(
-            message, context,
-            (_, _, _) => throw new TimeoutException("configured as non-retryable"),
-            CancellationToken.None);
+        var callCount = 0;
 
-        result.Succeeded.ShouldBeFalse();
-        result.ProblemDetails!.Type.ShouldBe("RetryError");
+        var thrown = await Should.ThrowAsync<TimeoutException>(
+            () => sut.InvokeAsync(
+                message, context,
+                (_, _, _) =>
+                {
+                    callCount++;
+                    throw new TimeoutException("configured as non-retryable");
+                },
+                CancellationToken.None).AsTask());
+
+        thrown.Message.ShouldBe("configured as non-retryable");
+        callCount.ShouldBe(1);
     }
 
     // A genuinely-retryable test exception: intentionally NOT a subtype of any default NonRetryableExceptions

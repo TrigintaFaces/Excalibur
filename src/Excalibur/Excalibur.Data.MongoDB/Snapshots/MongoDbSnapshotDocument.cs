@@ -72,39 +72,43 @@ internal sealed class MongoDbSnapshotDocument
 	/// Gets or sets when the snapshot was created.
 	/// </summary>
 	[BsonElement("createdAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime CreatedAt { get; set; }
 
 	/// <summary>
-	/// Creates the composite document ID from aggregate ID and type.
-	/// </summary>
-	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <param name="aggregateType">The aggregate type name.</param>
-	/// <returns>The composite ID string.</returns>
-	public static string CreateId(string aggregateId, string aggregateType) =>
-		CreateId(aggregateId, aggregateType, null);
-
-	/// <summary>
-	/// Creates the document identifier, including the tenant when the host is multi-tenant.
+	/// Creates the document identifier from the tenant partition, aggregate identifier and aggregate type.
 	/// </summary>
 	/// <remarks>
-	/// The tenant segment is added only when a tenant is present, so a single-tenant host's documents
-	/// keep their existing identifiers rather than being orphaned under a new shape. The tenant leads
-	/// the composite, matching the convention the grant stores already use across the document providers.
+	/// <para>
+	/// The tenant leads the composite, matching the convention the grant stores already use across the
+	/// document providers.
+	/// </para>
+	/// <para>
+	/// Every id carries a tenant segment, including an untenanted host's: the tenant term is total, so it
+	/// always yields the reserved untenanted value rather than nothing. There is deliberately no
+	/// tenant-less id shape — one shape per document means a read and a write can never disagree about
+	/// which of two shapes to address, which is the failure a second, tenant-omitting form would admit.
+	/// </para>
 	/// </remarks>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
-	/// <param name="tenantId">The owning tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <param name="tenantId">
+	/// The owning tenant partition. Required: the caller resolves it from the total tenant term, so an
+	/// untenanted host supplies the reserved untenanted value rather than omitting the argument.
+	/// </param>
 	/// <returns>The document identifier.</returns>
-	public static string CreateId(string aggregateId, string aggregateType, string? tenantId) =>
-		string.IsNullOrEmpty(tenantId)
-			? $"{aggregateId}:{aggregateType}"
-			: $"t:{tenantId}:{aggregateId}:{aggregateType}";
+	public static string CreateId(string aggregateId, string aggregateType, string tenantId) =>
+		$"t:{tenantId}:{aggregateId}:{aggregateType}";
 
 	/// <summary>
 	/// Creates a document from a snapshot.
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
-	/// <param name="tenantId">The ambient tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <param name="tenantId">
+	/// The store's ambient tenant partition. Required, and NOT defaulted: a document written under an
+	/// omitted partition would carry an identifier no read path composes, so every subsequent load would
+	/// miss and silently rebuild from the event stream.
+	/// </param>
 	/// <returns>The MongoDB document representation.</returns>
 	/// <remarks>
 	/// The identifier's tenant comes from <paramref name="tenantId"/> — the store's ambient tenant —
@@ -113,7 +117,7 @@ internal sealed class MongoDbSnapshotDocument
 	/// on the ambient context would then write one identifier and look up another, so every read would
 	/// miss and silently rebuild from the event stream. One authority for the key, on every path.
 	/// </remarks>
-	public static MongoDbSnapshotDocument FromSnapshot(ISnapshot snapshot, string? tenantId = null) =>
+	public static MongoDbSnapshotDocument FromSnapshot(ISnapshot snapshot, string tenantId) =>
 		new()
 		{
 			Id = CreateId(snapshot.AggregateId, snapshot.AggregateType, tenantId),

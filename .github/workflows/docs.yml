@@ -63,8 +63,28 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
 
+      # A file under static/ is copied verbatim to the site root, so this lands at /build-stamp.txt
+      # and can be fetched without a credential. It is what lets the deploy verify itself: without a
+      # per-commit marker in the published output there is no way to tell a site that just updated
+      # from one that silently kept serving the previous build.
+      - name: Stamp the build with the commit that produced it
+        run: echo "${GITHUB_SHA}" > static/build-stamp.txt
+
       - name: Build website
         run: npm run build
+
+      - name: Confirm the stamp reached the built output
+        run: |
+          set -euo pipefail
+          # The stamp is useless if the build drops it. Checking here means a later failure at the
+          # live URL means the DEPLOY did not land, and not that the marker was never built.
+          test -f build/build-stamp.txt
+          built="$(cat build/build-stamp.txt)"
+          if [ "$built" != "${GITHUB_SHA}" ]; then
+            echo "::error::the built stamp is '${built}', expected '${GITHUB_SHA}'"
+            exit 1
+          fi
+          echo "stamp present in build output: ${built}"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
@@ -84,3 +104,34 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
+
+      # "The workflow ran" and "the page changed" are different claims, and only the second one is
+      # what a reader gets. A deploy that reports success while the site keeps serving the previous
+      # build is indistinguishable from a working one from inside the workflow, so this asks the
+      # published site what it is actually serving and fails if the answer is not this commit.
+      #
+      # Polls because Pages propagation is not instantaneous; a fixed sleep would either be too
+      # short to be reliable or long enough to waste every run. Bounded, so a deploy that never
+      # lands fails rather than hanging.
+      - name: Verify the published site is serving this commit
+        shell: bash
+        run: |
+          set -uo pipefail
+          base="${{ steps.deployment.outputs.page_url }}"
+          base="${base%/}"
+          url="${base}/build-stamp.txt"
+          echo "verifying ${url} carries ${GITHUB_SHA}"
+
+          served=""
+          for attempt in $(seq 1 20); do
+            served="$(curl -fsS --max-time 20 "${url}" 2>/dev/null | tr -d '[:space:]')" || served=""
+            if [ "${served}" = "${GITHUB_SHA}" ]; then
+              echo "published site is serving this commit (attempt ${attempt})"
+              exit 0
+            fi
+            echo "attempt ${attempt}: site is serving '${served:-<no response>}'"
+            sleep 15
+          done
+
+          echo "::error::REFUSE: after 5 minutes the published site serves '${served:-<no response>}', not ${GITHUB_SHA}. The deploy reported success but the site did not change, so every documentation correction in this commit is still invisible to readers. Check the Pages deployment for this run before assuming the content is live."
+          exit 1

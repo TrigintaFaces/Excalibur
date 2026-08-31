@@ -10,6 +10,7 @@ using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -29,7 +30,7 @@ namespace Excalibur.Inbox.Oracle.Tests;
 public sealed class OracleInboxStoreContainerFixture : ContainerFixtureBase
 {
 	private OracleContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	static OracleInboxStoreContainerFixture()
 	{
@@ -45,6 +46,18 @@ public sealed class OracleInboxStoreContainerFixture : ContainerFixtureBase
 
 	/// <summary>Gets the table name for the inbox.</summary>
 	public string TableName { get; } = "INBOX_MESSAGES";
+
+	/// <summary>
+	/// Gets the name of the MULTI-TENANT inbox table, used by the shipped-kit conformance suite.
+	/// </summary>
+	/// <remarks>
+	/// A second table on the SAME container rather than a second fixture: an Oracle image is among the
+	/// heaviest we start, and the only thing the kit suite needs that <see cref="TableName"/> cannot give
+	/// it is the tenant column. <see cref="TableName"/> is deliberately single-tenant (see the DDL in
+	/// <see cref="EnsureInitializedAsync"/>), so the kit's three tenant-isolation arms have no column to
+	/// discriminate on there and would certify isolation that the schema cannot express.
+	/// </remarks>
+	public string MultiTenantTableName { get; } = "INBOX_MESSAGES_MT";
 
 	/// <inheritdoc/>
 	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(6);
@@ -62,13 +75,15 @@ public sealed class OracleInboxStoreContainerFixture : ContainerFixtureBase
 	}
 
 	/// <summary>Ensures the inbox store schema is initialized.</summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
@@ -116,7 +131,6 @@ public sealed class OracleInboxStoreContainerFixture : ContainerFixtureBase
 			// ORA-00955: name is already used by an existing object — table already created.
 		}
 
-		_initialized = true;
 	}
 
 	/// <summary>Creates a new OracleConnection to the container.</summary>
@@ -131,6 +145,73 @@ public sealed class OracleInboxStoreContainerFixture : ContainerFixtureBase
 
 		await using var command = connection.CreateCommand();
 		command.CommandText = $"DELETE FROM {TableName}";
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Ensures the MULTI-TENANT inbox table exists, for the suite that runs the shipped conformance kit.
+	/// </summary>
+	/// <remarks>
+	/// MULTI-TENANT shape: <c>TenantId NOT NULL</c> inside <c>PRIMARY KEY (MessageId, HandlerType,
+	/// TenantId)</c>. The store verifies at startup that the table it was given matches the mode it was
+	/// constructed in, so this shape and <c>RequireTenant = true</c> are one decision, not two -- a
+	/// single-tenant store against this table is refused by the schema contract, and a multi-tenant store
+	/// against <see cref="TableName"/> is refused for the mirror reason.
+	/// </remarks>
+	public async Task EnsureMultiTenantTableAsync()
+	{
+		await EnsureInitializedAsync().ConfigureAwait(false);
+
+		await using var connection = CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		// Oracle has no "CREATE TABLE IF NOT EXISTS"; swallow ORA-00955 (name already used) for idempotence.
+		var createTableSql = $"""
+			CREATE TABLE {MultiTenantTableName} (
+				MessageId          VARCHAR2(255)                   NOT NULL,
+				HandlerType        VARCHAR2(500)                   NOT NULL,
+				MessageType        VARCHAR2(500),
+				Payload            BLOB,
+				Metadata           CLOB,
+				ReceivedAt         TIMESTAMP(7) WITH TIME ZONE     NOT NULL,
+				ProcessedAt        TIMESTAMP(7) WITH TIME ZONE,
+				Status             NUMBER(10)     DEFAULT 0        NOT NULL,
+				LastError          VARCHAR2(4000),
+				RetryCount         NUMBER(10)     DEFAULT 0        NOT NULL,
+				LastAttemptAt      TIMESTAMP(7) WITH TIME ZONE,
+				NextAttemptAt      TIMESTAMP(7) WITH TIME ZONE,
+				LeaseExpiresAtUtc  TIMESTAMP(7) WITH TIME ZONE,
+				CorrelationId      VARCHAR2(255),
+				TenantId           VARCHAR2(255)                   NOT NULL,
+				Source             VARCHAR2(255),
+				CONSTRAINT PK_INBOX_MESSAGES_MT PRIMARY KEY (MessageId, HandlerType, TenantId)
+			)
+			""";
+
+		try
+		{
+			await using var command = connection.CreateCommand();
+			command.CommandText = createTableSql;
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
+		catch (OracleException ex) when (ex.Number == 955)
+		{
+			// ORA-00955: name is already used by an existing object -- table already created.
+		}
+	}
+
+	/// <summary>Cleans up all rows from the multi-tenant inbox table between arms.</summary>
+	/// <remarks>
+	/// Data-only (DELETE), never DDL and never disposal: the kit calls this before every arm, so dropping
+	/// the table or closing the connection here would hand the next arm a table or handle that is gone.
+	/// </remarks>
+	public async Task CleanupMultiTenantTableAsync()
+	{
+		await using var connection = CreateConnection();
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = connection.CreateCommand();
+		command.CommandText = $"DELETE FROM {MultiTenantTableName}";
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 

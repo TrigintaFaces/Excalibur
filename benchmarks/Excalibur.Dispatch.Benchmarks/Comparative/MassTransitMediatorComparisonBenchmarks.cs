@@ -4,6 +4,7 @@
 using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -20,23 +21,55 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// In-process parity benchmarks: Dispatch local path vs MassTransit Mediator path.
 /// </summary>
 /// <remarks>
-/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
-/// comparison against MassTransit Mediator's in-process execution.
-/// Fresh context per iteration, warmup + freeze for production-representative numbers.
+/// <para>
+/// Framework Versions:
+/// - Excalibur: 1.0.0 (local build)
+/// - MassTransit: 8.5.9
+/// </para>
+/// <para>
+/// BOTH SIDES PUBLISH TWO TIERS, because each framework's idiomatic usage spans two shapes and
+/// publishing only one of each would compare a tuned configuration against an untuned one.
+/// </para>
+/// <para>
+/// MassTransit exposes two mediator entry points with different scope behaviour, and the difference is
+/// measurable: <c>IScopedMediator</c> reuses the ambient scope, so a scope created once outside the
+/// measured region serves every message; plain <c>IMediator</c> creates a DI scope per message. Measured
+/// with a scoped dependency and two publishes: <c>IScopedMediator</c> yields the same instance both
+/// times, plain <c>IMediator</c> yields distinct instances. Measuring only <c>IScopedMediator</c> lifts
+/// MassTransit's per-message scope cost out of the comparison — which flatters MassTransit, not us, but
+/// is still not the default shape a consumer gets.
+/// </para>
+/// <para>
+/// Dispatch likewise publishes its standard <c>AddDispatch()</c> path and its tuned direct-local path,
+/// matching what the MediatR, Wolverine and NServiceBus pairings already did. These two classes were
+/// previously the only comparisons lacking the tuned tier, so MassTransit was being compared against
+/// Dispatch's untuned path alone.
+/// </para>
+/// <para>
+/// Consumers should read the row whose configuration matches their own, which is why each row names its
+/// configuration rather than leaving the reader to assume parity.
+/// </para>
 /// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class MassTransitMediatorComparisonBenchmarks
 {
-	// Excalibur infrastructure
+	// Excalibur infrastructure — standard AddDispatch() path
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
 	private IMessageContextFactory? _dispatchContextFactory;
 
-	// MassTransit Mediator infrastructure
+	// Excalibur infrastructure — tuned direct-local path (no middleware chain)
+	private IServiceProvider? _dispatchDirectServiceProvider;
+	private IDirectLocalDispatcher? _directLocalDispatcher;
+
+	// MassTransit Mediator infrastructure — IScopedMediator, reuses one ambient scope
 	private IServiceProvider? _mediatorServiceProvider;
 	private IServiceScope? _mediatorScope;
 	private MassTransit.Mediator.IScopedMediator? _mediator;
+
+	// MassTransit Mediator infrastructure — plain IMediator, creates a scope PER MESSAGE
+	private MassTransit.Mediator.IMediator? _scopePerMessageMediator;
 
 	[GlobalSetup]
 	public void GlobalSetup()
@@ -54,6 +87,33 @@ public class MassTransitMediatorComparisonBenchmarks
 		_dispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
 		_dispatchContextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
 
+		// Setup Excalibur — tuned direct-local, mirroring the MediatR/Wolverine pairings exactly so the
+		// tuned tier means the same thing in every comparison.
+		var directDispatchServices = new ServiceCollection();
+		_ = directDispatchServices.AddLogging();
+		_ = directDispatchServices.AddDispatch(builder =>
+		{
+			_ = builder.ConfigurePipeline("DirectLocal", pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Direct));
+			_ = builder.WithOptions(options =>
+			{
+				options.UseLightMode = true;
+				options.EnablePipelineSynthesis = false;
+				options.Features.EnableMetrics = false;
+				options.Features.EnableAuthorization = false;
+				options.Features.ValidateMessageSchemas = false;
+				options.Features.EnableVersioning = false;
+				options.Features.EnableMultiTenancy = false;
+				options.Features.EnableTransactions = false;
+			});
+		});
+		_ = directDispatchServices.AddTransient<IActionHandler<MassTransitMediatorDispatchCommand>, MassTransitMediatorDispatchCommandHandler>();
+		_ = directDispatchServices.AddTransient<IEventHandler<MassTransitMediatorDispatchEvent>, MassTransitMediatorDispatchEventHandler1>();
+		_ = directDispatchServices.AddTransient<IEventHandler<MassTransitMediatorDispatchEvent>, MassTransitMediatorDispatchEventHandler2>();
+		_ = directDispatchServices.AddTransient<IActionHandler<MassTransitMediatorDispatchQuery, int>, MassTransitMediatorDispatchQueryHandler>();
+
+		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
+		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+
 		// Setup MassTransit Mediator
 		var mediatorServices = new ServiceCollection();
 		_ = mediatorServices.AddMediator(cfg =>
@@ -66,8 +126,15 @@ public class MassTransitMediatorComparisonBenchmarks
 		});
 
 		_mediatorServiceProvider = mediatorServices.BuildServiceProvider();
+
+		// Tier 1: IScopedMediator resolved from a scope created ONCE. Reuses that ambient scope for every
+		// message, so MassTransit's per-message scope cost does not appear in the measured region.
 		_mediatorScope = _mediatorServiceProvider.CreateScope();
 		_mediator = _mediatorScope.ServiceProvider.GetRequiredService<MassTransit.Mediator.IScopedMediator>();
+
+		// Tier 2: plain IMediator, resolved from the root. Creates a DI scope PER MESSAGE, which is the
+		// default standalone shape and the one that carries the scope cost.
+		_scopePerMessageMediator = _mediatorServiceProvider.GetRequiredService<MassTransit.Mediator.IMediator>();
 
 		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
 		WarmupAndFreezeDispatchCaches();
@@ -79,6 +146,11 @@ public class MassTransitMediatorComparisonBenchmarks
 		if (_dispatchServiceProvider is IDisposable dispatchDisposable)
 		{
 			dispatchDisposable.Dispose();
+		}
+
+		if (_dispatchDirectServiceProvider is IDisposable directDisposable)
+		{
+			directDisposable.Dispose();
 		}
 
 		if (_mediatorScope is IAsyncDisposable mediatorAsyncScope)
@@ -111,7 +183,7 @@ public class MassTransitMediatorComparisonBenchmarks
 		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
 	}
 
-	[Benchmark(Description = "MassTransit Mediator (in-process): Single command")]
+	[Benchmark(Description = "MassTransit Mediator (ambient scope): Single command")]
 	public async Task MassTransitMediator_SingleCommand()
 	{
 		var command = new MassTransitMediatorCommandMessage
@@ -120,6 +192,43 @@ public class MassTransitMediatorComparisonBenchmarks
 		};
 
 		await _mediator.Publish(command, CancellationToken.None).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// MassTransit Mediator via plain <c>IMediator</c>, which creates a DI scope per message.
+	/// </summary>
+	/// <remarks>
+	/// The row above uses <c>IScopedMediator</c> against a scope built once in setup, so MassTransit's
+	/// per-message scope creation happens outside the measured region. This row uses the plain
+	/// <c>IMediator</c> that a standalone consumer gets, which opens a scope for every message. The delta
+	/// between the two rows IS MassTransit's per-message scope cost, and publishing only the cheaper one
+	/// would understate what a default consumer pays.
+	/// </remarks>
+	[Benchmark(Description = "MassTransit Mediator (scope per message): Single command")]
+	public async Task MassTransitMediator_SingleCommand_ScopePerMessage()
+	{
+		var command = new MassTransitMediatorCommandMessage
+		{
+			Value = 42,
+		};
+
+		await _scopePerMessageMediator!.Publish(command, CancellationToken.None).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Dispatch via the tuned direct-local path, matching the tuned tier the other pairings publish.
+	/// </summary>
+	/// <remarks>
+	/// Until this was added, the two MassTransit classes were the only comparisons without a tuned Dispatch
+	/// tier, so MassTransit was measured against Dispatch's standard path while MediatR, Wolverine and
+	/// NServiceBus were measured against both. That made the MassTransit summary conservative rather than
+	/// wrong, but it was undeclared and not comparable across pairings.
+	/// </remarks>
+	[Benchmark(Description = "Dispatch (tuned direct-local): Single command")]
+	public async Task Dispatch_SingleCommand_DirectLocal()
+	{
+		var command = new MassTransitMediatorDispatchCommand { Value = 42 };
+		await _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	// ============================================================================

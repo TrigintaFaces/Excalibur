@@ -11,7 +11,7 @@
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- Added Excalibur.Dispatch.Caching reference for ICacheInvalidationService.
-       Added Excalibur.EventSourcing reference (S804 bd-sdhocq A15) to host the
+       Added Excalibur.EventSourcing reference to host the
        IEventSourcingBuilder.AddProjectionCaching(...) bridge. -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
@@ -27,7 +27,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Caching.Tests" />
     <InternalsVisibleTo Include="Excalibur.Tests" />
-    <!-- S804 bd-sdhocq A15: smoke test exercises the internal package aggregator directly -->
+    <!-- smoke test exercises the internal package aggregator directly -->
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->

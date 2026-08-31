@@ -126,17 +126,16 @@ If Dispatch needs functionality from Excalibur:
 | `Excalibur.AuditLogging` | |
 | `Excalibur.AuditLogging.{Datadog,Sentinel,Splunk,SqlServer}` | |
 
-**Note on Hosting**: All 13 hosting packages stay where they are - the architecture is correct. Dispatch hosting packages handle **message routing from triggers** (serverless adapters, HTTP endpoints). Excalibur hosting packages handle **full infrastructure setup** (CQRS/ES stack, jobs, web infrastructure).
+**Note on Hosting**: All 12 hosting packages stay where they are - the architecture is correct. Dispatch hosting packages handle **message routing from triggers** (serverless adapters, HTTP endpoints). Excalibur hosting packages handle **full infrastructure setup** (CQRS/ES stack, jobs, web infrastructure).
 
-| Dispatch Hosting (6 packages) | Excalibur Hosting (7 packages) |
+| Dispatch Hosting (6 packages) | Excalibur Hosting (6 packages) |
 |-------------------------------|--------------------------------|
 | `Excalibur.Dispatch.Hosting.AspNetCore` | `Excalibur.Hosting` |
 | `Excalibur.Dispatch.Hosting.AzureFunctions` | `Excalibur.Hosting.Web` |
 | `Excalibur.Dispatch.Hosting.AwsLambda` | `Excalibur.Hosting.AzureFunctions` |
 | `Excalibur.Dispatch.Hosting.GoogleCloudFunctions` | `Excalibur.Hosting.AwsLambda` |
 | `Excalibur.Dispatch.Hosting.Serverless.Abstractions` | `Excalibur.Hosting.GoogleCloudFunctions` |
-| `Excalibur.Dispatch.Patterns.Hosting.Json` | `Excalibur.Hosting.Serverless` |
-| | `Excalibur.Hosting.Jobs` |
+| `Excalibur.Dispatch.Patterns.Hosting.Json` | `Excalibur.Hosting.Jobs` |
 
 **Important Lesson**: The rule "Dispatch does NOT depend on Excalibur" has **NO exceptions**. An attempt to consolidate `Excalibur.Dispatch.Hosting.Serverless.Abstractions` into Excalibur was reverted because it would have required Dispatch cloud adapters to reference Excalibur - a boundary violation. The `SkipDependencyValidation` flag is for controlled migrations only, not permanent bypasses.
 

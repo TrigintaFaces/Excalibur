@@ -7,13 +7,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Metrics collector for connection pool operations.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="ConnectionMetrics" /> class. </remarks>
-/// <param name="metricsPrefix"> The prefix for metric names. </param>
-internal sealed class ConnectionMetrics(string metricsPrefix) : IDisposable
+internal sealed class ConnectionMetrics : IDisposable
 {
-	// Retain metricsPrefix for future use when wiring to an IMeterFactory-based metrics pipeline.
-	private readonly string _metricsPrefix = metricsPrefix;
-
 	private readonly Lock _lock = new();
 	private long _acquisitions;
 	private long _hits;

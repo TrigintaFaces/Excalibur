@@ -11,8 +11,7 @@ dotnet add package Excalibur.LeaderElection.InMemory
 ## Quick Start
 
 ```csharp
-// Add Excalibur.LeaderElection.InMemory to your service configuration
-services.AddLeaderElectionInMemory();
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le.UseInMemory()));
 ```
 
 ## Documentation
@@ -21,4 +20,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

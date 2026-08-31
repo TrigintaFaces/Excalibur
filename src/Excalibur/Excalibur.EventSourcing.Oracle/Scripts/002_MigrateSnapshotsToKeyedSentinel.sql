@@ -65,7 +65,7 @@ COMMIT;
 -- would make "I forgot to supply the tenant" indistinguishable from "this row is
 -- deliberately untenanted." The store writes the sentinel explicitly on every save.
 
-ALTER TABLE EVENTSTORESNAPSHOTS MODIFY (TENANTID VARCHAR2(255) NOT NULL);
+ALTER TABLE EVENTSTORESNAPSHOTS MODIFY (TENANTID VARCHAR2(64) NOT NULL);
 
 -- ---------------------------------------------------------------------------------------
 -- STEP 3 — Replace the function-based index with a plain one.

@@ -1,5 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Tests.InMemory;
 
@@ -81,7 +83,16 @@ public sealed class InMemoryEventSourcingServiceCollectionExtensionsShould : Uni
 		_ = services.AddInMemoryEventStore();
 		_ = services.AddInMemoryEventStore();
 
-		// Assert - concrete InMemoryEventStore registered twice (AddSingleton, not TryAdd)
-		services.Count(static sd => sd.ServiceType == typeof(InMemoryEventStore)).ShouldBe(2);
+		// Assert - registration is now IDEMPOTENT. The store goes through the tenant-aware seam, which
+		// registers the concrete type with TryAddSingleton and emits the tenant-scoping capability marker in
+		// the same act. The previous assertion pinned the older shape, where a bare AddSingleton left TWO
+		// descriptors for one store; that shape is gone, and one descriptor is the stronger property.
+		services.Count(static sd => sd.ServiceType == typeof(InMemoryEventStore)).ShouldBe(1);
+
+		// And the attestation is emitted exactly once, not once per call. A duplicate marker would still
+		// satisfy the multi-tenancy gate, so asserting the COUNT rather than mere presence is what keeps this
+		// arm sensitive to the seam being invoked twice.
+		services.Count(static sd => sd.ServiceType == typeof(ITenantScopingCapability<IEventStore>))
+			.ShouldBe(1);
 	}
 }

@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
+using Excalibur.Dispatch;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
@@ -45,11 +46,13 @@ public class SqlServerEventStoreBenchmarks
 
 		_eventStore = new SqlServerEventStore(
 			ConnectionString!,
-			NullLogger<SqlServerEventStore>.Instance);
+			NullLogger<SqlServerEventStore>.Instance,
+			BenchmarkTenantContext.SingleTenant);
 
 		_snapshotStore = new SqlServerSnapshotStore(
 			ConnectionString!,
-			NullLogger<SqlServerSnapshotStore>.Instance);
+			NullLogger<SqlServerSnapshotStore>.Instance,
+			BenchmarkTenantContext.SingleTenant);
 
 		// Ensure schema exists
 		EnsureSchemaAsync().GetAwaiter().GetResult();

@@ -27,7 +27,7 @@ The workflow set is organised in four tiers. This is the part that is stable eno
 | Tier | Workflow | Purpose |
 |---|---|---|
 | PR validation | `ci.yml` | Validates a change before merge. Exposes exactly one aggregated required status, so branch protection never has to be edited when a job is added or removed. |
-| Official build | `official-build.yml` | Builds a commit once and produces the canonical package set with its hash manifest, SBOM, build receipt, and provenance attestation. Runs on every merge to `main`, and on a release tag. |
+| Official build | `official-build.yml` | Builds a commit once and produces the canonical package set: signed, then hashed, with its SBOM, build receipt, and provenance attestation. Runs on every merge to `main`, and on a release tag. |
 | Scheduled validation | `nightly.yml` | Work that is expensive, probabilistic, or infrastructure-sensitive, and does not belong on the critical path of a pull request. |
 | Release promotion | `release.yml` | Promotes an artifact the official build produced. It does not build the packages it publishes. |
 
@@ -43,9 +43,54 @@ never falls back to building.
 Provenance is attested in the workflow that *produces* the artifact, never in one that downloaded
 it. An attestation minted over a downloaded copy describes a journey, not an origin.
 
+### Why signing happens at the origin, before the hash manifest
+
+Signing a package rewrites it. The signature becomes an entry in the archive, so the file's hash
+changes — and everything this pipeline says about a package is a statement about bytes. Sign after
+the manifest, the attestation, and the staged install test, and all three describe a file that no
+longer exists, while the pipeline goes on reporting that these bytes were validated. That claim
+would then be false of every byte a consumer receives, on every release that signs.
+
+So `official-build.yml` signs immediately after packing and before it hashes. Exactly one artifact
+then exists from pack through push: these bytes are hashed, attested, admitted, staged,
+install-tested and published without ever being rewritten. It is also the only ordering under which
+provenance can cover a signed package at all, since the attestation must be minted at the origin
+over the bytes as built.
+
+`release.yml` therefore signs nowhere. It checks the **artifact** — that the packages carry a
+signature and that the signature is valid — rather than checking whether a certificate happens to be
+configured on the runner, which is a fact about the environment rather than about what ships. A
+package that is unsigned by accident and one that is unsigned by decision look identical at that
+moment, so absence refuses and only an explicit `ALLOW_UNSIGNED_RELEASE=true` proceeds.
+
+**Releases are currently produced UNSIGNED**, because author signing requires a certificate from a
+public CA — nuget.org rejects self-issued ones — and none is available at present. Rather than leave
+that state to an environment setting someone has to know to look for, `ALLOW_UNSIGNED_RELEASE`
+defaults to `true` in both workflows, in the open, where it can be read and reversed. Every
+promotable build still emits a warning saying the set carries no author signature: unsigned by
+default must not become unsigned and silent, which is the entire reason the control exists.
+
+The signing steps remain in place and reachable, conditioned on the certificate being present, so
+they skip on their own while there is none. When a certificate is obtained, configuring the two
+signing secrets and removing the defaults restores the refusal — which then protects a signing
+pipeline that exists, and will catch a certificate that expires, rotates or is renamed. A repository
+variable, if set, takes precedence over the default in both directions.
+
+Consumers are unaffected in one respect worth stating plainly: nuget.org applies its own repository
+signature to everything it serves, so packages remain verifiable. What is absent is the second,
+publisher-level guarantee an author signature adds on top.
+
+Immediately before the push, the provenance attestation is verified again. Between admission and the
+push the set crosses an artifact store where it is identified by *name*, not by content, and the hash
+manifest cannot close that gap on its own: `SHA256SUMS.txt` travels inside the artifact, so
+re-running it downstream proves only self-consistency. The attestation is the one statement that did
+not travel with the bytes, and it is checked at the last moment it can still stop a push.
+
 That contract is enforced structurally rather than by convention:
-`python3 eng/ci/promotion-contract-gate.py` asserts it against the workflow files and runs as part
-of the release rehearsal. It carries a `--self-test` proving each assertion can fail.
+`python3 eng/ci/promotion-contract-gate.py` asserts it against the workflow files — including the
+signing order above — and runs as part of the release rehearsal. It carries a `--self-test` proving
+each assertion can fail. `python3 eng/ci/assert-packages-signed.py --self-test` does the same for the
+signature check the publishing job runs against the artifact.
 
 ## Releasing
 

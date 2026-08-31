@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -20,11 +20,38 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.MultiTenancy\Excalibur.MultiTenancy.csproj" />
     <!-- TenantScoped{EventStore,SagaStore,ProjectionStore} decorators + IEventStore/IProjectionStore. -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <!-- ITenantContext, TenantRequiredException, ITenantScopingCapability<T>, ISagaStore, SagaState. -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <!-- The workflow signal inbox is a tenant-owned contract declared outside the Dispatch and
+         EventSourcing abstractions. Referenced so the order-independence lock can prove the
+         declaration actually reaches the startup re-assertion, rather than assuming it does. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Workflows.Abstractions\Excalibur.Workflows.Abstractions.csproj" />
     <!-- Real-DI saga-isolation lock (rw2ull): AddExcalibur host entry + the SQL Server saga provider so the
          test resolves the saga store through the real builder registration path (AddSagas().UseSqlServer()). -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.MongoDB\Excalibur.Outbox.MongoDB.csproj" />
+    <!-- Cloud-native outbox gate lock: these three register ICloudNativeOutboxStore and no IOutboxStore at
+         all, so the lock must drive their REAL registration path to prove the gate reaches a contract the
+         outbox-keyed gates never see. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.CosmosDb\Excalibur.Outbox.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.DynamoDb\Excalibur.Outbox.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Firestore\Excalibur.Outbox.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
+    <!-- The Elasticsearch outbox carries the tenant on the document and attested nothing, so the gate
+         refused every host that selected it. Referenced so its admission lock drives the provider's REAL
+         registration paths rather than a marker the test handed the gate itself. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.ElasticSearch\Excalibur.Outbox.ElasticSearch.csproj" />
+    <!-- The remaining saga builder paths that scoped by tenant and attested nothing. Referenced so the
+         admission lock drives each provider's REAL builder verb: these four moved from a bare
+         TryAddSingleton to the seam, which changes how the store is CONSTRUCTED, so "it still compiles"
+         is not evidence that the container can still build it. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Oracle\Excalibur.Saga.Oracle.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.CosmosDb\Excalibur.Saga.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.DynamoDb\Excalibur.Saga.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Firestore\Excalibur.Saga.Firestore.csproj" />
   </ItemGroup>
 </Project>

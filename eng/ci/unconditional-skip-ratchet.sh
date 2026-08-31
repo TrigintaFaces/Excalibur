@@ -31,6 +31,9 @@
 #              passes vacuously, and a silent vacuous pass is the defect this gate is about)
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCAN_ROOT="${SKIP_RATCHET_SCAN_ROOT:-$REPO/tests}"
 BASELINE="${SKIP_RATCHET_BASELINE:-$REPO/eng/ci/unconditional-skip-baseline.txt}"
@@ -186,5 +189,14 @@ MSG
 fi
 
 files=$(printf '%s\n' "$current" | grep -c . || true)
+# The denominator, in the standard machine-readable form: what was EXAMINED, not only what was
+# FOUND. The no-source case already REFUSEs above; this states the earned denominator out loud.
+# The DENOMINATOR is the .cs files SCANNED, not the files carrying a skip. Those are different
+# numbers and only the first can catch the failure this line exists for: zero files carrying an
+# unconditional skip is the DESIRED outcome, so it can never distinguish a clean tree from a scan
+# that read nothing. The .cs count can, and a zero there is a REFUSE (also enforced above).
+scanned_cs=$(find "$SCAN_ROOT" -name '*.cs' -type f 2>/dev/null | grep -c . || true)
+case "$scanned_cs" in ''|*[!0-9]*) scanned_cs=0 ;; esac
+gate_denominator "$scanned_cs" "C# file(s) scanned ($files carrying an unconditional skip)" || exit 2
 echo "PASS: no file exceeds its unconditional-skip baseline ($files file(s) at or below floor)."
 exit 0

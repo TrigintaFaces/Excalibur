@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Hosting.GoogleCloudFunctions;
 /// <item>50450-50499: Google Cloud Functions Cold Start Optimization</item>
 /// </list>
 /// </remarks>
-public static class GoogleCloudFunctionsEventId
+internal static class GoogleCloudFunctionsEventId
 {
 	// ========================================
 	// 50400-50449: Google Cloud Functions Host Provider

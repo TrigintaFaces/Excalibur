@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Messaging;
 
 /// <summary>
@@ -41,6 +43,8 @@ public interface ISagaCoordinator
 	/// recovery procedures.
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("The JIT dispatch path uses MakeGenericMethod over runtime saga types. Register typed dispatch via ISagaDispatchRegistry (or the saga registration source generator) for a trim/AOT-safe path.")]
+	[RequiresDynamicCode("The JIT dispatch path uses MakeGenericMethod over runtime saga types. Register typed dispatch via ISagaDispatchRegistry (or the saga registration source generator) for a trim/AOT-safe path.")]
 	Task ProcessEventAsync(
 		IMessageContext messageContext,
 		ISagaEvent evt,

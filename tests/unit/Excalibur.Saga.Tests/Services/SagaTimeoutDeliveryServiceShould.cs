@@ -29,6 +29,11 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	private readonly ILogger<SagaTimeoutDeliveryService> _logger;
 	private readonly IOptions<SagaTimeoutOptions> _options;
 
+	// The registry is the service's only type-resolution path, so a host that never registered a type
+	// cannot deliver it. These tests stand in for that composition step: every timeout type they schedule
+	// is registered here, exactly as AddSaga<T>() would register it during DI composition.
+	private readonly SagaTypeRegistry _typeRegistry;
+
 	public SagaTimeoutDeliveryServiceShould()
 	{
 		_timeoutStore = A.Fake<ISagaTimeoutStore>();
@@ -38,6 +43,11 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddSingleton(_dispatcher);
 		_serviceProvider = services.BuildServiceProvider();
+
+		_typeRegistry = new SagaTypeRegistry();
+		_typeRegistry.RegisterType(typeof(TestTimeoutMessage));
+		_typeRegistry.RegisterType(typeof(NonDispatchMessage));
+		_typeRegistry.RegisterType(typeof(NoDefaultCtorDispatchMessage));
 
 		_options = Options.Create(new SagaTimeoutOptions
 		{
@@ -54,7 +64,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SagaTimeoutDeliveryService(null!, _serviceProvider, _logger, _options));
+			new SagaTimeoutDeliveryService(null!, _serviceProvider, _logger, _options, _typeRegistry));
 	}
 
 	[Fact]
@@ -62,7 +72,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SagaTimeoutDeliveryService(_timeoutStore, null!, _logger, _options));
+			new SagaTimeoutDeliveryService(_timeoutStore, null!, _logger, _options, _typeRegistry));
 	}
 
 	[Fact]
@@ -70,7 +80,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, null!, _options));
+			new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, null!, _options, _typeRegistry));
 	}
 
 	[Fact]
@@ -78,14 +88,14 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, null!));
+			new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, null!, _typeRegistry));
 	}
 
 	[Fact]
 	public void CreateInstance_WithValidParameters()
 	{
 		// Act
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Assert
 		service.ShouldNotBeNull();
@@ -108,7 +118,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				return new List<SagaTimeout>();
 			});
 
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act - let it run one cycle then cancel
 		var executeTask = service.StartAsync(cts.Token);
@@ -164,7 +174,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.Returns(Task.CompletedTask);
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -207,7 +217,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 				return new List<SagaTimeout>();
 			});
 
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -255,7 +265,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
 			.Returns(Task.CompletedTask);
@@ -311,7 +321,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.Throws(new InvalidOperationException("Dispatch failed"));
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -387,7 +397,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, options, _typeRegistry);
 
 		// Act
 		await service.StartAsync(cts.Token);
@@ -445,7 +455,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.Returns(Task.FromResult(MessageResult.Success()));
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -496,7 +506,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
 			.Returns(Task.CompletedTask);
@@ -548,7 +558,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
@@ -601,7 +611,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.Returns(Task.CompletedTask);
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 
 		// Act
 		await service.StartAsync(cts.Token);
@@ -650,7 +660,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		using var cts = new CancellationTokenSource();
-		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, _typeRegistry);
 		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
 			.Invokes(() => _ = deliveredObserved.TrySetResult())
 			.Returns(Task.CompletedTask);
@@ -749,13 +759,13 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 #pragma warning restore CA1506
 
 	[Fact]
-	public void AcceptNullSagaTypeRegistry()
+	public void ThrowArgumentNullException_WhenSagaTypeRegistryIsNull()
 	{
-		// The typeRegistry parameter is optional -- null is valid
-		var service = new SagaTimeoutDeliveryService(
-			_timeoutStore, _serviceProvider, _logger, _options, typeRegistry: null);
-
-		service.ShouldNotBeNull();
+		// The registry is the only resolution path: a service built without one resolves nothing and
+		// retires every timeout undelivered. Refusing it at construction makes that state inexpressible
+		// rather than a silent estate-wide loss of timeouts.
+		Should.Throw<ArgumentNullException>(() =>
+			new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options, null!));
 	}
 
 	#endregion

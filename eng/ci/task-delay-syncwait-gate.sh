@@ -43,6 +43,9 @@
 #   task-delay-syncwait-gate.sh --self-test
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 # ---------------------------------------------------------------------------
 # Core (pure, testable) predicate
 # ---------------------------------------------------------------------------
@@ -185,10 +188,21 @@ run_gate() {
             ;;
     esac
 
-    local hits
-    hits="$(tds_diff_text "$mode" "$base" | tds_scan_diff)"
+    local hits diff_text added
+    diff_text="$(tds_diff_text "$mode" "$base")"
+    hits="$(printf '%s
+' "$diff_text" | tds_scan_diff)"
 
     echo "=== task-delay sync-wait gate (mode=$mode, base=$base) ==="
+    # The DENOMINATOR — how many ADDED lines this invocation actually inspected. The population here
+    # is a diff, so zero is legitimate (a change touching no test code adds nothing to inspect) and
+    # the may-be-empty form is used deliberately rather than by omission. It still prints, because a
+    # clean verdict over zero added lines and a clean verdict over four hundred are different facts
+    # and the reader cannot otherwise tell them apart.
+    added="$(printf '%s
+' "$diff_text" | grep -c '^+' || true)"
+    case "$added" in ''|*[!0-9]*) added=0 ;; esac
+    gate_denominator_may_be_empty "$added" "added diff line(s)"
     if [ -z "$hits" ]; then
         echo "✅ No NEW sync-wait or short deadline added in test code. Determinism gate clean."
         return 0

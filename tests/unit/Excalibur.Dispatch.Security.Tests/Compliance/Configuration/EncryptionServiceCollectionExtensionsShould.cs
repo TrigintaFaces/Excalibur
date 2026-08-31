@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -96,7 +97,7 @@ public sealed class EncryptionServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddDevEncryption_RegisterWarningLogger()
+	public async Task AddDevEncryption_WarnAtHostStartup()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -115,10 +116,14 @@ public sealed class EncryptionServiceCollectionExtensionsShould
 		// Act
 		_ = services.AddDevEncryption();
 
-		// Assert
+		// Assert: the warning must arrive through the ordinary host startup path. Reaching into the
+		// container for the warning type would prove only that the type works when something resolves
+		// it -- and nothing in a real application ever does.
 		var provider = services.BuildServiceProvider();
-		// Resolve the warning logger to trigger the warning
-		_ = provider.GetRequiredService<DevEncryptionWarningLogger>();
+		foreach (var hosted in provider.GetServices<IHostedService>())
+		{
+			await hosted.StartAsync(CancellationToken.None);
+		}
 
 		loggerCalled.ShouldBeTrue();
 	}

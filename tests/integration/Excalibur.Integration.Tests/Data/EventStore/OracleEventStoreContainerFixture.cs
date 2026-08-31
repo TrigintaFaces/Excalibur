@@ -6,6 +6,7 @@ using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - identifiers are constants in test fixture
 
@@ -18,7 +19,8 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 {
 	private OracleContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
+	private bool _schemaCreated;
 
 	/// <summary>
 	/// Gets the connection string for the Oracle container.
@@ -54,13 +56,15 @@ public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the event store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
@@ -70,36 +74,85 @@ public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 			Schema = (await userCommand.ExecuteScalarAsync().ConfigureAwait(false))?.ToString() ?? "SYSTEM";
 		}
 
-		// Create the event store table in the connecting user's own schema. POSITION is an identity
-		// column (the monotonic global sequence); (AggregateId, AggregateType, Version) is unique so an
-		// optimistic-concurrency double-append violates it. Column names are unquoted (upper-cased by
-		// Oracle) and bind 1:1 to the store's quoted upper-case identifiers.
-		var createTableSql = $"""
-			CREATE TABLE {TableName} (
-				POSITION        NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-				EVENTID         VARCHAR2(255) NOT NULL,
-				AGGREGATEID     VARCHAR2(255) NOT NULL,
-				AGGREGATETYPE   VARCHAR2(255) NOT NULL,
-				EVENTTYPE       VARCHAR2(255) NOT NULL,
-				EVENTDATA       BLOB,
-				METADATA        BLOB,
-				VERSION         NUMBER(19) NOT NULL,
-				EVENTTIMESTAMP  TIMESTAMP(7) WITH TIME ZONE NOT NULL,
-				TENANTID        VARCHAR2(255),
-				CONSTRAINT UQ_EVENTSTORE_STREAM_VERSION UNIQUE (AGGREGATEID, AGGREGATETYPE, VERSION)
-			)
-			""";
-
-		await using (var command = connection.CreateCommand())
+		// Provision from the DDL the package SHIPS, not a copy of it. The copy had diverged: it declared
+		// TENANTID nullable and left it out of the stream key, while Scripts/003 declares it NOT NULL DEFAULT
+		// '__untenanted__' and keys on (AGGREGATEID, AGGREGATETYPE, VERSION, TENANTID). Both halves matter, and
+		// the nullability half is Oracle-specific: Oracle treats NULLs as DISTINCT in a unique index, so a
+		// nullable tenant column leaves untenanted rows unconstrained by the stream key altogether. Against the
+		// copy, the store's own optimistic concurrency was being asserted against a key the product never ships.
+		// A mirror cannot detect a defect in the thing it mirrors -- and it regenerates the moment someone edits
+		// one side, which is why this reads the file rather than restating it.
+		foreach (var statement in ReadShippedSchemaStatements())
 		{
-			command.CommandText = createTableSql;
-			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+			await ExecuteAsync(connection, statement).ConfigureAwait(false);
 		}
 
-		// NOTE: no separate CREATE INDEX on (AGGREGATEID, AGGREGATETYPE, VERSION) — the
-		// UQ_EVENTSTORE_STREAM_VERSION unique constraint above already creates a usable index on exactly that
-		// column list; adding another triggers ORA-01408 ("such column list already indexed") on a fresh DB.
-		_initialized = true;
+		_schemaCreated = true;
+	}
+
+	/// <summary>
+	/// Reads the shipped event-store DDL and splits it into individual statements.
+	/// </summary>
+	/// <remarks>
+	/// ODP.NET submits one statement per command, so the script is split on ';'. Whole-line comments are
+	/// stripped FIRST: a trailing '--' comment would otherwise survive the split, be prepended to the next
+	/// statement, and comment it out -- which Oracle rejects with ORA-00900. Same handling the Oracle saga
+	/// fixtures already use against their own shipped scripts.
+	/// </remarks>
+	private static IEnumerable<string> ReadShippedSchemaStatements()
+	{
+		var sql = StripComments(File.ReadAllText(ResolveShippedScriptPath()));
+
+		return sql
+			.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Where(statement => !string.IsNullOrWhiteSpace(statement))
+			.ToList();
+	}
+
+	/// <summary>Drops whole-line <c>--</c> comments from the script.</summary>
+	private static string StripComments(string sql)
+	{
+		var lines = sql
+			.Split('\n')
+			.Select(line => line.Trim())
+			.Where(line => !line.StartsWith("--", StringComparison.Ordinal));
+
+		return string.Join('\n', lines);
+	}
+
+	/// <summary>
+	/// Locates the shipped script by walking up from the test binary to the repository root. Fails loudly
+	/// rather than falling back to an inline copy: a missing product script is the defect, not a licence to
+	/// invent a schema.
+	/// </summary>
+	private static string ResolveShippedScriptPath()
+	{
+		const string RelativePath =
+			"src/Excalibur/Excalibur.EventSourcing.Oracle/Scripts/003_CreateEventStoreSchema.sql";
+
+		var directory = new DirectoryInfo(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			var candidate = Path.Combine(directory.FullName, RelativePath.Replace('/', Path.DirectorySeparatorChar));
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			directory = directory.Parent;
+		}
+
+		throw new FileNotFoundException(
+			$"The shipped Oracle event-store DDL was not found by walking up from '{AppContext.BaseDirectory}' "
+			+ $"looking for '{RelativePath}'. This fixture provisions its schema from the script the package "
+			+ "ships; it deliberately does not carry its own copy.");
+	}
+
+	private static async Task ExecuteAsync(OracleConnection connection, string sql)
+	{
+		await using var command = connection.CreateCommand();
+		command.CommandText = sql;
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -112,7 +165,7 @@ public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 	/// </summary>
 	public async Task CleanupTableAsync()
 	{
-		if (!_initialized)
+		if (!_schemaCreated)
 		{
 			return;
 		}

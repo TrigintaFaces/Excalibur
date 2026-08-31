@@ -16,7 +16,7 @@ public static class DatabaseInitializer
 	{
 		var logger = services.GetRequiredService<ILogger<Program>>();
 
-		// Initialize SQL Server tables (event store, snapshots, outbox)
+		// Initialize SQL Server tables (event store, snapshots)
 		await InitializeSqlServerAsync(services, logger);
 
 		// Initialize ElasticSearch indices
@@ -40,17 +40,18 @@ public static class DatabaseInitializer
 -- Events table (default: dbo.EventStoreEvents, configurable via SqlServerEventSourcingOptions)
 CREATE TABLE [dbo].[EventStoreEvents] (
     [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
-    [EventId]        NVARCHAR(256)         NOT NULL,
-    [AggregateId]    NVARCHAR(256)         NOT NULL,
-    [AggregateType]  NVARCHAR(256)         NOT NULL,
-    [EventType]      NVARCHAR(256)         NOT NULL,
+    [EventId]        NVARCHAR(255)         NOT NULL,
+    [AggregateId]    NVARCHAR(255)         NOT NULL,
+    [AggregateType]  NVARCHAR(255)         NOT NULL,
+    [EventType]      NVARCHAR(255)         NOT NULL,
     -- Nullable: GDPR erasure tombstones an event by setting EventData to NULL
     -- while preserving its position. NOT NULL makes every erasure fail.
     [EventData]      VARBINARY(MAX)        NULL,
     [Metadata]       VARBINARY(MAX)        NULL,
     [Version]        BIGINT                NOT NULL,
     [Timestamp]      DATETIMEOFFSET        NOT NULL,
-    [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2         NOT NULL,
+    [TenantId]       NVARCHAR(64)  COLLATE Latin1_General_BIN2         NOT NULL
+        CONSTRAINT [DF_EventStoreEvents_TenantId] DEFAULT '__untenanted__',
 
     CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
     CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
@@ -60,9 +61,9 @@ CREATE INDEX [IX_EventStoreEvents_EventType] ON [dbo].[EventStoreEvents]([EventT
 
 -- Snapshots table (default: dbo.EventStoreSnapshots, configurable via SqlServerEventSourcingOptions)
 CREATE TABLE [dbo].[EventStoreSnapshots] (
-    [SnapshotId]     NVARCHAR(256)         NOT NULL,
-    [AggregateId]    NVARCHAR(256)         NOT NULL,
-    [AggregateType]  NVARCHAR(256)         NOT NULL,
+    [SnapshotId]     NVARCHAR(255)         NOT NULL,
+    [AggregateId]    NVARCHAR(255)         NOT NULL,
+    [AggregateType]  NVARCHAR(255)         NOT NULL,
     [Version]        BIGINT                NOT NULL,
     [Data]           VARBINARY(MAX)        NOT NULL,
     [CreatedAt]      DATETIMEOFFSET        NOT NULL,
@@ -71,43 +72,25 @@ CREATE TABLE [dbo].[EventStoreSnapshots] (
     -- separate rows instead of overwriting one another. NOT NULL and no default:
     -- SQL Server forbids a nullable column in a PRIMARY KEY, and the reserved '__untenanted__' sentinel is the single-tenant value the
     -- store writes explicitly — omitting it must fail the INSERT, not silently land in that partition.
-    [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2         NOT NULL,
+    [TenantId]       NVARCHAR(64)  COLLATE Latin1_General_BIN2         NOT NULL,
 
     CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
 );
 
--- Outbox table (default: dbo.OutboxMessages, configurable via ISqlServerOutboxBuilder)
--- Note: The outbox is managed separately via services.AddExcalibur(x => x.AddOutbox(...)).
-CREATE TABLE [dbo].[OutboxMessages] (
-    [Id] NVARCHAR(256) NOT NULL PRIMARY KEY,
-    [MessageType] NVARCHAR(512) NOT NULL,
-    [Payload] VARBINARY(MAX) NOT NULL,
-    [Headers] NVARCHAR(MAX) NULL,
-    [Destination] NVARCHAR(512) NULL,
-    [CreatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    [ScheduledAt] DATETIMEOFFSET NULL,
-    [SentAt] DATETIMEOFFSET NULL,
-    [Status] INT NOT NULL DEFAULT 0,
-    [RetryCount] INT NOT NULL DEFAULT 0,
-    [LastError] NVARCHAR(MAX) NULL,
-    [LastAttemptAt] DATETIMEOFFSET NULL,
-    [CorrelationId] NVARCHAR(256) NULL,
-    [CausationId] NVARCHAR(256) NULL,
-    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
-    [Priority] INT NOT NULL DEFAULT 0,
-    [TargetTransports] NVARCHAR(MAX) NULL,
-    [IsMultiTransport] BIT NOT NULL DEFAULT 0,
-    [LeasedAt] DATETIMEOFFSET NULL,
-    [LeasedBy] NVARCHAR(256) NULL,
-    [PartitionKey] NVARCHAR(256) NULL,
-    [GroupKey] NVARCHAR(256) NULL,
-    [SequenceNumber] BIGINT NOT NULL DEFAULT 0,
-    [NextAttemptAt] DATETIMEOFFSET NULL,
-    [FencingToken] BIGINT NULL
-);
-CREATE INDEX [IX_OutboxMessages_Status] ON [dbo].[OutboxMessages]([Status]) WHERE [Status] = 0;
--- Supports the claim predicate (Status + NextAttemptAt visibility) and partition-ordered delivery.
-CREATE INDEX [IX_OutboxMessages_Claim] ON [dbo].[OutboxMessages]([Status], [NextAttemptAt], [PartitionKey], [SequenceNumber]);
+-- NO OUTBOX TABLES ARE CREATED HERE, DELIBERATELY. This sample does not use the outbox: it
+-- consumes from transports and projects to ElasticSearch. Provisioning an outbox table it never
+-- reads would leave you with a partial schema and no error to tell you so.
+--
+-- If you add the outbox to your own host, do NOT hand-copy its DDL. Run the provisioning script
+-- shipped in the Excalibur.Outbox.SqlServer package (Scripts/001_CreateOutboxSchema.sql), which
+-- creates ALL FOUR tables the store requires -- OutboxMessages, OutboxFence,
+-- OutboxMessageTransports and DeadLetterQueue -- and is guarded so it is safe to re-run.
+--
+-- OutboxFence in particular is required even for a single instance that never elects a leader:
+-- the drain statement names that table unconditionally, and SQL Server resolves object names when
+-- it compiles the statement rather than when a predicate evaluates. Create only OutboxMessages and
+-- every drain fails with 'Msg 208, Invalid object name', so nothing is ever delivered and the
+-- messages accumulate silently.
 ");
 
 		return Task.CompletedTask;

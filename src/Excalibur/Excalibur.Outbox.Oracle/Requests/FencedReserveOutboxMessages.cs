@@ -42,14 +42,18 @@ namespace Excalibur.Outbox.Oracle;
 /// positional insertion order.
 /// </para>
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the fenced drain is cross-tenant by design, exactly as the unfenced claim is: one dispatcher serves every tenant and each claimed row carries its own tenant_id. The fence token bounds which dispatcher generation may claim, not which tenant; scoping the claim by tenant would stall delivery for every other tenant")]
 internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessage>>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FencedReserveOutboxMessages"/> class.
 	/// </summary>
 	/// <param name="dispatcherId">The unique identifier of the dispatcher reserving the messages.</param>
 	/// <param name="batchSize">The maximum number of messages to reserve in this batch.</param>
-	/// <param name="reservationTimeout">The timeout in milliseconds for the reservation.</param>
+	/// <param name="reservationTimeout">The reservation window, in SECONDS. A reserved message is not re-claimable by another dispatcher until this many seconds have elapsed.</param>
 	/// <param name="fencingToken">The fencing token for the caller's current leadership tenure.</param>
 	/// <param name="outboxTableName">The (qualified) name of the outbox table.</param>
 	/// <param name="fenceTableName">The (qualified) name of the fence control table.</param>

@@ -49,9 +49,10 @@ public static class SagaTelemetryExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register instrumentation options so consumers can configure metrics/tracing toggles
-		_ = services.AddOptions<SagaInstrumentationOptions>()
-			.ValidateOnStart();
+		// Register instrumentation options so consumers can configure metrics/tracing toggles.
+		// No ValidateOnStart(): both properties are bools with no invalid state for an
+		// IValidateOptions<T> to reject.
+		_ = services.AddOptions<SagaInstrumentationOptions>().ValidateOnStart();
 
 		// Ensure the static meter and activity source are initialized.
 		// These are process-lifetime singletons (static fields), but touching them here

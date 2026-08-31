@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Confluent.Kafka;
+
 namespace Excalibur.Dispatch.Transport.Kafka;
 
 /// <summary>
@@ -26,6 +28,16 @@ public sealed class KafkaTransportOptions
 	/// </summary>
 	/// <value>The bootstrap servers connection string (e.g., "localhost:9092").</value>
 	public string BootstrapServers { get; set; } = "localhost:9092";
+
+	/// <summary>
+	/// Gets or sets the security protocol used for broker connections.
+	/// </summary>
+	internal SecurityProtocol? SecurityProtocol { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether broker connections must carry TLS. Default is true.
+	/// </summary>
+	internal bool RequireTls { get; set; } = true;
 
 	/// <summary>
 	/// Gets a value indicating whether schema registry is enabled.

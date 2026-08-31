@@ -26,7 +26,6 @@ public sealed class AuditQueryShould : UnitTestBase
 		query.ResourceId.ShouldBeNull();
 		query.ResourceType.ShouldBeNull();
 		query.MinimumClassification.ShouldBeNull();
-		query.TenantId.ShouldBeNull();
 		query.CorrelationId.ShouldBeNull();
 		query.Action.ShouldBeNull();
 		query.IpAddress.ShouldBeNull();
@@ -55,7 +54,6 @@ public sealed class AuditQueryShould : UnitTestBase
 			ResourceId = "doc-456",
 			ResourceType = "Document",
 			MinimumClassification = DataClassification.Confidential,
-			TenantId = "tenant-abc",
 			CorrelationId = "corr-def",
 			Action = "Read",
 			IpAddress = "192.168.1.1",
@@ -73,7 +71,6 @@ public sealed class AuditQueryShould : UnitTestBase
 		query.ResourceId.ShouldBe("doc-456");
 		query.ResourceType.ShouldBe("Document");
 		query.MinimumClassification.ShouldBe(DataClassification.Confidential);
-		query.TenantId.ShouldBe("tenant-abc");
 		query.CorrelationId.ShouldBe("corr-def");
 		query.Action.ShouldBe("Read");
 		query.IpAddress.ShouldBe("192.168.1.1");

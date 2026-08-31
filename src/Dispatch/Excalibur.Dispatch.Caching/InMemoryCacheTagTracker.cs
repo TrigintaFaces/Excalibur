@@ -40,9 +40,9 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	public InMemoryCacheTagTracker()
 	{
 		var meter = new Meter(DispatchCachingTelemetryConstants.MeterName, DispatchCachingTelemetryConstants.Version);
-		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
-		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
-		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
+		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "{registrations}", "Number of cache key-tag registrations");
+		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "{lookups}", "Number of cache tag lookup operations");
+		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "{unregistrations}", "Number of cache key-tag unregistrations");
 		_capacity = DefaultCapacity;
 	}
 
@@ -56,9 +56,9 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	{
 		ArgumentNullException.ThrowIfNull(meterFactory);
 		var meter = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName);
-		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
-		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
-		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
+		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "{registrations}", "Number of cache key-tag registrations");
+		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "{lookups}", "Number of cache tag lookup operations");
+		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "{unregistrations}", "Number of cache key-tag unregistrations");
 		_capacity = DefaultCapacity;
 	}
 
@@ -78,9 +78,9 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		ArgumentNullException.ThrowIfNull(meterFactory);
 		ArgumentNullException.ThrowIfNull(options);
 		var meter = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName);
-		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
-		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
-		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
+		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "{registrations}", "Number of cache key-tag registrations");
+		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "{lookups}", "Number of cache tag lookup operations");
+		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "{unregistrations}", "Number of cache key-tag unregistrations");
 		_capacity = options.Value.TagTrackerCapacity > 0 ? options.Value.TagTrackerCapacity : DefaultCapacity;
 		_logger = logger;
 	}

@@ -61,7 +61,8 @@ public static class SqlServerTenantShardingExtensions
 				sp.GetRequiredService<ILoggerFactory>(),
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>(),
-				sp.GetRequiredService<ITenantContext>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetService<Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions>>()?.Value.EventTypeInfoResolver));
 
 		return builder;
 	}

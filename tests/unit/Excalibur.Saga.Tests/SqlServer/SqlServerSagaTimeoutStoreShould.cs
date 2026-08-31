@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
+using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -26,7 +28,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new SqlServerSagaTimeoutStore(
 			connectionString: null!,
-			_logger));
+			_logger,
+			new TestTenantContext()));
 	}
 
 	[Fact]
@@ -35,7 +38,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new SqlServerSagaTimeoutStore(
 			connectionString: string.Empty,
-			_logger));
+			_logger,
+			new TestTenantContext()));
 	}
 
 	[Fact]
@@ -44,7 +48,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new SqlServerSagaTimeoutStore(
 			connectionString: "   ",
-			_logger));
+			_logger,
+			new TestTenantContext()));
 	}
 
 	[Fact]
@@ -53,7 +58,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			new TestTenantContext()));
 	}
 
 	[Fact]
@@ -62,7 +68,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -78,7 +85,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaTimeoutStore(
 			connectionFactory: null!,
-			_logger));
+			_logger,
+			new TestTenantContext()));
 	}
 
 	[Fact]
@@ -90,7 +98,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSagaTimeoutStore(
 			factory,
-			logger: null!));
+			logger: null!,
+			new TestTenantContext()));
 	}
 
 	[Fact]
@@ -102,7 +111,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerSagaTimeoutStore(
 			factory,
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -123,7 +133,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerSagaTimeoutStore(
 			factory,
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Assert - factory is stored but not called during construction
 		_ = store.ShouldNotBeNull();
@@ -143,11 +154,13 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act
 		var simpleStore = new SqlServerSagaTimeoutStore(
 			connectionString,
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		var advancedStore = new SqlServerSagaTimeoutStore(
 			() => new SqlConnection(connectionString),
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Assert - Both should be valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -166,7 +179,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Act - Creating instance should not throw
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString,
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -182,7 +196,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -195,7 +210,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -208,7 +224,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -221,7 +238,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -234,7 +252,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -247,7 +266,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -260,7 +280,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -273,7 +294,8 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 		// Arrange
 		var store = new SqlServerSagaTimeoutStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			new TestTenantContext());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
@@ -281,4 +303,40 @@ public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 	}
 
 	#endregion ISagaTimeoutStore Interface Parameter Validation Tests
+
+	#region Tenant Partition Tests (o6sw98)
+
+	/// <summary>
+	/// The partition seam (<c>CurrentPartition</c>, resolved from the required <c>ITenantContext</c> via
+	/// <c>KeyedTenantPartition.FromContext</c>) fires before the store opens any SQL connection, so this
+	/// fail-closed behaviour is reachable without a live database.
+	/// </summary>
+	/// <remarks>
+	/// RED against the pre-fix code, which fed an ambient <c>TenantContextHolder.Current</c> read into
+	/// <c>KeyedTenantPartition.FromStoredValue</c> — a fold that maps a missing tenant onto the untenanted
+	/// sentinel rather than refusing, so a host with no established tenant silently scheduled the timeout
+	/// into a partition nothing else addresses.
+	/// </remarks>
+	[Fact]
+	public async Task ScheduleTimeoutAsync_WhenTheContextResolvesNoTenant_RefusesRatherThanStampingSilently()
+	{
+		var store = new SqlServerSagaTimeoutStore(
+			connectionString: "Server=localhost;Database=TestDb",
+			_logger,
+			new TestTenantContext(tenantId: null));
+
+		_ = await Should.ThrowAsync<TenantRequiredException>(async () =>
+			await store.ScheduleTimeoutAsync(
+				new SagaTimeout(
+					TimeoutId: "timeout-none",
+					SagaId: "saga-none",
+					SagaType: "TestSaga",
+					TimeoutType: "TestTimeout",
+					TimeoutData: null,
+					DueAt: DateTime.UtcNow.AddMinutes(-1),
+					ScheduledAt: DateTime.UtcNow),
+				CancellationToken.None));
+	}
+
+	#endregion Tenant Partition Tests (o6sw98)
 }

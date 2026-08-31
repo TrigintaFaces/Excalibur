@@ -105,7 +105,7 @@ public static class IdentityMapServiceCollectionExtensions
 			// Resolve the inner store from the original registration
 			IIdentityMapStore inner;
 
-			// ybem93: keyed-safe accessors (raw reads throw on keyed descriptors on .NET 8+).
+			// keyed-safe accessors (raw reads throw on keyed descriptors on.NET 8+).
 			var implementationType = descriptor.GetImplementationType();
 			if (implementationType is not null)
 			{

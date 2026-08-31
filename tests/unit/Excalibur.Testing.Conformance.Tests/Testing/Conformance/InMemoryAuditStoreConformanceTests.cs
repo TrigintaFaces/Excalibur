@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+using System.Reflection;
+using Excalibur.Dispatch;
 using Excalibur.AuditLogging;
 using Excalibur.Compliance;
 
@@ -23,7 +26,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// <list type="bullet">
 /// <item><description>StoreAsync THROWS InvalidOperationException on duplicate EventId</description></item>
 /// <item><description>Hash chain integrity via PreviousEventHash and EventHash</description></item>
-/// <item><description>Multi-tenant isolation with "_default_" for null TenantId</description></item>
+/// <item><description>Multi-tenant isolation, with null TenantId routed to the reserved untenanted partition</description></item>
 /// <item><description>Genesis hash for first event in tenant chain</description></item>
 /// <item><description>QueryAsync supports 11 filter criteria + pagination + ordering</description></item>
 /// <item><description>VerifyChainIntegrityAsync detects tampering (COMPLIANCE-CRITICAL)</description></item>
@@ -37,7 +40,136 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override IAuditStore CreateStore() => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+	/// <remarks>
+	/// Deliberately ambient-less, as the kit intends: these arms assert the partition a caller with no
+	/// tenant resolves to. The store now requires a context, so that host is named rather than implied —
+	/// the partition addressed is the same one a missing context resolved to, so no arm changes what it
+	/// exercises.
+	/// </remarks>
+	protected override IAuditStore CreateStore() =>
+		new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), ConformanceTenantHosts.UntenantedAuditHost());
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reaches the store's own indices by reflection rather than widening production visibility. Both are
+	/// mutated: the by-id map and the partition list the verifier actually walks. Throws when the record is
+	/// not reachable, so a removal that removed nothing cannot let the deletion arm pass vacuously.
+	/// </remarks>
+	protected override Task DeleteRecordOutOfBandAsync(
+		IAuditStore store,
+		string eventId,
+		CancellationToken cancellationToken)
+	{
+		var (byId, byTenant) = ReadIndices(store);
+		_ = byId.TryRemove(eventId, out _);
+
+		var removed = 0;
+		foreach (var partition in byTenant.Values)
+		{
+			lock (partition)
+			{
+				removed += partition.RemoveAll(e => string.Equals(e.EventId, eventId, StringComparison.Ordinal));
+			}
+		}
+
+		return removed == 1
+			? Task.CompletedTask
+			: throw new InvalidOperationException(
+				$"Expected to delete exactly one stored event '{eventId}', deleted {removed}.");
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// AuditEvent is a record, so the mutated copy must replace the entry in the partition list the verifier
+	/// reads; replacing only the by-id entry would leave the pristine original in front of verification.
+	/// Both hash columns are carried across unchanged.
+	/// </remarks>
+	protected override Task RewriteRecordActionOutOfBandAsync(
+		IAuditStore store,
+		string eventId,
+		string newAction,
+		CancellationToken cancellationToken)
+	{
+		var (byId, byTenant) = ReadIndices(store);
+
+		if (!byId.TryGetValue(eventId, out var stored))
+		{
+			throw new InvalidOperationException($"Stored event '{eventId}' not found; refusing to pass vacuously.");
+		}
+
+		var rewritten = stored with { Action = newAction };
+		byId[eventId] = rewritten;
+
+		var replaced = 0;
+		foreach (var partition in byTenant.Values)
+		{
+			lock (partition)
+			{
+				for (var i = 0; i < partition.Count; i++)
+				{
+					if (string.Equals(partition[i].EventId, eventId, StringComparison.Ordinal))
+					{
+						partition[i] = rewritten;
+						replaced++;
+					}
+				}
+			}
+		}
+
+		return replaced == 1
+			? Task.CompletedTask
+			: throw new InvalidOperationException(
+				$"Expected stored event '{eventId}' in exactly one partition, found {replaced}.");
+	}
+
+	private static (ConcurrentDictionary<string, AuditEvent> ById, ConcurrentDictionary<string, List<AuditEvent>> ByTenant) ReadIndices(
+		IAuditStore store)
+	{
+		var byId = Field<ConcurrentDictionary<string, AuditEvent>>(store, "_eventsById");
+		var byTenant = Field<ConcurrentDictionary<string, List<AuditEvent>>>(store, "_eventsByTenant");
+		return (byId, byTenant);
+	}
+
+	private static T Field<T>(IAuditStore store, string name)
+		where T : class
+	{
+		var field = store.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)
+			?? throw new InvalidOperationException(
+				$"{store.GetType().Name}.{name} not found; the store's storage shape changed — update these hooks.");
+
+		return (T?)field.GetValue(store)
+			?? throw new InvalidOperationException($"{name} was null.");
+	}
+
+	/// <summary>A record removed from the middle of the trail is reported.</summary>
+	[Fact]
+	public Task VerifyChainIntegrityAsync_RecordDeletedFromMiddle_ShouldReportViolations_Test() =>
+		VerifyChainIntegrityAsync_RecordDeletedFromMiddle_ShouldReportViolations();
+
+	/// <summary>A rewritten record with intact hash columns is reported.</summary>
+	[Fact]
+	public Task VerifyChainIntegrityAsync_RecordContentRewritten_ShouldReportViolations_Test() =>
+		VerifyChainIntegrityAsync_RecordContentRewritten_ShouldReportViolations();
+
+	/// <summary>An intact trail interleaving two tenants verifies clean.</summary>
+	[Fact]
+	public Task VerifyChainIntegrityAsync_IntactTrailInterleavingTwoTenants_ShouldReportVerified_Test() =>
+		VerifyChainIntegrityAsync_IntactTrailInterleavingTwoTenants_ShouldReportVerified();
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The interleaving arm needs a store that resolves the ambient tenant the arm establishes; the default
+	/// fixture deliberately supplies none, and would resolve every read to the untenanted partition.
+	/// </remarks>
+	protected override IAuditStore CreateTenantAwareStore() =>
+		new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), new AmbientHolderTenantContext());
+
+	private sealed class AmbientHolderTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
+	}
 
 	#region Store Tests
 
@@ -90,10 +222,6 @@ public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTe
 		QueryAsync_ScopedToATenant_ShouldStillReturnThatTenantsOwnEvents();
 
 	[Fact]
-	public Task QueryAsync_NamingAnotherTenant_ShouldNotReturnThatTenantsEvents_Test() =>
-		QueryAsync_NamingAnotherTenant_ShouldNotReturnThatTenantsEvents();
-
-	[Fact]
 	public Task QueryAsync_ByEventType_ShouldFilter_Test() =>
 		QueryAsync_ByEventType_ShouldFilter();
 
@@ -122,12 +250,12 @@ public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTe
 	#region Integrity Tests
 
 	[Fact]
-	public Task VerifyChainIntegrityAsync_ValidChain_ShouldReturnValid_Test() =>
-		VerifyChainIntegrityAsync_ValidChain_ShouldReturnValid();
+	public Task VerifyChainIntegrityAsync_ValidChain_ShouldReportVerified_Test() =>
+		VerifyChainIntegrityAsync_ValidChain_ShouldReportVerified();
 
 	[Fact]
-	public Task VerifyChainIntegrityAsync_EmptyRange_ShouldReturnValidWithZeroEvents_Test() =>
-		VerifyChainIntegrityAsync_EmptyRange_ShouldReturnValidWithZeroEvents();
+	public Task VerifyChainIntegrityAsync_EmptyRange_ShouldReportNoEventsInScope_Test() =>
+		VerifyChainIntegrityAsync_EmptyRange_ShouldReportNoEventsInScope();
 
 	#endregion Integrity Tests
 
@@ -178,4 +306,9 @@ public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTe
 		StoreAsync_DifferentApplicationName_ShouldProduceDifferentHash();
 
 	#endregion ApplicationName Tests
+
+	/// <summary>Every arm this kit declares is surfaced above; an omission fails by name.</summary>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() =>
+		ConformanceSuite_ShouldWireEveryArm();
 }

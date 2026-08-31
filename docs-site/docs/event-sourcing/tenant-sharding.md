@@ -47,7 +47,13 @@ flowchart TD
 
 ### 1. Define Your Shard Map
 
-Register an `ITenantShardMap` that maps tenant IDs to `ShardInfo` records:
+Register an `ITenantShardMap` that maps tenant IDs to `ShardInfo` records.
+
+Declare every isolation coordinate the store you are sharding uses — the connection string plus the
+schema, database or index prefix, depending on the provider. A shard that omits one is rejected when it
+resolves rather than filled in from the deployment default, because two shards that both omit the same
+coordinate would resolve to the same physical location and place their tenants' data together. State the
+value explicitly even when it is the default for your deployment.
 
 ```csharp
 services.AddSingleton<ITenantShardMap>(sp =>
@@ -56,10 +62,12 @@ services.AddSingleton<ITenantShardMap>(sp =>
     {
         ["shard-us-east"] = new ShardInfo(
             ShardId: "shard-us-east",
-            ConnectionString: "Server=us-east.db;Database=Events;..."),
+            ConnectionString: "Server=us-east.db;Database=Events;...",
+            SchemaName: "dbo"),
         ["shard-eu-west"] = new ShardInfo(
             ShardId: "shard-eu-west",
             ConnectionString: "Server=eu-west.db;Database=Events;...",
+            SchemaName: "dbo",
             Region: "eu-west-1"),
     };
 
@@ -138,6 +146,17 @@ public interface ITenantStoreResolver<out TStore>
 
 Resolvers use `ConcurrentDictionary<string, TStore>` internally -- each shard's store is created once and cached as a singleton.
 
+### Client lifetime
+
+A resolver that builds its own driver client per shard -- DynamoDB, Cosmos DB, MongoDB -- owns that
+client's lifetime. Each is registered as a container singleton and implements `IAsyncDisposable`, so
+disposing the host's service provider disposes every store and every client the resolver created,
+releasing the per-shard connection pools. Nothing else holds a reference to those clients, so a host
+that never disposes its provider keeps them open for the life of the process.
+
+After disposal `Resolve` throws `ObjectDisposedException` rather than handing back a store over a
+closed client.
+
 ## Provider Support
 
 Each provider has a dedicated extension method that registers its `ITenantStoreResolver<IEventStore>`:
@@ -181,6 +200,23 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 |--------|---------|-------------|
 | `DefaultShardId` | `null` | Shard ID for unknown tenants. When `null`, unknown tenants throw `TenantShardNotFoundException` |
 
+:::warning `DefaultShardId` covers an unknown tenant, never a missing one
+An **unknown** tenant is a real identifier the shard map has no entry for; that is what the default shard
+is for. A **missing** tenant — a context that has resolved no tenant at all, typically a background worker
+or hosted service running outside a request — is refused instead.
+
+The ambient-context helpers `map.CurrentShard(context)` and `IAmbientTenantStoreResolver<TStore>.ResolveCurrent()`
+read the tenant through `TenantScope.FromContext`, so they throw **`TenantRequiredException`** before the
+shard map is consulted. Routing a missing tenant would hand the caller the default shard's store and let it
+read and write that shard's tenant data with nothing raised.
+
+Establish the tenant for such work (`TenantContextHolder.BeginScope(tenantId)`) and drive it once per
+tenant. A caller that genuinely belongs to no tenant states that with a value — supply
+`UntenantedContext.Instance`, whose tenant term is the reserved untenanted partition and routes like any
+other key. An operation spanning *every* tenant is not expressible through these helpers, which resolve one
+tenant's store; reach it through a store method that is estate-wide by name.
+:::
+
 Sharding is enabled by calling `builder.EnableTenantSharding(...)`. Not calling the method leaves stores registered with their default lifetime and bypasses the tenant-routing decorator entirely.
 
 ## Automatic Tenant Placement
@@ -210,20 +246,27 @@ Both implementations are thread-safe and suitable for concurrent request handlin
 
 ## Shared-Shard Tenant Filtering
 
-When multiple tenants share the same physical database (shared-shard model), use `ITenantFilteredEventStore` to add tenant-level WHERE clauses:
+When multiple tenants share the same physical database (shared-shard model), the event store filters by
+tenant **automatically**. There is no interface to implement and nothing to register: the store binds a
+tenant term on its read and write paths from the ambient tenant scope, so a scoped read cannot observe
+another tenant's events.
 
 ```csharp
-public interface ITenantFilteredEventStore
-{
-    ValueTask<IReadOnlyList<StoredEvent>> LoadByTenantAsync(
-        string aggregateId, string aggregateType, string tenantId, CancellationToken ct);
-    ValueTask<AppendResult> AppendByTenantAsync(
-        string aggregateId, string aggregateType, string tenantId,
-        IEnumerable<IDomainEvent> events, long expectedVersion, CancellationToken ct);
-}
+// Nothing tenant-specific here. The ambient scope supplies the tenant term.
+var events = await eventStore.LoadAsync(aggregateId, aggregateType, fromVersion, ct);
 ```
 
-This is distinct from `ITenantStoreResolver` (which routes to entirely different databases). The routing layer checks for this interface via `GetService<ITenantFilteredEventStore>` and delegates when available.
+Two properties of that filtering are worth knowing, because they decide what your schema must look like:
+
+- **The tenant column is total.** Every row carries a tenant value; a row belonging to no tenant carries
+  the reserved `__untenanted__` sentinel rather than `NULL`. "Untenanted" is a value, not a missing one,
+  so "this row is deliberately global" and "the writer forgot the tenant" cannot be confused.
+- **An unscoped write is unconstructable.** The store routes writes through a keyed tenant partition, so
+  it binds either the resolved tenant or the sentinel — it cannot omit the term.
+
+This is distinct from `ITenantStoreResolver`, which routes to entirely different databases. Use the
+resolver when tenants are physically separated; rely on the automatic filtering above when they share a
+shard.
 
 ## Integration with Other Features
 

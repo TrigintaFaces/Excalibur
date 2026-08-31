@@ -25,6 +25,27 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SA_PASSWORD="YourStrong@Passw0rd"
+SQL_FILE="$SCRIPT_DIR/setup-databases.sql"
+
+# The schema lives in setup-databases.sql -- this script APPLIES it, it does not restate it.
+# Keeping one copy is the point: the two drifted apart precisely because the shell script
+# carried its own inline copy of Section 1 and simply omitted Section 2.
+#
+# The file is not runnable end-to-end against one instance: Section 1 targets the CDC source
+# (port 1433, which also holds this sample's CDC processing-state table) and Section 2 targets
+# the event store (port 1434). Each section is applied to its own server below.
+SECTION2_BANNER="^-- SECTION 2: Run on SQL Server #2"
+
+if [ ! -f "$SQL_FILE" ]; then
+    echo "ERROR: cannot find $SQL_FILE -- this script applies that file and has nothing to run without it."
+    exit 1
+fi
+
+if ! grep -qE "$SECTION2_BANNER" "$SQL_FILE"; then
+    echo "ERROR: $SQL_FILE has no Section 2 banner, so it cannot be split per server."
+    echo "       Refusing to apply it rather than sending event-store DDL to the CDC source."
+    exit 1
+fi
 
 echo "============================================================================"
 echo "CDC + Event Store + Elasticsearch Sample - Database Setup"
@@ -67,75 +88,33 @@ done
 echo "SQL Server #2 is ready."
 echo ""
 
-# Setup SQL Server #1 - CDC Source
+# Setup SQL Server #1 - CDC Source (Section 1 of setup-databases.sql)
 echo "============================================================================"
 echo "Setting up SQL Server #1 (CDC Source)..."
 echo "============================================================================"
+echo "Applying Section 1 (LegacyDb, CDC, LegacyCustomers, Cdc.CdcProcessingState)..."
 
-# Create LegacyDb database
-echo "Creating LegacyDb database..."
-docker exec excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U sa -P "$SA_PASSWORD" -C \
-    -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'LegacyDb') CREATE DATABASE LegacyDb"
-
-# Enable CDC on the database
-echo "Enabling CDC on LegacyDb..."
-docker exec excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U sa -P "$SA_PASSWORD" -C -d LegacyDb \
-    -Q "IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = 'LegacyDb' AND is_cdc_enabled = 1) EXEC sys.sp_cdc_enable_db"
-
-# Create LegacyCustomers table
-echo "Creating LegacyCustomers table..."
-docker exec excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U sa -P "$SA_PASSWORD" -C -d LegacyDb \
-    -Q "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LegacyCustomers')
-        CREATE TABLE dbo.LegacyCustomers (
-            CustId NVARCHAR(50) NOT NULL PRIMARY KEY,
-            CustomerName NVARCHAR(200) NOT NULL,
-            Email NVARCHAR(200) NULL,
-            Phone NVARCHAR(50) NULL,
-            Address NVARCHAR(500) NULL,
-            City NVARCHAR(100) NULL,
-            Country NVARCHAR(100) NULL,
-            CreatedDate DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-            ModifiedDate DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-            IsActive BIT NOT NULL DEFAULT 1,
-            ExternalId AS CustId PERSISTED,
-            Name AS CustomerName PERSISTED
-        )"
-
-# Enable CDC on LegacyCustomers table
-echo "Enabling CDC on LegacyCustomers table..."
-docker exec excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U sa -P "$SA_PASSWORD" -C -d LegacyDb \
-    -Q "IF NOT EXISTS (
-            SELECT 1 FROM sys.tables t
-            JOIN cdc.change_tables ct ON t.object_id = ct.source_object_id
-            WHERE t.name = 'LegacyCustomers'
-        )
-        EXEC sys.sp_cdc_enable_table
-            @source_schema = N'dbo',
-            @source_name = N'LegacyCustomers',
-            @role_name = NULL,
-            @capture_instance = N'dbo_LegacyCustomers',
-            @supports_net_changes = 1"
+awk "/$SECTION2_BANNER/ { exit } { print }" "$SQL_FILE" \
+    | docker exec -i excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
+        -S localhost -U sa -P "$SA_PASSWORD" -C -b -i /dev/stdin
 
 echo "SQL Server #1 setup complete."
 echo ""
 
-# Setup SQL Server #2 - Event Store
+# Setup SQL Server #2 - Event Store (Section 2 of setup-databases.sql)
 echo "============================================================================"
 echo "Setting up SQL Server #2 (Event Store)..."
 echo "============================================================================"
+echo "Applying Section 2 (EventStore database and tables)..."
 
-# Create EventStore database
-echo "Creating EventStore database..."
-docker exec excalibur-sqlserver-eventstore /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U sa -P "$SA_PASSWORD" -C \
-    -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'EventStore') CREATE DATABASE EventStore"
+# The framework does NOT create these tables. Excalibur.EventSourcing.SqlServer ships DDL under
+# its Scripts/ folder and executes none of it at runtime, so if this step is skipped the
+# application starts and then fails on its first append with "Invalid object name".
+awk "/$SECTION2_BANNER/ { f = 1 } f { print }" "$SQL_FILE" \
+    | docker exec -i excalibur-sqlserver-eventstore /opt/mssql-tools18/bin/sqlcmd \
+        -S localhost -U sa -P "$SA_PASSWORD" -C -b -i /dev/stdin
 
 echo "SQL Server #2 setup complete."
-echo "(Event store schema will be created automatically by the framework)"
 echo ""
 
 # Verify setup

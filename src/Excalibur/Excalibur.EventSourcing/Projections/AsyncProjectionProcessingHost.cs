@@ -115,13 +115,34 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 				// unhealthy; it is NEVER skipped or checkpointed past — it is left for the next read so the
 				// read model can never silently drift from the event log. A transient failure self-heals on
 				// the next poll; a permanent one keeps the host unhealthy until an operator acts. This
-				// mirrors GlobalStreamProjectionHost (c3jdco / ADR-336 Amendment 3a / FR-8).
+				// mirrors GlobalStreamProjectionHost.
 				var deserialized = new List<DeserializedEvent>(events.Count);
 				var poisonEncountered = false;
+
+				// The last event this batch made progress past, and how many events it accounted for. Tracked
+				// separately from the deserialized list because an erased (tombstoned) event is progress
+				// without being a deliverable event: a batch made entirely of tombstones deserializes to
+				// nothing and must still advance, or the checkpoint sticks and the batch is re-read forever.
+				StoredEvent? lastProcessed = null;
+				var processedCount = 0;
 
 				foreach (var storedEvent in events)
 				{
 					stoppingToken.ThrowIfCancellationRequested();
+
+					// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a
+					// nulled payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any
+					// deserialization attempt, and advance past it: it is a permanent, legitimate part of the
+					// stream, not a poison event. Halting here would let an erasure request stop the projection
+					// host permanently. It is never handed to a projection handler, so it cannot populate state.
+					// Only the reserved marker is skipped: any other unresolvable event is still poison below.
+					if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+					{
+						LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
+						lastProcessed = storedEvent;
+						processedCount++;
+						continue;
+					}
 
 					IDomainEvent domainEvent;
 					try
@@ -138,6 +159,8 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 					}
 
 					deserialized.Add(new DeserializedEvent(storedEvent, domainEvent));
+					lastProcessed = storedEvent;
+					processedCount++;
 				}
 
 				// Dispatch only the good prefix (events before any poison), grouped by aggregate so each
@@ -160,31 +183,34 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 							applyFaultEncountered = true;
 						}
 					}
+				}
 
-					// HALT-at-failure: when any projection's apply faulted, DO NOT advance the checkpoint past
-					// this batch. Leaving the position unadvanced means the batch is reprocessed on the next
-					// read (at-least-once; applies are idempotent) rather than silently skipped — the read
-					// model can never drift from the event log. Mirrors the deserialize-poison halt above and
-					// GlobalStreamProjectionHost. A clean batch advances normally.
-					if (!applyFaultEncountered)
+				// HALT-at-failure: when any projection's apply faulted, DO NOT advance the checkpoint past
+				// this batch. Leaving the position unadvanced means the batch is reprocessed on the next
+				// read (at-least-once; applies are idempotent) rather than silently skipped — the read
+				// model can never drift from the event log. Mirrors the deserialize-poison halt above and
+				// GlobalStreamProjectionHost. A clean batch advances normally.
+				//
+				// The advance is gated on lastProcessed rather than on the deserialized list, so a batch whose
+				// events were ALL erased tombstones still advances. A batch that made no progress at all (its
+				// first event was poison) leaves lastProcessed null and the position untouched.
+				if (lastProcessed is not null && !applyFaultEncountered)
+				{
+					// Advance ONLY to the last processed event's GLOBAL ordinal (GlobalPosition), never the
+					// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
+					_currentPosition = new GlobalStreamPosition(lastProcessed.GlobalPosition + 1, lastProcessed.Timestamp);
+					_eventsSinceCheckpoint += processedCount;
+
+					// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
+					if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
 					{
-						// Advance ONLY to the last good-prefix event's GLOBAL ordinal (GlobalPosition), never the
-						// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
-						var lastGood = deserialized[deserialized.Count - 1].Stored;
-						_currentPosition = new GlobalStreamPosition(lastGood.GlobalPosition + 1, lastGood.Timestamp);
-						_eventsSinceCheckpoint += deserialized.Count;
-
-						// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
-						if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
-						{
-							await _checkpointStore.StoreCheckpointAsync(
-								checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
-							LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
-							_eventsSinceCheckpoint = 0;
-						}
-
-						LogAsyncProjectionBatchProcessed(deserialized.Count, _currentPosition.Position);
+						await _checkpointStore.StoreCheckpointAsync(
+							checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
+						LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
+						_eventsSinceCheckpoint = 0;
 					}
+
+					LogAsyncProjectionBatchProcessed(processedCount, _currentPosition.Position);
 				}
 
 				// On a poison event OR an apply fault, back off before re-reading so we don't tight-loop on a
@@ -237,6 +263,13 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
 	private IDomainEvent DeserializeOrThrow(StoredEvent storedEvent)
 	{
+		if (storedEvent.EventData is null)
+		{
+			throw new InvalidOperationException(
+				$"Event '{storedEvent.EventId}' carries no payload, so it is a tombstone and must be skipped "
+				+ "before deserialization rather than deserialized.");
+		}
+
 		var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
 		return _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
 			?? throw new InvalidOperationException(
@@ -406,6 +439,10 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionBatchProcessed, LogLevel.Debug,
 		"Async projections processed batch of {EventCount} events, position now at {Position}.")]
 	private partial void LogAsyncProjectionBatchProcessed(int eventCount, long position);
+
+	[LoggerMessage(EventSourcingEventId.ErasedEventSkipped, LogLevel.Debug,
+		"Skipping erased (tombstoned) event {EventId} at global position {GlobalPosition}; advancing past it")]
+	private partial void LogErasedEventSkipped(string eventId, long globalPosition);
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionCheckpointSaved, LogLevel.Debug,
 		"Async projection checkpoint saved at position {Position}.")]

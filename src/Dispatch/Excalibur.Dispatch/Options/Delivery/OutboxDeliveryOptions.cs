@@ -286,9 +286,70 @@ public class OutboxDeliveryOptions
 	/// </remarks>
 	public bool SingleActiveWriter { get; set; }
 
+	/// <summary>
+	/// Gets the message types the outbox may materialise from a stored message-type name.
+	/// </summary>
+	/// <value>
+	/// The types this host stages and reads back. Empty by default, which resolves nothing.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// A staged row's message-type name is data read back out of the outbox table, and in any deployment
+	/// where something other than this host can write that table it is attacker-influenced data. Resolving
+	/// it by searching the loaded assemblies lets the stored string select a type the host never intended
+	/// to deserialize, whose constructors and property setters then run during deserialization — the
+	/// deserialization gadget shape. Constraining the search by an interface narrows the reachable set but
+	/// does not bound it: the set is still "whatever happens to be loaded".
+	/// </para>
+	/// <para>
+	/// This list is the bound. Resolution consults it and nothing else, so the reachable set is fixed at
+	/// composition time by the host rather than discovered at runtime from the value being resolved. A
+	/// name that is not on it does not resolve, however plausible it looks and whatever assembly defines
+	/// it.
+	/// </para>
+	/// <para>
+	/// The default is empty, and empty means nothing resolves. That is deliberate: a default that fell
+	/// back to a search would leave every host that never configured the list exactly as exposed as
+	/// before, while reading as though the setting had addressed it.
+	/// </para>
+	/// </remarks>
+	public IList<Type> MessageTypes { get; set; } = [];
+
 	#endregion
 
 	#region Fluent Customization
+
+	/// <summary>
+	/// Creates a copy that also permits the specified message types to be resolved from a stored
+	/// message-type name.
+	/// </summary>
+	/// <param name="messageTypes">The message types this host stages and reads back.</param>
+	/// <returns>A new <see cref="OutboxDeliveryOptions"/> instance including the supplied types.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="messageTypes"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException">One of the supplied types is <see langword="null"/>.</exception>
+	/// <example>
+	/// <code>
+	/// var options = OutboxDeliveryOptions.Balanced()
+	///     .WithMessageTypes(typeof(OrderPlaced), typeof(OrderShipped));
+	/// </code>
+	/// </example>
+	public OutboxDeliveryOptions WithMessageTypes(params Type[] messageTypes)
+	{
+		ArgumentNullException.ThrowIfNull(messageTypes);
+
+		if (Array.Exists(messageTypes, static type => type is null))
+		{
+			throw new ArgumentException("Message types must not contain a null entry.", nameof(messageTypes));
+		}
+
+		var clone = Clone();
+		foreach (var messageType in messageTypes)
+		{
+			clone.MessageTypes.Add(messageType);
+		}
+
+		return clone;
+	}
 
 	/// <summary>
 	/// Creates a copy with the specified batch sizes.
@@ -406,6 +467,11 @@ public class OutboxDeliveryOptions
 	private OutboxDeliveryOptions Clone()
 	{
 		var clone = (OutboxDeliveryOptions)MemberwiseClone();
+
+		// MemberwiseClone copies the reference, so without this the copy and the original share one list
+		// and every With* call would mutate the preset it was derived from.
+		clone.MessageTypes = [.. MessageTypes];
+
 		clone.BatchProcessing = new OutboxBatchProcessingOptions
 		{
 			ParallelProcessingDegree = BatchProcessing.ParallelProcessingDegree,
@@ -458,6 +524,23 @@ public class OutboxDeliveryOptions
 		if (options.QueueCapacity < options.ProducerBatchSize)
 		{
 			return "QueueCapacity cannot be less than the ProducerBatchSize.";
+		}
+
+		// Caught here rather than skipped at resolution time. A declared type that cannot be dispatched is
+		// a mistake in composition, and silently ignoring it would leave the host believing it had
+		// permitted a message it had not — the reverse of the failure the allow-list exists to prevent.
+		foreach (var messageType in options.MessageTypes)
+		{
+			if (messageType is null)
+			{
+				return "MessageTypes must not contain a null entry.";
+			}
+
+			if (!typeof(IDispatchMessage).IsAssignableFrom(messageType))
+			{
+				return $"MessageTypes entry '{messageType.FullName}' does not implement IDispatchMessage, "
+					+ "so no staged row could ever resolve to it.";
+			}
 		}
 
 		if (options.BatchProcessing.ParallelProcessingDegree <= 0)

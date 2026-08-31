@@ -13,8 +13,12 @@ namespace Excalibur.Outbox.Oracle;
 /// <summary>
 /// Represents a data request to reset outbox message reservations for a specific dispatcher in the Oracle database.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"a dispatcher-scoped recovery sweep: it releases the reservations held by a named dispatcher so its claimed messages become re-claimable after a crash. A dispatcher serves every tenant, so the rows it holds span tenants; the statement is keyed on dispatcher identity, which is the correct key for the job, and never on tenant state")]
 public sealed class ResetOutboxMessageReservation : DataRequest<int>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ResetOutboxMessageReservation"/> class.
 	/// </summary>

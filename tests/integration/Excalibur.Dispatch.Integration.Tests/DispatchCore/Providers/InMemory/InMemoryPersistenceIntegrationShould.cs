@@ -172,10 +172,6 @@ public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 		_ = metadata.ShouldNotBeNull();
 		metadata.ShouldContainKey("Provider");
 		metadata["Provider"].ShouldBe("InMemory");
-
-		// Verify connection pool stats returns null (InMemory doesn't have pooling)
-		var poolStats = await provider.GetConnectionPoolStatsAsync(TestCancellationToken);
-		poolStats.ShouldBeNull();
 	}
 
 	private static InMemoryPersistenceProvider CreatePersistenceProvider(string? name = null)

@@ -149,8 +149,8 @@ public sealed class ColdStoreTenantScopingValidatorShould
 		// The marker is structurally unimplementable from outside the abstractions assembly, so it is emitted
 		// the only legitimate way: through the seam that also supplies the tenant context. A bare fake marker
 		// would be the "lying marker" shape this capability was designed to make inexpressible.
-		_ = services.AddTenantScopedStore<IColdEventStore, TenantAwareColdEventStore>(
-			(_, _) => new TenantAwareColdEventStore());
+		_ = services.AddTenantAwareStore<IColdEventStore, TenantAwareColdEventStore>(
+			sp => new TenantAwareColdEventStore(sp.GetRequiredService<ITenantContext>()));
 
 		services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
@@ -168,15 +168,15 @@ public sealed class ColdStoreTenantScopingValidatorShould
 	/// </summary>
 	private static void AddRequiredPrimaryStore(IServiceCollection services)
 	{
-		// Two registrations, and both are needed for different reasons. AddTenantScopedStore registers the
+		// Two registrations, and both are needed for different reasons. AddTenantAwareStore registers the
 		// CONCRETE store plus the capability marker; it does not register the IEventStore interface, which is
 		// what the row-discriminator precondition scans the descriptor list for. The AddSingleton supplies that
 		// interface. Registering only the seam leaves the precondition unsatisfied ("no tenant-owned store is
 		// registered") and every arm fails for a reason that has nothing to do with the cold tier.
 		services.AddSingleton(A.Fake<IEventStore>());
 
-		_ = services.AddTenantScopedStore<IEventStore, TestDoubles.NoopEventStore>(
-			(_, _) => new TestDoubles.NoopEventStore());
+		_ = services.AddTenantAwareStore<IEventStore, TestDoubles.NoopEventStore>(
+			sp => new TestDoubles.NoopEventStore(sp.GetRequiredService<ITenantContext>()));
 	}
 
 	/// <summary>
@@ -199,7 +199,7 @@ public sealed class ColdStoreTenantScopingValidatorShould
 	/// plausible values, so that a future test which accidentally depends on cold-store behaviour fails loudly
 	/// instead of silently trusting a fake.
 	/// </summary>
-	private sealed class TenantAwareColdEventStore : IColdEventStore
+	private sealed class TenantAwareColdEventStore(ITenantContext tenantContext) : IColdEventStore
 	{
 		public Task<long> WriteAsync(
 			KeyedTenantPartition tenant,

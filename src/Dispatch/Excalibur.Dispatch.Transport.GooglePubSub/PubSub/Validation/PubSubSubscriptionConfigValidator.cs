@@ -68,7 +68,7 @@ internal sealed partial class PubSubSubscriptionConfigValidator : IHostedService
 
 		// EmulatorOrProduction respects PUBSUB_EMULATOR_HOST when set (so the fail-loud validation is
 		// real-infra-provable against the Pub/Sub emulator) and falls back to production credentials when
-		// the env var is absent — production behavior is unchanged (abyfxr, Tests' grounded NFR-3 finding).
+		// the env var is absent — production behavior is unchanged.
 		var client = await new SubscriberServiceApiClientBuilder
 		{
 			EmulatorDetection = EmulatorDetection.EmulatorOrProduction,

@@ -56,7 +56,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class EncryptionTelemetryConformanceTestKit
+public abstract class EncryptionTelemetryConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh encryption telemetry instance for testing.
@@ -105,7 +105,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that the Meter property returns a non-null instance with the correct name.
 	/// </summary>
-	protected virtual void Meter_ShouldBeNonNullAndNamed()
+	public virtual void Meter_ShouldBeNonNullAndNamed()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -140,7 +140,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordOperation completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void RecordOperation_ShouldCompleteSuccessfully()
+	public virtual void RecordOperation_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -160,7 +160,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordOperation throws ArgumentNullException for null operation.
 	/// </summary>
-	protected virtual void RecordOperation_NullOperation_ShouldThrowArgumentNullException()
+	public virtual void RecordOperation_NullOperation_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -196,7 +196,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordOperationDuration completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void RecordOperationDuration_ShouldCompleteSuccessfully()
+	public virtual void RecordOperationDuration_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -216,7 +216,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordOperationDuration throws ArgumentNullException for null operation.
 	/// </summary>
-	protected virtual void RecordOperationDuration_NullOperation_ShouldThrowArgumentNullException()
+	public virtual void RecordOperationDuration_NullOperation_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -252,7 +252,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that UpdateProviderHealth completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void UpdateProviderHealth_ShouldCompleteSuccessfully()
+	public virtual void UpdateProviderHealth_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -278,7 +278,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that UpdateProviderHealth throws ArgumentNullException for null provider.
 	/// </summary>
-	protected virtual void UpdateProviderHealth_NullProvider_ShouldThrowArgumentNullException()
+	public virtual void UpdateProviderHealth_NullProvider_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -320,7 +320,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordFieldsMigrated completes successfully with count > 0.
 	/// </summary>
-	protected virtual void RecordFieldsMigrated_WithCount_ShouldCompleteSuccessfully()
+	public virtual void RecordFieldsMigrated_WithCount_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -346,7 +346,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordFieldsMigrated completes successfully with count = 0.
 	/// </summary>
-	protected virtual void RecordFieldsMigrated_ZeroCount_ShouldCompleteSuccessfully()
+	public virtual void RecordFieldsMigrated_ZeroCount_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -376,7 +376,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordKeyRotation completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void RecordKeyRotation_ShouldCompleteSuccessfully()
+	public virtual void RecordKeyRotation_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -396,7 +396,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordKeyRotation throws ArgumentNullException for null provider.
 	/// </summary>
-	protected virtual void RecordKeyRotation_NullProvider_ShouldThrowArgumentNullException()
+	public virtual void RecordKeyRotation_NullProvider_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -432,7 +432,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordBytesProcessed completes successfully with bytes > 0.
 	/// </summary>
-	protected virtual void RecordBytesProcessed_WithBytes_ShouldCompleteSuccessfully()
+	public virtual void RecordBytesProcessed_WithBytes_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -452,7 +452,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordBytesProcessed completes successfully with bytes = 0.
 	/// </summary>
-	protected virtual void RecordBytesProcessed_ZeroBytes_ShouldCompleteSuccessfully()
+	public virtual void RecordBytesProcessed_ZeroBytes_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -476,7 +476,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordCacheAccess completes successfully with hit = true.
 	/// </summary>
-	protected virtual void RecordCacheAccess_Hit_ShouldCompleteSuccessfully()
+	public virtual void RecordCacheAccess_Hit_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -502,7 +502,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordCacheAccess completes successfully with hit = false.
 	/// </summary>
-	protected virtual void RecordCacheAccess_Miss_ShouldCompleteSuccessfully()
+	public virtual void RecordCacheAccess_Miss_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();
@@ -532,7 +532,7 @@ public abstract class EncryptionTelemetryConformanceTestKit
 	/// <summary>
 	/// Verifies that UpdateActiveKeyCount completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void UpdateActiveKeyCount_ShouldCompleteSuccessfully()
+	public virtual void UpdateActiveKeyCount_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var telemetry = CreateTelemetry();

@@ -63,7 +63,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class EncryptionMigrationServiceConformanceTestKit
+public abstract class EncryptionMigrationServiceConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh encryption migration service instance along with its dependencies for testing.
@@ -121,7 +121,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateAsync throws ArgumentNullException for null encryptedData.
 	/// </summary>
-	protected virtual async Task MigrateAsync_NullEncryptedData_ShouldThrowArgumentNullException()
+	public virtual async Task MigrateAsync_NullEncryptedData_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -159,7 +159,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateAsync throws ArgumentNullException for null sourceContext.
 	/// </summary>
-	protected virtual async Task MigrateAsync_NullSourceContext_ShouldThrowArgumentNullException()
+	public virtual async Task MigrateAsync_NullSourceContext_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -205,7 +205,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateAsync throws ArgumentNullException for null targetContext.
 	/// </summary>
-	protected virtual async Task MigrateAsync_NullTargetContext_ShouldThrowArgumentNullException()
+	public virtual async Task MigrateAsync_NullTargetContext_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -251,7 +251,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateAsync returns successful result with migrated data.
 	/// </summary>
-	protected virtual async Task MigrateAsync_ValidData_ShouldReturnSuccessfulResult()
+	public virtual async Task MigrateAsync_ValidData_ShouldReturnSuccessfulResult()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -311,7 +311,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateAsync preserves original plaintext after re-encryption (round-trip).
 	/// </summary>
-	protected virtual async Task MigrateAsync_RoundTrip_ShouldPreserveOriginalPlaintext()
+	public virtual async Task MigrateAsync_RoundTrip_ShouldPreserveOriginalPlaintext()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -372,7 +372,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateBatchAsync throws ArgumentNullException for null items.
 	/// </summary>
-	protected virtual async Task MigrateBatchAsync_NullItems_ShouldThrowArgumentNullException()
+	public virtual async Task MigrateBatchAsync_NullItems_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -410,7 +410,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateBatchAsync throws ArgumentNullException for null targetContext.
 	/// </summary>
-	protected virtual async Task MigrateBatchAsync_NullTargetContext_ShouldThrowArgumentNullException()
+	public virtual async Task MigrateBatchAsync_NullTargetContext_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -450,7 +450,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateBatchAsync throws ArgumentNullException for null options.
 	/// </summary>
-	protected virtual async Task MigrateBatchAsync_NullOptions_ShouldThrowArgumentNullException()
+	public virtual async Task MigrateBatchAsync_NullOptions_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -490,7 +490,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateBatchAsync returns successful result for valid batch.
 	/// </summary>
-	protected virtual async Task MigrateBatchAsync_ValidBatch_ShouldReturnSuccessfulResult()
+	public virtual async Task MigrateBatchAsync_ValidBatch_ShouldReturnSuccessfulResult()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -566,7 +566,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that MigrateBatchAsync handles empty batch.
 	/// </summary>
-	protected virtual async Task MigrateBatchAsync_EmptyBatch_ShouldReturnSuccessfulResult()
+	public virtual async Task MigrateBatchAsync_EmptyBatch_ShouldReturnSuccessfulResult()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -615,7 +615,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that RequiresMigrationAsync throws ArgumentNullException for null encryptedData.
 	/// </summary>
-	protected virtual async Task RequiresMigrationAsync_NullEncryptedData_ShouldThrowArgumentNullException()
+	public virtual async Task RequiresMigrationAsync_NullEncryptedData_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -652,7 +652,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that RequiresMigrationAsync throws ArgumentNullException for null policy.
 	/// </summary>
-	protected virtual async Task RequiresMigrationAsync_NullPolicy_ShouldThrowArgumentNullException()
+	public virtual async Task RequiresMigrationAsync_NullPolicy_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -697,7 +697,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that RequiresMigrationAsync returns true for deprecated key ID.
 	/// </summary>
-	protected virtual async Task RequiresMigrationAsync_DeprecatedKeyId_ShouldReturnTrue()
+	public virtual async Task RequiresMigrationAsync_DeprecatedKeyId_ShouldReturnTrue()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -735,7 +735,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that RequiresMigrationAsync returns false when data does not match policy.
 	/// </summary>
-	protected virtual async Task RequiresMigrationAsync_NoMatchingPolicy_ShouldReturnFalse()
+	public virtual async Task RequiresMigrationAsync_NoMatchingPolicy_ShouldReturnFalse()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -777,7 +777,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that GetMigrationStatusAsync throws ArgumentNullException for null migrationId.
 	/// </summary>
-	protected virtual async Task GetMigrationStatusAsync_NullMigrationId_ShouldThrowArgumentNullException()
+	public virtual async Task GetMigrationStatusAsync_NullMigrationId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -811,7 +811,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that GetMigrationStatusAsync returns null for non-existent migration.
 	/// </summary>
-	protected virtual async Task GetMigrationStatusAsync_NonExistentMigration_ShouldReturnNull()
+	public virtual async Task GetMigrationStatusAsync_NonExistentMigration_ShouldReturnNull()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -838,7 +838,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that GetMigrationStatusAsync returns status after batch migration.
 	/// </summary>
-	protected virtual async Task GetMigrationStatusAsync_AfterBatchMigration_ShouldReturnStatus()
+	public virtual async Task GetMigrationStatusAsync_AfterBatchMigration_ShouldReturnStatus()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -902,7 +902,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that EstimateMigrationAsync throws ArgumentNullException for null policy.
 	/// </summary>
-	protected virtual async Task EstimateMigrationAsync_NullPolicy_ShouldThrowArgumentNullException()
+	public virtual async Task EstimateMigrationAsync_NullPolicy_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -936,7 +936,7 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	/// <summary>
 	/// Verifies that EstimateMigrationAsync returns estimate structure.
 	/// </summary>
-	protected virtual async Task EstimateMigrationAsync_ValidPolicy_ShouldReturnEstimate()
+	public virtual async Task EstimateMigrationAsync_ValidPolicy_ShouldReturnEstimate()
 	{
 		// Arrange
 		var (service, encryption, keyManagement) = await CreateServiceAsync().ConfigureAwait(false);
@@ -971,4 +971,5 @@ public abstract class EncryptionMigrationServiceConformanceTestKit
 	}
 
 	#endregion
+
 }

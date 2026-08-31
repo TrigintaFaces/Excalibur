@@ -47,11 +47,47 @@ public interface IMessageBus
 	/// <param name="cancellationToken"> The cancellation token to observe. </param>
 	/// <returns> A task representing the asynchronous publish operation. </returns>
 	/// <remarks>
+	/// <para>
 	/// Events are typically published to multiple subscribers using pub-sub patterns. The implementation handles fan-out to all registered
 	/// event handlers. For integration events, the context may specify external endpoints.
+	/// </para>
+	/// <para>
+	/// All handlers for a single published event observe the <b>same</b> scoped service instances. One
+	/// dependency-injection scope is created per published event — not one per handler — and it is disposed
+	/// only after every handler has completed. Two handlers for the same event therefore share the same
+	/// <c>IUnitOfWork</c> or <c>DbContext</c>, so one event is handled as one unit of work. Separate
+	/// publishes get separate scopes, and no scope is created at all when no handler for the event depends
+	/// on a scoped service.
+	/// </para>
+	/// <para>
+	/// Faults are isolated between handlers; state is not. Every handler is started and awaited, so one
+	/// handler throwing does not prevent the others from running — but because they share scoped instances,
+	/// a handler that fails after leaving a shared service in a broken state hands that state to the
+	/// siblings that run after it. If a handler must not be affected by a sibling's failure, resolve its
+	/// dependency from a factory rather than the shared scope, or give it its own message.
+	/// </para>
+	/// <para>
+	/// <b>Which exception you catch does not depend on how many handlers are registered.</b> When exactly
+	/// one handler fails, that handler's own exception is rethrown with its original stack trace, whether
+	/// one handler was subscribed or ten. Only a genuine multi-fault fan-out — two or more handlers failing
+	/// for the same published event — throws <see cref="AggregateException"/>, whose
+	/// <see cref="AggregateException.InnerExceptions"/> carries every fault. This is the same unwrapping
+	/// rule as <c>Task.GetAwaiter().GetResult()</c>.
+	/// </para>
+	/// <para>
+	/// The guarantee matters because a <c>catch</c> block, an exception mapper, and a typed exception handler
+	/// all select on the exception's type. Were a sole fault wrapped, subscribing a second handler would
+	/// silently stop the consumer's handling of the first one's exception. Consumers that must also handle
+	/// the multi-fault case should catch <see cref="AggregateException"/> in addition to their own type.
+	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"> Thrown when evt or context is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when the message bus is not properly configured. </exception>
+	/// <exception cref="AggregateException">
+	/// Thrown when two or more handlers fail while publishing the event; every fault is in
+	/// <see cref="AggregateException.InnerExceptions"/>. A single failing handler rethrows its own exception
+	/// instead, regardless of how many handlers are subscribed.
+	/// </exception>
 	Task PublishAsync(IDispatchEvent evt, IMessageContext context, CancellationToken cancellationToken);
 
 	/// <summary>

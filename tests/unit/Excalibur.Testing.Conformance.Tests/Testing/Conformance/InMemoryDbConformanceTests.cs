@@ -49,6 +49,12 @@ public sealed class InMemoryDbConformanceTests : DbConformanceTestKit
 	public void Open_ShouldOpenConnection_Test() => Open_ShouldOpenConnection();
 
 	[Fact]
+	public Task OpenAsync_ShouldOpenConnection_Test() => OpenAsync_ShouldOpenConnection();
+
+	[Fact]
+	public Task CloseAsync_ShouldCloseConnection_Test() => CloseAsync_ShouldCloseConnection();
+
+	[Fact]
 	public void Open_WhenAlreadyOpen_ShouldNotThrow_Test() => Open_WhenAlreadyOpen_ShouldNotThrow();
 
 	[Fact]
@@ -62,6 +68,10 @@ public sealed class InMemoryDbConformanceTests : DbConformanceTestKit
 
 	[Fact]
 	public void Connection_AfterClose_ReopensReady_Test() => Connection_AfterClose_ReopensReady();
+
+	/// <summary>Every arm this kit declares is surfaced above; an omission fails by name.</summary>
+	[Fact]
+	public void ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 
 	private sealed class TestDb(IDbConnection connection) : Db(connection);
 }

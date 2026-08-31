@@ -28,7 +28,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	private readonly SemaphoreSlim _encryptionSemaphore;
 	// System.Threading.Timer's maximum dueTime/period is uint.MaxValue-1 ms (~49.7 days). A configured rotation
 	// interval longer than this (the default is 90 days) would throw ArgumentOutOfRangeException at construction,
-	// so the timer is armed in clamped chunks and re-armed from the callback until the full interval elapses (gucy1d).
+	// so the timer is armed in clamped chunks and re-armed from the callback until the full interval elapses.
 	private static readonly TimeSpan MaxTimerInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
 
 	private readonly Timer? _keyRotationTimer;
@@ -57,7 +57,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		_encryptionSemaphore = new SemaphoreSlim(Environment.ProcessorCount * 2, Environment.ProcessorCount * 2);
 
 		// Initialize key rotation timer if supported. Arm only the first (clamped) chunk and re-arm from the
-		// callback — a configured interval longer than Timer's max would otherwise throw at construction (gucy1d).
+		// callback — a configured interval longer than Timer's max would otherwise throw at construction.
 		if (_keyProvider.SupportsKeyRotation && _settings.KeyManagement.KeyRotationInterval > TimeSpan.Zero)
 		{
 			_keyRotationInterval = _settings.KeyManagement.KeyRotationInterval;
@@ -88,10 +88,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 	/// <inheritdoc />
 	public bool SupportsIntegrityValidation => true;
-	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 
+	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON serialization uses reflection to dynamically access and serialize types")]
 	public async Task<object> EncryptDocumentAsync(object document, CancellationToken cancellationToken)
@@ -131,10 +129,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			_ = _encryptionSemaphore.Release();
 		}
 	}
-	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 
+	/// <inheritdoc />
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task<object> DecryptDocumentAsync(object encryptedDocument, CancellationToken cancellationToken)
@@ -185,8 +181,6 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("JSON serialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON serialization uses reflection to dynamically access and serialize types")]
 	public async Task<EncryptedFieldResult> EncryptFieldAsync(
@@ -264,8 +258,6 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	public async Task<object> DecryptFieldAsync(
@@ -290,12 +282,9 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 					$"Unknown encrypted-field format version '{encryptedField.FormatVersion}' for field {fieldName}; expected '{EncryptedFieldResult.CurrentFormatVersion}'.");
 			}
 
-			// Validate integrity if supported
-			if (encryptedField.HasIntegrityProtection &&
-				!await ValidateIntegrityAsync(encryptedField, cancellationToken).ConfigureAwait(false))
-			{
-				throw new SecurityException($"Integrity validation failed for field {fieldName}");
-			}
+			// No separate integrity pre-check: the AES-GCM decrypt below authenticates the ciphertext against
+			// its tag and throws on a mismatch. Verifying first would decrypt the field twice to learn the same
+			// thing. ValidateIntegrityAsync exists for callers that want that answer WITHOUT the plaintext.
 
 			// Resolve the decryption key by the EXACT version stamped on the ciphertext, not the current key. After a
 			// rotation the current key cannot authenticate pre-rotation ciphertext, so version-addressed retrieval is
@@ -388,40 +377,104 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
-	public Task<bool> ValidateIntegrityAsync(EncryptedFieldResult encryptedField, CancellationToken cancellationToken)
+	public async Task<bool> ValidateIntegrityAsync(
+		string fieldName,
+		EncryptedFieldResult encryptedField,
+		CancellationToken cancellationToken)
 	{
+		if (string.IsNullOrEmpty(fieldName))
+		{
+			throw new ArgumentException("Field name cannot be null or empty", nameof(fieldName));
+		}
+
 		ArgumentNullException.ThrowIfNull(encryptedField);
 
-		if (!encryptedField.HasIntegrityProtection)
+		// Every branch below that is not a verified tag returns false. Integrity is a property that must be
+		// positively established: an envelope this build cannot open has not been shown to be intact, and
+		// reporting it as valid is the defect this method previously had.
+		if (!encryptedField.HasIntegrityProtection || string.IsNullOrEmpty(encryptedField.InitializationVector))
 		{
-			_logger.LogWarning("Integrity validation requested for field without integrity protection");
-			return Task.FromResult(false);
+			_logger.LogWarning(
+				"Integrity validation requested for field {FieldName}, which carries no authentication tag or IV",
+				fieldName);
+			return false;
 		}
+
+		if (!string.Equals(encryptedField.FormatVersion, EncryptedFieldResult.CurrentFormatVersion, StringComparison.Ordinal))
+		{
+			_logger.LogWarning(
+				"Integrity validation cannot interpret envelope format version {FormatVersion} for field {FieldName}; expected {ExpectedFormatVersion}",
+				encryptedField.FormatVersion, fieldName, EncryptedFieldResult.CurrentFormatVersion);
+			return false;
+		}
+
+		byte[]? plaintext = null;
 
 		try
 		{
-			// For GCM mode, integrity is validated during decryption For demonstration, we'll check if the authentication tag is present
-			// and valid format
-			if (string.IsNullOrEmpty(encryptedField.AuthenticationTag))
+			// Address the key by the exact version stamped on the envelope, as decryption does. The current key
+			// cannot authenticate pre-rotation ciphertext.
+			var keyName = GetKeyNameForClassification(encryptedField.Classification);
+			var keyData = await _keyProvider
+				.GetSecretVersionAsync(keyName, encryptedField.KeyVersion, cancellationToken).ConfigureAwait(false);
+
+			if (string.IsNullOrEmpty(keyData))
 			{
-				return Task.FromResult(false);
+				_logger.LogWarning(
+					"Integrity validation could not resolve key '{KeyName}' version '{KeyVersion}' for field {FieldName}",
+					keyName, encryptedField.KeyVersion, fieldName);
+				return false;
 			}
 
-			// Validate Base64 format of authentication tag
-			try
-			{
-				_ = Convert.FromBase64String(encryptedField.AuthenticationTag);
-				return Task.FromResult(true);
-			}
-			catch (FormatException)
-			{
-				return Task.FromResult(false);
-			}
+			var ciphertext = Convert.FromBase64String(encryptedField.EncryptedValue);
+			var iv = Convert.FromBase64String(encryptedField.InitializationVector);
+			var authTag = Convert.FromBase64String(encryptedField.AuthenticationTag!);
+
+			// The AEAD decrypt IS the verification: it recomputes the tag over the ciphertext and the associated
+			// data and throws unless the stored tag matches. Nothing short of this authenticates anything -- a
+			// well-formed tag that was never computed from this ciphertext fails here.
+			plaintext = await PerformDecryptionAsync(
+					ciphertext,
+					keyData,
+					iv,
+					authTag,
+					encryptedField.Algorithm,
+					BuildFieldAssociatedData(fieldName, encryptedField.KeyVersion, encryptedField.Algorithm, encryptedField.Classification))
+				.ConfigureAwait(false);
+
+			_logger.LogDebug("Integrity validated for field {FieldName}", fieldName);
+			return true;
 		}
-		catch (Exception ex)
+		catch (CryptographicException)
 		{
-			_logger.LogError(ex, "Error validating field integrity");
-			return Task.FromResult(false);
+			// Tag mismatch: a substituted or recomputed tag, altered ciphertext or IV, or a ciphertext replayed
+			// under a different field name. This is the answer the method exists to give, not a fault.
+			_logger.LogWarning(
+				"Integrity validation FAILED for field {FieldName}: the authentication tag does not verify against the ciphertext",
+				fieldName);
+			return false;
+		}
+		catch (FormatException)
+		{
+			_logger.LogWarning(
+				"Integrity validation failed for field {FieldName}: the envelope is not valid Base64",
+				fieldName);
+			return false;
+		}
+		catch (SecurityException ex)
+		{
+			// Unsupported algorithm, or a malformed key from the provider -- integrity was never established.
+			_logger.LogWarning(ex, "Integrity validation could not be performed for field {FieldName}", fieldName);
+			return false;
+		}
+		finally
+		{
+			// Verification necessarily recovers the plaintext. Callers asked whether the field is intact, not for
+			// its value, so the buffer does not outlive the check.
+			if (plaintext is not null)
+			{
+				CryptographicOperations.ZeroMemory(plaintext);
+			}
 		}
 	}
 
@@ -551,9 +604,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <summary>
-	/// Builds the canonical AES-GCM Associated Authenticated Data for a field, byte-identical on encrypt and
-	/// decrypt. The unit-separator (0x1F) delimiter cannot collide with any UTF-8 field name, key version, or
-	/// algorithm string, so the four-component context is unambiguously encoded.
+	/// Builds the AES-GCM Associated Authenticated Data for a field, byte-identical on encrypt and decrypt.
+	/// The four components are concatenated without a delimiter, so distinct contexts whose concatenations
+	/// coincide produce the same associated data; changing the encoding would invalidate every stored
+	/// envelope and so belongs to a format-version change rather than to this method.
 	/// </summary>
 	private static byte[] BuildFieldAssociatedData(
 		string fieldName,
@@ -753,7 +807,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		}
 
 		// The timer may fire before the full configured interval has elapsed because each arm is clamped to Timer's
-		// max dueTime (gucy1d). Only rotate once actually due; always re-arm for the remaining time to the next due point.
+		// max dueTime. Only rotate once actually due; always re-arm for the remaining time to the next due point.
 		if (DateTimeOffset.UtcNow < _nextKeyRotationDueUtc)
 		{
 			RearmKeyRotationTimer();

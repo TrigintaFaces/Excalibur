@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS public.event_store_snapshots (
     -- With a default, an INSERT that omitted the tenant would silently land the row in the
     -- untenanted partition, making "I forgot to supply the tenant" indistinguishable from
     -- "this row is deliberately untenanted." Without one, that statement fails outright.
-    tenant_id       VARCHAR(255) NOT NULL,
+    tenant_id       VARCHAR(64) NOT NULL,
 
     -- The tenant participates in the record's IDENTITY, not merely in read filters.
     -- Keying on (aggregate_id, aggregate_type) alone lets one tenant's save overwrite

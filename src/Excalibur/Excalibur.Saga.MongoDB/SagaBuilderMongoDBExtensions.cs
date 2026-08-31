@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.DependencyInjection;
@@ -107,7 +108,23 @@ public static class SagaBuilderMongoDbExtensions
 		}
 		else
 		{
-			services.TryAddSingleton<MongoDbSagaStore>();
+			// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
+			// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
+			// multi-tenant context still wins regardless of composition order.
+			services.AddDefaultTenantContext();
+			// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's
+			// constructor declares one) AND emits the ITenantScopingCapability<ISagaStore> marker
+			// inseparably, matching every other saga provider. The context is load-bearing here, not
+			// decorative: the store composes the ambient tenant into the filter of every load, save and
+			// retention sweep. Absent one, that filter degrades to a NULL tenant term -- not the untenanted
+			// sentinel -- so the sweep matches no row a tenanted host wrote.
+			services.AddTenantAwareStore<ISagaStore, MongoDbSagaStore>(sp =>
+			{
+				var opts = sp.GetRequiredService<IOptions<MongoDbSagaOptions>>();
+				var logger = sp.GetRequiredService<ILogger<MongoDbSagaStore>>();
+				var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
+				return new MongoDbSagaStore(opts, logger, serializer, sp.GetRequiredService<ITenantContext>());
+			});
 			services.AddKeyedSingleton<ISagaStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbSagaStore>());
 			services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 				sp.GetRequiredKeyedService<ISagaStore>("mongodb"));
@@ -129,13 +146,23 @@ public static class SagaBuilderMongoDbExtensions
 			services.TryAddSingleton<IMongoClient>(factory);
 		}
 
-		services.TryAddSingleton(sp =>
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
+		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
+		// multi-tenant context still wins regardless of composition order.
+		services.AddDefaultTenantContext();
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISagaStore> marker inseparably, matching
+		// every other saga provider. The context is load-bearing here, not decorative: the store composes
+		// the ambient tenant into the filter of every load, save and retention sweep. Absent one, that
+		// filter degrades to a NULL tenant term -- not the untenanted sentinel -- so the sweep matches no
+		// row a tenanted host wrote.
+		services.AddTenantAwareStore<ISagaStore, MongoDbSagaStore>(sp =>
 		{
 			var client = sp.GetRequiredService<IMongoClient>();
 			var opts = sp.GetRequiredService<IOptions<MongoDbSagaOptions>>();
 			var logger = sp.GetRequiredService<ILogger<MongoDbSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new MongoDbSagaStore(client, opts, logger, serializer);
+			return new MongoDbSagaStore(client, opts, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		services.AddKeyedSingleton<ISagaStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>

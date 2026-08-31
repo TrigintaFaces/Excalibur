@@ -130,17 +130,6 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.StreamHealthCheck.ShouldBeInRange(23200, 23299);
 		GooglePubSubEventId.StreamHealthDegraded.ShouldBeInRange(23200, 23299);
 		GooglePubSubEventId.StreamReconnecting.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.StreamError.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.StreamConnected.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.StreamDisconnected.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.StreamIdle.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.HighErrorRate.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.HighAckFailureRate.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.UnhealthyStreamsFound.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.HealthCheckError.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.TaskCleanupFailed.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.TaskCleanupCancelled.ShouldBeInRange(23200, 23299);
-		GooglePubSubEventId.TaskCleanupDisposed.ShouldBeInRange(23200, 23299);
 	}
 
 	#endregion
@@ -246,7 +235,6 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.FlowControlReleased.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.SubscriberFactoryCreated.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.OutstandingMessagesLimit.ShouldBeInRange(23500, 23599);
-		GooglePubSubEventId.FlowControlledSubscriberCreated.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.SubscriberMessageProcessingError.ShouldBeInRange(23500, 23599);
 	}
 
@@ -416,17 +404,6 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.StreamHealthCheck,
 			GooglePubSubEventId.StreamHealthDegraded,
 			GooglePubSubEventId.StreamReconnecting,
-			GooglePubSubEventId.StreamError,
-			GooglePubSubEventId.StreamConnected,
-			GooglePubSubEventId.StreamDisconnected,
-			GooglePubSubEventId.StreamIdle,
-			GooglePubSubEventId.HighErrorRate,
-			GooglePubSubEventId.HighAckFailureRate,
-			GooglePubSubEventId.UnhealthyStreamsFound,
-			GooglePubSubEventId.HealthCheckError,
-			GooglePubSubEventId.TaskCleanupFailed,
-			GooglePubSubEventId.TaskCleanupCancelled,
-			GooglePubSubEventId.TaskCleanupDisposed,
 
 			// Ordering (23300-23399)
 			GooglePubSubEventId.OrderingKeyAssigned,
@@ -469,7 +446,6 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.FlowControlReleased,
 			GooglePubSubEventId.SubscriberFactoryCreated,
 			GooglePubSubEventId.OutstandingMessagesLimit,
-			GooglePubSubEventId.FlowControlledSubscriberCreated,
 			GooglePubSubEventId.SubscriberMessageProcessingError,
 
 			// Dead Letter (23700-23799)

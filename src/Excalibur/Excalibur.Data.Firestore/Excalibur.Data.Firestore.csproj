@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -40,8 +40,22 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Data.Firestore.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- The Firestore inbox store shares this package's retry policy and its executor, so that the
+         provider has one answer to "which failures are transient" rather than a second one per store. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Inbox.Firestore</_Parameter1>
+    </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <!-- DataFirestoreEventId is internal: its constants are logging plumbing, not consumer
+         contract. These sibling packages emit the same event ids. -->
+    <InternalsVisibleTo Include="Excalibur.Cdc.Firestore" />
+    <InternalsVisibleTo Include="Excalibur.Data.Firestore.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.Firestore" />
+    <InternalsVisibleTo Include="Excalibur.Saga.Firestore" />
+  </ItemGroup>
+
 </Project>

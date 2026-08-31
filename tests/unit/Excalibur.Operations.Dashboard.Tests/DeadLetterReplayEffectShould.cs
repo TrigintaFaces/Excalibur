@@ -195,7 +195,7 @@ public sealed class DeadLetterReplayEffectShould
 
 		public Task<bool> PurgeAsync(Guid entryId, CancellationToken cancellationToken) => Task.FromResult(true);
 
-		public Task<int> PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken) =>
+		public Task<int> PurgeAllTenantsEntriesOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken) =>
 			Task.FromResult(0);
 	}
 

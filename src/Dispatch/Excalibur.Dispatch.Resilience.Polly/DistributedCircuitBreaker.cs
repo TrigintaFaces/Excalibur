@@ -14,8 +14,32 @@ using Polly;
 namespace Excalibur.Dispatch.Resilience.Polly;
 
 /// <summary>
-/// Distributed circuit breaker implementation using cache for coordination.
+/// A circuit breaker whose OPEN/HALF-OPEN/CLOSED state is shared, through an
+/// <see cref="IDistributedCache"/>, with every instance configured against the same store and name.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>What is shared.</b> The circuit state, and only the circuit state. When any instance trips it
+/// writes <c>Open</c> to the store; every other instance short-circuits on its next call, so a failing
+/// dependency is shed fleet-wide rather than by each replica in turn. Recovery is shared the same way:
+/// the first instance past the break deadline moves the shared state to half-open, and the successes
+/// that close it are visible to all.
+/// </para>
+/// <para>
+/// <b>What is local.</b> The failure and success counting that decides WHEN to trip. Each instance
+/// evaluates <c>FailureRatio</c>, <c>MinimumThroughput</c>, <c>SamplingDuration</c> and
+/// <c>ConsecutiveFailureThreshold</c> over its own traffic, so those thresholds are per-instance and
+/// not fleet-wide totals. This is a stated design constraint rather than an omission:
+/// <see cref="IDistributedCache"/> offers no atomic increment and no compare-and-swap, so a shared
+/// counter can only be maintained by a read-modify-write that loses updates between instances — under
+/// which the breaker under-counts and opens late or never. A per-instance count is exact and its
+/// meaning is stated; a shared count over this abstraction is neither.
+/// </para>
+/// <para>
+/// Requires an <see cref="IDistributedCache"/> that is genuinely shared across instances. Backed by an
+/// in-process cache each replica trips independently and nothing is coordinated.
+/// </para>
+/// </remarks>
 public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAsyncDisposable
 {
 	private readonly DistributedCircuitBreakerOptions _options;
@@ -25,20 +49,27 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private readonly Timer _syncTimer;
 	private readonly CancellationTokenSource _shutdownCts = new();
 	private ConcurrentBag<Task> _backgroundTasks = new();
+
+	// Serialises this instance's read-modify-write of _metrics. The counters it guards are
+	// process-local (see LocalCircuitMetrics), so a per-instance gate is the whole requirement.
 	private readonly SemaphoreSlim _metricsGate = new(1, 1);
+	private readonly LocalCircuitMetrics _metrics = new();
 	private volatile bool _disposed;
 	private volatile CircuitState _lastKnownState;
 	private readonly TimeProvider _timeProvider;
 
 	// Number of buckets the rolling sampling window (SamplingDuration) is divided into for the
-	// windowed open decision (zxb7fp). Mirrors Polly v8's rolling-health bucketing shape.
+	// windowed open decision. Mirrors Polly v8's rolling-health bucketing shape.
 	private const int WindowBucketCount = 10;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DistributedCircuitBreaker" /> class.
 	/// </summary>
 	/// <param name="name">The name of the circuit breaker.</param>
-	/// <param name="cache">The distributed cache used for coordination.</param>
+	/// <param name="cache">
+	/// The store through which circuit state is shared. Must be genuinely shared across instances for
+	/// the breaker to coordinate anything.
+	/// </param>
 	/// <param name="options">The configuration options for the circuit breaker.</param>
 	/// <param name="logger">The logger used for diagnostic output.</param>
 	/// <param name="timeProvider">
@@ -69,7 +100,7 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 				SamplingDuration = _options.SamplingDuration,
 				MinimumThroughput = _options.MinimumThroughput,
 				BreakDuration = _options.BreakDuration,
-				// FR-116-2: OperationCanceledException is never a failure — non-tripping.
+				// OperationCanceledException is never a failure — non-tripping.
 			ShouldHandle = new PredicateBuilder().Handle<Exception>(ex => ex is not OperationCanceledException),
 			})
 			.Build();
@@ -124,8 +155,8 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		{
 			if (stateData != null && _timeProvider.GetUtcNow() < stateData.OpenUntil)
 			{
-				// FR-116-1 / AC-116-3: translate Polly's BrokenCircuitException to the canonical exception;
-				// never leak Polly internals to callers. Carry the RetryAfter hint (AC-116-7).
+				// Translate Polly's BrokenCircuitException to the canonical exception;
+				// never leak Polly internals to callers. Carry the RetryAfter hint.
 				var retryAfter = stateData.OpenUntil - _timeProvider.GetUtcNow();
 				if (retryAfter < TimeSpan.Zero)
 				{
@@ -148,13 +179,13 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			// Fast path: ExecuteAsync already fetched the authoritative state above (and refreshed
 			// _lastKnownState at :108, including any HalfOpen transition), so call the core directly
 			// to avoid a redundant distributed-state read on the hot path. The manual
-			// RecordSuccessAsync entry point does its own authoritative read (bd-0snskv).
+			// RecordSuccessAsync entry point does its own authoritative read.
 			await RecordSuccessCoreAsync(_lastKnownState, cancellationToken).ConfigureAwait(false);
 			return result;
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
-			// FR-116-2: cancellation is not a failure — non-tripping.
+			// Cancellation is not a failure — non-tripping.
 			await RecordFailureAsync(cancellationToken, ex).ConfigureAwait(false);
 			throw;
 		}
@@ -167,7 +198,7 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		// before delegating to the close-gate. Unlike ExecuteAsync (which refreshes _lastKnownState
 		// from its single state fetch at the top), a direct caller never observes a cross-instance
 		// HalfOpen transition, so without this read the close-gate would test a stale local field
-		// and the circuit would never close on the manual path (bd-0snskv). ExecuteAsync preserves
+		// and the circuit would never close on the manual path. ExecuteAsync preserves
 		// its fast path by calling RecordSuccessCoreAsync directly with the state it already read.
 		var authoritativeState = await GetStateAsync(cancellationToken).ConfigureAwait(false);
 		await RecordSuccessCoreAsync(authoritativeState, cancellationToken).ConfigureAwait(false);
@@ -181,24 +212,20 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			// Keep the local cache consistent with the authoritative state used for the gate.
 			_lastKnownState = authoritativeState;
 
-			var metrics = await GetOrCreateMetricsAsync(cancellationToken).ConfigureAwait(false);
-
-			metrics.SuccessCount++;
-			metrics.ConsecutiveSuccesses++;
-			metrics.ConsecutiveFailures = 0;
-			metrics.LastSuccess = _timeProvider.GetUtcNow();
+			_metrics.SuccessCount++;
+			_metrics.ConsecutiveSuccesses++;
+			_metrics.ConsecutiveFailures = 0;
+			_metrics.LastSuccess = _timeProvider.GetUtcNow();
 
 			// Count the success as an in-window attempt so the rolling failure ratio has a denominator.
-			metrics.RecordWindow(failure: false, _timeProvider.GetUtcNow().UtcTicks, WindowBucketTicks, WindowBucketCount);
-
-			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
+			_metrics.RecordWindow(failure: false, _timeProvider.GetUtcNow().UtcTicks, WindowBucketTicks, WindowBucketCount);
 
 			// Check if we should close the circuit.
 			// ConsecutiveSuccesses is incremented above and reset to 0 on any failure (RecordFailureAsync),
 			// so this gate fires only after SuccessThresholdToClose *consecutive* successes while half-open.
 			// The gate tests the authoritative store state (not a possibly-stale local field) so a
-			// cross-instance HalfOpen transition is honored on every entry path (bd-0snskv).
-			if (authoritativeState == CircuitState.HalfOpen && metrics.ConsecutiveSuccesses >= _options.SuccessThresholdToClose)
+			// cross-instance HalfOpen transition is honored on every entry path.
+			if (authoritativeState == CircuitState.HalfOpen && _metrics.ConsecutiveSuccesses >= _options.SuccessThresholdToClose)
 			{
 				await TransitionToClosedAsync(cancellationToken).ConfigureAwait(false);
 			}
@@ -225,50 +252,50 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		await _metricsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			var metrics = await GetOrCreateMetricsAsync(cancellationToken).ConfigureAwait(false);
-
-			metrics.FailureCount++;
-			metrics.ConsecutiveFailures++;
-			metrics.ConsecutiveSuccesses = 0;
-			metrics.LastFailure = _timeProvider.GetUtcNow();
+			_metrics.FailureCount++;
+			_metrics.ConsecutiveFailures++;
+			_metrics.ConsecutiveSuccesses = 0;
+			_metrics.LastFailure = _timeProvider.GetUtcNow();
 
 			if (exception != null)
 			{
-				// Persist the exception TYPE name, not the raw message: the message can carry PII (user
-				// input, connection strings, record identifiers) and this value is written to a shared
-				// IDistributedCache (at rest, cross-instance). The type is diagnostic and PII-safe.
-				metrics.LastFailureReason = exception.GetType().Name;
+				// Record the exception TYPE name, not the raw message: the message can carry PII (user
+				// input, connection strings, record identifiers). The type is diagnostic and PII-safe.
+				_metrics.LastFailureReason = exception.GetType().Name;
 			}
 
 			// Count the failure as an in-window attempt AND an in-window failure.
 			var nowTicks = _timeProvider.GetUtcNow().UtcTicks;
-			metrics.RecordWindow(failure: true, nowTicks, WindowBucketTicks, WindowBucketCount);
+			_metrics.RecordWindow(failure: true, nowTicks, WindowBucketTicks, WindowBucketCount);
 
-			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
-
-			// Windowed open decision (Polly v8 semantics, zxb7fp): trip on the failure RATIO only once at
+			// Windowed open decision (Polly v8 semantics): trip on the failure RATIO only once at
 			// least MinimumThroughput attempts have accumulated within the SamplingDuration window, and
 			// compare the ROLLING-WINDOW ratio (not a lifetime-cumulative one) to FailureRatio. The
-			// ConsecutiveFailures fallback is retained so a hard burst still trips promptly. SamplingDuration
-			// and MinimumThroughput are now genuinely wired (were advertised-but-unwired). Counts are bucketed
-			// by wall-clock; minor inter-instance clock skew merely smears counts across adjacent buckets,
-			// which is acceptable for a breaker heuristic (not a fencing/safety invariant).
-			var (windowAttempts, windowFailureRatio) = metrics.GetWindow(nowTicks, WindowBucketTicks, WindowBucketCount);
+			// ConsecutiveFailures fallback is retained so a hard burst still trips promptly. The window is
+			// this instance's own traffic (see the type remarks); the resulting trip is then shared with
+			// every instance through the state key.
+			var (windowAttempts, windowFailureRatio) = _metrics.GetWindow(nowTicks, WindowBucketTicks, WindowBucketCount);
 			// Trip on ratio >= threshold, matching Polly v8 AdvancedCircuitBreaker boundary semantics
 			// (it opens when the failure ratio reaches FailureRatio, not only when it strictly exceeds it).
 			var windowedRatioTrips = windowAttempts >= _options.MinimumThroughput
 				&& windowFailureRatio >= _options.FailureRatio;
 			if (windowedRatioTrips ||
-				metrics.ConsecutiveFailures >= _options.ConsecutiveFailureThreshold)
+				_metrics.ConsecutiveFailures >= _options.ConsecutiveFailureThreshold)
 			{
 				LogThresholdExceeded(Name, (int)windowAttempts, _options.MinimumThroughput);
 				await TransitionToOpenAsync(cancellationToken).ConfigureAwait(false);
 			}
 		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw; // Never swallow cancellation
+		}
+#pragma warning disable CA1031 // Coordination errors should not crash the caller
 		catch (Exception ex)
 		{
 			LogCoordinationError(Name, ex);
 		}
+#pragma warning restore CA1031
 		finally
 		{
 			_metricsGate.Release();
@@ -280,9 +307,10 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	{
 		try
 		{
-			// Clear all distributed state
+			// Removing the shared state key closes the circuit for every instance; each instance drops its
+			// own counters when it observes the close (here, or through the sync timer).
 			await _cache.RemoveAsync(GetStateKey(), cancellationToken).ConfigureAwait(false);
-			await _cache.RemoveAsync(GetMetricsKey(), cancellationToken).ConfigureAwait(false);
+			await ResetLocalMetricsAsync(cancellationToken).ConfigureAwait(false);
 
 			_lastKnownState = CircuitState.Closed;
 			LogCircuitClosed(Name);
@@ -355,12 +383,16 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			var currentState = await GetStateAsync(_shutdownCts.Token).ConfigureAwait(false);
 			if (currentState != _lastKnownState)
 			{
+				// A close driven by another instance (or by ResetAsync) has to land here too, or this
+				// instance resumes the failure run it accumulated before the trip and re-opens at once.
+				if (currentState == CircuitState.Closed)
+				{
+					await ResetLocalMetricsAsync(_shutdownCts.Token).ConfigureAwait(false);
+				}
+
 				_lastKnownState = currentState;
 				LogStateChanged(Name, currentState);
 			}
-
-			// Clean up expired states
-			await CleanupExpiredStateAsync().ConfigureAwait(false);
 		}
 		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
@@ -378,23 +410,20 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		return string.IsNullOrEmpty(stateData) ? null : ParseState(stateData);
 	}
 
-	private async Task<DistributedCircuitMetrics> GetOrCreateMetricsAsync(CancellationToken cancellationToken)
+	/// <summary>
+	/// Drops this instance's counters under the metrics gate. Safe to call from the sync-timer callback.
+	/// </summary>
+	private async Task ResetLocalMetricsAsync(CancellationToken cancellationToken)
 	{
-		var metricsData = await _cache.GetStringAsync(GetMetricsKey(), cancellationToken).ConfigureAwait(false);
-		return string.IsNullOrEmpty(metricsData)
-			? new DistributedCircuitMetrics()
-			: JsonSerializer.Deserialize(metricsData, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics)
-			  ?? new DistributedCircuitMetrics();
-	}
-
-	private async Task SaveMetricsAsync(DistributedCircuitMetrics metrics, CancellationToken cancellationToken)
-	{
-		var json = JsonSerializer.Serialize(metrics, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics);
-		await _cache.SetStringAsync(
-			GetMetricsKey(),
-			json,
-			new DistributedCacheEntryOptions { SlidingExpiration = _options.MetricsRetention },
-			cancellationToken).ConfigureAwait(false);
+		await _metricsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			_metrics.Reset();
+		}
+		finally
+		{
+			_metricsGate.Release();
+		}
 	}
 
 	private async Task TransitionToOpenAsync(CancellationToken cancellationToken)
@@ -440,19 +469,12 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private async Task TransitionToClosedAsync(CancellationToken cancellationToken)
 	{
 		await _cache.RemoveAsync(GetStateKey(), cancellationToken).ConfigureAwait(false);
+
+		// Reached from RecordSuccessCoreAsync, which already holds _metricsGate — reset in place rather
+		// than re-entering the (non-reentrant) gate.
+		_metrics.Reset();
 		_lastKnownState = CircuitState.Closed;
 		LogCircuitClosed(Name);
-	}
-
-	private Task CleanupExpiredStateAsync()
-	{
-		if (_options.MetricsRetention <= TimeSpan.Zero)
-		{
-			return Task.CompletedTask;
-		}
-
-		// Sliding expirations configured on save will evict stale entries automatically; manual cleanup can be added when required.
-		return Task.CompletedTask;
 	}
 
 	// Width of a single rolling-window bucket in ticks. Guards against a sub-tick width when
@@ -460,8 +482,6 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private long WindowBucketTicks => Math.Max(1L, _options.SamplingDuration.Ticks / WindowBucketCount);
 
 	private string GetStateKey() => $"circuit-breaker:{Name}:state";
-
-	private string GetMetricsKey() => $"circuit-breaker:{Name}:metrics";
 
 	// Source-generated logging methods
 	[LoggerMessage(ResilienceEventId.CircuitBreakerStateChanged, LogLevel.Warning,

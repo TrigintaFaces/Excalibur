@@ -8,6 +8,7 @@ using Google.Cloud.Scheduler.V1;
 using Google.Protobuf;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Jobs.GoogleCloud;
 
@@ -20,11 +21,11 @@ namespace Excalibur.Jobs.GoogleCloud;
 /// <param name="logger"> Logger for this provider. </param>
 public sealed partial class GoogleCloudSchedulerJobProvider(
 	CloudSchedulerClient schedulerClient,
-	GoogleCloudSchedulerOptions options,
+	IOptions<GoogleCloudSchedulerOptions> options,
 	ILogger<GoogleCloudSchedulerJobProvider> logger) : IJobSchedulerProvider, IDisposable
 {
 	private readonly CloudSchedulerClient _schedulerClient = schedulerClient ?? throw new ArgumentNullException(nameof(schedulerClient));
-	private readonly GoogleCloudSchedulerOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+	private readonly GoogleCloudSchedulerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILogger<GoogleCloudSchedulerJobProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private volatile bool _disposed;
 

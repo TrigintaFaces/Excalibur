@@ -51,14 +51,14 @@ public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformance
 
 		// The canonical snapshot store lives in Excalibur.EventSourcing.Postgres (snapshots are an
 		// event-sourcing persistence concern). The tenant-isolation arms establish tenants via
-		// TenantContextHolder.BeginScope, which a null context cannot see: TenantScope.FromContext(null)
+		// TenantContextHolder.BeginScope, which a null context cannot see: CurrentTenantScope
 		// is None, so every tenant wrote the untenanted sentinel and collided on one row per aggregate id.
 		var excaliburStore = new PostgresSnapshotStore(
 			_dataSource,
 			NullLogger<PostgresSnapshotStore>.Instance,
-			_fixture.SchemaName,
-			_fixture.TableName,
-			tenantContext: new AmbientTenantContext());
+			tenantContext: new AmbientTenantContext(),
+			schema: _fixture.SchemaName,
+			table: _fixture.TableName);
 
 		// Adapt Excalibur.EventSourcing.ISnapshotStore to the conformance-kit ISnapshotStore.
 		return new SnapshotStoreAdapter(excaliburStore);

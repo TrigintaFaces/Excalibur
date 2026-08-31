@@ -10,25 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;
 public sealed class AwsSqsOptionsShould
 {
 	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new AwsSqsOptions();
-
-		// Assert
-		options.QueueUrl.ShouldBeNull();
-		options.MessageRetentionPeriod.ShouldBe(345600);
-		options.UseFifoQueue.ShouldBeFalse();
-		options.ContentBasedDeduplication.ShouldBeFalse();
-		options.BatchConfig.ShouldBeNull();
-		options.LongPollingConfig.ShouldBeNull();
-		options.KmsMasterKeyId.ShouldBeNull();
-		options.KmsDataKeyReusePeriodSeconds.ShouldBe(300);
-		options.Consumer.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
-		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-	}
-
-	[Fact]
 	public void AllowSettingQueueUrl()
 	{
 		// Arrange & Act
@@ -39,21 +20,6 @@ public sealed class AwsSqsOptionsShould
 
 		// Assert
 		options.QueueUrl.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AllowSettingFifoConfiguration()
-	{
-		// Arrange & Act
-		var options = new AwsSqsOptions
-		{
-			UseFifoQueue = true,
-			ContentBasedDeduplication = true,
-		};
-
-		// Assert
-		options.UseFifoQueue.ShouldBeTrue();
-		options.ContentBasedDeduplication.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -71,13 +37,4 @@ public sealed class AwsSqsOptionsShould
 		options.KmsDataKeyReusePeriodSeconds.ShouldBe(600);
 	}
 
-	[Fact]
-	public void AllowSettingMessageRetentionPeriod()
-	{
-		// Arrange & Act
-		var options = new AwsSqsOptions { MessageRetentionPeriod = 1209600 }; // 14 days
-
-		// Assert
-		options.MessageRetentionPeriod.ShouldBe(1209600);
-	}
 }

@@ -49,47 +49,6 @@ public sealed class SerializationModelsShould
 	}
 
 	[Fact]
-	public void CreateSchemaMetadataWithDefaults()
-	{
-		// Arrange & Act
-		var metadata = new SchemaMetadata();
-
-		// Assert
-		metadata.TypeName.ShouldBe(string.Empty);
-		metadata.Schema.ShouldBe(string.Empty);
-		metadata.Version.ShouldBe(0);
-		metadata.Format.ShouldBe(SerializationFormat.Json);
-		metadata.Metadata.ShouldNotBeNull();
-		metadata.Metadata.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void AllowSettingSchemaMetadataProperties()
-	{
-		// Arrange
-		var now = DateTimeOffset.UtcNow;
-
-		// Act
-		var metadata = new SchemaMetadata
-		{
-			TypeName = "OrderCreated",
-			Schema = "{\"type\":\"object\"}",
-			Version = 3,
-			Format = SerializationFormat.MessagePack,
-			RegisteredAt = now,
-		};
-		metadata.Metadata["author"] = "test";
-
-		// Assert
-		metadata.TypeName.ShouldBe("OrderCreated");
-		metadata.Schema.ShouldBe("{\"type\":\"object\"}");
-		metadata.Version.ShouldBe(3);
-		metadata.Format.ShouldBe(SerializationFormat.MessagePack);
-		metadata.RegisteredAt.ShouldBe(now);
-		metadata.Metadata["author"].ShouldBe("test");
-	}
-
-	[Fact]
 	public void CreateSerializationStatisticsWithDefaults()
 	{
 		// Arrange & Act

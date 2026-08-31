@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Connection/credential properties are in <see cref="Connection"/> and consumer behavior properties are in <see cref="Consumer"/>.
-/// This follows the <c>AmazonSQSConfig</c> pattern of separating client configuration from consumer behavior.
+/// Connection and credential properties are in <see cref="Connection"/>, following the
+/// <c>AmazonSQSConfig</c> pattern of separating client configuration from message-level settings.
 /// </para>
 /// </remarks>
 public class AwsProviderOptions : ProviderOptions
@@ -38,22 +38,10 @@ public class AwsProviderOptions : ProviderOptions
 	public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable message deduplication.
-	/// </summary>
-	/// <value> A value indicating whether to enable message deduplication. </value>
-	public bool EnableDeduplication { get; set; }
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable server-side encryption.
 	/// </summary>
 	/// <value> A value indicating whether to enable server-side encryption. </value>
 	public bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets the KMS key ID for encryption.
-	/// </summary>
-	/// <value> The KMS key ID for encryption. </value>
-	public string? KmsKeyId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the connection and credential options.
@@ -61,9 +49,4 @@ public class AwsProviderOptions : ProviderOptions
 	/// <value> The AWS SQS connection options. </value>
 	public AwsSqsConnectionOptions Connection { get; set; } = new();
 
-	/// <summary>
-	/// Gets or sets the consumer/receiver options.
-	/// </summary>
-	/// <value> The AWS SQS consumer options. </value>
-	public AwsSqsConsumerOptions Consumer { get; set; } = new();
 }

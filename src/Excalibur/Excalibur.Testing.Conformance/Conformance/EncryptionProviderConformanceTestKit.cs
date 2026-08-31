@@ -66,7 +66,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class EncryptionProviderConformanceTestKit
+public abstract class EncryptionProviderConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh encryption provider instance along with its key management provider for testing.
@@ -114,7 +114,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that EncryptAsync throws ArgumentNullException for null plaintext.
 	/// </summary>
-	protected virtual async Task EncryptAsync_NullPlaintext_ShouldThrowArgumentNullException()
+	public virtual async Task EncryptAsync_NullPlaintext_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -152,7 +152,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that EncryptAsync populates all required EncryptedData metadata.
 	/// </summary>
-	protected virtual async Task EncryptAsync_ShouldPopulateEncryptedDataMetadata()
+	public virtual async Task EncryptAsync_ShouldPopulateEncryptedDataMetadata()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -217,7 +217,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that EncryptAsync throws when no active key exists.
 	/// </summary>
-	protected virtual async Task EncryptAsync_NoActiveKey_ShouldThrowEncryptionException()
+	public virtual async Task EncryptAsync_NoActiveKey_ShouldThrowEncryptionException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -262,7 +262,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that EncryptAsync throws when key is DecryptOnly.
 	/// </summary>
-	protected virtual async Task EncryptAsync_DecryptOnlyKey_ShouldThrowEncryptionException()
+	public virtual async Task EncryptAsync_DecryptOnlyKey_ShouldThrowEncryptionException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -321,7 +321,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DecryptAsync throws ArgumentNullException for null encryptedData.
 	/// </summary>
-	protected virtual async Task DecryptAsync_NullEncryptedData_ShouldThrowArgumentNullException()
+	public virtual async Task DecryptAsync_NullEncryptedData_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -359,7 +359,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DecryptAsync throws for unsupported algorithm.
 	/// </summary>
-	protected virtual async Task DecryptAsync_UnsupportedAlgorithm_ShouldThrowEncryptionException()
+	public virtual async Task DecryptAsync_UnsupportedAlgorithm_ShouldThrowEncryptionException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -416,7 +416,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DecryptAsync throws when key is suspended.
 	/// </summary>
-	protected virtual async Task DecryptAsync_SuspendedKey_ShouldThrowEncryptionException()
+	public virtual async Task DecryptAsync_SuspendedKey_ShouldThrowEncryptionException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -470,7 +470,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DecryptAsync throws for non-existent key.
 	/// </summary>
-	protected virtual async Task DecryptAsync_NonExistentKey_ShouldThrowEncryptionException()
+	public virtual async Task DecryptAsync_NonExistentKey_ShouldThrowEncryptionException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -527,7 +527,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that encrypt then decrypt returns the original plaintext.
 	/// </summary>
-	protected virtual async Task RoundTrip_EncryptDecrypt_ShouldReturnOriginalPlaintext()
+	public virtual async Task RoundTrip_EncryptDecrypt_ShouldReturnOriginalPlaintext()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -576,7 +576,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that encrypt then decrypt works with text data.
 	/// </summary>
-	protected virtual async Task RoundTrip_TextData_ShouldPreserveContent()
+	public virtual async Task RoundTrip_TextData_ShouldPreserveContent()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -613,7 +613,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that decrypt still works after key rotation (using DecryptOnly version).
 	/// </summary>
-	protected virtual async Task RoundTrip_AfterKeyRotation_ShouldStillDecrypt()
+	public virtual async Task RoundTrip_AfterKeyRotation_ShouldStillDecrypt()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -676,7 +676,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ValidateFipsComplianceAsync returns a boolean.
 	/// </summary>
-	protected virtual async Task ValidateFipsComplianceAsync_ShouldReturnBoolean()
+	public virtual async Task ValidateFipsComplianceAsync_ShouldReturnBoolean()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -704,7 +704,7 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that disposed provider throws ObjectDisposedException.
 	/// </summary>
-	protected virtual async Task Disposed_Provider_ShouldThrowObjectDisposedException()
+	public virtual async Task Disposed_Provider_ShouldThrowObjectDisposedException()
 	{
 		// Arrange
 		var (provider, keyManagement) = await CreateProviderAsync().ConfigureAwait(false);
@@ -743,4 +743,5 @@ public abstract class EncryptionProviderConformanceTestKit
 	}
 
 	#endregion
+
 }

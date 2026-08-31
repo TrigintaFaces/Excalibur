@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Data.Analyzers.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Data.Analyzers.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) via Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="coverlet.collector" />
+    <!-- Roslyn analyzer testing infrastructure -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      A plain reference, NOT OutputItemType="Analyzer". These tests instantiate the analyzers as ordinary
+      types and drive them through the Roslyn testing harness; loading them into this project's own build as
+      analyzers as well would additionally run them over the test sources, which is not what is under test.
+    -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Analyzers\Excalibur.Data.Analyzers.csproj" />
+  </ItemGroup>
+</Project>

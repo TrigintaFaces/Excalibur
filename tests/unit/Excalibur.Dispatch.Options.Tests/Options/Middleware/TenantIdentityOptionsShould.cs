@@ -87,13 +87,14 @@ public sealed class TenantIdentityOptionsShould
 	}
 
 	[Fact]
-	public void Default_MaxTenantIdLength_IsOneHundred()
+	public void Default_MaxTenantIdLength_IsTheNarrowestShippedTenantColumnWidth()
 	{
 		// Arrange & Act
 		var options = new TenantIdentityOptions();
 
-		// Assert
-		options.MaxTenantIdLength.ShouldBe(100);
+		// Assert -- bound to the constant rather than to a literal, so lowering the storable maximum
+		// cannot leave the inbound boundary accepting identifiers no provider can store.
+		options.MaxTenantIdLength.ShouldBe(Excalibur.Dispatch.TenantId.MaxLength);
 	}
 
 	[Fact]

@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Component", "Core")]
 public sealed class InMemoryCursorMapStoreShould
 {
-	private readonly InMemoryCursorMapStore _store = new();
+	private readonly InMemoryCursorMapStore _store = new(TestTenantContext.SingleTenantDefault);
 
 	/// <summary>
 	/// AC-2.3: Cursor map persists across calls.

@@ -17,41 +17,33 @@ public sealed class AuthenticationOptionsShould
 		sut.Username.ShouldBeNull();
 		sut.ApiKeyId.ShouldBeNull();
 		sut.Base64ApiKey.ShouldBeNull();
-		sut.Certificate.ShouldNotBeNull();
 		sut.OAuth2.ShouldNotBeNull();
 		sut.ServiceAccount.ShouldNotBeNull();
 		sut.CredentialRotation.ShouldNotBeNull();
-		sut.Protection.ShouldNotBeNull();
 	}
 
 	[Fact]
 	public void AllowSettingAllProperties()
 	{
-		var cert = new CertificateAuthenticationOptions();
 		var oauth = new OAuth2Options();
 		var sa = new ServiceAccountOptions();
 		var rotation = new CredentialRotationOptions();
-		var protection = new AuthenticationProtectionOptions();
 
 		var sut = new AuthenticationOptions
 		{
 			Username = "elastic",
 			ApiKeyId = "key-id-123",
 			Base64ApiKey = "dGVzdA==",
-			Certificate = cert,
 			OAuth2 = oauth,
 			ServiceAccount = sa,
 			CredentialRotation = rotation,
-			Protection = protection,
 		};
 
 		sut.Username.ShouldBe("elastic");
 		sut.ApiKeyId.ShouldBe("key-id-123");
 		sut.Base64ApiKey.ShouldBe("dGVzdA==");
-		sut.Certificate.ShouldBeSameAs(cert);
 		sut.OAuth2.ShouldBeSameAs(oauth);
 		sut.ServiceAccount.ShouldBeSameAs(sa);
 		sut.CredentialRotation.ShouldBeSameAs(rotation);
-		sut.Protection.ShouldBeSameAs(protection);
 	}
 }

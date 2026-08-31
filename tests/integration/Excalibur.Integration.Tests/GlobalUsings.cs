@@ -5,6 +5,7 @@ global using Excalibur.Dispatch;
 global using Excalibur.Dispatch.Delivery;
 global using Excalibur.Dispatch.Serialization;
 global using Excalibur.Dispatch.Messaging;
+global using Excalibur.Integration.Tests.Infrastructure;
 global using FakeItEasy;
 global using Microsoft.Extensions.Caching.Memory;
 global using Microsoft.Extensions.Configuration;

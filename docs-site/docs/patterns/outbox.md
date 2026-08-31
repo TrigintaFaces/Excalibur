@@ -73,9 +73,10 @@ sequenceDiagram
 
 ## Quick Start
 
-### Configuration with Presets
+### Configuration
 
-The preset-based API for outbox configuration replaces 20+ individual settings with intuitive performance presets. Choose the preset that matches your use case:
+The outbox is configured through a single callback. The provider call and the processing settings
+both belong inside it:
 
 ```csharp
 services.AddDispatch(dispatch =>
@@ -83,68 +84,84 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Recommended: Use presets for common scenarios
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
-
-// Add SQL Server outbox storage
-services.AddSqlServerOutboxStore(options =>
+// Configure the outbox and its store together. The provider call belongs INSIDE the
+// AddOutbox callback -- that call is what registers the IOutboxStore the outbox drains
+// and the one your own types inject.
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    options.ConnectionString = connectionString;
-    options.SchemaName = "outbox";
-});
+    outbox.UseSqlServer(sql => sql
+        .ConnectionString(connectionString)
+        .SchemaName("outbox"));
+}));
 ```
 
-### Available Presets
+### Processing settings
 
-| Preset | Use Case | Key Characteristics |
-|--------|----------|---------------------|
-| **HighThroughput** | Real-time event processing, high-volume systems | Large batches (1000), fast polling (100ms), 8 parallel threads |
-| **Balanced** | Most production workloads | Moderate batches (100), 1s polling, 4 parallel threads |
-| **HighReliability** | Financial transactions, critical systems | Small batches (10), sequential processing, longest retry backoff |
-| **Custom** | Advanced users who need full control | Defaults to Balanced values, all settings configurable |
-
-### Preset Configuration Values
-
-| Setting | HighThroughput | Balanced | HighReliability |
-|---------|----------------|----------|-----------------|
-| BatchSize | 1000 | 100 | 10 |
-| PollingInterval | 100ms | 1s | 5s |
-| MaxRetryCount | 3 | 5 | 10 |
-| RetryDelay | 1 min | 5 min | 15 min |
-| EnableParallelProcessing | true | true | false |
-| MaxDegreeOfParallelism | 8 | 4 | 1 (sequential) |
-
-### Preset with Overrides
-
-Start from a preset and override specific settings:
+Processing is configured with `WithProcessing`, and background draining is turned on with
+`EnableBackgroundProcessing`. Both hang off the same `AddOutbox` callback as the provider call:
 
 ```csharp
-// High throughput with larger batches
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighThroughput()
-    .WithBatchSize(2000)
-    .WithProcessorId("worker-1")
-    .Build()));
-
-// Balanced with more retries
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced()
-    .WithMaxRetries(7)
-    .Build()));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql
+        .ConnectionString(connectionString)
+        .SchemaName("outbox"))
+    .WithProcessing(processing => processing
+        .BatchSize(1000)
+        .PollingInterval(TimeSpan.FromMilliseconds(100))
+        .MaxRetryCount(3)
+        .RetryDelay(TimeSpan.FromMinutes(1))
+        .ProcessorId("worker-1")
+        .EnableParallelProcessing(maxDegreeOfParallelism: 8))
+    .EnableBackgroundProcessing()));
 ```
 
-### Full Custom Configuration
+`EnableParallelProcessing` takes the degree of parallelism directly and defaults to `4`. To drain
+sequentially, leave it off rather than passing `1`.
 
-For advanced users who need complete control:
+### Suggested profiles
+
+These are starting points, not a mechanism -- each is just the set of `WithProcessing` values below,
+which you type out for the profile you want. There is no preset argument to pass.
+
+| Setting | High throughput | Balanced | High reliability |
+|---------|-----------------|----------|------------------|
+| `BatchSize` | 1000 | 100 | 10 |
+| `PollingInterval` | 100ms | 1s | 5s |
+| `MaxRetryCount` | 3 | 5 | 10 |
+| `RetryDelay` | 1 min | 5 min | 15 min |
+| `EnableParallelProcessing` | 8 | 4 | omit (sequential) |
+
+| Profile | Use case |
+|---------|----------|
+| **High throughput** | Real-time event processing, high-volume systems |
+| **Balanced** | Most production workloads |
+| **High reliability** | Financial transactions, critical systems |
+
+Balanced, spelled out:
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Custom()
-    .WithBatchSize(500)
-    .WithPollingInterval(TimeSpan.FromMilliseconds(500))
-    .WithParallelism(6)
-    .WithMaxRetries(5)
-    .WithRetryDelay(TimeSpan.FromMinutes(2))
-    .WithProcessorId("custom-processor")
-    .EnableBackgroundProcessing()
-    .Build()));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(100)
+        .PollingInterval(TimeSpan.FromSeconds(1))
+        .MaxRetryCount(5)
+        .RetryDelay(TimeSpan.FromMinutes(5))
+        .EnableParallelProcessing(maxDegreeOfParallelism: 4))
+    .EnableBackgroundProcessing()));
+```
+
+High reliability -- small batches, long backoff, sequential:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(10)
+        .PollingInterval(TimeSpan.FromSeconds(5))
+        .MaxRetryCount(10)
+        .RetryDelay(TimeSpan.FromMinutes(15)))
+    .EnableBackgroundProcessing()));
 ```
 
 ### Usage in Handlers
@@ -236,7 +253,6 @@ services.AddSqlServerOutboxStore(options =>
     options.ConnectionString = connectionString;
     options.SchemaName = "outbox";
     options.OutboxTableName = "OutboxMessages";
-    options.DeadLetterTableName = "OutboxDeadLetters";
 });
 ```
 
@@ -365,7 +381,7 @@ CREATE TABLE dbo.OutboxMessages (
     LastAttemptAt    DATETIMEOFFSET NULL,
     CorrelationId    NVARCHAR(255)  NULL,
     CausationId      NVARCHAR(255)  NULL,
-    TenantId         NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
+    TenantId         NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
     Priority         INT            NOT NULL DEFAULT 0,
     TargetTransports NVARCHAR(MAX)  NULL,
     IsMultiTransport BIT            NOT NULL DEFAULT 0,
@@ -380,6 +396,25 @@ CREATE TABLE dbo.OutboxMessages (
     INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 );
 ```
+
+:::caution Upgrading a database created by an earlier version
+
+`TenantId` is declared `NVARCHAR(64)`. Databases provisioned by earlier releases of this package
+declare it wider, and **re-running the create script above does not narrow it** — the script skips
+any table that already exists, so an upgraded database keeps the wider column while a fresh install
+gets the narrower one.
+
+Nothing breaks at runtime as a result: the collation and nullability are unchanged, and reads and
+writes behave identically on both shapes. The divergence matters when the two shapes meet — a
+restore, a replica, or a move to another provider, all of which use the narrower column. Two tenant
+identifiers that differ only after the 64th character are distinct in the wider column and identical
+in the narrower one, and `TenantId` is part of the dead-letter primary key.
+
+If your tenant identifiers are all 64 characters or shorter — which they are unless you set them
+before this limit was introduced — you are unaffected in practice, and a future narrowing script will
+bring the column into line. That script will **refuse and change nothing** if any identifier exceeds
+64 characters, rather than truncating a value that identifies a tenant.
+:::
 
 :::note Ordering and retry-backoff columns
 `PartitionKey` / `GroupKey` / `SequenceNumber` persist the message ordering keys, and `NextAttemptAt` records the per-message backoff deadline. The background processor claims rows with `WHERE Status IN (Staged, Failed, PartiallyFailed) AND (NextAttemptAt IS NULL OR NextAttemptAt <= @now) ORDER BY PartitionKey, SequenceNumber` — so same-partition messages are delivered in ascending `SequenceNumber`, and a failed message's computed backoff genuinely throttles re-delivery. See [Ordering and Retry Scheduling](#ordering-and-retry-scheduling).
@@ -400,7 +435,7 @@ CREATE TABLE dbo.OutboxMessageTransports (
     RetryCount        INT            NOT NULL DEFAULT 0,
     LastError         NVARCHAR(MAX)  NULL,
     TransportMetadata NVARCHAR(MAX)  NULL,
-    TenantId          NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
+    TenantId          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
     CONSTRAINT FK_OutboxMessageTransports_OutboxMessages
         FOREIGN KEY (MessageId) REFERENCES dbo.OutboxMessages(Id)
 );
@@ -410,7 +445,7 @@ CREATE TABLE dbo.DeadLetterQueue (
     -- Originating tenant, carried as provenance so a replay re-enters the SAME tenant. NOT NULL
     -- and part of the primary key: an untenanted entry stores the reserved '__untenanted__'
     -- sentinel, never NULL, so the untenanted partition can never collide with a real tenant.
-    TenantId            NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL,
+    TenantId            NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL,
     MessageType         NVARCHAR(500)  NOT NULL,
     Payload             VARBINARY(MAX) NOT NULL,
     Reason              INT            NOT NULL,
@@ -457,7 +492,7 @@ IF EXISTS (SELECT * FROM sys.columns
              AND name = N'TenantId' AND is_nullable = 1)
 BEGIN
     UPDATE [dbo].[OutboxMessages] SET TenantId = '__untenanted__' WHERE TenantId IS NULL;
-    ALTER TABLE [dbo].[OutboxMessages] ALTER COLUMN TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL;
+    ALTER TABLE [dbo].[OutboxMessages] ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 END
 ```
 
@@ -465,76 +500,187 @@ Run this before starting the upgraded application. The framework never writes `N
 with no tenant in scope carries the reserved `__untenanted__` value — so the backfill and the application
 agree on what an untenanted row looks like.
 
+:::caution Do not test a drained message for a null tenant
+
+A message you stage with `TenantId = null` is drained carrying the reserved `__untenanted__` value, on
+**every** store — the document and key-value providers as well as the relational ones. Untenanted is a
+value, not an absence, so a handler written as:
+
+```csharp
+if (message.TenantId is null) { /* untenanted */ }   // never true after a drain
+```
+
+silently never takes that branch. Compare against the reserved value, or fold through the framework's
+total conversion, which accepts every spelling:
+
+```csharp
+var partition = KeyedTenantPartition.FromStoredValue(message.TenantId);
+if (partition.Equals(KeyedTenantPartition.Untenanted)) { /* untenanted */ }
+```
+
+If you implement your own outbox store, the published `OutboxStoreConformanceTestKit` enforces this: its
+`UntenantedPartition_MustRoundTripItsOwnMessage` arm fails a store that hands back a null as well as one
+that invents a tenant.
+
+:::
+
 ### PostgreSQL
 
 The PostgreSQL store does **not** auto-create tables — create the schema before starting the application. The `tenant_id` column persists tenant isolation and the `destination` column persists the delivery target, both through enqueue → reserve → dispatch; staged messages fail with `column "tenant_id" does not exist` or `column "destination" does not exist` if either is missing.
 
 ```sql
-CREATE TABLE IF NOT EXISTS outbox (
-    id                 SERIAL       PRIMARY KEY,
-    message_id         VARCHAR(100) NOT NULL UNIQUE,
-    message_type       VARCHAR(500) NOT NULL,
-    message_metadata   TEXT,
-    message_body       BYTEA        NOT NULL,
-    tenant_id          VARCHAR(255),
-    destination        VARCHAR(500),
-    correlation_id     VARCHAR(255),
-    causation_id       VARCHAR(255),
-    priority           INT          NOT NULL DEFAULT 0,
-    partition_key      VARCHAR(255),
-    group_key          VARCHAR(255),
-    sequence_number    BIGINT       NOT NULL DEFAULT 0,
-    target_transports  VARCHAR(500),
-    is_multi_transport BOOLEAN      NOT NULL DEFAULT FALSE,
-    occurred_on        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    attempts           INT          NOT NULL DEFAULT 0,
-    error_message      TEXT,
-    dispatcher_id      VARCHAR(100),
-    dispatcher_timeout TIMESTAMPTZ,
-    next_attempt_at    TIMESTAMPTZ,
-    scheduled_at       TIMESTAMPTZ
+-- Object names follow the PostgresOutboxStoreOptions defaults (SchemaName "public",
+-- OutboxTableName "outbox", DeadLetterTableName "outbox_dead_letters"). If you override any of
+-- them, rename the corresponding object here to match.
+CREATE TABLE IF NOT EXISTS public.outbox (
+    -- The message id IS the primary key. Every read, claim, delete and dead-letter path
+    -- addresses a row by it, and no query selects a surrogate, so there is no id column.
+    message_id          VARCHAR(100)  NOT NULL PRIMARY KEY,
+    message_type        VARCHAR(500)  NOT NULL,
+    message_metadata    TEXT,
+    message_body        BYTEA         NOT NULL,
+    -- Every row carries a tenant term; "no tenant" is the reserved '__untenanted__' value rather
+    -- than the absence of one, so a scoped predicate and an unscoped one compare the same kind of
+    -- thing. The staging path binds the term explicitly, so the DEFAULT is a backstop for
+    -- hand-written INSERTs rather than something the store relies on.
+    tenant_id           VARCHAR(64)   NOT NULL DEFAULT '__untenanted__',
+    destination         VARCHAR(500),
+    correlation_id      VARCHAR(255),
+    causation_id        VARCHAR(255),
+    priority            INT           NOT NULL DEFAULT 0,
+    scheduled_at        TIMESTAMPTZ,
+    partition_key       VARCHAR(255),
+    group_key           VARCHAR(255),
+    sequence_number     BIGINT        NOT NULL DEFAULT 0,
+    target_transports   VARCHAR(500),
+    is_multi_transport  BOOLEAN       NOT NULL DEFAULT FALSE,
+    -- The caller's created-at, not the server clock: the staging path binds it explicitly so the
+    -- value survives the stage-then-reload round trip.
+    occurred_on         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    attempts            INT           NOT NULL DEFAULT 0,
+    error_message       TEXT,
+    -- The claim token written by a drain that has reserved the row, and the instant that
+    -- reservation lapses. Together they form the reservation lease.
+    dispatcher_id       VARCHAR(100),
+    dispatcher_timeout  TIMESTAMPTZ,
+    -- The failure-anchored visibility floor. A message reported failed below the retry ceiling is
+    -- deferred until this instant, so a failure cannot hot-loop the drain.
+    next_attempt_at     TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS outbox_dead_letters (
-    id               SERIAL       PRIMARY KEY,
-    message_id       VARCHAR(100) NOT NULL UNIQUE,
-    message_type     VARCHAR(500) NOT NULL,
-    message_metadata TEXT,
-    message_body     BYTEA        NOT NULL,
-    occurred_on      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    attempts         INT          NOT NULL DEFAULT 0,
-    error_message    TEXT,
-    moved_on         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+-- All four timestamp columns are TIMESTAMPTZ, not TIMESTAMP. The store binds them as true
+-- timestamptz values; a column created WITHOUT time zone is silently shifted by the session
+-- timezone on reload, so a scheduled message becomes due at the wrong instant.
+
+-- Supports the claim cursor's ordering. The drain selects eligible rows ordered by partition_key,
+-- sequence_number, occurred_on, which is what preserves per-partition ordering across concurrent
+-- drains. Do not narrow this index to a partial one: the drain's ordering needs every row.
+CREATE INDEX IF NOT EXISTS ix_outbox_claim_order ON public.outbox (partition_key, sequence_number, occurred_on);
+
+-- Supports releasing a reservation by dispatcher, which matches on dispatcher_id alone.
+CREATE INDEX IF NOT EXISTS ix_outbox_dispatcher ON public.outbox (dispatcher_id);
+
+-- Supports the scheduled-message sweep, which selects rows whose scheduled_at has come due.
+CREATE INDEX IF NOT EXISTS ix_outbox_scheduled_at ON public.outbox (scheduled_at);
+
+-- The move into this table DELETEs the outbox row, so this is the ONLY remaining record of the
+-- message. Anything the move does not copy is destroyed, not merely unindexed.
+CREATE TABLE IF NOT EXISTS public.outbox_dead_letters (
+    message_id          VARCHAR(100)  NOT NULL,
+    -- Originating tenant, carried as provenance so a replay re-enters the SAME tenant. NOT NULL and
+    -- a component of the primary key. No DEFAULT, deliberately -- and this is the one place it
+    -- differs from the outbox table. The move always copies the value from the outbox row, whose
+    -- own column is total, so the value is always supplied. A default here would let a
+    -- hand-written INSERT that forgot the column record a message as untenanted when its tenant was
+    -- simply never named. Without one, that INSERT fails loudly.
+    tenant_id           VARCHAR(64)   NOT NULL,
+    message_type        VARCHAR(500)  NOT NULL,
+    message_metadata    TEXT,
+    message_body        BYTEA         NOT NULL,
+    occurred_on         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    attempts            INT           NOT NULL DEFAULT 0,
+    error_message       TEXT,
+    moved_on            TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    -- Composite on purpose, and NOT a pattern to copy onto the outbox table. The outbox is drained
+    -- by a claim-then-mark protocol that addresses a row by its id alone, so widening that key
+    -- there is a correctness defect. Nothing addresses a dead letter by id: the read path pages by
+    -- age and attempts, and the statistics path counts.
+    CONSTRAINT pk_outbox_dead_letters PRIMARY KEY (message_id, tenant_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_outbox_unreserved ON outbox (occurred_on) WHERE dispatcher_id IS NULL;
-CREATE INDEX IF NOT EXISTS idx_outbox_dispatcher ON outbox (dispatcher_id) WHERE dispatcher_id IS NOT NULL;
+-- Supports the dead-letter read path, which pages by occurred_on ascending.
+CREATE INDEX IF NOT EXISTS ix_outbox_dead_letters_occurred_on ON public.outbox_dead_letters (occurred_on);
 ```
+
+:::tip Run the shipped script instead
+`Excalibur.Outbox.Postgres/Scripts/001_CreateOutboxSchema.sql` is the authority for this schema and
+is reproduced above. Every statement in it is guarded with `IF NOT EXISTS`, so it is safe to re-run
+and safe to apply to a database whose outbox table was created by an earlier version.
+
+If your table was created from an earlier revision of this page it has a `SERIAL` `id` column and a
+`UNIQUE` constraint on `message_id` instead of a primary key on it. That shape still works -- the
+store addresses rows by `message_id`, which is unique either way -- but the surrogate key is never
+read. A `tenant_id` declared `VARCHAR(255)` is also wider than the store will ever write; narrowing
+it is optional, and `002_MakeOutboxTenantTotal.sql` converges a table whose `tenant_id` is still
+nullable.
+:::
 
 :::note Leader-elected (fenced) deployments need a fence control table
 If you run the Postgres outbox **single-active across instances** (a leader-elected processor passing a fencing token), also create the fence control table. It holds one monotonic high-water mark per scope so a demoted leader's stale-token drain/mark is rejected — the guard that prevents a demoted leader from double-delivering (delivery remains at-least-once; this closes the split-brain window, it does not make it exactly-once). It is **not** needed for a single-instance outbox.
 
 ```sql
-CREATE TABLE IF NOT EXISTS outbox_fence (
-    scope_key        TEXT   PRIMARY KEY,
-    high_water_token BIGINT NOT NULL
+CREATE TABLE IF NOT EXISTS public.outbox_fence (
+    scope_key           VARCHAR(600)  NOT NULL PRIMARY KEY,
+    high_water_token    BIGINT        NOT NULL
 );
 ```
 
 The table name defaults to `outbox_fence` (override via `PostgresOutboxStoreOptions.FenceTableName`, qualified by `SchemaName`). The Oracle store uses an equivalent control table named via `OracleOutboxStoreOptions.FenceTableName`.
 
-**The SQL Server outbox uses a durable `OutboxFence` control table.** Like every other table this store uses, it is **not** created at runtime — the store auto-creates nothing. The packaged schema script (`001_CreateOutboxSchema.sql`, shipped inside the NuGet package) creates it for you if you run that script; if you instead copy the DDL from the SQL Server schema section above, `OutboxFence` is included in that block and you must create it along with the others. It is required even for a single-instance deployment that never uses fencing, because the drain references it unconditionally and SQL Server binds object names before the runtime predicate can short-circuit. It holds one monotonic high-water mark per scope that outbox cleanup never touches, so a demoted leader's stale-token drain/mark is rejected even after the outbox has been cleaned up or drained empty. The table name defaults to `OutboxFence` (override via `SqlServerOutboxOptions.FenceTableName`, qualified by `SchemaName`). See [Multi-Instance (Leader-Fenced) Processing](#multi-instance-leader-fenced-processing).
+**The SQL Server outbox uses a durable `OutboxFence` control table.** Like every other table this store uses, it is **not** created at runtime — the store auto-creates nothing. The packaged schema script (`001_CreateOutboxSchema.sql`, shipped inside the NuGet package) creates it for you if you run that script; if you instead copy the DDL from the SQL Server schema section above, `OutboxFence` is included in that block and you must create it along with the others. It is required even for a single-instance deployment that never uses fencing, because the drain references it unconditionally and SQL Server binds object names before the runtime predicate can short-circuit. It holds one monotonic high-water mark per scope that outbox cleanup never touches, so a demoted leader's stale-token drain/mark is rejected even after the outbox has been cleaned up or drained empty. The table name defaults to `OutboxFence` (override via `SqlServerOutboxOptions.Tables.FenceTableName`, qualified by `Tables.SchemaName`). See [Multi-Instance (Leader-Fenced) Processing](#multi-instance-leader-fenced-processing).
 :::
 
 :::note Upgrading an existing Postgres outbox schema
 If you already run an earlier `outbox` schema, add the tenant-isolation and destination columns before deploying — otherwise staged messages fail with `column "tenant_id" does not exist` or `column "destination" does not exist`:
 
 ```sql
-ALTER TABLE outbox ADD COLUMN IF NOT EXISTS tenant_id   VARCHAR(255);
+ALTER TABLE outbox ADD COLUMN IF NOT EXISTS tenant_id   VARCHAR(64) ;
 ALTER TABLE outbox ADD COLUMN IF NOT EXISTS destination VARCHAR(500);
 ```
 
+Then converge `tenant_id` onto its total form by running the packaged
+`002_MakeOutboxTenantTotal.sql` (shipped inside the NuGet package). It backfills every `NULL` and
+blank tenant to the reserved `__untenanted__` value and then applies `NOT NULL DEFAULT`, so an
+untenanted message is stored as a value rather than as the absence of one — which is what lets a
+tenant predicate compare like with like. It is guarded and safe to re-run.
+
+**Deploy this package version before running it, and run it with the processor stopped.** The
+staging path binds the reserved value; an older package binds a raw null tenant and would fail the
+new constraint.
+
 If you run a leader-elected (fenced) outbox, add the `outbox_fence` control table shown above as well.
+:::
+
+:::caution Upgrading an existing dead-letter table: the tenant of entries already in it is unrecoverable
+Earlier versions of `outbox_dead_letters` had no tenant column, and the move that fills that table
+deletes the outbox row it copied from. So for a dead letter that is already in your table, the
+tenant that produced it exists nowhere — not in this table, not in the outbox, not anywhere the
+store can reach.
+
+Run the packaged `003_CarryTenantOnDeadLetters.sql` (Postgres and Oracle, shipped inside the NuGet
+package) before deploying this version. Without it, every dead-letter move fails with
+`column "tenant_id" does not exist`, and a message that has exhausted its retries stays in the
+outbox being retried forever.
+
+The script backfills existing rows to the reserved `__untenanted__` value, because the column is
+being made total. **On a pre-existing row that value records "no tenant was captured" — it is not
+evidence the message was untenanted.** Do not redrive such an entry assuming it belongs to the
+untenanted partition; a message that really belonged to a tenant would re-enter the wrong one. The
+script's pre-flight prints the instant that separates the two populations — record it, and treat
+rows with an earlier `moved_on` as unattributable.
+
+If those entries matter to you, drain, redrive, or export them **before** upgrading, while their
+tenant is still implied by your own operational records.
 :::
 
 ## Background Processing
@@ -542,15 +688,15 @@ If you run a leader-elected (fenced) outbox, add the `outbox_fence` control tabl
 ### Hosted Service (Default)
 
 ```csharp
-// Use presets - background processing enabled by default
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
-
-// Add storage
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
-
-// Register the background service
-services.AddOutboxHostedService();
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+{
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+          .EnableBackgroundProcessing();
+}));
 ```
+
+`EnableBackgroundProcessing()` registers the outbox background service for you. If you prefer to
+register it as a separate step, `services.AddOutboxHostedService()` registers the same service.
 
 ### Quartz Job (Scheduled Processing)
 
@@ -559,8 +705,8 @@ For enterprise scheduling needs, use `OutboxProcessorJob` from `Excalibur.Jobs`:
 ```csharp
 // Install: dotnet add package Excalibur.Jobs
 
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 
 // Register the Quartz.NET outbox processor job
 // Configure schedule in appsettings.json or via Quartz API
@@ -573,13 +719,15 @@ The `OutboxProcessorJob` integrates with Quartz.NET for scheduled outbox process
 For serverless environments (Azure Functions, AWS Lambda):
 
 ```csharp
-// Use Custom preset to disable background processing
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Custom()
-    .WithBatchSize(50)
-    .WithMaxRetries(3)
-    .Build()));  // EnableBackgroundProcessing defaults to true in presets
-
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
+// Serverless: leave EnableBackgroundProcessing() off so no polling loop is registered,
+// and drive the processor from the platform's own trigger instead.
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+{
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+          .WithProcessing(processing => processing
+              .BatchSize(50)
+              .MaxRetryCount(3));
+}));
 
 // Process manually (e.g., Azure Function timer trigger)
 public class OutboxProcessorFunction
@@ -630,6 +778,15 @@ store** — all record the leadership high-water mark in a durable fence control
 cleanup. Some stores (for example Elasticsearch) cannot express an atomic fencing high-water mark with
 their native primitives and therefore always require the opt-out below under a leader election.
 
+**Fail-fast on an ungated drain.** The check above keys on the presence of the **leader election**, not on
+the presence of the gate that fences the drain — a guard that keyed on the gate could not detect the case it
+exists to detect, because a host with no gate would simply read as single-instance. So if a leader election
+is resolvable and nothing fences the drain, startup **refuses** with an `InvalidOperationException` naming
+both remedies, rather than letting every instance drain concurrently. You will normally never see this: the
+first-party registration paths wire the gate for you. It fires when an election reaches the container by some
+other route — a hand-registered `ILeaderElection`, or a provider from outside the framework. Wire the gate
+with `outbox.WithLeaderElection()`, or declare a genuine single-drainer topology with `AsSingleWriter()`.
+
 **Opting out — single-active-writer topology.** If exactly one process drains the outbox even though a
 leader election is registered for *other* resources (leases, scheduled jobs), assert that topology
 explicitly with `AsSingleWriter()`:
@@ -658,8 +815,8 @@ and unfenced by design, emitting a one-time startup **info** log (`OutboxRunning
 The outbox uses the configured `IOutboxPublisher` to send messages. The default behavior dispatches through the registered message bus:
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur.AddOutbox());
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 
 // Messages are dispatched through IDispatcher by default
 ```
@@ -677,8 +834,8 @@ services.AddDispatch(dispatch =>
     });
 });
 
-services.AddExcalibur(excalibur => excalibur.AddOutbox());
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 
 // Register Kafka publisher for outbox
 services.AddSingleton<IOutboxPublisher, KafkaOutboxPublisher>();
@@ -754,8 +911,8 @@ public class WebhookOutboxPublisher : IOutboxPublisher
     // Implement other required methods...
 }
 
-services.AddExcalibur(excalibur => excalibur.AddOutbox());
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 services.AddSingleton<IOutboxPublisher, WebhookOutboxPublisher>();
 ```
 
@@ -764,32 +921,38 @@ services.AddSingleton<IOutboxPublisher, WebhookOutboxPublisher>();
 ### Retry Configuration
 
 ```csharp
-// Use HighReliability preset for aggressive retries (10 retries, 15 min delay)
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability().Build()));
-
-// Or customize retry behavior
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced()
-    .WithMaxRetries(7)
-    .WithRetryDelay(TimeSpan.FromMinutes(2))
-    .Build()));
-
-services.AddSqlServerOutboxStore(options =>
+// Aggressive retries for critical workloads: 10 attempts, 15 minutes apart.
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    options.ConnectionString = connectionString;
-});
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+          .WithProcessing(processing => processing
+              .MaxRetryCount(10)
+              .RetryDelay(TimeSpan.FromMinutes(15)));
+}));
+
+// Or a lighter policy: 7 attempts, 2 minutes apart.
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+{
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+          .WithProcessing(processing => processing
+              .MaxRetryCount(7)
+              .RetryDelay(TimeSpan.FromMinutes(2)));
+}));
 ```
 
 ### Dead Letter Handling
 
 ```csharp
-services.AddSqlServerOutboxStore(options =>
-{
-    options.ConnectionString = connectionString;
-    options.DeadLetterTableName = "DeadLetterMessages";
-});
+services.AddSqlServerOutboxStore(options => options.ConnectionString = connectionString);
 
-// Add dead letter queue handler
-services.AddSqlServerDeadLetterQueue(opts => opts.ConnectionString = connectionString);
+// The dead-letter table is configured on the dead-letter queue itself, not on the
+// outbox store. Its default table is DeadLetterQueue, which is the table the
+// packaged schema script creates.
+services.AddSqlServerDeadLetterQueue(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.TableName = "DeadLetterQueue";
+});
 ```
 
 ## Ordering and Retry Scheduling
@@ -807,6 +970,14 @@ When delivery fails, the processor computes an exponential backoff delay and rec
 A **circuit-breaker-open** short-circuit is treated differently: because no delivery was actually attempted, no backoff is applied — the message stays immediately eligible and retries as soon as the breaker closes.
 
 Backoff scheduling requires a store that implements the optional `IBackoffSchedulableOutboxStore` capability (`MarkFailedWithBackoffAsync`). The **SQL Server and PostgreSQL** stores implement it (the Postgres implementation is signature-identical to SQL Server for cross-provider consistency). Other providers (Redis, MongoDB, Elasticsearch, DynamoDB, Cosmos DB) do not yet implement it and are unaffected: the processor falls back to the plain `MarkFailedAsync` path (immediate re-eligibility), so no store is broken — matching the fail-open pattern used by `IDeadLetterableOutboxStore`. The capability is forwarded transparently through the telemetry and encrypting outbox-store decorators, so it survives a decorated store chain.
+
+## Administrative operations reach every tenant
+
+The operations on `IOutboxStoreAdmin` are estate-wide, and their names say so: `GetAllTenantsStatisticsAsync`, `GetAllTenantsFailedMessagesAsync`, `GetAllTenantsScheduledMessagesAsync` and `CleanupAllTenantsSentMessagesAsync`. `IInboxStoreAdmin` follows the same convention with `GetAllTenantsEntriesAsync`, `GetAllTenantsStatisticsAsync` and `CleanupAllTenantsProcessedEntriesAsync`.
+
+Estate-wide operations here are reached by **name**, never by passing a wildcard tenant value. A name cannot be arrived at accidentally from a value that flowed in from somewhere else; a wildcard can. If you are calling one of these from a request path that holds a single tenant's context, that is worth a second look — the operation will not confine itself to that tenant.
+
+**Statistics is deliberately estate-wide, and could not be otherwise.** The operation takes no tenant argument, the statistics type it returns carries no tenant field, and the store reads no ambient tenant context — so a confined result would have no way to say which partition it described. A report that reaches rows by no key can only *lose* rows by filtering; it cannot gain another tenant's. Adding a tenant predicate would therefore not tighten it, it would silently under-report the backlog. Treat these as operator reports, and do not surface them to a tenant as though they described that tenant alone.
 
 ## Cleanup
 
@@ -954,10 +1125,8 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 }));
 
 // Register the unified outbox store (required for Transactional and EventuallyConsistent)
-services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseSqlServer(opts =>
-{
-    opts.ConnectionString = connectionString;
-})));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 ```
 
 ### How Auto Resolution Works
@@ -1030,7 +1199,7 @@ At high event rates (100K+ events/sec), the single outbox table becomes a conten
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString));
 
     outbox.UsePartitionedProcessing(opts =>
     {

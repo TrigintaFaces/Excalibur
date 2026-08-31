@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
@@ -28,17 +26,4 @@ public sealed class CredentialRotationOptions
 	/// </summary>
 	/// <value> The time before rotation to issue warnings. Defaults to 7 days. </value>
 	public TimeSpan WarningThreshold { get; init; } = TimeSpan.FromDays(7);
-
-	/// <summary>
-	/// Gets a value indicating whether to perform rotation during maintenance windows only.
-	/// </summary>
-	/// <value> True to restrict rotation to maintenance windows, false to allow any time. </value>
-	public bool MaintenanceWindowOnly { get; init; } = true;
-
-	/// <summary>
-	/// Gets the maximum number of rotation retries on failure.
-	/// </summary>
-	/// <value> The number of retry attempts for failed rotations. Defaults to 3. </value>
-	[Range(1, 10)]
-	public int MaxRetries { get; init; } = 3;
 }

@@ -4,6 +4,7 @@
 using Excalibur.AuditLogging.Diagnostics;
 using Excalibur.Compliance;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.AuditLogging;
@@ -36,35 +37,37 @@ public sealed partial class RbacAuditStore : IAuditStore
 	];
 
 	private readonly IAuditStore _innerStore;
-	private readonly IAuditRoleProvider _roleProvider;
-	private readonly IAuditActorProvider? _actorProvider;
-	private readonly IAuditLogger _metaAuditLogger;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly ILogger<RbacAuditStore> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RbacAuditStore"/> class.
 	/// </summary>
 	/// <param name="innerStore">The underlying audit store to wrap.</param>
-	/// <param name="roleProvider">The provider for the current user's role.</param>
-	/// <param name="metaAuditLogger">
-	/// The logger for meta-audit events (audit access logging). This is a required, safety-critical
-	/// dependency: meta-auditing records who read the audit trail, a segregation-of-duties control that
-	/// must never be silently disabled by leaving it unconfigured. Its absence is refused at construction.
+	/// <param name="scopeFactory">
+	/// The factory this store opens a scope from on every operation, to resolve the caller's role, identity
+	/// and meta-audit logger. Those three are per-caller state and are deliberately NOT constructor
+	/// parameters: this store is registered with the lifetime of the store it wraps, which is a singleton,
+	/// so anything held in a field here answers for one caller for the life of the process. Taking them by
+	/// constructor made every meta-audit record name the first caller and made the role check -- an access
+	/// control -- decide on that caller's role, and under scope validation it refused to start at all.
 	/// </param>
 	/// <param name="logger">The logger for diagnostic output.</param>
-	/// <param name="actorProvider">Optional provider for the current actor identity. When null, the role name is used.</param>
+	/// <remarks>
+	/// A provider that reads ambient state -- claims, an <c>IHttpContextAccessor</c>, an async-local -- is
+	/// resolved correctly from the scope opened here, because that state flows with the call rather than
+	/// with the container scope. A provider whose identity is instead written into the caller's DI scope by
+	/// host middleware cannot be reached from a singleton at all, and reports its unattributed default here
+	/// rather than another caller's identity.
+	/// </remarks>
 	public RbacAuditStore(
 		IAuditStore innerStore,
-		IAuditRoleProvider roleProvider,
-		IAuditLogger metaAuditLogger,
-		ILogger<RbacAuditStore> logger,
-		IAuditActorProvider? actorProvider = null)
+		IServiceScopeFactory scopeFactory,
+		ILogger<RbacAuditStore> logger)
 	{
 		_innerStore = innerStore ?? throw new ArgumentNullException(nameof(innerStore));
-		_roleProvider = roleProvider ?? throw new ArgumentNullException(nameof(roleProvider));
-		_metaAuditLogger = metaAuditLogger ?? throw new ArgumentNullException(nameof(metaAuditLogger));
+		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_actorProvider = actorProvider;
 	}
 
 	/// <summary>
@@ -98,7 +101,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 	/// <exception cref="UnauthorizedAccessException">Thrown when the current user lacks permission.</exception>
 	public async Task<AuditEvent?> GetByIdAsync(string eventId, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
 		var auditEvent = await _innerStore.GetByIdAsync(eventId, cancellationToken).ConfigureAwait(false);
@@ -120,7 +123,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 	{
 		ArgumentNullException.ThrowIfNull(query);
 
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
 		var filteredQuery = ApplyRoleFilters(query, role);
@@ -137,7 +140,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 	{
 		ArgumentNullException.ThrowIfNull(query);
 
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
 		var filteredQuery = ApplyRoleFilters(query, role);
@@ -151,7 +154,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 		DateTimeOffset endDate,
 		CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 
 		// Only ComplianceOfficer and Administrator can verify integrity
 		if (role < AuditLogRole.ComplianceOfficer)
@@ -172,7 +175,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 	/// <exception cref="UnauthorizedAccessException">Thrown when the current user lacks permission.</exception>
 	public async Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
 		return await _innerStore.GetLastEventAsync(tenantId, cancellationToken).ConfigureAwait(false);
@@ -232,16 +235,42 @@ public sealed partial class RbacAuditStore : IAuditStore
 		return query;
 	}
 
+	/// <summary>
+	/// Resolves the current caller's role from a scope opened for this operation.
+	/// </summary>
+	/// <remarks>
+	/// The role provider is required: this is an access-control input, and a host that registered none must
+	/// be refused rather than defaulted. Resolution is per operation so the decision belongs to the caller
+	/// being checked.
+	/// </remarks>
+	private async Task<AuditLogRole> GetCurrentRoleAsync(CancellationToken cancellationToken)
+	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		return await scope.ServiceProvider
+			.GetRequiredService<IAuditRoleProvider>()
+			.GetCurrentRoleAsync(cancellationToken)
+			.ConfigureAwait(false);
+	}
+
 	private async Task LogMetaAuditAsync(
 		string action,
 		AuditLogRole role,
 		string details,
 		CancellationToken cancellationToken)
 	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		// Resolved OUTSIDE the try, so a host that never registered a meta-audit logger fails loudly.
+		// Meta-auditing records who read the audit trail -- a segregation-of-duties control that must never
+		// be silently disabled. The try below covers the WRITE failing, which must not fail the read.
+		var metaAuditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+		var actorProvider = scope.ServiceProvider.GetService<IAuditActorProvider>();
+
 		try
 		{
-			var actorId = _actorProvider is not null
-				? await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false)
+			var actorId = actorProvider is not null
+				? await actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false)
 				: $"role:{role}";
 
 			var metaEvent = new AuditEvent
@@ -257,7 +286,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 				Reason = $"Role={role}, {details}"
 			};
 
-			_ = await _metaAuditLogger.LogAsync(metaEvent, cancellationToken).ConfigureAwait(false);
+			_ = await metaAuditLogger.LogAsync(metaEvent, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{

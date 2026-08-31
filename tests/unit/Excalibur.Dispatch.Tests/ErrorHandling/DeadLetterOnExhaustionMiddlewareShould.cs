@@ -26,17 +26,19 @@ namespace Excalibur.Dispatch.Tests.ErrorHandling;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The decorator composes the committed retry-exhaustion terminal — it routes <strong>only</strong> the
-/// distinct <c>RetryProblemTypes.RetryExhausted</c> result to <see cref="IDeadLetterQueue"/> with
-/// <see cref="DeadLetterReason.MaxRetriesExceeded"/>, and <strong>never</strong> <c>RetryError</c> (non-retryable
-/// abandon), a handler's own failed result (permanent-before-cap), or a success. The dead-letter write is a
-/// side-effect: the original result always flows up unchanged, and a DLQ enqueue failure is swallowed
-/// (<b>fail-open</b>). Authored independently of the implementer (PlatformDeveloper) against the working-tree seam.
+/// The decorator composes the retry middleware's exhaustion, which that middleware records on the message
+/// context. Exhaustion leaves the retry middleware two ways — the downstream's own failed result is
+/// returned, or the original exception propagates — so both arms below are required, and they are mutually
+/// exclusive for a single dispatch. It routes <strong>never</strong> for a fault retry declined to retry, a
+/// handler's own failed result from before the cap, or a success. The dead-letter write is a side effect:
+/// the original result flows up unchanged and a propagating exception is rethrown untouched, and a
+/// dead-letter enqueue failure is swallowed (<b>fail-open</b>).
 /// </para>
 /// <para>
-/// <b>RED mutants:</b> route on <c>RetryError</c> instead of <c>RetryExhausted</c> ⇒ the
-/// routes-exhausted fact records zero enqueues AND the rejects-RetryError fact records one ⇒ both RED;
-/// re-counting attempts / routing handler-failures ⇒ the rejects-failure facts RED.
+/// <b>RED mutants:</b> drop the catch arm ⇒ the exception-path routing fact records zero enqueues; drop the
+/// post-call arm ⇒ the result-path fact records zero; route on any failure rather than on the recorded
+/// exhaustion ⇒ both rejects-non-exhaustion facts RED; route in both arms for one dispatch ⇒ the
+/// exactly-once counts RED.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -44,32 +46,44 @@ namespace Excalibur.Dispatch.Tests.ErrorHandling;
 public sealed class DeadLetterOnExhaustionMiddlewareShould
 {
 	[Fact]
-	public async Task RouteRetryExhausted_ToDeadLetterQueue_ExactlyOnce_AndReturnOriginal()
+	public async Task RouteExhaustionByResult_ToDeadLetterQueue_ExactlyOnce_AndReturnOriginal()
 	{
 		var dlq = A.Fake<IDeadLetterQueue>();
-		var exhausted = Failed(RetryProblemTypes.RetryExhausted, "exhausted after 3 attempts");
+		var exhausted = Failed("DownstreamError", "exhausted after 3 attempts");
 
-		var returned = await Invoke(dlq, exhausted);
+		var returned = await Invoke(dlq, ExhaustedReturning(exhausted));
 
-		// Exactly one enqueue, with the distinct MaxRetriesExceeded reason.
-		A.CallTo(() => dlq.EnqueueAsync<IDispatchMessage>(
-				A<IDispatchMessage>._, DeadLetterReason.MaxRetriesExceeded, A<CancellationToken>._,
-				A<Exception?>._, A<IDictionary<string, string>?>._))
-			.MustHaveHappenedOnceExactly();
-		// Side-effect only: the original exhausted result flows up unchanged.
+		AssertEnqueuedOnce(dlq);
+		// Side-effect only: the downstream's own result flows up unchanged.
 		returned.ShouldBeSameAs(exhausted);
 	}
 
 	[Fact]
-	public async Task NotRoute_RetryError()
+	public async Task RouteExhaustionByException_ToDeadLetterQueue_ExactlyOnce_AndRethrowOriginal()
 	{
 		var dlq = A.Fake<IDeadLetterQueue>();
-		var retryError = Failed(RetryProblemTypes.RetryError, "non-retryable");
 
-		var returned = await Invoke(dlq, retryError);
+		// The retry middleware records the exhaustion and then rethrows the handler's original exception.
+		var thrown = await Should.ThrowAsync<TimeoutException>(
+			Invoke(dlq, ExhaustedThrowing(new TimeoutException("never recovered"))));
+
+		AssertEnqueuedOnce(dlq);
+		// Side-effect only: the original exception is rethrown untouched, so the mapping and typed-handler
+		// middleware above still see the consumer's own type and message.
+		thrown.Message.ShouldBe("never recovered");
+	}
+
+	[Fact]
+	public async Task NotRoute_WhenAFaultPropagatesWithoutExhaustion()
+	{
+		var dlq = A.Fake<IDeadLetterQueue>();
+
+		// A fault retry declined to retry, or one raised with no retry middleware in the pipeline at all:
+		// nothing recorded an exhaustion, so this is not one.
+		_ = await Should.ThrowAsync<ArgumentException>(
+			Invoke(dlq, (_, _, _) => throw new ArgumentException("declined, not exhausted")));
 
 		AssertNoEnqueue(dlq);
-		returned.ShouldBeSameAs(retryError);
 	}
 
 	[Fact]
@@ -78,7 +92,7 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 		var dlq = A.Fake<IDeadLetterQueue>();
 		var handlerFailure = Failed("SomeHandlerError", "permanent before cap");
 
-		var returned = await Invoke(dlq, handlerFailure);
+		var returned = await Invoke(dlq, (_, _, _) => new ValueTask<IMessageResult>(handlerFailure));
 
 		AssertNoEnqueue(dlq);
 		returned.ShouldBeSameAs(handlerFailure);
@@ -90,7 +104,7 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 		var dlq = A.Fake<IDeadLetterQueue>();
 		var success = MessageResult.Success();
 
-		_ = await Invoke(dlq, success);
+		_ = await Invoke(dlq, (_, _, _) => new ValueTask<IMessageResult>(success));
 
 		AssertNoEnqueue(dlq);
 	}
@@ -103,12 +117,31 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 				A<IDispatchMessage>._, A<DeadLetterReason>._, A<CancellationToken>._,
 				A<Exception?>._, A<IDictionary<string, string>?>._))
 			.Throws<InvalidOperationException>();
-		var exhausted = Failed(RetryProblemTypes.RetryExhausted, "exhausted");
+		var exhausted = Failed("DownstreamError", "exhausted");
 
 		// Must NOT rethrow — a DLQ failure can never mask/crash the original exhaustion.
-		var returned = await Invoke(dlq, exhausted);
+		var returned = await Invoke(dlq, ExhaustedReturning(exhausted));
 
 		returned.ShouldBeSameAs(exhausted);
+	}
+
+	/// <summary>
+	/// The fail-open half of the arm above, on the exception path: a dead-letter enqueue failure must not
+	/// replace the original exception with its own.
+	/// </summary>
+	[Fact]
+	public async Task FailOpen_WhenDlqThrows_StillRethrowTheOriginalException()
+	{
+		var dlq = A.Fake<IDeadLetterQueue>();
+		_ = A.CallTo(() => dlq.EnqueueAsync<IDispatchMessage>(
+				A<IDispatchMessage>._, A<DeadLetterReason>._, A<CancellationToken>._,
+				A<Exception?>._, A<IDictionary<string, string>?>._))
+			.Throws<InvalidOperationException>();
+
+		var thrown = await Should.ThrowAsync<TimeoutException>(
+			Invoke(dlq, ExhaustedThrowing(new TimeoutException("never recovered"))));
+
+		thrown.Message.ShouldBe("never recovered");
 	}
 
 	/// <summary>
@@ -132,10 +165,10 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 				A<IDispatchMessage>._, A<DeadLetterReason>._, A<CancellationToken>._,
 				A<Exception?>._, A<IDictionary<string, string>?>._))
 			.Throws<OperationCanceledException>();
-		var exhausted = Failed(RetryProblemTypes.RetryExhausted, "exhausted");
+		var exhausted = Failed("DownstreamError", "exhausted");
 
 		// The OCE must NOT be swallowed by the fail-open catch — cooperative cancellation propagates.
-		_ = await Should.ThrowAsync<OperationCanceledException>(Invoke(dlq, exhausted));
+		_ = await Should.ThrowAsync<OperationCanceledException>(Invoke(dlq, ExhaustedReturning(exhausted)));
 	}
 
 	/// <summary>
@@ -161,11 +194,11 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 		var logger = new RecordingLogger();
 		var middleware = new DeadLetterOnExhaustionMiddleware(NullDeadLetterQueue.Instance, logger);
 
-		DispatchRequestDelegate next = (_, _, _) =>
-			new ValueTask<IMessageResult>(Failed(RetryProblemTypes.RetryExhausted, "exhausted"));
-
 		_ = await middleware.InvokeAsync(
-			A.Fake<IDispatchMessage>(), CreateContext(), next, CancellationToken.None);
+			A.Fake<IDispatchMessage>(),
+			CreateContext(),
+			ExhaustedReturning(Failed("DownstreamError", "exhausted")),
+			CancellationToken.None);
 
 		logger.EventIds.ShouldContain(
 			DeliveryEventId.DeadLetterOnExhaustionDiscarded,
@@ -187,11 +220,11 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 		var dlq = A.Fake<IDeadLetterQueue>();
 		var middleware = new DeadLetterOnExhaustionMiddleware(dlq, logger);
 
-		DispatchRequestDelegate next = (_, _, _) =>
-			new ValueTask<IMessageResult>(Failed(RetryProblemTypes.RetryExhausted, "exhausted"));
-
 		_ = await middleware.InvokeAsync(
-			A.Fake<IDispatchMessage>(), CreateContext(), next, CancellationToken.None);
+			A.Fake<IDispatchMessage>(),
+			CreateContext(),
+			ExhaustedReturning(Failed("DownstreamError", "exhausted")),
+			CancellationToken.None);
 
 		logger.EventIds.ShouldContain(
 			DeliveryEventId.DeadLetterOnExhaustionEnqueued,
@@ -201,10 +234,7 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 			DeliveryEventId.DeadLetterOnExhaustionDiscarded,
 			"a stored message must never be reported as discarded");
 
-		A.CallTo(() => dlq.EnqueueAsync<IDispatchMessage>(
-				A<IDispatchMessage>._, A<DeadLetterReason>._, A<CancellationToken>._,
-				A<Exception?>._, A<IDictionary<string, string>?>._))
-			.MustHaveHappenedOnceExactly();
+		AssertEnqueuedOnce(dlq);
 	}
 
 	/// <summary>
@@ -231,18 +261,38 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 			_eventIds.Add(eventId.Id);
 	}
 
+	// Stands in for the retry middleware exhausting its attempts and returning the downstream's own failure.
+	private static DispatchRequestDelegate ExhaustedReturning(IMessageResult result) =>
+		(_, context, _) =>
+		{
+			context.MarkRetryExhausted();
+			return new ValueTask<IMessageResult>(result);
+		};
+
+	// Stands in for the retry middleware exhausting its attempts and rethrowing the original exception.
+	private static DispatchRequestDelegate ExhaustedThrowing(Exception exception) =>
+		(_, context, _) =>
+		{
+			context.MarkRetryExhausted();
+			throw exception;
+		};
+
+	private static void AssertEnqueuedOnce(IDeadLetterQueue dlq) =>
+		A.CallTo(() => dlq.EnqueueAsync<IDispatchMessage>(
+				A<IDispatchMessage>._, DeadLetterReason.MaxRetriesExceeded, A<CancellationToken>._,
+				A<Exception?>._, A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
+
 	private static void AssertNoEnqueue(IDeadLetterQueue dlq) =>
 		A.CallTo(() => dlq.EnqueueAsync<IDispatchMessage>(
 				A<IDispatchMessage>._, A<DeadLetterReason>._, A<CancellationToken>._,
 				A<Exception?>._, A<IDictionary<string, string>?>._))
 			.MustNotHaveHappened();
 
-	private static async Task<IMessageResult> Invoke(IDeadLetterQueue dlq, IMessageResult nextResult)
+	private static async Task<IMessageResult> Invoke(IDeadLetterQueue dlq, DispatchRequestDelegate next)
 	{
 		var middleware = new DeadLetterOnExhaustionMiddleware(
 			dlq, NullLogger<DeadLetterOnExhaustionMiddleware>.Instance);
-
-		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(nextResult);
 
 		return await middleware.InvokeAsync(A.Fake<IDispatchMessage>(), CreateContext(), next, CancellationToken.None);
 	}

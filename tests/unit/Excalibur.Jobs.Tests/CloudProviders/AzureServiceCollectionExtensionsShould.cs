@@ -5,6 +5,7 @@ using Azure.ResourceManager;
 
 using Excalibur.Jobs.Azure;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -51,5 +52,29 @@ public sealed class AzureServiceCollectionExtensionsShould
 		options.ResourceGroupName.ShouldBe("jobs-rg");
 		options.SubscriptionId.ShouldBe("sub-id");
 		options.JobExecutionEndpoint.ShouldBe("https://jobs.example.com/execute");
+	}
+
+	[Fact]
+	public void BindTheConfiguredRegionFromConfiguration()
+	{
+		// A non-default region must survive configuration binding: the region is what the
+		// provider stamps onto the workflow it creates, so a silently defaulted value would
+		// deploy the Logic App into the wrong Azure region.
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["ResourceGroupName"] = "jobs-rg",
+				["SubscriptionId"] = "sub-id",
+				["JobExecutionEndpoint"] = "https://jobs.example.com/execute",
+				["Location"] = "westeurope",
+			})
+			.Build();
+
+		var services = new ServiceCollection();
+		_ = services.AddAzureLogicApps(configuration);
+
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<AzureLogicAppsOptions>>().Value;
+		options.Location.ShouldBe("westeurope");
 	}
 }

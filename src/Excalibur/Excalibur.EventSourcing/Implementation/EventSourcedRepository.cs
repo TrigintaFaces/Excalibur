@@ -17,7 +17,7 @@ using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-// Use Excalibur.EventSourcing as canonical source (AD-251-2)
+// Use Excalibur.EventSourcing as canonical source
 
 namespace Excalibur.EventSourcing.Implementation;
 
@@ -84,12 +84,12 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	private readonly record struct SnapshotTrackingState(long Version, DateTimeOffset Timestamp);
 
 	// Records events that were appended on the eventually-consistent (non-transactional) path but whose
-	// integration-event outbox staging had not yet completed (FR-A5). A staging failure leaves this
+	// integration-event outbox staging had not yet completed. A staging failure leaves this
 	// breadcrumb so a retried SaveAsync re-stages the SAME events idempotently (event-id keyed) WITHOUT
 	// re-appending — re-appending would raise a stale-version ConcurrencyException and orphan the events.
 	// Bounded by MaxPendingStages (same skip-when-full policy as _snapshotTracking) so a pathological run
 	// of staging failures cannot grow the map without limit. In-process only: this is the in-sprint slice
-	// of the exactly-once epic (02sj2h); durable cross-process exactly-once is out of scope here.
+	// of the exactly-once epic; durable cross-process exactly-once is out of scope here.
 	private const int MaxPendingStages = 1024;
 	private readonly ConcurrentDictionary<string, PendingOutboxStage> _pendingStages = new(StringComparer.Ordinal);
 
@@ -352,13 +352,13 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		var eventsToApply = new List<HistoricEvent>(storedEvents.Count);
 		foreach (var storedEvent in storedEvents)
 		{
-			// GDPR erasure (FR-A7): an erased stream is tombstoned in place with the closed,
+			// GDPR erasure: an erased stream is tombstoned in place with the closed,
 			// framework-controlled ErasedEventMarker.EventType discriminator (its payload nulled/replaced).
 			// Recognize the tombstone STRUCTURALLY — by the marker constant, checked positively and BEFORE
 			// any deserialization attempt — and return the defined erased sentinel instead of failing loud.
 			// This is never a "deserialize failed => assume erased" heuristic (which would mask genuine
 			// corruption as erasure); strict no-skip is preserved for every other deserialization failure.
-			if (string.Equals(storedEvent.EventType, ErasedEventMarker.EventType, StringComparison.Ordinal))
+			if (ErasedEventMarker.IsErased(storedEvent.EventType))
 			{
 				return CreateErasedSentinel(aggregateId);
 			}
@@ -436,9 +436,12 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Resolve effective staging strategy
 		var strategy = ResolveEffectiveStagingStrategy();
 
+		// Ask the store for the capability rather than testing its type: a decorated store -- telemetry,
+		// tenant scoping, encryption, tiered storage -- does not itself implement ITransactionalEventStore
+		// even when the store beneath it does, and a type test would silently drop us off the atomic path.
 		if (strategy == OutboxStagingStrategy.Transactional
 			&& _transactionalOutboxWriter is not null
-			&& _eventStore is ITransactionalEventStore txStore)
+			&& _eventStore.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore txStore)
 		{
 			// Transactional: append events and stage outbox messages in a single atomic transaction.
 			await SaveWithTransactionalOutboxAsync(
@@ -448,7 +451,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		else
 		{
 			// Non-transactional path: append events first.
-			// Idempotent re-stage (FR-A5): a prior attempt may have appended these exact events but then
+			// Idempotent re-stage: a prior attempt may have appended these exact events but then
 			// failed during outbox staging, leaving a pending-stage breadcrumb. In that case re-appending
 			// would raise a stale-version ConcurrencyException and orphan the appended events — so skip the
 			// re-append and go straight to re-staging the SAME events.
@@ -493,7 +496,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Format: "{AggregateType}:{Id}:v{Version}" provides deterministic, version-linked ETags
 		aggregate.ETag = $"{aggregate.AggregateType}:{aggregate.Id}:v{aggregate.Version}";
 
-		// Notify inline projections and event notification handlers (R27.2, R27.3).
+		// Notify inline projections and event notification handlers.
 		// Events are already committed -- the broker handles failure per the configured policy.
 		// When no broker is registered in DI, this is a no-op (zero behavioral change).
 		if (_eventNotificationBroker is not null)
@@ -692,6 +695,13 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	[RequiresDynamicCode("Event deserialization may require dynamic code generation.")]
 	private IDomainEvent? DeserializeEvent(StoredEvent storedEvent)
 	{
+		// A tombstoned event carries no payload. There is nothing to deserialize, and the caller already
+		// treats a null result as an event it cannot materialize.
+		if (storedEvent.EventData is null)
+		{
+			return null;
+		}
+
 		try
 		{
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
@@ -752,7 +762,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		if (!_snapshotVersionManager.CanUpgrade(aggregateType, currentSchemaVersion, _targetSnapshotVersion))
 		{
-			// Fail-closed (FR-A1): auto-snapshot-upgrade is enabled and the stored snapshot's schema
+			// Fail-closed: auto-snapshot-upgrade is enabled and the stored snapshot's schema
 			// version differs from the target, but no upgrader path is registered. Applying the stale
 			// snapshot would rehydrate the aggregate from a schema the code no longer understands -- a
 			// silent-corruption hazard. Refuse it loudly, mirroring the events-path refusal to skip an
@@ -846,7 +856,8 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		}
 
 		// Auto: select best available strategy
-		if (_transactionalOutboxWriter is not null && _eventStore is ITransactionalEventStore)
+		if (_transactionalOutboxWriter is not null
+			&& _eventStore.GetService(typeof(ITransactionalEventStore)) is not null)
 		{
 			return OutboxStagingStrategy.Transactional;
 		}
@@ -884,13 +895,13 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			}
 			catch (InvalidOperationException ex) when (ex is not ObjectDisposedException)
 			{
-				// Idempotent re-stage (FR-A5): per IOutboxStore.StageMessageAsync's contract, staging a
+				// Idempotent re-stage: per IOutboxStore.StageMessageAsync's contract, staging a
 				// message whose (event-id keyed) id already exists throws InvalidOperationException. That
 				// happens when a prior attempt staged this event before failing later in the loop; treat the
 				// duplicate as an idempotent no-op and continue so the retry completes the remaining events
 				// without re-appending or producing duplicates.
 				//
-				// r09b2d (FR-C1): scope this catch to the duplicate-id contract ONLY. ObjectDisposedException
+				//: scope this catch to the duplicate-id contract ONLY. ObjectDisposedException
 				// derives from InvalidOperationException, so a disposed/faulted outbox store would otherwise be
 				// silently swallowed here as a no-op — a silent integration-event drop (data-loss-adjacent).
 				// The `when` filter lets ObjectDisposedException (and any non-duplicate fault surfaced as one)
@@ -928,7 +939,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		return new OutboundMessage
 		{
-			// Idempotency key (FR-A5): derive the message id deterministically from the event id so a
+			// Idempotency key: derive the message id deterministically from the event id so a
 			// re-stage of the same event produces the same message id. The outbox store rejects a duplicate
 			// id, making a retried stage a no-op rather than a duplicate. EventId is a required, stable,
 			// per-event identifier on IDomainEvent (framework-stamped UUID v7 for DomainEvent-derived events).
@@ -1073,6 +1084,45 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 			autoSnapshotOptions, upcastingPipeline, snapshotManager, snapshotStrategy,
 			transactionalOutboxWriter, outboxStore, snapshotVersionManager, eventNotificationBroker,
 			timeProvider, outboxStagingStrategy, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate}" /> class
+	/// using the Options pattern for configuration.
+	/// </summary>
+	/// <param name="eventStore"> The event store for persistence. </param>
+	/// <param name="eventSerializer"> The event serializer for deserialization. </param>
+	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a string key. </param>
+	/// <param name="options"> Configuration options for the repository. </param>
+	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
+	/// <param name="upcastingPipeline"> Optional upcasting pipeline for version transformation. </param>
+	/// <param name="snapshotManager"> Optional snapshot manager. </param>
+	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
+	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
+	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
+	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
+	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
+	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
+	/// <param name="logger"> Optional logger for diagnostics. </param>
+	public EventSourcedRepository(
+		IEventStore eventStore,
+		IEventSerializer eventSerializer,
+		Func<string, TAggregate> aggregateFactory,
+		IOptions<EventSourcedRepositoryOptions> options,
+		IOptionsMonitor<AutoSnapshotOptions>? autoSnapshotOptions = null,
+		IUpcastingPipeline? upcastingPipeline = null,
+		ISnapshotManager? snapshotManager = null,
+		ISnapshotStrategy? snapshotStrategy = null,
+		ITransactionalOutboxWriter? transactionalOutboxWriter = null,
+		IOutboxStore? outboxStore = null,
+		SnapshotVersionManager? snapshotVersionManager = null,
+		IEventNotificationBroker? eventNotificationBroker = null,
+		TimeProvider? timeProvider = null,
+		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null)
+		: base(eventStore, eventSerializer, aggregateFactory, options, autoSnapshotOptions,
+			upcastingPipeline, snapshotManager, snapshotStrategy, transactionalOutboxWriter,
+			outboxStore, snapshotVersionManager, eventNotificationBroker, timeProvider, logger)
 	{
 	}
 }

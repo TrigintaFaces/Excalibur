@@ -22,7 +22,7 @@ namespace Excalibur.Data.MySql;
 /// <summary>
 /// MySQL/MariaDB implementation of the persistence provider.
 /// </summary>
-public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction
+public sealed partial class MySqlPersistenceProvider : ISqlPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction, IPersistenceProviderConnection, IDataRequestExecutor
 {
 	private readonly MySqlProviderOptions _options;
 	private readonly ILogger<MySqlPersistenceProvider> _logger;
@@ -64,8 +64,7 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 		}
 
 		ConnectionString = builder.ConnectionString;
-		Name = _options.Name ?? "mysql";
-		ProviderType = "SQL";
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "mysql" : _options.Name;
 
 		_dataRequestRetryPolicy = new MySqlRetryPolicy(_options, _logger);
 
@@ -82,7 +81,123 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 	public string Name { get; }
 
 	/// <inheritdoc/>
-	public string ProviderType { get; }
+	public string ProviderType => "SQL";
+
+	/// <inheritdoc/>
+	public string DatabaseType => "MySQL";
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// The whole batch commits or none of it does: the requests run inside one explicit transaction, which
+	/// is rolled back on the first failure. A caller receiving results therefore knows every request in the
+	/// batch was applied, and a caller receiving an exception knows none of them was.
+	/// </remarks>
+	public async Task<IEnumerable<object>> ExecuteBatchAsync(
+		IEnumerable<IDataRequest<IDbConnection, object>> requests,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(requests);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var requestList = requests.ToList();
+
+		await using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false) as MySqlConnection
+									 ?? throw new InvalidOperationException("Connection must be MySqlConnection.");
+
+		await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			var results = new List<object>(requestList.Count);
+
+			foreach (var request in requestList)
+			{
+				results.Add(await request.ResolveAsync(connection).ConfigureAwait(false));
+			}
+
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+			return results;
+		}
+		catch
+		{
+			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+			throw;
+		}
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Unlike <see cref="ExecuteBatchAsync"/> this opens no transaction of its own. The caller's scope owns
+	/// the boundary, so the provider and the connection are enlisted into it and the commit decision stays
+	/// with the caller -- a nested transaction here would either be ignored or would commit a subset of the
+	/// caller's unit of work.
+	/// </remarks>
+	public async Task<IEnumerable<object>> ExecuteBatchInTransactionAsync(
+		IEnumerable<IDataRequest<IDbConnection, object>> requests,
+		ITransactionScope transactionScope,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(requests);
+		ArgumentNullException.ThrowIfNull(transactionScope);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var requestList = requests.ToList();
+
+		await transactionScope.EnlistProviderAsync(this, cancellationToken).ConfigureAwait(false);
+
+		using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		await transactionScope.EnlistConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
+
+		var results = new List<object>(requestList.Count);
+
+		foreach (var request in requestList)
+		{
+			results.Add(await request.ResolveAsync(connection).ConfigureAwait(false));
+		}
+
+		return results;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Rejects only what MySQL provably cannot execute: an empty command, or a request with no resolver to
+	/// run. Bracket-quoted identifiers are rejected as well -- they are SQL Server syntax that MySQL reads
+	/// as an array subscript under its default SQL mode, so a request carrying them fails at the server with
+	/// a syntax error that names a position rather than a cause.
+	/// </remarks>
+	public bool ValidateRequest<TResult>(IDataRequest<IDbConnection, TResult> request)
+	{
+		if (request is null)
+		{
+			return false;
+		}
+
+		try
+		{
+			var commandText = request.Command.CommandText;
+
+			if (string.IsNullOrWhiteSpace(commandText))
+			{
+				return false;
+			}
+
+			if (commandText.Contains('[', StringComparison.Ordinal) && commandText.Contains(']', StringComparison.Ordinal))
+			{
+				return false;
+			}
+
+			return request.ResolveAsync is not null;
+		}
+		catch (InvalidOperationException)
+		{
+			// Building the command is the request's own work and it may refuse: an unbuildable request is
+			// an invalid one, which is the answer this method exists to give.
+			return false;
+		}
+	}
+
 
 	/// <inheritdoc/>
 	public bool IsAvailable => _initialized && !_disposed;
@@ -94,10 +209,9 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 	public IDataRequestRetryPolicy RetryPolicy => _dataRequestRetryPolicy;
 
 	/// <inheritdoc/>
-	public async Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
+	public async Task<TResult> ExecuteAsync<TResult>(
+		IDataRequest<IDbConnection, TResult> request,
 		CancellationToken cancellationToken)
-		where TConnection : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -106,7 +220,7 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 
 		return await _dataRequestRetryPolicy.ResolveAsync(
 			request,
-			async () => (TConnection)await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
+			async () => await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
 			cancellationToken).ConfigureAwait(false);
 	}
 
@@ -178,7 +292,13 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 					_ = await command.ExecuteScalarAsync(ct).ConfigureAwait(false);
 				}, cancellationToken).ConfigureAwait(false);
 
+			// A verified round-trip IS the readiness this provider reports: latch it here so a provider used
+			// the way its own registration builds it -- without an explicit InitializeAsync, which that
+			// registration never performs -- does not report itself unavailable while demonstrably working.
+			_initialized = true;
+
 			LogConnectionTestSuccessful(Name);
+
 			return true;
 		}
 		catch (Exception ex)
@@ -257,52 +377,21 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 	}
 
 	/// <inheritdoc/>
-	public async Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			var stats = new Dictionary<string, object>(StringComparer.Ordinal);
-
-			await using var connection = new MySqlConnection(ConnectionString);
-			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-			await using var command = connection.CreateCommand();
-			command.CommandText = """
-				SELECT
-					(SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Threads_connected') AS threads_connected,
-					(SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Threads_running') AS threads_running,
-					(SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Max_used_connections') AS max_used_connections,
-					@@max_connections AS max_connections
-			""";
-
-			await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-			if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-			{
-				stats["ThreadsConnected"] = reader["threads_connected"]?.ToString() ?? "0";
-				stats["ThreadsRunning"] = reader["threads_running"]?.ToString() ?? "0";
-				stats["MaxUsedConnections"] = reader["max_used_connections"]?.ToString() ?? "0";
-				stats["MaxConnections"] = reader["max_connections"];
-			}
-
-			stats["MinPoolSize"] = _options.Pooling.MinPoolSize;
-			stats["MaxPoolSize"] = _options.Pooling.MaxPoolSize;
-			stats["PoolingEnabled"] = _options.Pooling.EnablePooling;
-
-			return stats;
-		}
-		catch (Exception ex)
-		{
-			LogFailedToRetrieveConnectionPoolStatistics(ex);
-			return null;
-		}
-	}
-
-	/// <inheritdoc/>
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
 		if (serviceType == typeof(IPersistenceProviderHealth))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IDataRequestExecutor))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
@@ -438,9 +527,6 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 		"Initializing MySQL persistence provider '{Name}'")]
 	private partial void LogInitializingProvider(string name);
 
-	[LoggerMessage(DataMySqlEventId.FailedToRetrieveConnectionPoolStatistics, LogLevel.Warning,
-		"Failed to retrieve MySQL connection pool statistics")]
-	private partial void LogFailedToRetrieveConnectionPoolStatistics(Exception ex);
 
 	[LoggerMessage(DataMySqlEventId.DisposingProvider, LogLevel.Debug,
 		"Disposing MySQL provider '{Name}'")]

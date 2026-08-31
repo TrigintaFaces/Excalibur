@@ -109,14 +109,16 @@ public sealed partial class AwsS3ClaimCheckStore : IClaimCheckProvider, IDisposa
 
 		LogStoredPayload(id, payload.Length);
 
+		var storedAt = DateTimeOffset.UtcNow;
+
 		return new ClaimCheckReference
 		{
 			Id = id,
 			BlobName = key,
 			Location = $"s3://{_options.BucketName}/{key}",
 			Size = payload.Length,
-			StoredAt = DateTimeOffset.UtcNow,
-			ExpiresAt = DateTimeOffset.UtcNow.Add(_claimCheckOptions.RetentionPeriod),
+			StoredAt = storedAt,
+			ExpiresAt = _claimCheckOptions.ResolveExpiresAt(storedAt),
 			Metadata = metadata
 		};
 	}
@@ -128,7 +130,21 @@ public sealed partial class AwsS3ClaimCheckStore : IClaimCheckProvider, IDisposa
 	{
 		ArgumentNullException.ThrowIfNull(reference);
 
-		var key = GetObjectKey(reference.Id);
+		// Resolve from the recorded name rather than recomputing one. GetObjectKey derives a
+		// date-partitioned key from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
+		// under the next day's prefix a second later and reported not-found while still sitting in the
+		// bucket. Claim check exists for payloads that outlive their message, so crossing midnight is the
+		// ordinary case. Recomputation remains only for references written before the name was recorded.
+		var key = string.IsNullOrEmpty(reference.BlobName) ? GetObjectKey(reference.Id) : reference.BlobName;
+
+		// An expired payload is a form of missing payload, so it surfaces as the same exception a deleted
+		// or never-stored one does. S3 has no per-object time-to-live -- its lifecycle rules are
+		// bucket-wide and delete on a daily schedule rather than at a per-payload instant -- so expiry is
+		// enforced here, before the object is fetched, rather than delegated to the store.
+		if (reference.IsExpired(DateTimeOffset.UtcNow))
+		{
+			throw new KeyNotFoundException($"Claim check '{reference.Id}' has expired.");
+		}
 
 		try
 		{
@@ -156,15 +172,27 @@ public sealed partial class AwsS3ClaimCheckStore : IClaimCheckProvider, IDisposa
 	{
 		ArgumentNullException.ThrowIfNull(reference);
 
-		var key = GetObjectKey(reference.Id);
+		// Resolve from the recorded name rather than recomputing one. GetObjectKey derives a
+		// date-partitioned key from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
+		// under the next day's prefix a second later and reported not-found while still sitting in the
+		// bucket. Claim check exists for payloads that outlive their message, so crossing midnight is the
+		// ordinary case. Recomputation remains only for references written before the name was recorded.
+		var key = string.IsNullOrEmpty(reference.BlobName) ? GetObjectKey(reference.Id) : reference.BlobName;
 
 		try
 		{
+			// S3's DeleteObject is deliberately idempotent -- it returns 204 for an object that was never
+			// there -- so the delete itself cannot answer whether one existed. The contract defines the
+			// return value as exactly that observation, so it has to be obtained before deleting. The
+			// catch below cannot serve: a missing key raises nothing to catch.
+			var existed = await ObjectExistsAsync(key, cancellationToken).ConfigureAwait(false);
+
 			await _s3Client.DeleteObjectAsync(
 				_options.BucketName, key, cancellationToken).ConfigureAwait(false);
 
 			LogDeletedClaimCheck(reference.Id);
-			return true;
+
+			return existed;
 		}
 		catch (AmazonS3Exception)
 		{
@@ -192,6 +220,32 @@ public sealed partial class AwsS3ClaimCheckStore : IClaimCheckProvider, IDisposa
 		if (_ownsClient)
 		{
 			_s3Client.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Reports whether an object is present, so a delete can say what it observed.
+	/// </summary>
+	/// <param name="key">The object key.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns><see langword="true"/> when the object exists; otherwise <see langword="false"/>.</returns>
+	/// <remarks>
+	/// A metadata request rather than a read: it transfers no payload. This is the cost of honouring a
+	/// contract that defines the delete's result as an observation, on a service whose delete is
+	/// deliberately silent about what it removed.
+	/// </remarks>
+	private async Task<bool> ObjectExistsAsync(string key, CancellationToken cancellationToken)
+	{
+		try
+		{
+			_ = await _s3Client.GetObjectMetadataAsync(
+				_options.BucketName, key, cancellationToken).ConfigureAwait(false);
+
+			return true;
+		}
+		catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+		{
+			return false;
 		}
 	}
 

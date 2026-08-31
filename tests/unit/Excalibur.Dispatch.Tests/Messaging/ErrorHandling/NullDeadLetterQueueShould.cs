@@ -198,26 +198,26 @@ public sealed class NullDeadLetterQueueShould
 	}
 
 	[Fact]
-	public async Task Admin_PurgeOlderThanAsync_ReturnZero()
+	public async Task Admin_PurgeAllTenantsEntriesOlderThanAsync_ReturnZero()
 	{
 		// Arrange
 		IDeadLetterQueueAdmin admin = NullDeadLetterQueue.Instance;
 
 		// Act
-		var result = await admin.PurgeOlderThanAsync(TimeSpan.FromDays(30), CancellationToken.None);
+		var result = await admin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(30), CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task Admin_PurgeOlderThanAsync_WithZeroTimeSpan_ReturnZero()
+	public async Task Admin_PurgeAllTenantsEntriesOlderThanAsync_WithZeroTimeSpan_ReturnZero()
 	{
 		// Arrange
 		IDeadLetterQueueAdmin admin = NullDeadLetterQueue.Instance;
 
 		// Act
-		var result = await admin.PurgeOlderThanAsync(TimeSpan.Zero, CancellationToken.None);
+		var result = await admin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.Zero, CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(0);
@@ -233,7 +233,7 @@ public sealed class NullDeadLetterQueueShould
 		// Act
 		var replayTask = admin.ReplayBatchAsync(filter, limit: 100, CancellationToken.None);
 		var purgeTask = admin.PurgeAsync(Guid.NewGuid(), CancellationToken.None);
-		var purgeOlderTask = admin.PurgeOlderThanAsync(TimeSpan.FromHours(1), CancellationToken.None);
+		var purgeOlderTask = admin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromHours(1), CancellationToken.None);
 
 		// Assert - all should be completed synchronously (Task.FromResult)
 		replayTask.IsCompletedSuccessfully.ShouldBeTrue();
@@ -264,7 +264,7 @@ public sealed class NullDeadLetterQueueShould
 		var purgeResult = await admin.PurgeAsync(Guid.NewGuid(), cts.Token);
 		purgeResult.ShouldBeFalse();
 
-		var purgeOlderResult = await admin.PurgeOlderThanAsync(TimeSpan.FromDays(1), cts.Token);
+		var purgeOlderResult = await admin.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(1), cts.Token);
 		purgeOlderResult.ShouldBe(0);
 	}
 

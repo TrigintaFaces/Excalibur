@@ -373,7 +373,7 @@ internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueMan
 	}
 
 	/// <inheritdoc />
-	public async Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public async Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		var deadLetterSubscription = _options.DeadLetterSubscriptionName ??
 			throw new InvalidOperationException("Dead letter subscription not configured. Set DeadLetterSubscriptionName in DeadLetterOptions.");

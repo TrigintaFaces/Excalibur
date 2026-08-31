@@ -39,22 +39,5 @@ public sealed class OutboxProcessorConcurrentBagShould : UnitTestBase
 		hasConcurrentBag.ShouldBeTrue("ProcessBatchParallelAsync should use ConcurrentBag<T> for thread-safe collection");
 	}
 
-	[Fact]
-	public void InboxProcessorUseConcurrentBagInProcessBatchParallelAsync()
-	{
-		// Same verification for InboxProcessor
-		var type = typeof(InboxProcessor);
 
-		var method = type.GetMethod(
-			"ProcessBatchParallelAsync",
-			BindingFlags.NonPublic | BindingFlags.Instance);
-		method.ShouldNotBeNull("ProcessBatchParallelAsync must exist on InboxProcessor");
-
-		var nestedTypes = type.GetNestedTypes(BindingFlags.NonPublic);
-		var hasConcurrentBag = nestedTypes
-			.SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-			.Any(f => f.FieldType.IsGenericType && f.FieldType.GetGenericTypeDefinition() == typeof(ConcurrentBag<>));
-
-		hasConcurrentBag.ShouldBeTrue("InboxProcessor ProcessBatchParallelAsync should use ConcurrentBag<T>");
-	}
 }

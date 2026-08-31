@@ -28,22 +28,22 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private readonly string _lockResource;
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<SqlServerLeaderElection> _logger;
-	// ot72w3: optional split-brain-safety refinement. When supplied, a renewal fault classified
+	// optional split-brain-safety refinement. When supplied, a renewal fault classified
 	// as definitively Permanent relinquishes leadership IMMEDIATELY (accelerate-only); transient,
 	// poison, unclassified, or absent-classifier faults all retain the full grace-period wait.
 	// Classification can only SHORTEN time-to-relinquish, never extend it — the grace period stays
 	// the hard upper bound, so no split-brain window is ever added.
 	private readonly IMessageFailureClassifier? _failureClassifier;
-	// nxmjpm/ADR-339: optional fencing-token provider. When supplied, a monotonic fencing token is minted
+	// optional fencing-token provider. When supplied, a monotonic fencing token is minted
 	// (atomically, store-side via a SQL SEQUENCE) BEFORE leadership is declared at each acquisition, so a stale
 	// leader's token falls below the high-water mark and its protected operations are rejected by
 	// FencingTokenMiddleware. Null when the consumer did not enable fencing (opt-in, fully backward compatible).
 	private readonly IFencingTokenProvider? _fencingTokenProvider;
 
-	// nxmjpm: bounded retry budget for minting the fencing token on acquisition before relinquishing
+	// bounded retry budget for minting the fencing token on acquisition before relinquishing
 	// (fail-closed). Small + fixed: the renewal loop supplies the outer retry cadence (RenewInterval); this
 	// just rides out a transient store blip without instantly surrendering a freshly-acquired lock. Mirrors
-	// the Redis reference (RedisLeaderElection, bd-762uzn).
+	// the Redis reference.
 	private const int FencingTokenMintMaxAttempts = 3;
 
 	private readonly Lock _lock = new();
@@ -55,11 +55,11 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private int _disposed;
-	// Stored as a monotonic TimeProvider timestamp (3g58kl) accessed via Interlocked: the renewal task
+	// Stored as a monotonic TimeProvider timestamp accessed via Interlocked: the renewal task
 	// reads/writes this lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset
 	// would tear. Elapsed-time computations must use TimeProvider.GetElapsedTime, never a wall-clock delta.
 	private long _lastSuccessfulRenewalTicks;
-	// 3g58kl: the fencing token minted for the current leadership tenure (0 when no provider is
+	// the fencing token minted for the current leadership tenure (0 when no provider is
 	// configured) and the instant that tenure began, read together under _lock via CurrentLeadership.
 	private long _currentFencingToken;
 	private DateTimeOffset _leadershipAcquiredAt;
@@ -218,7 +218,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 			return;
 		}
 
-		// 8aef8d: call the SHARED core, never StopAsync — DisposeAsync has already set _disposed, so
+		// call the SHARED core, never StopAsync — DisposeAsync has already set _disposed, so
 		// StopAsync would throw ObjectDisposedException and abort before cancelling the renewal loop.
 		// That left the loop running against a disposed CancellationTokenSource (Dispose does NOT cancel),
 		// whose Task.Delay then threw ObjectDisposedException (not OperationCanceledException, so the
@@ -276,7 +276,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 				}
 				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
-					// Expected: the renewal loop observed its OWN cancellation token (7npc0q-S2: filter on
+					// Expected: the renewal loop observed its OWN cancellation token (filter on
 					// the exception's token, not a caller token DisposeAsync never supplies).
 				}
 			}
@@ -335,10 +335,10 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 			if (result >= 0)
 			{
-				// nxmjpm/ADR-339 (fail-CLOSED fencing): when a provider is configured, advance the fence BEFORE
+				// (fail-CLOSED fencing): when a provider is configured, advance the fence BEFORE
 				// declaring leadership; on bounded-retry exhaustion RELINQUISH (release the applock, do NOT become
 				// leader). BecomeLeader (and its events) is structurally unreachable unless the mint succeeded —
-				// mirrors the Redis reference (RedisLeaderElection, bd-762uzn).
+				// mirrors the Redis reference.
 				if (_fencingTokenProvider is not null)
 				{
 					long token;
@@ -460,7 +460,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 				}
 				else
 				{
-					// Verify we still hold the lock (3-state: rqntzf).
+					// Verify we still hold the lock (3-state: ).
 					var verify = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
 					if (verify == LeaderVerifyResult.StillLeader)
 					{
@@ -468,7 +468,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					}
 					else
 					{
-						// rqntzf: a DEFINITIVELY-lost verify (APPLOCK_MODE probe succeeded and returned NoLock)
+						// a DEFINITIVELY-lost verify (APPLOCK_MODE probe succeeded and returned NoLock)
 						// relinquishes immediately this iteration via the accelerate-only ShouldRelinquish seam;
 						// an Indeterminate verify (connection down / probe threw) passes definitivelyLost=false so
 						// it stays grace-gated — no false-relinquish on an ambiguous probe. Accelerate-only: the
@@ -491,7 +491,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 				if (_isLeader)
 				{
-					// ot72w3: a definitively-Permanent fault (e.g. auth/config) cannot recover by waiting, so it
+					// a definitively-Permanent fault (e.g. auth/config) cannot recover by waiting, so it
 					// relinquishes UNCONDITIONALLY this iteration (immediate, no elapsed dependence). Transient/
 					// poison/unclassified faults — and the absent-classifier default — relinquish only once the full
 					// grace period has elapsed: the session-scoped applock may still be held during a transient blip,

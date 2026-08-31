@@ -137,4 +137,63 @@ public sealed class EcdsaSignatureAlgorithmProviderShould
 		await Should.ThrowAsync<VerificationException>(
 			() => _sut.VerifyAsync(data, signature, invalidKey, SigningAlgorithm.ECDSASHA256, CancellationToken.None));
 	}
+
+	// -- documented curve strength is enforced, not merely described --------------------------------
+	//
+	// The published algorithm table names P-256 as the minimum. The curve is carried by the consumer's
+	// key rather than chosen here, so these arms are what make that a guarantee instead of a hope.
+
+	[Fact]
+	public async Task RejectSigningWithACurveWeakerThanTheDocumentedMinimum()
+	{
+		using var weak = ECDsa.Create(ECCurve.CreateFromFriendlyName("nistP224"));
+		var privateKey = weak.ExportPkcs8PrivateKey();
+		var data = Encoding.UTF8.GetBytes("test message");
+
+		var error = await Should.ThrowAsync<SigningException>(
+			() => _sut.SignAsync(data, privateKey, SigningAlgorithm.ECDSASHA256, CancellationToken.None));
+
+		error.Message.ShouldContain("P-256", Case.Sensitive);
+	}
+
+	[Fact]
+	public async Task RejectVerifyingWithACurveWeakerThanTheDocumentedMinimum()
+	{
+		using var weak = ECDsa.Create(ECCurve.CreateFromFriendlyName("nistP224"));
+		var publicKey = weak.ExportSubjectPublicKeyInfo();
+		var data = Encoding.UTF8.GetBytes("test message");
+		var signature = weak.SignData(data, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+
+		var error = await Should.ThrowAsync<VerificationException>(
+			() => _sut.VerifyAsync(data, signature, publicKey, SigningAlgorithm.ECDSASHA256, CancellationToken.None));
+
+		error.Message.ShouldContain("P-256", Case.Sensitive);
+	}
+
+	// LIVENESS. A guard that rejected everything would satisfy the two arms above, so a curve at and
+	// above the minimum must still round-trip.
+	[Theory]
+	[InlineData(256)]
+	[InlineData(384)]
+	[InlineData(521)]
+	public async Task AcceptCurvesAtOrAboveTheDocumentedMinimum(int keySizeInBits)
+	{
+		var curve = keySizeInBits switch
+		{
+			256 => ECCurve.NamedCurves.nistP256,
+			384 => ECCurve.NamedCurves.nistP384,
+			_ => ECCurve.NamedCurves.nistP521,
+		};
+
+		using var ecdsa = ECDsa.Create(curve);
+		var data = Encoding.UTF8.GetBytes("test message");
+
+		var signature = await _sut.SignAsync(
+			data, ecdsa.ExportPkcs8PrivateKey(), SigningAlgorithm.ECDSASHA256, CancellationToken.None);
+		var verified = await _sut.VerifyAsync(
+			data, signature, ecdsa.ExportSubjectPublicKeyInfo(), SigningAlgorithm.ECDSASHA256,
+			CancellationToken.None);
+
+		verified.ShouldBeTrue();
+	}
 }

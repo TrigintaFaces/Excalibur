@@ -45,6 +45,21 @@ SQL Server application locks provide exclusive access to a named resource:
 - Lock released = leadership relinquished
 - Lock timeout = leadership lost (failover)
 
+## Schema
+
+`sp_getapplock` leader election needs **no table** — the lock lives in the SQL Server lock manager.
+
+The health-based variant records candidate health in a table, which it creates automatically on
+first use. For a deployment that provisions schema separately, or runs without table-creation
+rights, the canonical DDL ships in the package as
+`scripts/001_CreateLeaderElectionHealthSchema.sql`. It is derived from the statement the store
+issues at runtime, so a database provisioned either way has the same shape. Defaults: schema
+`dbo`, table `LeaderElectionHealth` (both configurable via
+`SqlServerHealthBasedLeaderElectionOptions`).
+
+The script is guarded and re-runnable, and only ever creates the table if it is missing; it does
+not alter an existing one.
+
 ## Related Packages
 
 - `Excalibur.LeaderElection` - Core abstractions and InMemory implementation
@@ -57,4 +72,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

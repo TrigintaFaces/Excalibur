@@ -10,19 +10,20 @@ using Microsoft.Data.SqlClient;
 
 using Shouldly;
 
-using Tests.Shared.Conformance.Cdc;
 using Tests.Shared.Fixtures;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 #pragma warning disable CA1812 // Instantiated by the xUnit test runner.
 
+using Excalibur.Testing.Conformance;
+
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 
 /// <summary>
 /// slurug (j75aiz Tests) — per-provider real-store durability conformance for the SQL Server
 /// <see cref="ICdcStateStore"/> implementation (<see cref="CdcStateStore"/>), driven by the shared
-/// <see cref="CdcProviderConformanceTestBase"/> kit against a real SQL Server container.
+/// <see cref="CdcProviderConformanceTestKit"/> against a real SQL Server container.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -45,14 +46,11 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Trait("Category", "Integration")]
 [Trait("Component", "Cdc")]
 [Trait("Database", "SqlServer")]
-public sealed class SqlServerCdcStateStoreConformanceShould : CdcProviderConformanceTestBase
+public sealed class SqlServerCdcStateStoreConformanceShould : CdcProviderConformanceTestKit
 {
 	private const string SchemaName = "Cdc";
 	private readonly SqlServerContainerFixture _fixture;
 	private readonly string _tableName = $"CdcState_{Guid.NewGuid():N}";
-
-	private string MarsConnectionString =>
-		new SqlConnectionStringBuilder(_fixture.ConnectionString) { MultipleActiveResultSets = true }.ConnectionString;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerCdcStateStoreConformanceShould"/> class.
@@ -72,9 +70,11 @@ public sealed class SqlServerCdcStateStoreConformanceShould : CdcProviderConform
 		await EnsureStateTableAsync().ConfigureAwait(false);
 
 		var options = MsOptions.Create(new SqlServerCdcStateStoreOptions { SchemaName = SchemaName, TableName = _tableName });
-		// The store holds a single IDbConnection; the concurrent-save conformance case issues overlapping
-		// commands on it, so the connection must allow multiple active result sets.
-		ICdcStateStore store = new CdcStateStore(new SqlConnection(MarsConnectionString), options);
+		// A plain connection string, deliberately: the store opens one connection per operation, so the
+		// concurrent-save conformance case does not need multiple active result sets on a shared one. If
+		// the store goes back to holding a single connection, this arm fails rather than being propped up.
+		var connectionString = _fixture.ConnectionString;
+		ICdcStateStore store = new CdcStateStore(() => new SqlConnection(connectionString), options);
 		return store;
 	}
 
@@ -126,4 +126,30 @@ public sealed class SqlServerCdcStateStoreConformanceShould : CdcProviderConform
 			);
 			""").ConfigureAwait(false);
 	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Conformance arm wiring.
+	//
+	// The published kit ships without test-framework attributes so a consumer is not forced onto our
+	// runner. Discovery is this suite's job: one attributed member per arm. An arm nobody wires never
+	// executes, and an arm that never executes cannot fail -- in the results it is indistinguishable
+	// from one that passed.
+	// ---------------------------------------------------------------------------------------------
+
+	[Fact] public Task SaveAndGetPosition_RoundTrips_Test() => SaveAndGetPosition_RoundTrips();
+	[Fact] public Task GetPosition_NoCheckpoint_ReturnsNull_Test() => GetPosition_NoCheckpoint_ReturnsNull();
+	[Fact] public Task SavePosition_MultipleConsumers_Independent_Test() => SavePosition_MultipleConsumers_Independent();
+	[Fact] public Task SavePosition_Overwrites_PreviousCheckpoint_Test() => SavePosition_Overwrites_PreviousCheckpoint();
+	[Fact] public Task SavePosition_PreservesPositionValidity_Test() => SavePosition_PreservesPositionValidity();
+	[Fact] public Task Resume_FromSavedCheckpoint_ReturnsCorrectPosition_Test() => Resume_FromSavedCheckpoint_ReturnsCorrectPosition();
+	[Fact] public Task Resume_AfterDelete_ReturnsNull_Test() => Resume_AfterDelete_ReturnsNull();
+	[Fact] public Task DeletePosition_ExistingCheckpoint_ReturnsTrue_Test() => DeletePosition_ExistingCheckpoint_ReturnsTrue();
+	[Fact] public Task DeletePosition_NonExistentCheckpoint_ReturnsFalse_Test() => DeletePosition_NonExistentCheckpoint_ReturnsFalse();
+	[Fact] public Task DeletePosition_DoesNotAffectOtherConsumers_Test() => DeletePosition_DoesNotAffectOtherConsumers();
+	[Fact] public Task GetAllPositions_ReturnsAllConsumerCheckpoints_Test() => GetAllPositions_ReturnsAllConsumerCheckpoints();
+	[Fact] public Task GetAllPositions_EmptyStore_ReturnsEmpty_Test() => GetAllPositions_EmptyStore_ReturnsEmpty();
+	[Fact] public Task ConcurrentSavePosition_AllSucceed_Test() => ConcurrentSavePosition_AllSucceed();
+	[Fact] public Task ConcurrentSavePosition_SameConsumer_LastWriteWins_Test() => ConcurrentSavePosition_SameConsumer_LastWriteWins();
+	[Fact] public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
 }

@@ -6,6 +6,7 @@
     <Description>Azure Logic Apps integration for the Excalibur Jobs framework.</Description>
     <PackageTags>excalibur;jobs;azure;logicapps;cloud</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Jobs.Tests" />
@@ -19,7 +20,6 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>

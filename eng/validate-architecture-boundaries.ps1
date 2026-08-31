@@ -4,12 +4,12 @@
     Validates architecture boundary compliance across Dispatch and Excalibur projects.
 
 .DESCRIPTION
-    Comprehensive enforcement of architectural boundaries per Phase 8.3 requirements:
+    Comprehensive enforcement of the framework's architectural boundaries:
 
-    R1.9:  Excalibur.Dispatch.* projects MUST NOT reference Excalibur.* projects
-    R17.8: Excalibur.* projects MAY reference Excalibur.Dispatch.Abstractions only (not Core/Patterns/etc.)
-    R23.1: Core projects MUST NOT reference cloud SDKs (pay-for-play model)
-    R0.14: Excalibur MUST use MemoryPack only (no STJ, MessagePack, Protobuf)
+    dispatch-no-excalibur:       Excalibur.Dispatch.* projects MUST NOT reference Excalibur.* projects
+    excalibur-abstractions-only: Excalibur.* projects MAY reference Excalibur.Dispatch.Abstractions only (not Core/Patterns/etc.)
+    core-no-cloud-sdks:          Core projects MUST NOT reference cloud SDKs (pay-for-play model)
+    serialization-policy:        Excalibur MUST use MemoryPack only (no STJ, MessagePack, Protobuf)
 
     Validates:
     - Project-to-project references
@@ -50,8 +50,8 @@ $ColorSuccess = 'Green'
 $ColorGray = 'Gray'
 
 Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor $ColorInfo
-Write-Host "║  Architecture Boundary Validation (Phase 8.3)               ║" -ForegroundColor $ColorInfo
-Write-Host "║  Enforcing: R1.9, R17.8, R23.1, R0.14                        ║" -ForegroundColor $ColorInfo
+Write-Host "║  Architecture Boundary Validation                           ║" -ForegroundColor $ColorInfo
+Write-Host "║  Enforcing: package boundaries + serialization policy       ║" -ForegroundColor $ColorInfo
 Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor $ColorInfo
 Write-Host ""
 
@@ -149,14 +149,14 @@ foreach ($project in $projectFiles) {
     $violationCount = 0
 
     # ═══════════════════════════════════════════════════════════════
-    # R1.9: Dispatch MUST NOT reference Excalibur
+    # dispatch-no-excalibur: Dispatch MUST NOT reference Excalibur
     # ═══════════════════════════════════════════════════════════════
     if ($isDispatch) {
         foreach ($refName in $projectRefs) {
             if ($refName -match '^Excalibur\.' -and $refName -notmatch '^Excalibur\.Dispatch(\.|$)') {
                 $violations += [PSCustomObject]@{
                     Project     = $projectName
-                    Rule        = 'R1.9'
+                    Rule        = 'dispatch-no-excalibur'
                     Severity    = 'Critical'
                     Violation   = "Dispatch→Excalibur boundary violation: references $refName"
                     Path        = $relativePath
@@ -168,7 +168,7 @@ foreach ($project in $projectFiles) {
     }
 
     # ═══════════════════════════════════════════════════════════════
-    # R17.8: Excalibur MAY reference Excalibur.Dispatch.Abstractions ONLY
+    # excalibur-abstractions-only: Excalibur MAY reference Excalibur.Dispatch.Abstractions ONLY
     # ═══════════════════════════════════════════════════════════════
     if ($isExcalibur) {
         $isTestingPackage = $projectName -match '^Excalibur\.Testing(\.|$)'
@@ -206,7 +206,7 @@ foreach ($project in $projectFiles) {
                 elseif (-not $isTestingPackage -and -not $isAbstraction -and $forbiddenDispatchRefs -contains $refName) {
                     $violations += [PSCustomObject]@{
                         Project     = $projectName
-                        Rule        = 'R17.8'
+                        Rule        = 'excalibur-abstractions-only'
                         Severity    = 'High'
                         Violation   = "Excalibur may only reference Dispatch abstractions: found $refName"
                         Path        = $relativePath
@@ -219,7 +219,7 @@ foreach ($project in $projectFiles) {
                     $allowedRefs += [PSCustomObject]@{
                         Project   = $projectName
                         Reference = $refName
-                        Status    = 'Allowed (R17.8)'
+                        Status    = 'Allowed (abstractions-only)'
                     }
                 }
             }
@@ -227,7 +227,7 @@ foreach ($project in $projectFiles) {
     }
 
     # ═══════════════════════════════════════════════════════════════
-    # R23.1: Core projects MUST NOT reference cloud SDKs
+    # core-no-cloud-sdks: Core projects MUST NOT reference cloud SDKs
     # ═══════════════════════════════════════════════════════════════
     if ($isDispatchCore) {
         $cloudSDKs = $packageRefs | Where-Object {
@@ -238,7 +238,7 @@ foreach ($project in $projectFiles) {
         foreach ($pkg in $cloudSDKs) {
             $violations += [PSCustomObject]@{
                 Project     = $projectName
-                Rule        = 'R23.1'
+                Rule        = 'core-no-cloud-sdks'
                 Severity    = 'High'
                 Violation   = "Core project references cloud SDK: $($pkg.Name)"
                 Path        = $relativePath
@@ -249,7 +249,7 @@ foreach ($project in $projectFiles) {
     }
 
     # ═══════════════════════════════════════════════════════════════
-    # R23.1: Provider SDK isolation (no cross-contamination)
+    # core-no-cloud-sdks: Provider SDK isolation (no cross-contamination)
     # ═══════════════════════════════════════════════════════════════
     if ($isAzureProvider) {
         $invalidSDKs = $packageRefs | Where-Object {
@@ -260,7 +260,7 @@ foreach ($project in $projectFiles) {
         foreach ($pkg in $invalidSDKs) {
             $violations += [PSCustomObject]@{
                 Project     = $projectName
-                Rule        = 'R23.1'
+                Rule        = 'core-no-cloud-sdks'
                 Severity    = 'High'
                 Violation   = "Azure provider references non-Azure SDK: $($pkg.Name)"
                 Path        = $relativePath
@@ -279,7 +279,7 @@ foreach ($project in $projectFiles) {
         foreach ($pkg in $invalidSDKs) {
             $violations += [PSCustomObject]@{
                 Project     = $projectName
-                Rule        = 'R23.1'
+                Rule        = 'core-no-cloud-sdks'
                 Severity    = 'High'
                 Violation   = "AWS provider references non-AWS SDK: $($pkg.Name)"
                 Path        = $relativePath
@@ -298,7 +298,7 @@ foreach ($project in $projectFiles) {
         foreach ($pkg in $invalidSDKs) {
             $violations += [PSCustomObject]@{
                 Project     = $projectName
-                Rule        = 'R23.1'
+                Rule        = 'core-no-cloud-sdks'
                 Severity    = 'High'
                 Violation   = "Google provider references non-Google SDK: $($pkg.Name)"
                 Path        = $relativePath
@@ -309,7 +309,7 @@ foreach ($project in $projectFiles) {
     }
 
     # ═══════════════════════════════════════════════════════════════
-    # R0.14: Excalibur.Dispatch MUST use MemoryPack only (no STJ/MessagePack/Protobuf)
+    # serialization-policy: Excalibur.Dispatch MUST use MemoryPack only (no STJ/MessagePack/Protobuf)
     # ═══════════════════════════════════════════════════════════════
     if ($projectName -eq 'Excalibur.Dispatch') {
         $bannedSerializers = $packageRefs | Where-Object {
@@ -319,7 +319,7 @@ foreach ($project in $projectFiles) {
         foreach ($pkg in $bannedSerializers) {
             $violations += [PSCustomObject]@{
                 Project     = $projectName
-                Rule        = 'R0.14'
+                Rule        = 'serialization-policy'
                 Severity    = 'Critical'
                 Violation   = "Excalibur.Dispatch must use MemoryPack only: found $($pkg.Name)"
                 Path        = $relativePath
@@ -384,11 +384,11 @@ else {
     Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor $ColorSuccess
     Write-Host ""
     Write-Host "All architectural boundary rules are satisfied:" -ForegroundColor $ColorSuccess
-    Write-Host "  ✓ R1.9:  Dispatch does not reference Excalibur" -ForegroundColor $ColorSuccess
-    Write-Host "  ✓ R17.8: Excalibur references Dispatch abstractions (or explicit wrapper exceptions)" -ForegroundColor $ColorSuccess
-    Write-Host "  ✓ R23.1: Core projects are cloud-agnostic" -ForegroundColor $ColorSuccess
-    Write-Host "  ✓ R23.1: Provider SDKs are isolated (no cross-contamination)" -ForegroundColor $ColorSuccess
-    Write-Host "  ✓ R0.14: Excalibur uses MemoryPack exclusively" -ForegroundColor $ColorSuccess
+    Write-Host "  ✓ dispatch-no-excalibur: Dispatch does not reference Excalibur" -ForegroundColor $ColorSuccess
+    Write-Host "  ✓ excalibur-abstractions-only: Excalibur references Dispatch abstractions (or explicit wrapper exceptions)" -ForegroundColor $ColorSuccess
+    Write-Host "  ✓ core-no-cloud-sdks: Core projects are cloud-agnostic" -ForegroundColor $ColorSuccess
+    Write-Host "  ✓ core-no-cloud-sdks: Provider SDKs are isolated (no cross-contamination)" -ForegroundColor $ColorSuccess
+    Write-Host "  ✓ serialization-policy: Excalibur uses MemoryPack exclusively" -ForegroundColor $ColorSuccess
     Write-Host ""
 }
 

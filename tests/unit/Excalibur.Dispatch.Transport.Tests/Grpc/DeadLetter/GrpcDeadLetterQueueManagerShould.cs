@@ -239,20 +239,20 @@ public sealed class GrpcDeadLetterQueueManagerShould
 
 	#endregion
 
-	#region PurgeDeadLetterQueueAsync
+	#region PurgeAllTenantsDeadLetterQueueAsync
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_ReturnZeroWhenEmpty()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_ReturnZeroWhenEmpty()
 	{
 		// Act
-		var purged = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purged = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purged.ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_RemoveAllMessages()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_RemoveAllMessages()
 	{
 		// Arrange
 		for (var i = 0; i < 3; i++)
@@ -263,7 +263,7 @@ public sealed class GrpcDeadLetterQueueManagerShould
 		}
 
 		// Act
-		var purged = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purged = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purged.ShouldBe(3);

@@ -37,6 +37,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">

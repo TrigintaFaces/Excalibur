@@ -32,7 +32,7 @@ namespace Excalibur.Outbox.Postgres;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class coordinates the Dapper request set, outbox message mapping, tenant scoping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
-public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable
+public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable, ITenantPartitionedStore
 {
 	private readonly IDb _db;
 
@@ -457,7 +457,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		ArgumentNullException.ThrowIfNull(message);
 
 		// Canonical conversion (OutboxMessage.FromOutboundMessage) so no stage path can silently drop a persisted
-		// field — TenantId in particular, which the bare ctor omits (bd-cd8h8t).
+		// field — TenantId in particular, which the bare ctor omits.
 		var outboxMessage = OutboxMessage.FromOutboundMessage(message);
 
 		_ = await SaveMessagesAsync(new[] { outboxMessage }, cancellationToken).ConfigureAwait(false);
@@ -555,8 +555,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -578,10 +576,10 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		};
 
 		// Uniform construction via the single context->message factory so TenantId/Correlation/Causation
-		// are never dropped on a convenience path (xl56kb). The propagated TenantId is persisted to the
+		// are never dropped on a convenience path. The propagated TenantId is persisted to the
 		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
-		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled (bd-cd8h8t).
-		// Derive the routing destination from the message context (cys98n) — falling back to the message
+		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled.
+		// Derive the routing destination from the message context — falling back to the message
 		// type name (the convention the other outbox providers use) rather than a hardcoded "default", so
 		// a consumer's configured destination is persisted and honored on dispatch.
 		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().Name;
@@ -604,8 +602,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// <returns> Collection of unsent outbound messages. </returns>
 	[RequiresUnreferencedCode(
 		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresDynamicCode(
 		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
@@ -668,6 +664,11 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 					// re-stamps CreatedAt to UtcNow, so the drain reload must restore it or the caller's
 					// timestamp (and its ordering/audit fidelity) is lost on the consumer path.
 					CreatedAt = msg.CreatedAt,
+					// Same reason, and the consequence is worse than a lost timestamp: the ctor defaults the
+					// count to zero, so a reload that does not restore it hands every drain a message that
+					// has never been tried. The retry ceiling is compared against this value, so an
+					// unrestored count is a message that can never dead-letter and retries for ever.
+					RetryCount = msg.Attempts,
 				};
 
 				outboundMessages.Add(outboundMessage);
@@ -711,8 +712,6 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// </remarks>
 	[RequiresUnreferencedCode(
 		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresDynamicCode(
 		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
@@ -842,7 +841,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
 
 		// Persist the failure on the row (authoritative retry count + last error) so a sub-ceiling failure is
-		// observable via GetFailedMessagesAsync/GetStatistics BEFORE it dead-letters — the delete-on-sent
+		// observable via GetAllTenantsFailedMessagesAsync/GetStatistics BEFORE it dead-letters — the delete-on-sent
 		// design's failed-state signal (error_message IS NOT NULL), matching the Oracle outbox. This replaces
 		// the bare attempt-increment, which recorded no error and left the failure invisible until the ceiling.
 		// Presenting this dispatcher's identity restricts the unreserve to a message this caller actually holds
@@ -896,7 +895,14 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 		var req = new SetOutboxMessageBackoff(
 			messageId,
 			nextAttemptAt,
+			// The failure text is recorded on this path too: on a delete-on-sent table error_message IS the
+			// failed-state signal the failed-message queries and statistics select on, so a backoff write that
+			// omitted it left a real delivery failure recorded nowhere until the message dead-lettered.
+			errorMessage,
 			DispatcherId,
+			// The floor travels with the computed schedule rather than being displaced by it — see the request
+			// for why binding the caller's instant alone made the preferred path ignore a configured floor.
+			_options.FailureBackoffFloorSeconds,
 			_options.QualifiedOutboxTableName,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
@@ -915,7 +921,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Collection of failed outbound messages. </returns>
-	public async ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan,
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan,
 		int batchSize, CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -967,7 +973,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Collection of scheduled outbound messages. </returns>
-	public async ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize,
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize,
 		CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
@@ -1060,7 +1066,7 @@ public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxSto
 	/// </summary>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Statistics about the outbox store including message counts and oldest pending age. </returns>
-	public async ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		LogGetStatistics();
 

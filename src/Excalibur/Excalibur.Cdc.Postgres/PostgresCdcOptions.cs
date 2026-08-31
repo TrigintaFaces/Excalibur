@@ -56,10 +56,6 @@ public sealed class PostgresCdcOptions
 	/// </summary>
 	public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
-	/// <summary>
-	/// Gets or sets the recovery options for handling stale WAL position scenarios.
-	/// </summary>
-	public PostgresCdcRecoveryOptions? RecoveryOptions { get; set; }
 
 	/// <summary>
 	/// Gets or sets the replication configuration options.
@@ -91,6 +87,5 @@ public sealed class PostgresCdcOptions
 			throw new InvalidOperationException("BatchSize must be greater than 0.");
 		}
 
-		RecoveryOptions?.Validate();
 	}
 }

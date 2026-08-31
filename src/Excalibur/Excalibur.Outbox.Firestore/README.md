@@ -18,40 +18,41 @@ dotnet add package Excalibur.Outbox.Firestore
 ## Configuration
 
 ```csharp
-services.AddFirestoreOutboxStore(options =>
-{
-    options.ProjectId = "my-gcp-project";
-    options.CollectionName = "outbox";
-    options.DefaultTimeToLiveSeconds = 604800; // 7 days
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseFirestore(firestore => firestore
+        .ProjectId("my-gcp-project")
+        .CollectionName("outbox"))));
 ```
 
 Or via configuration:
 
 ```csharp
-services.AddFirestoreOutboxStore(configuration.GetSection("FirestoreOutbox"));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseFirestore(firestore => firestore.BindConfiguration("FirestoreOutbox"))));
 ```
 
 ### Local Development (Emulator)
 
 ```csharp
-services.AddFirestoreOutboxStore(options =>
-{
-    options.EmulatorHost = "localhost:8080";
-    options.CollectionName = "outbox";
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseFirestore(firestore => firestore
+        .EmulatorHost("localhost:8080")
+        .CollectionName("outbox"))));
 ```
 
 ### Service Account Credentials
 
 ```csharp
-services.AddFirestoreOutboxStore(options =>
-{
-    options.ProjectId = "my-gcp-project";
-    options.CredentialsPath = "/path/to/service-account.json";
-    // OR
-    options.CredentialsJson = "{ ... }";
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseFirestore(firestore => firestore
+        .ProjectId("my-gcp-project")
+        .CredentialsPath("/path/to/service-account.json"))));
+
+// Or supply the credentials inline:
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseFirestore(firestore => firestore
+        .ProjectId("my-gcp-project")
+        .CredentialsJson("{ ... }"))));
 ```
 
 ## Usage

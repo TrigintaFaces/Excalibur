@@ -5,7 +5,7 @@
     <PackageId>Excalibur.Jobs.Cdc</PackageId>
     <Description>CDC (Change Data Capture) job types for the Excalibur Jobs framework.</Description>
     <PackageTags>excalibur;jobs;cdc;change-data-capture;scheduling</PackageTags>
-    <IsAotCompatible>true</IsAotCompatible>
+    <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" />

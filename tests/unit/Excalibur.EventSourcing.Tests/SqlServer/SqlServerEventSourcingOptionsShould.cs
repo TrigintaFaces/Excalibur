@@ -63,26 +63,6 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveDefaultOutboxSchema()
-	{
-		// Arrange & Act
-		var options = new SqlServerEventSourcingOptions();
-
-		// Assert
-		options.OutboxSchema.ShouldBe("dbo");
-	}
-
-	[Fact]
-	public void HaveDefaultOutboxTable()
-	{
-		// Arrange & Act
-		var options = new SqlServerEventSourcingOptions();
-
-		// Assert
-		options.OutboxTable.ShouldBe("EventSourcedOutbox");
-	}
-
-	[Fact]
 	public void HaveDefaultRegisterHealthChecks()
 	{
 		// Arrange & Act
@@ -175,32 +155,6 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 
 		// Assert
 		options.SnapshotStoreTable.ShouldBe("AggregateSnapshots");
-	}
-
-	[Fact]
-	public void AllowCustomOutboxSchema()
-	{
-		// Arrange
-		var options = new SqlServerEventSourcingOptions();
-
-		// Act
-		options.OutboxSchema = "messaging";
-
-		// Assert
-		options.OutboxSchema.ShouldBe("messaging");
-	}
-
-	[Fact]
-	public void AllowCustomOutboxTable()
-	{
-		// Arrange
-		var options = new SqlServerEventSourcingOptions();
-
-		// Act
-		options.OutboxTable = "OutboxMessages";
-
-		// Assert
-		options.OutboxTable.ShouldBe("OutboxMessages");
 	}
 
 	[Fact]

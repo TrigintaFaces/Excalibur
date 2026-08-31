@@ -3,4 +3,4 @@
 
 // This file previously contained a duplicate DeduplicationStrategy enum.
 // The canonical definition is in Excalibur.Dispatch.DeduplicationStrategy.
-// Removed during Sprint 672 T.10 duplicate enum consolidation.
+// Removed during T.10 duplicate enum consolidation.

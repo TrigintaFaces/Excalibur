@@ -44,7 +44,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
 		var qualifiedTable = SqlTableName.Format(schema, table);
-		// The event store is a KEYED tenant table (FR-8): the read is ALWAYS partitioned by a non-null tenant
+		// The event store is a KEYED tenant table: the read is ALWAYS partitioned by a non-null tenant
 		// term. Routing through KeyedTenantPartition binds the resolved tenant when scoped, or the reserved
 		// __untenanted__ sentinel when unscoped — so an un-partitioned (all-tenants) read is unconstructable
 		// (no empty predicate can be emitted). COALESCE folds a legacy NULL tenant (a pre-migration

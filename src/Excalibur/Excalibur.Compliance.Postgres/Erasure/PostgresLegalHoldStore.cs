@@ -31,7 +31,16 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	private readonly PostgresLegalHoldStoreOptions _options;
 	private readonly ILogger<PostgresLegalHoldStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
+	/// the same term. When the deployment is not multi-tenant the store
+	/// deliberately emits no tenant predicate. That decision is stated here and nowhere else: a conversion
+	/// cannot make it on the store's behalf without inventing a tenant decision the host never made.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly bool _requireTenant;
 	private volatile bool _disposed;
 	private volatile bool _initialized;
@@ -49,8 +58,9 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// identifier can only ever be <em>added</em> to it — narrowing the result, never widening it.
 	/// </para>
 	/// <para>
-	/// Deployment mode decides the shape. A deployment that has not opted into multi-tenancy resolves
-	/// <see cref="TenantScope.None"/>: no predicate, no bound parameter, and rows keep whatever tenant value
+	/// Deployment mode decides the shape, and it is read from this store's own configuration rather than
+	/// inferred from a missing tenant term. A deployment that has not opted into multi-tenancy emits
+	/// no predicate, no bound parameter, and rows keep whatever tenant value
 	/// the caller supplied — byte-identical to the single-tenant behaviour, so no stored hold becomes
 	/// unreachable. Mode is "did the consumer opt in", read from
 	/// <see cref="TenantContextOptions.RequireTenant"/>, and deliberately not "is an
@@ -59,7 +69,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// <para>
 	/// Multi-tenancy active with no resolved tenant fails closed: it throws rather than reaching a
 	/// predicate-less statement. A missing context is the same failure and is stated as such, because
-	/// degrading it to <see cref="TenantScope.None"/> would emit no predicate at all.
+	/// degrading it to an unscoped read would emit no predicate at all.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="TenantRequiredException">
@@ -71,12 +81,10 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		{
 			if (!_requireTenant)
 			{
-				return TenantScope.None;
+				return TenantScope.Untenanted;
 			}
 
-			return _tenantContext is null
-				? throw new TenantRequiredException()
-				: TenantScope.FromContext(_tenantContext);
+			return CurrentTenantScope;
 		}
 	}
 
@@ -92,39 +100,77 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// partition and silently lifting it for everyone else. Releasing or re-homing a global hold is an
 	/// estate-level act, so a tenant-facing mutation matches only rows the tenant actually owns.
 	/// </remarks>
-	private static string TenantOwnershipPredicate(TenantScope tenant, string column) =>
-		tenant.IsScoped ? $" AND {column} = @AmbientTenantId" : string.Empty;
+	private string TenantOwnershipPredicate(string column) =>
+		_requireTenant ? $" AND {column} = @AmbientTenantId" : string.Empty;
 
 	/// <summary>
 	/// Builds the tenant predicate for a legal-hold read.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// A hold with no tenant is a <em>global</em> hold that blocks erasure for every tenant, so the term is
-	/// <c>tenant matches OR tenant is absent</c> rather than a bare equality. A bare equality would drop
+	/// <c>tenant matches OR the hold is global</c> rather than a bare equality. A bare equality would drop
 	/// global holds from a tenant's view, and a legal hold is a control that <em>blocks</em> erasure —
 	/// losing one does not fail safe, it erases data a court order says to keep. It still excludes every
 	/// other tenant's holds, which is the isolation this exists to provide.
+	/// </para>
+	/// <para>
+	/// "Global" has TWO spellings on the wire, and both are matched on purpose.
+	/// </para>
+	/// <para>
+	/// The reserved sentinel is the current one: the column is total, so a hold with no tenant holds a
+	/// value rather than the absence of one. It is bound as a PARAMETER rather than written as a literal,
+	/// so the reserved term is stated once in the framework and never re-spelled in SQL where a typo
+	/// would silently match nothing.
+	/// </para>
+	/// <para>
+	/// <c>IS NULL</c> is the legacy one, and it is TRANSITION TOLERANCE rather than dead weight. A
+	/// consumer who upgrades this package before running the migration that makes the column total still
+	/// has NULL in every global row. Without this arm their global holds would go dark the moment they
+	/// upgraded — and because a hold blocks erasure, going dark means erasing data a court order says to
+	/// keep. The arm costs an unsatisfiable disjunct once the column is <c>NOT NULL</c>.
+	/// </para>
+	/// <para>
+	/// It is removable when a release no longer supports upgrading from a pre-migration database — that
+	/// is the condition, and nothing else. Removing it because the column is total in a fresh install
+	/// would strand exactly the consumers it exists for.
+	/// </para>
 	/// </remarks>
-	private static string TenantPredicate(TenantScope tenant, string column) =>
-		tenant.IsScoped ? $" AND ({column} = @AmbientTenantId OR {column} IS NULL)" : string.Empty;
+	private string TenantPredicate(string column) =>
+		_requireTenant ? $" AND {TenantMatchClause(column)}" : string.Empty;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PostgresLegalHoldStore"/> class without an ambient
-	/// tenant context — the single-tenant deployment shape.
+	/// The single spelling of "this hold is visible to the scoped tenant", shared by the suffix form above
+	/// and by the query builders that assemble a <c>WHERE</c> list instead of appending a suffix.
 	/// </summary>
-	/// <param name="options">The configuration options.</param>
-	/// <param name="logger">The logger instance.</param>
+	/// <param name="column">The tenant column to match, as named in the statement being built.</param>
+	/// <param name="tenantParameter">
+	/// The bound parameter naming the tenant to match — the ambient one by default, or the caller's own
+	/// argument on the query paths that accept one.
+	/// </param>
+	/// <returns>The parenthesised match term, with no leading conjunction.</returns>
 	/// <remarks>
-	/// Equivalent to supplying no tenant context and no tenant options: the store resolves
-	/// <see cref="TenantScope.None"/> and emits no tenant predicate. A multi-tenant host must use the
-	/// tenant-aware overload, which the tenant-scoped registration seam calls on its behalf.
+	/// <para>
+	/// This exists because the same disjunction was previously written out at three separate places in
+	/// this class, and the two forms are not interchangeable — one appends <c>" AND ..."</c> to finished
+	/// SQL, the other adds a bare term to a list that is joined later. Three copies of a predicate whose
+	/// arms encode which holds a tenant can SEE is three chances to update two of them: a copy left on
+	/// the old spelling does not fail, it silently stops matching global holds on whichever read path it
+	/// governs, and erasure then proceeds against data a court order says to keep. Stating it once makes
+	/// that divergence inexpressible rather than merely unlikely.
+	/// </para>
+	/// <para>
+	/// The parameter is named rather than fixed because the caller-supplied tenant term must be the SAME
+	/// disjunction as the ambient one. It used to be a bare equality, which made every query that accepted
+	/// a tenant argument contradict itself: the ambient term admitted a global hold and the caller's term
+	/// discarded it in the same statement. A caller who named their own tenant therefore received a result
+	/// with every global preservation order removed, and erasure — which is irreversible — proceeded
+	/// against data a court order says to keep. Stating both terms here is what stops them drifting apart
+	/// again.
+	/// </para>
 	/// </remarks>
-	public PostgresLegalHoldStore(
-		IOptions<PostgresLegalHoldStoreOptions> options,
-		ILogger<PostgresLegalHoldStore> logger)
-		: this(options, logger, tenantContext: null, tenantContextOptions: null)
-	{
-	}
+	private static string TenantMatchClause(string column, string tenantParameter = "@AmbientTenantId") =>
+		$"({column} IN ({tenantParameter}, @UntenantedTenantId) OR {column} IS NULL)";
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresLegalHoldStore"/> class.
@@ -139,18 +185,23 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
-	/// <c>AddMultiTenancy()</c>) selects the deployment mode.
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode. Required: it used to be nullable and fold a
+	/// missing value onto single-tenant, so omitting the registration silently selected the mode that
+	/// applies no tenant predicate - a decision nobody made, taken by default, on the path that decides
+	/// isolation. The registration extensions call <c>AddDefaultTenantContext()</c> first, so the value
+	/// always resolves; a host that reaches this constructor without one is misconfigured and says so.
 	/// </param>
 	public PostgresLegalHoldStore(
 		IOptions<PostgresLegalHoldStoreOptions> options,
 		ILogger<PostgresLegalHoldStore> logger,
-		ITenantContext? tenantContext,
-		IOptions<TenantContextOptions>? tenantContextOptions)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_tenantContext = tenantContext;
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		_requireTenant = (tenantContextOptions ?? throw new ArgumentNullException(nameof(tenantContextOptions)))
+			.Value.RequireTenant;
 
 		_options.Validate();
 	}
@@ -190,7 +241,8 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				hold.HoldId,
 				hold.DataSubjectIdHash,
 				IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
-				TenantId = tenant.IsScoped ? tenant.TenantId : hold.TenantId,
+				TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
 				Basis = (int)hold.Basis,
 				hold.CaseReference,
 				hold.Description,
@@ -209,7 +261,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			// must surface as InvalidOperationException rather than a provider-specific exception. This path
 			// had NO conformance coverage — the kit is bound only by the SQL Server and in-memory stores —
 			// so the divergence was invisible rather than absent.
-			throw new InvalidOperationException($"Legal hold {hold.HoldId} already exists", ex);
+			throw DuplicateLegalHoldException.ForHoldId(hold.HoldId, ex);
 		}
 
 		LogSavedHold(hold.HoldId, hold.CaseReference);
@@ -229,13 +281,13 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				   description, is_active, expires_at, created_by, created_at,
 				   released_by, released_at, release_reason
 			FROM {_options.FullTableName}
-			WHERE hold_id = @HoldId{TenantPredicate(tenant, "tenant_id")}";
+			WHERE hold_id = @HoldId{TenantPredicate("tenant_id")}";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var row = await connection.QuerySingleOrDefaultAsync<LegalHoldRow>(
-				new CommandDefinition(sql, new { HoldId = holdId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+				new CommandDefinition(sql, new { HoldId = holdId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		return row?.ToLegalHold();
@@ -266,7 +318,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				released_by = @ReleasedBy,
 				released_at = @ReleasedAt,
 				release_reason = @ReleaseReason
-			WHERE hold_id = @HoldId{TenantOwnershipPredicate(tenant, "tenant_id")}";
+			WHERE hold_id = @HoldId{TenantOwnershipPredicate("tenant_id")}";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -276,7 +328,8 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 			hold.HoldId,
 			hold.DataSubjectIdHash,
 			IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
-			TenantId = tenant.IsScoped ? tenant.TenantId : hold.TenantId,
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : hold.TenantId).TenantId,
 			AmbientTenantId = tenant.TenantId,
 			Basis = (int)hold.Basis,
 			hold.CaseReference,
@@ -317,7 +370,13 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		// every tenant's holds for that data subject. The ambient term is now unconditional under
 		// multi-tenancy and the caller's argument is appended to it, so the argument can only narrow.
 		var tenant = AmbientScope;
-		var callerPredicate = tenantId is not null ? " AND tenant_id = @TenantId" : string.Empty;
+
+		// The caller's argument NARROWS the ambient set to their own tenant plus the holds that belong to
+		// no tenant. It is the same disjunction the ambient term uses, and for the same reason: a global
+		// hold blocks this tenant's erasures, so dropping it from their view does not fail safe.
+		var callerPredicate = tenantId is not null
+			? $" AND {TenantMatchClause("tenant_id", "@TenantId")}"
+			: string.Empty;
 
 		var sql = $@"
 			SELECT hold_id, data_subject_id_hash, id_type, tenant_id, basis, case_reference,
@@ -325,14 +384,14 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				   released_by, released_at, release_reason
 			FROM {_options.FullTableName}
 			WHERE data_subject_id_hash = @DataSubjectIdHash
-			  AND is_active = TRUE{TenantPredicate(tenant, "tenant_id")}{callerPredicate}
+			  AND is_active = TRUE{TenantPredicate("tenant_id")}{callerPredicate}
 			ORDER BY created_at DESC";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<LegalHoldRow>(
-			new CommandDefinition(sql, new { DataSubjectIdHash = dataSubjectIdHash, TenantId = tenantId, AmbientTenantId = tenant.TenantId },
+			new CommandDefinition(sql, new { DataSubjectIdHash = dataSubjectIdHash, TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel },
 				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToLegalHold()).ToList();
@@ -348,6 +407,13 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 
 		// The caller names a tenant, but the ambient term is still applied on top: asking for another
 		// tenant's holds now intersects to the empty set instead of returning them.
+		//
+		// The caller's own term admits the holds that belong to NO tenant, for the same reason the
+		// ambient one does. This surface answers "which active holds are in force for this tenant",
+		// and its caller is the erasure gate: a global preservation order is in force for every
+		// tenant, and it carries no data subject, so the subject-scoped query cannot return it either.
+		// A bare equality here therefore left a scoped erasure check seeing no global hold at all, and
+		// the deletion it should have blocked is irreversible.
 		var tenant = AmbientScope;
 
 		var sql = $@"
@@ -355,15 +421,15 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				   description, is_active, expires_at, created_by, created_at,
 				   released_by, released_at, release_reason
 			FROM {_options.FullTableName}
-			WHERE tenant_id = @TenantId
-			  AND is_active = TRUE{TenantPredicate(tenant, "tenant_id")}
+			WHERE {TenantMatchClause("tenant_id", "@TenantId")}
+			  AND is_active = TRUE{TenantPredicate("tenant_id")}
 			ORDER BY created_at DESC";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<LegalHoldRow>(
-			new CommandDefinition(sql, new { TenantId = tenantId, AmbientTenantId = tenant.TenantId },
+			new CommandDefinition(sql, new { TenantId = tenantId, AmbientTenantId = tenant.TenantId, UntenantedTenantId = TenantScope.UntenantedSentinel },
 				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToLegalHold()).ToList();
@@ -384,16 +450,22 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		// only intersect, so asking for another tenant yields the empty set instead of that tenant's holds,
 		// and omitting the argument no longer removes the predicate.
 		var tenant = AmbientScope;
-		if (tenant.IsScoped)
+		if (_requireTenant)
 		{
-			whereClauses.Add("(tenant_id = @AmbientTenantId OR tenant_id IS NULL)");
+			whereClauses.Add(TenantMatchClause("tenant_id"));
 			parameters.Add("AmbientTenantId", tenant.TenantId);
+			parameters.Add("UntenantedTenantId", TenantScope.UntenantedSentinel);
 		}
 
 		if (!string.IsNullOrEmpty(tenantId))
 		{
-			whereClauses.Add("tenant_id = @TenantId");
+			// Same disjunction as the ambient term: the caller narrows to their own tenant PLUS the
+			// holds that belong to no tenant. A bare equality here dropped every global preservation
+			// order from a scoped caller's view, which does not fail safe on a control that blocks
+			// an irreversible deletion.
+			whereClauses.Add(TenantMatchClause("tenant_id", "@TenantId"));
 			parameters.Add("TenantId", tenantId);
+			parameters.Add("UntenantedTenantId", TenantScope.UntenantedSentinel);
 		}
 
 		var whereClause = string.Join(" AND ", whereClauses);
@@ -429,16 +501,22 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 
 		// Ambient first, caller's argument ANDed onto it — the caller can only narrow, never widen.
 		var tenant = AmbientScope;
-		if (tenant.IsScoped)
+		if (_requireTenant)
 		{
-			whereClauses.Add("(tenant_id = @AmbientTenantId OR tenant_id IS NULL)");
+			whereClauses.Add(TenantMatchClause("tenant_id"));
 			parameters.Add("AmbientTenantId", tenant.TenantId);
+			parameters.Add("UntenantedTenantId", TenantScope.UntenantedSentinel);
 		}
 
 		if (!string.IsNullOrEmpty(tenantId))
 		{
-			whereClauses.Add("tenant_id = @TenantId");
+			// Same disjunction as the ambient term: the caller narrows to their own tenant PLUS the
+			// holds that belong to no tenant. A bare equality here dropped every global preservation
+			// order from a scoped caller's view, which does not fail safe on a control that blocks
+			// an irreversible deletion.
+			whereClauses.Add(TenantMatchClause("tenant_id", "@TenantId"));
 			parameters.Add("TenantId", tenantId);
+			parameters.Add("UntenantedTenantId", TenantScope.UntenantedSentinel);
 		}
 
 		if (fromDate.HasValue)
@@ -589,32 +667,83 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
 	/// provider error far from its cause. This method is the verification half of that guarantee.
 	/// </remarks>
-	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	/// <exception cref="InvalidOperationException">A required table is absent, or exists with a stale column set.</exception>
 	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
 	{
-		const string ExistsSql = "SELECT to_regclass(@TableName) IS NOT NULL";
+		// Reading the COLUMN catalogue rather than the table catalogue is the whole point of this method.
+		// A probe that asks only whether the table exists reports healthy on precisely the database that is
+		// broken: one provisioned before a column was added, where the table is present and the wrong shape.
+		// The consumer then gets a dead store plus a check that told them it was fine, and the real failure
+		// arrives later as a raw undefined_column far from its cause. Automatic schema creation does not
+		// repair that database either -- CREATE TABLE IF NOT EXISTS only creates tables that are absent.
+		//
+		// Resolved through to_regclass rather than by splitting the configured name: the option already
+		// carries a qualified identifier and to_regclass parses it the way the statements do. attnum > 0
+		// excludes system columns; NOT attisdropped excludes columns dropped but not yet vacuumed, which
+		// still occupy a pg_attribute row and would otherwise read as present.
+		const string ColumnsSql =
+			"SELECT attname FROM pg_attribute " +
+			"WHERE attrelid = to_regclass(@TableName) AND attnum > 0 AND NOT attisdropped";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		foreach (var tableName in new[] { _options.FullTableName })
+		foreach (var (tableName, requiredColumns) in RequiredSchema)
 		{
-			var exists = await connection.ExecuteScalarAsync<bool>(
+			var actualColumns = (await connection.QueryAsync<string>(
 				new CommandDefinition(
-					ExistsSql,
+					ColumnsSql,
 					new { TableName = tableName },
 					cancellationToken: cancellationToken,
-					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)).ToList();
 
-			if (!exists)
+			// No columns at all means no such table: to_regclass returns NULL for a table that does not
+			// exist, so the same query answers both questions and they stay in step.
+			if (actualColumns.Count == 0)
 			{
 				throw new InvalidOperationException(
 					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
 					$"Either create the schema out of band, or set {nameof(PostgresLegalHoldStoreOptions)}."
 					+ $"{nameof(PostgresLegalHoldStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
 			}
+
+			// Named, not counted. An operator reading this at startup needs to know WHICH columns are absent
+			// to choose the migration; "the schema is stale" sends them to diff it by hand.
+			var missing = requiredColumns
+				.Where(required => !actualColumns.Contains(required, StringComparer.Ordinal))
+				.ToList();
+
+			if (missing.Count > 0)
+			{
+				throw new InvalidOperationException(
+					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
+					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
+					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
+					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
+					+ "this database, then restart.");
+			}
 		}
 	}
+
+	/// <summary>
+	/// Gets the columns every statement this store issues binds, per table.
+	/// </summary>
+	/// <remarks>
+	/// Kept beside the statements it mirrors: a column added to the INSERT above without a line here is a
+	/// column the verification stops covering, which returns this check to the existence-only behaviour it
+	/// exists to replace. Compared with <see cref="StringComparer.Ordinal"/> because PostgreSQL folds unquoted
+	/// identifiers to lower case and stores them that way, so these are written as the catalogue holds them
+	/// rather than relying on a case-insensitive match to paper over a mismatch.
+	/// </remarks>
+	private IEnumerable<(string TableName, string[] RequiredColumns)> RequiredSchema =>
+	[
+		(_options.FullTableName,
+		[
+			"hold_id", "data_subject_id_hash", "id_type", "tenant_id", "basis", "case_reference",
+			"description", "is_active", "expires_at", "created_by", "created_at",
+			"released_by", "released_at", "release_reason",
+		]),
+	];
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
 	{
@@ -625,7 +754,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 				hold_id UUID NOT NULL PRIMARY KEY,
 				data_subject_id_hash VARCHAR(128) NULL,
 				id_type INT NULL,
-				tenant_id VARCHAR(256) NULL,
+				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
 				basis INT NOT NULL,
 				case_reference VARCHAR(256) NOT NULL,
 				description VARCHAR(2000) NOT NULL,

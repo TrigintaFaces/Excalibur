@@ -21,12 +21,14 @@ namespace Excalibur.Tests.A3.Authorization.Conditions;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
-public sealed class ConditionMiddlewareIntegrationShould
+public sealed class ConditionMiddlewareIntegrationShould : IDisposable
 {
     private readonly IAccessToken _accessToken;
     private readonly IDispatchAuthorizationService _authorizationService;
     private readonly AttributeAuthorizationCache _attributeCache;
     private readonly A3AuthorizationMiddleware _sut;
+    private readonly ServiceProvider _serviceProvider;
+    private readonly IServiceScope _requestScope;
 
     public ConditionMiddlewareIntegrationShould()
     {
@@ -34,9 +36,32 @@ public sealed class ConditionMiddlewareIntegrationShould
         _authorizationService = A.Fake<IDispatchAuthorizationService>();
         _attributeCache = new AttributeAuthorizationCache();
         _sut = new A3AuthorizationMiddleware(
-            _accessToken, _authorizationService, _attributeCache,
+            _authorizationService, _attributeCache,
             new ConditionExpressionEvaluator());
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        _ = services.AddScoped(_ => _accessToken);
+        _serviceProvider = services.BuildServiceProvider();
+        _requestScope = _serviceProvider.CreateScope();
     }
+    /// <summary>
+    /// Builds a message context carrying a real request scope, which is where the middleware now reads
+    /// the caller's access token from. A fake provider is not enough: the middleware rejects anything
+    /// that is not an <see cref="IServiceScope"/> so a root provider cannot supply an identity.
+    /// </summary>
+    private IMessageContext FakeContext()
+    {
+        var context = A.Fake<IMessageContext>();
+        A.CallTo(() => context.RequestServices).Returns(_requestScope.ServiceProvider);
+        return context;
+    }
+
+    public void Dispose()
+    {
+        _requestScope.Dispose();
+        _serviceProvider.Dispose();
+    }
+
 
     private void SetupAuthorized()
     {
@@ -64,7 +89,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         ]);
 
         var message = new AdminOnlyMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         var expectedResult = A.Fake<IMessageResult>();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
 
@@ -86,7 +111,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         ]);
 
         var message = new AdminOnlyMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
         // Act
@@ -107,7 +132,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         A.CallTo(() => _accessToken.Claims).Returns([]); // No claims at all
 
         var message = new AdminOnlyMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
         // Act
@@ -129,7 +154,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         SetupAuthorized();
 
         var message = new ActionNameCheckMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         var expectedResult = A.Fake<IMessageResult>();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
 
@@ -151,7 +176,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         SetupAuthorized();
 
         var message = new ResourceTypeCheckMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         var expectedResult = A.Fake<IMessageResult>();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
 
@@ -173,7 +198,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         SetupAuthorized();
 
         var message = new MalformedConditionMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
         // Act
@@ -196,7 +221,7 @@ public sealed class ConditionMiddlewareIntegrationShould
         SetupAuthorized();
 
         var message = new NoConditionMessage();
-        var context = A.Fake<IMessageContext>();
+        var context = FakeContext();
         var expectedResult = A.Fake<IMessageResult>();
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
 

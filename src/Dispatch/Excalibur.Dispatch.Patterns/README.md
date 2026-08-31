@@ -2,7 +2,7 @@
 
 Summary
 
-- Core uses MemoryPack for internal/default serialization to align with R0.14 (AOT‑friendly, low allocations).
+- Core uses MemoryPack for internal/default serialization (AOT‑friendly, low allocations).
 - JSON support remains available via the `IJsonSerializer` abstraction and hosting packages (e.g., Patterns.Hosting.Json).
 
 Key points

@@ -1,3 +1,4 @@
+using Excalibur.Dispatch;
 using Excalibur.Compliance.Erasure;
 
 using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
@@ -6,7 +7,7 @@ using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryErasureStoreShould
 {
-    private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance);
+    private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
     private static ErasureRequest CreateRequest(Guid? requestId = null) => new()
     {
@@ -39,15 +40,37 @@ public sealed class InMemoryErasureStoreShould
     }
 
     [Fact]
-    public async Task Throw_on_duplicate_request_id()
+    public async Task Throw_the_duplicate_type_on_duplicate_request_id()
     {
         var requestId = Guid.NewGuid();
         var request1 = CreateRequest(requestId);
         await _sut.SaveRequestAsync(request1, DateTimeOffset.UtcNow.AddHours(72), CancellationToken.None);
 
+        // LIVENESS: the first save of a fresh id must actually store a retrievable request. Without this,
+        // a store that refused every insert would satisfy the duplicate assertion below perfectly.
+        var stored = await _sut.GetStatusAsync(requestId, CancellationToken.None);
+        stored.ShouldNotBeNull(
+            "a first save of a fresh RequestId must store a retrievable request, or the duplicate "
+            + "assertion below proves nothing");
+
+        // SAFETY: the second save must fail with the type that means "already on file" and nothing else.
         var request2 = CreateRequest(requestId);
-        await Should.ThrowAsync<InvalidOperationException>(
+        var thrown = await Should.ThrowAsync<DuplicateErasureRequestException>(
             () => _sut.SaveRequestAsync(request2, DateTimeOffset.UtcNow.AddHours(72), CancellationToken.None));
+
+        thrown.RequestId.ShouldBe(
+            requestId,
+            "the exception must name the request that was re-filed so a caller can act on it");
+    }
+
+    [Fact]
+    public async Task Reject_a_null_request_as_an_argument_fault_not_a_duplicate()
+    {
+        // A missing argument is the caller's mistake and must say so. Reaching the dictionary with a null
+        // request would surface a NullReferenceException, which tells the caller nothing about which
+        // argument was wrong, and is a different report from what both SQL stores already give.
+        _ = await Should.ThrowAsync<ArgumentNullException>(
+            () => _sut.SaveRequestAsync(null!, DateTimeOffset.UtcNow.AddHours(72), CancellationToken.None));
     }
 
     [Fact]

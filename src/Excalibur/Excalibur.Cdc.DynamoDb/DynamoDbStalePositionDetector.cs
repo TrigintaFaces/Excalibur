@@ -3,6 +3,7 @@
 
 using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
+using System.Diagnostics.CodeAnalysis;
 namespace Excalibur.Cdc.DynamoDb;
 
 /// <summary>
@@ -94,6 +95,8 @@ public static class DynamoDbStalePositionDetector
 	/// <param name="shardId">The affected shard ID, if known.</param>
 	/// <param name="sequenceNumber">The stale sequence number, if known.</param>
 	/// <returns>A populated <see cref="CdcPositionResetEventArgs"/> instance.</returns>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static CdcPositionResetEventArgs CreateEventArgs(
 		Exception exception,
 		string processorId,
@@ -134,7 +137,6 @@ public static class DynamoDbStalePositionDetector
 			additionalContext["SequenceNumber"] = sequenceNumber;
 		}
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		return new CdcPositionResetEventArgs
 		{
 			ProcessorId = processorId,
@@ -151,7 +153,6 @@ public static class DynamoDbStalePositionDetector
 			DetectedAt = DateTimeOffset.UtcNow,
 			AdditionalContext = additionalContext.Count > 0 ? additionalContext : null
 		};
-#pragma warning restore IL2026
 	}
 
 	/// <summary>

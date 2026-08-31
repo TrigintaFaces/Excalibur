@@ -185,11 +185,11 @@ public sealed class EncryptingInboxStoreDecoratorShould
 		// Arrange
 		var sut = CreateSut();
 		var stats = new InboxStatistics();
-		A.CallTo(() => ((IInboxStoreAdmin)_inner).GetStatisticsAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IInboxStoreAdmin)_inner).GetAllTenantsStatisticsAsync(A<CancellationToken>._))
 			.Returns(new ValueTask<InboxStatistics>(stats));
 
 		// Act
-		var result = await ((IInboxStoreAdmin)sut).GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var result = await ((IInboxStoreAdmin)sut).GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBeSameAs(stats);
@@ -200,11 +200,11 @@ public sealed class EncryptingInboxStoreDecoratorShould
 	{
 		// Arrange
 		var sut = CreateSut();
-		A.CallTo(() => ((IInboxStoreAdmin)_inner).CleanupAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => ((IInboxStoreAdmin)_inner).CleanupAllTenantsProcessedEntriesAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(5));
 
 		// Act
-		var result = await ((IInboxStoreAdmin)sut).CleanupAsync(DateTimeOffset.UtcNow.AddDays(-30), CancellationToken.None)
+		var result = await ((IInboxStoreAdmin)sut).CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow.AddDays(-30), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert

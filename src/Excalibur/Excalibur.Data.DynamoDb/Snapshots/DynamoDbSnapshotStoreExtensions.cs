@@ -44,7 +44,17 @@ public static class DynamoDbSnapshotStoreExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSnapshotStoreOptions>, DynamoDbSnapshotStoreOptionsValidator>());
 
-		_ = services.AddSingleton<ISnapshotStore, DynamoDbSnapshotStore>();
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructors
+		// declare one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably. A bare
+		// AddSingleton here registered a store that honors the ambient tenant while attesting nothing, so
+		// RowDiscriminator rejected a snapshot store that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, DynamoDbSnapshotStore>();
+
+		// The seam registers the store under its own concrete type, so the contract needs an alias to stay
+		// resolvable, at the same singleton lifetime it had before.
+		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<DynamoDbSnapshotStore>());
 
 		return services;
 	}
@@ -72,7 +82,17 @@ public static class DynamoDbSnapshotStoreExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSnapshotStoreOptions>, DynamoDbSnapshotStoreOptionsValidator>());
 
-		_ = services.AddSingleton<ISnapshotStore, DynamoDbSnapshotStore>();
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructors
+		// declare one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably. A bare
+		// AddSingleton here registered a store that honors the ambient tenant while attesting nothing, so
+		// RowDiscriminator rejected a snapshot store that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, DynamoDbSnapshotStore>();
+
+		// The seam registers the store under its own concrete type, so the contract needs an alias to stay
+		// resolvable, at the same singleton lifetime it had before.
+		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<DynamoDbSnapshotStore>());
 
 		return services;
 	}

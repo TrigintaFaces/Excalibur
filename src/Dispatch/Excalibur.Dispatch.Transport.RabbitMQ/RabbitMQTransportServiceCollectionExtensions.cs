@@ -4,6 +4,8 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using System.Net.Security;
+
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
@@ -68,8 +70,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 
 	/// <summary>
 	/// The default QoS prefetch count applied to a subscriber when no queue-specific value is
-	/// configured. Matches the documented default on <see cref="RabbitMQQueueOptions.PrefetchCount"/>
-	/// and <c>RabbitMqConsumptionOptions.PrefetchCount</c>.
+	/// configured. Matches the documented default on <see cref="RabbitMQQueueOptions.PrefetchCount"/>.
 	/// </summary>
 	private const ushort DefaultPrefetchCount = 100;
 
@@ -128,6 +129,24 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		var builder = new RabbitMQTransportBuilder(transportOptions);
 		configure(builder);
 
+
+		// The adapter binds the UNNAMED RabbitMqCloudEventOptions, so this registers unnamed too.
+		// A transport that also copies values into these options registers that copy separately;
+		// where both apply, the later registration wins.
+		if (builder.CloudEventsConfigure is not null)
+		{
+			_ = services.AddOptions<RabbitMqCloudEventOptions>()
+				.Configure(builder.CloudEventsConfigure)
+				.ValidateOnStart();
+		}
+
+		ApplyTopologyPrefixes(transportOptions.Topology);
+
+		// RabbitMqMessageBus takes IPayloadSerializer, whose only registration is AddPluggableSerialization.
+		// Seat it here (all TryAdd) so the documented AddDispatch() + AddRabbitMQTransport() composition can
+		// construct the bus; a consumer registering their own serializer still wins.
+		_ = services.AddPluggableSerialization();
+
 		// Register core RabbitMQ services
 		RegisterRabbitMQServices(services, transportOptions);
 
@@ -141,7 +160,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		RegisterSubscriber(services, name, transportOptions);
 
 		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
-		// reachable on the AddRabbitMQTransport path instead of orphaned (kek7vm shared-seam wiring).
+		// reachable on the AddRabbitMQTransport path instead of orphaned (shared-seam wiring).
 		RegisterTransportSenderReceiver(services, name, transportOptions);
 
 		return services;
@@ -248,16 +267,65 @@ public static class RabbitMQTransportServiceCollectionExtensions
 
 			if (connection.UseSsl)
 			{
-				factory.Ssl = new SslOption
+				// Mutate rather than replace. An 'amqps://' connection string has already populated
+				// factory.Ssl -- including the server name the certificate is verified against -- and
+				// assigning a fresh SslOption over it would discard that, leaving an empty expected name
+				// that no certificate can match.
+				factory.Ssl.Enabled = true;
+
+				if (!string.IsNullOrEmpty(connection.Ssl.ServerName))
 				{
-					Enabled = true,
-					ServerName = connection.Ssl.ServerName ?? string.Empty,
-					CertPath = connection.Ssl.CertificatePath ?? string.Empty,
-					CertPassphrase = connection.Ssl.CertificatePassphrase ?? string.Empty,
-				};
+					factory.Ssl.ServerName = connection.Ssl.ServerName;
+				}
+
+				if (!string.IsNullOrEmpty(connection.Ssl.CertificatePath))
+				{
+					factory.Ssl.CertPath = connection.Ssl.CertificatePath;
+				}
+
+				if (!string.IsNullOrEmpty(connection.Ssl.CertificatePassphrase))
+				{
+					factory.Ssl.CertPassphrase = connection.Ssl.CertificatePassphrase;
+				}
+
+				// The name the peer certificate is checked against defaults to the host being dialled.
+				// Leaving it empty fails every handshake, which reads as a broker problem rather than as
+				// a setting nobody supplied.
+				if (string.IsNullOrEmpty(factory.Ssl.ServerName))
+				{
+					factory.Ssl.ServerName = factory.HostName;
+				}
 			}
 
-			return factory;
+			// Certificate-validation posture is set here, for whatever carries TLS, rather than inside the
+			// UseSsl branch above: an 'amqps://' connection string enables TLS on the factory without
+			// entering that branch, so a branch-local rule would be honoured on one path and inert on the
+			// other. CarriesTls is the same predicate the posture check below uses, so both read TLS from
+			// the value the wire is actually built from.
+			//
+			// The assignment is deliberate, and it is not redundant. The client library's own Uri setter
+			// waives RemoteCertificateNameMismatch when the scheme is 'amqps', while the UseSsl path
+			// leaves validation full -- so two documented ways of asking for TLS would otherwise
+			// authenticate the broker differently, with nothing telling the consumer which one they got.
+			// Assigning rather than OR-ing normalises both paths to full validation and leaves
+			// AcceptUntrustedCertificates as the single control over any relaxation.
+			if (RabbitMqSecurityPosture.CarriesTls(factory.Ssl))
+			{
+				// The relaxation waives exactly the two errors that describe an untrusted certificate: one
+				// that does not chain to a trusted root, and one whose subject does not match the name
+				// being dialled. A certificate the broker never presents (RemoteCertificateNotAvailable)
+				// is not untrusted -- it is absent -- and stays refused, so this can never reduce the
+				// connection to unauthenticated without the broker presenting anything at all.
+				factory.Ssl.AcceptablePolicyErrors = connection.Ssl.AcceptUntrustedCertificates
+					? SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch
+					: SslPolicyErrors.None;
+			}
+
+			// The transport's TLS posture is enforced here because this factory is the only thing in the
+			// package that can produce a connection, and every channel, sender, receiver, subscriber,
+			// dead-letter manager and health check is reached through it. A client that skipped this
+			// check would have to be built without a connection.
+			return RabbitMqSecurityPosture.Apply(factory, connection.Ssl.RequireTls);
 		});
 
 		// Register IConnection
@@ -268,7 +336,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 		{
 			var connection = sp.GetRequiredService<IConnection>();
-			var cloudEventOptions = sp.GetService<IOptions<RabbitMqCloudEventOptions>>()?.Value;
+			var cloudEventOptions = sp.GetService<IOptionsMonitor<RabbitMqCloudEventOptions>>()?.Get(transportOptions.Name);
 			var publisherConfirms = cloudEventOptions?.Exchange.EnablePublisherConfirms == true;
 			var createOptions = new CreateChannelOptions(
 				publisherConfirms,
@@ -282,15 +350,57 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		// Register TopologyInitializer
 		services.TryAddSingleton(sp =>
 		{
-			var rabbitOptions = sp.GetRequiredService<IOptions<RabbitMqOptions>>().Value;
-			var cloudEventOptions = sp.GetService<IOptions<RabbitMqCloudEventOptions>>()?.Value;
+			var rabbitOptions = sp.GetRequiredService<IOptionsMonitor<RabbitMqOptions>>().Get(transportOptions.Name);
+			var cloudEventOptions = sp.GetService<IOptionsMonitor<RabbitMqCloudEventOptions>>()?.Get(transportOptions.Name);
 			var logger = sp.GetService<ILogger<RabbitMqTopologyInitializer>>();
-			return new RabbitMqTopologyInitializer(rabbitOptions, cloudEventOptions, logger);
+			return new RabbitMqTopologyInitializer(
+				rabbitOptions,
+				cloudEventOptions,
+				logger,
+				transportOptions.Topology,
+				transportOptions.EnableDeadLetter ? transportOptions.DeadLetter : null);
 		});
 
 		// Register RabbitMqMessageBus
 		services.TryAddSingleton<RabbitMqMessageBus>();
 
+	}
+
+	/// <summary>
+	/// Rewrites every configured exchange, queue and binding name to include the configured prefixes.
+	/// Applied once at build time so that the declared topology and the names the sender, receiver and
+	/// subscriber address cannot drift apart.
+	/// </summary>
+	private static void ApplyTopologyPrefixes(RabbitMQTopologyOptions topology)
+	{
+		var exchangePrefix = topology.ExchangePrefix;
+		var queuePrefix = topology.QueuePrefix;
+
+		if (string.IsNullOrEmpty(exchangePrefix) && string.IsNullOrEmpty(queuePrefix))
+		{
+			return;
+		}
+
+		foreach (var exchange in topology.Exchanges)
+		{
+			exchange.Name = Prefixed(exchangePrefix, exchange.Name);
+		}
+
+		foreach (var queue in topology.Queues)
+		{
+			queue.Name = Prefixed(queuePrefix, queue.Name);
+		}
+
+		foreach (var binding in topology.Bindings)
+		{
+			binding.Exchange = Prefixed(exchangePrefix, binding.Exchange);
+			binding.Queue = Prefixed(queuePrefix, binding.Queue);
+		}
+
+		static string Prefixed(string? prefix, string name) =>
+			string.IsNullOrEmpty(prefix) || string.IsNullOrWhiteSpace(name) || name.StartsWith(prefix, StringComparison.Ordinal)
+				? name
+				: prefix + name;
 	}
 
 	/// <summary>
@@ -300,9 +410,18 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		IServiceCollection services,
 		RabbitMQTransportOptions transportOptions)
 	{
-		// Map RabbitMQTransportOptions to existing RabbitMqOptions
-		_ = services.AddOptions<RabbitMqOptions>()
-			.Configure(options =>
+		var transportName = transportOptions.Name;
+
+		// NAMED, so two named RabbitMQ transports in one container no longer write the same options
+		// instance and silently discard the first one's configuration.
+		//
+		// The delegate is applied to the unnamed instance as well, because types in this package take
+		// IOptions<RabbitMqOptions> directly and would otherwise resolve an unconfigured object the
+		// moment the options became named - a silent failure worse than the one being fixed. The
+		// unnamed instance keeps its existing last-registration-wins behaviour; what changes is that
+		// anything resolving BY NAME now gets its own transport's values.
+		void ConfigureRabbitMqOptions(RabbitMqOptions options)
+		{
 			{
 				options.Connection.ConnectionString = transportOptions.Connection.ConnectionString ?? string.Empty;
 
@@ -320,8 +439,6 @@ public static class RabbitMQTransportServiceCollectionExtensions
 					options.Queue.QueueDurable = queue.Durable;
 					options.Queue.QueueExclusive = queue.Exclusive;
 					options.Queue.QueueAutoDelete = queue.AutoDelete;
-					options.Consumption.PrefetchCount = queue.PrefetchCount;
-					options.Consumption.AutoAck = queue.AutoAck;
 					options.Consumption.MaxPayloadBytes = queue.MaxPayloadBytes;
 				}
 
@@ -332,23 +449,29 @@ public static class RabbitMQTransportServiceCollectionExtensions
 					options.DeadLetter.DeadLetterExchange = transportOptions.DeadLetter.Exchange;
 					options.DeadLetter.DeadLetterRoutingKey = transportOptions.DeadLetter.RoutingKey;
 				}
-			})
-			.ValidateOnStart();
+			}
+		}
+
+		_ = services.AddOptions<RabbitMqOptions>(transportName).Configure(ConfigureRabbitMqOptions).ValidateOnStart();
+		_ = services.AddOptions<RabbitMqOptions>().Configure(ConfigureRabbitMqOptions).ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>());
 
 		// Map to CloudEvent options
-		_ = services.AddOptions<RabbitMqCloudEventOptions>()
-			.Configure(options =>
+		void ConfigureCloudEventOptions(RabbitMqCloudEventOptions options)
+		{
 			{
 				// Copy CloudEvents settings from transport options
 				var cloudEvents = transportOptions.CloudEvents;
 				options.Exchange.ExchangeType = cloudEvents.Exchange.ExchangeType;
 				options.Exchange.Persistence = cloudEvents.Exchange.Persistence;
 				options.Exchange.EnablePublisherConfirms = cloudEvents.Exchange.EnablePublisherConfirms;
-			})
-			.ValidateOnStart();
+			}
+		}
+
+		_ = services.AddOptions<RabbitMqCloudEventOptions>(transportName).Configure(ConfigureCloudEventOptions).ValidateOnStart();
+		_ = services.AddOptions<RabbitMqCloudEventOptions>().Configure(ConfigureCloudEventOptions).ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqCloudEventOptions>, RabbitMqCloudEventOptionsValidator>());
@@ -427,8 +550,8 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			: string.Empty;
 		var destination = string.IsNullOrEmpty(exchange) ? queueName : exchange;
 
-		// fjtok4: give the unified sender a DEDICATED channel with publisher confirms + tracking ENABLED
-		// (SA ruling A, msg 16998/17000) so BasicPublishAsync awaits the broker ack = at-least-once —
+		// give the unified sender a DEDICATED channel with publisher confirms + tracking ENABLED
+		// so BasicPublishAsync awaits the broker ack = at-least-once —
 		// instead of the shared channel whose confirms are off-by-default (advertised-but-inert). The
 		// receiver/bus stay on the shared channel; this keyed channel is owned/disposed by the container.
 		var senderChannelKey = $"{name}:sender-confirms";
@@ -454,7 +577,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		{
 			var channel = sp.GetRequiredService<IChannel>();
 			var logger = sp.GetRequiredService<ILogger<RabbitMqTransportReceiver>>();
-			var maxPayloadBytes = sp.GetRequiredService<IOptions<RabbitMqOptions>>().Value.Consumption.MaxPayloadBytes;
+			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<RabbitMqOptions>>().Get(name).Consumption.MaxPayloadBytes;
 			return new RabbitMqTransportReceiver(channel, queueName, queueName, logger, maxPayloadBytes);
 		});
 	}
@@ -478,7 +601,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			// Honor the documented default prefetch (100) when no queue-specific value is configured,
 			// rather than falling back to 0 which disables QoS (unbounded prefetch).
 			var prefetchCount = queueOptions?.PrefetchCount ?? DefaultPrefetchCount;
-			var maxPayloadBytes = sp.GetRequiredService<IOptions<RabbitMqOptions>>().Value.Consumption.MaxPayloadBytes;
+			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<RabbitMqOptions>>().Get(name).Consumption.MaxPayloadBytes;
 			var nativeSubscriber = new RabbitMqTransportSubscriber(
 				channel,
 				queueName,

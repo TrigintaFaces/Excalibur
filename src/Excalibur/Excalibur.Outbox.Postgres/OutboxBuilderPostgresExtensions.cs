@@ -101,10 +101,11 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresOutboxStoreOptions>, PostgresOutboxStoreOptionsValidator>());
 
-		// The fail-closed single-tenant default guarantees a non-null ITenantContext so the dep-gated
-		// AddTenantScopedStore seam resolves (GetRequiredService) rather than throwing; the multi-tenancy
-		// composition replaces it with the ambient context. The outbox honors the tenant by stamping +
-		// persisting tenant_id per message and returning it on drain.
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. It is NOT what makes this outbox
+		// tenant-safe and the store registration below no longer depends on it: the outbox carries the tenant
+		// on the row (stamped on enqueue, returned on drain), which is a different mechanism from reading an
+		// ambient discriminator, and it is attested as that mechanism rather than as ambient scoping.
 		builder.Services.AddDefaultTenantContext();
 
 		// Register services based on connection mode
@@ -112,11 +113,13 @@ public static class OutboxBuilderPostgresExtensions
 		{
 			var dbFactory = postgresBuilder.ConfiguredDbFactory;
 
-			// Register Postgres outbox store with IDb factory. AddTenantScopedStore emits the
-			// ITenantScopingCapability<IOutboxStore> marker as part of THIS registration so the marker cannot
-			// exist without the store factory (S886 rw2ull — no lying marker). The outbox honors the ambient
-			// tenant by persisting tenant_id per message and returning it on drain.
-			builder.Services.AddTenantScopedStore<IOutboxStore, PostgresOutboxStore>((sp, _) =>
+			// Register Postgres outbox store with IDb factory. AddTenantAwareStore emits the
+			// ITenantPartitionedCapability<IOutboxStore> marker as part of THIS registration, so the marker
+			// cannot exist without the store factory. It is the partitioned seam rather than the scoped one
+			// because this store does not read an ambient tenant on any path: it persists tenant_id per message
+			// and returns it on drain, so the owning tenant is re-established from the row. That seam takes no
+			// ITenantContext, so there is no dependency here to be handed and silently discarded.
+			builder.Services.AddTenantAwareStore<IOutboxStore, PostgresOutboxStore>(sp =>
 			{
 				var db = dbFactory(sp);
 				var options = sp.GetRequiredService<IOptions<PostgresOutboxStoreOptions>>();
@@ -129,20 +132,23 @@ public static class OutboxBuilderPostgresExtensions
 		{
 			var connectionString = postgresBuilder.ConfiguredConnectionString;
 
-			// Register IDb for Postgres - the store depends on this
-			builder.Services.TryAddSingleton(() =>
+			// Registers IDb, which is what the store below resolves. The type argument is explicit and the
+			// factory takes the provider: a no-argument lambda cannot bind the factory overload, so it bound
+			// the INSTANCE overload instead and registered a Func<NpgsqlConnection> under its own type. IDb was then
+			// registered nowhere, and the store threw on resolve the first time a host used this path.
+			builder.Services.TryAddSingleton<IDb>(_ =>
 			{
 				var connection = new NpgsqlConnection(connectionString);
 				connection.Open();
-				return connection;
+				return new OutboxDb(connection);
 			});
 
-			// Register Postgres outbox store (DI-constructed). AddTenantScopedStore emits the
-			// ITenantScopingCapability<IOutboxStore> marker inseparably from this registration (S886 rw2ull (B));
-			// the store reads no ambient tenant (isolation = per-message tenant_id column), so the resolved
-			// context is not threaded into construction.
-			builder.Services.AddTenantScopedStore<IOutboxStore, PostgresOutboxStore>(
-				static (sp, _) => new PostgresOutboxStore(
+			// Register Postgres outbox store (DI-constructed). AddTenantAwareStore emits the
+			// ITenantPartitionedCapability<IOutboxStore> marker inseparably from this registration. Isolation
+			// here is the per-message tenant_id column, not an ambient discriminator, so this is the partitioned
+			// seam and there is no ITenantContext to thread or to drop.
+			builder.Services.AddTenantAwareStore<IOutboxStore, PostgresOutboxStore>(
+				static sp => new PostgresOutboxStore(
 					sp.GetRequiredService<IDb>(),
 					sp.GetRequiredService<IOptions<PostgresOutboxStoreOptions>>(),
 					sp.GetRequiredService<ILogger<PostgresOutboxStore>>(),
@@ -160,10 +166,10 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("postgres"));
 
-		// The ITenantScopingCapability<IOutboxStore> marker is emitted by AddTenantScopedStore above,
-		// inseparably from the store registration (S886 rw2ull — the marker cannot exist without the store
-		// factory). The outbox honors the ambient tenant by stamping + persisting tenant_id on enqueue and
-		// returning it on drain for the processor's per-message BeginScope.
+		// The ITenantPartitionedCapability<IOutboxStore> marker is emitted by AddTenantAwareStore
+		// above, inseparably from the store registration. It attests the mechanism this store actually
+		// implements: tenant_id stamped and persisted on enqueue and returned on drain for the processor's
+		// per-message BeginScope. The drain itself is deliberately estate-wide.
 		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<PostgresOutboxStore>());
 
 		return builder;

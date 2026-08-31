@@ -130,8 +130,8 @@ CREATE TABLE [dbo].[IdentityMap] (
     ExternalId      NVARCHAR(256) NOT NULL,
     AggregateType   NVARCHAR(256) NOT NULL,
     AggregateId     NVARCHAR(256) NOT NULL,
-    CreatedAt       DATETIMEOFFSET NOT NULL DEFAULT SYSUTCDATETIME(),
-    UpdatedAt       DATETIMEOFFSET NOT NULL DEFAULT SYSUTCDATETIME(),
+    CreatedAt       DATETIMEOFFSET NOT NULL CONSTRAINT DF_IdentityMap_CreatedAt DEFAULT SYSUTCDATETIME(),
+    UpdatedAt       DATETIMEOFFSET NOT NULL CONSTRAINT DF_IdentityMap_UpdatedAt DEFAULT SYSUTCDATETIME(),
 
     CONSTRAINT PK_IdentityMap PRIMARY KEY CLUSTERED (ExternalSystem, ExternalId, AggregateType),
     INDEX IX_IdentityMap_AggregateId (AggregateType, AggregateId)

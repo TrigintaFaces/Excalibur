@@ -43,7 +43,7 @@ public sealed class InMemorySagaTimeoutClaimDisjointShould
 	[Fact]
 	public async Task TwoWorkers_PartitionTheDueSet_WithNoDoubleClaim()
 	{
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var asOf = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var dueAt = asOf.AddMinutes(-1); // all due before asOf
 
@@ -77,7 +77,7 @@ public sealed class InMemorySagaTimeoutClaimDisjointShould
 	[Fact]
 	public async Task AClaimedTimeout_IsNotReClaimed_WhileTheLeaseIsValid()
 	{
-		var store = new InMemorySagaTimeoutStore();
+		var store = new InMemorySagaTimeoutStore(new TestTenantContext());
 		var asOf = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		await store.ScheduleTimeoutAsync(DueTimeout("only", asOf.AddMinutes(-1)), CancellationToken.None);
 

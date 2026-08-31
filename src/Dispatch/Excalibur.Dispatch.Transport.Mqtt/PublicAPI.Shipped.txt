@@ -34,3 +34,5 @@ Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.AtMostOnce = 0 -> Excalib
 Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.ExactlyOnce = 2 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
 Microsoft.Extensions.DependencyInjection.MqttTransportServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.MqttTransportServiceCollectionExtensions.AddMqttTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Mqtt.MqttOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.get -> bool
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.RequireTls.set -> void

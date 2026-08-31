@@ -57,7 +57,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class ComplianceMetricsConformanceTestKit
+public abstract class ComplianceMetricsConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh compliance metrics instance for testing.
@@ -102,7 +102,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that the Meter property returns a non-null instance with the correct name.
 	/// </summary>
-	protected virtual void Meter_ShouldBeNonNullAndNamed()
+	public virtual void Meter_ShouldBeNonNullAndNamed()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -137,7 +137,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordKeyRotation completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void RecordKeyRotation_ShouldCompleteSuccessfully()
+	public virtual void RecordKeyRotation_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -163,7 +163,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordKeyRotationFailure completes successfully with valid parameters.
 	/// </summary>
-	protected virtual void RecordKeyRotationFailure_ShouldCompleteSuccessfully()
+	public virtual void RecordKeyRotationFailure_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -189,7 +189,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that UpdateKeysNearingExpiration completes successfully.
 	/// </summary>
-	protected virtual void UpdateKeysNearingExpiration_ShouldCompleteSuccessfully()
+	public virtual void UpdateKeysNearingExpiration_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -213,7 +213,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordEncryptionLatency completes successfully with success=true.
 	/// </summary>
-	protected virtual void RecordEncryptionLatency_SuccessTrue_ShouldCompleteSuccessfully()
+	public virtual void RecordEncryptionLatency_SuccessTrue_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -237,7 +237,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordEncryptionLatency completes successfully with success=false.
 	/// </summary>
-	protected virtual void RecordEncryptionLatency_SuccessFalse_ShouldCompleteSuccessfully()
+	public virtual void RecordEncryptionLatency_SuccessFalse_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -265,7 +265,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordEncryptionOperation completes successfully with bytes.
 	/// </summary>
-	protected virtual void RecordEncryptionOperation_WithBytes_ShouldCompleteSuccessfully()
+	public virtual void RecordEncryptionOperation_WithBytes_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -288,7 +288,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordEncryptionOperation completes successfully with zero bytes.
 	/// </summary>
-	protected virtual void RecordEncryptionOperation_ZeroBytes_ShouldCompleteSuccessfully()
+	public virtual void RecordEncryptionOperation_ZeroBytes_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -315,7 +315,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordAuditEventLogged completes successfully with tenantId.
 	/// </summary>
-	protected virtual void RecordAuditEventLogged_WithTenant_ShouldCompleteSuccessfully()
+	public virtual void RecordAuditEventLogged_WithTenant_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -338,7 +338,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordAuditEventLogged completes successfully without tenantId.
 	/// </summary>
-	protected virtual void RecordAuditEventLogged_WithoutTenant_ShouldCompleteSuccessfully()
+	public virtual void RecordAuditEventLogged_WithoutTenant_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -365,7 +365,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that UpdateAuditBacklogSize completes successfully.
 	/// </summary>
-	protected virtual void UpdateAuditBacklogSize_ShouldCompleteSuccessfully()
+	public virtual void UpdateAuditBacklogSize_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -389,7 +389,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordAuditIntegrityCheck completes successfully with violations.
 	/// </summary>
-	protected virtual void RecordAuditIntegrityCheck_WithViolations_ShouldCompleteSuccessfully()
+	public virtual void RecordAuditIntegrityCheck_WithViolations_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -412,7 +412,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordAuditIntegrityCheck completes successfully without violations.
 	/// </summary>
-	protected virtual void RecordAuditIntegrityCheck_NoViolations_ShouldCompleteSuccessfully()
+	public virtual void RecordAuditIntegrityCheck_NoViolations_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();
@@ -439,7 +439,7 @@ public abstract class ComplianceMetricsConformanceTestKit
 	/// <summary>
 	/// Verifies that RecordKeyUsage completes successfully.
 	/// </summary>
-	protected virtual void RecordKeyUsage_ShouldCompleteSuccessfully()
+	public virtual void RecordKeyUsage_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var metrics = CreateMetrics();

@@ -35,6 +35,7 @@
     <!-- Shared across audit logging and compliance tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
     <!-- From Excalibur.Compliance.Vault (S564.52 — VaultOptions ISP split tests) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Pdf\Excalibur.Compliance.Pdf.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Vault\Excalibur.Compliance.Vault.csproj" />
     <!-- From Excalibur.Compliance.Abstractions.Tests (already included above) -->
     <!-- From Excalibur.Compliance.Aws.Tests -->

@@ -14,20 +14,25 @@ namespace Excalibur.Data.Persistence;
 /// retry policies, multi-tenancy routing).
 /// </para>
 /// <para>
-/// Example: a logging decorator that intercepts <see cref="ExecuteAsync{TConnection,TResult}"/>:
+/// Example: a logging decorator that intercepts <see cref="InitializeAsync"/>:
 /// </para>
 /// <code>
 /// public class LoggingPersistenceProvider(IPersistenceProvider inner, ILogger logger)
 ///     : DelegatingPersistenceProvider(inner)
 /// {
-///     public override async Task&lt;TResult&gt; ExecuteAsync&lt;TConnection, TResult&gt;(
-///         IDataRequest&lt;TConnection, TResult&gt; request, CancellationToken cancellationToken)
+///     public override async Task InitializeAsync(
+///         IPersistenceOptions options, CancellationToken cancellationToken)
 ///     {
-///         logger.LogDebug("Executing {Request}", request.GetType().Name);
-///         return await base.ExecuteAsync(request, cancellationToken);
+///         logger.LogDebug("Initializing {Provider}", Name);
+///         await base.InitializeAsync(options, cancellationToken);
 ///     }
 /// }
 /// </code>
+/// <para>
+/// Capabilities reached through <see cref="GetService"/> — such as
+/// <see cref="IDataRequestExecutor"/> — are not members of this base, so a decorator that needs to
+/// intercept one overrides <see cref="GetService"/> and returns its own wrapper for that capability.
+/// </para>
 /// </remarks>
 public abstract class DelegatingPersistenceProvider : IPersistenceProvider
 {
@@ -50,13 +55,6 @@ public abstract class DelegatingPersistenceProvider : IPersistenceProvider
 
 	/// <inheritdoc />
 	public virtual string ProviderType => Inner.ProviderType;
-
-	/// <inheritdoc />
-	public virtual Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-		=> Inner.ExecuteAsync(request, cancellationToken);
 
 	/// <inheritdoc />
 	public virtual Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)

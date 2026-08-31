@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Exceptions;
 
 using Microsoft.Extensions.Logging;
 
@@ -53,6 +54,12 @@ public sealed partial class ExceptionMappingMiddleware(
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Never map cancellation - propagate up for proper cancellation handling
+			throw;
+		}
+		catch (HandlerNotRegisteredException)
+		{
+			// A missing handler registration is a configuration fault, not a request outcome, so it is never mapped to problem
+			// details a caller would relay to its own client.
 			throw;
 		}
 		catch (Exception ex)

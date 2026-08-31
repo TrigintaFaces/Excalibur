@@ -399,17 +399,17 @@ Transparent encryption for persistence layers using the decorator pattern:
 ### Event Store Encryption
 
 ```csharp
-using Excalibur.EventSourcing.Encryption.Decorators;
-
-// Register the encrypting decorator
-builder.Services.AddEventSourcing(options =>
-{
-    options.UseEncryption(encryption =>
+// AddEventSourcingCryptoShredding wires the encrypting decorators across the event
+// store, inbox and outbox. Behaviour is configured on EncryptionOptions.
+builder.Services.AddEncryption(encryption => encryption
+    .UseKeyManagement<AesGcmEncryptionProvider>("primary")
+    .ConfigureOptions(options =>
     {
-        encryption.Mode = EncryptionMode.EncryptAndDecrypt;
-        encryption.DefaultPurpose = "event-data";
-    });
-});
+        options.Mode = EncryptionMode.EncryptAndDecrypt;
+        options.DefaultPurpose = "event-data";
+    }));
+
+builder.Services.AddEventSourcingCryptoShredding();
 ```
 
 ### Encryption Modes
@@ -437,18 +437,15 @@ The decorators support seamless migration from plaintext to encrypted data:
 
 ```csharp
 // Phase 1: Start encrypting new data, decrypt both old and new
-builder.Services.AddEventSourcing(options =>
-{
-    options.UseEncryption(e => e.Mode = EncryptionMode.EncryptNewDecryptAll);
-});
+builder.Services.Configure<EncryptionOptions>(o =>
+    o.Mode = EncryptionMode.EncryptNewDecryptAll);
 
 // Phase 2: Run background re-encryption job
 // (See Key Rotation section below)
 
 // Phase 3: All data encrypted, normal operation
-builder.Services.AddEventSourcing(options =>
-{
-    options.UseEncryption(e => e.Mode = EncryptionMode.EncryptAndDecrypt);
+builder.Services.Configure<EncryptionOptions>(o =>
+    o.Mode = EncryptionMode.EncryptAndDecrypt);
 });
 ```
 
@@ -546,10 +543,32 @@ var context = new EncryptionContext
 
 | Platform | FIPS Mode |
 |----------|-----------|
-| Windows | Registry setting: `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\FIPSAlgorithmPolicy` |
+| Windows | Registry value `FipsAlgorithmPolicy` under `HKLM\SYSTEM\CurrentControlSet\Control\Lsa` |
 | Linux | `/proc/sys/crypto/fips_enabled = 1` |
 | Azure | Azure FIPS-enabled VMs |
 | AWS | AWS GovCloud, FIPS endpoints |
+
+### How detection works
+
+On Windows, FIPS status is read from the `FipsAlgorithmPolicy` registry value named above. On Linux it is read from `/proc/sys/crypto/fips_enabled`.
+
+:::caution Re-generate Windows compliance evidence produced by an earlier version
+Detection previously read `CryptoConfig.AllowOnlyFipsAlgorithms`. .NET Core and later pin that property to `false` and never populate it from the host policy, so **every Windows host reported *not FIPS compliant*, including one genuinely running under FIPS policy**. That result feeds the SOC 2 encryption control validator, so evidence generated on a Windows host you believe is FIPS-enabled recorded a false negative. Re-generate it.
+:::
+
+#### Unconfirmed is not the same as disabled
+
+`FipsDetectionResult` carries a boolean `IsFipsEnabled` and a `ValidationDetails` string, and there are three outcomes rather than two:
+
+| Outcome | `IsFipsEnabled` | What it means |
+|---------|-----------------|---------------|
+| Policy on | `true` | The host policy enables FIPS. |
+| Policy off | `false` | The host policy is present and disabled — a deployment decision. |
+| Policy unreadable | `false` | The value is absent or inaccessible. `ValidationDetails` states that compliance is **unconfirmed**. |
+
+The third outcome reports `false` because the check cannot assert compliance it did not establish — but it is a different problem from a policy deliberately turned off. **Read `ValidationDetails`, not only the boolean.** An unconfirmed result usually means the process cannot read the registry key and is an operational fault to resolve; reporting it as a settled *not compliant* would assert something the check never determined.
+
+`AesGcmEncryptionProvider` resolves this through the detector rather than reading the runtime property itself, so the provider and the compliance report cannot disagree. It accepts an optional `IFipsDetector`; hosts that supply none are unaffected.
 
 ## Crypto-Shredding (GDPR)
 

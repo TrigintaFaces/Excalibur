@@ -95,7 +95,7 @@ builder.Services.AddOpenTelemetry()
 ### Custom Spans
 
 ```csharp
-using var activity = DispatchActivitySource.Source.StartActivity("ProcessOrder");
+using var activity = DispatchActivitySource.Instance.StartActivity("ProcessOrder");
 activity?.SetTag("order.id", orderId);
 activity?.AddEvent(new ActivityEvent("ValidationComplete"));
 
@@ -149,7 +149,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 | `dispatch.transport.messages_sent_total` | Counter | Messages sent |
 | `dispatch.transport.messages_received_total` | Counter | Messages received |
 | `dispatch.transport.errors_total` | Counter | Transport errors |
-| `dispatch.transport.send_duration_ms` | Histogram | Send latency |
+| `dispatch.transport.send.duration` | Histogram | Send latency |
 
 ## Best Practices
 

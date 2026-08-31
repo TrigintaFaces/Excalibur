@@ -9,6 +9,7 @@ using Excalibur.Inbox.InMemory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Dispatch.Benchmarks.Patterns;
 
@@ -44,7 +45,7 @@ public class InboxThroughputBenchmarks
 			MaxEntries = 0 // unlimited
 		});
 		var logger = NullLoggerFactory.Instance.CreateLogger<InMemoryInboxStore>();
-		_inboxStore = new InMemoryInboxStore(options, logger);
+		_inboxStore = new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 
 		// Pre-populate inbox with messages
 		for (var i = 0; i < MessageCount; i++)
@@ -80,7 +81,7 @@ public class InboxThroughputBenchmarks
 	[Benchmark(Baseline = true)]
 	public async Task<int> GetAllEntries()
 	{
-		var entries = await _inboxStore!.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var entries = await _inboxStore!.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 		return entries.Count();
 	}
 
@@ -90,7 +91,7 @@ public class InboxThroughputBenchmarks
 	[Benchmark]
 	public async Task<long> GetStatistics()
 	{
-		var stats = await _inboxStore!.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await _inboxStore!.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		return stats.TotalEntries;
 	}
 

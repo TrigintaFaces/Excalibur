@@ -257,11 +257,11 @@ public sealed class SqlServerLegalHoldStoreTenantIsolationShould : IntegrationTe
 
 	// The non-multi-tenant shape: no ambient tenant, no predicate emitted. Used only to seed a genuinely
 	// global hold, which a tenant-facing path can no longer create.
-	private SqlServerLegalHoldStore CreateUnscopedStore() => Build(tenantContext: null, requireTenant: false);
+	private SqlServerLegalHoldStore CreateUnscopedStore() => Build(UntenantedContext.Instance, requireTenant: false);
 
 	// Fully qualified: an unqualified `Options.Create` binds to the Excalibur.Dispatch.Options NAMESPACE in
 	// this file's scope, not to Microsoft's static class.
-	private SqlServerLegalHoldStore Build(ITenantContext? tenantContext, bool requireTenant) => new(
+	private SqlServerLegalHoldStore Build(ITenantContext tenantContext, bool requireTenant) => new(
 		Microsoft.Extensions.Options.Options.Create(new SqlServerLegalHoldStoreOptions
 		{
 			ConnectionString = _fixture.ConnectionString,

@@ -27,7 +27,8 @@ internal sealed class OrderedBatchProcessor(
 	ILogger<OrderedBatchProcessor> logger,
 	BatchMetricsCollector metricsCollector) : BatchProcessorBase(logger, metricsCollector)
 {
-	// Retain options for future use (e.g., ordering key timeout, retry configuration).
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "Ordering is enforced with a semaphore per ordering key and nothing here reads the batch options, so no configured wait time, batch bound or acknowledgement setting reaches this path. Held for the settings this processor should honour and does not.")]
 	private readonly IOptions<BatchOptions> _options = options;
 
 	private readonly Func<ReceivedMessage, CancellationToken, Task<object>> _messageProcessor =

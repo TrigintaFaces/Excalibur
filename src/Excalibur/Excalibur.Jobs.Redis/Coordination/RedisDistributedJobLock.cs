@@ -29,12 +29,12 @@ internal sealed partial class RedisDistributedJobLock(
 
 	// Atomic owner-checked release: DEL the key ONLY if its stored value still equals
 	// this acquisition's per-acquisition owner token. A stale handle (lock expired and
-	// re-acquired by another holder) will not match and the script is a no-op. [bd-jqlqc8]
+	// re-acquired by another holder) will not match and the script is a no-op.
 	private const string OwnerCheckedReleaseScript =
 		"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
 	// Atomic owner-checked extend: PEXPIRE (milliseconds) ONLY if the stored value still
-	// equals this acquisition's owner token. Milliseconds keep parity with the PX acquire. [bd-jqlqc8]
+	// equals this acquisition's owner token. Milliseconds keep parity with the PX acquire.
 	private const string OwnerCheckedExtendScript =
 		"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
 
@@ -66,7 +66,7 @@ internal sealed partial class RedisDistributedJobLock(
 		// Owner-checked extend: only PEXPIRE when THIS acquisition still owns the lock
 		// (stored value still equals our token). If the lock expired and was re-acquired
 		// by another holder, the token no longer matches and the script is a no-op
-		// (returns 0) — we never extend someone else's lock. [bd-jqlqc8]
+		// (returns 0) — we never extend someone else's lock.
 		var result = await database.ScriptEvaluateAsync(
 			OwnerCheckedExtendScript,
 			[lockKey],
@@ -90,7 +90,7 @@ internal sealed partial class RedisDistributedJobLock(
 			// Owner-checked release: only DEL when THIS acquisition still owns the lock.
 			// A stale handle whose lock has expired and been re-acquired by another holder
 			// will NOT delete the new holder's lock (token mismatch -> no-op). We still mark
-			// ourselves disposed: this handle is finished regardless of the Redis outcome. [bd-jqlqc8]
+			// ourselves disposed: this handle is finished regardless of the Redis outcome.
 			_ = await database.ScriptEvaluateAsync(
 				OwnerCheckedReleaseScript,
 				[lockKey],

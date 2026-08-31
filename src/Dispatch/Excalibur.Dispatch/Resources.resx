@@ -67,7 +67,7 @@
     <value>Message {MessageId} partially delivered: {SuccessCount} succeeded, {FailureCount} failed</value>
   </data>
   <data name="MessageBusOutboxPublisher_MultiTransportRequiresRegistry" xml:space="preserve">
-    <value>Multi-transport publishing requires IMultiTransportOutboxStore and ITransportRegistry.</value>
+    <value>Multi-transport publishing requires IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, and ITransportRegistry.</value>
   </data>
   <data name="MessageBusOutboxPublisher_MultiTransportRequiresStore" xml:space="preserve">
     <value>Multi-transport publishing requires an IMultiTransportOutboxStore implementation.</value>
@@ -287,9 +287,6 @@
   </data>
   <data name="CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided" xml:space="preserve">
     <value>At least one context must be provided.</value>
-  </data>
-  <data name="InboxHandlerConfiguration_RetentionMustBePositive" xml:space="preserve">
-    <value>Retention must be positive.</value>
   </data>
   <data name="DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation" xml:space="preserve">
     <value>Message bus registration does not have an implementation.</value>

@@ -35,16 +35,4 @@ public sealed class OAuth2Options
 	/// </summary>
 	/// <value> The space-separated list of OAuth2 scopes. </value>
 	public string? Scope { get; init; } = "elasticsearch:read elasticsearch:write";
-
-	/// <summary>
-	/// Gets the audience for token validation.
-	/// </summary>
-	/// <value> The expected audience value in OAuth2 tokens. </value>
-	public string? Audience { get; init; }
-
-	/// <summary>
-	/// Gets the token refresh buffer time.
-	/// </summary>
-	/// <value> The time before token expiration to trigger refresh. Defaults to 5 minutes. </value>
-	public TimeSpan RefreshBuffer { get; init; } = TimeSpan.FromMinutes(5);
 }

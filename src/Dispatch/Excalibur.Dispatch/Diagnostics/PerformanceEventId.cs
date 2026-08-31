@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// <item>50300-50399: Handler Registry Metrics</item>
 /// </list>
 /// </remarks>
-public static class PerformanceEventId
+internal static class PerformanceEventId
 {
 	// ========================================
 	// 50000-50099: Benchmark Execution
@@ -117,4 +117,7 @@ public static class PerformanceEventId
 
 	/// <summary>Freeze lock acquisition timed out.</summary>
 	public const int CacheFreezeLockTimeout = 50414;
+
+	/// <summary>No application lifetime is registered, so there is no startup signal to freeze on.</summary>
+	public const int CacheNoApplicationLifetime = 50415;
 }

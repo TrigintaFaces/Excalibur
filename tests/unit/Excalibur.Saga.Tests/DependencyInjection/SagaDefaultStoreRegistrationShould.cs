@@ -35,7 +35,22 @@ public sealed class SagaDefaultStoreRegistrationShould
 
         // Assert — RED on the pre-fix code, which implicitly registered InMemorySagaStore as "default".
         sp.GetKeyedService<ISagaStore>("default").ShouldBeNull();
-        sp.GetService<ISagaStore>().ShouldBeNull();
+
+        // The non-keyed contract is a forwarding alias to keyed "default", and with no store registered it
+        // must answer exactly as the container answers for any unregistered service: GetService hands back
+        // null, GetRequiredService throws. An alias that threw from GetService took that decision away from
+        // the caller and broke every optional-dependency probe, which is the standard way framework and
+        // consumer code asks whether a store is present.
+        sp.GetService<ISagaStore>().ShouldBeNull(
+            customMessage: "GetService must report an unregistered store as null. Throwing here breaks "
+                + "every caller that branches on null to detect an absent optional dependency.");
+
+        // And the loud half of the contract is still loud, at the site that asked for it.
+        var thrown = Should.Throw<InvalidOperationException>(() => sp.GetRequiredService<ISagaStore>());
+        thrown.Message.ShouldContain(
+            nameof(ISagaStore),
+            customMessage: "The failure must name the contract that was never registered, so a consumer "
+                + "who forgot to register a saga store is told which one.");
     }
 
     [Fact]

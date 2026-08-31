@@ -16,9 +16,6 @@ namespace Excalibur.Dispatch.Observability.Tests;
 [Trait("Feature", "Serialization")]
 public sealed class DiagnosticExportDataSerializationShould
 {
-    private static readonly JsonSerializerOptions ContextOptions =
-        ObservabilityJsonSerializerContext.Default.Options;
-
     [Fact]
     public void HaveDiagnosticExportDataTypeInfo()
     {

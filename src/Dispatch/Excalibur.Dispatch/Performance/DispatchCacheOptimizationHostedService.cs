@@ -32,7 +32,7 @@ namespace Excalibur.Dispatch.Performance;
 internal sealed partial class DispatchCacheOptimizationHostedService : IHostedService
 {
 	private readonly IDispatchCacheManager _cacheManager;
-	private readonly IHostApplicationLifetime _applicationLifetime;
+	private readonly IHostApplicationLifetime? _applicationLifetime;
 	private readonly IOptions<DispatchOptions> _options;
 	private readonly ILogger<DispatchCacheOptimizationHostedService> _logger;
 	private CancellationTokenRegistration _registration;
@@ -41,17 +41,22 @@ internal sealed partial class DispatchCacheOptimizationHostedService : IHostedSe
 	/// Initializes a new instance of the <see cref="DispatchCacheOptimizationHostedService"/> class.
 	/// </summary>
 	/// <param name="cacheManager">The cache manager to use for freezing.</param>
-	/// <param name="applicationLifetime">The application lifetime to listen for startup.</param>
+	/// <param name="applicationLifetime">
+	/// The application lifetime whose ApplicationStarted signals that every handler has been registered.
+	/// Optional: a container composed without a generic host supplies none, and there is no startup signal
+	/// to hang the freeze on, so the service does nothing rather than freezing at a point where handler
+	/// registration may still be incomplete. A real host always provides one.
+	/// </param>
 	/// <param name="options">The dispatch options.</param>
 	/// <param name="logger">Optional logger for diagnostics.</param>
 	public DispatchCacheOptimizationHostedService(
 		IDispatchCacheManager cacheManager,
-		IHostApplicationLifetime applicationLifetime,
+		IHostApplicationLifetime? applicationLifetime,
 		IOptions<DispatchOptions> options,
 		ILogger<DispatchCacheOptimizationHostedService>? logger = null)
 	{
 		_cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
-		_applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));
+		_applicationLifetime = applicationLifetime;
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger<DispatchCacheOptimizationHostedService>.Instance;
 	}
@@ -64,6 +69,12 @@ internal sealed partial class DispatchCacheOptimizationHostedService : IHostedSe
 		// 1. DI container is fully built
 		// 2. All handlers have been registered
 		// 3. Application is ready to serve requests
+		if (_applicationLifetime is null)
+		{
+			LogNoApplicationLifetime();
+			return Task.CompletedTask;
+		}
+
 		_registration = _applicationLifetime.ApplicationStarted.Register(OnApplicationStarted);
 
 		LogServiceStarted();
@@ -105,6 +116,10 @@ internal sealed partial class DispatchCacheOptimizationHostedService : IHostedSe
 	[LoggerMessage(PerformanceEventId.CacheOptimizationStarted, LogLevel.Debug,
 		"DispatchCacheOptimizationHostedService started, waiting for ApplicationStarted")]
 	private partial void LogServiceStarted();
+
+	[LoggerMessage(PerformanceEventId.CacheNoApplicationLifetime, LogLevel.Debug,
+		"No IHostApplicationLifetime is registered, so there is no application-started signal to freeze on")]
+	private partial void LogNoApplicationLifetime();
 
 	[LoggerMessage(PerformanceEventId.CacheAutoFreezeDisabled, LogLevel.Information,
 		"Auto-freeze disabled via configuration (Performance.AutoFreezeOnStart = false)")]

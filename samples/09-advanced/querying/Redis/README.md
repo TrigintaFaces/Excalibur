@@ -12,7 +12,7 @@ Demonstrates all capabilities of the `Excalibur.Data.Redis` package.
 | 4 | **CRUD Operations** | Strings, hashes, lists, sets, counters, TTL via `IDatabase` |
 | 5 | **Transaction Support** | `CreateTransactionScope` with commit/rollback callbacks |
 | 6 | **Health Check** | `TestConnectionAsync` with built-in retry policy |
-| 7 | **Metrics** | Provider metrics and connection pool statistics |
+| 7 | **Metrics** | Provider metrics |
 | 8 | **Pub/Sub** | Publish and subscribe via `GetSubscriber()` |
 | 9 | **Retry Policy** | Exponential backoff for `RedisException`, `RedisTimeoutException` |
 | 10 | **Server Access** | `GetServer()` for server info and administration |

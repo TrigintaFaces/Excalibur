@@ -12,21 +12,18 @@ namespace Excalibur.Dispatch;
 /// <remarks>
 /// <para>
 /// This type exists so that a keyed store whose emitted statement carries <em>no</em> tenant term is
-/// <strong>unconstructable</strong>. Unlike <see cref="TenantScope"/> (the column-agnostic append-log
-/// family, whose <see cref="TenantScope.None"/> deliberately emits no term), a keyed partition has no
-/// <c>None</c> inhabitant: the untenanted case is the explicit <see cref="Untenanted"/> sentinel, which
-/// still binds a value (<c>__untenanted__</c>). A destructive or identity-bearing keyed operation can
-/// therefore never resolve to an empty predicate that matches every tenant's rows.
+/// <strong>unconstructable</strong>. It has no absent inhabitant: the untenanted case is the explicit
+/// <see cref="Untenanted"/> sentinel, which still binds a value (<c>__untenanted__</c>). A destructive or
+/// identity-bearing keyed operation can therefore never resolve to an empty predicate that matches every
+/// tenant's rows.
 /// </para>
 /// <para>
-/// It is a reference type on purpose: a value type would admit a <c>default</c> inhabitant with a
-/// <see langword="null"/> tenant — reintroducing exactly the empty-term state this type removes. A
-/// <see langword="null"/> reference is a distinct, nullable-reference-flagged, throwing value, never a
-/// silent empty term. Every factory is total and every inhabitant binds a non-empty tenant term, so an
-/// empty predicate is unconstructable: there is no public constructor and no default. A caller that
-/// still resolves a <see cref="TenantScope"/> from ambient context projects it through
-/// <see cref="FromScope(TenantScope)"/>, which <em>reinterprets</em> a <see cref="TenantScope.None"/>
-/// scope as <see cref="Untenanted"/> rather than rejecting it.
+/// It is a reference type on purpose: it has no public constructor and no default, so a
+/// <see langword="null"/> reference is a distinct, nullable-reference-flagged, throwing value rather than
+/// a silent empty term. Every factory is total and every inhabitant binds a non-empty tenant term, so an
+/// empty predicate is unconstructable. <see cref="TenantScope"/> reaches the same totality by a different
+/// route — its tenant term folds onto the sentinel for <see langword="default"/> — so a caller that
+/// resolves a scope from ambient context projects it through <see cref="FromScope(TenantScope)"/>.
 /// </para>
 /// <para>
 /// The partition owns the <em>existence and value</em> of the tenant term; the request owns
@@ -64,7 +61,10 @@ public sealed class KeyedTenantPartition : IEquatable<KeyedTenantPartition>
 	/// <paramref name="tenantId"/> is <see langword="null"/>, empty, or whitespace.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// <paramref name="tenantId"/> is the reserved framework sentinel and therefore cannot name a real tenant.
+	/// <paramref name="tenantId"/> is the reserved framework sentinel and therefore cannot name a real tenant;
+	/// or is longer than <see cref="Excalibur.Dispatch.TenantId.MaxLength"/> characters, which no shipped provider can store
+	/// whole — rejected here rather than truncated later by a store, where a truncated identifier could
+	/// collide with another tenant's.
 	/// </exception>
 	public static KeyedTenantPartition Scoped(string? tenantId)
 	{
@@ -80,30 +80,35 @@ public sealed class KeyedTenantPartition : IEquatable<KeyedTenantPartition>
 				nameof(tenantId));
 		}
 
+		if (tenantId.Length > Excalibur.Dispatch.TenantId.MaxLength)
+		{
+			throw new ArgumentException(
+				$"Tenant identifier exceeds the maximum length of {Excalibur.Dispatch.TenantId.MaxLength} characters supported by every shipped provider.",
+				nameof(tenantId));
+		}
+
 		return new KeyedTenantPartition(tenantId);
 	}
 
 	/// <summary>
-	/// Projects a column-agnostic <see cref="TenantScope"/> onto the keyed family: a scoped scope becomes
-	/// <see cref="Scoped(string?)"/>; the <see cref="TenantScope.None"/> scope becomes
-	/// <see cref="Untenanted"/> (the sentinel term), because a keyed store must never emit an empty
-	/// predicate. This is the sanctioned migration bridge for callers that still resolve a
-	/// <see cref="TenantScope"/> from ambient context.
+	/// Projects a column-agnostic <see cref="TenantScope"/> onto the keyed family: a scope naming a real
+	/// tenant becomes <see cref="Scoped(string?)"/>; a scope bound to the reserved sentinel becomes
+	/// <see cref="Untenanted"/>. This is the bridge for callers that resolve a <see cref="TenantScope"/>
+	/// from ambient context and need a keyed partition.
 	/// </summary>
 	/// <param name="scope">The column-agnostic scope to project.</param>
 	/// <returns>
-	/// <see cref="Untenanted"/> for an unscoped scope or one already bound to the reserved sentinel;
-	/// otherwise <see cref="Scoped(string?)"/> for a real identifier.
+	/// <see cref="Untenanted"/> for a scope bound to the reserved sentinel; otherwise
+	/// <see cref="Scoped(string?)"/> for a real identifier.
 	/// </returns>
 	/// <remarks>
-	/// <see cref="TenantScope.Untenanted"/> reports <c>IsScoped == true</c> — it binds a concrete term — so
-	/// this projection must route through the sentinel-aware conversion rather than calling
+	/// This projection routes through the sentinel-aware conversion rather than calling
 	/// <see cref="Scoped(string?)"/> directly, which rejects the sentinel outright. Without that, the one
 	/// scope whose entire purpose is to name the untenanted partition is the one scope that cannot be
-	/// projected onto it.
+	/// projected onto it. Because <see cref="TenantScope.TenantId"/> is total, this conversion is total.
 	/// </remarks>
 	public static KeyedTenantPartition FromScope(TenantScope scope)
-		=> scope.IsScoped ? FromTenantTerm(scope.TenantId) : Untenanted;
+		=> FromTenantTerm(scope.TenantId);
 
 	/// <summary>
 	/// The single total conversion from a raw tenant term to a partition. Every entry point on <em>this type</em>
@@ -163,26 +168,70 @@ public sealed class KeyedTenantPartition : IEquatable<KeyedTenantPartition>
 			: new KeyedTenantPartition(storedValue);
 
 	/// <summary>
-	/// Derives the keyed partition from an optional ambient tenant context: a <see langword="null"/>
-	/// context yields <see cref="Untenanted"/> (the sentinel term — never an empty predicate); a non-null
-	/// context yields <see cref="Scoped(string?)"/> for its resolved tenant (fail-closed when unresolved).
+	/// Maps a stored tenant term back to the identifier a caller supplied, with every spelling of
+	/// <em>untenanted</em> collapsing to <see langword="null"/>.
 	/// </summary>
-	/// <param name="tenantContext">The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.</param>
+	/// <param name="storedValue">The tenant term as persisted.</param>
 	/// <returns>
-	/// <see cref="Untenanted"/> when <paramref name="tenantContext"/> is <see langword="null"/> or resolves
-	/// the reserved sentinel; otherwise <see cref="Scoped(string?)"/>.
+	/// The originating tenant identifier, or <see langword="null"/> when the row belongs to no tenant.
 	/// </returns>
 	/// <remarks>
+	/// <para>
+	/// This is the inverse of <see cref="FromStoredValue"/> and is deliberately written in terms of it, so
+	/// there is exactly one predicate in the codebase deciding what counts as absent. Two hand-rolled
+	/// copies of that decision is how the two spellings drift apart: one integrity tag computed over
+	/// <see langword="null"/> while the sentinel was stored made every untouched audit trail verify as
+	/// tampered.
+	/// </para>
+	/// <para>
+	/// Use it wherever a stored term must be turned back into the value a caller signed, compared, or
+	/// re-entered as a scope — never a local <c>== sentinel</c> comparison, which silently disagrees with
+	/// this one about empty and whitespace.
+	/// </para>
+	/// </remarks>
+	public static string? ToSignedTenantId(string? storedValue)
+		=> ReferenceEquals(FromStoredValue(storedValue), Untenanted) ? null : storedValue;
+
+	/// <summary>
+	/// Derives the keyed partition from an ambient tenant context, which is <strong>required</strong>: the
+	/// resolved tenant yields <see cref="Scoped(string?)"/>, and a context resolving the reserved sentinel
+	/// yields <see cref="Untenanted"/> (the sentinel term — never an empty predicate).
+	/// </summary>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
+	/// <returns>
+	/// <see cref="Untenanted"/> when <paramref name="tenantContext"/> resolves the reserved sentinel;
+	/// otherwise <see cref="Scoped(string?)"/>.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// There is deliberately <strong>no</strong> null-accepting form of this conversion. A caller holding an
+	/// optional context — because multi-tenancy may not be registered in that deployment — must state at its
+	/// own call site what a missing context means for that store. It is not a decision this type can make on
+	/// the caller's behalf, and a conversion that made it silently is how a store whose context was never
+	/// wired came to report a well-formed untenanted partition: <em>"no context was supplied"</em> quietly
+	/// acquired the meaning <em>"this row has no tenant"</em>. Requiring the argument turns that substitution
+	/// into a compile error instead of a plausible wrong answer at run time.
+	/// </para>
+	/// <para>
 	/// A store that has already encoded "no tenant" as the reserved sentinel hands that value back through
 	/// the ambient context, so this conversion must accept it. Routing through the single sentinel-aware
 	/// conversion keeps that decision in one place — a context resolving the sentinel yields the untenanted
 	/// partition instead of throwing on a read path.
+	/// </para>
 	/// </remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="tenantContext"/> is <see langword="null"/>.</exception>
 	/// <exception cref="TenantRequiredException">
-	/// <paramref name="tenantContext"/> is non-null but resolves a null/whitespace tenant.
+	/// <paramref name="tenantContext"/> resolves a null/whitespace tenant.
 	/// </exception>
-	public static KeyedTenantPartition FromContext(ITenantContext? tenantContext)
-		=> tenantContext is null ? Untenanted : FromTenantTerm(tenantContext.TenantId);
+	public static KeyedTenantPartition FromContext(ITenantContext tenantContext)
+	{
+		ArgumentNullException.ThrowIfNull(tenantContext);
+		return FromTenantTerm(tenantContext.TenantId);
+	}
 
 	/// <summary>
 	/// Gets a value indicating whether this partition names a real tenant (<see langword="true"/>) or the

@@ -5,12 +5,10 @@ using System.Net.Http.Headers;
 using System.Runtime.ExceptionServices;
 
 using Excalibur.A3;
-using Excalibur.A3.Audit;
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.A3.Authorization.PolicyData;
-using Excalibur.Dispatch;
 using Excalibur.Domain;
 using Excalibur.Domain.Exceptions;
 
@@ -46,6 +44,8 @@ public static class A3ServiceCollectionExtensions
 	/// <see cref="A3CoreServiceCollectionExtensions.AddExcaliburA3Core"/> instead.
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IA3Builder AddExcaliburA3(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -99,12 +99,18 @@ public static class A3ServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The updated service collection. </returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddA3DispatchServices(this IServiceCollection services)
 	{
 		_ = services.AddDispatchPipeline();
 		_ = services.AddDispatchHandlers(typeof(AuthorizationPolicy).Assembly);
 
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, AuditMiddleware>());
+		// AddExcaliburAudit registers AuditMiddleware together with the IActivityContext it resolves.
+		// Registering the middleware again here is what re-opened the captive dependency it fixed: a
+		// second descriptor at a different lifetime, de-duplicated by implementation type, so which
+		// lifetime survived was decided by call order rather than by either registration.
+		_ = services.AddExcaliburAudit();
 		_ = services.AddExcaliburAuthorization();
 
 		return services;

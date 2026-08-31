@@ -66,7 +66,8 @@ public sealed class SqlServerSagaStoreConcurrencyConformanceShould : SagaStoreCo
 		return new SqlServerSagaStore(
 			_fixture.ConnectionString,
 			NullLogger<SqlServerSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			SingleTenantTestContext.Instance);
 	}
 
 	/// <inheritdoc/>
@@ -169,7 +170,7 @@ public sealed class SqlServerSagaStoreConcurrencyConformanceShould : SagaStoreCo
 
 		// Extract the STORE's ACTUAL generated find-or-create MERGE.
 		var request = new SaveSagaRequest<TestSagaState>(
-			CreateTestSagaState(sagaId), new DispatchJsonSerializer(), QualifiedTableName, TenantScope.None, CancellationToken.None);
+			CreateTestSagaState(sagaId), new DispatchJsonSerializer(), QualifiedTableName, TenantScope.Untenanted, CancellationToken.None);
 		var mergeSql = request.Command.CommandText;
 		var mergeParameters = request.Parameters;
 

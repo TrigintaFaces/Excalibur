@@ -37,74 +37,6 @@ public sealed class CoreOptionsShould
 	}
 
 	[Fact]
-	public void DeadLetterOptions_HaveDefaults()
-	{
-		var opts = new DeadLetterOptions();
-
-		opts.MaxAttempts.ShouldBe(3);
-		opts.QueueName.ShouldBe("deadletter");
-		opts.PreserveMetadata.ShouldBeTrue();
-		opts.IncludeExceptionDetails.ShouldBeTrue();
-		opts.EnableRecovery.ShouldBeFalse();
-		opts.RecoveryInterval.ShouldBe(TimeSpan.FromHours(1));
-	}
-
-	[Fact]
-	public void DeadLetterOptions_AllowSettingProperties()
-	{
-		var opts = new DeadLetterOptions
-		{
-			MaxAttempts = 5,
-			QueueName = "custom-dlq",
-			PreserveMetadata = false,
-			IncludeExceptionDetails = false,
-			EnableRecovery = true,
-			RecoveryInterval = TimeSpan.FromMinutes(30),
-		};
-
-		opts.MaxAttempts.ShouldBe(5);
-		opts.QueueName.ShouldBe("custom-dlq");
-		opts.PreserveMetadata.ShouldBeFalse();
-		opts.IncludeExceptionDetails.ShouldBeFalse();
-		opts.EnableRecovery.ShouldBeTrue();
-		opts.RecoveryInterval.ShouldBe(TimeSpan.FromMinutes(30));
-	}
-
-	[Fact]
-	public void PipelineOptions_HaveDefaults()
-	{
-		var opts = new PipelineOptions();
-
-		opts.MaxConcurrency.ShouldBe(Environment.ProcessorCount * 2);
-		opts.DefaultTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		opts.EnableParallelProcessing.ShouldBeTrue();
-		opts.StopOnFirstError.ShouldBeFalse();
-		opts.BufferSize.ShouldBe(1000);
-		opts.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event | MessageKinds.Document);
-	}
-
-	[Fact]
-	public void PipelineOptions_AllowSettingProperties()
-	{
-		var opts = new PipelineOptions
-		{
-			MaxConcurrency = 8,
-			DefaultTimeout = TimeSpan.FromSeconds(60),
-			EnableParallelProcessing = false,
-			StopOnFirstError = true,
-			BufferSize = 500,
-			ApplicableMessageKinds = MessageKinds.Action,
-		};
-
-		opts.MaxConcurrency.ShouldBe(8);
-		opts.DefaultTimeout.ShouldBe(TimeSpan.FromSeconds(60));
-		opts.EnableParallelProcessing.ShouldBeFalse();
-		opts.StopOnFirstError.ShouldBeTrue();
-		opts.BufferSize.ShouldBe(500);
-		opts.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
-	}
-
-	[Fact]
 	public void HealthCheckOptions_HaveDefaults()
 	{
 		var opts = new HealthCheckOptions();
@@ -137,31 +69,6 @@ public sealed class CoreOptionsShould
 		opts.MaxQueueLength.ShouldBe(500);
 		opts.PreserveOrder.ShouldBeFalse();
 		opts.ProcessingDelay.ShouldBe(TimeSpan.FromMilliseconds(50));
-	}
-
-	[Fact]
-	public void LoggingOptions_HaveDefaults()
-	{
-		var opts = new LoggingOptions();
-
-		opts.EnhancedLogging.ShouldBeFalse();
-		opts.IncludeCorrelationIds.ShouldBeTrue();
-		opts.IncludeExecutionContext.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void LoggingOptions_AllowSettingProperties()
-	{
-		var opts = new LoggingOptions
-		{
-			EnhancedLogging = true,
-			IncludeCorrelationIds = false,
-			IncludeExecutionContext = false,
-		};
-
-		opts.EnhancedLogging.ShouldBeTrue();
-		opts.IncludeCorrelationIds.ShouldBeFalse();
-		opts.IncludeExecutionContext.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -212,38 +119,6 @@ public sealed class CoreOptionsShould
 		opts.Enabled.ShouldBeTrue();
 		opts.SamplingRatio.ShouldBe(0.5);
 		opts.IncludeSensitiveData.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void SerializationOptions_HaveDefaults()
-	{
-		var opts = new SerializationOptions();
-
-		opts.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void MessageRoutingOptions_HaveDefaults()
-	{
-		var opts = new MessageRoutingOptions();
-
-		opts.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void MultiTransportOptions_HaveDefaults()
-	{
-		var opts = new MultiTransportOptions();
-
-		opts.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void JsonSerializationOptions_HaveDefaults()
-	{
-		var opts = new JsonSerializationOptions();
-
-		opts.ShouldNotBeNull();
 	}
 
 	[Fact]

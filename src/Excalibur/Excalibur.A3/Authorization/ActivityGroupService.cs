@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.Grants;
@@ -23,7 +23,7 @@ namespace Excalibur.A3.Authorization;
 /// Provides services for managing activity groups.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ActivityGroupService" /> class. </remarks>
-public sealed class ActivityGroupService(
+public sealed partial class ActivityGroupService(
 	HttpClient httpClient,
 	ICorrelationId correlationId,
 	IAuthenticationToken token,
@@ -39,8 +39,6 @@ public sealed class ActivityGroupService(
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	public async Task SyncActivityGroupsAsync(CancellationToken cancellationToken)
 	{
 		var endpoint = $"api/v1/*/applications/{ApplicationContext.ApplicationName}/activity-groups";
@@ -50,7 +48,7 @@ public sealed class ActivityGroupService(
 
 		if (!response.IsSuccessStatusCode)
 		{
-			var reason = JsonSerializer.Deserialize<string>(body);
+			var reason = JsonSerializer.Deserialize(body, ActivityGroupJsonContext.Default.String);
 			var exception =
 				new OperationFailedException(nameof(SyncActivityGroupsAsync), "ActivityGroup", (int)response.StatusCode, reason);
 			logger.LogErrorActivityGroups(reason ?? "unknown", exception);
@@ -58,7 +56,7 @@ public sealed class ActivityGroupService(
 			throw exception;
 		}
 
-		var activityGroups = JsonSerializer.Deserialize<IEnumerable<ActivityGroup>>(body);
+		var activityGroups = JsonSerializer.Deserialize(body, ActivityGroupJsonContext.Default.IEnumerableActivityGroup);
 
 		_ = await activityGroupStore.DeleteAllActivityGroupsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -70,7 +68,7 @@ public sealed class ActivityGroupService(
 			foreach (var activityGroup in activitiesInGroups)
 			{
 				_ = await activityGroupStore.CreateActivityGroupAsync(
-					activityGroup.TenantId,
+					RequireTenant(activityGroup.TenantId, activityGroup.ActivityGroupName),
 					activityGroup.ActivityGroupName,
 					activityGroup.ActivityName,
 					cancellationToken).ConfigureAwait(false);
@@ -81,8 +79,6 @@ public sealed class ActivityGroupService(
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	public async Task SyncActivityGroupGrantsAsync(string userId, CancellationToken cancellationToken)
 	{
 		var endpoint = $"api/v1/*/{userId}/grants/activity-groups";
@@ -93,7 +89,7 @@ public sealed class ActivityGroupService(
 
 		if (!response.IsSuccessStatusCode)
 		{
-			var reason = JsonSerializer.Deserialize<string>(body);
+			var reason = JsonSerializer.Deserialize(body, ActivityGroupJsonContext.Default.String);
 			var exception = new OperationFailedException(nameof(SyncActivityGroupGrantsAsync), "ActivityGroupGrant", (int)response.StatusCode,
 				reason);
 			logger.LogErrorActivityGrants(reason ?? "unknown", exception);
@@ -101,7 +97,7 @@ public sealed class ActivityGroupService(
 			throw exception;
 		}
 
-		var results = JsonSerializer.Deserialize<IEnumerable<ActivityGroupGrant>>(body);
+		var results = JsonSerializer.Deserialize(body, ActivityGroupJsonContext.Default.IEnumerableActivityGroupGrant);
 
 		var grants = results?.Select(a => new
 		{
@@ -120,7 +116,7 @@ public sealed class ActivityGroupService(
 			foreach (var grant in grants)
 			{
 				_ = await activityGroupGrantStore.InsertActivityGroupGrantAsync(
-					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, cancellationToken).ConfigureAwait(false);
+					grant.UserId, grant.UserId, RequireTenant(grant.TenantId, grant.Qualifier), grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -128,8 +124,6 @@ public sealed class ActivityGroupService(
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	public async Task SyncAllActivityGroupGrantsAsync(CancellationToken cancellationToken)
 	{
 		const string Endpoint = "api/v1/*/grants/activity-groups";
@@ -140,7 +134,7 @@ public sealed class ActivityGroupService(
 
 		if (!response.IsSuccessStatusCode)
 		{
-			var reason = JsonSerializer.Deserialize<string>(body);
+			var reason = JsonSerializer.Deserialize(body, ActivityGroupJsonContext.Default.String);
 			var exception = new OperationFailedException(nameof(SyncAllActivityGroupGrantsAsync), "ActivityGroupGrant", (int)response.StatusCode,
 				reason);
 			logger.LogErrorActivityGrants(reason ?? "unknown", exception);
@@ -148,7 +142,7 @@ public sealed class ActivityGroupService(
 			throw exception;
 		}
 
-		var results = JsonSerializer.Deserialize<IEnumerable<ActivityGroupGrant>>(body);
+		var results = JsonSerializer.Deserialize(body, ActivityGroupJsonContext.Default.IEnumerableActivityGroupGrant);
 
 		var grants = results?.Select(a => new
 		{
@@ -169,7 +163,7 @@ public sealed class ActivityGroupService(
 			foreach (var grant in grants)
 			{
 				_ = await activityGroupGrantStore.InsertActivityGroupGrantAsync(
-					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, cancellationToken).ConfigureAwait(false);
+					grant.UserId, grant.UserId, RequireTenant(grant.TenantId, grant.Qualifier), grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -185,6 +179,19 @@ public sealed class ActivityGroupService(
 
 		return message;
 	}
+
+	/// <summary>
+	/// Returns the tenant identifier, rejecting a payload that omits it.
+	/// </summary>
+	/// <param name="tenantId">The tenant identifier supplied by the remote payload.</param>
+	/// <param name="subject">The activity group or qualifier the entry describes, used in the error message.</param>
+	/// <returns>The non-empty tenant identifier.</returns>
+	/// <exception cref="InvalidOperationException">Thrown when the payload omits the tenant identifier.</exception>
+	private static string RequireTenant(string? tenantId, string subject) =>
+		!string.IsNullOrEmpty(tenantId)
+			? tenantId
+			: throw new InvalidOperationException(
+				$"The activity-group payload entry '{subject}' does not specify a tenant. Every activity group and grant belongs to exactly one tenant.");
 
 	private sealed record ActivityGroup
 	{
@@ -214,4 +221,14 @@ public sealed class ActivityGroupService(
 
 		public required string UserId { get; init; }
 	}
+
+	/// <summary>
+	/// Source-generated serializer metadata for the activity-group sync payloads. Keeps the
+	/// deserialization path reflection-free so the service stays usable under trimming and
+	/// ahead-of-time compilation.
+	/// </summary>
+	[JsonSerializable(typeof(string))]
+	[JsonSerializable(typeof(IEnumerable<ActivityGroup>))]
+	[JsonSerializable(typeof(IEnumerable<ActivityGroupGrant>))]
+	private sealed partial class ActivityGroupJsonContext : JsonSerializerContext;
 }

@@ -32,7 +32,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task SaveAndLoadSagaState_RoundTrip()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid();
 		var state = new TestSagaState
 		{
@@ -59,7 +59,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task ReturnNull_ForNonexistentSaga()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 
 		// Act
 		var result = await store.LoadAsync<TestSagaState>(Guid.NewGuid(), CancellationToken.None);
@@ -72,7 +72,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task OverwriteExistingState_OnSave()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid();
 
 		var state1 = new TestSagaState
@@ -102,7 +102,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task ThrowOnNullState()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -113,7 +113,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task HandleConcurrentSaves_ThreadSafely()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var tasks = new List<Task>();
 
 		for (var i = 0; i < 50; i++)
@@ -140,7 +140,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task PersistMetadata()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid();
 
 		var state = new TestSagaState
@@ -184,7 +184,7 @@ public sealed class InMemorySagaStoreFunctionalShould
 	public async Task TrackCompletionTime()
 	{
 		// Arrange
-		var store = new InMemorySagaStore();
+		var store = new InMemorySagaStore(new TestTenantContext());
 		var sagaId = Guid.NewGuid();
 		var completedAt = DateTimeOffset.UtcNow;
 

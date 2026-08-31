@@ -99,7 +99,7 @@ public sealed class MediatRCompatOptions
     /// <param name="implementationType">The behavior implementation type.</param>
     /// <param name="lifetime">The service lifetime; defaults to <see cref="ServiceLifetime.Transient"/>.</param>
     /// <returns>This instance, for chaining.</returns>
-    public MediatRCompatOptions AddBehavior(Type serviceType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type implementationType, ServiceLifetime lifetime = ServiceLifetime.Transient)
+    public MediatRCompatOptions AddBehavior(Type serviceType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)] Type implementationType, ServiceLifetime lifetime = ServiceLifetime.Transient)
     {
         ArgumentNullException.ThrowIfNull(serviceType);
         ArgumentNullException.ThrowIfNull(implementationType);
@@ -115,7 +115,7 @@ public sealed class MediatRCompatOptions
     /// <typeparam name="TImplementationType">The behavior implementation type.</typeparam>
     /// <param name="lifetime">The service lifetime; defaults to <see cref="ServiceLifetime.Transient"/>.</param>
     /// <returns>This instance, for chaining.</returns>
-    public MediatRCompatOptions AddBehavior<TServiceType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementationType>(ServiceLifetime lifetime = ServiceLifetime.Transient) =>
+    public MediatRCompatOptions AddBehavior<TServiceType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)] TImplementationType>(ServiceLifetime lifetime = ServiceLifetime.Transient) =>
         AddBehavior(typeof(TServiceType), typeof(TImplementationType), lifetime);
 
     /// <summary>
@@ -157,10 +157,10 @@ public sealed class MediatRCompatOptions
 /// <summary>Records an open-generic pipeline behavior registration and its lifetime.</summary>
 /// <param name="BehaviorType">The open-generic behavior type.</param>
 /// <param name="Lifetime">The service lifetime.</param>
-internal sealed record OpenBehaviorRegistration([property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)][field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type BehaviorType, ServiceLifetime Lifetime);
+internal sealed record OpenBehaviorRegistration([param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)][property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)][field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type BehaviorType, ServiceLifetime Lifetime);
 
 /// <summary>Records a closed pipeline behavior registration and its lifetime.</summary>
 /// <param name="ServiceType">The closed behavior service type, or <see langword="null"/> to register against all implemented behavior interfaces.</param>
 /// <param name="BehaviorImplementationType">The behavior implementation type.</param>
 /// <param name="Lifetime">The service lifetime.</param>
-internal sealed record ClosedBehaviorRegistration(Type? ServiceType, [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)][field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)] Type BehaviorImplementationType, ServiceLifetime Lifetime);
+internal sealed record ClosedBehaviorRegistration(Type? ServiceType, [param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)][property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)][field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)] Type BehaviorImplementationType, ServiceLifetime Lifetime);

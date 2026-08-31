@@ -60,7 +60,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class KeyEscrowServiceConformanceTestKit
+public abstract class KeyEscrowServiceConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a new instance of the key escrow service for testing.
@@ -90,7 +90,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>BackupKeyAsync</c> with null keyId throws <see cref="ArgumentException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task BackupKeyAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task BackupKeyAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -114,7 +114,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>BackupKeyAsync</c> with empty key material throws <see cref="ArgumentException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task BackupKeyAsync_EmptyKeyMaterial_ShouldThrowArgumentException()
+	public virtual async Task BackupKeyAsync_EmptyKeyMaterial_ShouldThrowArgumentException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -137,7 +137,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>BackupKeyAsync</c> with valid key material returns a receipt.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task BackupKeyAsync_ValidKeyMaterial_ShouldReturnReceipt()
+	public virtual async Task BackupKeyAsync_ValidKeyMaterial_ShouldReturnReceipt()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -168,7 +168,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>BackupKeyAsync</c> throws for duplicate key without AllowOverwrite.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task BackupKeyAsync_DuplicateKey_ShouldThrowKeyEscrowException()
+	public virtual async Task BackupKeyAsync_DuplicateKey_ShouldThrowKeyEscrowException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -203,7 +203,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>RecoverKeyAsync</c> with null keyId throws <see cref="ArgumentException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RecoverKeyAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task RecoverKeyAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -238,7 +238,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>RecoverKeyAsync</c> with non-existent key throws <see cref="KeyEscrowException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RecoverKeyAsync_NonExistentKey_ShouldThrowKeyEscrowException()
+	public virtual async Task RecoverKeyAsync_NonExistentKey_ShouldThrowKeyEscrowException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -277,7 +277,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>RecoverKeyAsync</c> with valid token returns original key material.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RecoverKeyAsync_ValidToken_ShouldReturnKeyMaterial()
+	public virtual async Task RecoverKeyAsync_ValidToken_ShouldReturnKeyMaterial()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -287,11 +287,14 @@ public abstract class KeyEscrowServiceConformanceTestKit
 		// Backup first
 		_ = await service.BackupKeyAsync("key-1", keyMaterial, null, cts.Token).ConfigureAwait(false);
 
-		// Generate tokens
+		// Generate tokens (5 custodians, quorum threshold of 3)
 		var tokens = await service.GenerateRecoveryTokensAsync("key-1", 5, 3, null, cts.Token).ConfigureAwait(false);
 
-		// Act - use first token for recovery
-		var recovered = await service.RecoverKeyAsync("key-1", tokens[0], cts.Token).ConfigureAwait(false);
+		// Act - recovery requires a COMBINED quorum of at least the threshold number of custodian shares.
+		// A single custodian share must never recover the key: the contract fails closed below threshold,
+		// so the token presented here is assembled from exactly the threshold (3 of 5).
+		var combined = RecoveryToken.Combine(tokens.Take(3));
+		var recovered = await service.RecoverKeyAsync("key-1", combined, cts.Token).ConfigureAwait(false);
 
 		// Assert - ROUND-TRIP verification
 		if (recovered.Length != keyMaterial.Length)
@@ -308,10 +311,45 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that <c>RecoverKeyAsync</c> fails closed when presented with a single custodian share
+	/// instead of a combined quorum meeting the threshold, releasing no key material.
+	/// </summary>
+	/// <returns>A task representing the asynchronous test operation.</returns>
+	public virtual async Task RecoverKeyAsync_SingleShareBelowThreshold_ShouldFailClosed()
+	{
+		// Arrange
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		var service = CreateService();
+		var keyMaterial = CreateKeyMaterial();
+
+		_ = await service.BackupKeyAsync("key-1", keyMaterial, null, cts.Token).ConfigureAwait(false);
+
+		// 5 custodians, quorum threshold of 3 - a lone share is below threshold.
+		var tokens = await service.GenerateRecoveryTokensAsync("key-1", 5, 3, null, cts.Token).ConfigureAwait(false);
+
+		// Act & Assert - a single custodian must NOT be able to recover the key on their own.
+		try
+		{
+			_ = await service.RecoverKeyAsync("key-1", tokens[0], cts.Token).ConfigureAwait(false);
+			throw new TestFixtureAssertionException(
+				"Expected RecoverKeyAsync with a single below-threshold share to fail closed, " +
+				"but it released key material to one custodian");
+		}
+		catch (KeyEscrowException ex)
+		{
+			if (ex.ErrorCode != KeyEscrowErrorCode.InsufficientShares)
+			{
+				throw new TestFixtureAssertionException(
+					$"Expected ErrorCode to be InsufficientShares, but got {ex.ErrorCode}");
+			}
+		}
+	}
+
+	/// <summary>
 	/// Verifies that <c>RecoverKeyAsync</c> with revoked escrow throws <see cref="KeyEscrowException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RecoverKeyAsync_RevokedEscrow_ShouldThrowKeyEscrowException()
+	public virtual async Task RecoverKeyAsync_RevokedEscrow_ShouldThrowKeyEscrowException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -350,7 +388,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>GenerateRecoveryTokensAsync</c> with null keyId throws <see cref="ArgumentException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GenerateRecoveryTokensAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task GenerateRecoveryTokensAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -373,7 +411,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>GenerateRecoveryTokensAsync</c> with threshold less than 2 throws <see cref="ArgumentOutOfRangeException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GenerateRecoveryTokensAsync_ThresholdLessThan2_ShouldThrowArgumentOutOfRangeException()
+	public virtual async Task GenerateRecoveryTokensAsync_ThresholdLessThan2_ShouldThrowArgumentOutOfRangeException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -399,7 +437,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>GenerateRecoveryTokensAsync</c> with valid parameters generates correct count.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GenerateRecoveryTokensAsync_ValidParams_ShouldGenerateCorrectCount()
+	public virtual async Task GenerateRecoveryTokensAsync_ValidParams_ShouldGenerateCorrectCount()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -447,7 +485,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>RevokeEscrowAsync</c> with null keyId throws <see cref="ArgumentException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RevokeEscrowAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task RevokeEscrowAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -470,7 +508,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>RevokeEscrowAsync</c> for non-existent key returns false.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RevokeEscrowAsync_NonExistentKey_ShouldReturnFalse()
+	public virtual async Task RevokeEscrowAsync_NonExistentKey_ShouldReturnFalse()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -491,7 +529,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>RevokeEscrowAsync</c> revokes existing escrow and returns true.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RevokeEscrowAsync_ExistingEscrow_ShouldReturnTrue()
+	public virtual async Task RevokeEscrowAsync_ExistingEscrow_ShouldReturnTrue()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -527,7 +565,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>GetEscrowStatusAsync</c> with null keyId throws <see cref="ArgumentException"/>.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetEscrowStatusAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task GetEscrowStatusAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -550,7 +588,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>GetEscrowStatusAsync</c> for non-existent key returns null.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetEscrowStatusAsync_NonExistentKey_ShouldReturnNull()
+	public virtual async Task GetEscrowStatusAsync_NonExistentKey_ShouldReturnNull()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -571,7 +609,7 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	/// Verifies that <c>GetEscrowStatusAsync</c> for existing escrow returns status.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetEscrowStatusAsync_ExistingEscrow_ShouldReturnStatus()
+	public virtual async Task GetEscrowStatusAsync_ExistingEscrow_ShouldReturnStatus()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -610,4 +648,5 @@ public abstract class KeyEscrowServiceConformanceTestKit
 	}
 
 	#endregion
+
 }

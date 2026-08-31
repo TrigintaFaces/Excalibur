@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -43,21 +43,27 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
-/// public class SqlServerKeyManagementProviderConformanceTests : KeyManagementProviderConformanceTestKit
+/// // The provider is resolved from a container built by its own registration extension, so the
+/// // arms certify the object a consumer actually gets. AddAwsKmsKeyManagement is shown here;
+/// // AddAzureKeyVaultKeyManagement and AddVaultKeyManagement follow the same shape.
+/// public class AwsKmsKeyManagementProviderConformanceTests : KeyManagementProviderConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
+///     private readonly ServiceProvider _provider;
+///
+///     public AwsKmsKeyManagementProviderConformanceTests(LocalStackFixture fixture) =&gt;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddAwsKmsKeyManagement(aws =&gt; aws.ServiceUrl(fixture.ServiceUrl))
+///             .BuildServiceProvider();
 ///
 ///     protected override IKeyManagementProvider CreateProvider() =&gt;
-///         new SqlServerKeyManagementProvider(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =&gt;
-///         await _fixture.CleanupAsync();
+///         _provider.GetRequiredService&lt;IKeyManagementProvider&gt;();
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class KeyManagementProviderConformanceTestKit
+public abstract class KeyManagementProviderConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh key management provider instance for testing.
@@ -109,7 +115,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetKeyAsync returns null for non-existent key.
 	/// </summary>
-	protected virtual async Task GetKeyAsync_NonExistent_ShouldReturnNull()
+	public virtual async Task GetKeyAsync_NonExistent_ShouldReturnNull()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -135,7 +141,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetKeyAsync throws ArgumentException for null or empty keyId.
 	/// </summary>
-	protected virtual async Task GetKeyAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task GetKeyAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -168,7 +174,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetKeyAsync returns the latest version of a key.
 	/// </summary>
-	protected virtual async Task GetKeyAsync_ExistingKey_ShouldReturnLatestVersion()
+	public virtual async Task GetKeyAsync_ExistingKey_ShouldReturnLatestVersion()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -237,7 +243,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetKeyVersionAsync returns null for non-existent version.
 	/// </summary>
-	protected virtual async Task GetKeyVersionAsync_NonExistentVersion_ShouldReturnNull()
+	public virtual async Task GetKeyVersionAsync_NonExistentVersion_ShouldReturnNull()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -273,7 +279,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetKeyVersionAsync returns the correct version metadata.
 	/// </summary>
-	protected virtual async Task GetKeyVersionAsync_ExistingVersion_ShouldReturnCorrectMetadata()
+	public virtual async Task GetKeyVersionAsync_ExistingVersion_ShouldReturnCorrectMetadata()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -332,7 +338,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ListKeysAsync returns empty list when no keys exist.
 	/// </summary>
-	protected virtual async Task ListKeysAsync_NoKeys_ShouldReturnEmptyList()
+	public virtual async Task ListKeysAsync_NoKeys_ShouldReturnEmptyList()
 	{
 		// Arrange
 		var admin = CreateAdmin();
@@ -363,7 +369,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ListKeysAsync filters by status correctly.
 	/// </summary>
-	protected virtual async Task ListKeysAsync_FilterByStatus_ShouldFilterCorrectly()
+	public virtual async Task ListKeysAsync_FilterByStatus_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -408,7 +414,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ListKeysAsync filters by purpose correctly.
 	/// </summary>
-	protected virtual async Task ListKeysAsync_FilterByPurpose_ShouldFilterCorrectly()
+	public virtual async Task ListKeysAsync_FilterByPurpose_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -454,7 +460,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that RotateKeyAsync creates a new key when one doesn't exist.
 	/// </summary>
-	protected virtual async Task RotateKeyAsync_NewKey_ShouldCreateVersion1()
+	public virtual async Task RotateKeyAsync_NewKey_ShouldCreateVersion1()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -509,7 +515,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that RotateKeyAsync increments version and marks old as DecryptOnly.
 	/// </summary>
-	protected virtual async Task RotateKeyAsync_ExistingKey_ShouldCreateNewVersionAndMarkOldDecryptOnly()
+	public virtual async Task RotateKeyAsync_ExistingKey_ShouldCreateNewVersionAndMarkOldDecryptOnly()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -580,7 +586,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that RotateKeyAsync throws for null keyId.
 	/// </summary>
-	protected virtual async Task RotateKeyAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task RotateKeyAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -618,7 +624,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteKeyAsync returns false for non-existent key.
 	/// </summary>
-	protected virtual async Task DeleteKeyAsync_NonExistent_ShouldReturnFalse()
+	public virtual async Task DeleteKeyAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
 		var admin = CreateAdmin();
@@ -644,7 +650,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteKeyAsync schedules key for deletion (crypto-shredding).
 	/// </summary>
-	protected virtual async Task DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction()
+	public virtual async Task DeleteKeyAsync_ExistingKey_ShouldScheduleForDestruction()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -666,17 +672,36 @@ public abstract class KeyManagementProviderConformanceTestKit
 				throw new TestFixtureAssertionException("Expected DeleteKeyAsync to destroy or schedule an existing key.");
 			}
 
-			// Verify key is now PendingDestruction
+			// Branch on the outcome the contract actually defines. DeleteKeyAsync documents TWO legal
+			// results, and demanding only one of them rejects a correct implementation: a backend that
+			// destroys key material immediately -- Vault Transit, most HSMs -- returns Completed, and the
+			// key is then correctly gone. Requiring it to linger as PendingDestruction failed such a
+			// provider for being right, and this kit ships, so that verdict reaches consumers writing
+			// their own provider.
 			var metadata = await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
-			if (metadata is null)
-			{
-				throw new TestFixtureAssertionException("Expected key to still exist (pending destruction).");
-			}
 
-			if (metadata.Status != KeyStatus.PendingDestruction)
+			if (result.State == KeyDestructionState.ScheduledIrreversible)
 			{
+				// Scheduled means recoverable until the window elapses, so the key must remain observable --
+				// otherwise destruction cannot be attested, which is the whole point of the distinction.
+				if (metadata is null)
+				{
+					throw new TestFixtureAssertionException(
+						"Expected a scheduled key to remain observable until its window elapses.");
+				}
+
+				if (metadata.Status != KeyStatus.PendingDestruction)
+				{
+					throw new TestFixtureAssertionException(
+						$"Expected key status to be PendingDestruction, but got {metadata.Status}.");
+				}
+			}
+			else if (metadata is not null && metadata.Status is not (KeyStatus.Destroyed or KeyStatus.PendingDestruction))
+			{
+				// Completed means the material is already irrecoverable. The key may be absent, or present
+				// and reported destroyed; what it must not be is still usable.
 				throw new TestFixtureAssertionException(
-					$"Expected key status to be PendingDestruction, but got {metadata.Status}.");
+					$"Expected a completed destruction to leave the key unusable, but its status is {metadata.Status}.");
 			}
 		}
 		finally
@@ -693,7 +718,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that SuspendKeyAsync returns false for non-existent key.
 	/// </summary>
-	protected virtual async Task SuspendKeyAsync_NonExistent_ShouldReturnFalse()
+	public virtual async Task SuspendKeyAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
 		var admin = CreateAdmin();
@@ -720,7 +745,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that SuspendKeyAsync suspends all versions of a key.
 	/// </summary>
-	protected virtual async Task SuspendKeyAsync_ExistingKey_ShouldSuspendAllVersions()
+	public virtual async Task SuspendKeyAsync_ExistingKey_ShouldSuspendAllVersions()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -775,7 +800,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that SuspendKeyAsync throws for null/empty reason.
 	/// </summary>
-	protected virtual async Task SuspendKeyAsync_NullReason_ShouldThrowArgumentException()
+	public virtual async Task SuspendKeyAsync_NullReason_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -817,7 +842,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that ReactivateKeyAsync returns false for a non-existent key.
 	/// </summary>
-	protected virtual async Task ReactivateKeyAsync_NonExistent_ShouldReturnFalse()
+	public virtual async Task ReactivateKeyAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -847,7 +872,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// inverse of SuspendKeyAsync. Suspend renders the key unusable (excluded from GetActiveKey);
 	/// reactivate must make it active and usable again.
 	/// </summary>
-	protected virtual async Task ReactivateKeyAsync_SuspendedKey_ShouldRestoreToActive()
+	public virtual async Task ReactivateKeyAsync_SuspendedKey_ShouldRestoreToActive()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -906,7 +931,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetActiveKeyAsync returns null when no active key exists.
 	/// </summary>
-	protected virtual async Task GetActiveKeyAsync_NoActiveKey_ShouldReturnNull()
+	public virtual async Task GetActiveKeyAsync_NoActiveKey_ShouldReturnNull()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -932,7 +957,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetActiveKeyAsync returns the active key.
 	/// </summary>
-	protected virtual async Task GetActiveKeyAsync_ActiveKeyExists_ShouldReturnActiveKey()
+	public virtual async Task GetActiveKeyAsync_ActiveKeyExists_ShouldReturnActiveKey()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -975,7 +1000,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetActiveKeyAsync filters by purpose.
 	/// </summary>
-	protected virtual async Task GetActiveKeyAsync_FilterByPurpose_ShouldFilterCorrectly()
+	public virtual async Task GetActiveKeyAsync_FilterByPurpose_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -1015,7 +1040,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that GetActiveKeyAsync skips suspended keys.
 	/// </summary>
-	protected virtual async Task GetActiveKeyAsync_SuspendedKey_ShouldNotReturn()
+	public virtual async Task GetActiveKeyAsync_SuspendedKey_ShouldNotReturn()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -1053,7 +1078,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// <summary>
 	/// Verifies that disposed provider throws ObjectDisposedException.
 	/// </summary>
-	protected virtual async Task Disposed_Provider_ShouldThrowObjectDisposedException()
+	public virtual async Task Disposed_Provider_ShouldThrowObjectDisposedException()
 	{
 		// Arrange
 		var provider = CreateProvider();
@@ -1090,4 +1115,5 @@ public abstract class KeyManagementProviderConformanceTestKit
 	}
 
 	#endregion
+
 }

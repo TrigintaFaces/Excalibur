@@ -15,6 +15,13 @@ namespace Excalibur.Cdc.Postgres;
 /// </summary>
 internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 {
+	/// <summary>
+	/// The <c>slotName</c> reserved for the provider-neutral <see cref="ICdcStateStore"/> checkpoint, so the
+	/// generic position occupies its own key and can never alias a typed per-slot position. Matches the
+	/// durable Postgres store, whose typed entry points reject an empty slot name and so cannot forge it.
+	/// </summary>
+	private const string GenericSlotDiscriminator = "";
+
 	private readonly ConcurrentDictionary<string, PostgresCdcStateEntry> _states = new();
 
 	/// <inheritdoc/>
@@ -99,23 +106,61 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 	/// <inheritdoc/>
 	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken)
 	{
-		var position = await GetLastPositionAsync(consumerId, "default", cancellationToken).ConfigureAwait(false);
-		return position.IsValid ? position.ToChangePosition() : null;
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		await Task.CompletedTask.ConfigureAwait(false);
+
+		// Reads the reserved generic key directly rather than through the typed accessor, which rejects the
+		// reserved slot name by design. Going through a named slot would put the generic checkpoint in the
+		// typed namespace, where a caller using that same slot name would silently share it.
+		var key = GetKey(consumerId, GenericSlotDiscriminator, null);
+		if (_states.TryGetValue(key, out var entry)
+			&& PostgresCdcPosition.TryParse(entry.Position, out var position)
+			&& position.IsValid)
+		{
+			return position.ToChangePosition();
+		}
+
+		return null;
 	}
 
 	/// <inheritdoc/>
 	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 		ArgumentNullException.ThrowIfNull(position);
+
 		var pgPosition = PostgresCdcPosition.FromChangePosition(position);
-		return SavePositionAsync(consumerId, "default", pgPosition, cancellationToken);
+		var key = GetKey(consumerId, GenericSlotDiscriminator, null);
+		var entry = new PostgresCdcStateEntry
+		{
+			ProcessorId = consumerId,
+			SlotName = GenericSlotDiscriminator,
+			TableName = null,
+			Position = pgPosition.LsnString,
+			UpdatedAt = DateTimeOffset.UtcNow,
+		};
+
+		_ = _states.AddOrUpdate(key, entry, (_, existing) =>
+		{
+			existing.Position = pgPosition.LsnString;
+			existing.UpdatedAt = DateTimeOffset.UtcNow;
+			return existing;
+		});
+
+		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>
 	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
 	{
-		await ClearStateAsync(consumerId, cancellationToken).ConfigureAwait(false);
-		return true;
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		await Task.CompletedTask.ConfigureAwait(false);
+
+		// Removes only the generic checkpoint. Delegating to ClearStateAsync would wipe every typed per-slot
+		// position and per-table state the processor owns, and would report success even when no checkpoint
+		// existed -- the contract requires false in that case.
+		var key = GetKey(consumerId, GenericSlotDiscriminator, null);
+		return _states.TryRemove(key, out _);
 	}
 
 	/// <inheritdoc/>
@@ -125,7 +170,12 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 		await Task.CompletedTask.ConfigureAwait(false);
 		foreach (var entry in _states.Values)
 		{
-			if (entry.TableName is null && PostgresCdcPosition.TryParse(entry.Position, out var position) && position.IsValid)
+			// Generic checkpoints only, so each consumer yields exactly one pair. Including typed per-slot
+			// entries would emit several tuples under one consumer id, each claiming to be its position.
+			if (entry.TableName is null
+				&& IsGenericSlot(entry.SlotName)
+				&& PostgresCdcPosition.TryParse(entry.Position, out var position)
+				&& position.IsValid)
 			{
 				yield return (entry.ProcessorId, position.ToChangePosition());
 			}
@@ -137,6 +187,13 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 
 	/// <inheritdoc/>
 	public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+	/// <summary>
+	/// Indicates whether a stored entry's slot name is the reserved generic discriminator. The reserved
+	/// value is the empty string, so emptiness is the test; it is named rather than inlined so the intent
+	/// reads as "this is the generic checkpoint" and not as an incidental blank check.
+	/// </summary>
+	private static bool IsGenericSlot(string? slotName) => string.IsNullOrEmpty(slotName);
 
 	private static string GetKey(string processorId, string slotName, string? tableName) =>
 		$"{processorId}:{slotName}:{tableName ?? string.Empty}";

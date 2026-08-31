@@ -52,7 +52,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class ControlValidatorConformanceTestKit
+public abstract class ControlValidatorConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh control validator instance for testing.
@@ -93,7 +93,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.SupportedControls"/> returns a non-null list.
 	/// </summary>
-	protected virtual void SupportedControls_ShouldNotBeNull()
+	public virtual void SupportedControls_ShouldNotBeNull()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -112,7 +112,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.SupportedControls"/> returns a non-empty list.
 	/// </summary>
-	protected virtual void SupportedControls_ShouldNotBeEmpty()
+	public virtual void SupportedControls_ShouldNotBeEmpty()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -135,7 +135,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.SupportedCriteria"/> returns a non-null list.
 	/// </summary>
-	protected virtual void SupportedCriteria_ShouldNotBeNull()
+	public virtual void SupportedCriteria_ShouldNotBeNull()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -154,7 +154,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.SupportedCriteria"/> returns a non-empty list.
 	/// </summary>
-	protected virtual void SupportedCriteria_ShouldNotBeEmpty()
+	public virtual void SupportedCriteria_ShouldNotBeEmpty()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -177,7 +177,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.ValidateAsync"/> returns a result for supported controls.
 	/// </summary>
-	protected virtual async Task ValidateAsync_SupportedControl_ShouldReturnResult()
+	public virtual async Task ValidateAsync_SupportedControl_ShouldReturnResult()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -203,7 +203,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.ValidateAsync"/> returns result with IsEffective=false for unsupported controls.
 	/// </summary>
-	protected virtual async Task ValidateAsync_UnsupportedControl_ShouldReturnFailure()
+	public virtual async Task ValidateAsync_UnsupportedControl_ShouldReturnFailure()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -228,7 +228,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.ValidateAsync"/> result has required properties populated.
 	/// </summary>
-	protected virtual async Task ValidateAsync_SupportedControl_ShouldReturnResultWithRequiredProperties()
+	public virtual async Task ValidateAsync_SupportedControl_ShouldReturnResultWithRequiredProperties()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -270,7 +270,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.RunTestAsync"/> returns a result for supported controls.
 	/// </summary>
-	protected virtual async Task RunTestAsync_SupportedControl_ShouldReturnResult()
+	public virtual async Task RunTestAsync_SupportedControl_ShouldReturnResult()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -297,7 +297,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.RunTestAsync"/> result has valid properties.
 	/// </summary>
-	protected virtual async Task RunTestAsync_SupportedControl_ShouldReturnResultWithValidProperties()
+	public virtual async Task RunTestAsync_SupportedControl_ShouldReturnResultWithValidProperties()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -336,7 +336,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.RunTestAsync"/> returns appropriate outcome for unsupported controls.
 	/// </summary>
-	protected virtual async Task RunTestAsync_UnsupportedControl_ShouldReturnExceptions()
+	public virtual async Task RunTestAsync_UnsupportedControl_ShouldReturnExceptions()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -367,7 +367,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.GetControlDescription"/> returns non-null for supported controls.
 	/// </summary>
-	protected virtual void GetControlDescription_SupportedControl_ShouldReturnDescription()
+	public virtual void GetControlDescription_SupportedControl_ShouldReturnDescription()
 	{
 		// Arrange
 		var validator = CreateValidator();
@@ -405,7 +405,7 @@ public abstract class ControlValidatorConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IControlValidator.GetControlDescription"/> returns null for unsupported controls.
 	/// </summary>
-	protected virtual void GetControlDescription_UnsupportedControl_ShouldReturnNull()
+	public virtual void GetControlDescription_UnsupportedControl_ShouldReturnNull()
 	{
 		// Arrange
 		var validator = CreateValidator();

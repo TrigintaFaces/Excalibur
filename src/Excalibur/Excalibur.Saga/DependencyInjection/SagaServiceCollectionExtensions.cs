@@ -23,14 +23,24 @@ public static class SagaServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services">The service collection to add services to.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburSaga(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// ADR-078: Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
-		_ = services.AddDispatch();
+		// Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
+		//
+		// The pipeline entry point, NOT the zero-argument AddDispatch(): that one resolves to the
+		// assembly overload, which discovers handlers by scanning the consumer's entry assembly when the
+		// caller names none. A consumer registering this subsystem asked for the subsystem, not for a
+		// reflective scan of their own application, and had no way to opt out of one taken on their
+		// behalf. AddDispatchPipeline registers the primitives and the handler registry -- everything the
+		// comment above is after -- and scans nothing. Entry-assembly discovery remains available to the
+		// consumer as the named, annotated opt-in AddHandlersFromEntryAssembly().
+		_ = services.AddDispatchPipeline();
 
-		// AD-252-2: Use AddOptions pattern for proper configuration binding
+		// Use AddOptions pattern for proper configuration binding
 		// AddOptions<T> ensures IOptions<T>, IOptionsSnapshot<T>, IOptionsMonitor<T> are registered
 		// TryAddEnumerable prevents duplicate IConfigureOptions registrations
 		_ = services.AddOptions<SagaOptions>()
@@ -52,7 +62,7 @@ public static class SagaServiceCollectionExtensions
 		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 		services.TryAddSingleton<ISagaDispatchRegistry, SagaDispatchRegistry>();
 
-		// iuv3s1: do NOT silently bind an in-memory saga store. Saga state is as stateful as the outbox /
+		// do NOT silently bind an in-memory saga store. Saga state is as stateful as the outbox /
 		// event store (it is lost on restart/scale-out), so saga registration adopts the same fail-fast
 		// posture: a "default" ISagaStore is a required deployment decision. The in-memory store is
 		// available only via an explicit opt-in (AddInMemorySagaStore() / ISagaBuilder.WithInMemoryStore()),
@@ -60,6 +70,7 @@ public static class SagaServiceCollectionExtensions
 		// explicit opt-in registered one. Mirrors EventSourcingPrerequisiteValidator / the signing-key guard.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, SagaPrerequisiteValidator>());
 
 		// The cleanup background service resolves TimeProvider from the container; register the system
 		// provider if the consumer has not supplied one (TryAddSingleton keeps a consumer-provided or
@@ -72,6 +83,18 @@ public static class SagaServiceCollectionExtensions
 		// The service resolves ISagaStore lazily per cycle, so it constructs even before a store is registered.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, Excalibur.Saga.Services.SagaCleanupBackgroundService>());
+
+		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers (and the
+		// SagaCoordinator constructor) can inject ISagaStore directly without [FromKeyedServices("default")].
+		//
+		// Unconditional, and it has to be: every provider extension runs after this call, and a consumer
+		// may hand-register the keyed "default" store later still, so there is nothing here to condition on
+		// yet. Registered through AddKeyedDefaultAlias so the descriptor is marked as a forwarder — saga
+		// registration deliberately binds no store, so this alias routinely promises a contract nothing
+		// provides, and a bare TryAddSingleton would leave that promise indistinguishable from a real store.
+		// The fail-closed multi-tenancy capability gate reads these descriptors back; without the marker it
+		// would demand a tenant capability of a saga store the host never registered.
+		_ = services.AddKeyedDefaultAlias<Excalibur.Dispatch.Messaging.ISagaStore>();
 
 		return services;
 	}
@@ -92,16 +115,24 @@ public static class SagaServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton<Excalibur.Saga.Orchestration.InMemorySagaStore>();
+		_ = services.AddDefaultTenantContext();
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the
+		// store through THIS path, while the sibling entry point in the same package looks done.
+		_ = services.AddTenantAwareStore<Excalibur.Dispatch.Messaging.ISagaStore, Excalibur.Saga.Orchestration.InMemorySagaStore>();
 		services.TryAddKeyedSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(
 			"inmemory", (sp, _) => sp.GetRequiredService<Excalibur.Saga.Orchestration.InMemorySagaStore>());
 		services.TryAddKeyedSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(
 			"default", (sp, _) => sp.GetRequiredKeyedService<Excalibur.Dispatch.Messaging.ISagaStore>("inmemory"));
 
-		// Non-keyed ISagaStore convenience alias: forwards to keyed "default" so consumers (and the
-		// SagaCoordinator constructor) can inject ISagaStore directly without [FromKeyedServices("default")].
-		services.TryAddSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(sp =>
-			sp.GetRequiredKeyedService<Excalibur.Dispatch.Messaging.ISagaStore>("default"));
+		// AddKeyedDefaultAlias is the single definition of the non-keyed alias; calling it here ENSURES
+		// it rather than duplicating it, and its TryAdd semantics make the second call a no-op when
+		// AddSagas already ran. This entry point documents the alias as part of what it registers, and a
+		// consumer who calls only this method — as the conformance suite for this store does — must be
+		// able to inject ISagaStore. Relying on AddSagas alone made that promise false.
+		_ = services.AddKeyedDefaultAlias<Excalibur.Dispatch.Messaging.ISagaStore>();
 
 		// Admin/query surface for operational tooling and the dashboard — the same store instance.
 		services.TryAddSingleton<Excalibur.Dispatch.Messaging.ISagaStoreAdmin>(
@@ -116,6 +147,8 @@ public static class SagaServiceCollectionExtensions
 	/// <param name="services">The service collection to add services to.</param>
 	/// <param name="configure">The action to configure saga options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		Action<SagaOptions> configure)
@@ -180,6 +213,8 @@ public static class SagaServiceCollectionExtensions
 	///     .WithInstrumentation()));
 	/// </code>
 	/// </example>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburSaga(
 		this IServiceCollection services,
 		Action<ISagaBuilder> configure)
@@ -206,7 +241,7 @@ public static class SagaServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// AD-252-2: Check for IConfigureOptions registration (proper options pattern)
+		// Check for IConfigureOptions registration (proper options pattern)
 		return services.Any(s =>
 			s.ServiceType == typeof(IConfigureOptions<SagaOptions>) ||
 			s.GetImplementationType() == typeof(DefaultSagaOptionsSetup));
@@ -220,6 +255,8 @@ public static class SagaServiceCollectionExtensions
 	/// <typeparam name="TSagaState">The saga state type.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddSaga<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSaga,
 		TSagaState>(this IServiceCollection services)

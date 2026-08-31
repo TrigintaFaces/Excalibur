@@ -6,6 +6,7 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Persistence;
+using Excalibur.Data.Resilience;
 using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Extensions.Configuration;
@@ -166,7 +167,6 @@ public static class SqlServerPersistenceExtensions
 		services.AddSqlServerPersistence(options =>
 		{
 			configureOptions(options);
-			options.Resiliency.EnableConnectionResiliency = true;
 		});
 
 	/// <summary>
@@ -216,7 +216,6 @@ public static class SqlServerPersistenceExtensions
 		{
 			configureOptions(options);
 			options.Connection.MultiSubnetFailover = true;
-			options.Resiliency.EnableConnectionResiliency = true;
 			options.Resiliency.ConnectRetryCount = 5;
 			options.Resiliency.ConnectRetryInterval = 10;
 			options.Connection.EnableTransparentNetworkIPResolution = true;
@@ -234,6 +233,17 @@ public static class SqlServerPersistenceExtensions
 
 		// Register health check
 		services.TryAddSingleton<SqlServerPersistenceHealthCheck>();
+
+		// Register the DataRequest retry policy the provider depends on. Without this the provider
+		// cannot be constructed by the container at all, so resolving it throws at startup.
+		services.TryAddSingleton<IDataRequestRetryPolicy>(static sp =>
+		{
+			var resiliency = sp.GetRequiredService<IOptions<SqlServerPersistenceOptions>>().Value.Resiliency;
+			return new Excalibur.Data.SqlServer.SqlServerRetryPolicy(
+				resiliency.MaxRetryAttempts,
+				TimeSpan.FromMilliseconds(resiliency.RetryDelayMilliseconds),
+				sp.GetRequiredService<ILogger<SqlServerPersistenceProvider>>());
+		});
 
 		// Register the main provider
 		services.TryAddSingleton<SqlServerPersistenceProvider>();

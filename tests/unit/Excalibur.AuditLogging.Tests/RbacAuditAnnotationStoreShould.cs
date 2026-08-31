@@ -40,9 +40,7 @@ public sealed class RbacAuditAnnotationStoreShould
 
         _sut = new RbacAuditAnnotationStore(
             _fakeInnerStore,
-            _fakeRoleProvider,
-            _fakeActorProvider,
-            _fakeMetaAuditLogger,
+            TestScopeFactory.For(_fakeRoleProvider, _fakeActorProvider, _fakeMetaAuditLogger),
             _logger);
     }
 
@@ -54,38 +52,63 @@ public sealed class RbacAuditAnnotationStoreShould
     public void Throw_when_inner_store_is_null()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditAnnotationStore(null!, _fakeRoleProvider, _fakeActorProvider, _fakeMetaAuditLogger, _logger));
+            new RbacAuditAnnotationStore(
+                null!,
+                TestScopeFactory.For(_fakeRoleProvider, _fakeActorProvider, _fakeMetaAuditLogger),
+                _logger));
     }
 
     [Fact]
-    public void Throw_when_role_provider_is_null()
+    public void Throw_when_scope_factory_is_null()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditAnnotationStore(_fakeInnerStore, null!, _fakeActorProvider, _fakeMetaAuditLogger, _logger));
+            new RbacAuditAnnotationStore(_fakeInnerStore, null!, _logger));
+    }
+
+    [Fact]
+    public async Task Throw_when_no_role_provider_is_registered()
+    {
+        // The role provider is an access-control input and is resolved per operation, so its absence is a
+        // resolution failure on the first checked call rather than a constructor argument check. It must
+        // still fail closed: a host that registered none is refused, never defaulted to a role.
+        var store = new RbacAuditAnnotationStore(
+            _fakeInnerStore,
+            TestScopeFactory.For(actorProvider: _fakeActorProvider, metaAuditLogger: _fakeMetaAuditLogger),
+            _logger);
+
+        _ = await Should.ThrowAsync<InvalidOperationException>(
+            () => store.TagAsync(TestEventId, ["tag"], CancellationToken.None));
     }
 
     [Fact]
     public void Throw_when_logger_is_null()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditAnnotationStore(_fakeInnerStore, _fakeRoleProvider, _fakeActorProvider, _fakeMetaAuditLogger, null!));
+            new RbacAuditAnnotationStore(
+                _fakeInnerStore,
+                TestScopeFactory.For(_fakeRoleProvider, _fakeActorProvider, _fakeMetaAuditLogger),
+                null!));
     }
 
     [Fact]
-    public void Accept_null_actor_provider()
+    public void Accept_no_registered_actor_provider()
     {
-        // actorProvider is optional
+        // The actor provider stays optional; it is now absent from the scope rather than null in the ctor.
         var store = new RbacAuditAnnotationStore(
-            _fakeInnerStore, _fakeRoleProvider, null, _fakeMetaAuditLogger, _logger);
+            _fakeInnerStore,
+            TestScopeFactory.For(_fakeRoleProvider, metaAuditLogger: _fakeMetaAuditLogger),
+            _logger);
         store.ShouldNotBeNull();
     }
 
     [Fact]
-    public void Accept_null_meta_audit_logger()
+    public void Accept_no_registered_meta_audit_logger()
     {
-        // metaAuditLogger is optional
+        // The meta-audit logger stays optional on the ANNOTATION store.
         var store = new RbacAuditAnnotationStore(
-            _fakeInnerStore, _fakeRoleProvider, _fakeActorProvider, null, _logger);
+            _fakeInnerStore,
+            TestScopeFactory.For(_fakeRoleProvider, _fakeActorProvider),
+            _logger);
         store.ShouldNotBeNull();
     }
 
@@ -422,7 +445,9 @@ public sealed class RbacAuditAnnotationStoreShould
         SetRole(AuditLogRole.ComplianceOfficer);
 
         var sutNoMeta = new RbacAuditAnnotationStore(
-            _fakeInnerStore, _fakeRoleProvider, _fakeActorProvider, null, _logger);
+            _fakeInnerStore,
+            TestScopeFactory.For(_fakeRoleProvider, _fakeActorProvider),
+            _logger);
 
         // Should not throw even without meta-audit logger
         await sutNoMeta.TagAsync(TestEventId, ["tag"], CancellationToken.None);
@@ -465,7 +490,9 @@ public sealed class RbacAuditAnnotationStoreShould
         SetRole(AuditLogRole.ComplianceOfficer);
 
         var sutNoActor = new RbacAuditAnnotationStore(
-            _fakeInnerStore, _fakeRoleProvider, null, _fakeMetaAuditLogger, _logger);
+            _fakeInnerStore,
+            TestScopeFactory.For(_fakeRoleProvider, metaAuditLogger: _fakeMetaAuditLogger),
+            _logger);
 
         await sutNoActor.TagAsync(TestEventId, ["tag"], CancellationToken.None);
 

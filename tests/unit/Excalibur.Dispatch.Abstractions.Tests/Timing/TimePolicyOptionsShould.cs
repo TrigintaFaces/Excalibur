@@ -189,16 +189,6 @@ public sealed class TimePolicyOptionsShould
 		options.Observability.LogTimeoutEvents.ShouldBeTrue();
 	}
 
-	[Fact]
-	public void Default_IncludeTimeoutMetricsIsTrue()
-	{
-		// Arrange & Act
-		var options = new TimePolicyOptions();
-
-		// Assert
-		options.Observability.IncludeTimeoutMetrics.ShouldBeTrue();
-	}
-
 	#endregion
 
 	#region Property Setter Tests

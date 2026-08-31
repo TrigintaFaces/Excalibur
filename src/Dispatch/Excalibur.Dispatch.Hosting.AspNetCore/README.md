@@ -20,7 +20,8 @@ builder.Services.AddDispatch(options =>
 
 var app = builder.Build();
 
-app.MapDispatchEndpoints();
+// Map one endpoint per action. The request is bound, dispatched, and its result returned.
+app.DispatchPostAction<GreetRequest, GreetAction, string>("/greet");
 app.Run();
 ```
 
@@ -40,4 +41,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

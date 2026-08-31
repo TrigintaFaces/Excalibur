@@ -11,8 +11,10 @@ dotnet add package Excalibur.AuditLogging.Datadog
 ## Quick Start
 
 ```csharp
-// Add Excalibur.AuditLogging.Datadog to your service configuration
-services.AddAuditLoggingDatadog();
+services.AddAuditLogging();
+services.AddDatadogAuditExporter(datadog => datadog
+    .ApiKey(configuration["Datadog:ApiKey"]!)
+    .Site("datadoghq.com"));
 ```
 
 ## Documentation
@@ -21,4 +23,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur repository. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur repository. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

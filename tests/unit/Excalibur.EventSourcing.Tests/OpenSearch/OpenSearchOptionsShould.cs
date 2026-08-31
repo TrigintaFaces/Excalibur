@@ -5,14 +5,12 @@ using Excalibur.Data.OpenSearch;
 using Excalibur.Data.OpenSearch.IndexManagement;
 using Excalibur.Data.OpenSearch.Persistence;
 using Excalibur.Data.OpenSearch.Projections;
-using Excalibur.Data.OpenSearch.Resilience;
-using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.EventSourcing.Tests.OpenSearch;
 
 /// <summary>
 /// T.13 (725tc1): Unit tests for OpenSearch package -- Options defaults, models,
-/// circuit breaker states, resilience options, index management interfaces.
+/// and index management interfaces.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "OpenSearch")]
@@ -24,34 +22,6 @@ public sealed class OpenSearchOptionsShould
 	public void ConfigurationOptionsHaveDefaults()
 	{
 		var options = new OpenSearchConfigurationOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void CircuitBreakerOptionsHaveDefaults()
-	{
-		var options = new CircuitBreakerOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void ResilienceOptionsHaveDefaults()
-	{
-		var options = new OpenSearchResilienceOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void TimeoutOptionsHaveDefaults()
-	{
-		var options = new OpenSearchTimeoutOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void RetryPolicyOptionsHaveDefaults()
-	{
-		var options = new OpenSearchRetryPolicyOptions();
 		options.ShouldNotBeNull();
 	}
 
@@ -73,58 +43,12 @@ public sealed class OpenSearchOptionsShould
 		options.ShouldNotBeNull();
 	}
 
-	// --- Index Management ---
-
-	[Fact]
-	public void IndexManagementOptionsHaveDefaults()
-	{
-		var options = new IndexManagementOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void LifecycleManagementOptionsHaveDefaults()
-	{
-		var options = new LifecycleManagementOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void DefaultTemplateOptionsHaveDefaults()
-	{
-		var options = new DefaultTemplateOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void EnvironmentOptionsHaveDefaults()
-	{
-		var options = new EnvironmentOptions();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void OptimizationOptionsHaveDefaults()
-	{
-		var options = new OptimizationOptions();
-		options.ShouldNotBeNull();
-	}
-
 	// --- Enums ---
 
 	[Fact]
 	public void AliasOperationTypeHasExpectedValues()
 	{
 		Enum.GetValues<AliasOperationType>().Length.ShouldBeGreaterThan(0);
-	}
-
-	[Fact]
-	public void CircuitStateHasThreeStates()
-	{
-		// bd-116roh: per-package CircuitBreakerState removed; canonical CircuitState replaces it
-		Enum.GetValues<CircuitState>().Length.ShouldBe(3);
-		CircuitState.Closed.ShouldNotBe(CircuitState.Open);
-		CircuitState.HalfOpen.ShouldNotBe(CircuitState.Closed);
 	}
 
 	// --- Lifecycle Models ---
@@ -175,14 +99,6 @@ public sealed class OpenSearchOptionsShould
 		typeof(IIndexAliasManager).ShouldNotBeNull();
 		typeof(IIndexLifecycleManager).ShouldNotBeNull();
 		typeof(IIndexTemplateManager).ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void ResilienceInterfacesAreAccessible()
-	{
-		typeof(IResilientOpenSearchClient).ShouldNotBeNull();
-		typeof(IOpenSearchRetryPolicy).ShouldNotBeNull();
-		typeof(IOpenSearchCircuitBreaker).ShouldNotBeNull();
 	}
 
 }

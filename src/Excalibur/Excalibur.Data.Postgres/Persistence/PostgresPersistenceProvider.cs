@@ -3,7 +3,6 @@
 
 using System.Data;
 using System.Data.Common;
-using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
@@ -27,17 +26,19 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// optimizations and infrastructure concerns like retry policies, metrics collection, and connection management.
 /// </summary>
 /// <remarks>
-/// For the general Postgres persistence provider that handles health monitoring and transaction lifecycle, see
-/// <see cref="Data.Postgres.PostgresPersistenceProvider"/> which implements
-/// <see cref="IPersistenceProvider"/>, <c>IPersistenceProviderHealth</c>, and <c>IPersistenceProviderTransaction</c>.
+/// This is the single Postgres persistence provider. Health monitoring, transaction lifecycle and
+/// connection description are optional capabilities on it, reached through
+/// <see cref="IPersistenceProvider.GetService"/> with <c>typeof(IPersistenceProviderHealth)</c>,
+/// <c>typeof(IPersistenceProviderTransaction)</c> or <c>typeof(IPersistenceProviderConnection)</c>.
 /// </remarks>
-public class PostgresPersistenceProvider : ISqlPersistenceProvider
+public class PostgresPersistenceProvider : ISqlPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction, IPersistenceProviderConnection, IDataRequestExecutor
 {
 	private readonly PostgresPersistenceOptions _options;
 	private readonly ILogger<PostgresPersistenceProvider> _logger;
 	private readonly PostgresPersistenceMetrics _metrics;
 	private readonly AsyncRetryPolicy _retryPolicy;
-	private bool _initialized;
+	private readonly SemaphoreSlim _initializationGate = new(1, 1);
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -47,7 +48,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	/// <param name="logger"> The logger for diagnostic output. </param>
 	/// <param name="metrics"> The metrics collector. </param>
 	/// <param name="retryPolicy"> The DataRequest retry policy (optional). </param>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	public PostgresPersistenceProvider(
 		IOptions<PostgresPersistenceOptions> options,
 		ILogger<PostgresPersistenceProvider> logger,
@@ -57,6 +57,8 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_metrics = metrics ?? new PostgresPersistenceMetrics();
+
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "postgres" : _options.Name;
 
 		// Validate options on construction
 		_options.Validate();
@@ -83,7 +85,12 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	}
 
 	/// <inheritdoc />
-	public string Name => "Postgres";
+	/// <remarks>
+	/// The consumer-configured instance name, taken from the options and defaulting to
+	/// <c>"postgres"</c>. This identifies which configured instance answered; the engine
+	/// identity is reported separately under the <c>Provider</c> metrics key.
+	/// </remarks>
+	public string Name { get; }
 
 	/// <inheritdoc />
 	public string ProviderType => "SQL";
@@ -372,7 +379,21 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		return stats;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Reads the schema of a single table: its identity and the ordered column metadata backing it.
+	/// </summary>
+	/// <param name="tableName">The table to describe. Required.</param>
+	/// <param name="schemaName">The schema the table lives in, or <see langword="null"/> for the provider default.</param>
+	/// <param name="cancellationToken">Cancels the read.</param>
+	/// <returns>A dictionary carrying the table's identity and its column metadata.</returns>
+	/// <remarks>
+	/// <b>This call fails closed.</b> It never returns a value describing a table it could not read: an
+	/// absent table raises <see cref="Excalibur.Data.ResourceNotFoundException"/>, and any other failure --
+	/// an unreachable server, a permission denial -- propagates. A returned dictionary therefore means the
+	/// table exists and was described, with no key a caller must probe to discover otherwise.
+	/// </remarks>
+	/// <exception cref="System.ArgumentException"><paramref name="tableName"/> is null, empty, or whitespace.</exception>
+	/// <exception cref="Excalibur.Data.ResourceNotFoundException">The named table does not exist.</exception>
 	public async Task<IDictionary<string, object>> GetSchemaInfoAsync(
 		string tableName,
 		string? schemaName,
@@ -462,7 +483,15 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 				indexQuery,
 				new { TableName = tableName, SchemaName = effectiveSchema }).ConfigureAwait(false);
 
-			schemaInfo["indexes"] = indexes.ToList();
+			schemaInfo["indexes"] = indexes
+				.Select(index => new
+				{
+					index.index_name,
+					index.is_unique,
+					index.is_primary,
+					column_names = index.ColumnNames,
+				})
+				.ToList();
 
 			// Get constraints
 			const string constraintsQuery = """
@@ -495,15 +524,21 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		}
 		catch (ResourceNotFoundException)
 		{
-			// Fail closed: a missing table must propagate as a not-found rather than being swallowed into
-			// the success-shaped error-key dictionary below.
+			// An absent table is an expected outcome of a probe, not a fault: it propagates unchanged and
+			// is not logged at Error, which would turn every negative probe into an operator alert.
 			throw;
 		}
 		catch (Exception ex)
 		{
+			// Fail closed on EVERY OTHER failure too, not only the missing table. Recording the message under an
+			// "error" key and returning normally produced a dictionary shaped exactly like a success: a
+			// caller that did not know to probe for that key received a value, no exception, and read an
+			// unreachable server or a permission denial as a schema it could act on. There is no shape a
+			// success-carrying dictionary can take that says "this failed" to a caller that is not already
+			// looking for it, so the failure is raised instead of encoded.
 			_logger.LogError(ex, "Failed to get schema information for table {Schema}.{Table}",
 				schemaName ?? "public", tableName);
-			schemaInfo["error"] = ex.Message;
+			throw;
 		}
 
 		return schemaInfo;
@@ -596,24 +631,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	}
 
 	/// <inheritdoc />
-	public async Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		ThrowIfDisposed();
-		ThrowIfNotInitialized();
-
-		ArgumentNullException.ThrowIfNull(request);
-
-		// Use the DataRequest retry policy for execution
-		return await ((IRelationalDataRequestRetryPolicy)RetryPolicy).ResolveAsync(
-			request,
-			async () => (TConnection)await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
-			cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <inheritdoc />
 	public async Task<TResult> ExecuteInTransactionAsync<TResult>(
 		IDataRequest<IDbConnection, TResult> request,
 		ITransactionScope transactionScope,
@@ -667,6 +684,34 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	}
 
 	/// <inheritdoc />
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IPersistenceProviderHealth))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IDataRequestExecutor))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IPersistenceProviderConnection))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(IPersistenceProviderTransaction))
+		{
+			return this;
+		}
+
+		return null;
+	}
+
+	/// <inheritdoc />
 	public ITransactionScope CreateTransactionScope(
 		IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
 		TimeSpan? timeout = null)
@@ -685,56 +730,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		}
 
 		return transactionScope;
-	}
-
-	/// <inheritdoc />
-	public async Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		ThrowIfDisposed();
-
-		if (!_options.Pooling.EnableConnectionPooling)
-		{
-			return null;
-		}
-
-		var stats = new Dictionary<string, object>
-			(StringComparer.Ordinal)
-		{
-			["pool_enabled"] = true,
-			["pool_max_size"] = _options.Pooling.MaxPoolSize,
-			["pool_min_size"] = _options.Pooling.MinPoolSize,
-			["connection_idle_lifetime"] = _options.Connection.ConnectionIdleLifetime,
-			["connection_pruning_interval"] = _options.Connection.ConnectionPruningInterval,
-		};
-
-		// Note: Npgsql 7+ doesn't provide runtime pool statistics via the API but we can include configuration information
-		try
-		{
-			// Get basic connection statistics from the database itself
-			using var connection = await CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-			const string activeConnectionsQuery = """
-			                                       SELECT
-			                                       COUNT(*) as total_connections,
-			                                       COUNT(*) FILTER (WHERE state = 'active') as active_connections,
-			                                       COUNT(*) FILTER (WHERE state = 'idle') as idle_connections
-			                                       FROM pg_stat_activity
-			                                       WHERE datname = current_database()
-			                                      """;
-
-			var connectionStats = await connection.QuerySingleAsync<PoolConnectionStatsDto>(activeConnectionsQuery).ConfigureAwait(false);
-
-			stats["active_connections"] = connectionStats.active_connections;
-			stats["idle_connections"] = connectionStats.idle_connections;
-			stats["total_connections"] = connectionStats.total_connections;
-		}
-		catch (Exception ex)
-		{
-			_logger.LogWarning(ex, "Failed to get connection statistics");
-			stats["error"] = ex.Message;
-		}
-
-		return stats;
 	}
 
 	/// <inheritdoc />
@@ -779,12 +774,17 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		var metrics = new Dictionary<string, object>
 			(StringComparer.Ordinal)
 		{
-			["provider"] = Name,
-			["type"] = ProviderType,
-			["database_type"] = DatabaseType,
-			["database_version"] = DatabaseVersion,
-			["available"] = IsAvailable,
-			["initialized"] = _initialized,
+			// PascalCase, matching every other persistence provider: this dictionary is compared with an
+			// ordinal comparer, so "provider" and "Provider" are different keys. "Provider" is the stable
+			// engine identity -- a fixed literal -- and "Name" the consumer-configured instance name, which
+			// is what distinguishes two instances of the same engine.
+			["Provider"] = "Postgres",
+			["Name"] = Name,
+			["ProviderType"] = ProviderType,
+			["DatabaseType"] = DatabaseType,
+			["DatabaseVersion"] = DatabaseVersion,
+			["IsAvailable"] = IsAvailable,
+			["IsInitialized"] = _initialized,
 		};
 
 		if (_metrics != null)
@@ -815,14 +815,31 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		return metrics;
 	}
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
 	{
 		ThrowIfDisposed();
 
+		if (_initialized)
+		{
+			_logger.LogWarning("Postgres persistence provider already initialized");
+			return;
+		}
+
+		// Two hosts calling InitializeAsync together would both read false above and both provision.
+		// The gate serialises them; the re-check inside is what makes the second one a no-op.
+		await _initializationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			await InitializeCoreAsync(options, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			_ = _initializationGate.Release();
+		}
+	}
+
+	private async Task InitializeCoreAsync(IPersistenceOptions options, CancellationToken cancellationToken)
+	{
 		if (_initialized)
 		{
 			_logger.LogWarning("Postgres persistence provider already initialized");
@@ -901,9 +918,15 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 					_logger.LogWarning(ex, "Error clearing connection pools");
 				}
 			}
+
+			_initializationGate.Dispose();
 		}
 
 		_disposed = true;
+
+		// IsAvailable is latched by the health probe, so disposal must clear it here as well as on the
+		// async path -- otherwise a synchronously-disposed provider keeps reporting the last good probe.
+		IsAvailable = false;
 	}
 
 	/// <summary>
@@ -931,6 +954,8 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 				_logger.LogWarning(ex, "Error clearing connection pools");
 			}
 		}
+
+		_initializationGate.Dispose();
 
 		_disposed = true;
 		return ValueTask.CompletedTask;
@@ -1054,7 +1079,19 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	/// <summary>
 	/// DTO for index information from pg_index/pg_class used in <see cref="GetSchemaInfoAsync"/>.
 	/// </summary>
-	private sealed record IndexInfoDto(string index_name, bool is_unique, bool is_primary, string[] column_names);
+	/// <remarks>
+	/// <paramref name="column_names"/> is declared as <see cref="Array"/>, not <c>string[]</c>, because that
+	/// is the type the data reader reports for the <c>array_agg</c> column and the type Dapper matches a
+	/// constructor against. Declared as <c>string[]</c>, no constructor matched, so every index read threw
+	/// during materialization - which went unnoticed because the caller caught it and recorded the message
+	/// in the result dictionary, so the call returned a schema with columns and no indexes and no error a
+	/// caller would see. It is projected to <c>string[]</c> at the read site.
+	/// </remarks>
+	private sealed record IndexInfoDto(string index_name, bool is_unique, bool is_primary, Array column_names)
+	{
+		/// <summary>The index's column names, in index order.</summary>
+		public string[] ColumnNames => column_names.Cast<object>().Select(value => value.ToString() ?? string.Empty).ToArray();
+	}
 
 	/// <summary>
 	/// DTO for constraint information from information_schema.table_constraints used in <see cref="GetSchemaInfoAsync"/>.
@@ -1065,11 +1102,6 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		string? column_name,
 		string? foreign_table_name,
 		string? foreign_column_name);
-
-	/// <summary>
-	/// DTO for connection pool statistics from pg_stat_activity used in <see cref="GetConnectionPoolStatsAsync"/>.
-	/// </summary>
-	private sealed record PoolConnectionStatsDto(long total_connections, long active_connections, long idle_connections);
 
 	#endregion Dapper Query DTOs
 }

@@ -187,8 +187,18 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 				// position at that point so the event is retried on next poll.
 				var (domainEvents, lastSuccessfulVersion) = DeserializeEventsWithVersionTracking(events, lastPosition);
 
+				// A batch can legitimately yield no deliverable events yet still have made progress -- every
+				// event in it was an erased tombstone. Record the advanced position BEFORE returning, or the
+				// next poll re-reads the same tombstones forever and the subscription is wedged just as surely
+				// as if it had thrown. A batch that made no progress (the first event was poison) leaves
+				// lastSuccessfulVersion at lastPosition, so nothing is skipped.
 				if (domainEvents.Count == 0)
 				{
+					if (lastSuccessfulVersion > lastPosition)
+					{
+						_positions[_subscribedStreamId] = lastSuccessfulVersion;
+					}
+
 					continue;
 				}
 
@@ -237,6 +247,21 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 
 		foreach (var storedEvent in storedEvents)
 		{
+			// An erased (GDPR-tombstoned) event is a permanent, legitimate part of the stream: its type was
+			// replaced with the reserved marker and its payload nulled, so no serializer can ever resolve it.
+			// Recognize it STRUCTURALLY, before any deserialization attempt, deliver nothing for it, and
+			// ADVANCE past it. Treating it as a deserialization failure stops the subscription permanently at
+			// the first tombstone -- the position never advances, so every later poll re-reads the same event
+			// -- which would make honouring an erasure request silently kill the subscription. Only the
+			// reserved marker is skipped: every other deserialization failure still halts below, so genuine
+			// corruption is never mistaken for erasure and is never silently skipped.
+			if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+			{
+				LogErasedEventSkipped(storedEvent.EventId, storedEvent.Version);
+				lastVersion = storedEvent.Version;
+				continue;
+			}
+
 			try
 			{
 				var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
@@ -274,6 +299,10 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 	[LoggerMessage(EventSourcingEventId.SubscriptionEventsDelivered, LogLevel.Debug,
 		"Delivered {EventCount} events for stream {StreamId}")]
 	private partial void LogEventsDelivered(string streamId, int eventCount);
+
+	[LoggerMessage(EventSourcingEventId.ErasedEventSkipped, LogLevel.Debug,
+		"Skipping erased (tombstoned) event {EventId} at version {Version}; advancing the subscription past it")]
+	private partial void LogErasedEventSkipped(string eventId, long version);
 
 	[LoggerMessage(EventSourcingEventId.SubscriptionPollingError, LogLevel.Error,
 		"Error polling for events on stream {StreamId}")]

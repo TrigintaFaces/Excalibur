@@ -146,7 +146,7 @@ public sealed partial class InMemoryInboxStore(ILogger<InMemoryInboxStore> logge
 		return ValueTask.CompletedTask;
 	}
 
-	public ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -171,7 +171,7 @@ public sealed partial class InMemoryInboxStore(ILogger<InMemoryInboxStore> logge
 		return new ValueTask<IEnumerable<InboxEntry>>(failed);
 	}
 
-	public ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(
+	public ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(
 		CancellationToken cancellationToken = default)
 	{
 		var allEntries = _entries.Values
@@ -181,7 +181,7 @@ public sealed partial class InMemoryInboxStore(ILogger<InMemoryInboxStore> logge
 		return new ValueTask<IEnumerable<InboxEntry>>(allEntries);
 	}
 
-	public ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
+	public ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken = default)
 	{
 		var total = 0;
 		var processed = 0;
@@ -217,7 +217,7 @@ public sealed partial class InMemoryInboxStore(ILogger<InMemoryInboxStore> logge
 		});
 	}
 
-	public ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+	public ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
 	{
 		var cutoff = olderThan;
 		var removed = 0;
@@ -346,7 +346,7 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		return ValueTask.CompletedTask;
 	}
 
-	public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries = 3, DateTimeOffset? olderThan = null,
+	public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries = 3, DateTimeOffset? olderThan = null,
 		int batchSize = 100, CancellationToken cancellationToken = default)
 	{
 		var query = _messages.Values.Where(m => m.Status == OutboxStatus.Failed && m.RetryCount < maxRetries);
@@ -363,7 +363,7 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		return new ValueTask<IEnumerable<OutboundMessage>>(failed);
 	}
 
-	public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100,
+	public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100,
 		CancellationToken cancellationToken = default)
 	{
 		var scheduled = _messages.Values
@@ -392,7 +392,7 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		return new ValueTask<int>(toRemove.Count);
 	}
 
-	public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
+	public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken = default)
 	{
 		var messages = _messages.Values.ToList();
 		var now = DateTimeOffset.UtcNow;

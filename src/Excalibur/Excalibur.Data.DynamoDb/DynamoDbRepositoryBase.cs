@@ -70,6 +70,7 @@ public abstract class DynamoDbRepositoryBase<TDocument> : IDynamoDbRepositoryBas
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression above: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this repository off both paths.")]
 	public virtual async Task<TDocument?> GetByIdAsync(string documentId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -101,6 +102,7 @@ public abstract class DynamoDbRepositoryBase<TDocument> : IDynamoDbRepositoryBas
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression above: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this repository off both paths.")]
 	public virtual async Task<bool> AddOrUpdateAsync(string documentId, TDocument document, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
@@ -140,6 +142,7 @@ public abstract class DynamoDbRepositoryBase<TDocument> : IDynamoDbRepositoryBas
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression above: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this repository off both paths.")]
 	public virtual async Task<IReadOnlyList<TDocument>> ScanAsync(
 		ScanRequest request,
 		CancellationToken cancellationToken)

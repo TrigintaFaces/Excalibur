@@ -98,65 +98,64 @@ Dispatch uses several source generators to enable AOT compatibility:
 
 ### 1. HandlerRegistrySourceGenerator
 
-Discovers all message handlers at compile time:
+Discovers message handlers at compile time and emits a registration extension, so nothing scans
+assemblies at run time:
 
 ```csharp
-// Traditional reflection-based (NOT AOT compatible):
-// services.AddHandlersFromAssembly(assembly); // Scans at runtime
-
-// Source-generator-based (AOT compatible):
-// The same API works because handlers are pre-discovered at compile time!
-dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+// Generated: AddDiscoveredHandlers() registers every handler found at compile time.
+services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 ```
 
-**Generated output:** `obj/GeneratedFiles/.../PrecompiledHandlerRegistry.g.cs`
+**Generated output:** `obj/GeneratedFiles/.../PrecompiledHandlerRegistry.g.cs`,
+`PrecompiledHandlerMetadata.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs`,
+`GeneratedHandlerActivatorRegistrations.g.cs`, `PrecompiledDirectActionDispatch.g.cs`
 
-### 2. HandlerActivationGenerator
+`PrecompiledDirectActionDispatch.g.cs` is what removes reflection from handler *creation*: for each
+discovered action type it resolves the handler with a closed-generic `GetRequiredService<T>()` call,
+so those messages never go through a handler activator.
 
-Creates handler instances without reflection:
+### 2. Handler activation for anything direct dispatch does not cover
+
+Messages outside the generated direct-dispatch table fall back to `IHandlerActivator`. The activator
+Dispatch registers by default compiles expressions, which Native AOT does not allow, so it throws
+rather than guessing. Register the AOT activator to close that fallback:
 
 ```csharp
-// Generated code creates handlers with DI:
-internal static IActionHandler<CreateOrderCommand, Guid> CreateHandler(IServiceProvider sp)
-    => new CreateOrderHandler(sp.GetRequiredService<IDispatcher>());
+using Excalibur.Dispatch.Delivery.Handlers;
+
+// Before AddDispatch: Dispatch registers its default activator only if none is present.
+services.AddSingleton<IHandlerActivator, AotHandlerActivator>();
 ```
 
-**Generated output:** `obj/GeneratedFiles/.../PrecompiledHandlerActivator.g.cs`
+`AotHandlerActivator` resolves the handler from the container and applies the message context
+through `IMessageContextAware`. It reflects over no handler member, so a handler reached this way
+must implement `IMessageContextAware` to receive the context — property-injected context is not
+available under Native AOT.
 
-### 3. HandlerInvocationGenerator
+### 3. HandlerInvokerSourceGenerator
 
-Direct handler invocation without dictionary lookups:
+Emits typed invokers so a dispatched message reaches its handler without a reflective call:
 
-```csharp
-// Generated code invokes handlers directly:
-if (message is CreateOrderCommand cmd)
-    return await handler.HandleAsync(cmd, ct);
-```
-
-**Generated output:** `obj/GeneratedFiles/.../PrecompiledHandlerInvoker.g.cs`
+**Generated output:** `obj/GeneratedFiles/.../HandlerInvokerRegistry.g.cs`
 
 ### 4. StaticPipelineGenerator
 
-Compiles middleware pipelines at build time:
+Compiles middleware pipelines at build time, avoiding runtime pipeline construction:
 
-```csharp
-// Generated static pipeline for deterministic message types:
-// Avoids runtime pipeline construction
-```
+**Generated output:** `obj/GeneratedFiles/.../StaticPipelines.g.cs`
 
-**Generated output:** `obj/GeneratedFiles/.../StaticPipeline.g.cs`
+### 5. MiddlewareInvokerInterceptorGenerator (C# 12 interceptors)
 
-### 5. DispatchInterceptorGenerator (C# 12)
+Intercepts middleware invocation for compile-time resolution:
 
-Intercepts dispatch calls for compile-time resolution:
+**Generated output:** `obj/GeneratedFiles/.../MiddlewareInvokers.g.cs`
 
-```csharp
-// Generated interceptor redirects dispatch calls:
-[InterceptsLocation(1, "...")]
-internal static async Task<IMessageResult> Intercept_CreateOrderCommand(...)
-```
+### 6. MessageResultExtractorGenerator
 
-**Generated output:** `obj/GeneratedFiles/.../DispatchInterceptors.g.cs`
+Registers a factory for every discovered result type, so dispatch results are constructed without
+`MakeGenericType`:
+
+**Generated output:** `obj/GeneratedFiles/.../ResultFactoryRegistry.g.cs`
 
 ## Source-Generated JSON Serialization
 
@@ -217,8 +216,8 @@ After `dotnet publish -c Release`, verify:
 You will see IL2xxx (trim) and IL3xxx (AOT) warnings during publish. As of , the baseline is **~126 warnings** from the Dispatch framework itself. These originate from:
 
 - Reflection-based fallback paths in the core dispatcher (used only when source generators aren't available)
-- `Type.GetType()` calls in event serialization (being addressed in Wave 3)
-- `JsonStringEnumConverter` without generic type parameter (being addressed in Wave 2)
+- `Type.GetType()` calls in event serialization (not yet fully source-generated)
+- `JsonStringEnumConverter` without generic type parameter (not yet fully source-generated)
 
 These warnings do **not** prevent successful AOT compilation or runtime execution. The sample uses source-generator paths that bypass all reflection-based code.
 
@@ -297,8 +296,6 @@ pwsh eng/ci/Invoke-AotBuildAnalysis.ps1
 
 ## Related Documentation
 
-- [: AOT Wave 0-1 Decisions](../../../management/architecture/adr-292-aot-wave-0-1-decisions.md)
-- [: AOT Wave 2-3 Decisions](../../../management/architecture/adr-293-aot-wave-2-3-decisions.md)
 - [Source Generators Guide](../../../docs-site/docs/source-generators/index.md)
 - [Viewing Generated Code](../../../docs-site/docs/advanced/viewing-generated-code.md)
 - [Microsoft AOT Documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)

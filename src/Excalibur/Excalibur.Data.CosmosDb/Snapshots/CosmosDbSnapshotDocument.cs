@@ -86,31 +86,34 @@ internal sealed class CosmosDbSnapshotDocument
 	public int? Ttl { get; set; }
 
 	/// <summary>
-	/// Creates the document ID from aggregate ID.
-	/// </summary>
-	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <returns>The document ID string.</returns>
-	/// <remarks>
-	/// CosmosDb document IDs cannot contain: / \ ? #
-	/// Uses URL-safe Base64 encoding to handle all special characters safely.
-	/// </remarks>
-	public static string CreateId(string aggregateId) => CreateId(aggregateId, null);
-
-	/// <summary>
-	/// Creates the document identifier, including the tenant when the host is multi-tenant.
+	/// Creates the document identifier from the tenant partition and the aggregate identifier.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// The tenant goes in the DOCUMENT ID, not the partition key. Cosmos partition keys cannot be changed
 	/// without recreating the container, whereas ids are per-document — so keying on the id is the change
-	/// a consumer can actually adopt. The composite is encoded as a whole, so the encoded form of a
-	/// tenant-scoped id can never collide with an unscoped one.
+	/// a consumer can actually adopt. The composite is encoded as a whole, so the encoded form of one
+	/// tenant's id can never collide with another's.
+	/// </para>
+	/// <para>
+	/// Every id carries a tenant segment, including an untenanted host's: the tenant term is total, so it
+	/// always yields the reserved untenanted value rather than nothing. There is deliberately no
+	/// tenant-less id shape — one shape per document means a read and a write can never disagree about
+	/// which of two shapes to address, which is the failure a second, tenant-omitting form would admit.
+	/// </para>
+	/// <para>
+	/// CosmosDb document ids cannot contain <c>/ \ ? #</c>, so the composite is URL-safe Base64 encoded.
+	/// </para>
 	/// </remarks>
 	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <param name="tenantId">The owning tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <param name="tenantId">
+	/// The owning tenant partition. Required: the caller resolves it from the total tenant term, so an
+	/// untenanted host supplies the reserved untenanted value rather than omitting the argument.
+	/// </param>
 	/// <returns>The URL-safe document identifier.</returns>
-	public static string CreateId(string aggregateId, string? tenantId)
+	public static string CreateId(string aggregateId, string tenantId)
 	{
-		var composite = string.IsNullOrEmpty(tenantId) ? aggregateId : $"t:{tenantId}:{aggregateId}";
+		var composite = $"t:{tenantId}:{aggregateId}";
 		var bytes = System.Text.Encoding.UTF8.GetBytes(composite);
 		return Convert.ToBase64String(bytes)
 			.Replace('+', '-')  // URL-safe
@@ -122,10 +125,15 @@ internal sealed class CosmosDbSnapshotDocument
 	/// Creates a document from a snapshot.
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
-	/// <param name="tenantId">The ambient tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <param name="tenantId">
+	/// The store's ambient tenant partition. Required, and NOT defaulted: a document written under an
+	/// omitted partition would carry an identifier no read path composes, so every subsequent load would
+	/// miss and silently rebuild from the event stream.
+	/// </param>
 	/// <returns>The Cosmos DB document representation.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression on this member: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this path off both.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
-	public static CosmosDbSnapshotDocument FromSnapshot(ISnapshot snapshot, string? tenantId = null) =>
+	public static CosmosDbSnapshotDocument FromSnapshot(ISnapshot snapshot, string tenantId) =>
 		new()
 		{
 			Id = CreateId(snapshot.AggregateId, tenantId),
@@ -142,6 +150,7 @@ internal sealed class CosmosDbSnapshotDocument
 	/// Converts the document to a <see cref="Snapshot"/>.
 	/// </summary>
 	/// <returns>The snapshot representation.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression on this member: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this path off both.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public Snapshot ToSnapshot() =>
 		new()
@@ -156,6 +165,7 @@ internal sealed class CosmosDbSnapshotDocument
 		};
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
 	private static string? SerializeMetadata(IDictionary<string, object>? metadata)
 	{
 		if (metadata == null || metadata.Count == 0)
@@ -168,6 +178,7 @@ internal sealed class CosmosDbSnapshotDocument
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(ReadOnlySpan<Byte>, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(ReadOnlySpan<Byte>, JsonSerializerOptions)")]
 	private static IDictionary<string, object>? DeserializeMetadata(string? data)
 	{
 		if (string.IsNullOrEmpty(data))

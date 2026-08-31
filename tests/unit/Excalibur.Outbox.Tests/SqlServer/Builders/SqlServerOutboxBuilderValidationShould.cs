@@ -124,27 +124,6 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 			}));
 	}
 
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void DeadLetterTableName_ThrowsOnInvalidValue(string? invalidValue)
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddExcaliburOutbox(builder =>
-			{
-				_ = builder.UseSqlServer(sql =>
-				{
-					sql.ConnectionString(TestConnectionString);
-					_ = sql.DeadLetterTableName(invalidValue);
-				});
-			}));
-	}
-
 	[Fact]
 	public void CommandTimeout_ThrowsOnZero()
 	{

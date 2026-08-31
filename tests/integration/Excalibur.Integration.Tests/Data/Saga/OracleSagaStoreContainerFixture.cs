@@ -6,6 +6,7 @@ using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -32,7 +33,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 public sealed class OracleSagaStoreContainerFixture : ContainerFixtureBase
 {
 	private OracleContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>Gets the schema name for sagas (the store's default, = the container app user).</summary>
 	public string SchemaName { get; } = "DISPATCH";
@@ -65,45 +66,88 @@ public sealed class OracleSagaStoreContainerFixture : ContainerFixtureBase
 	}
 
 	/// <summary>Ensures the saga store table and idempotency-key table are initialized.</summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Mirrors the columns the OracleSagaStore Save/Load requests reference. Oracle-native types; the
-		// CompletedAt column is a real indexed TIMESTAMP WITH TIME ZONE backing PurgeCompletedBeforeAsync.
-		var createTableSql = $"""
-			CREATE TABLE {SchemaName}.{TableName} (
-				SagaId RAW(16) NOT NULL,
-				SagaType VARCHAR2(500) NOT NULL,
-				StateJson CLOB NOT NULL,
-				IsCompleted NUMBER(1) DEFAULT 0 NOT NULL,
-				-- NOT NULL with the reserved untenanted sentinel, matching the shape the store now writes and
-				-- reads. This is load-bearing on Oracle specifically: Oracle stores the empty string AS NULL,
-				-- so a NULL-encoded untenanted partition is unaddressable — neither `= :TenantId` with a null
-				-- bind nor `= ''` can ever match a row, and the store's predicates are now unconditional.
-				TenantId VARCHAR2(200) DEFAULT '__untenanted__' NOT NULL,
-				Version NUMBER(19) DEFAULT 0 NOT NULL,
-				CreatedUtc TIMESTAMP DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
-				UpdatedUtc TIMESTAMP DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
-				CompletedAt TIMESTAMP WITH TIME ZONE NULL,
-				-- Composite key, matching this package's own tenant-isolation test table
-				-- (OracleSagaStoreTenantIsolationShould) which already used (SagaId, TenantId). With SagaId
-				-- alone, two tenants cannot hold the same SagaId, so the cross-tenant case is inexpressible.
-				CONSTRAINT PK_{TableName} PRIMARY KEY (TenantId, SagaId)
-			)
-			""";
+		// Provision from the DDL the package SHIPS, not a copy of it. A fixture that restates the schema can
+		// only ever agree with itself: a defect in Scripts/01-SagaSchema.sql -- a wrong key, a dropped column, a
+		// nullable discriminator, a statement that silently does not execute -- is invisible to every test that
+		// runs against the restatement, which is the class this suite exists to catch. A mirror cannot detect a
+		// defect in the thing it mirrors.
+		//
+		// The container is built WithUsername("DISPATCH"), so the connected user owns the DISPATCH schema the
+		// script names; it needs no CREATE SCHEMA of its own (Oracle has none).
+		foreach (var statement in ReadShippedSchemaStatements())
+		{
+			await ExecuteAsync(connection, statement).ConfigureAwait(false);
+		}
 
-		await ExecuteAsync(connection, createTableSql).ConfigureAwait(false);
-		await ExecuteAsync(connection,
-			$"CREATE INDEX IX_{TableName}_CompletedAt ON {SchemaName}.{TableName} (CompletedAt)").ConfigureAwait(false);
+	}
 
-		_initialized = true;
+	/// <summary>
+	/// Reads the shipped DDL and splits it into individual statements.
+	/// </summary>
+	/// <remarks>
+	/// ODP.NET submits one statement per command, so the script is split on ';'. Whole-line comments are
+	/// stripped FIRST: a trailing '--' comment would otherwise survive the split, be prepended to the next
+	/// statement, and comment it out -- which Oracle rejects with ORA-00900. Same handling the saga-timeout
+	/// fixture already uses against its own shipped script.
+	/// </remarks>
+	private static IEnumerable<string> ReadShippedSchemaStatements()
+	{
+		var sql = StripComments(File.ReadAllText(ResolveShippedScriptPath()));
+
+		return sql
+			.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Where(statement => !string.IsNullOrWhiteSpace(statement))
+			.ToList();
+	}
+
+	/// <summary>Drops whole-line <c>--</c> comments from the script.</summary>
+	private static string StripComments(string sql)
+	{
+		var lines = sql
+			.Split('\n')
+			.Select(line => line.Trim())
+			.Where(line => !line.StartsWith("--", StringComparison.Ordinal));
+
+		return string.Join('\n', lines);
+	}
+
+	/// <summary>
+	/// Locates the shipped script by walking up from the test binary to the repository root. Fails loudly
+	/// rather than falling back to an inline copy: a missing product script is the defect, not a licence to
+	/// invent a schema.
+	/// </summary>
+	private static string ResolveShippedScriptPath()
+	{
+		const string RelativePath = "src/Excalibur/Excalibur.Saga.Oracle/Scripts/01-SagaSchema.sql";
+
+		var directory = new DirectoryInfo(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			var candidate = Path.Combine(directory.FullName, RelativePath.Replace('/', Path.DirectorySeparatorChar));
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			directory = directory.Parent;
+		}
+
+		throw new FileNotFoundException(
+			$"The shipped Oracle saga DDL was not found by walking up from '{AppContext.BaseDirectory}' "
+			+ $"looking for '{RelativePath}'. This fixture provisions its schema from the script the package "
+			+ "ships; it deliberately does not carry its own copy.");
 	}
 
 	/// <summary>Creates a new OracleConnection to the container.</summary>

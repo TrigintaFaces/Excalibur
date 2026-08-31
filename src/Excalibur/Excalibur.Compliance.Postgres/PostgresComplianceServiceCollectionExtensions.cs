@@ -35,13 +35,9 @@ public static class PostgresComplianceServiceCollectionExtensions
 	/// <example>
 	/// <code>
 	/// services.AddPostgresCompliance(pg =&gt;
-	///     pg.ConnectionString("Host=localhost;Database=compliance;Username=app;Password=secret"));
+	///     pg.ConnectionString("Host=localhost;Database=compliance;Username=app;Password=&lt;your-password&gt;"));
 	/// </code>
 	/// </example>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use the ConnectionString/DataSource overloads.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use the ConnectionString/DataSource overloads.")]
 	public static IServiceCollection AddPostgresCompliance(
 		this IServiceCollection services,
 		Action<IPostgresComplianceBuilder> configure)
@@ -67,10 +63,6 @@ public static class PostgresComplianceServiceCollectionExtensions
 		return services;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use the ConnectionString/DataSource overloads.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use the ConnectionString/DataSource overloads.")]
 	private static void ApplyDeferredConnection(IServiceCollection services, PostgresComplianceBuilder builder)
 	{
 		if (builder.DataSourceInstance is { } dataSource)

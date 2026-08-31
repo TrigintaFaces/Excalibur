@@ -12,7 +12,7 @@ namespace Excalibur.MultiTenancy.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What the seam guarantees, precisely.</b> <c>AddTenantScopedStore</c> resolves
+/// <b>What the seam guarantees, precisely.</b> <c>AddTenantAwareStore</c> resolves
 /// <see cref="ITenantContext"/> via <c>GetRequiredService</c> inside the store factory, so a store
 /// registered <i>through the seam</i> cannot be constructed unless a context was supplied — the S886
 /// "lying marker" (a store advertising <see cref="ITenantScopingCapability{TContract}"/> while running
@@ -75,16 +75,16 @@ public sealed class TenantScopingCapabilityDepGatedShould
         var services = new ServiceCollection();
         _ = services.AddLogging();
         // Deliberately NO tenant context of any kind — not the ambient one, not the single-tenant default.
-        _ = services.AddTenantScopedStore<IProbeStore, ProbeStore>(
-            static (_, tenantContext) => new ProbeStore(tenantContext));
+        _ = services.AddTenantAwareStore<IProbeStore, ProbeStore>(
+            static sp => new ProbeStore(sp.GetRequiredService<ITenantContext>()));
 
         using var provider = services.BuildServiceProvider();
 
         _ = Should.Throw<InvalidOperationException>(
             () => provider.GetRequiredService<ProbeStore>(),
-            "AddTenantScopedStore must resolve ITenantContext via GetRequiredService inside the store "
+            "AddTenantAwareStore must resolve ITenantContext via GetRequiredService before the store "
             + "factory. Resolving with NO context registered did not fail closed, so a store can be built "
-            + "with a null tenant context (TenantScope.None — unscoped, the S886 rw2ull cross-tenant leak) "
+            + "with a null tenant context (TenantScope.Untenanted — unscoped, the S886 rw2ull cross-tenant leak) "
             + "while still advertising ITenantScopingCapability. The dep-gate must be required, not optional.");
     }
 
@@ -99,8 +99,8 @@ public sealed class TenantScopingCapabilityDepGatedShould
         var services = new ServiceCollection();
         _ = services.AddLogging();
         _ = services.AddDefaultTenantContext();
-        _ = services.AddTenantScopedStore<IProbeStore, ProbeStore>(
-            static (_, tenantContext) => new ProbeStore(tenantContext));
+        _ = services.AddTenantAwareStore<IProbeStore, ProbeStore>(
+            static sp => new ProbeStore(sp.GetRequiredService<ITenantContext>()));
 
         using var provider = services.BuildServiceProvider();
 
@@ -108,7 +108,7 @@ public sealed class TenantScopingCapabilityDepGatedShould
 
         store.TenantContext.ShouldNotBeNull(
             "the seam must thread the resolved ITenantContext into the store factory; a null context here "
-            + "means the store runs unscoped (TenantScope.None) while advertising tenant scoping.");
+            + "means the store runs unscoped (TenantScope.Untenanted) while advertising tenant scoping.");
         store.TenantContext.TenantId.ShouldBe(
             DefaultTenantId,
             "the store must receive the context that is actually registered, not a substitute.");
@@ -134,11 +134,11 @@ public sealed class TenantScopingCapabilityDepGatedShould
         var store = provider.GetRequiredKeyedService<ISagaStore>("sqlserver");
         _ = store.ShouldBeOfType<SqlServerSagaStore>();
 
-        // The capability marker exists ONLY because AddTenantScopedStore emitted it alongside the store — so
+        // The capability marker exists ONLY because AddTenantAwareStore emitted it alongside the store — so
         // a consumer's RequireTenantScopingCapability<ISagaStore> gate passes for a genuinely tenant-wired
         // store, and would be absent for a provider that never routed through the seam.
         provider.GetService<ITenantScopingCapability<ISagaStore>>().ShouldNotBeNull(
-            "AddSqlServerSagaStore (via AddTenantScopedStore) must emit ITenantScopingCapability<ISagaStore> "
+            "AddSqlServerSagaStore (via AddTenantAwareStore) must emit ITenantScopingCapability<ISagaStore> "
             + "when the store is wired with an ambient ITenantContext.");
     }
 
@@ -169,7 +169,7 @@ public sealed class TenantScopingCapabilityDepGatedShould
 
         // WHY it resolved matters: the single-tenant default must be present and must yield a real tenant
         // discriminator. A context whose TenantId were null/blank would make TenantScope.Scoped throw at
-        // query time; TenantScope.FromContext(null) would silently be None — the unscoped leak.
+        // query time; CurrentTenantScope would silently be None — the unscoped leak.
         var tenantContext = provider.GetRequiredService<ITenantContext>();
         tenantContext.TenantId.ShouldBe(
             DefaultTenantId,
@@ -178,7 +178,7 @@ public sealed class TenantScopingCapabilityDepGatedShould
             + "resolve or running unscoped.");
         tenantContext.HasTenant.ShouldBeTrue(
             "the single-tenant default is a Null Object: it always reports a tenant, so the store is always "
-            + "scoped rather than TenantScope.None.");
+            + "scoped rather than TenantScope.Untenanted.");
     }
 
     /// <summary>

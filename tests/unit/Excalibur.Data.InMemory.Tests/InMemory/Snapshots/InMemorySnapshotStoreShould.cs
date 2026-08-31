@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.InMemory.Snapshots;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
@@ -26,7 +27,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		_logger = A.Fake<ILogger<InMemorySnapshotStore>>();
 		var options = Options.Create(new InMemorySnapshotOptions { MaxSnapshots = 100 });
-		_store = new InMemorySnapshotStore(options, _logger);
+		_store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 	}
 
 	#region Constructor Tests
@@ -36,7 +37,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new InMemorySnapshotStore(null!, _logger));
+			new InMemorySnapshotStore(null!, _logger, SingleTenantHost.Instance));
 	}
 
 	[Fact]
@@ -47,7 +48,40 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new InMemorySnapshotStore(options, null!));
+			new InMemorySnapshotStore(options, null!, SingleTenantHost.Instance));
+	}
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenTenantContextIsNull()
+	{
+		// Arrange
+		var options = Options.Create(new InMemorySnapshotOptions());
+
+		// Act & Assert - the tenant context is a required dependency, not one that degrades to an
+		// unscoped default: the store composes its key from the ambient scope, so a null context leaves
+		// the partition undecided. Rejecting it at construction keeps that state unreachable.
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new InMemorySnapshotStore(options, _logger, null!));
+	}
+
+	/// <summary>
+	/// A host with no multi-tenancy, operating as the one canonical tenant the framework names for that
+	/// shape.
+	/// </summary>
+	/// <remarks>
+	/// These arms previously expressed this host by omitting the context. It implements
+	/// <see cref="ITenantContext"/> DIRECTLY, inheriting no first-party base, so the arms bind the
+	/// interface's own requirement rather than re-testing an inherited convenience. Every construction site
+	/// in this class shares one instance, so save and read resolve the same key exactly as they did before
+	/// the context became required.
+	/// </remarks>
+	private sealed class SingleTenantHost : ITenantContext
+	{
+		internal static readonly SingleTenantHost Instance = new();
+
+		public string? TenantId => TenantDefaults.DefaultTenantId;
+
+		public bool HasTenant => true;
 	}
 
 	#endregion Constructor Tests
@@ -117,7 +151,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 		store.Dispose();
 		var snapshot = CreateSnapshot("agg1", "TestAggregate", 1);
 
@@ -131,7 +165,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions { MaxSnapshots = 2 });
-		using var store = new InMemorySnapshotStore(options, _logger);
+		using var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 
 		var oldest = CreateSnapshot("agg1", "TestAggregate", 1, DateTime.UtcNow.AddHours(-2));
 		var middle = CreateSnapshot("agg2", "TestAggregate", 1, DateTime.UtcNow.AddHours(-1));
@@ -229,7 +263,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 		store.Dispose();
 
 		// Act & Assert
@@ -309,7 +343,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 		store.Dispose();
 
 		// Act & Assert
@@ -397,7 +431,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 		store.Dispose();
 
 		// Act & Assert
@@ -414,7 +448,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 		var snapshot = CreateSnapshot("agg1", "TestAggregate", 1);
 		await store.SaveSnapshotAsync(snapshot, CancellationToken.None);
 
@@ -431,7 +465,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 
 		// Act & Assert - Should not throw
 		Should.NotThrow(() =>
@@ -447,7 +481,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 		var snapshot = CreateSnapshot("agg1", "TestAggregate", 1);
 		await store.SaveSnapshotAsync(snapshot, CancellationToken.None);
 
@@ -464,7 +498,7 @@ public sealed class InMemorySnapshotStoreShould : UnitTestBase
 	{
 		// Arrange
 		var options = Options.Create(new InMemorySnapshotOptions());
-		var store = new InMemorySnapshotStore(options, _logger);
+		var store = new InMemorySnapshotStore(options, _logger, SingleTenantHost.Instance);
 
 		// Act & Assert - Should not throw
 		await Should.NotThrowAsync(async () =>

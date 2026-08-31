@@ -52,12 +52,6 @@ public sealed class AuthenticationOptions
 	public int MaxCacheSize { get; set; } = 1000;
 
 	/// <summary>
-	/// Gets valid API keys for API key authentication.
-	/// </summary>
-	/// <value>The current <see cref="ValidApiKeys"/> value.</value>
-	public HashSet<string>? ValidApiKeys { get; }
-
-	/// <summary>
 	/// Gets or sets message types that allow anonymous access.
 	/// </summary>
 	/// <value>The current <see cref="AllowAnonymousForTypes"/> value.</value>

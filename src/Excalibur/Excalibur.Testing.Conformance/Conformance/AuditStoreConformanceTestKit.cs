@@ -4,6 +4,8 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
+using System.Linq;
+
 using Excalibur.Compliance;
 using Excalibur.Dispatch;
 
@@ -28,27 +30,38 @@ namespace Excalibur.Testing.Conformance;
 /// <item><description><c>StoreAsync</c> automatically links events via PreviousEventHash and computes EventHash</description></item>
 /// <item><description><c>StoreAsync</c> THROWS InvalidOperationException on duplicate EventId (not upsert)</description></item>
 /// <item><description><c>VerifyChainIntegrityAsync</c> detects any tampering with audit records</description></item>
-/// <item><description>Multi-tenant isolation via TenantId with "_default_" for null tenant</description></item>
+/// <item><description>Multi-tenant isolation via TenantId, with null TenantId routed to the reserved untenanted partition</description></item>
 /// </list>
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
+/// // The kit resolves the store from a container built by the store's own registration
+/// // extension, so every arm runs against the object a consumer actually gets. Constructing
+/// // the store by hand certifies an instance you assembled rather than the one your
+/// // registration produces.
 /// public class SqlServerAuditStoreConformanceTests : AuditStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
+///     private readonly ServiceProvider _provider;
+///
+///     public SqlServerAuditStoreConformanceTests(SqlServerFixture fixture) =&gt;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSqlServerAuditStore(options =&gt;
+///             {
+///                 options.ConnectionString = fixture.ConnectionString;
+///                 options.EnableHashChain = true;
+///             })
+///             .BuildServiceProvider();
 ///
 ///     protected override IAuditStore CreateStore() =&gt;
-///         new SqlServerAuditStore(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =&gt;
-///         await _fixture.CleanupAsync();
+///         _provider.GetRequiredService&lt;IAuditStore&gt;();
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class AuditStoreConformanceTestKit
+public abstract class AuditStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh audit store instance for testing.
@@ -67,20 +80,83 @@ public abstract class AuditStoreConformanceTestKit
 	/// requirements were previously asserted against ONE instance, which is why the tenant arm could not
 	/// pass under any fixture.
 	/// <para>
-	/// Defaults to <see cref="CreateStore"/> so providers that already resolve an ambient tenant need no
-	/// change. A provider whose <see cref="CreateStore"/> is deliberately ambient-less overrides this with
-	/// an ambient-resolving instance; until it does, the tenant arms are exercised against the same store
-	/// as before and behave exactly as they do today.
+	/// There is no default. A suite MUST supply an ambient-resolving store, because no fallback this
+	/// method could choose would make the tenant arms mean anything: falling back to
+	/// <see cref="CreateStore"/> hands the tenant arms an instance that resolves the untenanted sentinel
+	/// for every read, so those arms report a pass having asserted nothing about tenant scoping — the one
+	/// property they exist to check. A suite that genuinely cannot build such a store should say so
+	/// explicitly rather than be certified by silence.
 	/// </para>
 	/// </remarks>
 	/// <returns>An <see cref="IAuditStore"/> that resolves the ambient tenant.</returns>
-	protected virtual IAuditStore CreateTenantAwareStore() => CreateStore();
+	/// <exception cref="NotSupportedException">
+	/// Thrown when the deriving suite does not override this method. The tenant-scoped arms cannot be
+	/// exercised without an ambient-resolving store, and passing them against a store that has no tenant
+	/// context is not a weaker result — it is no result.
+	/// </exception>
+	protected virtual IAuditStore CreateTenantAwareStore() =>
+		throw new NotSupportedException(
+			$"{GetType().Name} does not override CreateTenantAwareStore(). The tenant-scoped conformance " +
+			"arms need a store that resolves the AMBIENT tenant; without one, every read resolves the " +
+			"untenanted partition and the arms pass without asserting tenant scoping at all. Override " +
+			"CreateTenantAwareStore() to return an instance built with an ITenantContext that resolves " +
+			"the ambient tenant.");
 
 	/// <summary>
 	/// Optional cleanup after each test.
 	/// </summary>
 	/// <returns>A task representing the cleanup operation.</returns>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
+
+	/// <summary>
+	/// Clears residual data before an arm runs. Defaults to <see cref="CleanupAsync"/>.
+	/// </summary>
+	/// <returns>A task that completes when the store holds no data from a previous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any suite whose teardown only deletes
+	/// rows, keys or documents. A suite whose <see cref="CleanupAsync"/> <em>also</em> disposes a
+	/// connection or client MUST override this with the data-only half — otherwise it disposes the store
+	/// the arm is about to use, and every arm fails on a disposed handle rather than on the contract.
+	/// </para>
+	/// <para>
+	/// Resetting <em>before</em> an arm is what makes the arm independent; resetting only afterwards makes
+	/// every arm's starting state a function of whether its predecessor finished cleanly.
+	/// </para>
+	/// </remarks>
+	protected virtual Task ResetDataAsync() => CleanupAsync();
+
+	/// <summary>
+	/// Creates the store for a single arm and clears residual data before the arm runs.
+	/// </summary>
+	/// <returns>A store ready for one conformance arm.</returns>
+	/// <remarks>
+	/// Every arm in this kit obtains its store here rather than from <see cref="CreateStore"/> directly.
+	/// That is the only thing that causes <see cref="CleanupAsync"/> to run: a cleanup a deriver overrides
+	/// but the kit never calls is indistinguishable, from the deriver's side, from one that works.
+	/// </remarks>
+	protected async Task<IAuditStore> CreateStoreForArmAsync()
+	{
+		var store = CreateStore();
+		await ResetDataAsync().ConfigureAwait(false);
+		return store;
+	}
+
+	/// <summary>
+	/// Creates the tenant-aware store for a single arm and clears residual data before the arm runs.
+	/// </summary>
+	/// <returns>A tenant-aware store ready for one conformance arm.</returns>
+	/// <remarks>
+	/// The tenant arms obtain their store here for the same reason every other arm uses
+	/// <see cref="CreateStoreForArmAsync"/>: an arm that skipped the reset would be the only one whose
+	/// starting state depended on its predecessor, which is precisely the contamination this seam removes.
+	/// </remarks>
+	protected async Task<IAuditStore> CreateTenantAwareStoreForArmAsync()
+	{
+		var store = CreateTenantAwareStore();
+		await ResetDataAsync().ConfigureAwait(false);
+		return store;
+	}
 
 	/// <summary>
 	/// Creates a test audit event with the given parameters.
@@ -114,6 +190,45 @@ public abstract class AuditStoreConformanceTestKit
 	/// <returns>A unique event identifier.</returns>
 	protected virtual string GenerateEventId() => Guid.NewGuid().ToString("N");
 
+	/// <summary>
+	/// Removes a stored record from the provider's underlying storage, bypassing the store, as a party with
+	/// database access would.
+	/// </summary>
+	/// <param name="store">The store instance the arm is exercising, so that a provider holding its records in process can reach them.</param>
+	/// <param name="eventId">The identifier of the record to remove.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>A task that completes when the record has been removed.</returns>
+	/// <remarks>
+	/// Required rather than optional, and abstract rather than a no-op default, because the arms that use it
+	/// are the ones a blind store fails. A provider able to skip them could be certified while detecting no
+	/// tampering at all, which is the outcome this kit exists to prevent. Implementations must throw if the
+	/// record was not found: a removal that removed nothing turns the arm into a test of nothing.
+	/// </remarks>
+	protected abstract Task DeleteRecordOutOfBandAsync(
+		IAuditStore store,
+		string eventId,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Rewrites a stored record's action in the provider's underlying storage, bypassing the store, and
+	/// leaving every integrity column exactly as written.
+	/// </summary>
+	/// <param name="store">The store instance the arm is exercising, so that a provider holding its records in process can reach them.</param>
+	/// <param name="eventId">The identifier of the record to rewrite.</param>
+	/// <param name="newAction">The action value to write in place of the stored one.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>A task that completes when the record has been rewritten.</returns>
+	/// <remarks>
+	/// The integrity columns must be left untouched. Altering them as well would produce a record that fails
+	/// on linkage grounds, and the arm would pass without ever establishing that the store recomputes
+	/// anything from the record's live content. Implementations must throw if the record was not found.
+	/// </remarks>
+	protected abstract Task RewriteRecordActionOutOfBandAsync(
+		IAuditStore store,
+		string eventId,
+		string newAction,
+		CancellationToken cancellationToken);
+
 	#region Store Tests
 
 	/// <summary>
@@ -121,7 +236,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_ShouldPersistEvent()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var evt = CreateAuditEvent();
 
 		var result = await store.StoreAsync(evt, CancellationToken.None).ConfigureAwait(false);
@@ -158,7 +273,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_WithNullEvent_ShouldThrow()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -177,7 +292,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_DuplicateId_ShouldThrowInvalidOperationException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var eventId = GenerateEventId();
 		var evt1 = CreateAuditEvent(eventId: eventId);
 		var evt2 = CreateAuditEvent(eventId: eventId);
@@ -205,7 +320,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetByIdAsync_ExistingEvent_ShouldReturnEvent()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var evt = CreateAuditEvent();
 
 		_ = await store.StoreAsync(evt, CancellationToken.None).ConfigureAwait(false);
@@ -230,7 +345,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetByIdAsync_NonExistent_ShouldReturnNull()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateEventId();
 
 		var retrieved = await store.GetByIdAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
@@ -247,7 +362,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetByIdAsync_NullOrEmpty_ShouldThrow()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -281,7 +396,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task QueryAsync_ByDateRange_ShouldReturnMatching()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		var oldEvent = CreateAuditEvent(timestamp: now.AddDays(-10));
@@ -325,7 +440,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </remarks>
 	public virtual async Task QueryAsync_WithoutAnExplicitTenant_ShouldNotReturnAnotherTenantsEvents()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var tenantAEvent = CreateAuditEvent(tenantId: $"tenant-a-{GenerateEventId()}");
 		var tenantBEvent = CreateAuditEvent(tenantId: $"tenant-b-{GenerateEventId()}");
@@ -345,35 +460,45 @@ public abstract class AuditStoreConformanceTestKit
 
 		var results = await store.QueryAsync(query, CancellationToken.None).ConfigureAwait(false);
 
-		// SAFETY -- the events returned must belong to a single tenant. Asserted on the events' OWN
-		// identities rather than on a returned TenantId field: a store that leaks the row but
-		// rewrites or drops its tenant label would evade a predicate written against that field.
-		var distinctTenants = results
-			.Where(e => e.EventId == tenantAEvent.EventId || e.EventId == tenantBEvent.EventId)
-			.Select(e => e.EventId == tenantAEvent.EventId ? "A" : "B")
-			.Distinct()
-			.ToList();
+		// SAFETY -- NEITHER seeded tenant's event may appear. Asserted per event on the events' OWN
+		// identities rather than on a returned TenantId field: a store that leaks the row but rewrites
+		// or drops its tenant label would evade a predicate written against that field.
+		//
+		// Asserted as "no foreign row" rather than as "not more than one distinct foreign tenant". A
+		// predicate that fires only when BOTH tenants appear treats a leak of exactly one of them as
+		// conformant -- and a leak of one tenant is the entire disclosure, with one victim instead of
+		// two. The caller has no ambient claim on either seeded partition, so the correct count is zero.
+		var leaked = results.FirstOrDefault(
+			e => e.EventId == tenantAEvent.EventId || e.EventId == tenantBEvent.EventId);
 
-		if (distinctTenants.Count > 1)
+		if (leaked is not null)
 		{
 			throw new TestFixtureAssertionException(
 				"CROSS-TENANT DISCLOSURE ON THE QUERY PATH: QueryAsync with no TenantId on the query "
-				+ "returned audit events belonging to BOTH tenants. Tenant scoping is being applied "
-				+ "only when the caller remembers to name a tenant, so every AuditQuery built without "
-				+ "one discloses the whole estate's audit trail -- resource identifiers and actor "
-				+ "identities included. Scoping must be enforced by the store, not supplied by the caller.");
+				+ $"returned audit event {leaked.EventId}, which belongs to another tenant. Tenant "
+				+ "scoping is being applied only when the caller remembers to name a tenant, so every "
+				+ "AuditQuery built without one discloses the whole estate's audit trail -- resource "
+				+ "identifiers and actor identities included. Scoping must be enforced by the store, not "
+				+ "supplied by the caller.");
 		}
 
 		// LIVENESS -- paired with the safety arm and NOT optional. A store that returns an empty set
 		// for every unscoped query satisfies the safety arm perfectly while being useless: it
 		// discloses nothing because it answers nothing. An unscoped caller must still receive its
 		// OWN tenant's events.
-		if (results.Count == 0)
+		//
+		// Asserted on the caller's own event BY IDENTITY rather than on a non-empty total. A count
+		// counts foreign rows too, so a store that leaked one seeded tenant's event and dropped the
+		// caller's own would satisfy a non-empty check while having answered the wrong question
+		// entirely -- and the safety arm above would then be the only thing standing between that
+		// store and a green conformance run.
+		if (!results.Any(e => e.EventId == ownEvent.EventId))
 		{
 			throw new TestFixtureAssertionException(
-				"QueryAsync with no explicit TenantId returned NOTHING. Suppressing the disclosure by "
-				+ "returning an empty set is not isolation -- an unscoped caller must still receive "
-				+ "the events belonging to its own ambient tenant.");
+				$"QueryAsync with no explicit TenantId did not return the caller's own event "
+				+ $"{ownEvent.EventId}. Suppressing the disclosure by withholding rows is not isolation "
+				+ "-- an unscoped caller must still receive the events belonging to its own ambient "
+				+ "tenant.");
 		}
 	}
 
@@ -397,7 +522,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </remarks>
 	public virtual async Task GetByIdAsync_ForAnotherTenantsEvent_ShouldNotReturnIt()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var otherTenantEvent = CreateAuditEvent(tenantId: $"tenant-other-{GenerateEventId()}");
 
@@ -435,63 +560,6 @@ public abstract class AuditStoreConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that naming another tenant on the query does not return that tenant's events.
-	/// </summary>
-	/// <remarks>
-	/// THE AUTHORISATION HALF, and it is a different defect from the omission arm above.
-	///
-	/// Omitting the tenant is a caller who FORGETS — a missing filter. Supplying another tenant's
-	/// identifier is a caller who ASKS FOR SOMEONE ELSE'S DATA, and the defect is that it was obeyed:
-	/// the tenant was read from the caller's own argument with nothing to check it against. That is an
-	/// absent authorisation boundary, not a missing predicate, and it is reachable by any code path
-	/// that can construct an <see cref="AuditQuery"/>.
-	///
-	/// THE CONTRACT: there is no admin or estate-wide audit interface in this framework, so there is no
-	/// contract under which an unchecked caller-supplied tenant is legitimate. The store resolves the
-	/// tenant from its ambient scope and does not consult the query's field at all. This arm holds that
-	/// property directly: the field may be set to anything and must change nothing.
-	/// </remarks>
-	public virtual async Task QueryAsync_NamingAnotherTenant_ShouldNotReturnThatTenantsEvents()
-	{
-		var store = CreateStore();
-
-		var foreignTenant = $"tenant-foreign-{GenerateEventId()}";
-		var foreignEvent = CreateAuditEvent(tenantId: foreignTenant);
-		var ownEvent = CreateAuditEvent(tenantId: null);
-
-		_ = await store.StoreAsync(foreignEvent, CancellationToken.None).ConfigureAwait(false);
-		_ = await store.StoreAsync(ownEvent, CancellationToken.None).ConfigureAwait(false);
-
-		// The caller names a tenant that is not its own. Under the ruled contract this field is not
-		// consulted; under the defect it was obeyed.
-		var results = await store.QueryAsync(
-			new AuditQuery { TenantId = foreignTenant },
-			CancellationToken.None).ConfigureAwait(false);
-
-		// SAFETY -- asking for another tenant's events must not produce them.
-		if (results.Any(e => e.EventId == foreignEvent.EventId))
-		{
-			throw new TestFixtureAssertionException(
-				$"CROSS-TENANT DISCLOSURE BY REQUEST: a caller set AuditQuery.TenantId to '{foreignTenant}' "
-				+ "and received that tenant's audit events. The tenant is being read from the caller's own "
-				+ "argument with nothing to check it against, so any caller that can construct an "
-				+ "AuditQuery can read any tenant's audit trail. Scope must come from the ambient context; "
-				+ "the query's tenant field must not be consulted.");
-		}
-
-		// LIVENESS -- and the caller still gets its OWN events. Ignoring the field must not degrade into
-		// ignoring the query: a store that returned nothing here would satisfy the safety arm while
-		// being useless.
-		if (!results.Any(e => e.EventId == ownEvent.EventId))
-		{
-			throw new TestFixtureAssertionException(
-				"A caller that named a foreign tenant did not receive its OWN events either. Ignoring the "
-				+ "query's tenant field must not turn into ignoring the caller: the ambient scope still "
-				+ "applies and must still answer.");
-		}
-	}
-
-	/// <summary>
 	/// Verifies that a tenant-scoped query still returns that tenant's own events.
 	/// </summary>
 	/// <remarks>
@@ -510,7 +578,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </remarks>
 	public virtual async Task QueryAsync_ScopedToATenant_ShouldStillReturnThatTenantsOwnEvents()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// The caller's OWN event: written with no tenant, so it lands in the same partition an
 		// ambient-less caller reads from.
@@ -547,7 +615,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task QueryAsync_ByEventType_ShouldFilter()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var authEvent = CreateAuditEvent(eventType: AuditEventType.Authentication);
 		var dataEvent = CreateAuditEvent(eventType: AuditEventType.DataAccess);
@@ -577,7 +645,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task QueryAsync_ByActorId_ShouldFilter()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var actor1Event = CreateAuditEvent(actorId: "actor-1");
 		var actor2Event = CreateAuditEvent(actorId: "actor-2");
@@ -607,7 +675,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task QueryAsync_Pagination_ShouldRespectSkipAndMaxResults()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Store 5 events
 		for (var i = 0; i < 5; i++)
@@ -636,7 +704,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CountAsync_WithFilters_ShouldReturnCount()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var authEvent1 = CreateAuditEvent(eventType: AuditEventType.Authentication);
 		var authEvent2 = CreateAuditEvent(eventType: AuditEventType.Authentication);
@@ -662,7 +730,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CountAsync_EmptyResult_ShouldReturnZero()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var query = new AuditQuery
 		{
@@ -683,11 +751,11 @@ public abstract class AuditStoreConformanceTestKit
 	#region Integrity Tests (Compliance-Critical)
 
 	/// <summary>
-	/// Verifies that VerifyChainIntegrityAsync returns valid for a valid chain.
+	/// Verifies that VerifyChainIntegrityAsync reports Verified for an intact chain.
 	/// </summary>
-	public virtual async Task VerifyChainIntegrityAsync_ValidChain_ShouldReturnValid()
+	public virtual async Task VerifyChainIntegrityAsync_ValidChain_ShouldReportVerified()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		// Store multiple events to create a chain
@@ -704,10 +772,10 @@ public abstract class AuditStoreConformanceTestKit
 			now.AddHours(1),
 			CancellationToken.None).ConfigureAwait(false);
 
-		if (!result.IsValid)
+		if (result.Outcome != AuditIntegrityOutcome.Verified)
 		{
 			throw new TestFixtureAssertionException(
-				$"Chain integrity should be valid. Violation: {result.ViolationDescription}");
+				$"Chain integrity should be Verified but was {result.Outcome}. Violation: {result.ViolationDescription}");
 		}
 
 		if (result.EventsVerified < 3)
@@ -718,11 +786,17 @@ public abstract class AuditStoreConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that VerifyChainIntegrityAsync returns valid with zero events for empty range.
+	/// Verifies that VerifyChainIntegrityAsync reports NoEventsInScope for a window containing no events.
 	/// </summary>
-	public virtual async Task VerifyChainIntegrityAsync_EmptyRange_ShouldReturnValidWithZeroEvents()
+	/// <remarks>
+	/// A store must not report a window it never examined as a successful verification. An empty window is
+	/// its own outcome: the store examined nothing, so nothing about the integrity of the audit log follows
+	/// from the run. A store that answers Verified here would let a caller emit compliance evidence claiming
+	/// the log was checked and intact over a period in which no record was read at all.
+	/// </remarks>
+	public virtual async Task VerifyChainIntegrityAsync_EmptyRange_ShouldReportNoEventsInScope()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		// Store event outside verification range
@@ -734,16 +808,174 @@ public abstract class AuditStoreConformanceTestKit
 			now.AddDays(1),
 			CancellationToken.None).ConfigureAwait(false);
 
-		if (!result.IsValid)
+		if (result.Outcome != AuditIntegrityOutcome.NoEventsInScope)
 		{
 			throw new TestFixtureAssertionException(
-				"Chain integrity should be valid for empty range");
+				$"An empty verification window must report NoEventsInScope, but the store reported "
+				+ $"{result.Outcome}. Reporting an unexamined window as a verified one lets a caller emit "
+				+ $"compliance evidence that was never earned.");
 		}
 
 		if (result.EventsVerified != 0)
 		{
 			throw new TestFixtureAssertionException(
 				$"Expected 0 events verified for empty range, got {result.EventsVerified}");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that removing a record from the middle of an intact trail is reported as a violation.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm a store fails when it verifies each record against the record's own stored claim about
+	/// its predecessor. That claim is stored in the same row, so it survives the removal of the record it
+	/// names: every survivor still agrees with itself, and the trail reports clean. Only carrying the prior
+	/// tag forward from the record actually present exposes the gap.
+	/// </remarks>
+	public virtual async Task VerifyChainIntegrityAsync_RecordDeletedFromMiddle_ShouldReportViolations()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var now = DateTimeOffset.UtcNow;
+
+		var first = CreateAuditEvent(timestamp: now.AddMinutes(-3));
+		var middle = CreateAuditEvent(timestamp: now.AddMinutes(-2));
+		var last = CreateAuditEvent(timestamp: now.AddMinutes(-1));
+
+		_ = await store.StoreAsync(first, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(middle, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(last, CancellationToken.None).ConfigureAwait(false);
+
+		// Without this the assertion below is satisfied by a store that reports violations unconditionally,
+		// which detects nothing while appearing to detect everything.
+		var before = await store.VerifyChainIntegrityAsync(
+			now.AddHours(-1), now.AddHours(1), CancellationToken.None).ConfigureAwait(false);
+
+		if (before.Outcome != AuditIntegrityOutcome.Verified)
+		{
+			throw new TestFixtureAssertionException(
+				$"The intact trail must verify before the deletion, otherwise this arm proves nothing about "
+				+ $"deletion. The store reported {before.Outcome}: {before.ViolationDescription}");
+		}
+
+		await DeleteRecordOutOfBandAsync(store, middle.EventId, CancellationToken.None).ConfigureAwait(false);
+
+		var result = await store.VerifyChainIntegrityAsync(
+			now.AddHours(-1), now.AddHours(1), CancellationToken.None).ConfigureAwait(false);
+
+		if (result.Outcome != AuditIntegrityOutcome.ViolationsDetected)
+		{
+			throw new TestFixtureAssertionException(
+				$"A record removed from the middle of the trail must be reported as a violation, but the "
+				+ $"store reported {result.Outcome}. A store reaching this line is blind to deletion: it is "
+				+ $"checking each record against its own stored claim rather than against the record that "
+				+ $"actually precedes it, so a deleted record leaves no trace it can see.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that rewriting a record's content, while leaving every integrity column as written, is
+	/// reported as a violation.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm a store fails when it checks linkage alone. Linkage compares a stored hash to a stored
+	/// hash; neither value is recomputed from the record's live content, so a rewritten field leaves every
+	/// link in agreement.
+	/// </remarks>
+	public virtual async Task VerifyChainIntegrityAsync_RecordContentRewritten_ShouldReportViolations()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var now = DateTimeOffset.UtcNow;
+
+		var first = CreateAuditEvent(timestamp: now.AddMinutes(-3));
+		var target = CreateAuditEvent(timestamp: now.AddMinutes(-2));
+		var last = CreateAuditEvent(timestamp: now.AddMinutes(-1));
+
+		_ = await store.StoreAsync(first, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(target, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(last, CancellationToken.None).ConfigureAwait(false);
+
+		var before = await store.VerifyChainIntegrityAsync(
+			now.AddHours(-1), now.AddHours(1), CancellationToken.None).ConfigureAwait(false);
+
+		if (before.Outcome != AuditIntegrityOutcome.Verified)
+		{
+			throw new TestFixtureAssertionException(
+				$"The intact trail must verify before the rewrite, otherwise this arm proves nothing about "
+				+ $"content tampering. The store reported {before.Outcome}: {before.ViolationDescription}");
+		}
+
+		await RewriteRecordActionOutOfBandAsync(store, target.EventId, "Read-REWRITTEN", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var result = await store.VerifyChainIntegrityAsync(
+			now.AddHours(-1), now.AddHours(1), CancellationToken.None).ConfigureAwait(false);
+
+		if (result.Outcome != AuditIntegrityOutcome.ViolationsDetected)
+		{
+			throw new TestFixtureAssertionException(
+				$"A record whose content was rewritten while its integrity columns were left intact must be "
+				+ $"reported as a violation, but the store reported {result.Outcome}. A store reaching this "
+				+ $"line never recomputes anything from the record's live content, so its stored tags attest "
+				+ $"to contents the store no longer holds.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that an intact trail whose writes interleave two tenants is reported as verified.
+	/// </summary>
+	/// <remarks>
+	/// The paired liveness assertion for the two arms above, and the one that catches the opposite failure.
+	/// A store chaining per tenant but verifying without that partitioning compares each record against
+	/// whichever record happens to sit next to it in the global write order, which here is a record from the
+	/// other tenant's chain. The trail is intact and the store reports tampering. A verifier that reports
+	/// violations on healthy data is not a conservative verifier; it is one that gets switched off, and it
+	/// takes the real detections with it.
+	/// </remarks>
+	public virtual async Task VerifyChainIntegrityAsync_IntactTrailInterleavingTwoTenants_ShouldReportVerified()
+	{
+		var store = await CreateTenantAwareStoreForArmAsync().ConfigureAwait(false);
+		var now = DateTimeOffset.UtcNow;
+		var tenantA = $"tenant-a-{GenerateEventId()}";
+		var tenantB = $"tenant-b-{GenerateEventId()}";
+
+		// Interleaved, so that consecutive records of one tenant's chain are never adjacent in write order.
+		for (var i = 0; i < 3; i++)
+		{
+			using (TenantContextHolder.BeginScope(tenantA))
+			{
+				_ = await store.StoreAsync(
+					CreateAuditEvent(tenantId: tenantA, timestamp: now.AddMinutes(-10 + (i * 2))),
+					CancellationToken.None).ConfigureAwait(false);
+			}
+
+			using (TenantContextHolder.BeginScope(tenantB))
+			{
+				_ = await store.StoreAsync(
+					CreateAuditEvent(tenantId: tenantB, timestamp: now.AddMinutes(-9 + (i * 2))),
+					CancellationToken.None).ConfigureAwait(false);
+			}
+		}
+
+		AuditIntegrityResult result;
+		using (TenantContextHolder.BeginScope(tenantA))
+		{
+			result = await store.VerifyChainIntegrityAsync(
+				now.AddHours(-1), now.AddHours(1), CancellationToken.None).ConfigureAwait(false);
+		}
+
+		if (result.Outcome == AuditIntegrityOutcome.ViolationsDetected)
+		{
+			throw new TestFixtureAssertionException(
+				$"An untouched trail whose writes interleave two tenants must not be reported as tampered, "
+				+ $"but the store reported a violation at '{result.FirstViolationEventId}': "
+				+ $"{result.ViolationDescription}. A store reaching this line is comparing records drawn from "
+				+ $"different chains, so it reports tampering on every multi-tenant estate.");
+		}
+
+		if (result.Outcome != AuditIntegrityOutcome.Verified)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected the interleaved but intact trail to report Verified, got {result.Outcome}.");
 		}
 	}
 
@@ -762,7 +994,7 @@ public abstract class AuditStoreConformanceTestKit
 		// arms use, this arm asserted something unreachable: no tenant resolves, so the read is scoped to
 		// the untenanted sentinel and never sees these events. The tenantId argument below is retained
 		// only because it is still on the interface; the scope is what does the work.
-		var store = CreateTenantAwareStore();
+		var store = await CreateTenantAwareStoreForArmAsync().ConfigureAwait(false);
 		var tenantId = $"tenant-{GenerateEventId()}";
 
 		var evt1 = CreateAuditEvent(tenantId: tenantId);
@@ -810,9 +1042,11 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetLastEventAsync_DefaultTenant_ShouldReturnLast()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
-		// Events with null TenantId go to "_default_" tenant
+		// A null TenantId names the reserved untenanted partition, not the framework's separate
+		// single-tenant default identity -- the two are distinct partitions and this arm exercises the
+		// former.
 		var evt1 = CreateAuditEvent(tenantId: null);
 		var evt2 = CreateAuditEvent(tenantId: null);
 
@@ -843,7 +1077,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_ShouldSetPreviousEventHash()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var evt1 = CreateAuditEvent();
 		var evt2 = CreateAuditEvent();
@@ -860,7 +1094,7 @@ public abstract class AuditStoreConformanceTestKit
 				"Both events should be retrievable");
 		}
 
-		// First (genesis) event has NO prior tag: the keyed-MAC chain (qa71t5) uses a null PreviousEventHash
+		// First (genesis) event has NO prior tag: the keyed-MAC chain uses a null PreviousEventHash
 		// for the genesis link — the tenant is bound via the canonicalized record, not a tenant-seeded genesis.
 		if (!string.IsNullOrEmpty(retrieved1.PreviousEventHash))
 		{
@@ -899,7 +1133,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_ShouldComputeEventHash()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var evt = CreateAuditEvent();
 
 		var result = await store.StoreAsync(evt, CancellationToken.None).ConfigureAwait(false);
@@ -934,7 +1168,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_WithApplicationName_ShouldPersistApplicationName()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var evt = CreateAuditEvent();
 		var evtWithApp = evt with { ApplicationName = "my-service" };
 
@@ -960,7 +1194,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_WithNullApplicationName_ShouldPersistNull()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var evt = CreateAuditEvent(); // default has null ApplicationName
 
 		_ = await store.StoreAsync(evt, CancellationToken.None).ConfigureAwait(false);
@@ -985,7 +1219,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task QueryAsync_ByApplicationName_ShouldFilter()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var appAEvent = CreateAuditEvent() with { ApplicationName = "app-a" };
 		var appBEvent = CreateAuditEvent() with { ApplicationName = "app-b" };
@@ -1015,7 +1249,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CountAsync_ByApplicationName_ShouldCount()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var evt1 = CreateAuditEvent() with { ApplicationName = "svc-1" };
 		var evt2 = CreateAuditEvent() with { ApplicationName = "svc-1" };
@@ -1041,7 +1275,7 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_DifferentApplicationName_ShouldProduceDifferentHash()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var evt1 = CreateAuditEvent() with { ApplicationName = "hash-app-1" };
 		var evt2 = CreateAuditEvent() with { ApplicationName = "hash-app-2" };

@@ -67,10 +67,10 @@ public sealed partial class ProjectionCacheInvalidator(
 	private static readonly Meter CacheMeter = new(CachingTelemetryConstants.MeterName, CachingTelemetryConstants.Version);
 
 	private static readonly Counter<long> InvalidationCounter =
-		CacheMeter.CreateCounter<long>("caching.projection.invalidations", "invalidations", "Number of projection cache invalidation operations");
+		CacheMeter.CreateCounter<long>("caching.projection.invalidations", "{invalidations}", "Number of projection cache invalidation operations");
 
 	private static readonly Counter<long> TagsInvalidatedCounter =
-		CacheMeter.CreateCounter<long>("caching.projection.tags_invalidated", "tags", "Number of projection cache tags invalidated");
+		CacheMeter.CreateCounter<long>("caching.projection.tags_invalidated", "{tags}", "Number of projection cache tags invalidated");
 
 	private static readonly ConcurrentDictionary<Type, (Type ResolverType, MethodInfo? GetTagsMethod)> ResolverTypeCache = new();
 

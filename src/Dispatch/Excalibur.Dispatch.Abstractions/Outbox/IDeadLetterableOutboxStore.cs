@@ -30,7 +30,7 @@ public interface IDeadLetterableOutboxStore
 	/// </summary>
 	/// <remarks>
 	/// After this transition the message MUST NOT be returned by any claim predicate
-	/// (<see cref="IOutboxStore.GetUnsentMessagesAsync"/> or <c>IOutboxStoreAdmin.GetFailedMessagesAsync</c>),
+	/// (<see cref="IOutboxStore.GetUnsentMessagesAsync"/> or <c>IOutboxStoreAdmin.GetAllTenantsFailedMessagesAsync</c>),
 	/// preventing re-delivery and unbounded dead-letter-queue growth. Implementations should also clear any
 	/// delivery lease for hygiene.
 	/// </remarks>

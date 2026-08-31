@@ -13,8 +13,6 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 
 #pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
-#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback; consumers can provide source-gen context
-#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -39,11 +37,13 @@ public static class PostgresProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		_ = services.Configure(configureOptions);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresProjectionStoreOptions>, PostgresProjectionStoreOptionsValidator>());
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA where a null
 		// context threw on every operation) AND emits the projection-family capability marker inseparably
 		// from the tenant wiring it attests.
-		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
+		_ = services.AddDefaultTenantContext();
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, PostgresProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<PostgresProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresProjectionStore<TProjection>>>();
@@ -53,9 +53,9 @@ public static class PostgresProjectionStoreExtensions
 			return new PostgresProjectionStore<TProjection>(
 				options.Value.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
 				logger,
-				options.Value.TableName,
-				options.Value.JsonSerializerOptions,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tableName: options.Value.TableName,
+				jsonOptions: options.Value.JsonSerializerOptions);
 		});
 
 		return services;
@@ -86,10 +86,12 @@ public static class PostgresProjectionStoreExtensions
 		{
 			_ = services.Configure(configureOptions);
 		}
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresProjectionStoreOptions>, PostgresProjectionStoreOptionsValidator>());
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
 		// projection-family capability marker inseparably.
-		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
+		_ = services.AddDefaultTenantContext();
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, PostgresProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var dataSource = dataSourceFactory(sp);
 			var logger = sp.GetRequiredService<ILogger<PostgresProjectionStore<TProjection>>>();
@@ -99,9 +101,9 @@ public static class PostgresProjectionStoreExtensions
 			return new PostgresProjectionStore<TProjection>(
 				dataSource,
 				logger,
-				options?.TableName,
-				options?.JsonSerializerOptions,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tableName: options?.TableName,
+				jsonOptions: options?.JsonSerializerOptions);
 		});
 
 		return services;

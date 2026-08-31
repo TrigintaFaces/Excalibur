@@ -132,6 +132,10 @@ MultiBusSample/
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `RabbitMq:ConnectionString` | AMQP connection string | `amqp://guest:guest@localhost:5672/` |
+
+The broker these samples run against is plaintext, so the registration calls `RequireTls(false)`.
+The transport otherwise refuses an unencrypted connection; a real deployment uses an `amqps://`
+connection string and leaves that alone.
 | `Kafka:BootstrapServers` | Kafka broker addresses | `localhost:9092` |
 
 ## Key Concepts

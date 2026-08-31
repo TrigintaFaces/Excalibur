@@ -15,7 +15,7 @@ namespace Excalibur.Data.Diagnostics;
 /// <item>110300-110399: Persistence Provider Factory</item>
 /// </list>
 /// </remarks>
-public static class DataEventId
+internal static class DataEventId
 {
 	// ========================================
 	// 110000-110099: Connection String Provider

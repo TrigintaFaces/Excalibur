@@ -10,10 +10,6 @@ using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
-
 namespace Excalibur.Compliance.Soc2;
 
 /// <summary>
@@ -21,26 +17,51 @@ namespace Excalibur.Compliance.Soc2;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service exports reports to PDF, Excel, CSV, JSON, and XML formats
-/// using QuestPDF for PDF generation.
+/// This service exports reports to Excel, CSV, JSON, XML, and text formats on its own.
+/// </para>
+/// <para>
+/// PDF export is opt-in: it requires an <see cref="ISoc2PdfRenderer"/>, supplied by the
+/// <c>Excalibur.Compliance.Pdf</c> package via <c>services.AddSoc2PdfExport()</c>. Without one,
+/// <see cref="GetSupportedFormats"/> omits <see cref="ExportFormat.Pdf"/> and a PDF export request is
+/// rejected; every other export format is unaffected. PDF rendering carries a QuestPDF licence
+/// obligation, which is why it is not a dependency of this package.
 /// </para>
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
-	Justification = "Export service necessarily couples to multiple export formats (PDF, Excel, CSV, JSON, XML), " +
-					"report models, QuestPDF document building APIs, and compression/hashing utilities. " +
+	Justification = "Export service necessarily couples to multiple export formats (Excel, CSV, JSON, XML, text), " +
+					"report models, and compression/hashing utilities. " +
 					"This coupling is inherent to the export aggregation responsibility.")]
 public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 {
-	private static readonly ExportFormat[] SupportedFormats =
-[
-	ExportFormat.Json,
+	/// <summary>
+	/// Message naming the package a consumer must install to export PDFs. It is surfaced both as a
+	/// validation issue and as the exception thrown when a PDF export is attempted without a renderer,
+	/// so a consumer discovering the gap at either point is told exactly what to do about it.
+	/// </summary>
+	internal const string PdfRendererMissingMessage =
+			"PDF export requires the Excalibur.Compliance.Pdf package. Install it and call " +
+			"services.AddSoc2PdfExport(). It depends on QuestPDF, whose Community edition is free only " +
+			"for licensees below USD 1,000,000 total annual gross revenue measured company-wide.";
+
+	private static readonly ExportFormat[] FormatsWithoutPdf =
+	[
+		ExportFormat.Json,
+		ExportFormat.Csv,
+		ExportFormat.Xml,
+		ExportFormat.Excel,
+		ExportFormat.Text
+	];
+
+	private static readonly ExportFormat[] FormatsWithPdf =
+	[
+		ExportFormat.Json,
 		ExportFormat.Csv,
 		ExportFormat.Xml,
 		ExportFormat.Pdf,
-				ExportFormat.Excel,
-				ExportFormat.Text
+		ExportFormat.Excel,
+		ExportFormat.Text
 	];
 
 	private static readonly CompositeFormat ReportNotExportableFormat =
@@ -48,6 +69,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 
 	private readonly ILogger<Soc2ReportExporter> _logger;
 	private readonly TimeProvider _timeProvider;
+	private readonly ISoc2PdfRenderer? _pdfRenderer;
 
 	[LoggerMessage(LogLevel.Information, "Exporting report {ReportId} to {Format}")]
 	private partial void LogExportingReport(Guid reportId, ExportFormat format);
@@ -72,10 +94,18 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 	/// </summary>
 	/// <param name="logger">Logger instance.</param>
 	/// <param name="timeProvider">Time provider for testable time access.</param>
-	public Soc2ReportExporter(ILogger<Soc2ReportExporter> logger, TimeProvider timeProvider)
+	/// <param name="pdfRenderer">
+	/// Optional PDF renderer. Supplied by the <c>Excalibur.Compliance.Pdf</c> package via
+	/// <c>services.AddSoc2PdfExport()</c>. When absent, PDF is not a supported export format.
+	/// </param>
+	public Soc2ReportExporter(
+		ILogger<Soc2ReportExporter> logger,
+		TimeProvider timeProvider,
+		ISoc2PdfRenderer? pdfRenderer = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+		_pdfRenderer = pdfRenderer;
 	}
 
 	/// <inheritdoc />
@@ -105,8 +135,8 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			ExportFormat.Json => await ExportToJsonAsync(report, options, cancellationToken).ConfigureAwait(false),
 			ExportFormat.Csv => await ExportToCsvAsync(report, options, cancellationToken).ConfigureAwait(false),
 			ExportFormat.Xml => await ExportToXmlAsync(report, options, cancellationToken).ConfigureAwait(false),
-			ExportFormat.Pdf => await ExportToPdfAsync(report, options, cancellationToken).ConfigureAwait(false),
-			ExportFormat.Excel => await ExportToExcelAsync(report, options, cancellationToken).ConfigureAwait(false),
+			ExportFormat.Pdf => ExportToPdf(report, options),
+			ExportFormat.Excel => await ExportToExcelAsync(report, cancellationToken).ConfigureAwait(false),
 			ExportFormat.Text => ExportToText(report, options),
 			_ => throw new ArgumentOutOfRangeException(
 					nameof(format),
@@ -147,18 +177,36 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 
 		options ??= new EvidencePackageOptions();
 
+		// The package is a plain ZIP archive; ZipArchive cannot encrypt entries. Refusing here is the
+		// only honest answer: silently dropping the password would hand an auditor an unencrypted
+		// evidence package that the caller believes is protected.
+		if (!string.IsNullOrEmpty(options.EncryptionPassword))
+		{
+			throw new NotSupportedException(
+				"EvidencePackageOptions.EncryptionPassword was set, but the evidence package is written as a " +
+				"standard ZIP archive and this exporter cannot encrypt it. Leave EncryptionPassword unset and " +
+				"encrypt ExportResult.Data yourself before the package leaves the process.");
+		}
+
 		LogCreatingEvidencePackage(report.ReportId, evidence.Count);
 
 		using var memoryStream = new MemoryStream();
 		using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
 		{
+			// Checksums cover the bytes this package actually carries. Evidence items are external
+			// references with no content here, so the report exports are the embedded files, and they are
+			// what an auditor verifies the package against.
+			var embeddedChecksums = new List<(string Path, string Checksum)>();
+
 			// Export report in requested formats
 			foreach (var format in options.ReportFormats)
 			{
 				var exportResult = await ExportAsync(report, format, null, cancellationToken).ConfigureAwait(false);
-				var entry = archive.CreateEntry($"report/{exportResult.FileName}", GetCompressionLevel(options.CompressionLevel));
+				var entryPath = $"report/{exportResult.FileName}";
+				var entry = archive.CreateEntry(entryPath, GetCompressionLevel(options.CompressionLevel));
 				await using var entryStream = await entry.OpenAsync(cancellationToken).ConfigureAwait(false);
 				await entryStream.WriteAsync(exportResult.Data, cancellationToken).ConfigureAwait(false);
+				embeddedChecksums.Add((entryPath, ComputeChecksum(exportResult.Data)));
 			}
 
 			// Organize evidence by criterion
@@ -224,9 +272,18 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 				checksums.AppendLine($"# Generated: {_timeProvider.GetUtcNow():O}");
 				checksums.AppendLine();
 
-				foreach (var item in manifest.EvidenceItems.Where(i => i.IsEmbedded && i.Checksum is not null))
+				foreach (var (path, checksum) in embeddedChecksums)
 				{
-					checksums.AppendLine($"{item.Checksum}  {item.Path}");
+					checksums.AppendLine($"{checksum}  {path}");
+				}
+
+				// State the coverage rather than leaving an auditor to read an absence as completeness.
+				if (manifest.EvidenceItems.Count > 0)
+				{
+					checksums.AppendLine();
+					checksums.AppendLine(
+						$"# {manifest.EvidenceItems.Count} evidence item(s) are external references and carry no");
+					checksums.AppendLine("# content in this package; verify them at their source system.");
 				}
 
 				var checksumsEntry = archive.CreateEntry("checksums.sha256", GetCompressionLevel(options.CompressionLevel));
@@ -252,7 +309,8 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 	}
 
 	/// <inheritdoc />
-	public IReadOnlyList<ExportFormat> GetSupportedFormats() => SupportedFormats;
+	public IReadOnlyList<ExportFormat> GetSupportedFormats() =>
+			_pdfRenderer is null ? FormatsWithoutPdf : FormatsWithPdf;
 
 	/// <inheritdoc />
 	public ExportValidationResult ValidateForExport(Soc2Report report, ExportFormat format)
@@ -281,9 +339,16 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		}
 
 		// Format-specific validation
-		if (format == ExportFormat.Pdf && report.System is null)
+		if (format == ExportFormat.Pdf)
 		{
-			warnings.Add("System description is recommended for PDF export");
+			if (_pdfRenderer is null)
+			{
+				issues.Add(PdfRendererMissingMessage);
+			}
+			else if (report.System is null)
+			{
+				warnings.Add("System description is recommended for PDF export");
+			}
 		}
 
 		return new ExportValidationResult
@@ -402,235 +467,24 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return Task.FromResult((data, "application/xml", ".xml"));
 	}
 
-	private Task<(byte[] Data, string ContentType, string Extension)> ExportToPdfAsync(
+	private (byte[] Data, string ContentType, string Extension) ExportToPdf(
 		Soc2Report report,
-		Soc2ReportExportOptions options,
-		CancellationToken cancellationToken)
+		Soc2ReportExportOptions options)
 	{
-		var pdfOptions = options.PdfOptions ?? new PdfExportOptions();
+		// ValidateForExport already rejects this combination, so reaching here means a caller bypassed
+		// validation. Fail with the same actionable message rather than a NullReferenceException.
+		var renderer = _pdfRenderer ?? throw new InvalidOperationException(PdfRendererMissingMessage);
 
-		// Configure QuestPDF license (Community Edition is MIT, free for < $1M revenue)
-		QuestPDF.Settings.License = LicenseType.Community;
-
-		var document = Document.Create(container =>
-		{
-			_ = container.Page(page =>
-			{
-				page.Size(PageSizes.A4);
-				page.Margin(2, Unit.Centimetre);
-				page.DefaultTextStyle(x => x.FontSize(11));
-
-				// Header
-				page.Header().Element(header => RenderPdfHeader(header, report, options));
-
-				// Content
-				page.Content().PaddingVertical(10).Column(col =>
-				{
-					// Executive Summary Section
-					col.Item().Element(c => RenderPdfSummarySection(c, report));
-
-					_ = col.Item().PaddingVertical(5);
-
-					// Controls Status Section
-					col.Item().Element(c => RenderPdfControlsSection(c, report, options));
-
-					// Exceptions Section (if included)
-					if (options.IncludeExceptions && report.Exceptions.Count > 0)
-					{
-						_ = col.Item().PaddingVertical(5);
-						col.Item().Element(c => RenderPdfExceptionsSection(c, report));
-					}
-				});
-
-				// Footer with page numbers
-				page.Footer().AlignCenter().Text(x =>
-				{
-					_ = x.Span("Page ");
-					_ = x.CurrentPageNumber();
-					_ = x.Span(" of ");
-					_ = x.TotalPages();
-				});
-			});
-		});
-
-		using var stream = new MemoryStream();
-		document.GeneratePdf(stream);
-
-		return Task.FromResult((stream.ToArray(), "application/pdf", ".pdf"));
-	}
-
-	private void RenderPdfHeader(IContainer container, Soc2Report report, Soc2ReportExportOptions options)
-	{
-		container.Row(row =>
-		{
-			row.RelativeItem().Column(col =>
-			{
-				_ = col.Item().Text(options.CustomTitle ?? $"SOC 2 {report.ReportType} Report")
-					.SemiBold().FontSize(20);
-				_ = col.Item().Text(report.Title)
-					.FontSize(14).FontColor(Colors.Grey.Darken2);
-				_ = col.Item().Text($"Generated: {_timeProvider.GetUtcNow():yyyy-MM-dd HH:mm} UTC")
-					.FontSize(10).FontColor(Colors.Grey.Medium);
-			});
-		});
-	}
-
-	private static void RenderPdfSummarySection(IContainer container, Soc2Report report)
-	{
-		container.Column(col =>
-		{
-			_ = col.Item().Text("Executive Summary").SemiBold().FontSize(16);
-			col.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
-			_ = col.Item().PaddingTop(10);
-
-			col.Item().Row(row =>
-			{
-				row.RelativeItem().Column(left =>
-				{
-					_ = left.Item().Text($"Report Type: {report.ReportType}");
-					_ = left.Item().Text($"Opinion: {report.Opinion}");
-					_ = left.Item().Text($"Report ID: {report.ReportId}");
-				});
-				row.RelativeItem().Column(right =>
-				{
-					_ = right.Item().Text($"Period Start: {report.PeriodStart:yyyy-MM-dd}");
-					_ = right.Item().Text($"Period End: {report.PeriodEnd:yyyy-MM-dd}");
-					if (report.TenantId is not null)
-					{
-						_ = right.Item().Text($"Tenant: {report.TenantId}");
-					}
-				});
-			});
-
-			// Categories included
-			if (report.CategoriesIncluded.Count > 0)
-			{
-				_ = col.Item().PaddingTop(10).Text("Trust Services Categories Included:")
-					.SemiBold();
-				_ = col.Item().Text(string.Join(", ", report.CategoriesIncluded.Select(c => c.ToString())));
-			}
-		});
-	}
-
-	private static void RenderPdfControlsSection(IContainer container, Soc2Report report, Soc2ReportExportOptions options)
-	{
-		container.Column(col =>
-		{
-			_ = col.Item().Text("Control Sections").SemiBold().FontSize(16);
-			col.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
-			_ = col.Item().PaddingTop(10);
-
-			foreach (var section in report.ControlSections)
-			{
-				col.Item().PaddingBottom(10).Column(sectionCol =>
-				{
-					// Section header with status indicator
-					sectionCol.Item().Row(headerRow =>
-					{
-						_ = headerRow.AutoItem().Width(10).Height(10)
-							.Background(section.IsMet ? Colors.Green.Medium : Colors.Red.Medium);
-						_ = headerRow.RelativeItem().PaddingLeft(5).Text($"[{section.Criterion}] {section.Description}")
-							.SemiBold();
-					});
-
-					_ = sectionCol.Item().Text($"Status: {(section.IsMet ? "MET" : "NOT MET")}")
-						.FontSize(10).FontColor(section.IsMet ? Colors.Green.Darken2 : Colors.Red.Darken2);
-
-					// Controls table
-					if (section.Controls.Count > 0)
-					{
-						sectionCol.Item().PaddingTop(5).Table(table =>
-						{
-							table.ColumnsDefinition(columns =>
-							{
-								columns.ConstantColumn(80);  // Control ID
-								columns.RelativeColumn(2);   // Name
-								columns.RelativeColumn(3);   // Description
-								if (options.IncludeTestResults && section.TestResults?.Count > 0)
-								{
-									columns.ConstantColumn(70); // Outcome
-								}
-							});
-
-							// Header
-							table.Header(header =>
-							{
-								_ = header.Cell().Background(Colors.Grey.Lighten3).Padding(3).Text("Control ID").SemiBold().FontSize(9);
-								_ = header.Cell().Background(Colors.Grey.Lighten3).Padding(3).Text("Name").SemiBold().FontSize(9);
-								_ = header.Cell().Background(Colors.Grey.Lighten3).Padding(3).Text("Description").SemiBold().FontSize(9);
-								if (options.IncludeTestResults && section.TestResults?.Count > 0)
-								{
-									_ = header.Cell().Background(Colors.Grey.Lighten3).Padding(3).Text("Outcome").SemiBold().FontSize(9);
-								}
-							});
-
-							// Data rows
-							foreach (var control in section.Controls)
-							{
-								var testResult = section.TestResults?.FirstOrDefault(t => t.ControlId == control.ControlId);
-
-								_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(control.ControlId).FontSize(9);
-								_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(control.Name).FontSize(9);
-								_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(control.Description).FontSize(9);
-								if (options.IncludeTestResults && section.TestResults?.Count > 0)
-								{
-									_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3)
-										.Text(testResult?.Outcome.ToString() ?? "N/A").FontSize(9);
-								}
-							}
-						});
-					}
-				});
-			}
-		});
-	}
-
-	private static void RenderPdfExceptionsSection(IContainer container, Soc2Report report)
-	{
-		container.Column(col =>
-		{
-			_ = col.Item().Text("Exceptions").SemiBold().FontSize(16).FontColor(Colors.Red.Darken2);
-			col.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Red.Lighten2);
-			_ = col.Item().PaddingTop(10);
-
-			col.Item().Table(table =>
-			{
-				table.ColumnsDefinition(columns =>
-				{
-					columns.ConstantColumn(100); // Exception ID
-					columns.ConstantColumn(80);  // Criterion
-					columns.ConstantColumn(80);  // Control ID
-					columns.RelativeColumn();    // Description
-				});
-
-				table.Header(header =>
-				{
-					_ = header.Cell().Background(Colors.Red.Lighten4).Padding(3).Text("Exception ID").SemiBold().FontSize(9);
-					_ = header.Cell().Background(Colors.Red.Lighten4).Padding(3).Text("Criterion").SemiBold().FontSize(9);
-					_ = header.Cell().Background(Colors.Red.Lighten4).Padding(3).Text("Control ID").SemiBold().FontSize(9);
-					_ = header.Cell().Background(Colors.Red.Lighten4).Padding(3).Text("Description").SemiBold().FontSize(9);
-				});
-
-				foreach (var exception in report.Exceptions)
-				{
-					_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(exception.ExceptionId).FontSize(9);
-					_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(exception.Criterion.ToString()).FontSize(9);
-					_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(exception.ControlId).FontSize(9);
-					_ = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(exception.Description).FontSize(9);
-				}
-			});
-		});
+		return (renderer.Render(report, options), "application/pdf", ".pdf");
 	}
 
 #pragma warning disable CA1849 // ZipArchiveEntry.OpenAsync is net10.0+ only; this method is intentionally synchronous
 	private Task<(byte[] Data, string ContentType, string Extension)> ExportToExcelAsync(
 		Soc2Report report,
-		Soc2ReportExportOptions options,
 		CancellationToken cancellationToken)
 	{
 		// Simple CSV-based Excel placeholder using Open XML Spreadsheet format
 		// In production, integrate with a library like ClosedXML, EPPlus, or NPOI
-		_ = options.ExcelOptions ?? new ExcelExportOptions(); // Reserved for future use
 		_ = cancellationToken; // Reserved for async Excel library integration
 
 		// Create a minimal XLSX file (which is a ZIP with XML files)

@@ -420,7 +420,7 @@ public class PostgresTransactionScope : ITransactionScope, ITransactionScopeCall
 			{
 				try
 				{
-					// Use synchronous Rollback to avoid thread pool starvation during shutdown (AD-540.2)
+					// Use synchronous Rollback to avoid thread pool starvation during shutdown
 					foreach (var transaction in _transactions.Values)
 					{
 						if (transaction.Connection?.State == ConnectionState.Open)

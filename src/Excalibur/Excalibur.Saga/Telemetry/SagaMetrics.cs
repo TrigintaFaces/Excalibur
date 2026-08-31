@@ -22,8 +22,8 @@ namespace Excalibur.Saga.Telemetry;
 ///   <item><c>dispatch.saga.completed_total</c> - Counter of sagas completed successfully</item>
 ///   <item><c>dispatch.saga.failed_total</c> - Counter of sagas failed</item>
 ///   <item><c>dispatch.saga.compensated_total</c> - Counter of sagas compensated</item>
-///   <item><c>dispatch.saga.duration_ms</c> - Histogram of saga duration in milliseconds</item>
-///   <item><c>dispatch.saga.handler_duration_ms</c> - Histogram of handler duration in milliseconds</item>
+///   <item><c>dispatch.saga.duration</c> - Histogram of saga duration in milliseconds</item>
+///   <item><c>dispatch.saga.handler_duration</c> - Histogram of handler duration in milliseconds</item>
 ///   <item><c>dispatch.saga.active</c> - Gauge of currently active sagas</item>
 /// </list>
 /// </para>
@@ -66,7 +66,7 @@ public static class SagaMetrics
 	/// </summary>
 	private static readonly Counter<long> SagaStartedCounter = Meter.CreateCounter<long>(
 		"dispatch.saga.started_total",
-		unit: "sagas",
+		unit: "{sagas}",
 		description: "Total number of sagas started");
 
 	/// <summary>
@@ -74,7 +74,7 @@ public static class SagaMetrics
 	/// </summary>
 	private static readonly Counter<long> SagaCompletedCounter = Meter.CreateCounter<long>(
 		"dispatch.saga.completed_total",
-		unit: "sagas",
+		unit: "{sagas}",
 		description: "Total number of sagas completed successfully");
 
 	/// <summary>
@@ -82,7 +82,7 @@ public static class SagaMetrics
 	/// </summary>
 	private static readonly Counter<long> SagaFailedCounter = Meter.CreateCounter<long>(
 		"dispatch.saga.failed_total",
-		unit: "sagas",
+		unit: "{sagas}",
 		description: "Total number of sagas failed");
 
 	/// <summary>
@@ -90,23 +90,23 @@ public static class SagaMetrics
 	/// </summary>
 	private static readonly Counter<long> SagaCompensatedCounter = Meter.CreateCounter<long>(
 		"dispatch.saga.compensated_total",
-		unit: "sagas",
+		unit: "{sagas}",
 		description: "Total number of sagas compensated");
 
 	/// <summary>
 	/// Histogram for saga duration.
 	/// </summary>
 	private static readonly Histogram<double> SagaDurationHistogram = Meter.CreateHistogram<double>(
-		"dispatch.saga.duration_ms",
-		unit: "milliseconds",
+		"dispatch.saga.duration",
+		unit: "ms",
 		description: "Duration of saga execution from start to completion");
 
 	/// <summary>
 	/// Histogram for handler duration.
 	/// </summary>
 	private static readonly Histogram<double> SagaHandlerDurationHistogram = Meter.CreateHistogram<double>(
-		"dispatch.saga.handler_duration_ms",
-		unit: "milliseconds",
+		"dispatch.saga.handler_duration",
+		unit: "ms",
 		description: "Duration of saga handler execution");
 
 	/// <summary>
@@ -138,7 +138,7 @@ public static class SagaMetrics
 					kvp.Value,
 					new KeyValuePair<string, object?>("saga_type", kvp.Key)));
 			},
-			unit: "sagas",
+			unit: "{sagas}",
 			description: "Number of currently active sagas");
 	}
 

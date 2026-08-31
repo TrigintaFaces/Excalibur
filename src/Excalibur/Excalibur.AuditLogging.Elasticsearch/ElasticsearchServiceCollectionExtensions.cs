@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 // Note: IAuditStore is NOT registered from this package.
 // Elasticsearch serves as a search/analytics sink, not a compliance-grade audit store.
-// See ADR-290 for rationale.
+// See for rationale.
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -59,35 +59,6 @@ public static class ElasticsearchServiceCollectionExtensions
 		return services;
 	}
 
-	/// <summary>
-	/// Adds the Elasticsearch audit sink for real-time audit event indexing.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Configuration action for the Elasticsearch audit sink builder.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
-	public static IServiceCollection AddElasticsearchAuditSink(
-		this IServiceCollection services,
-		Action<IAuditLoggingElasticsearchBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var options = new ElasticsearchExporterOptions
-		{
-			ElasticsearchUrl = null!,
-		};
-		var builder = new AuditLoggingElasticsearchBuilder(options);
-		configure(builder);
-
-		RegisterSinkOptionsAndServices(services, builder, options);
-
-		return services;
-	}
-
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
@@ -121,40 +92,6 @@ public static class ElasticsearchServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchExporterOptions>().ValidateOnStart();
 
 		AddElasticsearchAuditExporterCore(services);
-	}
-
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
-	private static void RegisterSinkOptionsAndServices(
-		IServiceCollection services,
-		AuditLoggingElasticsearchBuilder builder,
-		ElasticsearchExporterOptions options)
-	{
-		_ = services.Configure<ElasticsearchAuditSinkOptions>(opt =>
-		{
-			opt.ElasticsearchUrl = options.ElasticsearchUrl;
-			opt.NodeUrls = options.NodeUrls;
-			opt.IndexPrefix = options.IndexPrefix;
-			opt.RefreshPolicy = options.RefreshPolicy;
-			opt.ApiKey = options.ApiKey;
-			opt.MaxRetryAttempts = options.MaxRetryAttempts;
-			opt.RetryBaseDelay = options.RetryBaseDelay;
-			opt.Timeout = options.Timeout;
-			opt.ApplicationName = options.ApplicationName;
-		});
-
-		if (builder.BindConfigurationPath is not null)
-		{
-			_ = services.AddOptions<ElasticsearchAuditSinkOptions>()
-				.BindConfiguration(builder.BindConfigurationPath)
-				.ValidateOnStart();
-		}
-
-		_ = services.AddOptions<ElasticsearchAuditSinkOptions>().ValidateOnStart();
-
-		AddElasticsearchAuditSinkCore(services);
 	}
 
 	private static void AddElasticsearchAuditExporterCore(IServiceCollection services)
@@ -192,36 +129,16 @@ public static class ElasticsearchServiceCollectionExtensions
 				ConfigureResilience(resilience, exporterOptions.Value.MaxRetryAttempts,
 					exporterOptions.Value.RetryBaseDelay, exporterOptions.Value.Timeout));
 
-		_ = services.AddSingleton<IAuditLogExporter, ElasticsearchAuditExporter>();
+		// Delegate to the typed client rather than letting the container activate a second instance.
+		// An implementation-type registration is constructed from the container's own HttpClient, not
+		// the one AddHttpClient configured -- so the exporter a consumer resolved carried none of the
+		// resilience handler or the node-failover handler above, and the retry, timeout and multi-node
+		// settings it advertises were inert on the only path anything uses. Transient matches the typed
+		// client's own lifetime, which keeps handler rotation working; the exporter holds no state.
+		_ = services.AddTransient<IAuditLogExporter>(static sp => sp.GetRequiredService<ElasticsearchAuditExporter>());
 	}
 
-	private static void AddElasticsearchAuditSinkCore(IServiceCollection services)
-	{
-		_ = services.AddSingleton<IValidateOptions<ElasticsearchAuditSinkOptions>,
-			ElasticsearchAuditSinkOptionsValidator>();
-
-		var httpClientBuilder = services.AddHttpClient<ElasticsearchAuditSink>(static (_, client) =>
-		{
-			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
-		});
-
-		_ = httpClientBuilder.AddStandardResilienceHandler();
-
-		_ = httpClientBuilder.AddHttpMessageHandler(static sp =>
-		{
-			var options = sp.GetRequiredService<IOptions<ElasticsearchAuditSinkOptions>>().Value;
-			return new NodeFailoverHandler(ToNodeUris(options.GetResolvedNodeUrls()));
-		});
-
-		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
-			.Configure<IOptions<ElasticsearchAuditSinkOptions>>(static (resilience, sinkOptions) =>
-				ConfigureResilience(resilience, sinkOptions.Value.MaxRetryAttempts,
-					sinkOptions.Value.RetryBaseDelay, sinkOptions.Value.Timeout));
-
-		_ = services.AddSingleton<ElasticsearchAuditSink>();
-	}
-
-	// Maps the exporter/sink retry options onto the standard resilience pipeline: exponential backoff
+	// Maps the exporter retry options onto the standard resilience pipeline: exponential backoff
 	// matching the former baseDelay * 2^(attempt-1), with the per-request timeout preserved as the
 	// per-attempt timeout (the total-request timeout accommodates every attempt, and the breaker
 	// sampling window must be at least twice the attempt timeout — standard-handler invariants).

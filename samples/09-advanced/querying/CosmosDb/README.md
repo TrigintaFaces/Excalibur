@@ -34,20 +34,43 @@ Default endpoint: `https://localhost:8081`
 ```bash
 docker run -d --name cosmosdb \
   -p 8081:8081 \
-  -p 10250-10255:10250-10255 \
-  mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+  -p 1234:1234 \
+  -p 8080:8080 \
+  mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706 \
+  --protocol https
+```
+
+Three details in that command are load-bearing:
+
+- **Name a version.** An unversioned tag such as `latest` can resolve to a different image later. One
+  such image becomes ready and answers its readiness probe, then fails on first use because it cannot
+  create a database. The version above is the one the package README and this project's own container
+  fixtures use.
+- **`--protocol https` is required for .NET.** This emulator starts in HTTP mode by default, and the
+  .NET SDK does not support HTTP mode against it. Without the flag the sample cannot reach
+  `https://localhost:8081` however it is configured.
+- **Three ports, and none of them is a range.** `8081` is the gateway endpoint, `1234` is the Data
+  Explorer, `8080` serves the health probes. The `10250-10255` range belongs to the legacy emulator's
+  direct mode; this emulator runs in gateway mode only, so publishing that range does nothing.
+
+The gateway answers before the emulator will actually serve a request, so wait for the readiness probe
+before starting the sample:
+
+```bash
+curl http://localhost:8080/ready
 ```
 
 ### Create the Database
 
-The emulator does not auto-create databases. Use the Data Explorer at `https://localhost:8081/_explorer/index.html` or the Azure CLI:
+The emulator does not auto-create databases. Open the Data Explorer at `http://localhost:1234` and:
 
-```bash
-# Using the emulator Data Explorer UI:
-# 1. Navigate to https://localhost:8081/_explorer/index.html
-# 2. Create database: ExcaliburSample
-# 3. Create container: Items (partition key: /category)
+```text
+1. Create database: ExcaliburSample
+2. Create container: Items (partition key: /category)
 ```
+
+The Data Explorer takes a few seconds longer to become available than the gateway does.
+
 
 ## Configuration
 

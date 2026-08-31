@@ -18,15 +18,6 @@ public sealed class AwsEventBridgeOptions : AwsProviderOptions
 	/// The event bus name.
 	/// </value>
 	public string EventBusName { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether enables encryption when sending messages.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether enables encryption when sending messages.
-	/// </value>
-	public new bool EnableEncryption { get; set; }
-
 	/// <summary>
 	/// Gets or sets the default source for events.
 	/// </summary>
@@ -50,14 +41,6 @@ public sealed class AwsEventBridgeOptions : AwsProviderOptions
 	/// The rule names to manage.
 	/// </value>
 	public Collection<string> RuleNames { get; } = [];
-
-	/// <summary>
-	/// Gets or sets the retry policy.
-	/// </summary>
-	/// <value>
-	/// The retry policy.
-	/// </value>
-	public new EventBridgeRetryPolicy? RetryPolicy { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable event archiving.

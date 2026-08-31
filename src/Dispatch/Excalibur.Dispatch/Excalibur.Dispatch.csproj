@@ -14,6 +14,9 @@
     <Description>Core messaging abstractions and middleware pipeline for the Excalibur framework. Provides foundational types for message handling, routing, and extensible middleware architecture.</Description>
     <PackageTags>messaging;dispatch;middleware;pipeline;cqrs;framework</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- Bind configuration through the first-party binding source generator instead of the
+         reflection-based binder, so option binding needs no runtime code generation. -->
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
   </PropertyGroup>
   <!-- This framework uses reflection extensively for handler resolution, pipeline configuration,
        and dynamic dispatch. Suppress AOT/trimming warnings that are inherent to the design:
@@ -24,7 +27,7 @@
        - IL2055: MakeGenericType for typed handler/mapper resolution
        - IL2070/IL2075/IL2095: GetInterfaces/GetProperties for pipeline and middleware configuration
   -->
-  <!-- NoWarn REMOVED Sprint 751: all nullable/AOT warnings now fixed at source with proper annotations and suppressions -->
+  <!-- NoWarn REMOVED: all nullable/AOT warnings now fixed at source with proper annotations and suppressions -->
   <!-- Include README.md in NuGet package -->
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
@@ -71,7 +74,6 @@
   <!-- Removed ASP.NET Core FrameworkReference to keep Core decoupled from hosting frameworks -->
   <ItemGroup>
     <!-- From Excalibur.Dispatch.Common -->
-    <PackageReference Include="Medo.Uuid7" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
@@ -86,9 +88,8 @@
     <!-- From Excalibur.Dispatch.Messaging -->
     <PackageReference Include="CloudNative.CloudEvents.SystemTextJson" />
     <PackageReference Include="Cronos" />
-    <!-- ADR-295: MemoryPack removed from core; JSON is the default, binary serializers are opt-in provider packages -->
+    <!-- MemoryPack removed from core; JSON is the default, binary serializers are opt-in provider packages -->
     <!-- Microsoft.ApplicationInsights removed: unused in Core (no .cs references) and its v3+ transitive graph pulls Azure.Core + Azure.Monitor.OpenTelemetry.Exporter into Core, which violates the no-provider-SDK-in-Core governance rule. Telemetry/OTel integration belongs in Excalibur.Dispatch.Observability. -->
-    <PackageReference Include="Microsoft.AspNetCore.Authorization" />
     <!-- Polly removed - Use IRetryPolicy from Excalibur.Dispatch.Resilience or Excalibur.Dispatch.Resilience.Polly -->
     <PackageReference Include="System.Threading.Channels" />
     <PackageReference Include="System.Threading.RateLimiting" />
@@ -99,8 +100,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-    <!-- ADR-295: MemoryPack ProjectReference removed; opt-in via Excalibur.Dispatch.Serialization.MemoryPack package -->
-    <!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
+    <!-- MemoryPack ProjectReference removed; opt-in via Excalibur.Dispatch.Serialization.MemoryPack package -->
+    <!-- PERF-7/PERF-8: Source generators always enabled for AOT-compatible handler resolution -->
     <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <!-- Diagnostic analyzers (DISP001-006) run on this project's own build AND are bundled into this package
          (see the pack ItemGroup below), so every Excalibur.Dispatch consumer gets the message-type-contract
@@ -116,6 +117,14 @@
          standalone analyzer package (double delivery = duplicate-diagnostic). The ProjectReference above
          builds the analyzer before pack, so this output DLL exists. -->
     <None Include="..\Excalibur.Dispatch.SourceGenerators.Analyzers\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.SourceGenerators.Analyzers.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- BUNDLE the source generator the same way, and for the same reason. Without it the
+         generator runs on this project's own build but never reaches a consumer, so the typed
+         DispatchAsync overload it emits does not exist in their compilation and the documented
+         call shape fails to compile against the non-generic IMessageResult. Bundling it also puts
+         every consumer on the zero-reflection handler-resolution path by default rather than as
+         a reward for finding a second package. -->
+    <None Include="..\Excalibur.Dispatch.SourceGenerators\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.SourceGenerators.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>

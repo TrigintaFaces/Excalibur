@@ -51,11 +51,4 @@ public sealed class DeadLetterAnalyticsOptions
 	/// </value>
 	public int BatchSize { get; set; } = 10;
 
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable detailed logging.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether gets or sets whether to enable detailed logging.
-	/// </value>
-	public bool EnableDetailedLogging { get; set; }
 }

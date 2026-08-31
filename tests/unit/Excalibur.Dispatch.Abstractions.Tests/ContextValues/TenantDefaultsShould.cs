@@ -20,17 +20,9 @@ public sealed class TenantDefaultsShould
 	}
 
 	[Fact]
-	public void AllTenants_Should_BeWildcard()
-	{
-		// Assert
-		TenantDefaults.AllTenants.ShouldBe("*");
-	}
-
-	[Fact]
 	public void Constants_Should_NotBeNullOrEmpty()
 	{
 		// Assert
 		TenantDefaults.DefaultTenantId.ShouldNotBeNullOrEmpty();
-		TenantDefaults.AllTenants.ShouldNotBeNullOrEmpty();
 	}
 }

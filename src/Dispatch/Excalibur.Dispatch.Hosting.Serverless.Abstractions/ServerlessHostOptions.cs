@@ -62,20 +62,30 @@ public sealed class ServerlessHostOptions
 
 	/// <summary>
 	/// Computes the execution-timeout budget for a serverless invocation: the platform-reported
-	/// remaining time less <see cref="DefaultCleanupReserve"/>, floored at <see cref="TimeSpan.Zero"/>.
+	/// remaining time less <see cref="DefaultCleanupReserve"/>, further capped by
+	/// <paramref name="configuredTimeout"/> when one is set, floored at <see cref="TimeSpan.Zero"/>.
 	/// A zero budget means the invocation is already within (or past) the cleanup reserve and MUST be
 	/// cancelled immediately (fail-closed) — the handler is never left to run unbounded. Centralizing
 	/// the clamp here makes the fail-open branch (skipping cancellation when the budget is non-positive)
 	/// structurally inexpressible at every call site.
 	/// </summary>
 	/// <param name="remainingTime">The platform-reported remaining execution time.</param>
+	/// <param name="configuredTimeout">
+	/// The consumer's <see cref="ExecutionTimeout"/>, or <see langword="null"/> when none is configured.
+	/// It can only shorten the budget: the platform's own limit is never exceeded by configuration.
+	/// </param>
 	/// <returns>
 	/// A non-negative timeout; <see cref="TimeSpan.Zero"/> when already within the cleanup reserve,
 	/// which schedules immediate cancellation.
 	/// </returns>
-	internal static TimeSpan ComputeExecutionTimeout(TimeSpan remainingTime)
+	internal static TimeSpan ComputeExecutionTimeout(TimeSpan remainingTime, TimeSpan? configuredTimeout)
 	{
 		var executionTimeout = remainingTime - DefaultCleanupReserve;
+		if (configuredTimeout is { } configured && configured < executionTimeout)
+		{
+			executionTimeout = configured;
+		}
+
 		return executionTimeout > TimeSpan.Zero ? executionTimeout : TimeSpan.Zero;
 	}
 
@@ -98,9 +108,17 @@ public sealed class ServerlessHostOptions
 	public ServerlessTelemetryOptions Telemetry { get; set; } = new();
 
 	/// <summary>
-	/// Gets or sets the timeout for function execution.
+	/// Gets or sets an upper bound on how long a single function invocation may run.
 	/// </summary>
-	/// <value>The timeout for function execution, or <see langword="null"/> to use the default timeout.</value>
+	/// <remarks>
+	/// This can only shorten the budget the platform already imposes: the effective timeout is the
+	/// smaller of this value and the platform's remaining execution time less a fixed cleanup reserve.
+	/// Setting it longer than the platform allows has no effect. Leave it <see langword="null"/> to run
+	/// to the platform's own limit.
+	/// </remarks>
+	/// <value>
+	/// The upper bound on function execution, or <see langword="null"/> to use the platform limit alone.
+	/// </value>
 	public TimeSpan? ExecutionTimeout { get; set; }
 
 	/// <summary>

@@ -448,7 +448,9 @@ public sealed class UpcastingPipeline : IUpcastingPipeline, IDisposable
 				continue;
 			}
 
-			foreach (var edge in edges)
+			// Order candidates by target version so that when two equally short paths exist, the chain
+			// chosen is the same on every run rather than depending on the order upcasters were registered.
+			foreach (var edge in edges.OrderBy(static e => e.ToVersion))
 			{
 				if (visited.Contains(edge.ToVersion))
 				{

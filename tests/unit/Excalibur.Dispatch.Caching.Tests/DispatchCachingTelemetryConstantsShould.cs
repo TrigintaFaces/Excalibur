@@ -16,30 +16,15 @@ public sealed class DispatchCachingTelemetryConstantsShould
 	}
 
 	[Fact]
-	public void HaveCorrectActivitySourceName()
-	{
-		DispatchCachingTelemetryConstants.ActivitySourceName.ShouldBe("Excalibur.Dispatch.Caching");
-	}
-
-	[Fact]
 	public void HaveCorrectVersion()
 	{
 		DispatchCachingTelemetryConstants.Version.ShouldBe("1.0.0");
 	}
 
 	[Fact]
-	public void HaveConsistentMeterAndActivitySourceNames()
-	{
-		// By convention, Meter and ActivitySource should share the same name
-		DispatchCachingTelemetryConstants.MeterName
-			.ShouldBe(DispatchCachingTelemetryConstants.ActivitySourceName);
-	}
-
-	[Fact]
 	public void HaveNonEmptyValues()
 	{
 		DispatchCachingTelemetryConstants.MeterName.ShouldNotBeNullOrWhiteSpace();
-		DispatchCachingTelemetryConstants.ActivitySourceName.ShouldNotBeNullOrWhiteSpace();
 		DispatchCachingTelemetryConstants.Version.ShouldNotBeNullOrWhiteSpace();
 	}
 }

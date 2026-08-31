@@ -19,21 +19,18 @@ dotnet add package Excalibur.EventSourcing.Firestore
 ## Configuration
 
 ```csharp
-services.AddFirestoreEventStore(options =>
-{
-    options.ProjectId = "my-gcp-project";
-    options.EventsCollectionName = "events";
-    options.CredentialsPath = "/path/to/credentials.json";
-    options.UseBatchedWrites = true;
-    options.MaxBatchSize = 500;
-    options.CreateCollectionIfNotExists = true;
-});
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseFirestore(firestore => firestore
+        .ProjectId("my-gcp-project")
+        .CollectionName("events")
+        .CredentialsPath("/path/to/credentials.json"))));
 ```
 
 Or via configuration:
 
 ```csharp
-services.AddFirestoreEventStore(configuration.GetSection("FirestoreEventStore"));
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseFirestore(firestore => firestore.BindConfiguration("FirestoreEventStore"))));
 ```
 
 ### Using the Emulator
@@ -41,11 +38,10 @@ services.AddFirestoreEventStore(configuration.GetSection("FirestoreEventStore"))
 For local development with the Firestore emulator:
 
 ```csharp
-services.AddFirestoreEventStore(options =>
-{
-    options.EmulatorHost = "localhost:8080";
-    options.EventsCollectionName = "events";
-});
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseFirestore(firestore => firestore
+        .EmulatorHost("localhost:8080")
+        .CollectionName("events"))));
 ```
 
 ## Usage

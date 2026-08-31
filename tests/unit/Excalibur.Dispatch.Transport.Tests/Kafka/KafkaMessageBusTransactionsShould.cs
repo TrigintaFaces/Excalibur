@@ -37,7 +37,7 @@ public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 		await using var bus = new KafkaMessageBus(
 				producer,
 				serializer,
-				options,
+				Microsoft.Extensions.Options.Options.Create(options),
 				NullLogger<KafkaMessageBus>.Instance,
 				null,
 				cloudEventOptions);
@@ -77,7 +77,7 @@ public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 		await using var bus = new KafkaMessageBus(
 				producer,
 				serializer,
-				options,
+				Microsoft.Extensions.Options.Options.Create(options),
 				NullLogger<KafkaMessageBus>.Instance,
 				null,
 				cloudEventOptions);
@@ -115,7 +115,7 @@ public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 		await using var bus = new KafkaMessageBus(
 				producer,
 				serializer,
-				options,
+				Microsoft.Extensions.Options.Options.Create(options),
 				NullLogger<KafkaMessageBus>.Instance,
 				null,
 				cloudEventOptions);

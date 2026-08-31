@@ -28,6 +28,9 @@
 #   3  REFUSE: the population could not be measured, which is not the same as it being clean
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 BASELINE_FILE="eng/ci/mutable-image-tag-baseline.txt"
 SELF_TEST=0
 [ "${1:-}" = "--self-test" ] && SELF_TEST=1
@@ -35,6 +38,18 @@ SELF_TEST=0
 # A pulled image reference at a mutable tag. The leading segment must contain "/" or "." so that a
 # locally built name (no registry path) does not match. Anchored on the tag containing "latest".
 PATTERN='[a-z0-9][a-z0-9._-]*[./][a-z0-9._/-]*:[A-Za-z0-9._-]*latest[A-Za-z0-9._-]*'
+
+# The DENOMINATOR for count_mutable: how many files the scan actually READ. A count of 0 mutable
+# tags is the GOOD outcome here, so the numerator alone can never distinguish "clean" from "the
+# file enumeration returned nothing". Only this can.
+count_scanned() {
+    local root="${1:-.}"
+    if [ "$root" = "." ]; then
+        git ls-files '*.cs' '*.yml' '*.yaml' '*Dockerfile*' 2>/dev/null | grep -c . || true
+    else
+        find "$root" -type f \( -name '*.cs' -o -name '*.yml' -o -name '*.yaml' -o -name '*Dockerfile*' \) 2>/dev/null | grep -c . || true
+    fi
+}
 
 count_mutable() {
     local root="${1:-.}"
@@ -92,6 +107,11 @@ case "$current" in ''|*[!0-9]*)
     echo "::error::REFUSE: could not measure the current population (got '$current'). Not measured is not the same as clean." >&2; exit 3 ;;
 esac
 
+# The DENOMINATOR. Here a numerator of 0 is the DESIRED outcome, which is exactly why the
+# denominator is load-bearing: "0 mutable tags" and "the file enumeration returned nothing" print
+# the same green otherwise. A zero denominator is a REFUSE, not a clean tree.
+scanned="$(count_scanned .)"
+gate_denominator "$scanned" "file(s) scanned for image references" || exit 3
 echo "mutable-tag images pulled from a registry: $current (baseline $baseline)"
 
 if [ "$current" -gt "$baseline" ]; then

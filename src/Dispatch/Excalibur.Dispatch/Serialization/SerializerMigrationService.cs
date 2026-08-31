@@ -340,7 +340,7 @@ public partial class SerializerMigrationService
 			return EncryptionMigrationResult.Skipped;
 		}
 
-		// 6v2z7q: trusted — these are the consumer's OWN stored records being migrated (not an untrusted
+		// trusted — these are the consumer's OWN stored records being migrated (not an untrusted
 		// remote envelope), so the assembly-scan fallback is safe here.
 		var recordType = TypeResolution.TypeResolver.ResolveType(record.TypeName, allowAssemblyScan: true);
 		if (recordType == null)

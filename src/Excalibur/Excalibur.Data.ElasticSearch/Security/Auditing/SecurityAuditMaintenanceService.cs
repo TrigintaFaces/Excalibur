@@ -354,7 +354,7 @@ internal sealed class SecurityAuditMaintenanceService
 
 			// Scope the file/gzip/writer streams to this block so they are flushed and closed
 			// in order (writer -> gzip footer -> file -> disk) BEFORE any deletion runs. If a
-			// write throws, the catch below rethrows and no deletion is attempted (AC-5).
+			// write throws, the catch below rethrows and no deletion is attempted.
 			await using (var fileStream = File.Create(archiveFilePath))
 			await using (var gzipStream = new GZipStream(fileStream, CompressionMode.Compress))
 			await using (var writer = new StreamWriter(gzipStream, Encoding.UTF8))
@@ -401,7 +401,7 @@ internal sealed class SecurityAuditMaintenanceService
 			}
 
 			// Delete archived events from Elasticsearch only after the archive has been fully
-			// flushed and closed, and only the specific IDs that were archived (AC-4/AC-5).
+			// flushed and closed, and only the specific IDs that were archived.
 			if (archivedIds.Count > 0)
 			{
 				await DeleteArchivedEventsByIdsAsync(archivedIds, cancellationToken).ConfigureAwait(false);

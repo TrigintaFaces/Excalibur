@@ -7,10 +7,9 @@ using System.Text.Json.Serialization;
 namespace Excalibur.Dispatch.Resilience.Polly;
 
 /// <summary>
-/// JSON serialization context for distributed circuit breaker types.
+/// JSON serialization context for the circuit state shared through the coordinating store. The
+/// per-instance counters are never serialized — they do not leave the process.
 /// </summary>
 [JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(DistributedCircuitState))]
-[JsonSerializable(typeof(DistributedCircuitMetrics))]
-[JsonSerializable(typeof(CircuitWindowBucket))]
 internal sealed partial class DistributedCircuitJsonContext : JsonSerializerContext;

@@ -203,8 +203,8 @@ await host.RunAsync();
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.0" />
-    <PackageReference Include="Excalibur.Dispatch" Version="1.0.0" />
-    <PackageReference Include="Excalibur.Outbox.SqlServer" Version="1.0.0" />
+    <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
+    <PackageReference Include="Excalibur.Outbox.SqlServer" Version="10.0.0" />
   </ItemGroup>
 </Project>
 ```

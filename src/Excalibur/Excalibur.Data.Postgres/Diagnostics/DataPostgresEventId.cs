@@ -18,7 +18,7 @@ namespace Excalibur.Data.Postgres.Diagnostics;
 /// <item>101600-101699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataPostgresEventId
+internal static class DataPostgresEventId
 {
 	// ========================================
 	// 101000-101099: Connection Management
@@ -327,28 +327,6 @@ public static class DataPostgresEventId
 
 	/// <summary>CDC processing error.</summary>
 	public const int CdcProcessingError = 102308;
-
-	// ========================================
-	// 107000-107099: Audit Store
-	// ========================================
-
-	/// <summary>Audit event stored.</summary>
-	public const int AuditEventStored = 107000;
-
-	/// <summary>Audit event retrieved.</summary>
-	public const int AuditEventRetrieved = 107001;
-
-	/// <summary>Audit query executed.</summary>
-	public const int AuditQueryExecuted = 107002;
-
-	/// <summary>Audit integrity verified.</summary>
-	public const int AuditIntegrityVerified = 107003;
-
-	/// <summary>Audit store initialized.</summary>
-	public const int AuditStoreInitialized = 107004;
-
-	/// <summary>Audit store error.</summary>
-	public const int AuditStoreError = 107005;
 
 	// ========================================
 	// 107100-107199: Leader Election

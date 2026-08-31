@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.Tests.InMemory;
 [Trait("Component", "Core")]
 public sealed class InMemoryEventStoreErasureShould
 {
-	private readonly InMemoryEventStore _store = new();
+	private readonly InMemoryEventStore _store = new(UntenantedContext.Instance);
 
 	[Fact]
 	public async Task EraseEventsAsync_ReturnsCountOfErasedEvents()

@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 // Note: IAuditStore is NOT registered from this package.
 // OpenSearch serves as a search/analytics sink, not a compliance-grade audit store.
-// See ADR-290 for rationale.
+// See for rationale.
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -59,35 +59,6 @@ public static class OpenSearchServiceCollectionExtensions
 		return services;
 	}
 
-	/// <summary>
-	/// Adds the OpenSearch audit sink for real-time audit event indexing.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Configuration action for the OpenSearch audit sink builder.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
-	public static IServiceCollection AddOpenSearchAuditSink(
-		this IServiceCollection services,
-		Action<IAuditLoggingOpenSearchBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var options = new OpenSearchExporterOptions
-		{
-			OpenSearchUrl = null!,
-		};
-		var builder = new AuditLoggingOpenSearchBuilder(options);
-		configure(builder);
-
-		RegisterSinkOptionsAndServices(services, builder, options);
-
-		return services;
-	}
-
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
@@ -121,40 +92,6 @@ public static class OpenSearchServiceCollectionExtensions
 		_ = services.AddOptions<OpenSearchExporterOptions>().ValidateOnStart();
 
 		AddOpenSearchAuditExporterCore(services);
-	}
-
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design.")]
-	private static void RegisterSinkOptionsAndServices(
-		IServiceCollection services,
-		AuditLoggingOpenSearchBuilder builder,
-		OpenSearchExporterOptions options)
-	{
-		_ = services.Configure<OpenSearchAuditSinkOptions>(opt =>
-		{
-			opt.OpenSearchUrl = options.OpenSearchUrl;
-			opt.NodeUrls = options.NodeUrls;
-			opt.IndexPrefix = options.IndexPrefix;
-			opt.RefreshPolicy = options.RefreshPolicy;
-			opt.ApiKey = options.ApiKey;
-			opt.MaxRetryAttempts = options.MaxRetryAttempts;
-			opt.RetryBaseDelay = options.RetryBaseDelay;
-			opt.Timeout = options.Timeout;
-			opt.ApplicationName = options.ApplicationName;
-		});
-
-		if (builder.BindConfigurationPath is not null)
-		{
-			_ = services.AddOptions<OpenSearchAuditSinkOptions>()
-				.BindConfiguration(builder.BindConfigurationPath)
-				.ValidateOnStart();
-		}
-
-		_ = services.AddOptions<OpenSearchAuditSinkOptions>().ValidateOnStart();
-
-		AddOpenSearchAuditSinkCore(services);
 	}
 
 	private static void AddOpenSearchAuditExporterCore(IServiceCollection services)
@@ -192,36 +129,16 @@ public static class OpenSearchServiceCollectionExtensions
 				ConfigureResilience(resilience, exporterOptions.Value.MaxRetryAttempts,
 					exporterOptions.Value.RetryBaseDelay, exporterOptions.Value.Timeout));
 
-		_ = services.AddSingleton<IAuditLogExporter, OpenSearchAuditExporter>();
+		// Delegate to the typed client rather than letting the container activate a second instance.
+		// An implementation-type registration is constructed from the container's own HttpClient, not
+		// the one AddHttpClient configured -- so the exporter a consumer resolved carried none of the
+		// resilience handler or the node-failover handler above, and the retry, timeout and multi-node
+		// settings it advertises were inert on the only path anything uses. Transient matches the typed
+		// client's own lifetime, which keeps handler rotation working; the exporter holds no state.
+		_ = services.AddTransient<IAuditLogExporter>(static sp => sp.GetRequiredService<OpenSearchAuditExporter>());
 	}
 
-	private static void AddOpenSearchAuditSinkCore(IServiceCollection services)
-	{
-		_ = services.AddSingleton<IValidateOptions<OpenSearchAuditSinkOptions>,
-			OpenSearchAuditSinkOptionsValidator>();
-
-		var httpClientBuilder = services.AddHttpClient<OpenSearchAuditSink>(static (_, client) =>
-		{
-			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
-		});
-
-		_ = httpClientBuilder.AddStandardResilienceHandler();
-
-		_ = httpClientBuilder.AddHttpMessageHandler(static sp =>
-		{
-			var options = sp.GetRequiredService<IOptions<OpenSearchAuditSinkOptions>>().Value;
-			return new NodeFailoverHandler(ToNodeUris(options.GetResolvedNodeUrls()));
-		});
-
-		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
-			.Configure<IOptions<OpenSearchAuditSinkOptions>>(static (resilience, sinkOptions) =>
-				ConfigureResilience(resilience, sinkOptions.Value.MaxRetryAttempts,
-					sinkOptions.Value.RetryBaseDelay, sinkOptions.Value.Timeout));
-
-		_ = services.AddSingleton<OpenSearchAuditSink>();
-	}
-
-	// Maps the exporter/sink retry options onto the standard resilience pipeline: exponential backoff
+	// Maps the exporter retry options onto the standard resilience pipeline: exponential backoff
 	// matching the former baseDelay * 2^(attempt-1), with the per-request timeout preserved as the
 	// per-attempt timeout (the total-request timeout accommodates every attempt, and the breaker
 	// sampling window must be at least twice the attempt timeout — standard-handler invariants).

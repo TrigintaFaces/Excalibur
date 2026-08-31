@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.CosmosDb;
 
 /// <summary>
 /// Integration tests for CosmosDB CDC stale position detection and recovery.
-/// Tests the <see cref="CosmosDbStalePositionDetector"/> and <see cref="CosmosDbCdcRecoveryOptions"/>
+/// Tests the <see cref="CosmosDbStalePositionDetector"/>
 /// against mocked HTTP status code scenarios.
 /// </summary>
 /// <remarks>
@@ -220,106 +220,4 @@ public sealed class CosmosDbCdcStalePositionIntegrationShould : IntegrationTestB
 	/// 4. Validation fails for invalid configurations
 	/// </para>
 	/// </remarks>
-	[Fact]
-	public async Task ValidateRecoveryOptions_AndInvokeCallbacks()
-	{
-		// Arrange: Configure recovery options with callback
-		var callbackInvoked = false;
-		CdcPositionResetEventArgs? receivedEventArgs = null;
-
-		var recoveryOptions = new CosmosDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback,
-			MaxRecoveryAttempts = 3,
-			RecoveryAttemptDelay = TimeSpan.FromMilliseconds(100),
-			AutoRecreateProcessorOnInvalidToken = true,
-			UseCurrentTimeOnResumeFailure = true,
-			HandlePartitionSplitsGracefully = true,
-			AlwaysInvokeCallbackOnReset = true,
-			OnPositionReset = (args, ct) =>
-			{
-				callbackInvoked = true;
-				receivedEventArgs = args;
-				return Task.CompletedTask;
-			}
-		};
-
-		// Act: Validate options - should not throw
-		recoveryOptions.Validate();
-
-		// Create event args for callback test
-		var simulatedException = new InvalidOperationException("Simulated partition split");
-		var eventArgs = CosmosDbStalePositionDetector.CreateEventArgs(
-			simulatedException,
-			"partition-split-processor",
-			databaseName: "callback-test-db",
-			containerName: "callback-test-container");
-
-		// Invoke callback
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
-
-		// Assert: Callback was invoked with correct parameters (now using CdcPositionResetEventArgs)
-		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");
-		_ = receivedEventArgs.ShouldNotBeNull();
-		receivedEventArgs.ProcessorId.ShouldBe("partition-split-processor");
-		receivedEventArgs.DatabaseName.ShouldBe("callback-test-db");
-		receivedEventArgs.CaptureInstance.ShouldBe("callback-test-db/callback-test-container");
-
-		// Container name now in AdditionalContext
-		_ = receivedEventArgs.AdditionalContext.ShouldNotBeNull();
-		receivedEventArgs.AdditionalContext.ShouldContainKey("ContainerName");
-		receivedEventArgs.AdditionalContext["ContainerName"].ShouldBe("callback-test-container");
-
-		receivedEventArgs.ProviderType.ShouldBe("CosmosDB");
-		receivedEventArgs.OriginalException.ShouldBe(simulatedException);
-
-		// Assert: Recovery options are correctly configured (now using StalePositionRecoveryStrategy)
-		recoveryOptions.RecoveryStrategy.ShouldBe(StalePositionRecoveryStrategy.InvokeCallback);
-		recoveryOptions.MaxRecoveryAttempts.ShouldBe(3);
-		recoveryOptions.RecoveryAttemptDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
-		recoveryOptions.AutoRecreateProcessorOnInvalidToken.ShouldBeTrue();
-		recoveryOptions.UseCurrentTimeOnResumeFailure.ShouldBeTrue();
-		recoveryOptions.HandlePartitionSplitsGracefully.ShouldBeTrue();
-		recoveryOptions.AlwaysInvokeCallbackOnReset.ShouldBeTrue();
-
-		// Verify other recovery strategies can be configured
-		var throwOptions = new CosmosDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.Throw
-		};
-		throwOptions.Validate(); // Should not throw without callback
-
-		var fallbackEarliestOptions = new CosmosDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest
-		};
-		fallbackEarliestOptions.Validate(); // Should not throw
-
-		var fallbackLatestOptions = new CosmosDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest
-		};
-		fallbackLatestOptions.Validate(); // Should not throw
-
-		// Verify InvokeCallback without callback throws on validation
-		var invalidOptions = new CosmosDbCdcRecoveryOptions
-		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidOptions.Validate());
-
-		// Verify invalid MaxRecoveryAttempts throws
-		var invalidAttemptsOptions = new CosmosDbCdcRecoveryOptions
-		{
-			MaxRecoveryAttempts = 0
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidAttemptsOptions.Validate());
-
-		// Verify negative RecoveryAttemptDelay throws
-		var invalidDelayOptions = new CosmosDbCdcRecoveryOptions
-		{
-			RecoveryAttemptDelay = TimeSpan.FromSeconds(-1)
-		};
-		_ = Should.Throw<InvalidOperationException>(() => invalidDelayOptions.Validate());
-	}
 }

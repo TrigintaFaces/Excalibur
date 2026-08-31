@@ -195,7 +195,7 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 	//
 	// The four arms this block replaces — Return_empty_for_failed_messages_when_inner_not_admin,
 	// Return_empty_for_scheduled_messages…, Return_zero_for_cleanup…, Return_default_stats… — called
-	// sut.GetFailedMessagesAsync / GetScheduledMessagesAsync / CleanupAllTenantsSentMessagesAsync / GetStatisticsAsync
+	// sut.GetAllTenantsFailedMessagesAsync / GetAllTenantsScheduledMessagesAsync / CleanupAllTenantsSentMessagesAsync / GetAllTenantsStatisticsAsync
 	// directly on the decorator, and asserted that a NON-admin inner degraded to empty / zero / a default struct.
 	//
 	// That contract is the exact defect l0qpxo fixes. It CERTIFIED the silent fail-open: a capability going missing
@@ -228,13 +228,13 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 		// LIVENESS + the core security property, and the non-vacuity half of ResolveNull_… above.
 		//
 		// An admin inner must resolve to a WORKING admin view — and it must NOT be the raw inner instance. If
-		// GetService forwarded the inner's own IOutboxStoreAdmin, GetFailedMessagesAsync would return ciphertext
+		// GetService forwarded the inner's own IOutboxStoreAdmin, GetAllTenantsFailedMessagesAsync would return ciphertext
 		// undecrypted: a plaintext-bypass through the sixth-most-obscure capability. The resolved view must be a
 		// mediating (decrypting) wrapper that still delegates the fetch to the inner.
 		var inner = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
 		A.CallTo(() => inner.GetService(typeof(IOutboxStoreAdmin)))
 			.ReturnsLazily((Type _) => inner); // honest store: returns itself for a capability it implements
-		A.CallTo(() => ((IOutboxStoreAdmin)inner).GetFailedMessagesAsync(A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
+		A.CallTo(() => ((IOutboxStoreAdmin)inner).GetAllTenantsFailedMessagesAsync(A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([]));
 		var sut = CreateSut(inner);
 
@@ -249,9 +249,9 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 			"encryption boundary.");
 
 		// Delegation still works: the mediating view fetches through the inner's admin.
-		_ = await admin.GetFailedMessagesAsync(3, null, 10, CancellationToken.None).ConfigureAwait(false);
+		_ = await admin.GetAllTenantsFailedMessagesAsync(3, null, 10, CancellationToken.None).ConfigureAwait(false);
 		A.CallTo(() => ((IOutboxStoreAdmin)inner)
-				.GetFailedMessagesAsync(3, null, 10, A<CancellationToken>._))
+				.GetAllTenantsFailedMessagesAsync(3, null, 10, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -341,20 +341,6 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 		options.Mode.ShouldBe(EncryptionMode.EncryptAndDecrypt);
 		options.LazyMigrationEnabled.ShouldBeFalse();
 		options.LazyMigrationMode.ShouldBe(LazyMigrationMode.Both);
-	}
-
-	[Fact]
-	public void Have_default_migration_options_values()
-	{
-		var options = new EncryptionMigrationOptions();
-		options.BatchSize.ShouldBe(100);
-		options.MaxDegreeOfParallelism.ShouldBe(4);
-		options.ContinueOnError.ShouldBeFalse();
-		options.DelayBetweenBatches.ShouldBe(TimeSpan.Zero);
-		options.SourceProviderId.ShouldBeNull();
-		options.TargetProviderId.ShouldBeNull();
-		options.VerifyBeforeReEncrypt.ShouldBeTrue();
-		options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	private EncryptingOutboxStoreDecorator CreateSut(

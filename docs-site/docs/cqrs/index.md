@@ -212,7 +212,7 @@ Configuration:
 // Write side: Event sourcing with SQL Server
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = writeConnectionString);
+    es.UseSqlServer(opts => opts.ConnectionString(writeConnectionString));
 }));
 
 // Read side: Separate read database

@@ -78,15 +78,21 @@ public sealed class DispatchCacheOptimizationHostedServiceShould : IDisposable
 	}
 
 	[Fact]
-	public void Constructor_ThrowsOnNullApplicationLifetime()
+	public async Task DoNothingWhenNoApplicationLifetimeIsAvailable()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			new DispatchCacheOptimizationHostedService(
-				_cacheManager,
-				null!,
-				_optionsAccessor,
-				_logger));
+		// A container composed without a generic host supplies no lifetime, so there is no
+		// application-started signal to hang the freeze on. Starting must be a no-op rather than a throw:
+		// the service is registered by the core pipeline registration, which such a container also calls.
+		var service = new DispatchCacheOptimizationHostedService(
+			_cacheManager,
+			null,
+			_optionsAccessor,
+			_logger);
+
+		await Should.NotThrowAsync(() => service.StartAsync(CancellationToken.None));
+		await Should.NotThrowAsync(() => service.StopAsync(CancellationToken.None));
+
+		A.CallTo(() => _cacheManager.FreezeAll()).MustNotHaveHappened();
 	}
 
 	#endregion

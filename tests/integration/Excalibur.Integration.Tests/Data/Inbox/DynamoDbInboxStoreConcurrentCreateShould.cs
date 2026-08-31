@@ -65,7 +65,7 @@ public sealed class DynamoDbInboxStoreConcurrentCreateShould : IClassFixture<Dyn
 				DefaultTtlSeconds = 0,
 				Connection = new DynamoDbConnectionOptions { ServiceUrl = _fixture.ServiceUrl },
 			});
-			return new DynamoDbInboxStore(_fixture.Client, options, NullLogger<DynamoDbInboxStore>.Instance);
+			return new DynamoDbInboxStore(_fixture.Client, options, NullLogger<DynamoDbInboxStore>.Instance, SingleTenantTestContext.Instance);
 		}
 
 		var stores = Enumerable.Range(0, Concurrency).Select(_ => CreateStore()).ToArray();

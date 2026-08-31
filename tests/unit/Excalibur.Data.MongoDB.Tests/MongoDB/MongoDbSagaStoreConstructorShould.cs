@@ -46,7 +46,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new MongoDbSagaStore(_options, _logger, _serializer);
+		var store = new MongoDbSagaStore(_options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -57,7 +57,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(options: null!, _logger, _serializer));
+			new MongoDbSagaStore(options: null!, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -66,7 +66,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(_options, logger: null!, _serializer));
+			new MongoDbSagaStore(_options, logger: null!, _serializer, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -75,7 +75,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(_options, _logger, serializer: null!));
+			new MongoDbSagaStore(_options, _logger, serializer: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("serializer");
 	}
 
@@ -90,7 +90,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbSagaStore(invalidOptions, _logger, _serializer));
+			new MongoDbSagaStore(invalidOptions, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	[Fact]
@@ -104,7 +104,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbSagaStore(invalidOptions, _logger, _serializer));
+			new MongoDbSagaStore(invalidOptions, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	[Fact]
@@ -118,7 +118,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			new MongoDbSagaStore(invalidOptions, _logger, _serializer));
+			new MongoDbSagaStore(invalidOptions, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant));
 	}
 
 	#endregion Simple Constructor Tests
@@ -136,7 +136,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 			.Returns(database);
 
 		// Act
-		var store = new MongoDbSagaStore(client, _options, _logger, _serializer);
+		var store = new MongoDbSagaStore(client, _options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -147,7 +147,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(client: null!, _options, _logger, _serializer));
+			new MongoDbSagaStore(client: null!, _options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("client");
 	}
 
@@ -159,7 +159,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(client, options: null!, _logger, _serializer));
+			new MongoDbSagaStore(client, options: null!, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -171,7 +171,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(client, _options, logger: null!, _serializer));
+			new MongoDbSagaStore(client, _options, logger: null!, _serializer, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -183,7 +183,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbSagaStore(client, _options, _logger, serializer: null!));
+			new MongoDbSagaStore(client, _options, _logger, serializer: null!, tenantContext: TestTenantContext.SingleTenant));
 		exception.ParamName.ShouldBe("serializer");
 	}
 
@@ -202,8 +202,8 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 			.Returns(database);
 
 		// Act
-		var simpleStore = new MongoDbSagaStore(_options, _logger, _serializer);
-		var clientStore = new MongoDbSagaStore(client, _options, _logger, _serializer);
+		var simpleStore = new MongoDbSagaStore(_options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant);
+		var clientStore = new MongoDbSagaStore(client, _options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant);
 
 		// Assert - Both create valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -218,7 +218,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new MongoDbSagaStore(_options, _logger, _serializer);
+		var store = new MongoDbSagaStore(_options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();
@@ -230,7 +230,7 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_SetsDisposedState()
 	{
 		// Arrange
-		var store = new MongoDbSagaStore(_options, _logger, _serializer);
+		var store = new MongoDbSagaStore(_options, _logger, _serializer, tenantContext: TestTenantContext.SingleTenant);
 
 		// Act
 		await store.DisposeAsync();

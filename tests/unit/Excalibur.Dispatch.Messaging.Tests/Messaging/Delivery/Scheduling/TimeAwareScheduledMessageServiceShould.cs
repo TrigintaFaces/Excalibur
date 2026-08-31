@@ -93,7 +93,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 	}
 
 	[Fact]
-	public async Task SkipDispatchAndPersistenceWhenDeserializationFails()
+	public async Task SkipDispatchButStillAdvanceWhenDeserializationFails()
 	{
 		// Use malformed JSON that will cause JsonSerializer.Deserialize to throw JsonException.
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(1));
@@ -112,9 +112,19 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		await Task.Delay(100, CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
+		// SAFETY: an undeserializable body is never dispatched.
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
-		store.StoreCalls.ShouldBe(0);
+
+		// LIVENESS: it IS persisted, because the row must still advance. This assertion was previously
+		// ShouldBe(0) -- asserting the row was left untouched, which is exactly why a body that can never
+		// deserialize stayed due and was re-processed and re-logged on every poll for the life of the
+		// process. Advancing is the fix, so the write is the observable evidence of it.
+		store.StoreCalls.ShouldBeGreaterThan(
+			0,
+			"a row that failed must advance, or it is still due on the very next poll");
+		schedule.Enabled.ShouldBeTrue("an interval schedule can still be advanced, so it keeps running");
+		schedule.NextExecutionUtc.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -133,7 +143,13 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
-		store.StoreCalls.ShouldBe(0);
+
+		// Graceful means the row is skipped AND advanced. Leaving its next-execution time untouched -- which is
+		// what a store call count of zero would mean -- makes the same unresolvable row due again on every poll
+		// forever, ahead of every other schedule.
+		store.StoreCalls.ShouldBe(1);
+		var advanced = store.StoredMessages.ShouldHaveSingleItem();
+		advanced.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
 	}
 
 	[Fact]
@@ -148,6 +164,69 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		store.AsyncDisposed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task KeepProcessingLaterSchedulesWhenAnEarlierRowHasNoResolvableType()
+	{
+		// Durable schedule rows outlive the code that created them, so a row naming a type this process no
+		// longer has is the expected steady state, not an exceptional one. It must cost that one row, never
+		// the scan: aborting the loop leaves every later row undispatched and its next-execution time
+		// unadvanced, so the same poisoned row is still first on the next poll and the starvation is permanent.
+		var poisoned = CreateDueSchedule("Excalibur.Dispatch.Tests.NoSuchScheduledMessageTypeExists", TimeSpan.FromMinutes(5));
+		var healthy = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
+		var store = new SequenceScheduleStore(new List<IScheduledMessage> { poisoned, healthy });
+		var serializer = new DispatchJsonSerializer();
+
+		var dispatched = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(() => dispatched.TrySetResult(true))
+			.Returns(MessageResult.Success());
+
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
+
+		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var healthyRan = await WaitForAsync(dispatched.Task).ConfigureAwait(false);
+		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+		healthyRan.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task KeepProcessingLaterSchedulesWhenAnEarlierRowFailsToDeserialize()
+	{
+		var poisoned = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
+		poisoned.MessageBody = "<<invalid-json>>";
+		var healthy = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
+		var store = new SequenceScheduleStore(new List<IScheduledMessage> { poisoned, healthy });
+		var serializer = new DispatchJsonSerializer();
+
+		var dispatched = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(() => dispatched.TrySetResult(true))
+			.Returns(MessageResult.Success());
+
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
+
+		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var healthyRan = await WaitForAsync(dispatched.Task).ConfigureAwait(false);
+		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+		healthyRan.ShouldBeTrue();
+	}
+
+	private static async Task<bool> WaitForAsync(Task<bool> signal)
+	{
+		try
+		{
+			return await signal.WaitAsync(ScheduleProcessingTimeout).ConfigureAwait(false);
+		}
+		catch (TimeoutException)
+		{
+			return false;
+		}
 	}
 
 	private static ScheduledMessageService CreateService(

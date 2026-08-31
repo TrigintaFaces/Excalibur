@@ -1,0 +1,24 @@
+# Subsystem ARCHITECTURE.md files whose "## Evidence" section names no classifiable test citation --
+# not because the gate is blind to their format, but because the section genuinely cites no test by
+# name. See eng/ci/architecture-evidence-gate.sh for what "classifiable" means and why a zero-citation
+# section REFUSES rather than PASSES when it is not on this list.
+#
+# THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
+#   - A file NOT listed here whose Evidence section still resolves to zero citations is a REFUSE on
+#     first appearance -- the gate cannot tell "genuinely no citation" from "my classifier can't read
+#     this format" without a human saying which one it is, once, in writing, here.
+#   - An entry that GAINS a classifiable citation (someone names a specific test in the section) is
+#     stale and must be removed, or the gate would keep skipping a section that now has something to
+#     check.
+#
+# Format: one path per line, relative to the repo root, matching the gate's own reported path exactly.
+# Blank lines and #-comments are ignored.
+
+# Excalibur.Compliance/ARCHITECTURE.md's Evidence section (as of this writing) describes what was
+# verified entirely in prose -- "tenant-isolation suites run against a real SQL Server container",
+# "the safety arms were verified RED against a one-token revert" -- and names no specific test class or
+# method anywhere in the section. The ONE backtick span it contains is `InvalidOperationException`, a
+# BCL type, not a citation. This is a real gap in the doc, not a gap in the gate: a future reader
+# cannot re-run "the test" because the section never named one. Tracked as its own finding rather than
+# silently accepted by this baseline.
+src/Excalibur/Excalibur.Compliance/ARCHITECTURE.md

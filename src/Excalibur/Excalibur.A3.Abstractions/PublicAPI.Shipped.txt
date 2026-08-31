@@ -18,8 +18,6 @@ Excalibur.A3.Auditing.IAuditEvent.Outcome.get -> string!
 Excalibur.A3.Auditing.IAuditEvent.Resource.get -> string!
 Excalibur.A3.Auditing.IAuditEvent.TenantId.get -> string!
 Excalibur.A3.Auditing.IAuditEvent.TimestampUtc.get -> System.DateTimeOffset
-Excalibur.A3.Auditing.IAuditSink
-Excalibur.A3.Auditing.IAuditSink.WriteAsync(Excalibur.A3.Auditing.IAuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.A3.Authentication.AuthenticatedPrincipal
 Excalibur.A3.Authentication.AuthenticatedPrincipal.AuthenticatedPrincipal(string! SubjectId, string? TenantId, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? Claims) -> void
 Excalibur.A3.Authentication.AuthenticatedPrincipal.Claims.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
@@ -36,8 +34,6 @@ Excalibur.A3.Authentication.AuthenticationResult.Principal.get -> Excalibur.A3.A
 Excalibur.A3.Authentication.AuthenticationResult.Principal.init -> void
 Excalibur.A3.Authentication.AuthenticationResult.Succeeded.get -> bool
 Excalibur.A3.Authentication.AuthenticationResult.Succeeded.init -> void
-Excalibur.A3.Authentication.ITokenValidator
-Excalibur.A3.Authentication.ITokenValidator.ValidateAsync(string! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authentication.AuthenticationResult!>!
 Excalibur.A3.Authorization.AuthorizationAction
 Excalibur.A3.Authorization.AuthorizationAction.Attributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
 Excalibur.A3.Authorization.AuthorizationAction.Attributes.init -> void
@@ -52,7 +48,6 @@ Excalibur.A3.Authorization.AuthorizationDecision.Reason.get -> string?
 Excalibur.A3.Authorization.AuthorizationDecision.Reason.init -> void
 Excalibur.A3.Authorization.AuthorizationEffect
 Excalibur.A3.Authorization.AuthorizationEffect.Deny = 0 -> Excalibur.A3.Authorization.AuthorizationEffect
-Excalibur.A3.Authorization.AuthorizationEffect.Indeterminate = 2 -> Excalibur.A3.Authorization.AuthorizationEffect
 Excalibur.A3.Authorization.AuthorizationEffect.Permit = 1 -> Excalibur.A3.Authorization.AuthorizationEffect
 Excalibur.A3.Authorization.AuthorizationResource
 Excalibur.A3.Authorization.AuthorizationResource.Attributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
@@ -75,7 +70,6 @@ Excalibur.A3.Authorization.Grant.ExpiresOn.get -> System.DateTimeOffset?
 Excalibur.A3.Authorization.Grant.ExpiresOn.init -> void
 Excalibur.A3.Authorization.Grant.FullName.get -> string?
 Excalibur.A3.Authorization.Grant.FullName.init -> void
-Excalibur.A3.Authorization.Grant.Grant(string! UserId, string? FullName, string? TenantId, string! GrantType, string! Qualifier, System.DateTimeOffset? ExpiresOn, string! GrantedBy, System.DateTimeOffset GrantedOn) -> void
 Excalibur.A3.Authorization.Grant.GrantType.get -> string!
 Excalibur.A3.Authorization.Grant.GrantType.init -> void
 Excalibur.A3.Authorization.Grant.GrantedBy.get -> string!
@@ -86,7 +80,6 @@ Excalibur.A3.Authorization.Grant.IsActive(System.DateTimeOffset asOf) -> bool
 Excalibur.A3.Authorization.Grant.IsExpired(System.DateTimeOffset asOf) -> bool
 Excalibur.A3.Authorization.Grant.Qualifier.get -> string!
 Excalibur.A3.Authorization.Grant.Qualifier.init -> void
-Excalibur.A3.Authorization.Grant.TenantId.get -> string?
 Excalibur.A3.Authorization.Grant.TenantId.init -> void
 Excalibur.A3.Authorization.Grant.UserId.get -> string!
 Excalibur.A3.Authorization.Grant.UserId.init -> void
@@ -94,10 +87,8 @@ Excalibur.A3.Authorization.IActivityGroupGrantStore
 Excalibur.A3.Authorization.IActivityGroupGrantStore.DeleteActivityGroupGrantsByUserIdAsync(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
-Excalibur.A3.Authorization.IActivityGroupGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupStore
 Excalibur.A3.Authorization.IActivityGroupStore.ActivityGroupExistsAsync(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.A3.Authorization.IActivityGroupStore.CreateActivityGroupAsync(string? tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupStore.DeleteAllActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IActivityGroupStore.FindActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
 Excalibur.A3.Authorization.IActivityGroupStore.GetService(System.Type! serviceType) -> object?
@@ -160,3 +151,7 @@ Excalibur.A3.IA3Builder
 Excalibur.A3.IA3Builder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.A3.IA3Builder.UseActivityGroupStore<TStore>() -> Excalibur.A3.IA3Builder!
 Excalibur.A3.IA3Builder.UseGrantStore<TStore>() -> Excalibur.A3.IA3Builder!
+Excalibur.A3.Authorization.Grant.Grant(string! UserId, string? FullName, string! TenantId, string! GrantType, string! Qualifier, System.DateTimeOffset? ExpiresOn, string! GrantedBy, System.DateTimeOffset GrantedOn) -> void
+Excalibur.A3.Authorization.Grant.TenantId.get -> string!
+Excalibur.A3.Authorization.IActivityGroupGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.A3.Authorization.IActivityGroupStore.CreateActivityGroupAsync(string! tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!

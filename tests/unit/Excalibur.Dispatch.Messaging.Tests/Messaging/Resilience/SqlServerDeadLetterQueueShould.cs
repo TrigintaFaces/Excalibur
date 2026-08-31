@@ -332,7 +332,7 @@ public sealed class SqlServerDeadLetterQueueShould
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new SqlServerDeadLetterQueue(null!, _logger));
+			new SqlServerDeadLetterQueue(null!, _logger, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -346,7 +346,7 @@ public sealed class SqlServerDeadLetterQueueShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new SqlServerDeadLetterQueue(options, null!));
+			new SqlServerDeadLetterQueue(options, null!, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -359,7 +359,7 @@ public sealed class SqlServerDeadLetterQueueShould
 		});
 
 		// Act
-		var queue = new SqlServerDeadLetterQueue(options, _logger);
+		var queue = new SqlServerDeadLetterQueue(options, _logger, tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = queue.ShouldNotBeNull();
@@ -376,7 +376,7 @@ public sealed class SqlServerDeadLetterQueueShould
 		Func<object, Task> replayHandler = async obj => await Task.CompletedTask.ConfigureAwait(false);
 
 		// Act
-		var queue = new SqlServerDeadLetterQueue(options, _logger, replayHandler);
+		var queue = new SqlServerDeadLetterQueue(options, _logger, tenantContext: new TestTenantContext(), replayHandler: replayHandler);
 
 		// Assert
 		_ = queue.ShouldNotBeNull();
@@ -396,7 +396,7 @@ public sealed class SqlServerDeadLetterQueueShould
 		});
 
 		// Act
-		var queue = new SqlServerDeadLetterQueue(options, _logger);
+		var queue = new SqlServerDeadLetterQueue(options, _logger, tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = queue.ShouldBeAssignableTo<IDeadLetterQueue>();

@@ -80,6 +80,9 @@ services.AddExcalibur(excalibur =>
             dynamo.Region(RegionEndpoint.USEast1)
                   .TableName("Events")
                   .TablePrefix("MyApp_")));
+    // Configured by region, so a matching Streams client is built for you and the
+    // change feed works with no further configuration. See "Streams Methods" below
+    // for when you supply your own client.
 
     // Saga
     excalibur.AddSaga(saga =>
@@ -136,6 +139,48 @@ All 5 non-CDC subsystem builders share the same connection methods:
 
 Connection methods follow **last-wins** semantics — calling `Client()` after `Region()` replaces the region-based connection.
 
+### Streams Methods
+
+Available on the **event sourcing** builder (`IDynamoDBEventSourcingBuilder`) only.
+
+| Method | Description |
+|--------|-------------|
+| `StreamsClient(IAmazonDynamoDBStreams)` | Pre-configured Streams client instance, enabling the change feed |
+| `StreamsClientFactory(Func<IServiceProvider, IAmazonDynamoDBStreams>)` | Factory resolving the Streams client from DI, enabling the change feed |
+
+**You do not need either of these unless you consume a change feed.** The event store appends, loads, and
+reads versions through the DynamoDB client alone; a store built without a Streams client is fully
+functional for those operations and simply reports the change feed as unavailable.
+
+When you do consume one, whether you must supply a client depends on how the connection was configured:
+
+| Connection configured by | Streams client |
+|--------------------------|----------------|
+| `ServiceUrl(...)` or `Region(...)` | Built for you automatically — nothing to configure |
+| `Client(...)` or `ClientFactory(...)` | **You must supply one**, or the change feed is unavailable |
+
+The registration will not guess at the endpoint and credentials behind a client you supplied, so it builds
+no Streams client on those paths. Supplying your own also means the change feed runs under your own
+credentials, endpoint, and telemetry:
+
+```csharp
+using Amazon.DynamoDBStreams;
+using Amazon.DynamoDBv2;
+
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseDynamoDb(dynamo =>
+        dynamo.Client(myDynamoDbClient)
+              .StreamsClient(myStreamsClient)
+              .TableName("Events"))));
+```
+
+Unlike the connection methods, these are **orthogonal to the connection mode**: selecting or changing a
+connection method neither sets nor clears the Streams client. `StreamsClient` and `StreamsClientFactory`
+are last-wins against each other.
+
+See [Event Sourcing — Change Feed](../event-sourcing/providers.md#change-feed-dynamodb-streams) for the
+full walkthrough.
+
 ### Domain Methods
 
 | Method | Description | Available On |
@@ -143,6 +188,7 @@ Connection methods follow **last-wins** semantics — calling `Client()` after `
 | `TableName(string)` | DynamoDB table name | All 6 builders |
 | `TablePrefix(string)` | Prefix for table names | 5 builders (not CDC) |
 | `StreamArn(string)` | DynamoDB Streams ARN | CDC only |
+| `StreamsClient(...)` / `StreamsClientFactory(...)` | Streams client for the change feed | Event sourcing only |
 | `ProcessorName(string)` | CDC processor name | CDC only |
 | `WithStateStore(...)` | CDC state store configuration | CDC only |
 

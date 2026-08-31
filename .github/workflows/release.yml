@@ -254,10 +254,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      # --locked-mode throughout the release path: resolve exactly the graph the committed lock
+      # files record, and fail rather than resolve a different one. Validating a release candidate
+      # against a graph the producing build did not use would certify something other than what
+      # ships, and an unlocked restore rewrites the lock file to match whatever it picked, so the
+      # divergence leaves no trace.
       - name: Restore dependencies
         run: |
-          dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-          dotnet restore eng/ci/shards/ReleaseBlocking.slnf --verbosity quiet
+          dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
+          dotnet restore eng/ci/shards/ReleaseBlocking.slnf --locked-mode --verbosity quiet
 
       - name: Build release-blocking projects
         shell: bash
@@ -426,7 +431,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore release-blocking shard
-        run: dotnet restore eng/ci/shards/ReleaseBlocking.slnf
+        run: dotnet restore eng/ci/shards/ReleaseBlocking.slnf --locked-mode
 
       - name: Build release-blocking shard
         run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal -p:BuildExamplesAndTests=true
@@ -480,7 +485,7 @@ jobs:
 
       - name: Restore NuGet packages for runtime dependencies
         shell: bash
-        run: bash ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --locked-mode --verbosity quiet
 
       - name: Compose pre-tag soak filter
         shell: pwsh
@@ -1173,8 +1178,8 @@ jobs:
           ### 📚 Documentation
 
           - [Documentation](https://docs.excalibur-dispatch.dev)
-          - [Getting Started](https://docs.excalibur-dispatch.dev/docs/next/getting-started/)
-          - [Migration Guide](https://docs.excalibur-dispatch.dev/docs/next/migration/)
+          - [Getting Started](https://docs.excalibur-dispatch.dev/docs/getting-started)
+          - [Migration Guide](https://docs.excalibur-dispatch.dev/docs/migration/version-upgrades)
 
           EOF
 
@@ -1277,9 +1282,14 @@ jobs:
   publish-nuget:
     # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
     # read because this job must not be able to alter the repository it is publishing from.
+    #
+    # attestations is READ, and the asymmetry is the point: this job re-checks the provenance of
+    # what it is about to push, and a publisher that could MINT an attestation could manufacture
+    # its own evidence -- which is exactly the property the attestation exists to deny.
     permissions:
       contents: read
       id-token: write
+      attestations: read
     name: Publish to NuGet
     runs-on: ubuntu-latest
     # Sized for the work rather than inherited from the other jobs. Pushing the whole package
@@ -1312,16 +1322,28 @@ jobs:
     environment:
       name: nuget-production
       url: https://www.nuget.org/profiles/TrigintaFaces
-    # Declared at job scope so step-level `if:` conditions can see it. A step's own `env:`
-    # block is NOT in scope for that step's `if:`, which silently makes such a condition
-    # reference an always-empty value.
+    # NO SIGNING CERTIFICATE IS DECLARED HERE, deliberately. This job publishes bytes it did not
+    # make and must not be able to change them, so it has no use for the material that would let
+    # it -- and a secret exposed to a job that never needs it is exposure bought for nothing.
+    #
+    # What remains is the DECISION, which this job does need in order to tell a package that is
+    # unsigned by accident from one that is unsigned on purpose.
     env:
-      NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
-      NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
       # A repository VARIABLE, not a secret, and deliberately: it is a decision, not a credential,
       # and a decision to ship unsigned should be readable by anyone looking at the repository
-      # rather than hidden among the secrets. Job scope for the reason stated directly above.
-      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE }}
+      # rather than hidden among the secrets.
+      #
+      # DEFAULTS TO true BECAUSE NO SIGNING CERTIFICATE IS CURRENTLY AVAILABLE, matching the
+      # producing build. The two must agree: this job decides whether an unsigned set is publishable,
+      # and if it required an opt-out the producer no longer needs, every release would be built
+      # unsigned and then refused at the last gate before the push.
+      #
+      # REMOVE THIS DEFAULT WHEN A CERTIFICATE IS OBTAINED, at the same time as the one in the
+      # producing build, so the two never disagree about what is publishable.
+      #
+      # A repository variable, if set, still wins in BOTH directions: a non-empty value takes
+      # precedence over the default here, so setting it to false restores the refusal.
+      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}
     steps:
       # This job does not build, but it runs repository scripts -- the release receipt, before and
       # after the push -- so it needs the repository present.
@@ -1377,15 +1399,25 @@ jobs:
           fi
           echo "Short-lived publishing key issued (valid ~1 hour)."
 
-      # A release that cannot sign MUST NOT publish -- unless someone has DECIDED otherwise, in
-      # writing, in a variable a human had to set. Missing secrets alone still refuse.
+      # THE PACKAGES ARRIVE HERE ALREADY SIGNED, AND THIS JOB MUST NOT CHANGE THEM.
       #
-      # THE DISTINCTION IS THE WHOLE CONTROL. "The certificate is absent" and "we have decided to
-      # ship unsigned" look identical at the moment of failure and are completely different
-      # statements. Treating absence as consent is a silent fail-open: the release would go green
-      # the first time a secret expired, rotated, or was renamed, and nobody would learn that the
-      # packages had stopped being signed. So absence keeps refusing, and only an explicit opt-out
-      # proceeds.
+      # `dotnet nuget sign` rewrites a .nupkg in place, so signing here would produce bytes that
+      # nothing in this pipeline had hashed, attested or install-tested. The release would publish a
+      # package that differs from the one staged validation proved installable, while reporting that
+      # these bytes had been validated -- a claim false of every byte a consumer receives. Signing
+      # therefore happens at the origin, before the hash manifest and the attestation are computed,
+      # and everything from there to the push handles one unchanging artifact.
+      #
+      # What is checked here is the ARTIFACT, not the availability of a credential. "A signing
+      # certificate is configured on this runner" is a statement about the environment; "these bytes
+      # carry a signature" is a statement about what will be published, and only the second is the
+      # thing we mean to guarantee.
+      #
+      # THE DISTINCTION IS THE WHOLE CONTROL. "These are unsigned because something went wrong" and
+      # "we have decided to ship unsigned" look identical at this moment and are completely different
+      # statements. Treating absence as consent is a silent fail-open: the release would go green the
+      # first time a certificate expired, rotated or was renamed, and nobody would learn that the
+      # packages had stopped being signed. So absence refuses, and only an explicit opt-out proceeds.
       #
       # WHAT UNSIGNED COSTS, so the opt-out stays a judgement rather than a shrug: nuget.org accepts
       # unsigned packages and applies its own repository signature to everything it serves, so
@@ -1393,66 +1425,52 @@ jobs:
       # publisher-level guarantee on top, and it is not free -- the certificate must come from a
       # public CA, since nuget.org rejects self-issued ones. Publishing unsigned is a real reduction
       # in guarantee, not a formality.
-      - name: Validate signing certificate
+      - name: Prove the signature gate can fail (self-test)
+        shell: bash
+        # Runs BEFORE the gate it proves, every release. A gate whose own self-test is only run by
+        # hand is a gate nobody has checked lately, and this one stands immediately before an
+        # irreversible act.
+        run: python3 eng/ci/assert-packages-signed.py --self-test
+
+      - name: Confirm the promoted packages carry the signature they were validated with
+        id: signature_gate
+        shell: bash
         run: |
-          if [ -n "$NUGET_SIGNING_CERT_BASE64" ] && [ -n "$NUGET_SIGNING_CERT_PASSWORD" ]; then
-            echo "✅ Signing certificate is configured — packages will be author-signed."
-            exit 0
+          set -euo pipefail
+          # The opt-out is passed as an ARGUMENT rather than read from the environment inside the
+          # gate, so the gate has one input and no hidden second one, and a reader of this step can
+          # see which decision it is running under.
+          if [ "${ALLOW_UNSIGNED_RELEASE:-}" = "true" ]; then
+            python3 eng/ci/assert-packages-signed.py --packages-dir packages --allow-unsigned
+          else
+            python3 eng/ci/assert-packages-signed.py --packages-dir packages
           fi
-          if [ "$ALLOW_UNSIGNED_RELEASE" != "true" ]; then
-            echo "❌ Signing is not configured and no explicit opt-out is set — refusing to publish."
-            echo "   Either configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD,"
-            echo "   or set the repository variable ALLOW_UNSIGNED_RELEASE=true to publish unsigned"
-            echo "   deliberately. A missing secret is NOT taken as consent to ship unsigned."
-            exit 1
-          fi
-          echo "::warning::Publishing UNSIGNED packages by explicit opt-out (ALLOW_UNSIGNED_RELEASE=true)."
-          echo "⚠ These packages carry NO author signature. Consumers still get nuget.org's repository"
-          echo "  signature, which is what the registry applies to everything it serves, but they get no"
-          echo "  publisher-level guarantee from us. Remove this variable once a certificate is available."
 
-      # Skipped when signing is not configured. Reachable only after the guard above has either
-      # confirmed the certificate or recorded a deliberate opt-out, so a skip here can never be the
-      # first place the decision is made.
-      - name: Sign packages
-        if: env.NUGET_SIGNING_CERT_BASE64 != ''
+      # Validity on top of presence, and it is the SAME check the producing build ran immediately
+      # after signing. Passing there and failing here would mean the bytes changed in between --
+      # precisely what this ordering exists to make impossible.
+      #
+      # Skipped when the set is unsigned by explicit opt-out, because there is no signature to
+      # validate then; the step above has already recorded that decision and warned about it.
+      - name: Verify the author signatures are valid
+        if: steps.signature_gate.outputs.all_signed == 'true'
+        shell: bash
         run: |
-          echo "🔏 Signing packages before publish..."
-          cert_path="${RUNNER_TEMP}/nuget-signing.pfx"
-          cleanup() { rm -f "$cert_path"; }
-          trap cleanup EXIT
-
-          printf '%s' "$NUGET_SIGNING_CERT_BASE64" | base64 --decode > "$cert_path"
-
+          set -euo pipefail
           shopt -s nullglob
-          packages=(packages/*.nupkg)
-          if [ ${#packages[@]} -eq 0 ]; then
-            echo "❌ No .nupkg files found to sign — the publish step would have had nothing to push."
+          packages=( packages/*.nupkg )
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: nothing to verify. Zero subjects is not zero findings."
             exit 1
           fi
-
           for package in "${packages[@]}"; do
-            echo "Signing: $(basename "$package")"
-            dotnet nuget sign "$package" \
-              --certificate-path "$cert_path" \
-              --certificate-password "$NUGET_SIGNING_CERT_PASSWORD" \
-              --timestamper http://timestamp.digicert.com \
-              --overwrite || {
-                echo "❌ Failed to sign $(basename "$package")"
-                exit 1
-              }
-          done
-
-          # Verify every package carries a signature before any push happens.
-          for package in "${packages[@]}"; do
-            echo "Verifying: $(basename "$package")"
+            echo "verifying signature: $(basename "$package")"
             dotnet nuget verify "$package" || {
-              echo "❌ Signature verification failed for $(basename "$package")"
+              echo "::error::REFUSE: signature verification failed for $(basename "$package"). The producing build verified this signature immediately after applying it, so a failure here says these are not the bytes it signed."
               exit 1
             }
           done
-
-          echo "✅ All ${#packages[@]} package(s) signed and verified"
+          echo "verified the author signature on ${#packages[@]} package(s)"
 
       # Record what is ALREADY on the registry, before anything is published.
       #
@@ -1466,6 +1484,115 @@ jobs:
             --packages-dir packages \
             --version "${{ needs.pre-release-validation.outputs.version }}" \
             --prestate push-prestate.tsv
+
+      # THE LAST THING CHECKED BEFORE THE IRREVERSIBLE ACT, and deliberately the same check
+      # admission ran rather than a different one.
+      #
+      # Between admission and here the package set crossed an artifact store and two job boundaries,
+      # and across those hops it is identified by ARTIFACT NAME -- a label, not a property of the
+      # bytes. The hash manifest cannot close that gap on its own: SHA256SUMS.txt travels INSIDE the
+      # artifact, so re-running it downstream proves only that the set is consistent with its own
+      # manifest, and whatever replaced the packages would have replaced the manifest with them.
+      #
+      # The attestation is the one statement here that does NOT travel with the bytes. It was minted
+      # at the origin over the digest of these exact packages, so it is the only thing a substitution
+      # would have to forge rather than merely rewrite. It is checked at the last moment it can still
+      # stop a push, because a registry version is immutable and there is no after.
+      #
+      # It would also fail on a resigned package, which is the second reason it is here: if anything
+      # ever reintroduces a byte-rewriting step between admission and this line, this refuses rather
+      # than publishing the result.
+      - name: Re-verify build provenance immediately before publishing
+        shell: bash
+        working-directory: packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          pkgs=( *.nupkg )
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: nothing to verify. Zero subjects is not zero findings."
+            exit 1
+          fi
+          for p in "${pkgs[@]}"; do
+            echo "verifying provenance: ${p}"
+            gh attestation verify "$p" --repo "${GITHUB_REPOSITORY}" || {
+              echo "::error::REFUSE: provenance verification failed for ${p}. These are not the bytes the official build produced and attested. Nothing has been published."
+              exit 1
+            }
+          done
+          echo "provenance re-verified for ${#pkgs[@]} package(s) at the moment of publishing"
+
+      # A published version that no tag identifies cannot be traced back to the tree that produced
+      # it. Nobody can check out what a consumer is running, no diff between two shipped versions is
+      # possible, and a security advisory cannot state which sources are affected except by trusting
+      # the package metadata it is trying to corroborate.
+      #
+      # Tagging lives in `create-release`, gated on `github.event.inputs.create_tag`. That input is
+      # populated only for a manual dispatch, so its `true` default does not apply to any other
+      # trigger, and a dispatch that turned it off skips it outright. Both of those paths published
+      # the whole package set with no tag and no diagnostic -- a silent fail-open on provenance.
+      #
+      # THE PREDICATE IS "A TAG IDENTIFIES THIS COMMIT", NOT "THIS RUN CREATED A TAG". That is
+      # deliberate. Asking whether we tagged rejects the legitimate re-publish of an already-tagged
+      # version, and accepts a publish whose tag creation silently did nothing; asking what the tag
+      # identifies gets both cases right.
+      #
+      # Read from the REMOTE rather than a local ref, because a local tag proves nothing about what
+      # anyone else can resolve -- and this job has no checkout to hold one. `contents: read` is
+      # sufficient, and is the point: this job asserts the tag and must not be able to create one
+      # to satisfy its own gate.
+      #
+      # Placed BEFORE the push, because a registry version is immutable and there is no after.
+      - name: Refuse to publish a version no tag identifies
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.pre-release-validation.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+
+          # `create-release` pushes the tag earlier in this same run, so a first read can lose a race
+          # with the API becoming consistent. Retried rather than trusted once: a transient clears
+          # within the bound, and a genuine absence still costs only a few seconds before refusing.
+          # The retry must never become a way to pass -- exhausting it REFUSES.
+          attempt=1
+          max=3
+          tag_sha=""
+          while : ; do
+            # `commits/<ref>` resolves a tag to the commit it names, so this reads the same whether
+            # the tag is annotated or lightweight -- a distinction with no bearing on traceability,
+            # which therefore must not be able to change the verdict.
+            if tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha 2>tag-lookup.err)"; then
+              break
+            fi
+            if [ "$attempt" -ge "$max" ]; then
+              if grep -q '404' tag-lookup.err; then
+                echo "::error::REFUSE: no tag ${tag} exists in ${GITHUB_REPOSITORY} after ${max} attempts. Publishing would put ${VERSION} on the registry with nothing identifying the source that produced it, and a registry version cannot be withdrawn and re-tagged afterwards. Push ${tag} at ${GITHUB_SHA} and re-run, or re-run the dispatch with tag creation enabled. Nothing has been published."
+              else
+                echo "::error::REFUSE: could not establish what ${tag} identifies after ${max} attempts. An unanswered question is not a clear answer, and this one gates provenance. Nothing has been published."
+              fi
+              sed 's/^/  gh: /' tag-lookup.err >&2 || true
+              exit 1
+            fi
+            echo "attempt ${attempt}/${max}: ${tag} did not resolve yet; retrying"
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+
+          if [ -z "$tag_sha" ]; then
+            echo "::error::REFUSE: ${tag} resolved but named no commit. Nothing has been published."
+            exit 1
+          fi
+
+          if [ "$tag_sha" != "${GITHUB_SHA}" ]; then
+            echo "::error::REFUSE: ${tag} identifies ${tag_sha}, but this run is publishing ${GITHUB_SHA}. The version would name a different tree than the one shipped. Nothing has been published."
+            exit 1
+          fi
+
+          echo "${tag} identifies ${tag_sha} -- ${VERSION} is traceable to the source that produced it."
 
       - name: Publish packages to NuGet
         run: |

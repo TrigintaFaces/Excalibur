@@ -172,10 +172,21 @@ public sealed class VaultKeyProviderShould
 		isKeyNotFound.ShouldNotBeNull();
 
 		var activeInfo = new EncryptionKeyInfo { DeletionAllowed = false };
-		((KeyStatus)determineStatus!.Invoke(null, [activeInfo])!).ShouldBe(KeyStatus.Active);
+		((KeyStatus)determineStatus!.Invoke(null, [activeInfo, 1])!).ShouldBe(KeyStatus.Active);
 
 		var pendingInfo = new EncryptionKeyInfo { DeletionAllowed = true };
-		((KeyStatus)determineStatus.Invoke(null, [pendingInfo])!).ShouldBe(KeyStatus.PendingDestruction);
+		((KeyStatus)determineStatus.Invoke(null, [pendingInfo, 1])!).ShouldBe(KeyStatus.PendingDestruction);
+
+		// The status depends on the VERSION asked about, not only on the key. A version below the
+		// encryption floor that rotation installs may still decrypt and may no longer encrypt, which is
+		// exactly DecryptOnly; ignoring the version argument made that status unreachable and reported a
+		// rotated-out version as Active.
+		var fenced = new EncryptionKeyInfo { DeletionAllowed = false, MinimumEncryptionVersion = 3 };
+		((KeyStatus)determineStatus.Invoke(null, [fenced, 2])!).ShouldBe(KeyStatus.DecryptOnly);
+
+		// Liveness twin: the current version is NOT fenced. Without this, a mapper that answered
+		// DecryptOnly for every version of a fenced key would pass.
+		((KeyStatus)determineStatus.Invoke(null, [fenced, 3])!).ShouldBe(KeyStatus.Active);
 
 		var notFoundByStatus = new VaultApiException(System.Net.HttpStatusCode.NotFound, "missing");
 		((bool)isKeyNotFound!.Invoke(null, [notFoundByStatus])!).ShouldBeTrue();

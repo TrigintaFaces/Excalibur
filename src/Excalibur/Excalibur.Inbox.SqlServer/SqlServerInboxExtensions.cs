@@ -34,11 +34,11 @@ public static class SqlServerInboxExtensions
 		_ = services.Configure(configure);
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerInboxOptions>, SqlServerInboxOptionsValidator>());
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore threads the resolved ITenantContext into construction (dep-gated: absent
-		// context ⇒ resolution fails closed, on which the store filters every keyed read) AND emits the
-		// ITenantScopingCapability<IInboxStore> marker inseparably (S886 rw2ull (B)).
-		services.AddTenantScopedStore<IInboxStore, SqlServerInboxStore>(
-			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<SqlServerInboxStore>(sp, tenantContext));
+		// AddTenantAwareStore threads the resolved ITenantContext into construction (dep-gated: absent
+		// context ⇒ resolution fails closed, on which the store filters every keyed read, since this
+		// store's constructor declares one) AND emits the ITenantScopingCapability<IInboxStore> marker
+		// inseparably ((B)).
+		services.AddTenantAwareStore<IInboxStore, SqlServerInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
 		services.AddInboxSchemaValidation();
 		services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<SqlServerInboxStore>());
@@ -79,15 +79,15 @@ public static class SqlServerInboxExtensions
 
 		_ = services.Configure(configure);
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext so this factory path applies the
-		// tenant predicate rather than silently dropping it) AND emits the ITenantScopingCapability<IInboxStore>
-		// marker inseparably (S886 rw2ull).
-		services.AddTenantScopedStore<IInboxStore, SqlServerInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext so this factory path applies the
+		// tenant predicate rather than silently dropping it, since this store's constructor declares one)
+		// AND emits the ITenantScopingCapability<IInboxStore> marker inseparably.
+		services.AddTenantAwareStore<IInboxStore, SqlServerInboxStore>(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<SqlServerInboxStore>>();
-			return new SqlServerInboxStore(connectionFactory, options, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
+			return new SqlServerInboxStore(connectionFactory, options, logger, sp.GetRequiredService<ITenantContext>(), sp.GetRequiredService<IOptions<TenantContextOptions>>());
 		});
 		services.AddKeyedSingleton<IInboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
 		services.AddInboxSchemaValidation();

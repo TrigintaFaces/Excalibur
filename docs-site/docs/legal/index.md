@@ -13,6 +13,7 @@ This section contains important legal information regarding the use of the Excal
 | Document | Description |
 |----------|-------------|
 | [Compliance Disclaimer](./compliance-disclaimer.md) | Important disclaimers for compliance-assistance features |
+| [Third-Party Licenses](./third-party-notices.md) | License terms of Excalibur's dependencies, and the three that are not standard open source |
 
 ## Quick Summary
 

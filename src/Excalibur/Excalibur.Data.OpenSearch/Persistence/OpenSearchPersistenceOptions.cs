@@ -11,6 +11,15 @@ namespace Excalibur.Data.OpenSearch.Persistence;
 public sealed class OpenSearchPersistenceOptions
 {
 	/// <summary>
+	/// Gets or sets the provider name. This is the consumer-configured instance name, reported as
+	/// <c>Name</c> on the provider and in its metrics. It identifies <i>which configured instance</i>
+	/// answered, and is distinct from the engine identity reported under the <c>Provider</c> metrics
+	/// key, which is a fixed literal. When unset it defaults to <c>"opensearch"</c>.
+	/// </summary>
+	/// <value>The provider name, or <see langword="null"/> to use the default.</value>
+	public string? Name { get; set; }
+
+	/// <summary>
 	/// Gets or sets the prefix for index names created by this provider.
 	/// </summary>
 	/// <value>The index name prefix. Defaults to "excalibur-".</value>

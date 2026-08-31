@@ -25,9 +25,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// {
 ///     dlx.Exchange("dead-letters")
 ///        .Queue("dead-letter-queue")
-///        .RoutingKey("#")
-///        .MaxRetryAttempts(3)
-///        .RetryDelay(TimeSpan.FromSeconds(30));
+///        .RoutingKey("#");
 /// });
 /// </code>
 /// </example>
@@ -56,22 +54,6 @@ public interface IRabbitMQDeadLetterBuilder
 	/// <returns>The builder for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="routingKey"/> is null.</exception>
 	IRabbitMQDeadLetterBuilder RoutingKey(string routingKey);
-
-	/// <summary>
-	/// Sets the maximum number of retry attempts before a message is dead-lettered.
-	/// </summary>
-	/// <param name="maxRetries">The maximum retry count.</param>
-	/// <returns>The builder for chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetries"/> is negative.</exception>
-	IRabbitMQDeadLetterBuilder MaxRetryAttempts(int maxRetries);
-
-	/// <summary>
-	/// Sets the delay between retry attempts.
-	/// </summary>
-	/// <param name="delay">The retry delay duration.</param>
-	/// <returns>The builder for chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="delay"/> is negative.</exception>
-	IRabbitMQDeadLetterBuilder RetryDelay(TimeSpan delay);
 }
 
 /// <summary>
@@ -111,22 +93,6 @@ internal sealed class RabbitMQDeadLetterBuilder : IRabbitMQDeadLetterBuilder
 	{
 		ArgumentNullException.ThrowIfNull(routingKey);
 		_options.RoutingKey = routingKey;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IRabbitMQDeadLetterBuilder MaxRetryAttempts(int maxRetries)
-	{
-		ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
-		_options.MaxRetryAttempts = maxRetries;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IRabbitMQDeadLetterBuilder RetryDelay(TimeSpan delay)
-	{
-		ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero);
-		_options.RetryDelay = delay;
 		return this;
 	}
 }

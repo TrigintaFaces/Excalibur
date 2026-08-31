@@ -34,7 +34,7 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void RegisterExporterAsSingleton()
+	public void RegisterExporterWithTheTypedClientLifetime()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -47,8 +47,13 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		});
 
 		// Assert
+		// Transient, matching the typed client AddHttpClient registers. This assertion previously read
+		// Singleton, which was the shape that caused the defect: a singleton implementation-type
+		// registration activated a second exporter from the container's plain HttpClient instead of the
+		// configured typed client, so the resilience handler and the certificate-validation primary
+		// handler were bypassed.
 		var descriptor = services.Single(sd => sd.ServiceType == typeof(IAuditLogExporter));
-		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Transient);
 	}
 
 	[Fact]

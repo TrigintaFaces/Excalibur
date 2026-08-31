@@ -35,7 +35,7 @@
   <PropertyGroup Condition="'$(PublishAot)' == 'true'">
     <DefineConstants>$(DefineConstants);AOT_ENABLED</DefineConstants>
   </PropertyGroup>
-  <!-- Removed ASP.NET Core FrameworkReference to keep Abstractions pure (R0.9) -->
+  <!-- Removed ASP.NET Core FrameworkReference to keep Abstractions pure -->
   <!-- Minimal dependencies - abstractions only -->
   <ItemGroup>
     <PackageReference Include="Medo.Uuid7" />
@@ -57,7 +57,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Abstractions.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
-    <!-- PayloadSizeGuard/PayloadTooLargeException are internal cross-cutting primitives (m084l4)
+    <!-- PayloadSizeGuard/PayloadTooLargeException are internal cross-cutting primitives
          consumed down the graph by core Dispatch inbox/outbox + the transport packages. -->
     <InternalsVisibleTo Include="Excalibur.Dispatch" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions" />

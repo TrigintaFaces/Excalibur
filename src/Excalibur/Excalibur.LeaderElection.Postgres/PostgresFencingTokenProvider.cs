@@ -85,7 +85,7 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 			// A NO CYCLE bigint sequence raises 2200H (sequence_generator_limit_exceeded) at its ceiling
 			// rather than wrapping; translate to the contract's FencingTokenExhaustedException so a
 			// consumer's fail-closed catch relinquishes rather than seeing a raw PostgresException
-			// (nxjn2k — a wrapped/reused fencing token would be a split-brain catastrophe).
+			// (a wrapped/reused fencing token would be a split-brain catastrophe).
 			throw new FencingTokenExhaustedException(
 				string.Format(
 					CultureInfo.InvariantCulture,
@@ -111,7 +111,7 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 
 		// pg_sequences.last_value is NULL until the first nextval (and the row is absent if the sequence was
 		// never created) -> null = no token ever issued = no active leader (the idiomatic "no value" signal,
-		// ADR-339 Decision 2). Parameterized, so no inline identifier here.
+		// Decision 2). Parameterized, so no inline identifier here.
 		const string sql =
 			"SELECT last_value FROM pg_sequences WHERE schemaname = current_schema() AND sequencename = @name;";
 

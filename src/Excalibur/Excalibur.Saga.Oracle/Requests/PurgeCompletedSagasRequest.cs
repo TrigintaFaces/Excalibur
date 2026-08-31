@@ -24,7 +24,7 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
 	/// The tenant scope restricting the purge. <see cref="TenantScope.Scoped(string)"/> deletes only that
-	/// tenant's sagas; <see cref="TenantScope.None"/> deletes only the untenanted partition — the rows that
+	/// tenant's sagas; <see cref="TenantScope.Untenanted"/> deletes only the untenanted partition — the rows that
 	/// carry no tenant at all. Neither can reach another tenant's rows.
 	/// </param>
 	/// <param name="allTenants">
@@ -47,13 +47,8 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 		//
 		//   allTenants        no discriminator            the operator sweep -- named at the call site
 		//   Scoped(t)         TenantId = :TenantId      exactly that tenant
-		//   None              TenantId IS NULL         the untenanted partition
+		//   None              TenantId = :TenantId     the untenanted partition, via the sentinel
 		//
-		// The untenanted partition is a real scope, not a missing one: a store reached without a tenant owns the
-		// rows that carry none, and must be able to retain them. IS NULL is the only predicate that addresses it
-		// here -- this column's NULL is genuine (saga rows carry no '' sentinel), an `= :TenantId` comparison with a
-		// null parameter is never true in SQL, and on Oracle an `= ''` comparison cannot match anything at all
-		// because Oracle stores the empty string AS NULL. Every alternative fails silently by deleting nothing.
 		// The untenanted partition is now addressed by the SAME equality predicate as a real tenant: the
 		// discriminator is NOT NULL and an untenanted row carries the non-empty reserved sentinel. On Oracle this
 		// is not a preference but a requirement — Oracle stores the empty string AS NULL, so neither `= :TenantId`

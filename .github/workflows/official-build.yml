@@ -79,6 +79,33 @@ jobs:
       attestations: write
     outputs:
       version: ${{ steps.receipt.outputs.version }}
+    # Signing-certificate availability is read by a step-level `if:` below, so it MUST be declared
+    # at JOB scope: a step's own `env:` block is not in scope for that step's `if:`, which silently
+    # makes such a condition reference an always-empty value and the guarded step unreachable.
+    env:
+      NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+      NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
+      # A repository VARIABLE, not a secret, and deliberately: it is a decision, not a credential,
+      # and a decision to ship unsigned should be readable by anyone looking at the repository
+      # rather than hidden among the secrets. Job scope for the reason stated directly above.
+      #
+      # DEFAULTS TO true BECAUSE NO SIGNING CERTIFICATE IS CURRENTLY AVAILABLE. Author signing needs
+      # a certificate from a public CA -- nuget.org rejects self-issued ones -- and there is none to
+      # configure at the moment. Without this default a release could not be produced at all, since
+      # the step below correctly refuses to treat a missing certificate as consent to ship unsigned.
+      # The default supplies the consent that is otherwise missing, in the open, in the repository,
+      # where it can be read and reversed, rather than as an environment setting someone has to know
+      # to look for.
+      #
+      # REMOVE THIS DEFAULT WHEN A CERTIFICATE IS OBTAINED. Configure the two secrets above and drop
+      # the `|| 'true'`; the refusal then goes back to protecting a signing pipeline that exists,
+      # which is the state this control was written for. Leaving the default in place afterwards
+      # would mean a certificate that expired, rotated or was renamed would silently stop being used
+      # and nothing would say so.
+      #
+      # A repository variable, if set, still wins in BOTH directions: a non-empty value takes
+      # precedence over the default here, so setting it to false restores the refusal.
+      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}
     steps:
       - name: Checkout the exact commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -129,8 +156,14 @@ jobs:
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
+      # --locked-mode: resolve exactly the package graph the committed lock files record, and fail
+      # rather than resolve a different one. RestorePackagesWithLockFile is on, so an unlocked
+      # restore is free to pick a different graph and rewrite the lock file to match -- which means
+      # the dependency graph that SHIPS would not be the graph the test workflow verified, and the
+      # difference would never be reported. The verifying build already restores locked; this is the
+      # producing build, and it is the one whose graph reaches consumers.
       - name: Restore shipping projects
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
 
       - name: Build shipping projects
         shell: bash
@@ -206,6 +239,121 @@ jobs:
           }
 
           Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
+
+      # SIGNING HAPPENS HERE, BEFORE THE MANIFEST AND BEFORE THE ATTESTATION. The ordering is the
+      # whole point, not a preference.
+      #
+      # `dotnet nuget sign` rewrites a .nupkg IN PLACE -- the signature becomes an entry in the
+      # archive, so the file's hash changes. Everything downstream of a package is a statement about
+      # bytes, so a signature applied AFTER those statements invalidates all of them at once and says
+      # nothing while doing it: the manifest would describe a file that no longer exists, the
+      # attestation's subject digest would no longer match the package, and any install test
+      # performed in between would have proven something about bytes no consumer will ever receive.
+      #
+      # Signed first, exactly ONE artifact exists from pack through push: these bytes are hashed,
+      # attested, admitted, staged, install-tested and published without ever being rewritten. "These
+      # bytes were validated" then describes the bytes a consumer installs, which is the only version
+      # of that claim worth making.
+      #
+      # It is also the ONLY ordering under which provenance can cover a signed package at all.
+      # Attestation must be minted at the origin, over the bytes as built; a signature applied
+      # anywhere later can only break it, and re-attesting the resigned copy would be provenance
+      # describing a journey rather than an origin.
+      - name: Decide whether this build must be signed
+        shell: bash
+        env:
+          # A build carrying an EXPLICIT version is a release candidate -- it is the only kind the
+          # release workflow can promote, because admission asserts every package carries the
+          # release version and a height-based branch version cannot match one.
+          RELEASE_CANDIDATE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${NUGET_SIGNING_CERT_BASE64:-}" ] && [ -n "${NUGET_SIGNING_CERT_PASSWORD:-}" ]; then
+            echo "signing certificate is configured -- packages will be author-signed"
+            exit 0
+          fi
+
+          # A branch build is not publishable, so a missing certificate there is a fact about the
+          # runner rather than a release decision, and must not redden the default branch.
+          if [ -z "${RELEASE_CANDIDATE_VERSION:-}" ]; then
+            echo "::notice::No signing certificate configured. This build stamps no explicit version, so it is not a release candidate and cannot be promoted; it is left unsigned."
+            exit 0
+          fi
+
+          # THE DISTINCTION IS THE WHOLE CONTROL. "The certificate is absent" and "we have decided to
+          # ship unsigned" look identical at the moment of failure and are completely different
+          # statements. Treating absence as consent is a silent fail-open: the build would go green
+          # the first time a secret expired, rotated or was renamed, and nobody would learn that the
+          # packages had stopped being signed. So absence refuses, and only an explicit opt-out
+          # proceeds.
+          if [ "${ALLOW_UNSIGNED_RELEASE:-}" != "true" ]; then
+            echo "::error::REFUSE: this build stamps release version ${RELEASE_CANDIDATE_VERSION}, so it is promotable, but signing is not configured and no explicit opt-out is set."
+            echo "::error::Either configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD for this workflow, or set the repository variable ALLOW_UNSIGNED_RELEASE=true to produce a promotable set unsigned deliberately. A missing secret is NOT taken as consent to ship unsigned."
+            exit 1
+          fi
+
+          # WHAT UNSIGNED COSTS, so the opt-out stays a judgement rather than a shrug: nuget.org
+          # accepts unsigned packages and applies its own repository signature to everything it
+          # serves, so consumers keep an authenticity guarantee from the registry. Author signing
+          # adds a second, publisher-level guarantee on top, and it is not free -- the certificate
+          # must come from a public CA, since nuget.org rejects self-issued ones. Publishing unsigned
+          # is a real reduction in guarantee, not a formality.
+          echo "::warning::Producing a promotable UNSIGNED package set. These packages will carry NO author signature. This is the committed default while no signing certificate is available -- it is a deliberate decision recorded in the workflow, not a missing secret, but it is still a reduction in guarantee and this warning is meant to stay visible on every release."
+
+      # Skipped when no certificate is configured. Reachable only after the decision above has either
+      # confirmed the certificate or recorded a deliberate opt-out, so a skip here can never be the
+      # first place that decision is made.
+      #
+      # Only .nupkg is signed -- the same subject set that is attested and pushed. A .snupkg is never
+      # published, so signing one would change bytes no consumer receives.
+      - name: Sign the shipping packages
+        if: env.NUGET_SIGNING_CERT_BASE64 != ''
+        shell: bash
+        working-directory: packages
+        run: |
+          set -euo pipefail
+          cert_path="${RUNNER_TEMP}/nuget-signing.pfx"
+          # Removed however this step ends -- success, signing failure, or the runner stopping it --
+          # so the decoded certificate never outlives the work it exists for and cannot be picked up
+          # by a later step or swept into an artifact.
+          cleanup() { rm -f "$cert_path"; }
+          trap cleanup EXIT
+
+          # Written by redirection and never echoed. The certificate and its password are the two
+          # values in this job that must not reach the log.
+          printf '%s' "$NUGET_SIGNING_CERT_BASE64" | base64 --decode > "$cert_path"
+
+          shopt -s nullglob
+          packages=( *.nupkg )
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: no .nupkg to sign. Zero subjects is not zero findings -- an empty set would be hashed, attested and uploaded as though it were a release."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            echo "signing: ${package}"
+            dotnet nuget sign "$package" \
+              --certificate-path "$cert_path" \
+              --certificate-password "$NUGET_SIGNING_CERT_PASSWORD" \
+              --timestamper http://timestamp.digicert.com \
+              --overwrite || {
+                echo "::error::failed to sign ${package}"
+                exit 1
+              }
+          done
+
+          # Verified HERE, because here is where the bytes are still changing. After this step
+          # nothing rewrites them, so a signature confirmed now is the signature that ships.
+          for package in "${packages[@]}"; do
+            echo "verifying: ${package}"
+            dotnet nuget verify "$package" || {
+              echo "::error::signature verification failed for ${package}"
+              exit 1
+            }
+          done
+
+          echo "signed and verified ${#packages[@]} package(s)"
 
       # A hash manifest, computed over the packages that are ABOUT TO BE UPLOADED -- not recomputed
       # later from a download, which would attest to whatever arrived rather than to what was built.
@@ -342,7 +490,7 @@ jobs:
       # opposite of the point. It also cannot be produced from untrusted pull-request code: this
       # workflow runs only on the default branch, on tags, and on manual dispatch.
       - name: Attest build provenance for the canonical package set
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: packages/*.nupkg
 

@@ -294,12 +294,14 @@ internal sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageReq
 			return body;
 		}
 
-		return contentType?.ToUpperInvariant() switch
+		if (CloudEventContentType.IsJson(contentType))
 		{
-			"APPLICATION/JSON" => JsonDocument.Parse(body).RootElement,
-			"APPLICATION/X-BASE64" => Convert.FromBase64String(body),
-			_ => body,
-		};
+			return JsonDocument.Parse(body).RootElement;
+		}
+
+		return CloudEventContentType.Is(contentType, "application/x-base64")
+			? Convert.FromBase64String(body)
+			: body;
 	}
 
 	private static MessageAttributeValue CreateStringAttribute(string value) =>

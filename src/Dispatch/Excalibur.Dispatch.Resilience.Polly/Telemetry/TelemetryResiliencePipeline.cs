@@ -64,12 +64,12 @@ public sealed partial class TelemetryResiliencePipeline : IDisposable
 
 		_retryAttempts = _meter.CreateCounter<long>(
 			ResilienceTelemetryConstants.Instruments.RetryAttempts,
-			"count",
+			"{attempts}",
 			"Total number of retry attempts");
 
 		_circuitBreakerTransitions = _meter.CreateCounter<long>(
 			ResilienceTelemetryConstants.Instruments.CircuitBreakerTransitions,
-			"count",
+			"{transitions}",
 			"Circuit breaker state transitions");
 
 		_operationDuration = _meter.CreateHistogram<double>(
@@ -79,12 +79,12 @@ public sealed partial class TelemetryResiliencePipeline : IDisposable
 
 		_timeouts = _meter.CreateCounter<long>(
 			ResilienceTelemetryConstants.Instruments.Timeouts,
-			"count",
+			"{timeouts}",
 			"Total number of timeout occurrences");
 
 		_operationsExecuted = _meter.CreateCounter<long>(
 			ResilienceTelemetryConstants.Instruments.OperationsExecuted,
-			"count",
+			"{operations}",
 			"Total number of operations executed through the resilience pipeline");
 	}
 

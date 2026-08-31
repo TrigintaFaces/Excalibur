@@ -11,8 +11,8 @@ dotnet add package Excalibur.Data.Redis
 ## Quick Start
 
 ```csharp
-// Add Excalibur.Data.Redis to your service configuration
-services.AddDataRedis();
+services.AddExcaliburRedis(redis => redis
+    .ConnectionString("localhost:6379"));
 ```
 
 ## Documentation
@@ -21,4 +21,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

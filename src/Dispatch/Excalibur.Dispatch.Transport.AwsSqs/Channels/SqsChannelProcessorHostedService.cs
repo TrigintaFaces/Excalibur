@@ -50,7 +50,7 @@ internal partial class SqsChannelProcessorHostedService(
 		}
 		finally
 		{
-			// Bound the shutdown drain (uco9lt): pass a deadline-bounded token instead of
+			// Bound the shutdown drain: pass a deadline-bounded token instead of
 			// CancellationToken.None so a stalled SQS StopAsync cannot block process exit indefinitely.
 			// Mirrors the linked-CTS drain pattern in TransportAdapterHostedService.StopAsync.
 			using var drainCts = new CancellationTokenSource(_drainTimeout);

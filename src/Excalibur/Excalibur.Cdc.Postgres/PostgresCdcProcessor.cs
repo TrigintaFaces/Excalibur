@@ -24,8 +24,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	private readonly IPostgresCdcStateStore _stateStore;
 	private readonly ILogger<PostgresCdcProcessor> _logger;
 
-	// 14z4ao: optional fatal-handoff. When a fatal (non-retryable) error occurs the processor stops and
-	// surfaces it loudly instead of an infinite silent reconnect loop (ADR-338). _onFatalError is invoked
+	// optional fatal-handoff. When a fatal (non-retryable) error occurs the processor stops and
+	// surfaces it loudly instead of an infinite silent reconnect loop. _onFatalError is invoked
 	// with the in-flight event for a per-event fatal, or null for a connection/poll-level fatal.
 	private readonly CdcFatalErrorHandler<PostgresDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
@@ -111,13 +111,13 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 			catch (Exception ex)
 			{
-				// pxhqri: delegate the fatal-vs-transient decision to the single shared guard
+				// delegate the fatal-vs-transient decision to the single shared guard
 				// (CdcFatalGuard.Decide) — the same unit the regression lock binds — instead of an inline
 				// `catch when IsFatal` filter. The durable checkpoint is advanced ONLY on the success path
 				// (ConfirmCommitAsync inside ProcessChangesAsync); this catch never advances, and the
 				// replication stream unwinds BEFORE that confirm on a fault, so a fault (fatal or transient)
 				// never advances the checkpoint past the failing change (decision.AdvanceCheckpoint is false
-				// on every fault). 14z4ao behavior is byte-preserved.
+				// on every fault). behavior is byte-preserved.
 				var decision = CdcFatalGuard.Decide(ex, _failureClassifier);
 
 				if (decision.Stop)
@@ -210,7 +210,6 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			// Durably confirm/ack ONLY at a committed transaction boundary, after every change in the
 			// transaction was successfully handed off — never mid-transaction, never for Begin/Relation/
 			// unhandled messages, never past a change whose handler threw (a throw above skips this).
-			// FR-P1/P2/P3.
 			if (message is CommitMessage commitMessage)
 			{
 				await ConfirmCommitAsync(commitMessage, cancellationToken).ConfigureAwait(false);
@@ -460,7 +459,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 			// Durably confirm/ack ONLY at a committed transaction boundary, after every change in the
 			// transaction was successfully handed off (see ProcessBatchAsync) — never mid-transaction,
-			// never past a change whose handler threw. FR-P1/P2/P3.
+			// never past a change whose handler threw.
 			if (message is CommitMessage commitMessage)
 			{
 				await ConfirmCommitAsync(commitMessage, cancellationToken).ConfigureAwait(false);

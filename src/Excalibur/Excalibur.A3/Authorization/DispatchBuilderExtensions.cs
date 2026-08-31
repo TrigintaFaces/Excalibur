@@ -18,6 +18,10 @@ public static class DispatchBuilderExtensions
 	/// </summary>
 	/// <param name="builder">The dispatch builder to configure.</param>
 	/// <returns>The dispatch builder for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+		"The authorization middleware resolves policy and resource types reflectively. It is registered unconditionally, so composing authorization always brings the reflective path.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
+		"The authorization middleware resolves policy and resource types reflectively. It is registered unconditionally, so composing authorization always brings the reflective path.")]
 	public static IDispatchBuilder AddExcaliburAuthorization(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

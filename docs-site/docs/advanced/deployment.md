@@ -25,8 +25,8 @@ Excalibur supports multiple deployment scenarios from simple web applications to
 | Option | Best For | Packages |
 |--------|----------|----------|
 | ASP.NET Core | Web APIs, microservices | `Excalibur.Dispatch`, `Excalibur.Hosting.Web` |
-| Azure Functions | Serverless, event-driven | `Excalibur.Dispatch`, `Excalibur.Hosting.Serverless` |
-| AWS Lambda | Serverless, event-driven | `Excalibur.Dispatch`, `Excalibur.Hosting.Serverless` |
+| Azure Functions | Serverless, event-driven | `Excalibur.Dispatch`, `Excalibur.Hosting.AzureFunctions` |
+| AWS Lambda | Serverless, event-driven | `Excalibur.Dispatch`, `Excalibur.Hosting.AwsLambda` |
 | Background Services | Job processing, workers | `Excalibur.Dispatch`, `Excalibur.Hosting.Jobs` |
 | Kubernetes | Container orchestration | All packages |
 

@@ -156,18 +156,20 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task StoreUpdate_NotifyAndExtend_MarksExpiredAfterNotification()
+	public async Task StoreUpdate_NotifyAndExtend_MovesDeadlineAndKeepsCampaignRunning()
 	{
-		// Post-fix (ap6tan): NotifyAndExtend marks as Expired after notification
+		// NotifyAndExtend extends the deadline; it does not expire the campaign. The policy driving this
+		// end to end -- including the refusal to extend without a notifier -- is bound in
+		// AccessReviewNotifyAndExtendShould; this covers the store round-trip of the extended summary.
 		var summary = CreateSummary(expiryPolicy: AccessReviewExpiryPolicy.NotifyAndExtend);
 		await _store.SaveCampaignAsync(summary, CancellationToken.None);
 
-		// Simulate: notify → mark expired
-		var expired = summary with { State = AccessReviewState.Expired };
-		await _store.SaveCampaignAsync(expired, CancellationToken.None);
+		var extended = summary with { ExpiresAt = summary.ExpiresAt.AddDays(7) };
+		await _store.SaveCampaignAsync(extended, CancellationToken.None);
 
 		var result = await _store.GetCampaignAsync("campaign-1", CancellationToken.None);
-		result!.State.ShouldBe(AccessReviewState.Expired);
+		result!.State.ShouldBe(AccessReviewState.InProgress);
+		result.ExpiresAt.ShouldBe(summary.ExpiresAt.AddDays(7));
 	}
 
 	[Fact]

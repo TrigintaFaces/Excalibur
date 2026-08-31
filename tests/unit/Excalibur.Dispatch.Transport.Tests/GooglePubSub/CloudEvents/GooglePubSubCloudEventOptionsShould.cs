@@ -10,66 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.CloudEvents;
 public sealed class GooglePubSubCloudEventOptionsShould
 {
 	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new GooglePubSubCloudEventOptions();
-
-		// Assert
-		options.UseOrderingKeys.ShouldBeTrue();
-		options.MaxMessageSizeBytes.ShouldBe(10 * 1024 * 1024);
-		options.EnableDeduplication.ShouldBeTrue();
-		options.ProjectId.ShouldBeNull();
-		options.DefaultTopic.ShouldBeNull();
-		options.DefaultSubscription.ShouldBeNull();
-		options.Transport.EnableCompression.ShouldBeFalse();
-		options.Transport.CompressionThreshold.ShouldBe(1024 * 1024);
-		options.UseExactlyOnceDelivery.ShouldBeFalse();
-		options.AckDeadline.ShouldBe(TimeSpan.FromMinutes(10));
-		options.RetryPolicy.ShouldNotBeNull();
-		options.Transport.EnableCloudMonitoring.ShouldBeFalse();
-		options.Transport.CloudMonitoringPrefix.ShouldBe("dispatch.cloudevents");
-	}
-
-	[Fact]
-	public void AllowSettingAllProperties()
-	{
-		// Arrange & Act
-		var options = new GooglePubSubCloudEventOptions
-		{
-			UseOrderingKeys = false,
-			MaxMessageSizeBytes = 1024 * 1024,
-			EnableDeduplication = false,
-			ProjectId = "my-project",
-			DefaultTopic = "my-topic",
-			DefaultSubscription = "my-sub",
-			Transport =
-			{
-				EnableCompression = true,
-				CompressionThreshold = 512 * 1024,
-				EnableCloudMonitoring = true,
-				CloudMonitoringPrefix = "custom.prefix",
-			},
-			UseExactlyOnceDelivery = true,
-			AckDeadline = TimeSpan.FromMinutes(5),
-		};
-
-		// Assert
-		options.UseOrderingKeys.ShouldBeFalse();
-		options.MaxMessageSizeBytes.ShouldBe(1024 * 1024);
-		options.EnableDeduplication.ShouldBeFalse();
-		options.ProjectId.ShouldBe("my-project");
-		options.DefaultTopic.ShouldBe("my-topic");
-		options.DefaultSubscription.ShouldBe("my-sub");
-		options.Transport.EnableCompression.ShouldBeTrue();
-		options.Transport.CompressionThreshold.ShouldBe(512 * 1024);
-		options.UseExactlyOnceDelivery.ShouldBeTrue();
-		options.AckDeadline.ShouldBe(TimeSpan.FromMinutes(5));
-		options.Transport.EnableCloudMonitoring.ShouldBeTrue();
-		options.Transport.CloudMonitoringPrefix.ShouldBe("custom.prefix");
-	}
-
-	[Fact]
 	public void RetryPolicyHaveCorrectDefaults()
 	{
 		// Arrange & Act

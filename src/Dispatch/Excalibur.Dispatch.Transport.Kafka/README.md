@@ -18,7 +18,7 @@ This package provides Apache Kafka integration for Excalibur.Dispatch, enabling:
 
 - **High-Throughput Messaging**: Distributed streaming with partitioning and consumer groups
 - **Exactly-Once Semantics**: Idempotent producers and transactional messaging
-- **CloudEvents Support**: Standards-compliant structured event formatting
+- **CloudEvents Support**: Standards-compliant structured event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
 - **Flexible Partitioning**: Multiple strategies including correlation ID, tenant ID, and round-robin
 - **Compression**: Multiple algorithms (Snappy, LZ4, ZSTD, GZIP)
 - **TLS Security**: Secure connections with SSL/SASL authentication
@@ -29,7 +29,65 @@ This package provides Apache Kafka integration for Excalibur.Dispatch, enabling:
 dotnet add package Excalibur.Dispatch.Transport.Kafka
 ```
 
+## Quick Start
+
+Register the transport with the fluent builder. This is the primary entry point: it wires the
+producer, consumer, subscriber and transport adapter, and populates `KafkaOptions` and
+`KafkaCloudEventOptions` from what you configure here.
+
+```csharp
+using Confluent.Kafka;
+
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseKafka(kafka =>
+    {
+        kafka.BootstrapServers("kafka.example.com:9093")
+             .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+             .ConfigureConsumer(consumer => consumer.GroupId("my-consumer-group"))
+             .ConfigureProducer(producer => producer.Acks(KafkaAckLevel.All))
+             .MapTopic<OrderCreated>("orders-events");
+    });
+});
+```
+
+Without the dispatch builder, register the transport directly:
+
+```csharp
+services.AddKafkaTransport(kafka =>
+{
+    kafka.BootstrapServers("kafka.example.com:9093")
+         .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+         .ConfigureConsumer(consumer => consumer.GroupId("my-consumer-group"));
+});
+```
+
+Pass a name to run more than one Kafka cluster in the same host:
+
+```csharp
+services.AddKafkaTransport("analytics", kafka =>
+{
+    kafka.BootstrapServers("analytics-cluster:9093")
+         .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+         .MapTopic<MetricEvent>("metrics-events");
+});
+```
+
+> **TLS is required by default.** `KafkaOptions.RequireTls` defaults to `true`, and building a
+> client against a broker whose effective security protocol is not `Ssl` or `SaslSsl` throws
+> `TransportSecurityException` rather than connecting in the clear. For a local broker, opt out
+> explicitly with `kafka.RequireTls(false)` on the builder, or `options.RequireTls = false` on
+> `KafkaOptions`. See [Security Best Practices](#security-best-practices).
+
 ## Configuration
+
+The fluent builder above is the supported way to configure the transport. `services.Configure<T>`
+is available for settings the builder does not expose, and for binding from `IConfiguration`.
+
+> **Ordering matters.** `AddKafkaTransport` registers its own `KafkaOptions` configuration
+> delegate, which sets `BootstrapServers`, `SecurityProtocol`, `RequireTls` and the consumer
+> settings. Options delegates run in registration order, so a `services.Configure<KafkaOptions>`
+> call must come **after** `AddKafkaTransport` for those properties to survive.
 
 ### Connection Options
 
@@ -42,6 +100,9 @@ services.Configure<KafkaOptions>(options =>
     options.Topic = "my-events";
     options.ConsumerGroup = "my-consumer-group";
     options.GroupProtocol = GroupProtocol.Consumer;
+
+    // A plaintext local broker is refused unless TLS is waived explicitly.
+    options.RequireTls = false;
 });
 ```
 
@@ -61,9 +122,10 @@ services.Configure<KafkaOptions>(options =>
 Configure via environment variables for containerized deployments:
 
 ```bash
-KAFKA__BOOTSTRAPSERVERS=broker1:9092,broker2:9092
+KAFKA__BOOTSTRAPSERVERS=broker1:9093,broker2:9093
 KAFKA__TOPIC=my-events
 KAFKA__CONSUMERGROUP=my-consumer-group
+KAFKA__CONSUMER__MAXBATCHSIZE=100
 ```
 
 ```csharp
@@ -156,9 +218,13 @@ services.Configure<KafkaOptions>(options =>
 
     // Partition handling
     options.Consumer.EnablePartitionEof = false;     // EOF detection
+    options.Consumer.PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky;
+
+    // Payload guard
+    options.Consumer.MaxPayloadBytes = 4 * 1024 * 1024;
 
     // Security
-    options.EnableEncryption = false;          // Message-level encryption
+    options.RequireTls = true;                       // Refuse a non-TLS broker connection
 });
 ```
 
@@ -171,10 +237,12 @@ nested `Producer` object.
 ```csharp
 services.Configure<KafkaOptions>(options =>
 {
-    options.BootstrapServers = "localhost:9092";
+    options.BootstrapServers = "kafka.example.com:9093";
     options.ConsumerGroup = "my-consumer-group";
 });
+```
 
+```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
     // Partitioning
@@ -243,8 +311,10 @@ services.Configure<KafkaCloudEventOptions>(options =>
 | `Source` | Source-based routing |
 | `Type` | Event type-based routing |
 | `EventId` | Unique event distribution |
-| `RoundRobin` | Even distribution (default) |
+| `RoundRobin` | Even distribution |
 | `Custom` | Custom partition key from extensions |
+
+The default is `CorrelationId`.
 
 ### Compression Types
 
@@ -275,52 +345,27 @@ services.Configure<KafkaCloudEventOptions>(options =>
 
 ## Health Checks
 
-### Registration
+The package ships a broker-connectivity probe. Register it on the standard health checks builder;
+it reuses the producer already registered by `AddKafkaTransport`, so there is nothing further to
+configure.
 
 ```csharp
 services.AddHealthChecks()
-    .AddCheck<KafkaHealthCheck>("kafka", tags: new[] { "ready", "messaging" });
+    .AddKafkaTransportHealthCheck();
 ```
 
-### Configuration
+Override the name, failure status, or tags:
 
 ```csharp
-services.Configure<KafkaHealthCheckOptions>(options =>
-{
-    options.Timeout = TimeSpan.FromSeconds(10);
-    options.BootstrapServers = "localhost:9092";
-});
+services.AddHealthChecks()
+    .AddKafkaTransportHealthCheck(
+        name: "kafka-transport",
+        failureStatus: HealthStatus.Degraded,
+        tags: ["ready", "messaging"]);
 ```
 
-### Custom Health Check Implementation
-
-```csharp
-public class KafkaHealthCheck : IHealthCheck
-{
-    private readonly ITransportHealthChecker _healthChecker;
-
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var result = await _healthChecker.CheckQuickHealthAsync(cancellationToken);
-
-            return result.Status switch
-            {
-                TransportHealthStatus.Healthy => HealthCheckResult.Healthy("Kafka cluster reachable"),
-                TransportHealthStatus.Degraded => HealthCheckResult.Degraded(result.Description),
-                _ => HealthCheckResult.Unhealthy(result.Description)
-            };
-        }
-        catch (Exception ex)
-        {
-            return HealthCheckResult.Unhealthy("Kafka unreachable", ex);
-        }
-    }
-}
-```
+The check reports unhealthy when no producer has been established, and otherwise probes broker
+metadata. Register the transport before the health check so that a producer exists to probe.
 
 ## Production Considerations
 
@@ -359,18 +404,15 @@ services.Configure<KafkaOptions>(options =>
     options.Consumer.MaxBatchWaitMs = 50;         // Shorter wait time
     options.Consumer.QueuedMinMessages = 5000;    // More prefetch
 });
+```
 
+```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
     options.Producer.AcknowledgmentLevel = KafkaAckLevel.Leader;  // Faster acks (less durable)
-    options.Producer.CompressionType = KafkaCompressionType.Lz4;  // Fast compression
-});
-
-services.Configure<KafkaCloudEventOptions>(options =>
-{
     options.Producer.EnableCompression = true;
-    options.Producer.CompressionType = KafkaCompressionType.Lz4;
-    options.Producer.EnableIdempotentProducer = false;    // Disable for max throughput
+    options.Producer.CompressionType = KafkaCompressionType.Lz4;  // Fast compression
+    options.Producer.EnableIdempotentProducer = false;            // Disable for max throughput
 });
 ```
 
@@ -391,12 +433,14 @@ services.Configure<KafkaOptions>(options =>
 ```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
-    options.Producer.EnableIdempotentProducer = true;   // Idempotent writes
-    options.Producer.EnableTransactions = true;         // Transactional processing
+    options.Producer.EnableIdempotentProducer = true;    // Idempotent writes
+    options.Producer.EnableTransactions = true;          // Transactional processing
     options.Producer.TransactionalId = "my-service-txn"; // Unique transaction ID
     options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
 });
+```
 
+```csharp
 services.Configure<KafkaOptions>(options =>
 {
     options.Consumer.EnableAutoCommit = false;    // Manual offset commits
@@ -555,14 +599,22 @@ Enable detailed logging for troubleshooting:
 
 ## Complete Configuration Reference
 
+Two options types cover the surface. `KafkaOptions` carries the broker connection, the security
+posture and the consumer tuning; `KafkaCloudEventOptions` carries the CloudEvent topic,
+partitioning and producer settings.
+
 ```csharp
-// Consumer/Core Options
 services.Configure<KafkaOptions>(options =>
 {
     // Connection
-    options.BootstrapServers = "localhost:9092";
+    options.BootstrapServers = "kafka.example.com:9093";
     options.Topic = "my-events";
     options.ConsumerGroup = "my-consumer-group";
+    options.GroupProtocol = GroupProtocol.Consumer;
+
+    // Security posture
+    options.SecurityProtocol = SecurityProtocol.SaslSsl;
+    options.RequireTls = true;
 
     // Offset management
     options.Consumer.EnableAutoCommit = false;
@@ -581,30 +633,19 @@ services.Configure<KafkaOptions>(options =>
     options.Consumer.SessionTimeoutMs = 30000;
     options.Consumer.MaxPollIntervalMs = 300000;
 
-    // Features
+    // Partitions
     options.Consumer.EnablePartitionEof = false;
-    options.EnableEncryption = false;
+    options.Consumer.PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky;
+
+    // Payload guard
+    options.Consumer.MaxPayloadBytes = 4 * 1024 * 1024;
 
     // Additional librdkafka config
     options.AdditionalConfig["socket.keepalive.enable"] = "true";
 });
+```
 
-// Broker/consumer options
-services.Configure<KafkaOptions>(options =>
-{
-    options.BootstrapServers = "localhost:9092";
-    options.ConsumerGroup = "my-consumer-group";
-});
-
-// CloudEvent producer options
-services.Configure<KafkaCloudEventOptions>(options =>
-{
-    options.PartitioningStrategy = KafkaPartitioningStrategy.RoundRobin;
-    options.Producer.CompressionType = KafkaCompressionType.Snappy;
-    options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
-});
-
-// CloudEvents Options
+```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
     // Topics
@@ -615,6 +656,10 @@ services.Configure<KafkaCloudEventOptions>(options =>
 
     // Partitioning
     options.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
+
+    // Consumer
+    options.ConsumerGroupId = "cloudevents-consumer";
+    options.OffsetReset = KafkaOffsetReset.Latest;
 
     // Exactly-once
     options.Producer.EnableIdempotentProducer = true;
@@ -629,10 +674,6 @@ services.Configure<KafkaCloudEventOptions>(options =>
     options.Producer.EnableCompression = true;
     options.Producer.CompressionType = KafkaCompressionType.Snappy;
     options.Producer.CompressionThreshold = 1024;
-
-    // Consumer
-    options.ConsumerGroupId = "cloudevents-consumer";
-    options.OffsetReset = KafkaOffsetReset.Latest;
 
     // Retry
     options.Producer.RetrySettings = new KafkaRetryOptions

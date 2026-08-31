@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Defines time-based policies for message processing timeouts and scheduling. R7.4: Configurable timeout handling with proper error management.
+/// Defines time-based policies for message processing timeouts and scheduling. Configurable timeout handling with proper error management.
 /// </summary>
 public interface ITimePolicy
 {

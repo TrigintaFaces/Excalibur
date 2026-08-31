@@ -5,7 +5,7 @@
     <PackageId>Excalibur.Jobs.DataProcessing</PackageId>
     <Description>Data processing job types for the Excalibur Jobs framework.</Description>
     <PackageTags>excalibur;jobs;data-processing;scheduling</PackageTags>
-    <IsAotCompatible>true</IsAotCompatible>
+    <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Quartz" />

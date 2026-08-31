@@ -31,14 +31,6 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 	private readonly ConcurrentDictionary<string, IMessageBusAdapter> _registeredAdapters = new(StringComparer.Ordinal);
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Transport adapter routes messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Transport adapter routes messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	public async Task<IMessageResult> RouteAsync(
 		IDispatchMessage message,
@@ -179,7 +171,7 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 
 		try
 		{
-			// R0.8: Dispose objects before losing scope - adapter is disposed in subsequent code (lines 233-240)
+			// Dispose objects before losing scope - adapter is disposed in subsequent code (lines 233-240)
 #pragma warning disable CA2000
 			var removed = _registeredAdapters.TryRemove(adapterId, out var adapter);
 #pragma warning restore CA2000

@@ -169,7 +169,7 @@ function Get-WorkflowArtifacts {
             Write-Host "    ✓ Downloaded to: $targetDir" -ForegroundColor Green
         }
         catch {
-            Write-Warning "  Failed to download $artifactName: $_"
+            Write-Warning "  Failed to download ${artifactName}: $_"
         }
     }
 }
@@ -234,7 +234,83 @@ function Export-AuditLogSamples {
     Write-Host "  NOTE: Replace with actual audit log queries in production" -ForegroundColor Yellow
 }
 
-# Generate evidence manifest
+# -- Derived compliance figures ---------------------------------------------------------------------
+#
+# Every control figure this collector reports is derived from the evidence actually collected into the
+# package, using eng/compliance/control-evidence-map.tsv as the control inventory. Nothing here is a
+# literal. The figures used to be baked into the document template (14 of 14 FedRAMP controls, 80 GDPR
+# conformance tests, 17 SOC 2 controls, 12 HIPAA technical controls) with no input that could make them
+# print anything else, so a run that downloaded no artifacts still asserted complete control
+# documentation. The audience for that document is an auditor, and this script is published, so a
+# consumer could generate it against their own repository and be handed our numbers as if they were
+# theirs. This mirrors the derivation already implemented in the sibling collect-evidence.sh.
+#
+# Exit codes: 0 = every reported figure was derived; 2 = REFUSE (the package was written, but at least
+# one figure could not be derived and is reported null/REFUSED rather than 0).
+
+$script:EvidenceCategories = @('test-results', 'security-scans', 'sbom', 'audit-logs', 'rtm')
+$script:ControlMap = if ($env:CONTROL_EVIDENCE_MAP) { $env:CONTROL_EVIDENCE_MAP } else { Join-Path $PSScriptRoot 'control-evidence-map.tsv' }
+$script:RefusalReasons = @()
+$script:CoverageSummary = @()
+
+# Record a reason a figure could not be derived. A refusal never stops the package being written; it
+# changes what the package is allowed to claim, and it changes the exit code.
+function Add-RefusalReason {
+    param([string]$Reason)
+    $script:RefusalReasons += $Reason
+    Write-Warning "REFUSED: $Reason"
+}
+
+# Files collected into one evidence category, excluding *.template.json placeholders: a blank form this
+# script writes on every run is not evidence and must not count toward a control.
+# Returns $null when the directory is absent -- "never looked" is not "nothing found".
+function Get-EvidenceFileCount {
+    param([string]$PackageRoot, [string]$Category)
+
+    $dir = Join-Path $PackageRoot $Category
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) { return $null }
+
+    return @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notlike '*.template.json' }).Count
+}
+
+# The map rows for one framework, as objects with ControlId and Categories.
+# Returns $null when the map is unreadable or names no control for the framework: an empty control set
+# would otherwise score as "0 of 0 controls", which reads as a clean bill of health for a framework we
+# never assessed.
+function Read-ControlMap {
+    param([string]$Framework)
+
+    if (-not (Test-Path -LiteralPath $script:ControlMap -PathType Leaf)) { return $null }
+
+    $rows = @(Get-Content -LiteralPath $script:ControlMap |
+        Where-Object { $_ -notmatch '^\s*#' -and $_ -notmatch '^\s*$' } |
+        ForEach-Object {
+            $f = $_ -split "`t"
+            if ($f.Count -ge 3 -and $f[0].Trim() -eq $Framework) {
+                [pscustomobject]@{ ControlId = $f[1].Trim(); Categories = $f[2].Trim() }
+            }
+        })
+
+    if ($rows.Count -eq 0) { return $null }
+    return $rows
+}
+
+# The frameworks to report on. "All" expands to every framework the map defines, so adding one to the
+# map adds it here without editing this script.
+function Get-RequestedFrameworks {
+    if ($Frameworks -contains 'All') {
+        if (-not (Test-Path -LiteralPath $script:ControlMap -PathType Leaf)) { return @() }
+        return @(Get-Content -LiteralPath $script:ControlMap |
+            Where-Object { $_ -notmatch '^\s*#' -and $_ -notmatch '^\s*$' } |
+            ForEach-Object { ($_ -split "`t")[0].Trim() } |
+            Where-Object { $_ } |
+            Select-Object -Unique)
+    }
+    return @($Frameworks)
+}
+
+# Generate evidence manifest -- every compliance figure derived from the collected package.
 function New-EvidenceManifest {
     param(
         [string]$OutputPath,
@@ -243,146 +319,185 @@ function New-EvidenceManifest {
 
     Write-Host "Generating evidence manifest..." -ForegroundColor Cyan
 
-    $manifest = @{
-        GeneratedAt = Get-Date -Format "o"
-        GeneratedBy = $env:USERNAME
-        RunId = $RunId
-        Repository = (gh repo view --json nameWithOwner | ConvertFrom-Json).nameWithOwner
-        Frameworks = $Frameworks
-        Contents = @{
-            TestResults = Get-ChildItem "$OutputPath\test-results" -Recurse -File | Select-Object Name, Length, LastWriteTime
-            SecurityScans = @{
-                SAST = Get-ChildItem "$OutputPath\security-scans\sast" -Recurse -File | Select-Object Name, Length, LastWriteTime
-                DAST = Get-ChildItem "$OutputPath\security-scans\dast" -Recurse -File | Select-Object Name, Length, LastWriteTime
-                Container = Get-ChildItem "$OutputPath\security-scans\container" -Recurse -File | Select-Object Name, Length, LastWriteTime
-                Secrets = Get-ChildItem "$OutputPath\security-scans\secrets" -Recurse -File | Select-Object Name, Length, LastWriteTime
-            }
-            SBOM = Get-ChildItem "$OutputPath\sbom" -Recurse -File | Select-Object Name, Length, LastWriteTime
-            AuditLogs = Get-ChildItem "$OutputPath\audit-logs" -Recurse -File | Select-Object Name, Length, LastWriteTime
+    # Reset the derived state, so a second call reports this package rather than this package plus
+    # whatever the last one refused.
+    $script:RefusalReasons = @()
+    $script:CoverageSummary = @()
+
+    $repository = if ($env:EVIDENCE_REPOSITORY) {
+        $env:EVIDENCE_REPOSITORY
+    } else {
+        try { (gh repo view --json nameWithOwner | ConvertFrom-Json).nameWithOwner } catch { "Unknown" }
+    }
+
+    # -- Evidence counts, per category, refusing on an absent directory ----------------------------
+    # A $null entry means REFUSED. Every downstream consumer must treat it as unknown, never as zero.
+    $counts = [ordered]@{}
+    foreach ($category in $script:EvidenceCategories) {
+        $count = Get-EvidenceFileCount -PackageRoot $OutputPath -Category $category
+        if ($null -eq $count) {
+            Add-RefusalReason "evidence directory missing: $OutputPath/$category - cannot distinguish 'no evidence collected' from 'never looked'"
         }
-        Compliance = @{
-            FedRAMP = @{
-                Controls = 14
-                ControlsDocumented = 14
-                EvidenceTypes = @("SBOM", "SecurityScans", "TestResults", "RTM")
+        $counts[$category] = $count
+    }
+
+    # -- Control coverage, per framework, derived from the map and the counts above ----------------
+    $coverage = [ordered]@{
+        Source = 'eng/compliance/control-evidence-map.tsv'
+        Basis  = 'ControlsDocumented counts in-scope controls whose every mapped evidence category has at least one collected file in this package. Controls whose evidence is documentation or a business process are mapped none and are never counted as documented. A package with no collected evidence therefore reports zero.'
+    }
+
+    foreach ($framework in (Get-RequestedFrameworks)) {
+        if (-not $framework) { continue }
+
+        $rows = Read-ControlMap -Framework $framework
+        if ($null -eq $rows) {
+            Add-RefusalReason "no controls mapped for framework '$framework' in $($script:ControlMap) - cannot derive its coverage"
+            $coverage[$framework] = [ordered]@{
+                Status = 'REFUSED'
+                Reason = 'no controls for this framework in the control map; no coverage figure can be derived'
             }
-            GDPR = @{
-                Articles = @(17, "17(3)", 25, 30, 32)
-                ConformanceTests = 80
-                EvidenceTypes = @("AuditLogs", "ErasureCertificates", "DataInventory")
+            continue
+        }
+
+        $inScope = 0
+        $documentedIds = @()
+        $mappedCategories = @()
+
+        foreach ($row in $rows) {
+            $inScope++
+
+            # 'none' -- evidence lives outside the pipeline. Counted in scope, never documented.
+            if ($row.Categories -eq 'none') { continue }
+
+            # ALL mapped categories must be present. A control needing a test result and a scan is not
+            # substantiated by whichever one happens to be there.
+            $satisfied = $true
+            foreach ($cat in ($row.Categories -split ',')) {
+                $cat = $cat.Trim()
+                if ($script:EvidenceCategories -notcontains $cat) {
+                    Add-RefusalReason "control $framework/$($row.ControlId) maps to unknown evidence category '$cat' - scoring it unmet would under-report coverage while looking measured"
+                    $satisfied = $false
+                    continue
+                }
+                $mappedCategories += $cat
+                # A $null count is REFUSED, not zero: an unmeasurable category cannot satisfy anything.
+                if ($null -eq $counts[$cat] -or $counts[$cat] -eq 0) { $satisfied = $false }
             }
-            SOC2 = @{
-                Categories = @("Security", "Availability", "ProcessingIntegrity", "Confidentiality")
-                Controls = 17
-                EvidenceTypes = @("ControlValidation", "AuditLogs", "Monitoring")
-            }
-            HIPAA = @{
-                Safeguards = @("Technical", "Administrative", "Physical")
-                TechnicalControls = 12
-                EvidenceTypes = @("AccessLogs", "EncryptionVerification", "AuditTrail")
-            }
+
+            if ($satisfied) { $documentedIds += $row.ControlId }
+        }
+
+        $coverage[$framework] = [ordered]@{
+            ControlsInScope          = $inScope
+            ControlsDocumented       = $documentedIds.Count
+            ControlsDocumentedIds    = @($documentedIds)
+            EvidenceCategoriesMapped = @($mappedCategories | Select-Object -Unique | Sort-Object)
+        }
+
+        $script:CoverageSummary += [pscustomobject]@{
+            Framework  = $framework
+            InScope    = $inScope
+            Documented = $documentedIds.Count
         }
     }
 
-    $manifestPath = "$OutputPath\MANIFEST.json"
+    $manifest = [ordered]@{
+        GeneratedAt        = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        GeneratedBy        = $env:USERNAME
+        RunId              = $RunId
+        Repository         = $repository
+        Frameworks         = ($Frameworks -join ',')
+        ManifestStatus     = $(if ($script:RefusalReasons.Count -eq 0) { 'COMPLETE' } else { 'REFUSED' })
+        RefusalReasons     = @($script:RefusalReasons)
+        EvidenceCounts     = $counts
+        EvidenceCountBasis = 'Files collected into this package, excluding *.template.json placeholders. null means the category directory was absent and the count is unknown -- it does not mean zero.'
+        ControlCoverage    = $coverage
+    }
+
+    $manifestPath = Join-Path $OutputPath 'MANIFEST.json'
     $manifest | ConvertTo-Json -Depth 10 | Out-File -FilePath $manifestPath -Encoding UTF8
 
-    Write-Host "✓ Evidence manifest created: $manifestPath" -ForegroundColor Green
+    Write-Host "Evidence manifest created: $manifestPath" -ForegroundColor Green
+
+    if ($script:RefusalReasons.Count -ne 0) { return 2 }
+    return 0
+}
+
+# Render the coverage table the package README shows, from the figures the manifest derived.
+# Emits an explicit "not derived" notice rather than a table of zeros when nothing was computed --
+# a table of zeros looks like a measurement of a package with no evidence, which is a different claim.
+function Format-CoverageTable {
+    if ($script:CoverageSummary.Count -eq 0) {
+        return 'No control coverage was derived for this package. See MANIFEST.json -> RefusalReasons.'
+    }
+
+    $sb = [System.Text.StringBuilder]::new()
+    [void]$sb.AppendLine('| Framework | Controls in scope | Documented by evidence in this package |')
+    [void]$sb.AppendLine('|---|---:|---:|')
+    foreach ($row in $script:CoverageSummary) {
+        [void]$sb.AppendLine("| $($row.Framework) | $($row.InScope) | $($row.Documented) |")
+    }
+    return $sb.ToString().TrimEnd()
 }
 
 # Generate README
 function New-EvidenceReadme {
     param([string]$OutputPath)
 
+    $repository = if ($env:EVIDENCE_REPOSITORY) {
+        $env:EVIDENCE_REPOSITORY
+    } else {
+        try { (gh repo view --json nameWithOwner | ConvertFrom-Json).nameWithOwner } catch { "Unknown" }
+    }
+
+    $coverageTable = Format-CoverageTable
+    $fence = [string][char]0x60 * 3
+
     $readme = @"
 # Compliance Evidence Package
 
 **Generated:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-**Repository:** $(try { (gh repo view --json nameWithOwner | ConvertFrom-Json).nameWithOwner } catch { "Unknown" })
+**Repository:** $repository
 **Frameworks:** $($Frameworks -join ", ")
 
 ---
 
 ## Directory Structure
 
-\`\`\`
+$fence
 compliance-evidence/
-├── test-results/           # Unit, integration, functional test results
-│   ├── junit-xml/          # JUnit XML test results
-│   └── coverage/           # Code coverage reports
-├── security-scans/         # Security scan results
-│   ├── sast/               # Static Application Security Testing (CodeQL, etc.)
-│   ├── dast/               # Dynamic Application Security Testing (OWASP ZAP)
-│   ├── container/          # Container vulnerability scanning (Trivy)
-│   └── secrets/            # Secrets scanning (Gitleaks)
-├── sbom/                   # Software Bill of Materials (CycloneDX)
-├── audit-logs/             # Sample audit logs (anonymized)
-├── rtm/                    # Requirements Traceability Matrix
-├── metadata/               # Additional metadata and artifacts
-├── MANIFEST.json           # Evidence inventory manifest
-└── README.md               # This file
-\`\`\`
+  test-results/           # Unit, integration, functional test results
+    junit-xml/            # JUnit XML test results
+    coverage/             # Code coverage reports
+  security-scans/         # Security scan results
+    sast/                 # Static Application Security Testing (CodeQL, etc.)
+    dast/                 # Dynamic Application Security Testing (OWASP ZAP)
+    container/            # Container vulnerability scanning (Trivy)
+    secrets/              # Secrets scanning (Gitleaks)
+  sbom/                   # Software Bill of Materials (CycloneDX)
+  audit-logs/             # Sample audit logs (anonymized)
+  rtm/                    # Requirements Traceability Matrix
+  metadata/               # Additional metadata and artifacts
+  MANIFEST.json           # Evidence inventory manifest
+  README.md               # This file
+$fence
 
 ---
 
-## Evidence Types by Framework
+## Control Coverage in This Package
 
-### FedRAMP (NIST 800-53 Rev 5)
+Counted from the files actually collected here, not asserted. A control is **documented** when every
+evidence category mapped to it in eng/compliance/control-evidence-map.tsv has at least one collected
+file in this package.
 
-**Controls Covered:** 14/14 (100% complete)
+$coverageTable
 
-| Control | Evidence Type | Location |
-|---------|---------------|----------|
-| SA-15 | CI/CD pipeline logs, test results | test-results/, security-scans/ |
-| CM-8 | SBOM (CycloneDX) | sbom/ |
-| SI-7 | Package signing, hash verification | sbom/ |
-| SI-4 | Security scan results | security-scans/ |
-| CC9 | Vulnerability scanning | security-scans/ |
-
-**Reference:** docs/compliance/checklists/fedramp.md
-
-### GDPR
-
-**Articles Covered:** 17, 17(3), 25, 30, 32
-
-| Article | Evidence Type | Location |
-|---------|---------------|----------|
-| 17 | Erasure certificates (cryptographic erasure) | audit-logs/ |
-| 30 | Records of Processing Activities (RoPA) | audit-logs/ |
-| 32 | Audit logs, encryption verification | audit-logs/, security-scans/ |
-
-**Conformance Tests:** 80 tests (Audit, Erasure, LegalHold, DataInventory)
-
-**Reference:** docs/compliance/checklists/gdpr.md
-
-### SOC 2
-
-**Categories:** Security, Availability, Processing Integrity, Confidentiality
-
-| Criterion | Evidence Type | Location |
-|-----------|---------------|----------|
-| CC4 | Audit logs (tamper-evident hash chain) | audit-logs/ |
-| CC6 | Encryption verification, access controls | security-scans/ |
-| CC8 | CI/CD pipeline, change management | test-results/, security-scans/ |
-| CC9 | Security scanning (SAST, DAST, container) | security-scans/ |
-
-**Automated Validators:** 6 validators, 17+ controls
-
-**Reference:** docs/compliance/checklists/soc2.md
-
-### HIPAA
-
-**Safeguards:** Technical (§164.312)
-
-| Standard | Evidence Type | Location |
-|----------|---------------|----------|
-| §164.312(a) | Access control logs | audit-logs/ |
-| §164.312(b) | Audit trail (PHI access) | audit-logs/ |
-| §164.312(c) | Integrity verification (hash chain) | audit-logs/ |
-| §164.312(d) | Authentication logs | audit-logs/ |
-| §164.312(e) | TLS verification, transmission logs | security-scans/ |
-
-**Reference:** docs/compliance/checklists/hipaa.md
+**What the remainder means.** A control that is in scope but not documented here is not thereby
+non-compliant -- most are substantiated by documentation, configuration, or a business process that a
+CI pipeline does not produce, and those are mapped so that they can never be counted as documented
+however complete the download was. Read MANIFEST.json for the per-control identifiers and for any
+figure the collector refused to derive.
 
 ---
 
@@ -398,7 +513,7 @@ compliance-evidence/
 ### For Internal Reviews
 
 1. Review MANIFEST.json for evidence inventory
-2. Check test-results/ for coverage metrics (≥60% enforced)
+2. Check test-results/ for coverage metrics
 3. Review security-scans/ for vulnerability findings
 4. Verify SBOM completeness in sbom/
 
@@ -408,44 +523,6 @@ compliance-evidence/
 2. **GDPR:** Reference for Data Protection Impact Assessment (DPIA)
 3. **SOC 2:** Provide to auditor for Type I or Type II report
 4. **HIPAA:** Reference for Risk Assessment and Security Rule compliance
-
----
-
-## Next Steps
-
-### Customize Evidence Collection
-
-Edit eng/compliance/collect-evidence.ps1 to:
-- Add custom evidence types
-- Connect to production audit store
-- Include additional metadata
-
-### Automate Collection
-
-Add to CI/CD pipeline:
-
-\`\`\`yaml
-- name: Collect Compliance Evidence
-  run: |
-    .\scripts\compliance\collect-evidence.ps1 -OutputPath artifacts/evidence
-
-- name: Upload Evidence Package
-  uses: actions/upload-artifact@v4
-  with:
-    name: compliance-evidence
-    path: artifacts/evidence
-    retention-days: 365
-\`\`\`
-
-### Generate Evidence Package
-
-Run:
-
-\`\`\`powershell
-.\scripts\compliance\generate-evidence-package.ps1
-\`\`\`
-
-Outputs: compliance-evidence-v1.0.0.zip
 
 ---
 
@@ -459,14 +536,12 @@ Outputs: compliance-evidence-v1.0.0.zip
 ---
 
 **Generated by:** Excalibur Compliance Evidence Collector
-**Version:** 1.0.0
-**Date:** $(Get-Date -Format "yyyy-MM-dd")
 "@
 
-    $readmePath = "$OutputPath\README.md"
+    $readmePath = Join-Path $OutputPath 'README.md'
     $readme | Out-File -FilePath $readmePath -Encoding UTF8
 
-    Write-Host "✓ README created: $readmePath" -ForegroundColor Green
+    Write-Host "README created: $readmePath" -ForegroundColor Green
 }
 
 # Main execution
@@ -492,8 +567,9 @@ try {
     # Export audit logs
     Export-AuditLogSamples -OutputPath $OutputPath -MaxSamples $MaxAuditSamples
 
-    # Generate manifest
-    New-EvidenceManifest -OutputPath $OutputPath -RunId $RunId
+    # Generate manifest. Its return value is the refusal state, captured on the very next statement:
+    # anything in between would replace the status this exit code exists to report.
+    $manifestStatus = New-EvidenceManifest -OutputPath $OutputPath -RunId $RunId
 
     # Generate README
     New-EvidenceReadme -OutputPath $OutputPath
@@ -503,7 +579,15 @@ try {
     Write-Host "`nNext steps:" -ForegroundColor Yellow
     Write-Host "  1. Review MANIFEST.json for evidence inventory" -ForegroundColor Gray
     Write-Host "  2. Verify security scan results in security-scans/" -ForegroundColor Gray
-    Write-Host "  3. Generate evidence package: .\scripts\compliance\generate-evidence-package.ps1" -ForegroundColor Gray
+    Write-Host "  3. Generate evidence package: .\eng\compliance\generate-evidence-package.ps1" -ForegroundColor Gray
+
+    # REFUSE is not success. The package was written, but at least one figure could not be derived and
+    # is reported null/REFUSED rather than 0 -- a caller that treats this as a pass ships a document
+    # whose gaps look like measurements.
+    if ($manifestStatus -eq 2) {
+        Write-Warning "REFUSED: at least one figure could not be derived. The package was written and its MANIFEST.json records why."
+        exit 2
+    }
 }
 catch {
     Write-Error "Evidence collection failed: $_"

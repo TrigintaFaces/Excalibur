@@ -35,13 +35,6 @@ public sealed class RabbitMqOptions
 	/// </summary>
 	/// <value>The routing key for publishing.</value>
 	public string RoutingKey { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether encryption is enabled when sending/receiving messages.
-	/// </summary>
-	/// <value><see langword="true"/> if encryption is enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnableEncryption { get; set; }
-
 	/// <summary>
 	/// Gets or sets the connection options.
 	/// </summary>
@@ -78,26 +71,6 @@ public sealed class RabbitMqConnectionOptions
 	/// <value>The RabbitMQ connection string.</value>
 	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the connection timeout in seconds.
-	/// </summary>
-	/// <value>The connection timeout. Default is 30 seconds.</value>
-	[Range(1, 300)]
-	public int ConnectionTimeoutSeconds { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable automatic connection recovery.
-	/// </summary>
-	/// <value><see langword="true"/> for automatic recovery; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
-	public bool AutomaticRecoveryEnabled { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the network recovery interval in seconds.
-	/// </summary>
-	/// <value>The recovery interval. Default is 10 seconds.</value>
-	[Range(1, 300)]
-	public int NetworkRecoveryIntervalSeconds { get; set; } = 10;
 }
 
 /// <summary>
@@ -158,12 +131,6 @@ public sealed class RabbitMqDeadLetterExchangeOptions
 	/// </summary>
 	/// <value>The dead letter routing key.</value>
 	public string? DeadLetterRoutingKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to requeue messages on rejection.
-	/// </summary>
-	/// <value><see langword="true"/> to requeue; otherwise, <see langword="false"/>.</value>
-	public bool RequeueOnReject { get; set; }
 }
 
 /// <summary>
@@ -171,45 +138,6 @@ public sealed class RabbitMqDeadLetterExchangeOptions
 /// </summary>
 public sealed class RabbitMqConsumptionOptions
 {
-	/// <summary>
-	/// Gets or sets the prefetch count for message consumption.
-	/// </summary>
-	/// <value>The prefetch count. Default is 100.</value>
-	[Range(1, ushort.MaxValue)]
-	public ushort PrefetchCount { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use global prefetch count.
-	/// </summary>
-	/// <value><see langword="true"/> for global prefetch; otherwise, <see langword="false"/>.</value>
-	public bool PrefetchGlobal { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to automatically acknowledge messages.
-	/// </summary>
-	/// <value><see langword="true"/> for auto-ack; otherwise, <see langword="false"/>.</value>
-	public bool AutoAck { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum number of messages to process in a batch.
-	/// </summary>
-	/// <value>The max batch size. Default is 50.</value>
-	[Range(1, 10000)]
-	public int MaxBatchSize { get; set; } = 50;
-
-	/// <summary>
-	/// Gets or sets the maximum time to wait for a batch to fill in milliseconds.
-	/// </summary>
-	/// <value>The max batch wait time in milliseconds. Default is 500.</value>
-	[Range(1, 60000)]
-	public int MaxBatchWaitMs { get; set; } = 500;
-
-	/// <summary>
-	/// Gets or sets the consumer tag prefix.
-	/// </summary>
-	/// <value>The consumer tag. Default is "dispatch-consumer".</value>
-	public string ConsumerTag { get; set; } = "dispatch-consumer";
-
 	/// <summary>
 	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at receive ingress before
 	/// the body is materialized (defense-in-depth DoS hardening; the RabbitMQ analogue of Kestrel's

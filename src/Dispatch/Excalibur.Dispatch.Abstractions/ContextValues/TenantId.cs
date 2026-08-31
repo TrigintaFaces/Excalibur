@@ -23,17 +23,37 @@ namespace Excalibur.Dispatch;
 public sealed class TenantId : IEquatable<TenantId>
 {
 	/// <summary>
+	/// The longest tenant identifier every shipped provider is guaranteed to store whole.
+	/// </summary>
+	/// <remarks>
+	/// Fixed at the <strong>narrowest</strong> shipped tenant column across every provider, not the widest:
+	/// a caller-supplied identifier this constructor accepts must never be silently truncated by any
+	/// provider it can reach, and truncation is the dangerous outcome — a truncated identifier can collide
+	/// with another tenant's. Rejecting at construction, where the caller still has context, is cheaper
+	/// than discovering the mismatch as a provider-specific truncation or constraint error far from the
+	/// call that caused it.
+	/// </remarks>
+	public const int MaxLength = 64;
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="TenantId" /> class with the specified value.
 	/// </summary>
 	/// <param name="value"> The tenant identifier value. </param>
 	/// <exception cref="ArgumentException">
-	/// <paramref name="value" /> is <see langword="null" />, empty, or whitespace. A missing tenant is
+	/// <paramref name="value" /> is <see langword="null" />, empty, or whitespace — a missing tenant is
 	/// rejected rather than coerced: substituting an empty value would produce an identifier that no longer
-	/// names the tenant the caller intended, with no diagnostic at the point the mistake was made.
+	/// names the tenant the caller intended, with no diagnostic at the point the mistake was made — or
+	/// longer than <see cref="MaxLength"/> characters, which no shipped provider can store whole.
 	/// </exception>
 	public TenantId(string value)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(value);
+		if (value.Length > MaxLength)
+		{
+			throw new ArgumentException(
+				$"Tenant identifier exceeds the maximum length of {MaxLength} characters supported by every shipped provider.",
+				nameof(value));
+		}
 
 		Value = value;
 	}
@@ -50,7 +70,8 @@ public sealed class TenantId : IEquatable<TenantId>
 	/// <param name="value"> The string value. </param>
 	/// <returns> A new <see cref="TenantId" /> instance. </returns>
 	/// <exception cref="ArgumentException">
-	/// <paramref name="value" /> is <see langword="null" />, empty, or whitespace.
+	/// <paramref name="value" /> is <see langword="null" />, empty, whitespace, or longer than
+	/// <see cref="MaxLength"/> characters.
 	/// </exception>
 	public static TenantId FromString(string value) => new(value);
 

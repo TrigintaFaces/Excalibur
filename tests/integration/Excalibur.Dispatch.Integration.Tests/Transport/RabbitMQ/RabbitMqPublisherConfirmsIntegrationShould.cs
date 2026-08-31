@@ -140,7 +140,7 @@ public sealed class RabbitMqPublisherConfirmsIntegrationShould : IClassFixture<R
 	// (mirrors KafkaTransportSenderIntegrationShould). ctor: (IChannel, destination, exchange, routingKey, ILogger<>).
 	private static ITransportSender CreateSender(IChannel channel, string destination, string exchange, string defaultRoutingKey)
 	{
-		var senderType = typeof(RabbitMqConsumerOptions).Assembly
+		var senderType = typeof(RabbitMqOptions).Assembly
 			.GetType("Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqTransportSender")!;
 		var loggerOfT = typeof(Logger<>).MakeGenericType(senderType);
 		var logger = Activator.CreateInstance(loggerOfT, NullLoggerFactory.Instance)!;

@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - the DDL is the shipped product script; DELETE targets constant identifiers
 
@@ -24,7 +25,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixtureBase
 {
 	private MsSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>Gets the schema name (the store's default).</summary>
 	public string SchemaName { get; } = "dbo";
@@ -43,6 +44,7 @@ public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixture
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithName($"mssql-sagatimeout-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();
@@ -51,13 +53,15 @@ public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixture
 	}
 
 	/// <summary>Creates the timeouts table by executing the shipped DDL script.</summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = new SqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
@@ -66,7 +70,6 @@ public sealed class SqlServerSagaTimeoutStoreContainerFixture : ContainerFixture
 			await ExecuteAsync(connection, statement).ConfigureAwait(false);
 		}
 
-		_initialized = true;
 	}
 
 	/// <summary>Removes all rows between tests.</summary>

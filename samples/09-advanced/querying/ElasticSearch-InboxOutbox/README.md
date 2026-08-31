@@ -24,7 +24,7 @@ Key operations:
 - `StageMessageAsync` -- Stage a message for later delivery
 - `GetUnsentMessagesAsync` -- Retrieve pending messages for publishing
 - `MarkSentAsync` -- Confirm successful delivery
-- `GetStatisticsAsync` -- Monitor outbox health
+- `GetAllTenantsStatisticsAsync` -- Monitor outbox health across every tenant
 - `CleanupAllTenantsSentMessagesAsync` -- Remove old sent messages
 
 ## When to Use Elasticsearch vs SQL Server

@@ -1,6 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.CloudNative;
 
@@ -38,7 +39,20 @@ namespace Excalibur.Data.CloudNative;
 /// <item>Firestore: Cloud Functions trigger</item>
 /// </list>
 /// </para>
+/// <para>
+/// <strong>Tenancy:</strong>
+/// Rows written through this contract belong to a tenant, so it declares
+/// <see cref="TenantOwnedAttribute"/>. A store registered under this contract in a deployment using
+/// row-discriminator multi-tenancy must present a tenant capability or be refused at registration.
+/// The applicable one is the partitioned capability, not the ambient-scoping one: this is a
+/// change-feed contract whose reads are addressed by partition key and are deliberately estate-wide -
+/// <see cref="GetPendingAsync"/> takes no tenant - so the owning tenant is carried on the row in
+/// <see cref="CloudOutboxMessage.TenantId"/> and re-established from it when the message is read back.
+/// A store confining these reads to an ambient tenant would read that tenant as absent on the trigger
+/// path, return the empty set, and stall publication for every tenant.
+/// </para>
 /// </remarks>
+[TenantOwned]
 public interface ICloudNativeOutboxStore
 {
 	/// <summary>
@@ -61,6 +75,50 @@ public interface ICloudNativeOutboxStore
 	/// <summary>
 	/// Gets pending (unpublished) messages from a partition in FIFO order.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <strong>This is a query, not a claim.</strong> It modifies nothing: no lease is taken, no message is
+	/// marked, no row is written. Two callers running it concurrently against the same partition therefore
+	/// receive the <strong>same</strong> messages and both will publish them. It does not divide work
+	/// between processes, and no amount of care at the call site makes it do so.
+	/// </para>
+	/// <para>
+	/// <strong>Do not build a multi-process poller on it.</strong> Two models support concurrent publishing
+	/// and this member is part of neither: the provider's change-feed trigger, which holds one lease per
+	/// partition, and — where a self-managed poller is genuinely wanted —
+	/// <see cref="ICloudNativeOutboxStoreClaim.ClaimPendingAsync"/>, which takes a real per-message lease.
+	/// Choose one and do not combine them: the trigger path does not observe the claim's lease, so running
+	/// both reproduces the duplicate delivery the claim exists to prevent.
+	/// </para>
+	/// <para>
+	/// <strong>What this read is for: recovery.</strong> A change feed surfaces a document when it is
+	/// written or updated, and not again on its own. A message whose publish failed, and whose failure was
+	/// never recorded back onto the document, is consequently never surfaced a second time — the feed has
+	/// already moved past it, and nothing else will mention it. This read is how such a message is found.
+	/// The ordinary retry path does not need it: recording the failure through
+	/// <see cref="ICloudNativeOutboxStoreBatch.IncrementRetryCountAsync"/> rewrites the document, which puts
+	/// it back on the feed. This read is the backstop for when that did not happen — a publisher that
+	/// swallowed the error, or one that stopped between the failed publish and the record of it.
+	/// </para>
+	/// <para>
+	/// Run it from a single process — a scheduled sweep or an operator tool — and treat overlapping runs as
+	/// producing duplicates, which handlers must tolerate in any case.
+	/// </para>
+	/// <para>
+	/// <strong>FIFO, and what "eventually" can mean for a provider that orders via a secondary index.</strong>
+	/// A provider whose native query engine can order a strongly-consistent read (Cosmos DB's <c>ORDER BY</c>,
+	/// Firestore's <c>OrderBy</c>) returns messages in exact creation order with no further caveat. A provider
+	/// that must order via a separately-maintained, eventually-consistent index (for example DynamoDB, whose
+	/// base-table query is physically ordered by a per-message key and therefore orders pending reads through
+	/// a Global Secondary Index instead) can, for a brief interval after <see cref="AddAsync"/> returns, omit
+	/// a just-staged message from this read — a LATENCY property, not a loss one: the message is durably
+	/// present on the provider's strongly-consistent primary store throughout, and a subsequent call (the next
+	/// poll, or this recovery sweep) will see it. AWS documents GSI propagation as typically completing
+	/// within a fraction of a second under normal conditions, with no formal upper bound (a failure
+	/// scenario can extend it) — design a recovery sweep interval, never a single immediate read, around
+	/// this guarantee. Messages this call DOES return are always in creation order.
+	/// </para>
+	/// </remarks>
 	/// <param name="partitionKey">The partition key to query.</param>
 	/// <param name="batchSize">Maximum number of messages to retrieve.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
@@ -178,6 +236,28 @@ public sealed record CloudOutboxMessage
 	/// Gets the ETag for optimistic concurrency.
 	/// </summary>
 	public string? ETag { get; init; }
+
+	/// <summary>
+	/// Gets the instant this message's current claim lease was stamped, or <see langword="null"/> if the
+	/// message is unclaimed.
+	/// </summary>
+	/// <remarks>
+	/// The lease <i>expires</i> at this instant plus the store's configured lease timeout; the timeout is
+	/// configuration rather than a per-message field, so that changing it takes effect on messages already
+	/// staged. Only stores implementing <see cref="ICloudNativeOutboxStoreClaim"/> ever set this.
+	/// </remarks>
+	public DateTimeOffset? LeasedAt { get; init; }
+
+	/// <summary>
+	/// Gets the identifier of the claimant currently holding this message, or <see langword="null"/> if the
+	/// message is unclaimed.
+	/// </summary>
+	/// <remarks>
+	/// A stale value is expected and harmless: once the lease expires the message is claimable regardless of
+	/// who is named here, and the next claim overwrites it. Read this as "who took it last", not as a live
+	/// ownership assertion.
+	/// </remarks>
+	public string? LeasedBy { get; init; }
 
 	/// <summary>
 	/// Gets a value indicating whether the message has been published.

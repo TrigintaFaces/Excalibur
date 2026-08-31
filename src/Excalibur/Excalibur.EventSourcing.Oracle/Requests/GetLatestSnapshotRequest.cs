@@ -24,8 +24,9 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope. When <see cref="TenantScope.None"/> (the non-multi-tenant default) no tenant
-	/// predicate is emitted; when tenant-scoped the statement is restricted to the tenant's own rows.
+	/// The tenant scope. The tenant predicate is emitted unconditionally: an untenanted scope binds the
+	/// reserved sentinel rather than omitting the term, so the statement is always restricted to a single
+	/// partition's rows.
 	/// </param>
 	/// <param name="schema">The schema name for the snapshot store table.</param>
 	/// <param name="table">The snapshot store table name.</param>

@@ -41,7 +41,7 @@ public sealed class RowDiscriminatorTenantCapabilityGuardShould
 
         // A registered but tenant-UNAWARE event store: no ITenantScopingCapability<IEventStore> marker,
         // exactly as a provider that ignores the ambient tenant (e.g. Oracle) would register.
-        services.AddSingleton<IEventStore>(new TenantUnawareEventStore());
+        services.AddSingleton<IEventStore>(new TenantUnawareEventStore(A.Fake<ITenantContext>()));
 
         var ex = Should.Throw<InvalidOperationException>(() =>
             services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
@@ -58,8 +58,9 @@ public sealed class RowDiscriminatorTenantCapabilityGuardShould
 
         // A tenant-CAPABLE store: the real marker is emitted via the dep-gated seam (the bare fake is now
         // structurally unimplementable). The AddSingleton<IEventStore> is the interface the decorator wraps.
-        services.AddSingleton<IEventStore>(new TenantUnawareEventStore());
-        services.AddTenantScopedStore<IEventStore, TenantUnawareEventStore>((_, _) => new TenantUnawareEventStore());
+        services.AddSingleton<IEventStore>(new TenantUnawareEventStore(A.Fake<ITenantContext>()));
+        services.AddTenantAwareStore<IEventStore, TenantUnawareEventStore>(
+            sp => new TenantUnawareEventStore(sp.GetRequiredService<ITenantContext>()));
 
         services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
@@ -70,7 +71,7 @@ public sealed class RowDiscriminatorTenantCapabilityGuardShould
     }
 
     /// <summary>A minimal event store that ignores the ambient tenant — the leak vector under test.</summary>
-    private sealed class TenantUnawareEventStore : IEventStore
+    private sealed class TenantUnawareEventStore(ITenantContext tenantContext) : IEventStore
     {
         public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
             string aggregateId, string aggregateType, CancellationToken cancellationToken) =>

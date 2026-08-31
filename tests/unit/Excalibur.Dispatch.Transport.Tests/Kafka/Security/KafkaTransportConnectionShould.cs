@@ -141,6 +141,64 @@ public sealed class KafkaTransportConnectionShould
 	}
 
 	[Fact]
+	public async Task RefuseSaslPlaintextForItsPostureEvenWhenCredentialsArePresent()
+	{
+		// Arrange -- a fully-specified SASL_PLAINTEXT configuration. Nothing is missing except the
+		// encryption itself, so the only thing left to refuse it for is the posture.
+		var config = CreateSaslPlaintextConfig();
+		config.SaslUsername = "user";
+		config.SaslPassword = "password"; // pragma: allowlist secret
+		var options = new TransportSecurityOptions { RequireTls = true };
+		await using var transport = new KafkaTransportConnection(config, options);
+
+		// Act & Assert
+		var exception = await Should.ThrowAsync<TransportSecurityException>(
+			() => transport.ConnectAsync(CancellationToken.None));
+
+		exception.Message.ShouldContain("TLS");
+		transport.IsConnected.ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task ConnectSuccessfullyWhenTheSameSaslMechanismIsCarriedOverTls()
+	{
+		// Arrange -- the SASL_PLAINTEXT configuration above, upgraded to SASL_SSL and nothing else.
+		// This is the arm that proves the refusal is posture-specific: a guard that rejected every
+		// configuration would fail here.
+		var config = CreateSaslPlaintextConfig();
+		config.SecurityProtocol = SecurityProtocol.SaslSsl;
+		config.SaslUsername = "user";
+		config.SaslPassword = "password"; // pragma: allowlist secret
+		var options = new TransportSecurityOptions { RequireTls = true };
+		await using var transport = new KafkaTransportConnection(config, options);
+
+		// Act
+		await transport.ConnectAsync(CancellationToken.None);
+
+		// Assert
+		transport.IsConnected.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task StillReportAnIncompleteSaslConfigurationWhenTlsIsSatisfied()
+	{
+		// Arrange -- TLS is satisfied, so the security check passes and the configuration check must
+		// still run. This is the liveness arm for the check ordering: it fails if the security guard
+		// ever short-circuits configuration validation.
+		var config = CreateSaslPlaintextConfig();
+		config.SecurityProtocol = SecurityProtocol.SaslSsl;
+		var options = new TransportSecurityOptions { RequireTls = true };
+		await using var transport = new KafkaTransportConnection(config, options);
+
+		// Act & Assert
+		var exception = await Should.ThrowAsync<InvalidOperationException>(
+			() => transport.ConnectAsync(CancellationToken.None));
+
+		exception.Message.ShouldContain("SaslUsername");
+		transport.IsConnected.ShouldBeFalse();
+	}
+
+	[Fact]
 	public async Task ConnectSuccessfullyWhenPlaintextAndTlsNotRequired()
 	{
 		// Arrange

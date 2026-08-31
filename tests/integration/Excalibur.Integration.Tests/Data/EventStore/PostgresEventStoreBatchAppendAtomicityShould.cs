@@ -37,7 +37,7 @@ public sealed class PostgresEventStoreBatchAppendAtomicityShould : IClassFixture
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"Postgres EventStore batch-append atomicity runs against real infrastructure and is never skipped.");
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
-		return new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance);
+		return new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	private static List<TestDomainEvent> NewBatch(string aggregateId, int count) =>

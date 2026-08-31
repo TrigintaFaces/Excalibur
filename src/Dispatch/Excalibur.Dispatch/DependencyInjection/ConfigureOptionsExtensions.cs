@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Text.Json;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -16,19 +10,13 @@ namespace Excalibur.Dispatch.Extensions;
 /// <summary>
 /// Provides extension methods for configuring options with defaults and custom configuration.
 /// </summary>
+/// <remarks>
+/// Every method here composes ordinary <see cref="OptionsServiceCollectionExtensions" /> configuration callbacks, so the
+/// options instance is populated by direct property assignment at resolution time. No reflection, expression compilation
+/// or serialization is involved, which keeps these helpers usable under trimming and ahead-of-time compilation.
+/// </remarks>
 public static class ConfigureOptionsExtensions
 {
-	/// <summary>
-	/// Maximum number of entries allowed in the property copier cache.
-	/// When the cap is reached, new copiers are compiled without caching to prevent unbounded memory growth.
-	/// </summary>
-	private const int MaxCacheEntries = 1024;
-
-	/// <summary>
-	/// Cache for compiled property copiers to improve performance.
-	/// </summary>
-	private static readonly ConcurrentDictionary<Type, Action<object, object>> PropertyCopiers = new();
-
 	/// <summary>
 	/// Configures options of type <typeparamref name="T" /> with defaults and optional custom configuration.
 	/// </summary>
@@ -37,12 +25,11 @@ public static class ConfigureOptionsExtensions
 	/// <param name="configure"> Optional custom configuration action. </param>
 	/// <param name="defaults"> Required defaults configuration action. </param>
 	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// The defaults action runs before the custom configuration action, so custom configuration wins on any property both
+	/// of them set. Properties neither action touches keep whatever the options instance already carries.
+	/// </remarks>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> or <paramref name="defaults" /> is null. </exception>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Options types are preserved through DI registration. Consider using source generators for AOT-safe property copying.")]
 	public static IServiceCollection ConfigureOptions<T>(
 		this IServiceCollection services,
 		Action<T>? configure,
@@ -52,16 +39,13 @@ public static class ConfigureOptionsExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(defaults);
 
-		// Create and configure the template instance
-		var template = new T();
-		defaults(template);
-		configure?.Invoke(template);
+		ApplyEagerly(configure, defaults);
 
-		// Get or create the optimized property copier
-		var copier = GetOrCreatePropertyCopier<T>();
-
-		// Configure the options
-		_ = services.Configure<T>(opts => copier(template, opts));
+		_ = services.Configure<T>(options =>
+		{
+			defaults(options);
+			configure?.Invoke(options);
+		});
 
 		return services;
 	}
@@ -92,49 +76,6 @@ public static class ConfigureOptionsExtensions
 	}
 
 	/// <summary>
-	/// Configures options from a configuration section with defaults as fallback.
-	/// </summary>
-	/// <typeparam name="T"> The options type to configure. </typeparam>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="sectionName"> The configuration section name. </param>
-	/// <param name="defaults"> Required defaults configuration action. </param>
-	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Options types are preserved through DI registration and the DynamicallyAccessedMembers attribute on T ensures all members are preserved.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification =
-			"Configuration binding relies on runtime type information, but the type T is preserved through the DynamicallyAccessedMembers attribute.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection ConfigureOptionsFromConfiguration<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-		this IServiceCollection services,
-		string sectionName,
-		Action<T> defaults)
-		where T : class, new()
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(sectionName);
-		ArgumentNullException.ThrowIfNull(defaults);
-
-		// First apply defaults
-		_ = services.ConfigureOptions(configure: null, defaults);
-
-		// Then bind from configuration (will override defaults where values exist)
-		_ = services.AddOptions<T>()
-			.BindConfiguration(sectionName)
-			.ValidateOnStart();
-
-		return services;
-	}
-
-	/// <summary>
 	/// Configures named options with defaults and custom configuration.
 	/// </summary>
 	/// <typeparam name="T"> The options type to configure. </typeparam>
@@ -143,12 +84,7 @@ public static class ConfigureOptionsExtensions
 	/// <param name="configure"> Optional custom configuration action. </param>
 	/// <param name="defaults"> Required defaults configuration action. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Options types are preserved through DI registration. Consider using source generators for AOT-safe property copying.")]
-	public static IServiceCollection ConfigureNamedOptions<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+	public static IServiceCollection ConfigureNamedOptions<T>(
 		this IServiceCollection services,
 		string name,
 		Action<T>? configure,
@@ -159,127 +95,53 @@ public static class ConfigureOptionsExtensions
 		ArgumentNullException.ThrowIfNull(name);
 		ArgumentNullException.ThrowIfNull(defaults);
 
-		var template = new T();
-		defaults(template);
-		configure?.Invoke(template);
+		ApplyEagerly(configure, defaults);
 
-		var copier = GetOrCreatePropertyCopier<T>();
-
-		_ = services.Configure<T>(name, opts => copier(template, opts));
-
-		return services;
-	}
-
-	/// <summary>
-	/// Creates a deep clone configuration where complex types are properly cloned.
-	/// </summary>
-	/// <typeparam name="T"> The options type to configure. </typeparam>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> Optional custom configuration action. </param>
-	/// <param name="defaults"> Required defaults configuration action. </param>
-	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Options types are preserved through DI registration. JSON serialization requires runtime type information.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification =
-			"JSON serialization requires runtime code generation. Consider using source-generated JSON serializers for AOT scenarios.")]
-	public static IServiceCollection ConfigureOptionsWithDeepClone<T>(
-		this IServiceCollection services,
-		Action<T>? configure,
-		Action<T> defaults)
-		where T : class, new()
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(defaults);
-
-		var template = new T();
-		defaults(template);
-		configure?.Invoke(template);
-
-		// Use JSON serialization for deep cloning
-		var json = JsonSerializer.Serialize(template);
-
-		_ = services.Configure<T>(opts =>
+		_ = services.Configure<T>(name, options =>
 		{
-			var cloned = JsonSerializer.Deserialize<T>(json);
-			if (cloned != null)
-			{
-				var copier = GetOrCreatePropertyCopier<T>();
-				copier(cloned, opts);
-			}
+			defaults(options);
+			configure?.Invoke(options);
 		});
 
 		return services;
 	}
 
 	/// <summary>
-	/// Gets or creates an optimized property copier for the specified type.
+	/// Configures options such that no state is shared between resolved options instances.
 	/// </summary>
-	/// <typeparam name="T"> The type to create a copier for. </typeparam>
-	/// <returns> An action that copies properties from source to target. </returns>
-	[RequiresUnreferencedCode("Uses reflection and expression compilation which is not AOT compatible")]
-	private static Action<object, object> GetOrCreatePropertyCopier<T>()
-	{
-		var type = typeof(T);
-
-		// Bounded cache: try fast lookup first, then check capacity before adding
-		if (PropertyCopiers.TryGetValue(type, out var cached))
-		{
-			return cached;
-		}
-
-		if (PropertyCopiers.Count >= MaxCacheEntries)
-		{
-			// Cache full — compile without caching to prevent unbounded growth
-			return CompilePropertyCopier(type);
-		}
-
-		return PropertyCopiers.GetOrAdd(type, static t => CompilePropertyCopier(t));
-	}
+	/// <typeparam name="T"> The options type to configure. </typeparam>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configure"> Optional custom configuration action. </param>
+	/// <param name="defaults"> Required defaults configuration action. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// Both actions run against each options instance as it is created, so any nested object they allocate belongs to that
+	/// instance alone. There is no shared template to clone, which is why this behaves identically to
+	/// <see cref="ConfigureOptions{T}(IServiceCollection, Action{T}, Action{T})" />.
+	/// </remarks>
+	public static IServiceCollection ConfigureOptionsWithDeepClone<T>(
+		this IServiceCollection services,
+		Action<T>? configure,
+		Action<T> defaults)
+		where T : class, new() => services.ConfigureOptions(configure, defaults);
 
 	/// <summary>
-	/// Compiles an expression-tree-based property copier for the specified type.
+	/// Runs the configuration actions once at registration time against a throwaway instance.
 	/// </summary>
-	[RequiresUnreferencedCode("Uses reflection and expression compilation which is not AOT compatible")]
-	private static Action<object, object> CompilePropertyCopier(Type type)
+	/// <typeparam name="T"> The options type to configure. </typeparam>
+	/// <param name="configure"> Optional custom configuration action. </param>
+	/// <param name="defaults"> Required defaults configuration action. </param>
+	/// <remarks>
+	/// Registration is where a caller can still act on a bad configuration action, so both actions are exercised here and
+	/// a throwing action surfaces immediately rather than on the first options resolution. The instance is discarded; the
+	/// real options instance is populated by the registered callback.
+	/// </remarks>
+	private static void ApplyEagerly<T>(Action<T>? configure, Action<T> defaults)
+		where T : class, new()
 	{
-		var sourceParam = Expression.Parameter(typeof(object), "source");
-		var targetParam = Expression.Parameter(typeof(object), "target");
-
-		var sourceTyped = Expression.Variable(type, "sourceTyped");
-		var targetTyped = Expression.Variable(type, "targetTyped");
-
-		var expressions = new List<Expression>
-		{
-			Expression.Assign(sourceTyped, Expression.Convert(sourceParam, type)),
-			Expression.Assign(targetTyped, Expression.Convert(targetParam, type)),
-		};
-
-		var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-			.Where(static p => p is { CanRead: true, CanWrite: true });
-
-		foreach (var prop in properties)
-		{
-			try
-			{
-				var sourceProperty = Expression.Property(sourceTyped, prop);
-				var targetProperty = Expression.Property(targetTyped, prop);
-				expressions.Add(Expression.Assign(targetProperty, sourceProperty));
-			}
-			catch
-			{
-				// Skip properties that can't be accessed
-			}
-		}
-
-		var body = Expression.Block([sourceTyped, targetTyped], expressions);
-		var lambda = Expression.Lambda<Action<object, object>>(body, sourceParam, targetParam);
-
-		return lambda.Compile();
+		var probe = new T();
+		defaults(probe);
+		configure?.Invoke(probe);
 	}
 
 	/// <summary>

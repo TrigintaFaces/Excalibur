@@ -49,7 +49,15 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// </remarks>
 	private const int MaxConcurrentWriteAttempts = 16;
 
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
@@ -73,21 +81,46 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
-	/// tenant becomes part of every snapshot document identifier.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public CosmosDbSnapshotStore(
 		IOptions<CosmosDbSnapshotStoreOptions> options,
 		ILogger<CosmosDbSnapshotStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbSnapshotStore"/> class over a client the host owns.
+	/// </summary>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The ambient tenant context.</param>
+	/// <param name="client">The Cosmos client registered by the host. Borrowed, never disposed here.</param>
+	/// <remarks>
+	/// Selected by dependency injection whenever a <see cref="CosmosClient"/> is registered, which the
+	/// Cosmos registration does. Borrowing that client is what keeps a host enabling several Cosmos
+	/// features on one connection pool rather than one per feature, and the store does not dispose it.
+	/// </remarks>
+	public CosmosDbSnapshotStore(
+		IOptions<CosmosDbSnapshotStoreOptions> options,
+		ILogger<CosmosDbSnapshotStore> logger,
+		ITenantContext tenantContext,
+		CosmosClient client)
+		: this(options, logger, tenantContext)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		_client = client;
 	}
 
 	/// <summary>
@@ -110,7 +143,13 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			}
 
 			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
+			// Only when the host supplied none. A store that borrows the registered client shares its
+			// connection pool with every other Cosmos feature instead of opening a second one.
+			if (_client is null)
+			{
+				_client = CreateClient(clientOptions);
+				_ownsClient = true;
+			}
 
 				// Created here, so this store owns it and disposes it.
 				_ownsClient = true;
@@ -161,7 +200,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, CurrentTenantScope.TenantId);
 
 		try
 		{
@@ -212,7 +251,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = CosmosDbSnapshotDocument.FromSnapshot(snapshot, TenantScope.FromContext(_tenantContext).TenantId);
+		var document = CosmosDbSnapshotDocument.FromSnapshot(snapshot, CurrentTenantScope.TenantId);
 		var partitionKey = new PartitionKey(snapshot.AggregateType);
 
 		try
@@ -361,7 +400,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, CurrentTenantScope.TenantId);
 
 		try
 		{
@@ -413,7 +452,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, CurrentTenantScope.TenantId);
 
 		try
 		{

@@ -123,7 +123,7 @@ This function builds the container with `BuildServiceProvider()` and never start
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.7.1" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
 
-    <PackageReference Include="Excalibur.Dispatch" Version="1.0.0" />
+    <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
   </ItemGroup>
 </Project>
 ```

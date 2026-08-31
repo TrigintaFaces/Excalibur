@@ -17,7 +17,20 @@
     <PackageReference Include="Testcontainers.Oracle" />
   </ItemGroup>
   <ItemGroup>
+    <!--
+      The shipped Oracle OUTBOX schema and its tenant-totality upgrade. The container fixture
+      hand-writes its own CREATE TABLE, which is fine for the store behavioural suites but means
+      nothing exercised the scripts a consumer actually runs. The totality lock provisions from
+      these, so a divergence between the shipped script and the store surfaces here rather than on
+      a consumer database — and the PL/SQL in the upgrade is syntax-checked by a real Oracle.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Scripts\001_CreateOutboxSchema.sql" Link="Schema\001_CreateOracleOutboxSchema.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Scripts\002_MakeOutboxTenantTotal.sql" Link="Schema\002_MakeOracleOutboxTenantTotal.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Scripts\003_CarryTenantOnDeadLetters.sql" Link="Schema\003_CarryOracleDeadLetterTenant.sql" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Oracle\Excalibur.Outbox.Oracle.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing.Conformance\Excalibur.Testing.Conformance.csproj" />
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

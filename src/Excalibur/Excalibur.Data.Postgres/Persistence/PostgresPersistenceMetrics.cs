@@ -31,19 +31,8 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 	private readonly Histogram<double> _transactionDuration;
 	private readonly Histogram<double> _connectionAcquisitionTime;
 
-	private readonly ObservableGauge<int> _activeConnections;
-
-	private readonly ObservableGauge<int> _idleConnections;
-
-	private readonly ObservableGauge<int> _poolSize;
-
-	private readonly ObservableGauge<double> _poolUtilization;
-
 	private readonly ObservableGauge<long> _preparedStatementCount;
 
-	private int _activeConnectionCount;
-	private int _idleConnectionCount;
-	private int _currentPoolSize;
 	private long _currentPreparedStatements;
 
 	/// <summary>
@@ -57,111 +46,86 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 		// Counters for operations
 		_totalQueries = _meter.CreateCounter<long>(
 			"postgres.queries.total",
-			"queries",
+			"{queries}",
 			"Total number of queries executed");
 
 		_totalCommands = _meter.CreateCounter<long>(
 			"postgres.commands.total",
-			"commands",
+			"{commands}",
 			"Total number of commands executed");
 
 		_totalTransactions = _meter.CreateCounter<long>(
 			"postgres.transactions.total",
-			"transactions",
+			"{transactions}",
 			"Total number of transactions");
 
 		// Error counters
 		_failedQueries = _meter.CreateCounter<long>(
 			"postgres.queries.failed",
-			"queries",
+			"{queries}",
 			"Total number of failed queries");
 
 		_failedCommands = _meter.CreateCounter<long>(
 			"postgres.commands.failed",
-			"commands",
+			"{commands}",
 			"Total number of failed commands");
 
 		_failedTransactions = _meter.CreateCounter<long>(
 			"postgres.transactions.failed",
-			"transactions",
+			"{transactions}",
 			"Total number of failed transactions");
 
 		_connectionErrors = _meter.CreateCounter<long>(
 			"postgres.connections.errors",
-			"errors",
+			"{errors}",
 			"Total number of connection errors");
 
 		_timeouts = _meter.CreateCounter<long>(
 			"postgres.timeouts.total",
-			"timeouts",
+			"{timeouts}",
 			"Total number of operation timeouts");
 
 		_deadlocks = _meter.CreateCounter<long>(
 			"postgres.deadlocks.total",
-			"deadlocks",
+			"{deadlocks}",
 			"Total number of deadlocks detected");
 
 		// Cache metrics
 		_cacheHits = _meter.CreateCounter<long>(
 			"postgres.cache.hits",
-			"hits",
+			"{hits}",
 			"Total number of query cache hits");
 
 		_cacheMisses = _meter.CreateCounter<long>(
 			"postgres.cache.misses",
-			"misses",
+			"{misses}",
 			"Total number of query cache misses");
 
 		// Duration histograms
 		_queryDuration = _meter.CreateHistogram<double>(
 			"postgres.query.duration",
-			"milliseconds",
+			"ms",
 			"Query execution duration");
 
 		_commandDuration = _meter.CreateHistogram<double>(
 			"postgres.command.duration",
-			"milliseconds",
+			"ms",
 			"Command execution duration");
 
 		_transactionDuration = _meter.CreateHistogram<double>(
 			"postgres.transaction.duration",
-			"milliseconds",
+			"ms",
 			"Transaction duration");
 
 		_connectionAcquisitionTime = _meter.CreateHistogram<double>(
 			"postgres.connection.acquisition.time",
-			"milliseconds",
+			"ms",
 			"Time to acquire a connection from the pool");
-
-		// Observable gauges for connection pool
-		_activeConnections = _meter.CreateObservableGauge(
-			"postgres.connections.active",
-			() => _activeConnectionCount,
-			"connections",
-			"Number of active connections");
-
-		_idleConnections = _meter.CreateObservableGauge(
-			"postgres.connections.idle",
-			() => _idleConnectionCount,
-			"connections",
-			"Number of idle connections");
-
-		_poolSize = _meter.CreateObservableGauge(
-			"postgres.pool.size",
-			() => _currentPoolSize,
-			"connections",
-			"Current connection pool size");
-
-		_poolUtilization = _meter.CreateObservableGauge(
-			"postgres.pool.utilization",
-			() => _currentPoolSize > 0 ? (double)_activeConnectionCount / _currentPoolSize * 100 : 0,
-			"percent",
-			"Connection pool utilization percentage");
 
 		_preparedStatementCount = _meter.CreateObservableGauge(
 			"postgres.prepared.statements",
 			() => _currentPreparedStatements,
-			"statements",
+			"{statements}",
 			"Number of prepared statements");
 	}
 
@@ -310,19 +274,6 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 	public void RecordCacheMiss(string cacheType) => _cacheMisses.Add(1, new KeyValuePair<string, object?>("cache_type", cacheType));
 
 	/// <summary>
-	/// Updates connection pool statistics.
-	/// </summary>
-	/// <param name="activeConnections"> Number of active connections. </param>
-	/// <param name="idleConnections"> Number of idle connections. </param>
-	/// <param name="poolSize"> Total pool size. </param>
-	public void UpdateConnectionPoolStats(int activeConnections, int idleConnections, int poolSize)
-	{
-		_activeConnectionCount = activeConnections;
-		_idleConnectionCount = idleConnections;
-		_currentPoolSize = poolSize;
-	}
-
-	/// <summary>
 	/// Updates the prepared statement count.
 	/// </summary>
 	/// <param name="count"> The number of prepared statements. </param>
@@ -336,10 +287,6 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 		new Dictionary<string, object>
 			(StringComparer.Ordinal)
 		{
-			["active_connections"] = _activeConnectionCount,
-			["idle_connections"] = _idleConnectionCount,
-			["pool_size"] = _currentPoolSize,
-			["pool_utilization"] = _currentPoolSize > 0 ? (double)_activeConnectionCount / _currentPoolSize * 100 : 0,
 			["prepared_statements"] = _currentPreparedStatements,
 		};
 

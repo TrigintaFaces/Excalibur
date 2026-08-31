@@ -55,6 +55,14 @@ public sealed class EventStoreEncryptionWiringShould
 			(IKeyManagementAdmin)sp.GetRequiredService<IKeyManagementProvider>());
 		_ = services.AddCryptoShredding();
 
+		// Real GDPR erasure over an in-memory request store. KeyShredOnlyErasure is the explicit opt-in for a
+		// registration with no data-inventory discovery source -- without it the startup gate fails closed
+		// rather than issue a certificate over unverified coverage. Registered AFTER the key-management
+		// bridge above so its TryAdd fallbacks stay no-ops and erasure destroys keys in the SAME provider the
+		// encryption stack reads from -- otherwise the shred would target a second, unrelated key store.
+		_ = services.AddInMemoryErasureStore();
+		_ = services.AddGdprErasure(o => o.KeyShredOnlyErasure = true);
+
 		// Event store + at-rest field encryption WIRE under test.
 		// The encrypting decorator serializes/deserializes events via IEventSerializer; register it (with
 		// assembly scan so the decorator's load-path can resolve the event type from its stored name).
@@ -139,9 +147,35 @@ public sealed class EventStoreEncryptionWiringShould
 		};
 		_ = await store.AppendAsync("agg-2", "Subject", new IDomainEvent[] { evt }, -1, CancellationToken.None);
 
-		// Crypto-shred: destroy the subject's key. The SAME stored ciphertext is now undecryptable.
-		var subjectKeys = provider.GetRequiredService<ISubjectKeyManager>();
-		await subjectKeys.DestroyKeyAsync(SubjectId, CancellationToken.None);
+		// Crypto-shred by driving a real GDPR erasure through IErasureService/IErasureExecutor -- the path a
+		// consumer actually invokes, and the only one that consults legal holds before destroying a key. The
+		// erasure service resolves the subject to its key handle itself; the test never derives it.
+		using var erasureScope = provider.CreateScope();
+		var erasure = erasureScope.ServiceProvider.GetRequiredService<IErasureService>();
+		var executor = erasureScope.ServiceProvider.GetRequiredService<IErasureExecutor>();
+
+		var requested = await erasure.RequestErasureAsync(
+			new ErasureRequest
+			{
+				DataSubjectId = SubjectId,
+				IdType = DataSubjectIdType.UserId,
+				LegalBasis = ErasureLegalBasis.DataSubjectRequest,
+				RequestedBy = "integration-test",
+			},
+			CancellationToken.None);
+
+		var execution = await executor.ExecuteAsync(requested.RequestId, CancellationToken.None);
+		// The subject's key must ACTUALLY have been destroyed. A blocked or no-op erasure deletes nothing and
+		// would leave the assertion below to pass or fail for reasons unrelated to crypto-shredding.
+		execution.KeysDeleted.ShouldBe(1,
+			$"the erasure must destroy the subject's key. Error={execution.ErrorMessage}");
+
+		// Success is deliberately FALSE here and that is the correct contract, not a defect: this fixture
+		// registers no data-inventory locations, and the service refuses to certify an erasure as Completed
+		// while [PersonalData]-annotated data remains undiscovered. The key shred still happened -- which is
+		// what this test is about. Asserting Success here would require inventory wiring unrelated to the
+		// at-rest encryption seam under test.
+		execution.Success.ShouldBeFalse("no inventory source is registered, so coverage cannot be certified");
 
 		var serializer = provider.GetRequiredService<IEventSerializer>();
 		var loaded = await store.LoadAsync("agg-2", "Subject", CancellationToken.None);

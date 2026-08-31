@@ -1,0 +1,24 @@
+#nullable enable
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.CollectionPrefix.get -> string!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.CollectionPrefix.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectTimeoutSeconds.get -> int
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectionString.get -> string?
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ConnectionString.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.DatabaseName.get -> string!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.DatabaseName.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.MongoDbComplianceOptions() -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ServerSelectionTimeoutSeconds.get -> int
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions.ServerSelectionTimeoutSeconds.set -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.Dispose() -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ConsentRecord?>!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.MongoDbComplianceStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions!>! options, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore!>! logger) -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.MongoDbComplianceStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions!>! options, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore!>! logger) -> void
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.StoreConsentAsync(Excalibur.Compliance.ConsentRecord! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.StoreErasureLogAsync(string! subjectId, string! details, System.DateTimeOffset erasedAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceStore.StoreSubjectAccessRequestAsync(Excalibur.Compliance.SubjectAccessResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.MongoDbComplianceStoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MongoDbComplianceStoreServiceCollectionExtensions.AddMongoDbComplianceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbComplianceStoreServiceCollectionExtensions.AddMongoDbComplianceStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Stores.MongoDb.MongoDbComplianceOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -51,7 +51,23 @@ public static class InMemoryEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(storeName);
 
-		_ = services.AddSingleton<InMemoryEventStore>();
+		// Registers IOptions<InMemoryEventStoreOptions> so the store's constructor can be handed the host's
+		// configuration. A host opts into reflection-free serialization with
+		// Configure<InMemoryEventStoreOptions>(o => o.EventTypeInfoResolver = MyContext.Default); with nothing
+		// configured this resolves the default instance and the store serializes through reflection as before.
+		_ = services.AddOptions<InMemoryEventStoreOptions>();
+
+		// TryAdd, so a host that established its own tenancy keeps it and a single-tenant host still gets a
+		// context. The store's constructor requires ITenantContext -- the tenant term is part of its stream
+		// key -- so without this the registration is not self-sufficient.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore constructs the store (injecting ITenantContext, since its constructor declares
+		// one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably, so the attestation
+		// cannot exist without the wiring it describes. This store genuinely scopes -- the tenant term is part
+		// of its stream key -- but a bare AddSingleton attested nothing, so RowDiscriminator refused every host
+		// that used it, including the test hosts this provider exists to serve.
+		_ = services.AddTenantAwareStore<IEventStore, InMemoryEventStore>();
 		services.AddKeyedSingleton<IEventStore>(storeName, (sp, _) => sp.GetRequiredService<InMemoryEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>(storeName));

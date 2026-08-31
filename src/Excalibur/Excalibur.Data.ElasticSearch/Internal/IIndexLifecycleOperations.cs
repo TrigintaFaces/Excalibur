@@ -16,11 +16,10 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// abstraction; do not make this public.
 /// </summary>
 /// <remarks>
-/// Third of the 6 γ seams per COMPASS S798 msg 1746 ruling + S799 msg 1799
-/// naming precedent. <c>Operations</c> suffix (matching COMPASS's exemplar
-/// <c>ISchemaEvolutionOperations</c>) describes the consumer's domain role —
-/// the complete ILM/rollover workflow — rather than an SDK sub-client mirror.
-/// Size: 5 methods, at the ADR-142 §D7 hard cap (S799 F1 lesson).
+/// The <c>Operations</c> suffix (matching <c>ISchemaEvolutionOperations</c>)
+/// describes the consumer's domain role — the complete ILM/rollover workflow
+/// — rather than an SDK sub-client mirror. Size: 5 methods, at the
+/// five-method seam cap.
 /// </remarks>
 internal interface IIndexLifecycleOperations
 {

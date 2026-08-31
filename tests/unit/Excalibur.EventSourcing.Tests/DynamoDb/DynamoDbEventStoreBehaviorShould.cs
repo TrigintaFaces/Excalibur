@@ -325,7 +325,8 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 			client,
 			A.Fake<IAmazonDynamoDBStreams>(),
 			Options.Create(options),
-			NullLogger<DynamoDbEventStore>.Instance);
+			NullLogger<DynamoDbEventStore>.Instance,
+			UntenantedContext.Instance);
 	}
 
 	private static Dictionary<string, AttributeValue> CreateItem(

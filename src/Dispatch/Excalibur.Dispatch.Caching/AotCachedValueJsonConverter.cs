@@ -63,6 +63,7 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 		var shouldCache = false;
 		var hasExecuted = false;
 		string? typeName = null;
+		string? actionTypeName = null;
 
 		while (reader.Read())
 		{
@@ -90,12 +91,16 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 				case CachedValueJsonConverter.TypeNamePropertyName:
 					typeName = reader.GetString();
 					break;
+				case CachedValueJsonConverter.ActionTypeNamePropertyName:
+					actionTypeName = reader.GetString();
+					break;
 				case CachedValueJsonConverter.ValuePropertyName:
-#pragma warning disable IL2026, IL3050 // Deserialize<JsonElement> is safe -- JsonElement is a primitive STJ type
+					// JsonElement.ParseValue reads the value straight off the reader. The generic
+					// JsonSerializer.Deserialize<JsonElement> overload reaches the same result through the
+					// reflection-based converter resolver, which ILC cannot prove safe.
 					value = reader.TokenType == JsonTokenType.Null
 							? null
-							: JsonSerializer.Deserialize<JsonElement>(ref reader, options);
-#pragma warning restore IL2026, IL3050
+							: JsonElement.ParseValue(ref reader);
 					break;
 				default:
 					reader.Skip();
@@ -120,13 +125,20 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 			// else: type not registered in context -- value stays as JsonElement (graceful fallback)
 		}
 
-		return new CachedValue { Value = value, ShouldCache = shouldCache, HasExecuted = hasExecuted, TypeName = typeName };
+		return new CachedValue
+		{
+			Value = value,
+			ShouldCache = shouldCache,
+			HasExecuted = hasExecuted,
+			TypeName = typeName,
+			ActionTypeName = actionTypeName,
+		};
 	}
 
 	/// <inheritdoc />
 	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Fallback path at line 139 uses reflection-based serialization for types not registered in the JsonSerializerContext. " +
-		"In AOT scenarios, all cacheable types should be registered via the context to avoid this path.")]
+		Justification = "The type map is consulted first and the reflection-based fallback runs only for a type the supplied " +
+		"context does not carry; registering the cacheable types with the context removes that path entirely.")]
 	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Fallback path uses JsonSerializer.Serialize with runtime options. AOT consumers should register all types in the context.")]
 	public override void Write(Utf8JsonWriter writer, CachedValue value, JsonSerializerOptions options)
@@ -139,6 +151,11 @@ internal sealed class AotCachedValueJsonConverter : JsonConverter<CachedValue>
 		if (value.TypeName != null)
 		{
 			writer.WriteString(CachedValueJsonConverter.TypeNamePropertyName, value.TypeName);
+		}
+
+		if (value.ActionTypeName != null)
+		{
+			writer.WriteString(CachedValueJsonConverter.ActionTypeNamePropertyName, value.ActionTypeName);
 		}
 
 		writer.WritePropertyName(CachedValueJsonConverter.ValuePropertyName);

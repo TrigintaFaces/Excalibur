@@ -15,7 +15,7 @@ using Excalibur.Dispatch.Middleware.Versioning;
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
-/// Provides default pipeline profiles for the dispatch system. Implements requirements R7.5-R7.12.
+/// Provides default pipeline profiles for the dispatch system.
 /// </summary>
 public static class DefaultPipelineProfiles
 {
@@ -45,7 +45,7 @@ public static class DefaultPipelineProfiles
 	public const string Direct = "direct";
 
 	/// <summary>
-	/// Creates the default pipeline profile with canonical middleware ordering. Implements requirement R7.6 baseline order.
+	/// Creates the default pipeline profile with canonical middleware ordering.
 	/// </summary>
 	public static IPipelineProfile CreateDefaultProfile()
 	{
@@ -54,8 +54,8 @@ public static class DefaultPipelineProfiles
 			Description = "Default pipeline profile with canonical middleware ordering",
 		};
 
-		// R7.6 Default Baseline Order
-		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
+		// Default baseline order
+		// Note: CorrelationMiddleware removed - correlation now handled at Dispatcher level
 		// AuthorizationMiddleware is intentionally NOT in the Default profile: it is a security-sensitive
 		// middleware that depends on consumer-supplied authorization services. Because profile materialization
 		// null-skips any middleware whose services are unregistered (Microsoft fail-open), including it here
@@ -90,10 +90,15 @@ public static class DefaultPipelineProfiles
 		var profile = new PipelineProfile(Strict, MessageKinds.Action | MessageKinds.Event)
 		{
 			Description = "Strict pipeline for external/partner inputs with full validation and security",
+
+			// The registry auto-selects on this flag. Without it the profile carrying the Required
+			// security middleware could never be chosen, and selection would fall through to a profile
+			// that declares no security boundary.
+			IsStrict = true,
 		};
 
 		// Order matters - security checks first
-		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
+		// Note: CorrelationMiddleware removed - correlation now handled at Dispatcher level
 		// Every entry states its criticality EXPLICITLY. A shipped profile must not depend on the
 		// MiddlewareEntry default, so a future change to that default cannot silently alter what the
 		// framework ships. The default governs consumer-authored entries only.
@@ -131,7 +136,7 @@ public static class DefaultPipelineProfiles
 		};
 
 		// Minimal middleware for internal events
-		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
+		// Note: CorrelationMiddleware removed - correlation now handled at Dispatcher level
 		// Explicit criticality, as with every shipped profile: none of these may depend on the
 		// MiddlewareEntry default. Internal events are already inside the trust boundary and this profile
 		// declares no security middleware, so an unresolvable entry degrades behaviour rather than
@@ -156,7 +161,7 @@ public static class DefaultPipelineProfiles
 		};
 
 		// Minimal middleware for batch processing
-		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
+		// Note: CorrelationMiddleware removed - correlation now handled at Dispatcher level
 		// Explicit criticality, as with every shipped profile. Batch processing declares no security
 		// middleware, so neither entry gates a protection a consumer opted into.
 		profile.AddMiddleware<UnifiedBatchingMiddleware>(1, MiddlewareCriticality.Optional);
@@ -167,7 +172,7 @@ public static class DefaultPipelineProfiles
 
 	/// <summary>
 	/// Creates the direct pipeline profile for high-frequency message processing. Minimizes middleware overhead for maximum throughput
-	/// scenarios. Implements R7.12.
+	/// scenarios.
 	/// </summary>
 	/// <remarks>
 	/// Correlation and context management is handled directly in the Dispatcher,
@@ -180,7 +185,7 @@ public static class DefaultPipelineProfiles
 			Description = "Ultra-lightweight pipeline for direct message processing with zero middleware overhead",
 		};
 
-		// No middleware needed - correlation is now handled at the Dispatcher level (Sprint 70)
+		// No middleware needed - correlation is now handled at the Dispatcher level
 		// This provides maximum throughput with zero allocation overhead
 		return profile;
 	}

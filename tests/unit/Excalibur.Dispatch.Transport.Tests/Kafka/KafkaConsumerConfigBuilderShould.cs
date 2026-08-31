@@ -10,6 +10,10 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka;
 /// <summary>
 /// Unit tests for <see cref="KafkaConsumerConfigBuilder"/>, covering the cooperative-sticky
 /// partition-assignment default and its protocol gating (bd-89dfyw).
+///
+/// The fixtures set a TLS-bearing security protocol because the builder refuses to produce a
+/// configuration that would connect in the clear. They are exercising assignment strategy under the
+/// shipping security posture rather than opting out of it.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Platform)]
@@ -19,7 +23,7 @@ public sealed class KafkaConsumerConfigBuilderShould : UnitTestBase
 	public void Build_WithDefaults_UsesCooperativeStickyAssignment()
 	{
 		// Arrange
-		var options = new KafkaOptions { BootstrapServers = "localhost:9092" };
+		var options = new KafkaOptions { BootstrapServers = "localhost:9092", SecurityProtocol = SecurityProtocol.Ssl };
 
 		// Act
 		var config = KafkaConsumerConfigBuilder.Build(options);
@@ -36,6 +40,7 @@ public sealed class KafkaConsumerConfigBuilderShould : UnitTestBase
 		var options = new KafkaOptions
 		{
 			BootstrapServers = "localhost:9092",
+			SecurityProtocol = SecurityProtocol.Ssl,
 			GroupProtocol = GroupProtocol.Consumer,
 		};
 
@@ -50,7 +55,7 @@ public sealed class KafkaConsumerConfigBuilderShould : UnitTestBase
 	public void Build_WhenStrategyOverridden_HonorsExplicitValue()
 	{
 		// Arrange
-		var options = new KafkaOptions { BootstrapServers = "localhost:9092" };
+		var options = new KafkaOptions { BootstrapServers = "localhost:9092", SecurityProtocol = SecurityProtocol.Ssl };
 		options.Consumer.PartitionAssignmentStrategy = PartitionAssignmentStrategy.Range;
 
 		// Act
@@ -64,7 +69,7 @@ public sealed class KafkaConsumerConfigBuilderShould : UnitTestBase
 	public void Build_WhenStrategyCleared_LeavesAssignmentUnset()
 	{
 		// Arrange — null opts out, deferring to the broker/client default.
-		var options = new KafkaOptions { BootstrapServers = "localhost:9092" };
+		var options = new KafkaOptions { BootstrapServers = "localhost:9092", SecurityProtocol = SecurityProtocol.Ssl };
 		options.Consumer.PartitionAssignmentStrategy = null;
 
 		// Act

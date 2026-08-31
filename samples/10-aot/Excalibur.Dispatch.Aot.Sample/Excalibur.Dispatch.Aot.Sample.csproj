@@ -1,7 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <NoWarn>$(NoWarn);CA1506</NoWarn>
+    <!-- This sample is the ahead-of-time acceptance surface: it must be able to REPORT trim
+         warnings. The shared samples NoWarn silences IL2026 for demo code; strip it back out here,
+         because a sample that cannot warn cannot prove anything about trimming. -->
+    <NoWarn>$(NoWarn.Replace('IL2026',''));CA1506;CA1505</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -10,10 +13,11 @@
     <!-- AOT Configuration -->
     <PublishAot>true</PublishAot>
     <TrimMode>full</TrimMode>
-    <!-- InMemoryEventStore (dev/test store) uses reflection-based JSON serialization.
-         In production, consumers would use typed serialization with JsonSerializerContext.
-         AOT-safe serialization is demonstrated explicitly via AppJsonSerializerContext in S1 demos. -->
-    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Reflection-based JSON is OFF, which is the ahead-of-time default. Every type this
+         sample serializes must therefore be reachable through a JsonSerializerContext. Turning
+         this back on would let serialization silently fall back to reflection at run time, which
+         is exactly the failure this sample exists to surface. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
@@ -38,5 +42,10 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
+  </ItemGroup>
+  <!-- S4: Compliance dependencies (SOC 2 configuration binding + report export) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Compliance\Excalibur.Compliance.csproj" />
   </ItemGroup>
 </Project>

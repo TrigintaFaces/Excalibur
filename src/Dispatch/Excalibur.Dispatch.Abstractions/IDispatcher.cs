@@ -47,7 +47,7 @@ public interface IDispatcher
 	/// <param name="context"> Context for the dispatch operation. </param>
 	/// <param name="cancellationToken"> Token used to cancel the operation. </param>
 	/// <returns> The result of dispatch execution. </returns>
-	// R0.8: Do not add multiple overloads with optional parameters - Necessary for interface usability
+	// Do not add multiple overloads with optional parameters - Necessary for interface usability
 #pragma warning disable RS0026
 
 	Task<IMessageResult> DispatchAsync<TMessage>(
@@ -67,7 +67,7 @@ public interface IDispatcher
 	/// <param name="context"> Context for the dispatch operation. </param>
 	/// <param name="cancellationToken"> Token used to cancel the operation. </param>
 	/// <returns> The result including the response value. </returns>
-	// R0.8: Do not add multiple overloads with optional parameters - Necessary for interface usability
+	// Do not add multiple overloads with optional parameters - Necessary for interface usability
 #pragma warning disable RS0026
 
 	Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(

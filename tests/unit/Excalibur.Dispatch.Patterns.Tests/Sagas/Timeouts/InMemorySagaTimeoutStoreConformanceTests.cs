@@ -20,7 +20,7 @@ public sealed class InMemorySagaTimeoutStoreConformanceTests : SagaTimeoutStoreC
 {
 	/// <inheritdoc/>
 	protected override Task<ISagaTimeoutStore> CreateStoreAsync() =>
-		Task.FromResult<ISagaTimeoutStore>(new InMemorySagaTimeoutStore());
+		Task.FromResult<ISagaTimeoutStore>(new InMemorySagaTimeoutStore(new TestTenantContext()));
 
 	/// <inheritdoc/>
 	protected override Task CleanupAsync() => Task.CompletedTask;

@@ -104,13 +104,39 @@ function Get-SourceSuppressions {
                     Justification = $justification
                 }
             }
+
+            # THE SECOND SUPPRESSION CHANNEL.
+            #
+            # `#pragma warning disable IL2026` silences the analyzer at the call site just as
+            # completely as the attribute above, and until this loop existed the audit could not
+            # see it: the script scanned for UnconditionalSuppressMessage and nothing else. That
+            # is why a build with TreatWarningsAsErrors can report zero trim diagnostics while a
+            # real ILC publish reports thousands -- the analyzer had already been told not to look,
+            # through a channel with no baseline, no justification and no ratchet.
+            #
+            # Both channels now feed one list, so the same NEW/STALE comparison governs both.
+            elseif ($lines[$i] -match '#\s*pragma\s+warning\s+disable\s+(.+)$') {
+                $codes = $matches[1]
+                foreach ($m in [regex]::Matches($codes, 'IL[23]\d{3}')) {
+                    # A trailing comment is the closest thing a pragma has to a justification.
+                    $pragmaJustification = ''
+                    if ($lines[$i] -match '//\s*(.+?)\s*$') { $pragmaJustification = $matches[1] }
+
+                    $suppressions += @{
+                        File          = $relativePath
+                        Line          = $i + 1
+                        WarningId     = $m.Value
+                        Justification = $pragmaJustification
+                    }
+                }
+            }
         }
     }
 
     return $suppressions
 }
 
-Write-Host "Scanning source for [UnconditionalSuppressMessage] attributes..." -ForegroundColor Cyan
+Write-Host "Scanning source for suppressions -- [UnconditionalSuppressMessage] attributes AND #pragma warning disable of IL2xxx/IL3xxx..." -ForegroundColor Cyan
 $sourceSuppressions = @(Get-SourceSuppressions -SourceRoot $SrcPath)
 Write-Host "  Found $($sourceSuppressions.Count) suppression(s) in source" -ForegroundColor Green
 

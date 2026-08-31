@@ -83,7 +83,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 						MaxEntries = operationCount / concurrentWorkers + 100,
 						EnableAutomaticCleanup = false
 					}),
-					logger);
+					logger, UntenantedContext.Instance);
 
 				var operationsPerWorker = operationCount / concurrentWorkers;
 				var budgetCalculations = new List<BudgetCalculationResult>();
@@ -268,7 +268,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 					MaxEntries = messagesPerHop + 50,
 					EnableAutomaticCleanup = false
 				}),
-				logger);
+				logger, UntenantedContext.Instance);
 
 			var hopResults = new List<HopOperationResult>();
 
@@ -521,7 +521,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 				MaxEntries = operationCount + 100,
 				EnableAutomaticCleanup = false
 			}),
-			logger);
+			logger, UntenantedContext.Instance);
 
 		var latencies = new List<double>();
 		var successful = 0;

@@ -161,15 +161,9 @@ Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.get -> string?
 Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.set -> void
 Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Domain.Model.HistoricEvent>! history) -> void
 Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
-Excalibur.Domain.Model.IDomainEventEnricher
-Excalibur.Domain.Model.IDomainEventEnricher.EnrichAsync(Excalibur.Dispatch.IDomainEvent! event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IDomainEvent!>!
 Excalibur.Domain.Model.IEntity
 Excalibur.Domain.Model.IEntity<TKey>
 Excalibur.Domain.Model.IEntity<TKey>.Key.get -> TKey
-Excalibur.Domain.Model.IRepository<TEntity, TKey>
-Excalibur.Domain.Model.IRepository<TEntity, TKey>.DeleteAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Domain.Model.IRepository<TEntity, TKey>.GetByIdAsync(TKey id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TEntity?>!
-Excalibur.Domain.Model.IRepository<TEntity, TKey>.SaveAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Domain.Model.ISnapshot
 Excalibur.Domain.Model.ISnapshot.AggregateId.get -> string!
 Excalibur.Domain.Model.ISnapshot.AggregateType.get -> string!
@@ -324,7 +318,7 @@ static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Domain.BoundedContext.BoundedContextOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, System.Type! interfaceType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations<TInterface>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.AddExcaliburContextServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "__default__", bool localAddress = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.AddExcaliburContextServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string? tenant = null, bool localAddress = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddClientAddress(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddCorrelationId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddETag(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

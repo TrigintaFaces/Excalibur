@@ -390,31 +390,31 @@ public sealed class RabbitMqDeadLetterQueueManagerShould : IDisposable
 
 	#endregion
 
-	#region PurgeDeadLetterQueueAsync
+	#region PurgeAllTenantsDeadLetterQueueAsync
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_CallsQueuePurge()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_CallsQueuePurge()
 	{
 		// Arrange
 		A.CallTo(() => _fakeChannel.QueuePurgeAsync("dead-letter-queue", A<CancellationToken>._))
 			.Returns(5U);
 
 		// Act
-		var purgedCount = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purgedCount = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purgedCount.ShouldBe(5);
 	}
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_ReturnsZero_WhenEmpty()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_ReturnsZero_WhenEmpty()
 	{
 		// Arrange
 		A.CallTo(() => _fakeChannel.QueuePurgeAsync("dead-letter-queue", A<CancellationToken>._))
 			.Returns(0U);
 
 		// Act
-		var purgedCount = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purgedCount = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purgedCount.ShouldBe(0);

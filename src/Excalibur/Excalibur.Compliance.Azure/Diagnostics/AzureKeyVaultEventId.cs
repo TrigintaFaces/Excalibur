@@ -5,7 +5,7 @@ namespace Excalibur.Compliance.Azure;
 /// <summary>
 /// Event IDs for Azure Key Vault key management (92610-92629).
 /// </summary>
-public static class AzureKeyVaultEventId
+internal static class AzureKeyVaultEventId
 {
 	/// <summary>Azure Key Vault provider initialized.</summary>
 	public const int ProviderInitialized = 92610;

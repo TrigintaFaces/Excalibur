@@ -26,7 +26,7 @@ public sealed class FirestoreOptionsShould
 		var options = new FirestoreOptions();
 
 		// Assert
-		options.Name.ShouldBe("Firestore");
+		options.Name.ShouldBe("firestore");
 	}
 
 	[Fact]

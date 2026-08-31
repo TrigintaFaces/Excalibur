@@ -55,6 +55,20 @@ services.AddDispatchMemoryCaching(
     });
 ```
 
+:::caution Tag invalidation needs Redis to be exact
+
+Cache **tag** invalidation is atomic only on Redis. On any other `IDistributedCache` backend
+(SQL Server, for example) the tag-to-keys set is maintained with a read-modify-write, because
+`IDistributedCache` offers no atomic set-add. Two instances registering different keys under the
+same tag at the same time can lose one of them, and a key that falls out of the set is **not**
+invalidated when its tag is — that entry serves stale data until its own expiry elapses.
+
+Register a Redis connection if you rely on tag invalidation being exact. Otherwise keep entry
+lifetimes short enough that the staleness window is acceptable. The framework logs a warning at
+startup when it selects the best-effort tracker, so this is visible rather than silent.
+
+:::
+
 ### Redis (Distributed)
 
 For multi-instance deployments with shared cache:
@@ -258,6 +272,46 @@ public class ListProductsAction : IDispatchAction<IReadOnlyList<ProductDto>>
 | `OnlyIfSuccess` | `bool` | `true` | Only cache successful results |
 | `IgnoreNullResult` | `bool` | `true` | Skip caching when result is null |
 
+### A Cached Handler Must Have No Side Effects
+
+This applies to `[CacheResult]` and to `ICacheable<T>` equally, and it is the one rule that will bite you if
+it is missed.
+
+A cached handler is run as the **value factory** of `HybridCache`, and a value factory is not invoked once
+per dispatch:
+
+| What happens | Handler invocations |
+|---|---|
+| Cache hit | **none** — the stored value is returned and your handler never runs |
+| N concurrent dispatches of the same key | **one** — they are collapsed onto a single in-flight factory call |
+| Background refresh | **one extra**, on a task no dispatch is awaiting |
+
+So the invocation count is unrelated to the dispatch count in both directions, and no configuration changes
+that — it is how a single-flight cache avoids stampeding your backend, which is the reason to use one.
+
+Read it as: a cached handler answers *"what is the value for this key"* and nothing else. Anything that must
+happen exactly once per request — a write, an outbound message, a counter, an audit entry — belongs outside
+the cached handler:
+
+```csharp
+// WRONG: the audit entry is skipped on every cache hit and can be written twice on a refresh.
+[CacheResult(ExpirationSeconds = 600)]
+public sealed class GetCustomerAction : IDispatchAction<CustomerDto> { public Guid Id { get; init; } }
+
+public sealed class GetCustomerHandler(ICustomerRepository repo, IAuditLog audit)
+    : IActionHandler<GetCustomerAction, CustomerDto>
+{
+    public async Task<CustomerDto> HandleAsync(GetCustomerAction action, CancellationToken cancellationToken)
+    {
+        await audit.RecordAccessAsync(action.Id, cancellationToken); // side effect inside the value factory
+        return await repo.GetAsync(action.Id, cancellationToken);
+    }
+}
+```
+
+Keep the handler a pure read, and put the per-request work in its own middleware or in the caller — where it
+runs once per dispatch regardless of whether the read was served from cache.
+
 ## Cache Invalidation
 
 ### By Key or Tag
@@ -425,7 +479,7 @@ services.AddDispatchCaching(options =>
 |----------|------|---------|-------------|
 | `DefaultExpiration` | `TimeSpan` | 10 min | Default TTL for cached items |
 | `UseSlidingExpiration` | `bool` | `true` | Reset expiration on access |
-| `CacheTimeout` | `TimeSpan` | 200 ms | Max wait for cache operations |
+| `CacheTimeout` | `TimeSpan` | 200 ms | Max wait for a single distributed (L2) backend call. A read that runs longer is treated as a miss and a write that runs longer is dropped, so a slow backend degrades to a cache miss rather than slowing every request. It does **not** bound handler execution — a cached handler may take as long as its work takes without losing single-flight protection. The deadline is enforced by cancelling the backend call, so it depends on your `IDistributedCache` honouring its `CancellationToken`; a backend that ignores cancellation will still block for as long as it takes. |
 | `JitterRatio` | `double` | `0.10` | Random TTL variance (0-1) to prevent stampedes |
 | `EnableStatistics` | `bool` | `false` | Collect hit/miss/eviction metrics |
 | `EnableCompression` | `bool` | `false` | Compress values in distributed cache |

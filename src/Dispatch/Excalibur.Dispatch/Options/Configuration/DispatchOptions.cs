@@ -103,13 +103,6 @@ public sealed class DispatchFeatureOptions
 	/// </summary>
 	/// <value><see langword="true"/> by default.</value>
 	public bool ValidateMessageSchemas { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether Cache stage middleware is included in synthesized pipelines.
-	/// </summary>
-	/// <value><see langword="true"/> by default.</value>
-	public bool EnableCacheMiddleware { get; set; } = true;
-
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable multi-tenancy support.
 	/// </summary>
@@ -139,44 +132,14 @@ public sealed class DispatchFeatureOptions
 /// Cross-cutting concern configuration for the Excalibur framework.
 /// </summary>
 /// <remarks>
-/// Groups security, observability, resilience, caching, performance, and retry policy
+/// Groups observability, resilience, caching, and performance
 /// to keep the root <see cref="DispatchOptions"/> within the 10-property gate.
 /// </remarks>
 public sealed class DispatchCrossCuttingOptions
 {
 	/// <summary>
-	/// Gets or sets the default retry policy.
-	/// </summary>
-	/// <value> The default retry policy. </value>
-	public DispatchRetryOptions DefaultRetryPolicy { get; set; } = new();
-
-	/// <summary>
 	/// Gets or sets performance optimization configuration.
 	/// </summary>
 	/// <value> Performance optimization configuration. </value>
 	public PerformanceOptions Performance { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets security options.
-	/// </summary>
-	/// <value> Security options. </value>
-	public SecurityOptions Security { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets observability options.
-	/// </summary>
-	/// <value> Observability options. </value>
-	public ObservabilityOptions Observability { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets resilience options.
-	/// </summary>
-	/// <value> Resilience options. </value>
-	public ResilienceOptions Resilience { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets caching options.
-	/// </summary>
-	/// <value> Caching options. </value>
-	public CachingOptions Caching { get; set; } = new();
 }

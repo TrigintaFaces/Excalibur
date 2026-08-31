@@ -18,7 +18,7 @@ namespace Excalibur.Data.CosmosDb.Authorization;
 /// <remarks>
 /// <para>
 /// Uses tenant_id as the partition key for optimal query patterns where grants
-/// are typically queried by tenant scope. Null tenants use "__null__" as the partition key.
+/// are typically queried by tenant scope.
 /// </para>
 /// <para>
 /// Uses UpsertItemAsync for save operations to handle both insert and update scenarios.
@@ -31,6 +31,16 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
+	/// <summary>
+	/// Whether this store created the Cosmos client it holds, and may therefore dispose it.
+	/// </summary>
+	/// <remarks>
+	/// A store handed the host's shared client must not dispose it: the client is a singleton several
+	/// features share, and disposing it leaves every other feature throwing ObjectDisposedException from
+	/// a call that names this store's disposal rather than anything the caller did. The flag is set only
+	/// on the path that constructs one.
+	/// </remarks>
+	private bool _ownsClient;
 	private Container? _container;
 	private volatile bool _initialized;
 	private volatile bool _disposed;
@@ -55,6 +65,29 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbGrantStore"/> class over a client the host owns.
+	/// </summary>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="client">The Cosmos client registered by the host. Borrowed, never disposed here.</param>
+	/// <param name="timeProvider">The time source, or <see langword="null"/> for the system clock.</param>
+	/// <remarks>
+	/// Selected by dependency injection whenever a <see cref="CosmosClient"/> is registered, which the
+	/// Cosmos registration does. Borrowing that client is what keeps a host enabling several Cosmos
+	/// features on one connection pool rather than one per feature, and the store does not dispose it.
+	/// </remarks>
+	public CosmosDbGrantStore(
+		IOptions<CosmosDbAuthorizationOptions> options,
+		ILogger<CosmosDbGrantStore> logger,
+		CosmosClient client,
+		TimeProvider? timeProvider = null)
+		: this(options, logger, timeProvider)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		_client = client;
+	}
+
 	/// <inheritdoc/>
 	public async Task<int> DeleteGrantAsync(
 		string userId,
@@ -69,7 +102,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = GrantDocument.CreateId(userId, tenantId, grantType, qualifier);
-		var partitionKey = new PartitionKey(GrantDocument.GetPartitionKey(tenantId));
+		var partitionKey = new PartitionKey(tenantId);
 
 		try
 		{
@@ -93,7 +126,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 					new ItemRequestOptions { IfMatchEtag = response.ETag },
 					cancellationToken).ConfigureAwait(false);
 
-				LogGrantRevoked(userId, tenantId ?? "null", grantType, qualifier);
+				LogGrantRevoked(userId, tenantId, grantType, qualifier);
 				return 1;
 			}
 			else
@@ -104,7 +137,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
 
-				LogGrantDeleted(userId, tenantId ?? "null", grantType, qualifier);
+				LogGrantDeleted(userId, tenantId, grantType, qualifier);
 				return 1;
 			}
 		}
@@ -126,7 +159,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = GrantDocument.CreateId(userId, tenantId, grantType, qualifier);
-		var partitionKey = new PartitionKey(GrantDocument.GetPartitionKey(tenantId));
+		var partitionKey = new PartitionKey(tenantId);
 
 		try
 		{
@@ -154,7 +187,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var partitionKeyValue = GrantDocument.GetPartitionKey(tenantId);
+		var partitionKeyValue = tenantId;
 		var queryParts = new List<string>
 		{
 			"SELECT * FROM c WHERE c.tenant_id = @tenantId",
@@ -203,7 +236,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = GrantDocument.CreateId(userId, tenantId, grantType, qualifier);
-		var partitionKey = new PartitionKey(GrantDocument.GetPartitionKey(tenantId));
+		var partitionKey = new PartitionKey(tenantId);
 
 		try
 		{
@@ -270,7 +303,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 			options,
 			cancellationToken).ConfigureAwait(false);
 
-		LogGrantSaved(grant.UserId, grant.TenantId ?? "null", grant.GrantType, grant.Qualifier);
+		LogGrantSaved(grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier);
 		return 1;
 	}
 
@@ -295,7 +328,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 			foreach (var doc in response)
 			{
 				var grant = doc.ToGrant();
-				var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
+				var key = $"{grant.TenantId}:{grant.GrantType}:{grant.Qualifier}";
 				result[key] = grant;
 			}
 		}
@@ -323,7 +356,13 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 			}
 
 			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
+			// Only when the host supplied none. A store that borrows the registered client shares its
+			// connection pool with every other Cosmos feature instead of opening a second one.
+			if (_client is null)
+			{
+				_client = CreateClient(clientOptions);
+				_ownsClient = true;
+			}
 
 			var database = _client.GetDatabase(_options.DatabaseName);
 			_container = database.GetContainer(_options.GrantsContainerName);
@@ -367,7 +406,12 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -380,7 +424,12 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);

@@ -30,6 +30,9 @@
 #
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 # ---------------------------------------------------------------------------
 # Token patterns
 # ---------------------------------------------------------------------------
@@ -39,7 +42,41 @@ set -uo pipefail
 #   bd-xxx…              prefixed tracker id (id suffix is base36, 3-6 chars — the
 #                        real distribution is 3/4/5/6-char, so a hardcoded {6} would
 #                        miss ~72% of ids; the `bd-` prefix disambiguates short ids)
-#   ADR-999 / ADR999     architecture-decision-record ref (needs a digit)
+#   ADR-999 / ADR999     architecture-decision-record ref (needs a digit). CASE-INSENSITIVE, and the
+#                        uppercase-only form is why: an ADR is cited in prose as `ADR-999` but on disk the
+#                        file is `management/architecture/adr-999-some-title.md`, so every LINK to one --
+#                        in a sample README, in a mirrored eng/ script's "See:" line -- spelled it
+#                        lowercase and matched nothing. Five such links sat on the public surface while
+#                        this arm reported clean. Same evasion the sprint arm already documents for a
+#                        lowercase `s890`, and measured the same way: widening to case-insensitive
+#                        produced no hit that was not a real leak.
+#   R7.4 / R27.20a       REQUIREMENT ID from an internal spec, and the largest single class on this
+#                        surface when it was added. A consumer reading `R7.4: Context-aware timeout
+#                        handling` in IntelliSense has no document to resolve it in -- the specs these
+#                        index are not published -- so it is a pointer into nothing, exactly like a
+#                        tracker id, and it dates the code.
+#                        THE DOT IS REQUIRED, and it is doing the same work the hyphen does for `EC-`:
+#                        a bare `R2` is Cloudflare R2 (a storage product we could plausibly document),
+#                        a register, or a revision label. `R<n>.<n>` is not ambiguous -- measured, all
+#                        53 distinct tokens matching it on the public surface were requirement ids and
+#                        none was a version string or a product name. If a legitimate `R<n>.<n>` term
+#                        ever appears (a spec revision "R2.0" of an external standard), reword it or
+#                        exempt the line; do NOT drop the dot to "widen coverage", which re-creates an
+#                        unbounded false-positive surface a BLOCKING gate cannot survive.
+#                        Case-insensitive on the same measured basis as the ADR and sprint arms:
+#                        lowercase `r<n>.<n>` had ZERO hits, so it costs nothing today and closes the
+#                        evasion before it is used.
+#                        The trailing `[a-z]?` covers sub-part ids (`R27.20a`), which were in use.
+#   Phase 8.3 / 9.1h-2   INTERNAL PLAN-PHASE id -- a numbered stage of a delivery plan the consumer has
+#                        no access to. Same audience failure as a requirement id: `Architecture Boundary
+#                        Validation (Phase 8.3)` printed by a mirrored script tells a reader nothing.
+#                        THE DOT IS REQUIRED, and here it is doing MORE work than anywhere else in this
+#                        pattern set, because the bare form is genuinely common English in our own docs.
+#                        Measured on the public surface: the DOTTED form had 5 hits, every one an
+#                        internal plan phase; the BARE form (`Phase 1`, `Phase 2`, ...) had 46+, every
+#                        one legitimate tutorial prose in docs-site/ and samples/ ("Phase 2: add the
+#                        handler"). A bare arm would red on ordinary documentation, and a BLOCKING gate
+#                        that reds on ordinary documentation gets disabled. Do NOT drop the dot.
 #   S999 / s999          sprint id (exactly 3 digits, word-bounded). Case-insensitive: a lowercase
 #                        `s890` evaded the uppercase-only form and leaked. Measured at zero new hits
 #                        across the whole public surface when this was widened, so it costs nothing
@@ -77,6 +114,12 @@ set -uo pipefail
 #                        `EC-` keeps its REQUIRED hyphen while `AC`/`FR` do not -- making it optional
 #                        for all three re-matches AWS `EC2`, which was measured and rejected.
 #
+# THE SEPARATOR AFTER `SA` IS REQUIRED. Without it the arm also matches `SA1402` and `SA1649`,
+# which are StyleCop analyzer rule ids -- a suppression comment naming the rule it suppresses is
+# not an internal reference, and four such lines were being counted as leaks. The real form the
+# arm exists for always carries a separator (`SA 32694`, `SA #28375`), so requiring one loses no
+# real hit. Same false-positive class the `bd-` note above records for command names.
+#
 # HALF THE CALLSIGNS ARE ORDINARY ENGLISH, AND ONE IS A SHIPPED PROVIDER NAME.
 # ORACLE is a test oracle and a database we ship a provider for; SENTINEL is a sentinel
 # value; COMPASS, FORGE and EXHIBIT are plain words. Matching those bare produced six hits
@@ -84,9 +127,9 @@ set -uo pipefail
 # ("SENTINEL-SHAPED") the moment eng/ came into scope. Those five now require an adjacent
 # `phase` to count. The five that are not English words keep their bare match.
 NIR_TOKEN_ERE='bd-[a-z0-9]{3,6}'\
-'|\bADR-?[0-9]+'\
+'|\b[Aa][Dd][Rr]-?[0-9]+'\
 '|\b[Ss][0-9]{3}\b'\
-'|\bSA[ #-]*[0-9]{4,}'\
+'|\bSA[ #-]+[0-9]{4,}'\
 '|\b[Ss]print[[:space:]]*[:#-]?[[:space:]]*[0-9]+'\
 '|\b(OVERWATCH|CRUCIBLE|BLUEPRINT|CHRONICLE|TRACEPOINT)\b'\
 '|\b(COMPASS|FORGE|ORACLE|SENTINEL|EXHIBIT)[ -](phase|PHASE)\b'\
@@ -96,7 +139,9 @@ NIR_TOKEN_ERE='bd-[a-z0-9]{3,6}'\
 '|\bAC-?[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
 '|\bAD-[0-9]+([.-][0-9]+)*'\
 '|\btask-[0-9]{3,}'\
-'|\bmsg [0-9]{3,}'
+'|\bmsg [0-9]{3,}'\
+'|\b[Rr][0-9]+\.[0-9]+[a-z]?'\
+'|\b[Pp]hase [0-9]+\.[0-9]+[a-z0-9-]*'
 
 # ---------------------------------------------------------------------------
 # Core (pure, testable) functions
@@ -146,30 +191,30 @@ nir_scannable_lines() {
             #    Scanning only /// left an internal id inside a thrown message invisible
             #    to this gate while shipping it to every consumer who triggers the throw.
             #
-            # A plain `//` implementation comment is NOT public -- the rule lists it as an
-            # internal sink -- so lines whose code begins with `//` are excluded from the
-            # literal pass. `///` lines start with the same two characters and are already
-            # emitted by pass 1, so excluding them here loses nothing.
+            # 3. PLAIN `//` IMPLEMENTATION COMMENTS. They are packed into no .nupkg, but the
+            #    source tree they live in is copied verbatim to a public repository, so a
+            #    consumer who reads the code reads them. Restricting pass 1 to `///` measured
+            #    a clean tree while several hundred implementation comments carried internal
+            #    identifiers into that public copy. The `///` case is a subset of this one, so
+            #    pass 1 now emits both.
+            #
+            # The literal pass still skips comment lines: they are already emitted by pass 1,
+            # and re-emitting them would only duplicate hits.
             {
-                grep -nE '^[[:space:]]*///' "$f" 2>/dev/null
+                grep -nE '//' "$f" 2>/dev/null
                 grep -nE '"' "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*//'
             } | sort -u -t: -k1,1n
             ;;
-        *.csproj)
-            # A .csproj is public ONLY via its PACKAGE METADATA — the elements that ship to
-            # the registry and install with the package (<Description>, <PackageReleaseNotes>,
-            # <PackageTags>, <Authors>, etc.). An MSBuild <!-- --> comment is NOT: it is the
-            # build-file twin of an internal code comment, packed into no .nupkg and read by no
-            # consumer. Scanning the whole file as prose flagged those comments — the same
-            # defect class as matching an id-shaped word in prose: the checker matching a
-            # surface the rule does not define as public. So: emit every line EXCEPT MSBuild
-            # comment content (single-line and multi-line blocks). Everything else — all
-            # metadata — stays scanned, so an internal ref in <Description> is still caught.
-            awk '
-                incmt { if ($0 ~ /-->/) incmt=0; next }
-                /<!--/ { if ($0 !~ /-->/) incmt=1; next }
-                { print NR": "$0 }
-            ' "$f" 2>/dev/null
+        *.csproj|*.props|*.targets)
+            # A build file reaches consumers two ways, and both are scanned.
+            #
+            # 1. PACKAGE METADATA — <Description>, <PackageReleaseNotes>, <PackageTags>,
+            #    <Authors> — ships to the registry and installs with the package.
+            # 2. THE FILE ITSELF. Build files live in the source tree that is copied verbatim
+            #    to a public repository, so an MSBuild <!-- --> comment is read by anyone who
+            #    clones it. Skipping comment blocks measured a clean tree over build files
+            #    whose comments named internal work items.
+            grep -n '.*' "$f" 2>/dev/null
             ;;
         *)    grep -n '.*' "$f" 2>/dev/null ;;
     esac
@@ -267,12 +312,21 @@ nir_public_pathspecs() {
         ':(exclude,glob)**/.claude/**' ':(exclude,glob)**/.dts/**' \
         ':(exclude,glob)**/bin/**' ':(exclude,glob)**/obj/**' \
         ':(exclude,glob)**/node_modules/**' ':(exclude,glob)**/.docusaurus/**' \
-        ':(exclude,glob)**/Internal/**' ':(exclude,glob)**/PublicAPI*.txt' \
+        ':(exclude,glob)**/PublicAPI*.txt' \
         ':(exclude,glob)docs/**' ':(exclude,glob)tests/**' \
         ':(exclude,glob)management/**' \
         ':(exclude,glob)**/*.test.sh' ':(exclude,glob)**/*.harness-lock.sh' \
         ':(exclude,glob)**/*.fixture.sh' ':(exclude,glob)**/no-internal-refs-gate.sh' \
         ':(exclude,glob)**/package-lock.json' ':(exclude,glob)**/packages.lock.json'
+        # AN `Internal/` DIRECTORY IS NOT AN INTERNAL SINK, and excluding it was a false
+        # green over a real shipped surface. The C# compiler emits XML documentation for
+        # `internal` members too: the generated .xml packed into the .nupkg carries the
+        # `///` comments of every type under `Internal/`, and IntelliSense surfaces them.
+        # Measured: the shipped Excalibur.Data.ElasticSearch.xml contained the `<summary>`
+        # and `<remarks>` of its Internal seam interfaces verbatim. So the directory name
+        # describes C# accessibility, not who can read the prose, and the per-file content
+        # rule below (a .cs file is public via its `///` lines and its string literals) is
+        # what decides the surface -- it applies under `Internal/` exactly as it does above.
         # GENERATED LOCKFILES ARE NOT PROSE, and scanning them as such is a category error.
         # A lockfile is machine-written dependency metadata; nobody reads it for documentation and
         # nothing in it is authored. Its base64 integrity hashes contain every letter-digit sequence
@@ -298,8 +352,12 @@ nir_keep_line() {
                 *.md|*.nuspec) return 0 ;;
                 *.cs)
                     content="${line#*:*:}"
-                    # XML-doc lines ship in the .xml.
-                    [[ "$content" =~ ^[[:space:]]*/// ]] && return 0
+                    # EVERY comment is public, not only the XML-doc ones, and a TRAILING
+                    # comment counts: `///` ships in the .xml packed into the .nupkg, and any
+                    # `//` ships in the source tree that is copied verbatim to a public
+                    # repository. A leading-anchor test missed trailing comments, which is
+                    # where several tenancy notes carried internal identifiers.
+                    [[ "$content" == *"//"* ]] && return 0
                     # STRING LITERALS also ship -- compiled into the assembly and read
                     # verbatim by consumers as exception/log/diagnostic text. This branch
                     # MUST stay consistent with nir_scannable_lines(): that function decides
@@ -309,19 +367,11 @@ nir_keep_line() {
                     # scanner that reports success while examining nothing new.
                     [[ "$content" == *'"'* && ! "$content" =~ ^[[:space:]]*// ]] && return 0
                     return 1 ;;
-                # .csproj is public ONLY via its PACKAGE METADATA — the elements that ship to
-                # the registry and install with the package (<Description>, <PackageReleaseNotes>,
-                # <PackageTags>, <Authors>, ...). An MSBuild <!-- --> comment is NOT public: it is
-                # packed into no .nupkg and read by no consumer — the build-file twin of an internal
-                # code comment, which the surface spec excludes. Keeping every line flagged those
-                # comments (the same defect class as matching an id-shaped word in prose: the checker
-                # matching a surface the rule does not define as public). Keep a line only if it
-                # carries a shipped-metadata element (or an XML-doc line); discard comments + config.
-                *.csproj)
-                    content="${line#*:*:}"
-                    [[ "$content" =~ \<(Description|PackageReleaseNotes|PackageTags|Authors|Product|Title|Copyright|PackageDescription|Company|Summary)[[:space:]\>] ]] && return 0
-                    [[ "$content" =~ ^[[:space:]]*/// ]] && return 0
-                    return 1 ;;
+                # A build file is public twice over: its package metadata installs with the
+                # package, and the file itself is copied verbatim to a public repository —
+                # MSBuild comments included. Keeping only the metadata elements measured a
+                # clean tree over build files whose comments named internal work items.
+                *.csproj|*.props|*.targets) return 0 ;;
                 # .resx <value> content ships compiled into the assembly and surfaces to
                 # consumers verbatim (and, for compliance/report resources, to an external
                 # auditor). The rule's machine-readable surface list names it (resource-value),
@@ -329,7 +379,7 @@ nir_keep_line() {
                 # A relocation of auditor-facing strings into a .resx must stay AS findable as a
                 # .cs string literal, not less.
                 *.resx) return 0 ;;
-                # Everything else under src/ discards (non-/// implementation comments, etc.).
+                # Everything else under src/ discards (non-comment code lines without literals).
                 *) return 1 ;;
             esac ;;
         *) return 0 ;;
@@ -381,6 +431,20 @@ run_gate() {
     # word-bounded, multi-pattern from the 8k-id set). Merge, then apply the src /// rule.
     local raw report total=0
     raw="$(mktemp)"; report="$(mktemp)"
+
+    # The DENOMINATOR — how many public-surface files this invocation actually READ, printed in the
+    # standard machine-readable form before any verdict. Without it a "public surface clean" is
+    # indistinguishable from a pathspec that stopped resolving: both print the same green.
+    # `git grep -lI ''` lists every text file the same pathspec selects, so it is the population the
+    # token passes below are about to walk — not a proxy. Zero here is a REFUSE: the staged path
+    # already returns early on an empty staged set, so a zero at this point means the scope broke.
+    local nir_scanned
+    nir_scanned="$(git grep -lI '' -- "${specs[@]}" 2>/dev/null | grep -c . || true)"
+    case "$nir_scanned" in ''|*[!0-9]*) nir_scanned=0 ;; esac
+    if ! gate_denominator "$nir_scanned" "public-surface file(s)"; then
+        rm -f "$idset_file" "$report" "$raw" ${staged_set:+"$staged_set"}
+        return 2
+    fi
 
     # Pass 1 drops the loose `bd-` arm and gets it back as a MEMBERSHIP pass (1b), for the
     # reason recorded on nir_hits_in_file: `bd-[a-z0-9]{3,6}` matches our own command names
@@ -573,14 +637,19 @@ Tracked in bare id zx9q7k as well.
 Short prefixed ids also leak: bd-ab12 (4-char) and bd-x7q (3-char).
 Short bare ids leak too: qz7k9 (5-char) and x7q (3-char).
 Decision records leak under their own prefix: AD-326-1 and AD-520.1.
+Requirement ids leak too: implements R999.4 and R999.20a per the spec.
+An ADR link spelled the way the FILE is named: see management/architecture/adr-999-a-title.md.
 This line mentions a basket and a printout — no leak here.
 A road called BROAD-2 and a load balancer LOAD-3 are not decision records.
+Object storage on Cloudflare R2 and a CIDR2.4 mask and VAR2.0 are not requirement ids.
+Internal plan phases leak as well: delivered under Phase 999.3 and Phase 999.1h-2.
+But Phase 1 and Phase 2 of a tutorial are ordinary documentation, not plan ids.
 EOF
     local h1
     h1="$(nir_hits_in_file "$pub_md" "$bare_ere")"
     # Covers every leak class AND the sub-6-char ids that the hardcoded {6} gate missed
     # (bd-ab12/bd-x7q prefixed via the ERE; qz7k9/x7q bare via the id set).
-    for tok in 'bd-abc123' 'bd-ab12' 'bd-x7q' 'Sprint 863' 'ADR-336' 'S861' 'FORGE' 'task-2314' 'zx9q7k' 'qz7k9' 'AD-326-1' 'AD-520.1'; do
+    for tok in 'bd-abc123' 'bd-ab12' 'bd-x7q' 'Sprint 863' 'ADR-336' 'S861' 'FORGE' 'task-2314' 'zx9q7k' 'qz7k9' 'AD-326-1' 'AD-520.1' 'R999.4' 'R999.20a' 'adr-999' 'Phase 999.3' 'Phase 999.1h-2'; do
         if ! printf '%s\n' "$h1" | grep -qF "$tok"; then
             echo "self-test FAIL: did not flag public-surface leak '$tok'" >&2; pass=0
         fi
@@ -601,15 +670,38 @@ EOF
             echo "self-test FAIL: flagged '$word' — a word ending in AD is not a decision record" >&2; pass=0
         fi
     done
+    # The requirement-id arm requires its DOT, and these are the terms that break first if it is dropped:
+    # `R2` is Cloudflare's object store (a product we may legitimately name), and `CIDR2.4` / `VAR2.0`
+    # prove the leading \b is doing its job — a word char before the R means no boundary, so a requirement
+    # id can never be matched out of the middle of an identifier. Asserted rather than assumed, because a
+    # BLOCKING gate that reds on the word "R2" in a storage doc gets disabled, after which it enforces
+    # nothing. Whole-line check: this line must produce NO hit at all.
+    if printf '%s\n' "$h1" | grep -qF 'Cloudflare R2'; then
+        echo "self-test FAIL: flagged the R2/CIDR2.4/VAR2.0 line — a bare R<n>, or an R<n>.<n> inside a longer identifier, is not a requirement id" >&2; pass=0
+    fi
+    # The plan-phase arm's dot is load-bearing in the OTHER direction from every arm above: the bare
+    # form is ordinary English that our own tutorials use dozens of times ("Phase 2: add the handler").
+    # This is the line that must NOT flag, and it is the one that would break first if anyone widened
+    # the arm to bare `Phase <n>`.
+    if printf '%s\n' "$h1" | grep -qF 'ordinary documentation'; then
+        echo "self-test FAIL: flagged bare 'Phase 1'/'Phase 2' tutorial prose — only the DOTTED plan-phase form is an internal id" >&2; pass=0
+    fi
 
-    # --- Fixture 2: .cs file — only /// XML docs are public ------------------
+    # --- Fixture 2: .cs file — EVERY comment is public, code is not ----------
+    #
+    # An XML-doc line ships inside the package; a plain implementation comment ships in
+    # the source tree that is copied verbatim to a public repository. Both are read by
+    # consumers, so both arms below are LIVENESS arms. The SAFETY arm is the last one: a
+    # line that is neither a comment nor a string literal carries no prose and must not be
+    # flagged, or the gate reds on identifiers and gets turned off.
     local cs="$tmp/Widget.cs"
     cat > "$cs" <<'EOF'
 /// <summary>Public doc leaking bd-def456 and Sprint 700.</summary>
 public sealed class Widget
 {
-    // ordinary comment mentioning bd-nnnnnn — NOT shipped, must be ignored
-    private int _x; // Sprint 999 in code comment, ignored
+    // ordinary comment mentioning bd-nnnnnn — ships in the mirrored source tree
+    private int _x; // Sprint 999 in a trailing comment, also mirrored
+    private const int LimitS886 = 4;
 }
 EOF
     local h2
@@ -617,11 +709,14 @@ EOF
     if ! printf '%s\n' "$h2" | grep -qF 'bd-def456'; then
         echo "self-test FAIL: did not flag bd-def456 in a /// XML-doc line" >&2; pass=0
     fi
-    if printf '%s\n' "$h2" | grep -qF 'bd-nnnnn'; then
-        echo "self-test FAIL: flagged a non-/// // code comment (not public surface)" >&2; pass=0
+    if ! printf '%s\n' "$h2" | grep -qF 'bd-nnnnn'; then
+        echo "self-test FAIL: did not flag an id in a plain // comment (mirrored source)" >&2; pass=0
     fi
-    if printf '%s\n' "$h2" | grep -qF 'Sprint 999'; then
-        echo "self-test FAIL: flagged 'Sprint 999' in a plain code comment (not shipped)" >&2; pass=0
+    if ! printf '%s\n' "$h2" | grep -qF 'Sprint 999'; then
+        echo "self-test FAIL: did not flag a sprint ref in a trailing // comment" >&2; pass=0
+    fi
+    if printf '%s\n' "$h2" | grep -qF 'private const'; then
+        echo "self-test FAIL: flagged a plain code line (no prose there to leak)" >&2; pass=0
     fi
 
     # --- Fixture 3: exempt sinks (path classification) ----------------------
@@ -811,7 +906,7 @@ EOF
         # public leak class" while planting no .csproj and no .resx case, so it
         # certified coverage the gate did not have and could not acquire.
         echo "✅ no-internal-refs-gate self-test PASSED."
-        echo "   covered: docs-site/.md · .cs XML-doc · .cs string literal · .csproj <Description> · .resx <value> · prefixed bd-ids · bare ids (length-6 only) · exempt-sink paths"
+        echo "   covered: docs-site/.md · .cs XML-doc · .cs string literal · .csproj <Description> · .resx <value> · prefixed bd-ids · bare ids (length-6 only) · requirement ids (R<n>.<n>) · plan phases (Phase <n>.<n>) · lowercase adr- links · exempt-sink paths"
         echo "   drift-check: every src/ surface the rule's include-list names is KEPT by nir_keep_line (asserted below)."
         return 0
     fi
@@ -844,6 +939,16 @@ main() {
                     echo "# no-internal-refs debt register — <count> <path>, one per file."
                     echo "# Every line is a public-surface leak we still owe. The gate fails when a"
                     echo "# count RISES or an unlisted file leaks. It only moves down."
+                    echo "#"
+                    echo "# THIS FILE IS THE INSTRUMENT, NOT THE WORK. It makes the remaining leaks"
+                    echo "# bounded and visible and forbids new ones; it does not remove a single"
+                    echo "# identifier. Do not read a green gate here as evidence that the"
+                    echo "# strip-the-identifiers work is finished — that work is finished when this"
+                    echo "# register is EMPTY."
+                    echo "#"
+                    echo "# Regenerate only after FIXING leaks, and only immediately before review:"
+                    echo "# the counts describe the tree at the moment of generation and decay as"
+                    echo "# soon as any listed file is edited."
                     cut -d: -f1 "$tmpr" | sort | uniq -c | awk '{print $1" "$2}' | sort -k2
                 } > "$base"
                 echo "baseline written: $base ($(grep -cE '^[0-9]' "$base") file(s), $(awk '/^[0-9]/{s+=$1} END{print s+0}' "$base") leak(s))"

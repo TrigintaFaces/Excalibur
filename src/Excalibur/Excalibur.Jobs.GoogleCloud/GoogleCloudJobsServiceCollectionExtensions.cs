@@ -25,11 +25,6 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> The configuration action for Google Cloud Scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Uses DataAnnotation-based validation which requires unreferenced code")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGoogleCloudScheduler(
 		this IServiceCollection services,
 		Action<GoogleCloudSchedulerOptions> configure)
@@ -55,12 +50,6 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind options from. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Uses configuration binding and DataAnnotation-based validation which requires unreferenced code")]
-	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGoogleCloudScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)

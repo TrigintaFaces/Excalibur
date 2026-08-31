@@ -53,7 +53,7 @@ public sealed class ProjectionTagResolverGenerator : IIncrementalGenerator
 
 	private static void Execute(SourceProductionContext context, Compilation compilation, ImmutableArray<INamedTypeSymbol> classSymbols)
 	{
-		// Sprint 330 T1.2: Namespace updated from Excalibur.Dispatch.Caching to Excalibur.Caching.Projections (AD-330-2)
+		// Namespace updated from Excalibur.Dispatch.Caching to Excalibur.Caching.Projections
 		var resolverInterface = compilation.GetTypeByMetadataName("Excalibur.Caching.Projections.IProjectionTagResolver`1");
 
 		if (resolverInterface == null)

@@ -14,6 +14,8 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Data.MongoDB.Projections;
 
 /// <summary>
@@ -133,6 +135,8 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// <remarks>
 	/// <inheritdoc cref="QueryAsync" path="/remarks"/>
 	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(
 		string id,
 		CancellationToken cancellationToken)
@@ -160,6 +164,8 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task UpsertAsync(
 		string id,
 		TProjection projection,
@@ -231,6 +237,8 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// <see langword="null"/> because <c>IgnoreExtraElementsConvention</c>
 	/// silently skips unrecognized elements rather than failing.
 	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -283,6 +291,8 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<PagedResult<TProjection>> QueryPagedAsync(
 		IDictionary<string, object>? filters,
 		int pageNumber,

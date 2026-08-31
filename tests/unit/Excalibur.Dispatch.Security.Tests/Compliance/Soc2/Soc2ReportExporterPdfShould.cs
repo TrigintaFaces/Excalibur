@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using QuestPDF.Infrastructure;
 
+using Excalibur.Compliance.Pdf;
 using Excalibur.Compliance.Soc2;
 using TestResult = global::Excalibur.Compliance.TestResult;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
@@ -30,7 +31,7 @@ public sealed class Soc2ReportExporterPdfShould
 	public Soc2ReportExporterPdfShould()
 	{
 		_fakeLogger = A.Fake<ILogger<Soc2ReportExporter>>();
-		_sut = new Soc2ReportExporter(_fakeLogger, TimeProvider.System);
+		_sut = new Soc2ReportExporter(_fakeLogger, TimeProvider.System, new QuestPdfSoc2PdfRenderer(TimeProvider.System));
 	}
 
 	#region PDF Export - Happy Path Tests

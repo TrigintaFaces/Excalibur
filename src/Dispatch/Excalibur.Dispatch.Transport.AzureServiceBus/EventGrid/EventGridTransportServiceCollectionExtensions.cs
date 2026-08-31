@@ -54,11 +54,10 @@ public static class EventGridTransportServiceCollectionExtensions
 	///     options.AccessKey = "my-access-key";
 	/// });
 	///
-	/// // Using managed identity
+	/// // Using managed identity: leave AccessKey unset and DefaultAzureCredential is used
 	/// services.AddEventGridTransport(options =>
 	/// {
 	///     options.TopicEndpoint = "https://mytopic.westus2-1.eventgrid.azure.net/api/events";
-	///     options.UseManagedIdentity = true;
 	/// });
 	/// </code>
 	/// </example>

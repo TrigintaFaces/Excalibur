@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.AwsSqs;
 /// <item>25800-25899: EventBridge</item>
 /// </list>
 /// </remarks>
-public static class AwsSqsEventId
+internal static class AwsSqsEventId
 {
 	// ========================================
 	// 25000-25099: Core (AwsMessageBroker)
@@ -54,15 +54,9 @@ public static class AwsSqsEventId
 	/// <summary>Connection pool exhausted.</summary>
 	public const int ConnectionPoolExhausted = 25032;
 
-	// Retry and circuit breaker
+	// Retry
 	/// <summary>Retry attempt for operation.</summary>
 	public const int RetryAttempt = 25033;
-
-	/// <summary>Circuit breaker opened.</summary>
-	public const int CircuitBreakerOpened = 25034;
-
-	/// <summary>Circuit breaker closed.</summary>
-	public const int CircuitBreakerClosed = 25035;
 
 	// Batch operations
 	/// <summary>Batch operation started.</summary>
@@ -811,4 +805,22 @@ public static class AwsSqsEventId
 
 	/// <summary>Provisioning: skipped because required identifiers are missing.</summary>
 	public const int ProvisioningSkipped = 26148;
+
+	/// <summary>Provisioning: applying server-side encryption to the SNS topic.</summary>
+	public const int ProvisioningTopicEncryptionApplying = 26149;
+
+	/// <summary>Provisioning: server-side encryption applied to the SNS topic.</summary>
+	public const int ProvisioningTopicEncryptionApplied = 26150;
+
+	/// <summary>Provisioning: applying server-side encryption to the SQS queue.</summary>
+	public const int ProvisioningQueueEncryptionApplying = 26151;
+
+	/// <summary>Provisioning: server-side encryption applied to the SQS queue.</summary>
+	public const int ProvisioningQueueEncryptionApplied = 26152;
+
+	/// <summary>Provisioning: declared queue attributes applied to the source queue.</summary>
+	public const int ProvisioningQueueAttributesApplied = 26153;
+
+	/// <summary>Provisioning: failed to apply the declared queue attributes.</summary>
+	public const int ProvisioningQueueAttributesFailed = 26154;
 }

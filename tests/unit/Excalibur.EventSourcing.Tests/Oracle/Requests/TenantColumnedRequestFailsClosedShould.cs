@@ -16,7 +16,7 @@ namespace Excalibur.EventSourcing.Tests.Oracle.Requests;
 
 // ORACLE half of the s7yc33 regression lock — INVERTED by the S902 keyed migration (FR-8).
 //
-// PREMISE CHANGE: the pre-migration lock asserted "TenantScope.None emits NO tenant reference," on the
+// PREMISE CHANGE: the pre-migration lock asserted "TenantScope.Untenanted emits NO tenant reference," on the
 // premise that a non-multi-tenant table has no TENANTID column. FR-8 makes the event-store Events table a
 // KEYED tenant table (TENANTID NOT NULL, always). Every tenant-columned request now routes its scope through
 // KeyedTenantPartition.FromScope, which has NO empty inhabitant: an unscoped (None) request binds the reserved
@@ -27,7 +27,7 @@ namespace Excalibur.EventSourcing.Tests.Oracle.Requests;
 // (:TenantId, not @TenantId). A check written for Postgres is STRUCTURALLY BLIND to the Oracle form, which is
 // why this sibling exists rather than a shared assertion.
 //
-//   * TenantScope.None            -> a tenant term is present; :TenantId binds "__untenanted__" (never empty).
+//   * TenantScope.Untenanted            -> a tenant term is present; :TenantId binds "__untenanted__" (never empty).
 //   * TenantScope.Scoped("t")     -> a tenant term is present; :TenantId binds the real tenant "t".
 //   * TenantScope.Scoped(null/"") -> THROWS TenantRequiredException at construction (unsafe shape unrepresentable).
 //
@@ -91,7 +91,7 @@ public sealed class TenantColumnedRequestFailsClosedShould
 
         foreach (var (name, emit) in TenantColumnedRequests)
         {
-            var (sql, boundTenant) = emit(TenantScope.None);
+            var (sql, boundTenant) = emit(TenantScope.Untenanted);
             if (!TenantTerm.IsMatch(sql) || !string.Equals(boundTenant, UntenantedSentinel, StringComparison.Ordinal))
             {
                 wrong.Add($"{name} (sql-has-tenant-term={TenantTerm.IsMatch(sql)}, :TenantId='{boundTenant}')");

@@ -6,7 +6,7 @@ namespace Excalibur.Compliance.Azure;
 /// <summary>
 /// Event IDs for Azure Key Vault RSA key wrapping operations (92630-92649).
 /// </summary>
-public static class AzureRsaKeyWrappingEventId
+internal static class AzureRsaKeyWrappingEventId
 {
 	/// <summary>RSA key wrapper initialized.</summary>
 	public const int RsaKeyWrapperInitialized = 92630;

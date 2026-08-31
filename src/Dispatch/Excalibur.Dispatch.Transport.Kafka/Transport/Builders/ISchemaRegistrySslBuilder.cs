@@ -21,9 +21,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 ///             {
 ///                 ssl.EnableCertificateVerification(true)
 ///                    .CaCertificateLocation("/path/to/ca.crt")
-///                    .ClientCertificateLocation("/path/to/client.crt")
-///                    .ClientKeyLocation("/path/to/client.key")
-///                    .ClientKeyPassword("secret");
+///                    .ClientKeystore("/path/to/client.p12", keystorePassword);
 ///             });
 /// });
 /// </code>
@@ -54,32 +52,31 @@ public interface ISchemaRegistrySslBuilder
 	ISchemaRegistrySslBuilder CaCertificateLocation(string path);
 
 	/// <summary>
-	/// Sets the location of the client certificate for mutual TLS authentication.
+	/// Sets the client keystore presented to the Schema Registry for mutual TLS authentication.
 	/// </summary>
-	/// <param name="path">The file path to the client certificate (PEM format).</param>
+	/// <param name="path">
+	/// The file path to a PKCS#12 (<c>.p12</c>/<c>.pfx</c>) keystore holding the client certificate and
+	/// its private key.
+	/// </param>
+	/// <param name="password">The password protecting the keystore.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="path"/> is null or whitespace.
+	/// Thrown when <paramref name="path"/> or <paramref name="password"/> is null or whitespace.
 	/// </exception>
-	ISchemaRegistrySslBuilder ClientCertificateLocation(string path);
-
-	/// <summary>
-	/// Sets the location of the client private key for mutual TLS authentication.
-	/// </summary>
-	/// <param name="path">The file path to the client private key (PEM format).</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="path"/> is null or whitespace.
-	/// </exception>
-	ISchemaRegistrySslBuilder ClientKeyLocation(string path);
-
-	/// <summary>
-	/// Sets the password for the client private key, if encrypted.
-	/// </summary>
-	/// <param name="password">The password for the private key.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="password"/> is null or whitespace.
-	/// </exception>
-	ISchemaRegistrySslBuilder ClientKeyPassword(string password);
+	/// <remarks>
+	/// <para>
+	/// A keystore, not a certificate/key pair: the Schema Registry client accepts client credentials only
+	/// in that form. Convert an existing PEM pair with
+	/// <c>openssl pkcs12 -export -in client.crt -inkey client.key -out client.p12</c>.
+	/// </para>
+	/// <para>
+	/// <b>What this defends and what it does not.</b> It authenticates this client TO the registry, so a
+	/// registry configured to require client certificates will reject callers that present none. It says
+	/// nothing about the Kafka broker connection, which carries its own posture, and nothing about the
+	/// authenticity of the registry itself — that is
+	/// <see cref="EnableCertificateVerification"/> together with <see cref="CaCertificateLocation"/>,
+	/// and disabling verification leaves the connection encrypted but unauthenticated.
+	/// </para>
+	/// </remarks>
+	ISchemaRegistrySslBuilder ClientKeystore(string path, string password);
 }

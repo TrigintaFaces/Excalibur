@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Grpc.Core;
 using Excalibur.A3.Authorization;
 using Excalibur.Data.Firestore.Diagnostics;
 
@@ -16,8 +17,12 @@ namespace Excalibur.Data.Firestore.Authorization;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses flat collections with composite document IDs for efficient point reads:
-/// {tenantId}_{userId}_{grantType}_{qualifier}
+/// Uses flat collections with composite document IDs for efficient point reads, composed by
+/// <see cref="FirestoreActivityGroupDocument.CreateDocumentId"/> so distinct terms can never alias one
+/// document. A document composed under this store's pre-injective raw join
+/// (<c>{tenantId}_{userId}_{grantType}_{qualifier}</c>, an id shape no longer written) is unaddressable
+/// by id; <see cref="EnsureLegacyActivityGroupDocumentsAreAbsentAsync"/> refuses an insert that would
+/// silently write a second document beside it rather than updating it.
 /// </para>
 /// <para>
 /// Uses SetAsync for upsert operations and batch operations for bulk deletes.
@@ -33,6 +38,22 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 	private CollectionReference? _collection;
 	private volatile bool _initialized;
 	private volatile bool _disposed;
+
+	/// <summary>
+	/// Lower bound of the document-id range every id
+	/// <see cref="FirestoreActivityGroupDocument.CreateDocumentId"/> produces.
+	/// </summary>
+	private const string CurrentIdPrefix = $"{FirestoreActivityGroupDocument.IdPrefix}_";
+
+	/// <summary>
+	/// Exclusive upper bound of the current-id-shape range. "_" (0x5F) is the highest character the prefix
+	/// can end in, so the next byte value, "`" (0x60), bounds every id sharing the prefix and none that do
+	/// not -- the same technique <see cref="FirestoreGrantStore"/> uses for grant document ids.
+	/// </summary>
+	private const string CurrentIdPrefixUpperBound = $"{FirestoreActivityGroupDocument.IdPrefix}`";
+
+	// See FirestoreGrantStore._legacyDocumentsProbed.
+	private volatile bool _legacyDocumentsProbed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FirestoreActivityGroupGrantStore"/> class.
@@ -134,7 +155,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 	public async Task<int> InsertActivityGroupGrantAsync(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,
@@ -143,6 +164,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		await EnsureLegacyActivityGroupDocumentsAreAbsentAsync(cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
 		var docId = FirestoreActivityGroupDocument.CreateDocumentId(tenantId, userId, grantType, qualifier);
@@ -212,8 +234,13 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 
 			if (!string.IsNullOrEmpty(_options.EmulatorHost))
 			{
-				builder.EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly;
-				_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
+				// Point this client at the emulator directly. The process-wide FIRESTORE_EMULATOR_HOST
+				// variable is first-write-wins, so routing through it lets a second store silently talk to
+				// another store's emulator. Endpoint and EmulatorDetection.EmulatorOnly are mutually
+				// exclusive -- setting both throws -- so an explicit endpoint with insecure credentials is
+				// the combination that reaches an emulator per instance.
+				builder.Endpoint = _options.EmulatorHost;
+				builder.ChannelCredentials = ChannelCredentials.Insecure;
 			}
 
 #pragma warning disable CS0618 // CredentialsPath/JsonCredentials are obsolete but replacements require significant refactoring
@@ -283,6 +310,70 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 		if (!_initialized)
 		{
 			await InitializeAsync(cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Verifies, at most once per store instance, that an insert cannot silently produce a second document
+	/// beside one composed under the pre-injective id shape (see <see cref="FirestoreGrantStore"/>'s
+	/// analogous guard, which this mirrors).
+	/// </summary>
+	/// <remarks>
+	/// Called only from <see cref="InsertActivityGroupGrantAsync"/>, the only method here that addresses a
+	/// document by id. Every other method here (the two delete methods and the distinct-user-ids query)
+	/// filters on stored FIELD values, which a legacy document carries identically to a current one, so
+	/// they find and act on legacy documents correctly without this guard.
+	/// </remarks>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	private async Task EnsureLegacyActivityGroupDocumentsAreAbsentAsync(CancellationToken cancellationToken)
+	{
+		if (_legacyDocumentsProbed)
+		{
+			return;
+		}
+
+		await RefuseLegacyActivityGroupDocumentsAsync(cancellationToken).ConfigureAwait(false);
+		_legacyDocumentsProbed = true;
+	}
+
+	/// <summary>
+	/// Refuses when the activity-groups collection still holds a document composed under the pre-injective
+	/// id shape (<c>{tenantId}_{userId}_{grantType}_{qualifier}</c>, joined raw with no prefix and no
+	/// escaping). Called only through <see cref="EnsureLegacyActivityGroupDocumentsAreAbsentAsync"/>.
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <exception cref="InvalidOperationException">
+	/// The collection holds at least one activity-group grant document composed under the legacy id shape.
+	/// </exception>
+	private async Task RefuseLegacyActivityGroupDocumentsAsync(CancellationToken cancellationToken)
+	{
+		Query[] probes =
+		[
+			_collection!.WhereLessThan(FieldPath.DocumentId, CurrentIdPrefix).Limit(1),
+			_collection!.WhereGreaterThanOrEqualTo(FieldPath.DocumentId, CurrentIdPrefixUpperBound).Limit(1)
+		];
+
+		foreach (var probe in probes)
+		{
+			var snapshot = await probe.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+			if (snapshot.Count == 0)
+			{
+				continue;
+			}
+
+			var legacyDocumentId = snapshot.Documents[0].Id;
+
+			throw new InvalidOperationException(
+				$"Activity-groups collection '{_options.ActivityGroupsCollectionName}' holds at least one " +
+				$"document whose identifier ('{legacyDocumentId}') was composed under the legacy shape " +
+				"'{tenantId}_{userId}_{grantType}_{qualifier}', joined without a prefix or escaping. " +
+				"Inserting the same activity-group grant now would write a second document beside it " +
+				"rather than updating it. Nothing has been modified. The tenant, user, grant type and " +
+				"qualifier are recorded on the document's own fields, so re-key each legacy document to " +
+				$"'{FirestoreActivityGroupDocument.IdPrefix}_<tenantId>_<userId>_<grantType>_<qualifier>' " +
+				"(escaping '%', '/' and '_' within each term as '%25', '%2F' and '%5F') using its own " +
+				"field values, delete the legacy document, and start the application again.");
 		}
 	}
 

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -20,6 +20,7 @@
     <!-- Extracted concern.provider packages -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing.Conformance\Excalibur.Testing.Conformance.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

@@ -17,6 +17,22 @@ internal sealed class MqttConnectionProvider : IMqttConnectionProvider
 	public MqttConnectionProvider(MqttOptions options)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+
+		// Refused here rather than at connect: this provider is the single client-options seam both the
+		// sender and the receiver route through, and it is constructed when the transport is resolved, so
+		// a plaintext registration fails while the host is starting instead of on the first publish.
+		if (_options.RequireTls && !_options.UseTls)
+		{
+			throw new TransportSecurityException(
+				"Cannot establish the MQTT connection: TLS is required but MqttOptions.UseTls is false, so the "
+				+ "credentials and every payload would cross the wire in the clear. Set MqttOptions.UseTls to true "
+				+ "(the TLS listener is normally port 8883), or set MqttOptions.RequireTls to false to accept an "
+				+ "unencrypted broker connection.")
+			{
+				TransportName = "MQTT",
+				FailureReason = TransportSecurityFailureReason.TlsNotEnabled,
+			};
+		}
 	}
 
 	public IMqttClient CreateClient() => _factory.CreateMqttClient();

@@ -108,8 +108,8 @@ await host.RunAsync();
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="4.0.0" />
 
-    <PackageReference Include="Excalibur.Dispatch" Version="1.0.0" />
-    <PackageReference Include="Excalibur.Outbox.SqlServer" Version="1.0.0" />
+    <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
+    <PackageReference Include="Excalibur.Outbox.SqlServer" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -438,9 +438,9 @@ public class CosmosDbEventStore : IEventStore
                 Id = Guid.NewGuid().ToString(),
                 AggregateId = aggregateId,
                 EventType = @event.EventType,
-                EventData = JsonSerializer.Serialize(@event),
+                EventData = JsonSerializer.SerializeToUtf8Bytes(@event),
                 Version = ++version,
-                OccurredAt = @event.OccurredAt
+                Timestamp = @event.OccurredAt
             };
 
             batch.CreateItem(eventDocument);

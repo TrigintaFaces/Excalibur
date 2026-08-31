@@ -18,7 +18,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task AppendAsync_ReturnsSuccess_ForNewAggregate()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var events = CreateEvents("agg-1", 1);
 
 		// Act
@@ -32,7 +32,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task AppendAsync_ReturnsConcurrencyConflict_OnVersionMismatch()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		await store.AppendAsync("agg-1", "Order", CreateEvents("agg-1", 1), -1, CancellationToken.None);
 
 		// Act — append with wrong expected version
@@ -47,7 +47,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task LoadAsync_ReturnsEmpty_WhenNoEvents()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Act
 		var events = await store.LoadAsync("non-existent", "Order", CancellationToken.None);
@@ -60,7 +60,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task LoadAsync_ReturnsAllEvents_ForExistingAggregate()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		await store.AppendAsync("agg-1", "Order", CreateEvents("agg-1", 3), -1, CancellationToken.None);
 
 		// Act
@@ -74,7 +74,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task LoadAsync_WithFromVersion_ReturnsEventsAfterVersion()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		await store.AppendAsync("agg-1", "Order", CreateEvents("agg-1", 5), -1, CancellationToken.None);
 
 		// Act — load events after version 2
@@ -88,7 +88,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task MultipleAppends_AccumulateEvents()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Act
 		await store.AppendAsync("agg-1", "Order", CreateEvents("agg-1", 2), -1, CancellationToken.None);
@@ -103,7 +103,7 @@ public sealed class InMemoryEventStoreDepthShould
 	public async Task DifferentAggregates_AreIsolated()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Act
 		await store.AppendAsync("agg-1", "Order", CreateEvents("agg-1", 2), -1, CancellationToken.None);

@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
+
+using Microsoft.Extensions.DependencyInjection;
 
 using Excalibur.Saga.Orchestration;
 
@@ -25,7 +28,21 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemorySagaStoreConformanceTests : SagaStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override ISagaStore CreateStore() => new InMemorySagaStore();
+	/// <remarks>
+	/// The kit models a host with no tenant established, which the store requires be stated rather than
+	/// implied. <c>LoadAsync</c> and <c>SaveAsync</c> key on the tenant partition <em>together with</em>
+	/// the saga identifier, so the ambient scope is part of the address rather than a predicate applied
+	/// after lookup. That is what makes a cross-tenant read unaddressable instead of merely refused, and
+	/// it is the property the tenancy arms below bind.
+	///
+	/// This remark previously stated the opposite — that both members keyed on the saga identifier alone
+	/// and never consulted the ambient scope. That was an accurate description of a defect, not of a
+	/// design: the shared key gave every tenant one version counter, so a second tenant creating its own
+	/// saga under the same identifier could never succeed. Corrected here when the store was fixed,
+	/// because a comment describing a repaired defect in the present tense reads as the contract.
+	/// </remarks>
+	protected override void ConfigureProvider(IServiceCollection services) =>
+		services.AddInMemorySagaStore();
 
 	// InMemorySagaStore is a genuine optimistic-concurrency implementation (expected-version CAS +
 	// no-resurrect guard, InMemorySagaStore.SaveAsync) since boxiyl (S853), so the keystone facts run
@@ -112,4 +129,44 @@ public sealed class InMemorySagaStoreConformanceTests : SagaStoreConformanceTest
 		LoadAsync_ReturnsAuthoritativeVersion_AndReloadMutateSaveSucceeds();
 
 	#endregion Optimistic Concurrency Tests
+
+	#region Tenant Confinement Tests
+
+	// InMemorySagaStore resolves the ambient ITenantContext per operation, so these run against a real
+	// tenant-partitioned implementation rather than a mock. Their non-vacuity -- that each goes RED
+	// against a store carrying the defect it names -- is proven separately in SagaStoreTenantArmsBindShould.
+
+	[Fact]
+	public Task TenantScopedLoad_MustNotSeeAnotherTenantsSaga_Test() =>
+		TenantScopedLoad_MustNotSeeAnotherTenantsSaga();
+
+	[Fact]
+	public Task TenantScopedLoad_MustSeeItsOwnSaga_Test() =>
+		TenantScopedLoad_MustSeeItsOwnSaga();
+
+	[Fact]
+	public Task TenantPartitions_MustNotOverwriteEachOthersSagaWithTheSameId_Test() =>
+		TenantPartitions_MustNotOverwriteEachOthersSagaWithTheSameId();
+
+	[Fact]
+	public Task UntenantedPartition_MustRoundTripItsOwnSaga_Test() =>
+		UntenantedPartition_MustRoundTripItsOwnSaga();
+
+	#endregion Tenant Confinement Tests
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail — in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

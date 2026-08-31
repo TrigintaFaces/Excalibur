@@ -67,7 +67,6 @@ public sealed class TelemetryConstantsNamingShould
 		_ = typeof(EventSourcingMeters);
 		_ = typeof(EventSourcingMetricNames);
 		_ = typeof(LeaderElectionTelemetryConstants);
-		_ = typeof(PersistenceTelemetryConstants);
 		_ = typeof(SqlServerPersistenceTelemetryConstants);
 	}
 
@@ -261,7 +260,6 @@ public sealed class TelemetryConstantsNamingShould
 	[InlineData(typeof(LeaderElectionTelemetryConstants), nameof(LeaderElectionTelemetryConstants.ActivitySourceName))]
 	[InlineData(typeof(ContextObservabilityTelemetryConstants), nameof(ContextObservabilityTelemetryConstants.MeterName))]
 	[InlineData(typeof(ContextObservabilityTelemetryConstants), nameof(ContextObservabilityTelemetryConstants.ActivitySourceName))]
-	[InlineData(typeof(PersistenceTelemetryConstants), nameof(PersistenceTelemetryConstants.SourceName))]
 	[InlineData(typeof(SqlServerPersistenceTelemetryConstants), nameof(SqlServerPersistenceTelemetryConstants.MeterName))]
 	public void HaveKnownConstantsStartingWithExcalibur(Type constantsType, string fieldName)
 	{
@@ -501,13 +499,14 @@ public sealed class TelemetryConstantsNamingShould
 		typeof(CdcTelemetryConstants),
 		typeof(AuditTelemetryConstants),
 		typeof(LeaderElectionTelemetryConstants),
-		typeof(PersistenceTelemetryConstants),
 		typeof(SqlServerPersistenceTelemetryConstants),
 	];
 
 	/// <summary>
 	/// EventSourcing uses separate top-level classes for its telemetry constants.
 	/// </summary>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "The naming assertions iterate only the shared constants types, so the event-sourcing telemetry names this array lists are checked by none of them. Held until the assertions cover it.")]
 	private static readonly Type[] EventSourcingTelemetryTypes =
 	[
 		typeof(EventSourcingActivitySources),

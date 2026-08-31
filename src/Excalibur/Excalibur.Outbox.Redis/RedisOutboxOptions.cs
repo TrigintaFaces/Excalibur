@@ -18,6 +18,12 @@ public sealed class RedisOutboxOptions
 	public string ConnectionString { get; set; } = "localhost:6379";
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the host supplies the Redis connection itself, so the store
+	/// never dials <see cref="ConnectionString"/> and that value is not required.
+	/// </summary>
+	internal bool ConnectionSuppliedExternally { get; set; }
+
+	/// <summary>
 	/// Gets or sets the Redis database ID to use.
 	/// </summary>
 	[Range(0, int.MaxValue)]
@@ -111,7 +117,9 @@ public sealed class RedisOutboxOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		if (string.IsNullOrWhiteSpace(ConnectionString))
+		// Only required when the store has to dial for itself. A host that supplies its own multiplexer
+		// never reads this value, and demanding one there forced a placeholder endpoint to be invented.
+		if (!ConnectionSuppliedExternally && string.IsNullOrWhiteSpace(ConnectionString))
 		{
 			throw new InvalidOperationException("Redis outbox connection string is required.");
 		}

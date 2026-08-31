@@ -39,13 +39,13 @@ public static class BackgroundServiceMetrics
 	private static readonly Counter<long> MessagesProcessedCounter =
 		Meter.CreateCounter<long>(
 			"excalibur.background_service.messages_processed",
-			"messages",
+			"{messages}",
 			"Total number of messages processed by background services.");
 
 	private static readonly Counter<long> MessagesFailedCounter =
 		Meter.CreateCounter<long>(
 			"excalibur.background_service.messages_failed",
-			"messages",
+			"{messages}",
 			"Total number of messages that failed processing.");
 
 	private static readonly Histogram<double> ProcessingDurationHistogram =
@@ -57,13 +57,13 @@ public static class BackgroundServiceMetrics
 	private static readonly Counter<long> ProcessingCyclesCounter =
 		Meter.CreateCounter<long>(
 			"excalibur.background_service.processing_cycles",
-			"cycles",
+			"{cycles}",
 			"Total number of processing cycles executed.");
 
 	private static readonly Counter<long> ProcessingErrorsCounter =
 		Meter.CreateCounter<long>(
 			"excalibur.background_service.processing_errors",
-			"errors",
+			"{errors}",
 			"Total number of processing cycle errors.");
 
 	/// <summary>

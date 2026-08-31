@@ -424,7 +424,10 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeTrue();
-		result.NextExpectedVersion.ShouldBe(7);
+		result.NextExpectedVersion.ShouldBe(
+			7,
+			"a concurrency conflict is the one failure that measured the stream's actual version, so it "
+			+ "still reports one — nulling every failure would be the wrong fix");
 		result.RequestCharge.ShouldBe(1.0);
 		result.ErrorMessage!.ShouldContain("expected version 5");
 		result.ErrorMessage!.ShouldContain("current version is 7");
@@ -437,7 +440,11 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeFalse();
-		result.NextExpectedVersion.ShouldBe(-1);
+		result.NextExpectedVersion.ShouldBeNull(
+			"a plain failure has no version to report, and -1 is not free to borrow as a sentinel: it is "
+			+ "the ordinary value meaning 'this stream does not exist', so reporting it after a failure "
+			+ "hands the caller a number asserting the opposite of the truth, which they can pass straight "
+			+ "back as an expectedVersion and create a stream that already holds events");
 		result.RequestCharge.ShouldBe(0.5);
 		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}

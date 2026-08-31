@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Tests.TypeResolution;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Collection(TypeResolverRegistryCollection.Name)]
 public sealed class TypeResolverScanGateShould
 {
 	// A real, loaded, scannable type that is NOT registered — rejection scan-off is by-policy, not by-absence.

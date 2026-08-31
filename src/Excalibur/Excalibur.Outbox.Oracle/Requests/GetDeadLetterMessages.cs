@@ -17,8 +17,12 @@ namespace Excalibur.Outbox.Oracle;
 /// maximum retry count. Supports pagination via LIMIT/OFFSET and filtering by retry count
 /// and timestamp.
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"an operator-facing dead-letter query: it reads the dead-letter table estate-wide for diagnosis and redrive, not on behalf of a tenant. Its reach is bounded by the retry-count, age and batch arguments it is given, never by tenant state")]
 public sealed class GetDeadLetterMessages : DataRequest<IEnumerable<DeadLetterRecord>>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetDeadLetterMessages"/> class.
 	/// </summary>
@@ -40,6 +44,7 @@ public sealed class GetDeadLetterMessages : DataRequest<IEnumerable<DeadLetterRe
 	{
 		var sql = $"""
 		   SELECT message_id AS MessageId,
+		          tenant_id AS TenantId,
 		          message_type AS MessageType,
 		          message_metadata AS MessageMetadata,
 		          message_body AS MessageBody,
@@ -85,6 +90,23 @@ public sealed class DeadLetterRecord
 	/// Gets or sets the message identifier.
 	/// </summary>
 	public string MessageId { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the tenant the message originated in, carried as provenance so a replay re-enters the
+	/// same tenant.
+	/// </summary>
+	/// <value>
+	/// The originating tenant. A message that was staged without a tenant carries the reserved untenanted
+	/// key rather than an empty or absent value, so this is never <see langword="null"/> for a row written
+	/// by a current version of the store.
+	/// </value>
+	/// <remarks>
+	/// Rows written before the dead-letter table carried a tenant column read back as the reserved
+	/// untenanted key after the upgrade script runs, because their originating tenant was never recorded
+	/// and cannot be recovered — the move deletes the source row. Treat this value as attribution only for
+	/// entries created after that upgrade.
+	/// </remarks>
+	public string TenantId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the message type.

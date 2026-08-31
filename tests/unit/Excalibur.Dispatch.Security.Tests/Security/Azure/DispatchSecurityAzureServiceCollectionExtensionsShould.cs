@@ -88,23 +88,6 @@ public sealed class DispatchSecurityAzureServiceCollectionExtensionsShould : Uni
 		services.ShouldContain(s => s.ServiceType == typeof(IWritableCredentialStore));
 	}
 
-	[Fact]
-	public void AddDispatchSecurityAzure_RegistersServiceBusValidator_ByDefault()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act -- ServiceBusValidation is enabled by default in SecurityAzureBuilder
-		_ = services.AddDispatchSecurityAzure(azure =>
-		{
-			azure.VaultUri("https://test-vault.vault.azure.net/");
-		});
-
-		// Assert
-		services.ShouldContain(s =>
-			s.ServiceType.IsGenericType &&
-			s.ServiceType.GetGenericTypeDefinition() == typeof(IValidateOptions<>));
-	}
 
 	[Fact]
 	public void AddDispatchSecurityAzure_RegistersAllServices_WhenVaultUriConfigured()
@@ -116,16 +99,12 @@ public sealed class DispatchSecurityAzureServiceCollectionExtensionsShould : Uni
 		// Act
 		_ = services.AddDispatchSecurityAzure(azure =>
 		{
-			azure.VaultUri("https://test-vault.vault.azure.net/")
-				.EnableServiceBusValidation();
+			azure.VaultUri("https://test-vault.vault.azure.net/");
 		});
 
-		// Assert - Should register both credential store and validator
+		// Assert - Should register the credential store under both of its service types
 		services.ShouldContain(s => s.ServiceType == typeof(ICredentialStore));
 		services.ShouldContain(s => s.ServiceType == typeof(IWritableCredentialStore));
-		services.ShouldContain(s =>
-			s.ServiceType.IsGenericType &&
-			s.ServiceType.GetGenericTypeDefinition() == typeof(IValidateOptions<>));
 	}
 
 	[Fact]

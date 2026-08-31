@@ -8,13 +8,10 @@ using System.Diagnostics.CodeAnalysis;
 // These types are returned from public methods or used as public property types and cannot be made internal
 // without breaking the public API contract.
 [assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - returned from StartOperation() and metrics methods", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchMetrics.ElasticsearchOperationContext")]
-[assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - returned from StartOperation()", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchMonitoringService.ElasticsearchMonitoringContext")]
 [assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - used in public GetPerformanceMetrics() return type", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics")]
 [assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - exposed through PerformanceMetrics", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.MemoryUsageInfo")]
 [assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - returned from StartOperation()", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceContext")]
 [assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - used as public property type in SecurityAlertRequest", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Security.SecurityAlertRequest.AlertCriteria")]
-[assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - used as public property type in SecurityMonitoringStatus", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Security.SecurityMonitoringStatus.MonitoringConfiguration")]
-[assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Part of public API - used as public property type in SecurityMonitoringStatus", Scope = "type", Target = "~T:Excalibur.Data.ElasticSearch.Security.SecurityMonitoringStatus.MonitoringStatistics")]
 
 // CA1506: Excessive class coupling is acceptable for comprehensive monitoring and auditing classes
 // These classes integrate with multiple Elasticsearch APIs and security systems by design

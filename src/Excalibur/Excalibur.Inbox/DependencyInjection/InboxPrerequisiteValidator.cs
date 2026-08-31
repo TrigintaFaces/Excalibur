@@ -28,7 +28,7 @@ namespace Excalibur.Inbox.DependencyInjection;
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class InboxPrerequisiteValidator : IHostedService
+internal sealed class InboxPrerequisiteValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -38,6 +38,12 @@ internal sealed class InboxPrerequisiteValidator : IHostedService
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		var store = _services.GetKeyedService<IInboxStore>("default")
 			?? throw new InvalidOperationException(
@@ -67,8 +73,6 @@ internal sealed class InboxPrerequisiteValidator : IHostedService
 				"inbox store that supports atomic claiming (the in-memory, SQL Server, and PostgreSQL inbox stores do), " +
 				"or implement IClaimableInboxStore on your custom inbox store.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -9,6 +9,8 @@ using Microsoft.Extensions.Options;
 using OpenSearch.Client;
 using OpenSearch.Net;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Data.OpenSearch.Projections;
 
 /// <summary>
@@ -36,7 +38,7 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	internal static readonly string OptionsName = typeof(TProjection).Name;
 
 	private readonly OpenSearchProjectionStoreOptions _options;
-	private readonly OpenSearchClient _client;
+	private readonly IOpenSearchClient _client;
 	private readonly string _indexName;
 	private readonly ILogger<OpenSearchProjectionStore<TProjection>> _logger;
 	private volatile bool _indexVerified;
@@ -73,11 +75,11 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	/// Initializes a new instance of the <see cref="OpenSearchProjectionStore{TProjection}"/> class
 	/// with an existing client.
 	/// </summary>
-	/// <param name="client">An existing OpenSearch client.</param>
+	/// <param name="client">An existing OpenSearch client, typically one the consumer registered in DI.</param>
 	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
 	public OpenSearchProjectionStore(
-		OpenSearchClient client,
+		IOpenSearchClient client,
 		IOptionsMonitor<OpenSearchProjectionStoreOptions> optionsMonitor,
 		ILogger<OpenSearchProjectionStore<TProjection>> logger)
 #pragma warning restore RS0016
@@ -94,6 +96,8 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
 	{
 		await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
@@ -112,6 +116,8 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(projection);
@@ -135,6 +141,8 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,

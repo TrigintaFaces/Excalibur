@@ -6,7 +6,8 @@ using System.Data;
 using Dapper;
 
 using Excalibur.Data;
-using Excalibur.Data.SqlServer;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -58,7 +59,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ExecuteBatchOfInsertRequests()
 	{
 		// Arrange
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var requests = new List<IDataRequest<IDbConnection, object>>();
 		for (var i = 1; i <= 5; i++)
 		{
@@ -82,7 +84,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	{
 		// Arrange — seed initial data
 		await SeedRowsAsync(3);
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		var requests = new List<IDataRequest<IDbConnection, object>>
 		{
@@ -111,7 +114,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ExecuteBulkInsertRequest()
 	{
 		// Arrange
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var request = new BulkInsertRequest(_tableName, 50, CancellationToken.None);
 
 		// Act
@@ -129,7 +133,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ExecuteBatchWithSingleRequest()
 	{
 		// Arrange
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var requests = new List<IDataRequest<IDbConnection, object>>
 		{
 			new InsertRequest(_tableName, 1, "Single-Item", 99.99m, CancellationToken.None),
@@ -149,7 +154,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ExecuteBatchWithEmptyRequestList()
 	{
 		// Arrange
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var requests = new List<IDataRequest<IDbConnection, object>>();
 
 		// Act
@@ -164,7 +170,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ExecuteBulkInsertWithLargerDataSet()
 	{
 		// Arrange — 500 rows exercises bulk insert path
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var request = new BulkInsertRequest(_tableName, 500, CancellationToken.None);
 
 		// Act
@@ -181,7 +188,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	{
 		// Arrange — seed rows then delete some
 		await SeedRowsAsync(10);
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var requests = new List<IDataRequest<IDbConnection, object>>
 		{
 			new DeleteRequest(_tableName, 3, CancellationToken.None),
@@ -202,7 +210,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ExecuteBatchPreservesDataIntegrity()
 	{
 		// Arrange — insert rows and verify exact values
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var requests = new List<IDataRequest<IDbConnection, object>>
 		{
 			new InsertRequest(_tableName, 100, "Precision-Test", 123.45m, CancellationToken.None),
@@ -230,7 +239,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ThrowWhenExecuteBatchWithNullRequests()
 	{
 		// Arrange
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -241,7 +251,8 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	public async Task ThrowWhenExecuteBulkWithNullRequest()
 	{
 		// Arrange
-		using var provider = CreateProvider();
+		using var services = CreateServices();
+		var provider = (SqlServerPersistenceProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -250,28 +261,27 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 
 	#region Helper Methods
 
-	private SqlServerPersistenceProvider CreateProvider()
+	private ServiceProvider CreateServices()
 	{
-		var options = Options.Create(new SqlServerProviderOptions
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
 		{
-			Connection =
-			{
-				ConnectionString = _fixture.ConnectionString,
-				ConnectTimeout = 15,
-				TrustServerCertificate = true,
-			},
-			Name = "bulk-test",
-			CommandTimeout = 60,
-			Pooling =
-			{
-				MaxPoolSize = 10,
-				MinPoolSize = 1,
-				EnablePooling = true,
-			},
-			RetryCount = 3,
+			options.ConnectionString = _fixture.ConnectionString;
+			options.CommandTimeout = 60;
+			options.Connection.ConnectionTimeout = 15;
+			options.Security.TrustServerCertificate = true;
+			options.Pooling.EnableConnectionPooling = true;
+			options.Pooling.MinPoolSize = 1;
+			options.Pooling.MaxPoolSize = 10;
+			options.Resiliency.MaxRetryAttempts = 3;
 		});
 
-		return new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		return services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = false,
+			ValidateScopes = true,
+		});
 	}
 
 	private async Task<int> CountRowsAsync()

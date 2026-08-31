@@ -5,15 +5,34 @@
 -- records, and its dead letter queue. The store never creates these tables at runtime:
 -- run this script against the target database before the first drain.
 --
--- Table and schema names are configurable. This script uses the defaults:
+-- HOW TO RUN IT. This is plain T-SQL. Any client that understands the GO batch separator applies it
+-- unchanged: sqlcmd, SSMS or Azure Data Studio in their ordinary mode, DbUp, Flyway, EF migrations, or
+-- your own connection loop splitting the file on GO. There are no client meta-commands in it, so nothing
+-- has to pre-process it first. GO itself is required and cannot be removed -- the upgrade blocks add a
+-- column and then read it, which SQL Server rejects inside a single batch.
 --
---     SqlServerOutboxOptions.Tables.SchemaName           = "dbo"
---     SqlServerOutboxOptions.Tables.OutboxTableName      = "OutboxMessages"
---     SqlServerOutboxOptions.Tables.TransportsTableName  = "OutboxMessageTransports"
---     SqlServerDeadLetterQueueOptions.SchemaName         = "dbo"
---     SqlServerDeadLetterQueueOptions.TableName          = "DeadLetterQueue"
+-- The object names below are the shipped defaults, and they must match the host configuration:
 --
--- If you override any of those, rename the corresponding object below to match.
+--     [dbo].[OutboxMessages]           SqlServerOutboxOptions.Tables.SchemaName / .OutboxTableName
+--     [dbo].[OutboxFence]              SqlServerOutboxOptions.Tables.SchemaName / .FenceTableName
+--     [dbo].[OutboxMessageTransports]  SqlServerOutboxOptions.Tables.SchemaName / .TransportsTableName
+--     [dbo].[DeadLetterQueue]          SqlServerDeadLetterQueueOptions.SchemaName / .TableName
+--
+-- TO USE DIFFERENT NAMES: set them in host configuration, and replace EVERY occurrence of the
+-- corresponding name in this file in one pass. Replace all of them or none of them. The verification
+-- block at the end of the script fails loudly if a rename was left half-done.
+--
+-- WHY THAT WARNING IS HERE. Every block below is guarded on whether its object already exists, so a
+-- half-renamed script both creates and upgrades the WRONG table: the create guard looks for a name that
+-- was not renamed, does not find it, and creates a SECOND, EMPTY table beside the real one. The upgrade
+-- guard then finds that empty table and alters IT. The real table -- the one holding the rows, under the
+-- configured name -- is never touched, and nothing reports a problem.
+--
+-- That failure is worse than a silent no-op because it MANUFACTURES EVIDENCE OF ITS OWN CORRECTNESS. A
+-- later audit asking "does the tenant column exist?" is answered YES, from the wrong table. Row-level
+-- security is installed by DDL that names tables, so a policy created against the empty decoy SUCCEEDS
+-- while the table holding the actual rows carries no policy at all. The verification block at the end of
+-- this script exists to turn that silence into an error.
 --
 -- The script is idempotent: every statement is guarded, so it is safe to re-run and
 -- safe to apply to a database whose outbox table was created by an earlier version.
@@ -38,7 +57,7 @@ BEGIN
         LastAttemptAt     DATETIMEOFFSET   NULL,
         CorrelationId     NVARCHAR(255)    NULL,
         CausationId       NVARCHAR(255)    NULL,
-        TenantId          NVARCHAR(255) COLLATE Latin1_General_BIN2    NOT NULL DEFAULT '__untenanted__',
+        TenantId          NVARCHAR(64) COLLATE Latin1_General_BIN2    NOT NULL DEFAULT '__untenanted__',
         Priority          INT              NOT NULL DEFAULT 0,
         TargetTransports  NVARCHAR(MAX)    NULL,
         IsMultiTransport  BIT              NOT NULL DEFAULT 0,
@@ -75,7 +94,7 @@ IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Outbox
                  AND name = N'TenantId' AND is_nullable = 1)
 BEGIN
     UPDATE [dbo].[OutboxMessages] SET TenantId = '__untenanted__' WHERE TenantId IS NULL;
-    ALTER TABLE [dbo].[OutboxMessages] ALTER COLUMN TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL;
+    ALTER TABLE [dbo].[OutboxMessages] ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 END
 GO
 
@@ -133,7 +152,7 @@ BEGIN
         -- MessageId. Without this column no tenant predicate is expressible on this table at all: every
         -- operational sweep, retry query and delivery audit is cross-tenant by construction -- not because a
         -- WHERE clause was forgotten, but because there is nothing to put in one.
-        TenantId           NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
+        TenantId           NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
         CONSTRAINT FK_OutboxMessageTransports_OutboxMessages
             FOREIGN KEY (MessageId) REFERENCES [dbo].[OutboxMessages](Id)
     );
@@ -154,7 +173,7 @@ BEGIN
         -- component of the primary key: an untenanted entry stores the reserved '__untenanted__' sentinel,
         -- never NULL, so the key stays intact and the untenanted partition never collides with a real
         -- tenant. No default -- the enqueue path always supplies the value.
-        TenantId               NVARCHAR(255) COLLATE Latin1_General_BIN2   NOT NULL,
+        TenantId               NVARCHAR(64) COLLATE Latin1_General_BIN2   NOT NULL,
         MessageType            NVARCHAR(500)   NOT NULL,
         Payload                VARBINARY(MAX)  NOT NULL,
         Reason                 INT             NOT NULL,
@@ -199,7 +218,7 @@ IF EXISTS (SELECT * FROM sys.columns
 BEGIN
     -- TenantId participates in no index on this table, so it alters in place.
     ALTER TABLE [dbo].[OutboxMessages]
-        ALTER COLUMN TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL;
+        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 END
 GO
 
@@ -218,7 +237,7 @@ BEGIN
     END
 
     ALTER TABLE [dbo].[DeadLetterQueue]
-        ALTER COLUMN TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL;
+        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 
     ALTER TABLE [dbo].[DeadLetterQueue]
         ADD CONSTRAINT PK_DeadLetterQueue PRIMARY KEY (Id, TenantId);
@@ -237,7 +256,7 @@ IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Outbox
                    WHERE object_id = OBJECT_ID(N'[dbo].[OutboxMessageTransports]') AND name = N'TenantId')
 BEGIN
     ALTER TABLE [dbo].[OutboxMessageTransports]
-        ADD TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL
+        ADD TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
             CONSTRAINT DF_OutboxMessageTransports_TenantId DEFAULT '__untenanted__';
 
     -- Recover each existing row's real tenant from its parent while the parent still exists.
@@ -255,7 +274,7 @@ IF EXISTS (SELECT * FROM sys.columns
              AND collation_name <> N'Latin1_General_BIN2')
 BEGIN
     ALTER TABLE [dbo].[OutboxMessageTransports]
-        ALTER COLUMN TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL;
+        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 END
 GO
 
@@ -284,5 +303,31 @@ BEGIN
       JOIN [dbo].[OutboxMessages] m ON m.Id = t.MessageId
      WHERE t.TenantId = '__untenanted__'
        AND m.TenantId <> '__untenanted__';
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Verification
+-- ---------------------------------------------------------------------------
+-- A run that reaches here has created or upgraded every object this script names. If one is absent, the
+-- run did not do what it appeared to do, and the usual cause is a partial rename: some references were
+-- changed and others were not, so the script has been building a table nobody reads. Failing here is the
+-- difference between finding that now and finding it when the first drain returns nothing.
+DECLARE @missing NVARCHAR(MAX) = N'';
+
+IF OBJECT_ID(N'[dbo].[OutboxMessages]', N'U') IS NULL
+    SET @missing = @missing + N' [dbo].[OutboxMessages]';
+IF OBJECT_ID(N'[dbo].[OutboxFence]', N'U') IS NULL
+    SET @missing = @missing + N' [dbo].[OutboxFence]';
+IF OBJECT_ID(N'[dbo].[OutboxMessageTransports]', N'U') IS NULL
+    SET @missing = @missing + N' [dbo].[OutboxMessageTransports]';
+IF OBJECT_ID(N'[dbo].[DeadLetterQueue]', N'U') IS NULL
+    SET @missing = @missing + N' [dbo].[DeadLetterQueue]';
+
+IF LEN(@missing) > 0
+BEGIN
+    RAISERROR(
+        N'Excalibur outbox schema is incomplete -- these objects were not created:%s. If you renamed an object, replace EVERY occurrence of that name in this script; a partial rename creates an empty table under the default name and leaves the real one untouched.',
+        16, 1, @missing);
 END
 GO

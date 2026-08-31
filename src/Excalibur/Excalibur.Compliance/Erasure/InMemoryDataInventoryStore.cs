@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Compliance.Erasure;
 
 /// <summary>
@@ -27,17 +29,59 @@ internal sealed class InMemoryDataInventoryStore : IDataInventoryStore, IDataInv
 	private readonly ConcurrentDictionary<string, TenantScopedRegistration> _registrations = new();
 	private readonly ConcurrentDictionary<string, List<DataLocation>> _discoveredLocations = new();
 	private readonly Lock _locationsLock = new();
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+
+	// Deployment MODE, read from TenantContextOptions.RequireTenant (set by AddMultiTenancy()). This is NOT
+	// "is an ITenantContext present": the framework always registers a single-tenant default, so presence
+	// would report every deployment as multi-tenant.
+	private readonly bool _requireTenant;
+	/// <summary>
+	/// Gets the keyed tenant partition this store reads and writes under, resolved in one place so every
+	/// statement it builds binds the same term.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Deployment mode decides the shape, and it is read from <see cref="TenantContextOptions.RequireTenant"/>
+	/// -- the flag the multi-tenancy composition sets -- never inferred from whether an
+	/// <see cref="ITenantContext"/> happens to be registered. The framework always registers a single-tenant
+	/// default context, so presence would make every deployment look multi-tenant; worse, it made the stored
+	/// term depend on whether some UNRELATED feature had registered a context, so two hosts with identical
+	/// inventory configuration filed rows under different tenant identifiers.
+	/// </para>
+	/// <para>
+	/// A single-tenant deployment binds the reserved untenanted partition -- a concrete term, never an absent
+	/// one, and the same term this table's column defaults to. A multi-tenant deployment binds the resolved
+	/// ambient tenant and fails closed when none is established.
+	/// </para>
+	/// </remarks>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		_requireTenant ? KeyedTenantPartition.FromContext(_tenantContext) : KeyedTenantPartition.Untenanted;
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryDataInventoryStore"/> class.
 	/// </summary>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Optional
-	/// and last so existing callers keep compiling; a host without multi-tenancy resolves the reserved
-	/// untenanted partition rather than an absent tenant term.
+	/// The ambient tenant context. Required: the store resolves its partition from here in multi-tenant
+	/// mode, and a single-tenant host receives the framework default context, so there is no state in
+	/// which the partition is undecided.
 	/// </param>
-	public InMemoryDataInventoryStore(ITenantContext? tenantContext = null) => _tenantContext = tenantContext;
+	/// <param name="tenantContextOptions">
+	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode. Required, and required for the reason the
+	/// mode must not be inferred: an omitted binding would be indistinguishable from a deliberate
+	/// declaration of single-tenancy, and the two get different data.
+	/// </param>
+	public InMemoryDataInventoryStore(
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
+	{
+		ArgumentNullException.ThrowIfNull(tenantContext);
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
+
+		_tenantContext = tenantContext;
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
+	}
 
 	/// <summary>
 	/// Resolves the tenant term every read and write of this store is confined to.
@@ -57,7 +101,7 @@ internal sealed class InMemoryDataInventoryStore : IDataInventoryStore, IDataInv
 	/// </para>
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public Task SaveRegistrationAsync(

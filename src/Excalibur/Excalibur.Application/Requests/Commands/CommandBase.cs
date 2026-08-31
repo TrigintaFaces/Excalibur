@@ -85,9 +85,9 @@ public abstract class CommandBase(Guid correlationId, string? tenantId = null) :
 /// </remarks>
 /// <param name="correlationId"> The correlation ID associated with the command. </param>
 /// <param name="tenantId"> The tenant ID associated with the command. Defaults to <see cref="TenantDefaults.DefaultTenantId"/> if null. </param>
-// R0.8: File name should match first type name
+// File name should match first type name
 #pragma warning disable SA1649
-// R0.8: File may only contain a single type
+// File may only contain a single type
 #pragma warning disable SA1402
 
 public abstract class CommandBase<TResponse>(Guid correlationId, string? tenantId = null)

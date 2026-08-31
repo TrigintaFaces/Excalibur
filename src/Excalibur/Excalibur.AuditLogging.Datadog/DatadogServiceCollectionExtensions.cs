@@ -126,6 +126,11 @@ public static class DatadogServiceCollectionExtensions
 				resilience.CircuitBreaker.SamplingDuration = retry.Timeout * 2;
 			});
 
-		_ = services.AddSingleton<IAuditLogExporter, DatadogAuditExporter>();
+		// Delegate to the typed client rather than letting the container activate a second instance.
+		// An implementation-type registration is constructed from the container's own HttpClient, not the
+		// one AddHttpClient configured above -- so the exporter a consumer resolved carried none of that
+		// configuration, and everything it sets was inert on the only path anything uses. Transient matches
+		// the typed client's own lifetime, which keeps handler rotation working; the exporter holds no state.
+		_ = services.AddTransient<IAuditLogExporter>(static sp => sp.GetRequiredService<DatadogAuditExporter>());
 	}
 }

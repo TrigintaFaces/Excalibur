@@ -57,7 +57,7 @@ public sealed class PostgresSagaStoreConcurrencyConformanceShould : SagaStoreCon
 			CommandTimeoutSeconds = 30,
 		});
 
-		return new PostgresSagaStore(options, NullLogger<PostgresSagaStore>.Instance, new DispatchJsonSerializer());
+		return new PostgresSagaStore(options, NullLogger<PostgresSagaStore>.Instance, new DispatchJsonSerializer(), SingleTenantTestContext.Instance);
 	}
 
 	/// <inheritdoc/>

@@ -24,8 +24,6 @@ internal sealed class MiddlewareAdapter(IDispatchMiddleware middleware) : IZeroA
 	public DispatchMiddlewareStage Stage => _middleware.Stage ?? DispatchMiddlewareStage.End;
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public async ValueTask<(MiddlewareResult Result, MiddlewareContext Context)> ProcessAsync(
 		MessageEnvelope<IDispatchMessage> envelope,
 		MiddlewareContext context,

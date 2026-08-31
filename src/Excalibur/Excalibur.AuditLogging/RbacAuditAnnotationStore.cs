@@ -4,6 +4,7 @@
 using Excalibur.AuditLogging.Diagnostics;
 using Excalibur.Compliance;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.AuditLogging;
@@ -34,37 +35,42 @@ namespace Excalibur.AuditLogging;
 internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 {
 	private readonly IAuditAnnotationStore _innerStore;
-	private readonly IAuditRoleProvider _roleProvider;
-	private readonly IAuditActorProvider? _actorProvider;
-	private readonly IAuditLogger? _metaAuditLogger;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly ILogger<RbacAuditAnnotationStore> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RbacAuditAnnotationStore"/> class.
 	/// </summary>
 	/// <param name="innerStore">The underlying annotation store to wrap.</param>
-	/// <param name="roleProvider">The provider for the current user's role.</param>
-	/// <param name="actorProvider">Optional provider for the current actor identity.</param>
-	/// <param name="metaAuditLogger">Optional logger for meta-audit events.</param>
+	/// <param name="scopeFactory">
+	/// The factory this store opens a scope from on every operation, to resolve the caller's role, identity
+	/// and meta-audit logger. Those three are per-caller state and are deliberately NOT constructor
+	/// parameters: this store is a singleton, so anything held in a field here answers for one caller for
+	/// the life of the process. The actor identity is what decides which annotations a read returns, so a
+	/// captured one hands the first caller's private notes to everyone who follows.
+	/// </param>
 	/// <param name="logger">The logger for diagnostic output.</param>
+	/// <remarks>
+	/// A provider that reads ambient state -- claims, an <c>IHttpContextAccessor</c>, an async-local -- is
+	/// resolved correctly from the scope opened here, because that state flows with the call rather than
+	/// with the container scope. A provider whose identity is instead written into the caller's DI scope by
+	/// host middleware cannot be reached from a singleton at all, and reports its unattributed default here
+	/// rather than another caller's identity -- which narrows what a read returns, never widens it.
+	/// </remarks>
 	public RbacAuditAnnotationStore(
 		IAuditAnnotationStore innerStore,
-		IAuditRoleProvider roleProvider,
-		IAuditActorProvider? actorProvider,
-		IAuditLogger? metaAuditLogger,
+		IServiceScopeFactory scopeFactory,
 		ILogger<RbacAuditAnnotationStore> logger)
 	{
 		_innerStore = innerStore ?? throw new ArgumentNullException(nameof(innerStore));
-		_roleProvider = roleProvider ?? throw new ArgumentNullException(nameof(roleProvider));
-		_actorProvider = actorProvider;
-		_metaAuditLogger = metaAuditLogger;
+		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
 	/// <inheritdoc />
 	public async Task TagAsync(string eventId, IReadOnlyList<string> tags, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureAnnotateAccess(role, "Tag");
 
 		await _innerStore.TagAsync(eventId, tags, cancellationToken).ConfigureAwait(false);
@@ -74,7 +80,7 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 	/// <inheritdoc />
 	public async Task BookmarkAsync(string eventId, string? label, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureAnnotateAccess(role, "Bookmark");
 
 		await _innerStore.BookmarkAsync(eventId, label, cancellationToken).ConfigureAwait(false);
@@ -84,7 +90,7 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 	/// <inheritdoc />
 	public async Task RemoveBookmarkAsync(string eventId, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureAnnotateAccess(role, "RemoveBookmark");
 
 		await _innerStore.RemoveBookmarkAsync(eventId, cancellationToken).ConfigureAwait(false);
@@ -94,7 +100,7 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 	/// <inheritdoc />
 	public async Task<AuditAnnotationId> AnnotateAsync(string eventId, string note, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureAnnotateAccess(role, "Annotate");
 
 		var result = await _innerStore.AnnotateAsync(eventId, note, cancellationToken).ConfigureAwait(false);
@@ -106,7 +112,7 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 	/// <inheritdoc />
 	public async Task<AuditAnnotations> GetAnnotationsAsync(string eventId, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
 		var annotations = await _innerStore.GetAnnotationsAsync(eventId, cancellationToken).ConfigureAwait(false);
@@ -121,7 +127,7 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<string>> QueryByAnnotationAsync(AuditAnnotationQuery query, CancellationToken cancellationToken)
 	{
-		var role = await _roleProvider.GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
+		var role = await GetCurrentRoleAsync(cancellationToken).ConfigureAwait(false);
 		EnsureReadAccess(role);
 
 		var candidates = await _innerStore.QueryByAnnotationAsync(query, cancellationToken).ConfigureAwait(false);
@@ -221,12 +227,33 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 	/// </summary>
 	private async Task<string?> ResolveCurrentActorIdAsync(CancellationToken cancellationToken)
 	{
-		if (_actorProvider is null)
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		var actorProvider = scope.ServiceProvider.GetService<IAuditActorProvider>();
+		if (actorProvider is null)
 		{
 			return null;
 		}
 
-		return await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		return await actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Resolves the current caller's role from a scope opened for this operation.
+	/// </summary>
+	/// <remarks>
+	/// The role provider is required: this is an access-control input, and a host that registered none must
+	/// be refused rather than defaulted. Resolution is per operation so the decision belongs to the caller
+	/// being checked.
+	/// </remarks>
+	private async Task<AuditLogRole> GetCurrentRoleAsync(CancellationToken cancellationToken)
+	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		return await scope.ServiceProvider
+			.GetRequiredService<IAuditRoleProvider>()
+			.GetCurrentRoleAsync(cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	private async Task LogMetaAuditAsync(
@@ -235,15 +262,20 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 		string details,
 		CancellationToken cancellationToken)
 	{
-		if (_metaAuditLogger is null)
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		var metaAuditLogger = scope.ServiceProvider.GetService<IAuditLogger>();
+		if (metaAuditLogger is null)
 		{
 			return;
 		}
 
+		var actorProvider = scope.ServiceProvider.GetService<IAuditActorProvider>();
+
 		try
 		{
-			var actorId = _actorProvider is not null
-				? await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false)
+			var actorId = actorProvider is not null
+				? await actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false)
 				: $"role:{role}";
 
 			var metaEvent = new AuditEvent
@@ -259,7 +291,7 @@ internal sealed partial class RbacAuditAnnotationStore : IAuditAnnotationStore
 				Reason = $"Role={role}, {details}"
 			};
 
-			_ = await _metaAuditLogger.LogAsync(metaEvent, cancellationToken).ConfigureAwait(false);
+			_ = await metaAuditLogger.LogAsync(metaEvent, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{

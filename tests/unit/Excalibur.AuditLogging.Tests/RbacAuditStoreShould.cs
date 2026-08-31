@@ -15,7 +15,10 @@ public sealed class RbacAuditStoreShould
 
     public RbacAuditStoreShould()
     {
-        _sut = new RbacAuditStore(_innerStore, _roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), NullLogger<RbacAuditStore>.Instance);
+        _sut = new RbacAuditStore(
+            _innerStore,
+            TestScopeFactory.For(_roleProvider, metaAuditLogger: A.Fake<global::Excalibur.Compliance.IAuditLogger>()),
+            NullLogger<RbacAuditStore>.Instance);
     }
 
     private static AuditEvent CreateEvent(
@@ -196,13 +199,13 @@ public sealed class RbacAuditStoreShould
 
         var start = DateTimeOffset.UtcNow.AddDays(-1);
         var end = DateTimeOffset.UtcNow;
-        var expected = AuditIntegrityResult.Valid(10, start, end);
+        var expected = AuditIntegrityResult.Verified(10, start, end, isHashChained: true);
         A.CallTo(() => _innerStore.VerifyChainIntegrityAsync(start, end, A<CancellationToken>._))
             .Returns(expected);
 
         var result = await _sut.VerifyChainIntegrityAsync(start, end, CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
     }
 
     [Theory]
@@ -221,30 +224,61 @@ public sealed class RbacAuditStoreShould
     public void Throw_argument_null_for_null_inner_store()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(null!, _roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), NullLogger<RbacAuditStore>.Instance));
+            new RbacAuditStore(
+                null!,
+                TestScopeFactory.For(_roleProvider, metaAuditLogger: A.Fake<global::Excalibur.Compliance.IAuditLogger>()),
+                NullLogger<RbacAuditStore>.Instance));
     }
 
     [Fact]
-    public void Throw_argument_null_for_null_role_provider()
+    public void Throw_argument_null_for_null_scope_factory()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(_innerStore, null!, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), NullLogger<RbacAuditStore>.Instance));
+            new RbacAuditStore(_innerStore, null!, NullLogger<RbacAuditStore>.Instance));
+    }
+
+    [Fact]
+    public async Task Throw_when_no_role_provider_is_registered()
+    {
+        // The role provider is an access-control input and is resolved per operation, so its absence is a
+        // resolution failure on the first checked call rather than a constructor argument check. It must
+        // still fail closed: a host that registered none is refused, never defaulted to a role.
+        var store = new RbacAuditStore(
+            _innerStore,
+            TestScopeFactory.For(metaAuditLogger: A.Fake<global::Excalibur.Compliance.IAuditLogger>()),
+            NullLogger<RbacAuditStore>.Instance);
+
+        _ = await Should.ThrowAsync<InvalidOperationException>(
+            () => store.GetByIdAsync("evt-1", CancellationToken.None));
     }
 
     [Fact]
     public void Throw_argument_null_for_null_logger()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(_innerStore, _roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), null!));
+            new RbacAuditStore(
+                _innerStore,
+                TestScopeFactory.For(_roleProvider, metaAuditLogger: A.Fake<global::Excalibur.Compliance.IAuditLogger>()),
+                null!));
     }
 
     [Fact]
-    public void Throw_argument_null_for_null_meta_audit_logger()
+    public async Task Throw_when_no_meta_audit_logger_is_registered()
     {
         // Meta-auditing (recording who reads the audit trail) is a segregation-of-duties control that must
-        // never be silently disabled by being left unconfigured. Its absence fails closed at construction.
-        Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(_innerStore, _roleProvider, null!, NullLogger<RbacAuditStore>.Instance));
+        // never be silently disabled by being left unconfigured. The logger is now resolved per operation,
+        // so its absence fails the READ that could not be recorded rather than failing at construction --
+        // still fail-closed, and the caller does not receive audit data that went unlogged.
+        A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
+            .Returns(AuditLogRole.Administrator);
+
+        var store = new RbacAuditStore(
+            _innerStore,
+            TestScopeFactory.For(_roleProvider),
+            NullLogger<RbacAuditStore>.Instance);
+
+        _ = await Should.ThrowAsync<InvalidOperationException>(
+            () => store.GetByIdAsync("evt-1", CancellationToken.None));
     }
 
     [Fact]

@@ -253,14 +253,14 @@ public sealed class EncryptingAuditEventStoreShould
         var sut = CreateSut();
         var start = DateTimeOffset.UtcNow.AddDays(-1);
         var end = DateTimeOffset.UtcNow;
-        var expected = AuditIntegrityResult.Valid(10, start, end);
+        var expected = AuditIntegrityResult.Verified(10, start, end, isHashChained: true);
 
         A.CallTo(() => _innerStore.VerifyChainIntegrityAsync(start, end, A<CancellationToken>._))
             .Returns(expected);
 
         var result = await sut.VerifyChainIntegrityAsync(start, end, CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
     }
 
     [Fact]

@@ -160,9 +160,9 @@ public static class RedisLeaderElectionBuilderExtensions
 			var logger = sp.GetRequiredService<ILogger<RedisLeaderElection>>();
 			var context = new RedisLeaderElectionContext
 			{
-				// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+				// optional classifier-accelerated self-demotion (null when none registered → grace-only).
 				FailureClassifier = sp.GetService<IMessageFailureClassifier>(),
-				// umemwa/ADR-339: optional fencing-token issuance at acquisition (null when fencing not enabled).
+				// optional fencing-token issuance at acquisition (null when fencing not enabled).
 				FencingTokenProvider = sp.GetService<IFencingTokenProvider>(),
 			};
 			return new RedisLeaderElection(redis, lockKey, options, logger, context);

@@ -48,28 +48,4 @@ public sealed class AwsSqsCloudEventOptionsValidatorShould
 		result.FailureMessage.ShouldContain(nameof(AwsSqsCloudEventOptions.DelaySeconds));
 	}
 
-	[Fact]
-	public void FailWhenCompressionThresholdIsNegative()
-	{
-		var result = _validator.Validate(null, new AwsSqsCloudEventOptions { CompressionThreshold = -1 });
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AwsSqsCloudEventOptions.CompressionThreshold));
-	}
-
-	[Fact]
-	public void ReportMultipleFailures_WhenMultipleConstraintsViolated()
-	{
-		var result = _validator.Validate(null, new AwsSqsCloudEventOptions
-		{
-			MaxBatchSize = 0,
-			DelaySeconds = 901,
-			CompressionThreshold = -1,
-		});
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AwsSqsCloudEventOptions.MaxBatchSize));
-		result.FailureMessage.ShouldContain(nameof(AwsSqsCloudEventOptions.DelaySeconds));
-		result.FailureMessage.ShouldContain(nameof(AwsSqsCloudEventOptions.CompressionThreshold));
-	}
 }

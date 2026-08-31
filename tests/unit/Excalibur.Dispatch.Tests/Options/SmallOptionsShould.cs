@@ -95,28 +95,6 @@ public sealed class SmallOptionsShould
 		opts.Checks.ValidateRequiredFields.ShouldBeTrue();
 	}
 
-	[Fact]
-	public void VersioningOptions_HaveDefaults()
-	{
-		var opts = new VersioningOptions();
-
-		opts.Enabled.ShouldBeTrue();
-		opts.RequireContractVersion.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void VersioningOptions_AllowSettingProperties()
-	{
-		var opts = new VersioningOptions
-		{
-			Enabled = false,
-			RequireContractVersion = false,
-		};
-
-		opts.Enabled.ShouldBeFalse();
-		opts.RequireContractVersion.ShouldBeFalse();
-	}
-
 	// === Serialization ===
 
 	[Fact]

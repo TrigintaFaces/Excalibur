@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Text;
+using Excalibur.Dispatch;
 
 using Excalibur.Inbox.InMemory;
 
@@ -26,7 +27,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 
 		var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance;
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
-		_store = new InMemoryInboxStore(options, logger);
+		_store = new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 	}
 
 	[Fact]
@@ -66,7 +67,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		await _store.MarkProcessedAsync(messageId, TestHandlerType, CancellationToken.None);
 
 		// Assert
-		var statistics = await _store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var statistics = await _store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		statistics.ProcessedEntries.ShouldBe(1);
 		statistics.PendingEntries.ShouldBe(0);
 		statistics.TotalEntries.ShouldBe(1);
@@ -92,7 +93,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		await _store.MarkFailedAsync(messageId, TestHandlerType, error, CancellationToken.None);
 
 		// Assert
-		var statistics = await _store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var statistics = await _store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		statistics.FailedEntries.ShouldBe(1);
 		statistics.PendingEntries.ShouldBe(0);
 		statistics.TotalEntries.ShouldBe(1);
@@ -110,7 +111,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		var options = new InMemoryInboxOptions { RetentionPeriod = TimeSpan.FromMilliseconds(1) };
 		var store = new InMemoryInboxStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance);
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 
 		var payload = Encoding.UTF8.GetBytes("test payload");
 		var metadata = new Dictionary<string, object>();
@@ -121,12 +122,12 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false); // Wait for expiry
 
 		// Act
-		var cleaned = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+		var cleaned = await store.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		cleaned.ShouldBeGreaterThanOrEqualTo(1);
 
-		var entries = await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var entries = await store.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 		entries.ShouldBeEmpty();
 
 		store.Dispose();
@@ -170,7 +171,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		await _store.MarkFailedAsync("msg-2", TestHandlerType, "error", CancellationToken.None);
 
 		// Assert
-		var statistics = await _store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var statistics = await _store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		_ = statistics.ShouldNotBeNull();
 		statistics.TotalEntries.ShouldBe(3);
 		statistics.ProcessedEntries.ShouldBe(1);
@@ -227,7 +228,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 	public async Task ReturnEmptyStatisticsWhenNoEntries()
 	{
 		// Arrange & Act
-		var statistics = await _store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var statistics = await _store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		_ = statistics.ShouldNotBeNull();

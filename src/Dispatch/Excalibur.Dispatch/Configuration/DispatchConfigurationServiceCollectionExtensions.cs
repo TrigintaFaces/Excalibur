@@ -35,7 +35,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	THandler>(
 		this IServiceCollection services,
-		ServiceLifetime lifetime = ServiceLifetime.Scoped)
+		ServiceLifetime lifetime = ServiceLifetime.Transient)
 		where TMessage : IDispatchMessage
 		where THandler : class, IDispatchHandler<TMessage>
 	{
@@ -75,6 +75,8 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	/// </remarks>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddDefaultDispatchPipelines(this IServiceCollection services) =>
 		AddDispatchPipelines(services, strict: false);
 
@@ -89,12 +91,22 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	/// </remarks>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddStrictDispatchPipelines(this IServiceCollection services) =>
 		AddDispatchPipelines(services, strict: true);
 
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	private static IServiceCollection AddDispatchPipelines(IServiceCollection services, bool strict)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+
+		// The core pipeline first: this method's contract is that the pipeline "builds and dispatches out of
+		// the box", and the middleware registered below resolve pipeline-core services (DeferredOutboxWriter
+		// takes IMessageContextAccessor). Without it there is no IDispatcher at all. Every registration in
+		// AddDispatchPipeline is TryAdd, and it runs before the builder's Build() so Replace() still wins.
+		_ = services.AddDispatchPipeline();
 
 		// Register default middleware components
 		_ = RegisterDefaultMiddleware(services);
@@ -130,8 +142,16 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds Dispatch with full durability (persistence enabled).
+	/// Adds Dispatch configured for durable delivery: the store-backed inbox in place of in-memory
+	/// deduplication, acknowledgement after the handler completes, and schema validation.
 	/// </summary>
+	/// <remarks>
+	/// This selects durable behaviour; it does not supply the storage behind it. The inbox store is a
+	/// persistence concern owned by a separate package, so register one — for example
+	/// <c>AddInbox(i =&gt; i.UseSqlServer(...))</c> — alongside this call. Start-up fails with an
+	/// actionable message if the durable inbox is enabled and no store is registered, rather than running
+	/// with deduplication silently absent.
+	/// </remarks>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> Optional additional configuration. </param>
 	/// <returns> The service collection for chaining. </returns>
@@ -153,11 +173,6 @@ public static class DispatchConfigurationServiceCollectionExtensions
 				options.Inbox.Enabled = true; // Use full inbox mode
 				options.Consumer.Dedupe.Enabled = false; // Disable deduplication when inbox enabled
 				options.Consumer.AckAfterHandle = true;
-				options.Outbox.BatchSize = 100;
-				options.Outbox.PublishIntervalMs = 1000;
-				options.Outbox.UseInMemoryStorage = false;
-				options.Outbox.MaxRetries = 10;
-				options.Outbox.SentMessageRetention = TimeSpan.FromDays(7);
 			});
 
 			// Apply additional configuration if provided
@@ -249,10 +264,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		services.TryAddSingleton<IPipelineProfileRegistry, PipelineProfileRegistry>();
 		services.TryAddSingleton<TransportBindingRegistry>();
 
-		// Register pipeline synthesizer for default pipeline creation (R7.5-R7.12)
-		services.TryAddSingleton<IDefaultPipelineSynthesizer, DefaultPipelineSynthesizer>();
-
-		// Register transport router middleware (R3.1)
+		// Register transport router middleware
 		services.TryAddScoped<TransportRouterMiddleware>();
 
 		// Create and configure the builder
@@ -275,7 +287,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	private static IServiceCollection RegisterDefaultMiddleware(IServiceCollection services)
 	{
-		// Register transport router middleware (R3.1)
+		// Register transport router middleware
 		services.TryAddScoped<TransportRouterMiddleware>();
 
 		// Register Inbox middleware and its dependencies (R4)
@@ -305,34 +317,6 @@ public static class DispatchConfigurationServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions>,
 				Excalibur.Dispatch.Options.Middleware.OutboxStagingOptionsValidator>());
 
-		// Configure default pipeline synthesizer to include middleware in proper order
-		services.TryAddSingleton<IDefaultPipelineSynthesizer>(static sp =>
-		{
-			var profileRegistry = sp.GetRequiredService<IPipelineProfileRegistry>();
-			var synthesizer = new DefaultPipelineSynthesizer(profileRegistry);
-
-			// Register middleware in canonical order (R7.10)
-			synthesizer.RegisterMiddleware(
-				typeof(TransportRouterMiddleware),
-				DispatchMiddlewareStage.Routing,
-				priority: 100,
-				MessageKinds.All);
-
-			synthesizer.RegisterMiddleware(
-				typeof(InboxMiddleware),
-				DispatchMiddlewareStage.PreProcessing,
-				priority: 50,
-				MessageKinds.All);
-
-			synthesizer.RegisterMiddleware(
-				typeof(OutboxStagingMiddleware),
-				DispatchMiddlewareStage.PostProcessing,
-				priority: 100,
-				MessageKinds.All);
-
-			return synthesizer;
-		});
-
 		return services;
 	}
 
@@ -361,7 +345,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		IServiceProvider serviceProvider,
 		ServiceDescriptor descriptor)
 	{
-		// ybem93: all implementation members are read through the keyed-safe ServiceDescriptorExtensions
+		// all implementation members are read through the keyed-safe ServiceDescriptorExtensions
 		// accessors. Each transparently returns the keyed member for a keyed descriptor and the non-keyed
 		// member otherwise, so the keyed/non-keyed distinction is resolved in one sanctioned place and a
 		// raw non-keyed read on a keyed descriptor (which throws on .NET 8+) cannot occur here.
@@ -383,9 +367,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 			// (limitation of Microsoft.Extensions.DependencyInjection.ServiceDescriptorExtensions).
 			// This code path is only reached for types explicitly registered via typeof() in DI, which
 			// guarantees their public constructors are preserved by the runtime.
-#pragma warning disable IL2072
 			return (IMessageBus)ActivatorUtilities.CreateInstance(serviceProvider, implementationType);
-#pragma warning restore IL2072
 		}
 
 		throw new InvalidOperationException(

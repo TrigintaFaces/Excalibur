@@ -17,7 +17,7 @@ namespace Excalibur.Data.MySql.Diagnostics;
 /// <item>103500-103599: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataMySqlEventId
+internal static class DataMySqlEventId
 {
 	// ========================================
 	// 103000-103099: Connection Management

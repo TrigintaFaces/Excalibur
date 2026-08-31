@@ -11,8 +11,7 @@ dotnet add package Excalibur.Hosting.AwsLambda
 ## Quick Start
 
 ```csharp
-// Add Excalibur.Hosting.AwsLambda to your service configuration
-services.AddHostingLambda();
+services.AddExcaliburAwsLambdaServerless();
 ```
 
 ## Documentation
@@ -21,5 +20,5 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.
 

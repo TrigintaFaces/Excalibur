@@ -11,10 +11,8 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// helpers. Not a consumer-facing abstraction; do not make this public.
 /// </summary>
 /// <remarks>
-/// Fifth of the 6 γ seams per COMPASS S798 msg 1746 ruling. Seam 4 of 4 in
-/// the S802 Path 4 multi-seam split per COMPASS msg 1940. <c>Inspection</c>
-/// suffix selected per COMPASS msg 1940 to avoid drifting into OpenTelemetry
-/// "Metrics" vocabulary. Size: 2 methods.
+/// The <c>Inspection</c> suffix names the consumer's domain role and avoids
+/// drifting into OpenTelemetry "Metrics" vocabulary. Size: 2 methods.
 /// </remarks>
 internal interface IIndexInspection
 {

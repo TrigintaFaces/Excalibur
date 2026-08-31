@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Follows the ADR-142 §D7 canonical template. The event handlers
+/// The event handlers
 /// (<see cref="ProcessMessageAsync"/> and <see cref="ProcessErrorAsync"/>)
 /// are modeled as C# events matching the SDK processor's shape — the seam
 /// preserves the push-based subscription contract.
@@ -24,8 +24,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// <para>
 /// Data-shaped SDK types (<see cref="ProcessMessageEventArgs"/>,
 /// <see cref="ProcessErrorEventArgs"/>) cross the seam — they carry
-/// Args-suffix DTO semantics and are safe per the COMPASS msg 1743
-/// refined rubric.
+/// Args-suffix DTO semantics and are safe to construct directly.
 /// </para>
 /// </remarks>
 internal interface IServiceBusProcessorSeam : IAsyncDisposable

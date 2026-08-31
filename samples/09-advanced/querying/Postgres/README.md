@@ -9,10 +9,10 @@ Demonstrates **all** Excalibur.Data.Postgres capabilities in a single console ap
 | 1 | **DI Registration** | `AddPostgresDataExecutors(Func<IDbConnection>)` |
 | 2 | **Dapper Integration** | `AddPostgresPersistence` registers `ISqlPersistenceProvider` (Dapper-based) |
 | 3 | **Dead Letter Store** | `AddPostgresDeadLetterStore(connectionString)` |
-| 4 | **Connection Pooling** | `PostgresPersistenceOptions.Pooling` / `PostgresProviderOptions.Pool` |
-| 5 | **JSONB Support** | `PostgresProviderOptions.Advanced.EnableJsonb` via `NpgsqlDataSourceBuilder.EnableDynamicJson()` |
-| 6 | **Prepared Statements** | `PostgresPersistenceOptions.Statements` / `PostgresProviderOptions.Advanced.PrepareStatements` |
-| 7 | **SSL Configuration** | `PostgresProviderOptions.Advanced.UseSsl` / `SslMode` |
+| 4 | **Connection Pooling** | `PostgresPersistenceOptions.Pooling` |
+| 5 | **JSONB Support** | Configured on your own `NpgsqlDataSourceBuilder.EnableDynamicJson()` -- not a persistence option |
+| 6 | **Prepared Statements** | `PostgresPersistenceOptions.Statements` |
+| 7 | **SSL Configuration** | Set `SSL Mode=` in the connection string -- not a persistence option |
 | 8 | **Health Check** | Auto-registered `Postgres_persistence` health check |
 
 ## Prerequisites

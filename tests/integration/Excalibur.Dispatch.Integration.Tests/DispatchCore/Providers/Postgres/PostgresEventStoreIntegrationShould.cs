@@ -76,7 +76,7 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 		// Assert
 		appendResult.ErrorMessage.ShouldBeNull($"Append failed: {appendResult.ErrorMessage}");
 		appendResult.Success.ShouldBeTrue();
-		appendResult.NextExpectedVersion.ShouldBeGreaterThanOrEqualTo(0);
+		appendResult.NextExpectedVersion.ShouldNotBeNull().ShouldBeGreaterThanOrEqualTo(0);
 		loadedEvents.Count.ShouldBe(2);
 	}
 
@@ -189,7 +189,7 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 	private IEventStore CreateEventStore()
 	{
 		var logger = NullLogger<PostgresEventStore>.Instance;
-		return new PostgresEventStore(_pgFixture.ConnectionString, logger);
+		return new PostgresEventStore(_pgFixture.ConnectionString, logger, tenantContext: new TestTenantContext());
 	}
 
 	private async Task InitializeEventTableAsync()

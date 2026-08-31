@@ -12,7 +12,7 @@
 // - Local development with Cosmos DB Emulator
 //
 // Partition Strategy:
-// Events are partitioned by stream ID (aggregateType:aggregateId) for optimal
+// Events are partitioned by stream ID (t:tenantId:aggregateType:aggregateId) for optimal
 // per-aggregate operations. This provides:
 // - Strong consistency within an aggregate
 // - Efficient queries for aggregate events
@@ -168,7 +168,8 @@ Console.WriteLine("  - Aggregate rehydration from events");
 Console.WriteLine("  - Business invariant enforcement");
 Console.WriteLine();
 Console.WriteLine("Partition Key Strategy:");
-Console.WriteLine("  - Events are partitioned by streamId (aggregateType:aggregateId)");
+Console.WriteLine("  - Events are partitioned by streamId (t:tenantId:aggregateType:aggregateId)");
+Console.WriteLine("  - The leading tenant segment gives each tenant its own partition and version sequence");
 Console.WriteLine("  - This provides strong consistency per aggregate");
 Console.WriteLine("  - Optimal for loading/saving individual aggregates");
 Console.WriteLine();

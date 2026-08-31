@@ -5,6 +5,8 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Outbox;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Outbox;
 
 /// <summary>
@@ -22,6 +24,8 @@ internal sealed class TransactionalOutboxWriter(
 	IMessageContextAccessor contextAccessor) : IOutboxWriter
 {
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask WriteAsync(
 		IDispatchMessage message,
 		string? destination,

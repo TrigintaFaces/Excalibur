@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Compliance.Diagnostics;
@@ -67,17 +68,17 @@ public sealed class ComplianceMetrics : IComplianceMetrics, IComplianceMetricsAd
 		// Key rotation metrics
 		_keyRotations = Meter.CreateCounter<long>(
 			"dispatch.compliance.key_rotations",
-			"count",
+			"{rotations}",
 			"Total number of successful key rotations");
 
 		_keyRotationFailures = Meter.CreateCounter<long>(
 			"dispatch.compliance.key_rotation_failures",
-			"count",
+			"{failures}",
 			"Total number of failed key rotation attempts");
 
 		_keysNearingExpiration = Meter.CreateGauge<int>(
 			"dispatch.compliance.keys_nearing_expiration",
-			"count",
+			"{keys}",
 			"Number of keys approaching their expiration date");
 
 		// Encryption metrics
@@ -88,33 +89,33 @@ public sealed class ComplianceMetrics : IComplianceMetrics, IComplianceMetricsAd
 
 		_encryptionOperations = Meter.CreateCounter<long>(
 			"dispatch.compliance.encryption_operations",
-			"count",
+			"{operations}",
 			"Total number of encryption/decryption operations");
 
 		_encryptionBytesProcessed = Meter.CreateCounter<long>(
 			"dispatch.compliance.encryption_bytes_processed",
-			"bytes",
+			"By",
 			"Total bytes processed by encryption operations");
 
 		// Audit metrics
 		_auditEventsLogged = Meter.CreateCounter<long>(
 			"dispatch.compliance.audit_events_logged",
-			"count",
+			"{events}",
 			"Total number of audit events logged");
 
 		_auditBacklogSize = Meter.CreateGauge<int>(
 			"dispatch.compliance.audit_backlog_size",
-			"count",
+			"{events}",
 			"Number of audit events waiting to be processed");
 
 		_auditIntegrityChecks = Meter.CreateCounter<long>(
 			"dispatch.compliance.audit_integrity_checks",
-			"count",
+			"{checks}",
 			"Total number of audit integrity checks performed");
 
 		_auditIntegrityViolations = Meter.CreateCounter<long>(
 			"dispatch.compliance.audit_integrity_violations",
-			"count",
+			"{violations}",
 			"Total number of audit integrity violations detected");
 
 		_auditIntegrityCheckDuration = Meter.CreateHistogram<double>(
@@ -125,7 +126,7 @@ public sealed class ComplianceMetrics : IComplianceMetrics, IComplianceMetricsAd
 		// Key usage tracking
 		_keyUsageOperations = Meter.CreateCounter<long>(
 			"dispatch.compliance.key_usage_operations",
-			"count",
+			"{operations}",
 			"Total number of key usage operations");
 	}
 

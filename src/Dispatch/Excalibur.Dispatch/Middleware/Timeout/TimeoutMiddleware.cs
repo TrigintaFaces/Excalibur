@@ -211,48 +211,6 @@ public sealed partial class TimeoutMiddleware(
 		double timeoutMs,
 		string messageId);
 
-	/// <summary>
-	/// Gets the message kind for the given message using direct type checks instead of reflection.
-	/// </summary>
-	/// <param name="message"> The message to classify. </param>
-	/// <returns> The message kind. </returns>
-	private static MessageKinds GetMessageKind(IDispatchMessage message)
-	{
-		// Direct type checks against well-known interfaces (AOT-safe, no reflection)
-		if (message is IDispatchAction)
-		{
-			return MessageKinds.Action;
-		}
-
-		if (message is IDispatchEvent)
-		{
-			return MessageKinds.Event;
-		}
-
-		if (message is IDispatchDocument)
-		{
-			return MessageKinds.Document;
-		}
-
-		// Fallback classification based on naming conventions
-		var typeName = message.GetType().Name;
-		if (typeName.EndsWith("Command", StringComparison.Ordinal) || typeName.EndsWith("Action", StringComparison.Ordinal))
-		{
-			return MessageKinds.Action;
-		}
-
-		if (typeName.EndsWith("Event", StringComparison.Ordinal) || typeName.EndsWith("Notification", StringComparison.Ordinal))
-		{
-			return MessageKinds.Event;
-		}
-
-		if (typeName.EndsWith("Document", StringComparison.Ordinal) || typeName.EndsWith("Query", StringComparison.Ordinal))
-		{
-			return MessageKinds.Document;
-		}
-
-		return MessageKinds.Action; // Default to Action for unknown types
-	}
 
 	/// <summary>
 	/// Determines the appropriate timeout for the given message and context.
@@ -282,7 +240,7 @@ public sealed partial class TimeoutMiddleware(
 		}
 
 		// Check for message kind-specific timeout
-		var messageKind = GetMessageKind(message);
+		var messageKind = Delivery.DefaultMiddlewareApplicabilityStrategy.DetermineMessageKinds(message.GetType());
 		var kindTimeout = messageKind switch
 		{
 			MessageKinds.Action => _options.ActionTimeout,

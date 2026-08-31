@@ -38,7 +38,7 @@ public sealed class AuditLoggingCoverageGapShould
 		// ImplementationType decorator registration.
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
 		// Act
@@ -62,7 +62,7 @@ public sealed class AuditLoggingCoverageGapShould
 		// Arrange - verify factory branch preserves the singleton lifetime
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
 		// Act
@@ -79,7 +79,7 @@ public sealed class AuditLoggingCoverageGapShould
 		// Arrange - instance-based registration
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var instance = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var instance = AuditStoreTenantScope.Untenanted();
 		_ = services.AddSingleton<IAuditStore>(instance);
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
@@ -106,7 +106,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// A non-security event (System type)
 		var systemEvent = new AuditEvent
@@ -139,7 +139,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var complianceEvent = new AuditEvent
 		{
@@ -171,7 +171,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
@@ -194,7 +194,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Request only DataAccess and Compliance - neither are security types
 		var query = new AuditQuery
@@ -226,7 +226,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Request specific event types including both security and non-security
 		var query = new AuditQuery
@@ -260,7 +260,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.None));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
@@ -279,7 +279,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Developer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
@@ -298,7 +298,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		A.CallTo(() => innerStore.GetLastEventAsync("my-tenant", A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
@@ -326,7 +326,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		A.CallTo(() => innerStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<AuditEvent>>([]));
@@ -349,7 +349,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		A.CallTo(() => innerStore.CountAsync(A<AuditQuery>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(0L));
@@ -371,18 +371,18 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var start = DateTimeOffset.UtcNow.AddDays(-1);
 		var end = DateTimeOffset.UtcNow;
 		A.CallTo(() => innerStore.VerifyChainIntegrityAsync(start, end, A<CancellationToken>._))
-			.Returns(Task.FromResult(AuditIntegrityResult.Valid(0, start, end)));
+			.Returns(Task.FromResult(AuditIntegrityResult.NoEventsInScope(start, end)));
 
 		// Act - should not throw without meta logger
 		var result = await sut.VerifyChainIntegrityAsync(start, end, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.NoEventsInScope);
 	}
 
 	[Fact]
@@ -395,7 +395,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		A.CallTo(() => innerStore.GetLastEventAsync(A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
@@ -418,7 +418,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, metaLogger), logger);
 
 		var events = new List<AuditEvent>
 		{
@@ -457,12 +457,12 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, metaLogger), logger);
 
 		var start = DateTimeOffset.UtcNow.AddDays(-1);
 		var end = DateTimeOffset.UtcNow;
 		A.CallTo(() => innerStore.VerifyChainIntegrityAsync(start, end, A<CancellationToken>._))
-			.Returns(Task.FromResult(AuditIntegrityResult.Valid(50, start, end)));
+			.Returns(Task.FromResult(AuditIntegrityResult.Verified(50, start, end, isHashChained: true)));
 		A.CallTo(() => metaLogger.LogAsync(A<AuditEvent>._, A<CancellationToken>._))
 			.ThrowsAsync(new TimeoutException("Meta audit timeout"));
 
@@ -470,7 +470,7 @@ public sealed class AuditLoggingCoverageGapShould
 		var result = await sut.VerifyChainIntegrityAsync(start, end, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(50);
 	}
 
@@ -599,7 +599,7 @@ public sealed class AuditLoggingCoverageGapShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrityAsync_DetectsTamperedEvents()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var timestamp = new DateTimeOffset(2025, 6, 15, 10, 0, 0, TimeSpan.Zero);
 
 		// Store a valid event
@@ -632,9 +632,9 @@ public sealed class AuditLoggingCoverageGapShould
 			CancellationToken.None);
 
 		// Assert - chain should be valid for properly stored events
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(2);
-		result.ViolationCount.ShouldBe(0);
+		result.CompromisedChainCount.ShouldBe(0);
 	}
 
 	[Fact]
@@ -696,7 +696,7 @@ public sealed class AuditLoggingCoverageGapShould
 	{
 		// Arrange - We verify the Invalid path of VerifyChainIntegrityAsync
 		// by checking the return value structure
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var timestamp = new DateTimeOffset(2025, 3, 1, 0, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -716,7 +716,7 @@ public sealed class AuditLoggingCoverageGapShould
 			CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(1);
 		result.StartDate.ShouldBe(timestamp.AddDays(-1));
 		result.EndDate.ShouldBe(timestamp.AddDays(1));
@@ -873,7 +873,7 @@ public sealed class AuditLoggingCoverageGapShould
 			DateTimeOffset startDate,
 			DateTimeOffset endDate,
 			CancellationToken cancellationToken = default)
-			=> Task.FromResult(AuditIntegrityResult.Valid(0, startDate, endDate));
+			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
 		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);

@@ -149,7 +149,7 @@ public sealed class PostgresInboxStoreDeploymentModeShould : IClassFixture<Postg
             () => new NpgsqlConnection(_fixture.ConnectionString),
             options,
             NullLogger<PostgresInboxStore>.Instance,
-            tenantContext,
+            tenantContext ?? UntenantedTestTenantContext.Instance,
             Options.Create(new TenantContextOptions { RequireTenant = requireTenant }));
     }
 

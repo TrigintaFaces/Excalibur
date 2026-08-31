@@ -19,7 +19,7 @@ This package provides AWS messaging integration for Excalibur.Dispatch, enabling
 - **Amazon SQS**: Standard and FIFO queues with long polling and batching
 - **Amazon SNS**: Pub/sub messaging with topic subscriptions
 - **Amazon EventBridge**: Event-driven architectures with event buses and rules
-- **CloudEvents Support**: Standards-compliant event formatting
+- **CloudEvents Support**: Standards-compliant event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
 - **KMS Encryption**: Server-side encryption with AWS Key Management Service
 - **LocalStack Support**: Local development and testing without AWS account
 
@@ -38,22 +38,23 @@ dotnet add package Excalibur.Dispatch.Transport.AwsSqs
 AWS SDK automatically discovers credentials from environment, IAM roles, or credential files:
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue");
-    options.Region = "us-east-1";
-});
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseRegion("us-east-1")
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"));
 ```
 
 #### Using Explicit Credentials
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue");
-    options.Region = "us-east-1";
-    options.Credentials = new BasicAWSCredentials("accessKey", "secretKey");
-});
+// The transport builder does not take credentials -- it resolves IAmazonSQS from DI, so
+// credentials are configured on the AWS SDK client in the usual way.
+services.AddSingleton<IAmazonSQS>(_ => new AmazonSQSClient(
+    new BasicAWSCredentials("accessKey", "secretKey"),
+    RegionEndpoint.USEast1));
+
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseRegion("us-east-1")
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"));
 ```
 
 #### Environment Variables
@@ -68,11 +69,9 @@ SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789/my-queue
 ```
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.QueueUrl = new Uri(Environment.GetEnvironmentVariable("SQS_QUEUE_URL")!);
-    options.Region = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1";
-});
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseRegion(Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1")
+    .MapQueue<OrderPlaced>(Environment.GetEnvironmentVariable("SQS_QUEUE_URL")!));
 ```
 
 #### LocalStack for Development
@@ -80,12 +79,13 @@ services.AddAwsSqs(options =>
 Use LocalStack for local development without AWS credentials:
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.UseLocalStack = true;
-    options.LocalStackUrl = new Uri("http://localhost:4566");
-    options.QueueUrl = new Uri("http://localhost:4566/000000000000/my-queue");
-});
+// Point the AWS SDK client at LocalStack; the transport uses whatever IAmazonSQS is registered.
+services.AddSingleton<IAmazonSQS>(_ => new AmazonSQSClient(
+    new AmazonSQSConfig { ServiceURL = "http://localhost:4566" }));
+
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseRegion("us-east-1")
+    .MapQueue<OrderPlaced>("http://localhost:4566/000000000000/my-queue"));
 ```
 
 ### Authentication
@@ -116,14 +116,18 @@ For EC2, ECS, Lambda, or EKS deployments, use IAM roles:
 #### Assume Role
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.Credentials = new AssumeRoleAWSCredentials(
+// Role assumption belongs to the AWS SDK client; the transport consumes whatever
+// IAmazonSQS is registered.
+services.AddSingleton<IAmazonSQS>(_ => new AmazonSQSClient(
+    new AssumeRoleAWSCredentials(
         new BasicAWSCredentials("accessKey", "secretKey"),
         "arn:aws:iam::123456789:role/my-role",
-        "session-name");
-    options.Region = "us-east-1";
-});
+        "session-name"),
+    RegionEndpoint.USEast1));
+
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseRegion("us-east-1")
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"));
 ```
 
 #### AWS SSO / Identity Center
@@ -131,11 +135,13 @@ services.AddAwsSqs(options =>
 Use AWS CLI profiles with SSO:
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.Credentials = new ProfileAWSCredentials("my-sso-profile");
-    options.Region = "us-east-1";
-});
+services.AddSingleton<IAmazonSQS>(_ => new AmazonSQSClient(
+    new ProfileAWSCredentials("my-sso-profile"),
+    RegionEndpoint.USEast1));
+
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseRegion("us-east-1")
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"));
 ```
 
 ### Message Configuration
@@ -143,58 +149,37 @@ services.AddAwsSqs(options =>
 #### Standard Queue Settings
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue");
-
-    // Polling configuration
-    options.MaxNumberOfMessages = 10;    // Max messages per receive (1-10)
-    options.WaitTimeSeconds = TimeSpan.FromSeconds(20);   // Long polling wait time (0-20 seconds)
-    options.VisibilityTimeout = TimeSpan.FromSeconds(30); // Message lock timeout
-
-    // Message retention
-    options.MessageRetentionPeriod = 345600;  // 4 days (in seconds)
-});
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue")
+    .ConfigureQueue(queue => queue
+        .ReceiveWaitTimeSeconds(20)                              // long polling (0-20)
+        .VisibilityTimeout(TimeSpan.FromSeconds(30))             // message lock timeout
+        .MessageRetentionPeriod(TimeSpan.FromDays(4))));
 ```
 
 #### FIFO Queue Settings
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue.fifo");
-
-    // FIFO-specific options
-    options.UseFifoQueue = true;
-    options.ContentBasedDeduplication = true;  // Auto-generate deduplication ID from content
-});
+// A .fifo queue URL selects FIFO behaviour; ConfigureFifo supplies the FIFO settings.
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue.fifo")
+    .ConfigureFifo(fifo => fifo
+        .ContentBasedDeduplication(true)                         // derive the dedup ID from the body
+        .MessageGroupIdSelector<OrderPlaced>(order => order.CustomerId)));
 ```
 
-#### Batch Configuration
+#### Batching
 
-```csharp
-services.AddAwsSqs(options =>
-{
-    options.BatchConfig = new BatchOptions
-    {
-        MaxBatchSize = 10,           // Messages per batch (max 10)
-        MaxBatchWaitTime = TimeSpan.FromMilliseconds(100)
-    };
-});
-```
+Sends are batched automatically: the sender chunks an outgoing set into `SendMessageBatch` calls at
+the SQS ceiling of ten entries, and receives pull up to ten messages per `ReceiveMessage` call.
+There is no batch-size knob because there is no value below the ceiling that improves anything.
 
 #### Long Polling Configuration
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.LongPollingConfig = new LongPollingOptions
-    {
-        QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue"),
-    };
-    options.LongPollingConfig.Polling.MaxWaitTimeSeconds = 20;
-    options.LongPollingConfig.Adaptive.Enabled = true;
-});
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue")
+    .ConfigureQueue(queue => queue.ReceiveWaitTimeSeconds(20)));  // 20s = maximum long poll
 ```
 
 #### Payload Compression
@@ -223,33 +208,30 @@ Supported compression algorithms for SQS payloads are Gzip, Deflate, and Brotli.
 #### Retry Configuration
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.MaxRetries = 3;                              // AWS SDK retry count
-    options.RequestTimeout = TimeSpan.FromSeconds(30);   // Request timeout
-    options.ValidateOnStartup = true;                    // Validate queue exists on startup
-});
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .UseMaxRetryAttempts(3)                              // AWS SDK retry count
+    .UseRequestTimeout(TimeSpan.FromSeconds(30)));
 ```
 
 #### Dead Letter Queue Configuration
 
 ```csharp
-services.Configure<DlqOptions>(options =>
-{
-    options.DeadLetterQueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-dlq");
-    options.MaxRetries = 3;                              // Max retries before DLQ
-    options.RetryDelay = TimeSpan.FromMinutes(5);        // Delay between retries
-    options.UseExponentialBackoff = true;                // Exponential backoff
-    options.MaxMessageAge = TimeSpan.FromDays(14);       // Max message age to process
+// The redrive policy is an SQS queue attribute: name the DLQ by ARN and the receive count
+// after which SQS moves the message.
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue")
+    .ConfigureQueue(queue => queue
+        .DeadLetterQueue(dlq => dlq
+            .QueueArn("arn:aws:sqs:us-east-1:123456789:my-dlq")
+            .MaxReceiveCount(3))));
 
-    // Archive options
-    options.ArchiveFailedMessages = true;
-    options.ArchiveLocation = "s3://my-bucket/dlq-archive/";
-
-    // Automatic redrive
-    options.EnableAutomaticRedrive = true;
-    options.AutomaticRedriveInterval = TimeSpan.FromHours(1);
-});
+// Have the transport apply that redrive policy to the queue at startup:
+services.AddAwsSqsTransport("orders", sqs => sqs
+    .ConfigureProvisioning(p =>
+    {
+        p.Enabled = true;
+        p.ApplyDeadLetterRedrivePolicy = true;
+    }));
 ```
 
 ### Encryption
@@ -257,12 +239,12 @@ services.Configure<DlqOptions>(options =>
 #### KMS Server-Side Encryption
 
 ```csharp
-services.AddAwsSqs(options =>
-{
-    options.EnableEncryption = true;
-    options.KmsMasterKeyId = "alias/my-key";              // KMS key alias or ARN
-    options.KmsDataKeyReusePeriodSeconds = 300;           // Data key reuse period (60-86400)
-});
+// SQS server-side encryption is a queue attribute, not a transport setting: enable SSE-KMS
+// on the queue itself (console, CloudFormation, or Terraform). Messages are then encrypted
+// at rest transparently, and the transport needs no configuration for it.
+//
+// The publishing identity needs kms:GenerateDataKey and kms:Decrypt on the key -- see the
+// IAM policy below.
 ```
 
 #### Required IAM Permissions for KMS
@@ -285,56 +267,20 @@ services.AddAwsSqs(options =>
 
 ## Health Checks
 
-### Registration
+The transport adapter implements `ITransportHealthChecker`. Register the transport-agnostic health
+check from `Excalibur.Dispatch`, which resolves every registered transport checker:
 
 ```csharp
 services.AddHealthChecks()
-    .AddCheck<SqsHealthCheck>("sqs", tags: new[] { "ready", "messaging" });
+    .AddTransportHealthChecks(
+        name: "transports",
+        tags: new[] { "ready", "messaging" });
 ```
 
-### Configuration
+For finer control, `AddTransportHealthChecks` also accepts an options delegate or an
+`IConfiguration` section.
 
-```csharp
-services.Configure<SqsHealthCheckOptions>(options =>
-{
-    options.Timeout = TimeSpan.FromSeconds(5);
-    options.QueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/my-queue";
-});
-```
-
-### Custom Health Check Implementation
-
-```csharp
-public class SqsHealthCheck : IHealthCheck
-{
-    private readonly IAmazonSQS _sqsClient;
-    private readonly AwsSqsOptions _options;
-
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var response = await _sqsClient.GetQueueAttributesAsync(
-                _options.QueueUrl?.ToString(),
-                new List<string> { "ApproximateNumberOfMessages" },
-                cancellationToken);
-
-            var messageCount = int.Parse(
-                response.Attributes["ApproximateNumberOfMessages"]);
-
-            return messageCount > 10000
-                ? HealthCheckResult.Degraded($"Queue depth: {messageCount}")
-                : HealthCheckResult.Healthy($"Queue depth: {messageCount}");
-        }
-        catch (Exception ex)
-        {
-            return HealthCheckResult.Unhealthy("SQS unreachable", ex);
-        }
-    }
-}
-```
+You do not need to author a health check yourself.
 
 ## Production Considerations
 
@@ -355,19 +301,11 @@ public class SqsHealthCheck : IHealthCheck
 ### Performance Tuning
 
 ```csharp
-services.AddAwsSqs(options =>
-{
+services.AddAwsSqsTransport("orders", sqs => sqs
     // High-throughput configuration
-    options.MaxNumberOfMessages = 10;         // Max batch size
-    options.WaitTimeSeconds = TimeSpan.FromSeconds(20);   // Long polling (reduces API calls)
-    options.VisibilityTimeout = TimeSpan.FromMinutes(5);  // 5 minutes for slow processing
-
-    options.BatchConfig = new BatchOptions
-    {
-        MaxBatchSize = 10,
-        MaxBatchWaitTime = TimeSpan.FromMilliseconds(50)  // Faster batching
-    };
-});
+    .ConfigureQueue(queue => queue
+        .ReceiveWaitTimeSeconds(20)                       // long polling (reduces API calls)
+        .VisibilityTimeout(TimeSpan.FromMinutes(5))));    // 5 minutes for slow processing
 ```
 
 ### Monitoring and Alerting
@@ -402,21 +340,17 @@ Key CloudWatch metrics to monitor:
 ### Configuration
 
 ```csharp
-services.AddAwsSns(options =>
-{
-    options.TopicArn = "arn:aws:sns:us-east-1:123456789:my-topic";
-    options.Region = "us-east-1";
-});
+services.AddAwsSnsTransport("notifications", sns => sns
+    .TopicArn("arn:aws:sns:us-east-1:123456789:my-topic")
+    .Region("us-east-1"));
 ```
 
 ### Fanout Pattern (SNS to Multiple SQS)
 
 ```csharp
 // Publisher uses SNS
-services.AddAwsSns(options =>
-{
-    options.TopicArn = "arn:aws:sns:us-east-1:123456789:orders-topic";
-});
+services.AddAwsSnsTransport("notifications", sns => sns
+    .TopicArn("arn:aws:sns:us-east-1:123456789:orders-topic"));
 
 // Multiple consumers subscribe SQS queues to the topic
 // Configure in AWS Console or via CloudFormation
@@ -427,16 +361,12 @@ services.AddAwsSns(options =>
 ### Configuration
 
 ```csharp
-services.AddAwsEventBridge(options =>
-{
-    options.EventBusName = "my-event-bus";
-    options.Region = "us-east-1";
-    options.DefaultSource = "my-application";
-    options.DefaultDetailType = "dispatch.event";
-    options.EnableArchiving = true;
-    options.ArchiveName = "my-event-archive";
-    options.ArchiveRetentionDays = 7;
-});
+services.AddAwsEventBridgeTransport("events", bus => bus
+    .EventBusName("my-event-bus")
+    .Region("us-east-1")
+    .DefaultSource("my-application")
+    .DefaultDetailType("dispatch.event")
+    .EnableArchiving(retentionDays: 7, archiveName: "my-event-archive"));
 ```
 
 ## Troubleshooting
@@ -526,57 +456,45 @@ Enable detailed logging for troubleshooting:
 ## Complete Configuration Reference
 
 ```csharp
-services.AddAwsSqs(options =>
-{
+services.AddAwsSqsTransport("orders", sqs => sqs
     // Connection
-    options.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue");
-    options.Region = "us-east-1";
-    options.ServiceUrl = null;  // Custom endpoint (LocalStack, etc.)
-    options.UseLocalStack = false;
-    options.LocalStackUrl = new Uri("http://localhost:4566");
+    .UseRegion("us-east-1")
+    .MapQueue<OrderPlaced>("https://sqs.us-east-1.amazonaws.com/123456789/my-queue")
+    .WithQueuePrefix("prod-")
 
-    // Authentication
-    options.Credentials = null;  // Uses default credential chain
+    // Queue behaviour
+    .ConfigureQueue(queue => queue
+        .VisibilityTimeout(TimeSpan.FromSeconds(30))
+        .MessageRetentionPeriod(TimeSpan.FromDays(4))
+        .ReceiveWaitTimeSeconds(20)
+        .DelaySeconds(0)
+        .DeadLetterQueue(dlq => dlq
+            .QueueArn("arn:aws:sqs:us-east-1:123456789:my-dlq")
+            .MaxReceiveCount(3)))
 
-    // Queue type
-    options.UseFifoQueue = false;
-    options.ContentBasedDeduplication = false;
+    // FIFO queues only
+    .ConfigureFifo(fifo => fifo
+        .ContentBasedDeduplication(true)
+        .MessageGroupIdSelector<OrderPlaced>(order => order.CustomerId))
 
-    // Polling
-    options.MaxNumberOfMessages = 10;
-    options.WaitTimeSeconds = TimeSpan.FromSeconds(20);
-    options.VisibilityTimeout = TimeSpan.FromSeconds(30);
-
-    // Message settings
-    options.MessageRetentionPeriod = 345600;  // 4 days
 
     // Reliability
-    options.MaxRetries = 3;
-    options.RequestTimeout = TimeSpan.FromSeconds(30);
-    options.ValidateOnStartup = true;
-    options.EnableDeduplication = false;
+    .UseMaxRetryAttempts(3)
+    .UseRequestTimeout(TimeSpan.FromSeconds(30))
+    .UseMaxPayloadBytes(256 * 1024)
+    .ConfigureVisibilityHeartbeat(heartbeat => heartbeat.Enabled = true)
 
-    // Encryption
-    options.EnableEncryption = false;
-    options.KmsMasterKeyId = null;
-    options.KmsDataKeyReusePeriodSeconds = 300;
-});
-
-// Dead Letter Queue
-services.Configure<DlqOptions>(options =>
-{
-    options.DeadLetterQueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-dlq");
-    options.MaxRetries = 3;
-    options.RetryDelay = TimeSpan.FromMinutes(5);
-    options.UseExponentialBackoff = true;
-    options.MaxMessageAge = TimeSpan.FromDays(14);
-    options.ArchiveFailedMessages = true;
-    options.ArchiveLocation = "s3://bucket/archive/";
-    options.BatchSize = 10;
-    options.EnableAutomaticRedrive = false;
-    options.AutomaticRedriveInterval = TimeSpan.FromHours(1);
-});
+    // Create/patch the queue and its redrive policy at startup
+    .ConfigureProvisioning(provisioning =>
+    {
+        provisioning.Enabled = true;
+        provisioning.ApplyDeadLetterRedrivePolicy = true;
+        provisioning.FailOpen = true;
+    }));
 ```
+
+Credentials and custom endpoints are AWS SDK concerns: register the `IAmazonSQS` client you
+want and the transport will use it.
 
 ## See Also
 

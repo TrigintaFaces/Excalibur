@@ -53,6 +53,40 @@ success. Reads use *owned-or-estate-wide*; mutations use strict ownership.
   verifies, so a multi-tenant host registering an unscoped implementation fails at startup rather than
   leaking at runtime.
 
+### Failure reporting is discriminable
+
+**A caller can tell "this erasure request is already stored" from every other reason a save can fail, by
+exception type alone, and without referencing a database provider.**
+
+`SaveRequestAsync` raises `DuplicateErasureRequestException` when — and only when — a request with that
+identifier is already stored; `SaveCertificateAsync` raises `DuplicateErasureCertificateException` on the
+same terms. Every other terminating condition carries its own type, and the one most easily mistaken for a
+duplicate sits outside the `InvalidOperationException` hierarchy altogether:
+`ErasureStoreNotProvisionedException` for a schema that is absent or missing columns the store binds,
+`TenantRequiredException` for an unresolved ambient tenant, `ObjectDisposedException` for a disposed store.
+
+The distinction is load-bearing, not cosmetic. The readings demand opposite responses: "already stored"
+means the request is safe and the caller should stop, while every other condition means nothing was stored
+and the caller must re-file. A caller that cannot tell them apart, and takes the first reading, silently
+discards erasure requests — and an erasure request is a data subject's exercise of a statutory right, so
+nothing downstream reports the loss.
+
+`GetStatusAsync` and `UpdateStatusAsync` stay total over lookup: a request that is not there is reported
+as `null` and `false` respectively, never as an exception. The only condition under which they do not
+return is a store whose schema cannot answer at all.
+
+### Schema provisioning is settled at startup, not on the write path
+
+**A host whose erasure schema is absent or stale fails to start, rather than failing one erasure request
+at a time.** Each provider store contributes an `IErasureSchemaValidator`, and the hosted service
+registered alongside it verifies every one during startup. Provisioning is a property of the deployment,
+so it is checked once, where the fault is attributable — not on the path of a data subject's request,
+where it is not.
+
+A first-use check remains inside each store as the fail-closed floor for consumers that never run that
+hosted service: a store constructed directly, or a serverless host with no startup pipeline. It raises the
+same provisioning type, so the floor and the startup check report the same condition the same way.
+
 ## Consumer obligations
 
 - **Set the ambient tenant; do not rely on the argument.** Scope comes from the ambient tenant context.
@@ -65,6 +99,12 @@ success. Reads use *owned-or-estate-wide*; mutations use strict ownership.
   expired holds permanent.
 - **Single-tenant deployments need no action.** The tenant term applies only when multi-tenancy is
   configured; existing rows are untouched and no migration is required.
+- **Catch `DuplicateErasureRequestException`, never `InvalidOperationException`, to detect a re-filed
+  request.** The base type is also raised by conditions meaning the request was *not* stored, so a caller
+  branching on it treats an unprovisioned database as a request already on file and drops it.
+- **Run the host's startup pipeline in production.** Startup is where a provisioning fault is reported as
+  a provisioning fault. A consumer that skips it still fails closed on first use, but learns about a
+  mis-provisioned database from a data subject's request rather than from a failed deployment.
 
 ## Evidence
 
@@ -75,6 +115,15 @@ success. Reads use *owned-or-estate-wide*; mutations use strict ownership.
   flag, and the read/mutation asymmetry against a revert of the mutation predicate to the read form. Both
   cycles rebuilt the implementation and test projects explicitly; a run against a stale binary proves
   nothing.
+- **Duplicate discrimination, both SQL providers, real containers:** a genuine duplicate must raise the
+  specific type and preserve the provider's own exception as its inner exception (liveness), while a
+  provider failure that is not a uniqueness violation must not be translated at all (safety). The paired
+  arms fail both a blanket catch and a filter narrowed until it never fires.
+- **Provisioning faults, both SQL providers, real containers:** an unprovisioned store must raise the
+  provisioning type, and that type must not be assignable to `InvalidOperationException` (safety), while a
+  provisioned store must still start and still store (liveness). The startup arms resolve the hosted
+  service through the real registration path rather than constructing it, so a registration that
+  contributes no validator fails rather than passing quietly.
 
 ## Known gaps
 
@@ -86,8 +135,19 @@ These are stated because a guarantee with no enforcing test is documented, never
   pass under the mutant for an incidental reason — the seed row carried no tenant before the fix, so the
   named-tenant filter matched nothing either way. They bind the contract going forward; they are not
   evidence that it was broken before.
+- **The in-memory store has no schema, so the provisioning guarantee is vacuous for it.** It cannot be
+  mis-provisioned and contributes no validator; the guarantee binds the SQL providers only.
 - **The data-inventory store is a different contract and is not covered by this document.**
 - **The audit store and the general compliance store hold tenant-owned rows and are neither verified nor
   covered by the startup check.** They are excluded deliberately rather than gated blind: failing a host
   closed on a store whose isolation has not been demonstrated would trade a real outage for an unproven
   guarantee.
+  The general compliance store — consent records, erasure logs and subject-access requests — ships in exactly
+  two implementations, enumerated here because the guarantee above does not cover them: a Postgres store in
+  `Excalibur.Compliance.Postgres` and a MongoDB store in `Excalibur.Compliance.MongoDb`. There is no
+  in-memory implementation of this contract, and after the provider split **this package ships none of them**,
+  which is what keeps the MongoDB and Postgres drivers out of a consumer that uses neither. The split moved
+  assemblies and changed no behaviour: the tenant term each store binds is unchanged by it. Both stores
+  partition by tenant — the tenant participates in the MongoDB document key and in the Postgres uniqueness
+  constraint, so it is the upsert conflict target rather than a filter applied afterwards — but neither is
+  exercised against a real server here, so that is described, not asserted.

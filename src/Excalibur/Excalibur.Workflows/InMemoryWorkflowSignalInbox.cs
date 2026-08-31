@@ -3,6 +3,8 @@
 
 using System.Collections.Concurrent;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Workflows;
 
 /// <summary>
@@ -11,9 +13,10 @@ namespace Excalibur.Workflows;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Admission dedups on <c>(instanceId, signalId)</c> via a conditional add — redelivery of the same
+/// Admission dedups on <c>(tenant, instanceId, signalId)</c> via a conditional add — redelivery of the same
 /// identifier returns <see langword="false"/> and does not append. Entries carry a per-instance monotonic
-/// sequence so drain order is deterministic.
+/// sequence so drain order is deterministic. In a single-tenant deployment the tenant term is the reserved
+/// untenanted marker, so the key shape does not vary by deployment.
 /// </para>
 /// <para>
 /// Correct only for a single process whose signals may be lost on restart. Both the admitted signals and the
@@ -29,7 +32,70 @@ namespace Excalibur.Workflows;
 /// </remarks>
 internal sealed class InMemoryWorkflowSignalInbox : IWorkflowSignalInbox
 {
-    private readonly ConcurrentDictionary<string, InstanceInbox> _byInstance = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string TenantId, string InstanceId), InstanceInbox> _byInstance = new();
+    private readonly ITenantContext _tenantContext;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InMemoryWorkflowSignalInbox"/> class.
+    /// </summary>
+    /// <param name="tenantContext">
+    /// Resolves the tenant each operation addresses. Consulted per call rather than captured, because one
+    /// registered inbox serves every caller and the tenant belongs to the operation. Its resolved value
+    /// becomes part of the mailbox key, so two tenants signalling distinct instances under one instance id
+    /// do not collide.
+    /// <para>
+    /// Required, not optional. A caller that deliberately runs untenanted passes
+    /// <see cref="UntenantedContext.Instance"/>, which names the reserved untenanted partition explicitly.
+    /// Were the dependency omissible, "this host runs untenanted" and "the context was forgotten" would
+    /// reach the inbox as the same state, and the two name different partitions — so a signal admitted
+    /// under one would stop being drainable under the other with nothing raised.
+    /// </para>
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="tenantContext"/> is <see langword="null"/>.</exception>
+    public InMemoryWorkflowSignalInbox(ITenantContext tenantContext)
+    {
+        ArgumentNullException.ThrowIfNull(tenantContext);
+
+        _tenantContext = tenantContext;
+    }
+
+    /// <summary>
+    /// The tenant partition the current call addresses, re-resolved per call.
+    /// </summary>
+    /// <remarks>
+    /// Re-read rather than captured because this inbox is registered once and serves every caller: the
+    /// tenant is a property of the operation, not of the instance. <see cref="TenantScope.FromContext"/>
+    /// fails closed when multi-tenancy is active but no tenant is resolved, so the inbox cannot reach a key
+    /// with no tenant term in it, and yields the reserved untenanted marker in a single-tenant deployment.
+    /// </remarks>
+    private TenantScope CurrentTenantScope => TenantScope.FromContext(_tenantContext);
+
+    /// <summary>
+    /// Composes the mailbox key for the instance as addressed by the calling tenant.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The tenant term is part of the key because a signal's identity in an inbox includes the tenant it
+    /// belongs to. Both <c>instanceId</c> and <c>signalId</c> are producer-supplied strings, unique only
+    /// within the system that issued them, so two tenants routinely present the same pair. Keyed without
+    /// the tenant, both resolve to one mailbox, and the admission half leaves nothing behind: the second
+    /// tenant's signal fails the deduplication check, so <see cref="TryEnqueueAsync"/> reports "not newly
+    /// admitted" and discards it — not stored, not logged, not errored. That workflow then waits forever
+    /// for a signal the system received and threw away. The drain half is a disclosure on the same key: a
+    /// read on the instance id alone returns another tenant's producer-authored payloads.
+    /// </para>
+    /// <para>
+    /// The key is a tuple, not a delimited string, so it is injective by construction: an instance id
+    /// containing the character a string form would join on cannot shift a term across the tuple boundary
+    /// and collide with another tenant's mailbox.
+    /// </para>
+    /// <para>
+    /// Widening the key does not weaken deduplication — a redelivery <em>within</em> one tenant still
+    /// collides and is still refused; it stops one tenant's signal from being mistaken for another's.
+    /// </para>
+    /// </remarks>
+    private (string TenantId, string InstanceId) GetKey(string instanceId)
+        => (CurrentTenantScope.TenantId, instanceId);
 
     /// <inheritdoc/>
     public ValueTask<bool> TryEnqueueAsync(
@@ -43,7 +109,7 @@ internal sealed class InMemoryWorkflowSignalInbox : IWorkflowSignalInbox
         ArgumentException.ThrowIfNullOrWhiteSpace(signalId);
         ArgumentException.ThrowIfNullOrWhiteSpace(signalName);
 
-        var inbox = _byInstance.GetOrAdd(instanceId, static _ => new InstanceInbox());
+        var inbox = _byInstance.GetOrAdd(GetKey(instanceId), static _ => new InstanceInbox());
         return ValueTask.FromResult(inbox.TryAdd(signalId, signalName, payloadJson));
     }
 
@@ -54,7 +120,7 @@ internal sealed class InMemoryWorkflowSignalInbox : IWorkflowSignalInbox
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
 
-        return _byInstance.TryGetValue(instanceId, out var inbox)
+        return _byInstance.TryGetValue(GetKey(instanceId), out var inbox)
             ? ValueTask.FromResult(inbox.Snapshot())
             : ValueTask.FromResult<IReadOnlyList<WorkflowSignalEntry>>([]);
     }

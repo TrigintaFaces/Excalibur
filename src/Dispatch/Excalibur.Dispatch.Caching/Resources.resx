@@ -48,7 +48,4 @@
   <data name="CachingMiddleware_MessageTypeNotDispatchActionFormat" xml:space="preserve">
     <value>Message type '{0}' does not implement IDispatchAction&lt;TResponse&gt;. Attribute-based caching requires messages to implement IDispatchAction&lt;TResponse&gt;. Implemented interfaces: {1}</value>
   </data>
-  <data name="LruCache_CapacityMustBeGreaterThanZero" xml:space="preserve">
-    <value>Capacity must be greater than zero.</value>
-  </data>
 </root>

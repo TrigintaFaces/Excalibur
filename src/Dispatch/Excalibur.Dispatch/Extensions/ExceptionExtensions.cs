@@ -45,19 +45,31 @@ public static class ExceptionExtensions
 	/// <param name="exception"> The exception to extract the error code from. </param>
 	/// <returns>
 	/// The error code if found; otherwise, <c> null </c>. Returns the first error code found in this order:
-	/// 1. ErrorCode property on the exception type
-	/// 2. ErrorCode entry in the exception's Data dictionary
-	/// 3. ErrorCode from inner exceptions (recursively)
-	/// 4. For AggregateException, the first non-null error code from inner exceptions.
+	/// 1. The <see cref="DispatchException.ErrorCode" /> of a dispatch exception
+	/// 2. ErrorCode property on the exception type, rendered as text
+	/// 3. ErrorCode entry in the exception's Data dictionary
+	/// 4. ErrorCode from inner exceptions (recursively)
+	/// 5. For AggregateException, the first non-null error code from inner exceptions.
 	/// </returns>
+	/// <remarks>
+	/// Error codes are text (<c> "MSG005" </c>), not numbers. An exception that types its own code as an
+	/// integer still answers here -- the value is rendered as text rather than skipped.
+	/// </remarks>
 	/// <exception cref="ArgumentNullException"> Thrown if the <paramref name="exception" /> parameter is <c> null </c>. </exception>
-	public static int? GetErrorCode(this Exception exception)
+	public static string? GetErrorCode(this Exception exception)
 	{
 		ArgumentNullException.ThrowIfNull(exception);
 
+		// A DispatchException resolves its own code, and that answer outranks reflection -- the same
+		// precedence GetStatusCode already applies.
+		if (exception is DispatchException dispatchException)
+		{
+			return dispatchException.ErrorCode;
+		}
+
 		// Check for ErrorCode property using cached reflection
-		var errorCode = GetPropertyValue<int?>(exception, ErrorCodeKey, ErrorCodePropertyCache);
-		if (errorCode.HasValue)
+		var errorCode = GetProperty(exception, ErrorCodeKey, ErrorCodePropertyCache).GetValueOrNull(exception)?.ToString();
+		if (errorCode is not null)
 		{
 			return errorCode;
 		}
@@ -65,7 +77,7 @@ public static class ExceptionExtensions
 		// Check Data dictionary
 		if (TryGetDataValue(exception, ErrorCodeKey, out var dataCode))
 		{
-			return dataCode;
+			return dataCode?.ToString();
 		}
 
 		// Handle AggregateException specially
@@ -74,7 +86,7 @@ public static class ExceptionExtensions
 			foreach (var inner in aggEx.InnerExceptions)
 			{
 				var innerCode = inner.GetErrorCode();
-				if (innerCode.HasValue)
+				if (innerCode is not null)
 				{
 					return innerCode;
 				}
@@ -111,16 +123,15 @@ public static class ExceptionExtensions
 		}
 
 		// Check for StatusCode property using cached reflection
-		var statusCode = GetPropertyValue<int?>(exception, StatusCodeKey, StatusCodePropertyCache);
-		if (statusCode.HasValue)
+		if (GetProperty(exception, StatusCodeKey, StatusCodePropertyCache).GetValueOrNull(exception) is int statusCode)
 		{
 			return statusCode;
 		}
 
 		// Check Data dictionary
-		if (TryGetDataValue(exception, StatusCodeKey, out var dataCode))
+		if (TryGetDataValue(exception, StatusCodeKey, out var dataCode) && dataCode is int intCode)
 		{
-			return dataCode;
+			return intCode;
 		}
 
 		return exception.InnerException?.GetStatusCode();
@@ -142,7 +153,7 @@ public static class ExceptionExtensions
 	/// <param name="defaultValue"> The default value to return if no error code is found. </param>
 	/// <returns> The error code if found; otherwise, the specified default value. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if the <paramref name="exception" /> parameter is <c> null </c>. </exception>
-	public static int GetErrorCodeOrDefault(this Exception exception, int defaultValue = -1) => exception.GetErrorCode() ?? defaultValue;
+	public static string GetErrorCodeOrDefault(this Exception exception, string defaultValue) => exception.GetErrorCode() ?? defaultValue;
 
 	/// <summary>
 	/// Checks if an exception has an error code.
@@ -150,7 +161,7 @@ public static class ExceptionExtensions
 	/// <param name="exception"> The exception to check. </param>
 	/// <returns> True if the exception has an error code; otherwise, false. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if the <paramref name="exception" /> parameter is <c> null </c>. </exception>
-	public static bool HasErrorCode(this Exception exception) => exception.GetErrorCode().HasValue;
+	public static bool HasErrorCode(this Exception exception) => exception.GetErrorCode() is not null;
 
 	/// <summary>
 	/// Checks if an exception has a status code.
@@ -162,90 +173,79 @@ public static class ExceptionExtensions
 
 
 	/// <summary>
-	/// Gets a property value from an exception using cached reflection.
+	/// Finds a well-known property on an exception type, using a bounded reflection cache.
 	/// </summary>
+	/// <remarks>
+	/// The lookup does not filter on property type. Filtering here is what made the error-code accessor
+	/// unable to see a code the exception really carried; the caller interprets the value instead.
+	/// </remarks>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2070:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicProperties' in call to 'System.Type.GetProperty'",
 		Justification =
 			"This method only accesses well-known properties (ErrorCode, StatusCode) on exception types. The property access is cached and handles missing properties gracefully.")]
-	private static T? GetPropertyValue<T>(Exception exception, string propertyName, ConcurrentDictionary<Type, PropertyInfo?> cache)
+	private static PropertyInfo? GetProperty(Exception exception, string propertyName, ConcurrentDictionary<Type, PropertyInfo?> cache)
 	{
 		var exceptionType = exception.GetType();
 
 		// Bounded cache: try fast lookup first, then check capacity before adding
 		if (cache.TryGetValue(exceptionType, out var propertyInfo))
 		{
-			return ExtractPropertyValue<T>(propertyInfo, exception);
+			return propertyInfo;
 		}
 
-		// Compute the property info (same factory logic as before)
 		if (cache.Count < MaxCacheEntries)
 		{
-			propertyInfo = cache.GetOrAdd(
+			return cache.GetOrAdd(
 				exceptionType,
-				(type, state) =>
-				{
-					var property = type.GetProperty(
-						state,
-						BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-					return property?.PropertyType == typeof(T) || property?.PropertyType == typeof(int) ? property : null;
-				},
+				static (type, state) => type.GetProperty(
+					state,
+					BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static),
 				propertyName);
 		}
-		else
-		{
-			// Cache full — compute without caching to prevent unbounded growth
-#pragma warning disable IL2075 // GetProperty on runtime Type - BCL return type cannot be annotated
-			var property = exceptionType.GetProperty(
-				propertyName,
-				BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-#pragma warning restore IL2075
-			propertyInfo = property?.PropertyType == typeof(T) || property?.PropertyType == typeof(int) ? property : null;
-		}
 
-		return ExtractPropertyValue<T>(propertyInfo, exception);
+		// Cache full -- compute without caching to prevent unbounded growth
+#pragma warning disable IL2075 // GetProperty on runtime Type - BCL return type cannot be annotated
+		return exceptionType.GetProperty(
+			propertyName,
+			BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+#pragma warning restore IL2075
 	}
 
 	/// <summary>
-	/// Extracts a typed value from a PropertyInfo on the given exception instance.
+	/// Reads a property off the given exception instance, treating a throwing getter as absent.
 	/// </summary>
-	private static T? ExtractPropertyValue<T>(PropertyInfo? propertyInfo, Exception exception)
+	private static object? GetValueOrNull(this PropertyInfo? propertyInfo, Exception exception)
 	{
-		if (propertyInfo != null)
+		if (propertyInfo is null)
 		{
-			try
-			{
-				var value = propertyInfo.GetValue(exception);
-				return value is T typedValue ? typedValue : default;
-			}
-			catch
-			{
-				// Property getter threw an exception
-				return default;
-			}
+			return null;
 		}
 
-		return default;
+		try
+		{
+			return propertyInfo.GetValue(exception);
+		}
+		catch
+		{
+			// Property getter threw an exception
+			return null;
+		}
 	}
 
 	/// <summary>
 	/// Safely attempts to get a value from the exception's Data dictionary.
 	/// </summary>
-	private static bool TryGetDataValue(Exception exception, string key, out int value)
+	private static bool TryGetDataValue(Exception exception, string key, out object? value)
 	{
-		value = 0;
+		value = null;
 
 		try
 		{
 			if (exception.Data.Contains(key))
 			{
-				var dataValue = exception.Data[key];
-				if (dataValue is int intValue)
-				{
-					value = intValue;
-					return true;
-				}
+				value = exception.Data[key];
+				return value is not null;
 			}
 		}
 		catch

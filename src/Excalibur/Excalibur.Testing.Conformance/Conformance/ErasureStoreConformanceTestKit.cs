@@ -26,7 +26,9 @@ namespace Excalibur.Testing.Conformance;
 /// (Right to be Forgotten) with:
 /// <list type="bullet">
 /// <item><description>Grace period scheduling before deletion</description></item>
-/// <item><description><c>SaveRequestAsync</c> THROWS InvalidOperationException on duplicate RequestId</description></item>
+/// <item><description><c>SaveRequestAsync</c> THROWS <c>DuplicateErasureRequestException</c> on a duplicate
+/// RequestId — and raises that type for no other condition, so a caller can read it as "already on file"
+/// without risking a lost erasure request</description></item>
 /// <item><description>STATE MACHINE: <c>RecordCancellationAsync</c> only allows Pending/Scheduled to cancel</description></item>
 /// <item><description><c>RecordCompletionAsync</c> THROWS KeyNotFoundException if request not found</description></item>
 /// <item><description>Automatic DataSubjectId hashing (SHA256) for privacy</description></item>
@@ -36,21 +38,32 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
+/// // The kit resolves the store from a container built by the store's own registration
+/// // extension, so every arm runs against the object a consumer actually gets -- including
+/// // the ambient ITenantContext the extension registers. Constructing the store by hand
+/// // certifies an instance you assembled rather than the one your registration produces.
 /// public class SqlServerErasureStoreConformanceTests : ErasureStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
-///
+///     private readonly ServiceProvider _provider;
+/// 
+///     public SqlServerErasureStoreConformanceTests(SqlServerFixture fixture) =&gt;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSqlServerErasureStore(o =&gt;
+///             {
+///                 o.ConnectionString = fixture.ConnectionString;
+///                 o.AutoCreateSchema = true;
+///             })
+///             .BuildServiceProvider();
+/// 
 ///     protected override IErasureStore CreateStore() =&gt;
-///         new SqlServerErasureStore(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =&gt;
-///         await _fixture.CleanupAsync();
+///         _provider.GetRequiredService&lt;IErasureStore&gt;();
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class ErasureStoreConformanceTestKit
+public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh erasure store instance for testing.
@@ -63,6 +76,40 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	/// <returns>A task representing the cleanup operation.</returns>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
+
+	/// <summary>
+	/// Clears residual data before an arm runs. Defaults to <see cref="CleanupAsync"/>.
+	/// </summary>
+	/// <returns>A task that completes when the store holds no data from a previous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any suite whose teardown only deletes
+	/// rows, keys or documents. A suite whose <see cref="CleanupAsync"/> <em>also</em> disposes a
+	/// connection or client MUST override this with the data-only half — otherwise it disposes the store
+	/// the arm is about to use, and every arm fails on a disposed handle rather than on the contract.
+	/// </para>
+	/// <para>
+	/// Resetting <em>before</em> an arm is what makes the arm independent; resetting only afterwards makes
+	/// every arm's starting state a function of whether its predecessor finished cleanly.
+	/// </para>
+	/// </remarks>
+	protected virtual Task ResetDataAsync() => CleanupAsync();
+
+	/// <summary>
+	/// Creates the store for a single arm and clears residual data before the arm runs.
+	/// </summary>
+	/// <returns>A store ready for one conformance arm.</returns>
+	/// <remarks>
+	/// Every arm in this kit obtains its store here rather than from <see cref="CreateStore"/> directly.
+	/// That is the only thing that causes <see cref="CleanupAsync"/> to run: a cleanup a deriver overrides
+	/// but the kit never calls is indistinguishable, from the deriver's side, from one that works.
+	/// </remarks>
+	protected async Task<IErasureStore> CreateStoreForArmAsync()
+	{
+		var store = CreateStore();
+		await ResetDataAsync().ConfigureAwait(false);
+		return store;
+	}
 
 	/// <summary>
 	/// Creates a test erasure request with the given parameters.
@@ -148,7 +195,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SaveRequestAsync_ShouldPersistRequest()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
@@ -176,25 +223,56 @@ public abstract class ErasureStoreConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that saving a request with duplicate ID throws InvalidOperationException.
+	/// Verifies that saving a request with a duplicate ID throws
+	/// <see cref="DuplicateErasureRequestException"/> — and that a first save of a fresh ID still stores a
+	/// retrievable request.
 	/// </summary>
-	public virtual async Task SaveRequestAsync_DuplicateId_ShouldThrowInvalidOperationException()
+	/// <remarks>
+	/// <para>
+	/// Both halves are required. The safety half alone ("a duplicate throws") is satisfied perfectly by a
+	/// store that throws on every insert; the liveness half — a fresh request saves and is then visible —
+	/// is what rules that store out.
+	/// </para>
+	/// <para>
+	/// Neither half, and not both together, rules out the store that reports <i>every</i> failure as a
+	/// duplicate. Liveness establishes only that some insert succeeds, which says nothing about how a
+	/// failure is reported, and requiring the specific exception type does not help when the blanket catch
+	/// throws that type. That store is the subject of
+	/// <see cref="SaveRequestAsync_NonDuplicateFailure_ShouldNotTranslateToDuplicate"/>, which is a
+	/// separate arm because it needs a failure that is not a duplicate in order to say anything at all.
+	/// </para>
+	/// </remarks>
+	public virtual async Task SaveRequestAsync_DuplicateId_ShouldThrowDuplicateErasureRequestException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var requestId = GenerateRequestId();
 		var request1 = CreateErasureRequest(requestId: requestId);
 		var request2 = CreateErasureRequest(requestId: requestId);
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
+		// LIVENESS: the first save of a fresh id must succeed and be readable back. A store that refuses
+		// every insert would otherwise pass the duplicate assertion below while storing nothing at all.
 		await store.SaveRequestAsync(request1, scheduledTime, CancellationToken.None).ConfigureAwait(false);
 
+		var stored = await store.GetStatusAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+		if (stored is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"A first save of a fresh RequestId {requestId} must store a retrievable request. The "
+				+ "duplicate assertion below is vacuous against a store that accepts nothing.");
+		}
+
+		// SAFETY: the second save of the same id must fail, and must say WHICH condition failed. A bare
+		// InvalidOperationException is not enough: an unprovisioned schema, a disposed store and an
+		// unresolved tenant all surface as that type, so a caller branching on it would read a request
+		// that was never stored as one already on file, and never re-file it.
 		try
 		{
 			await store.SaveRequestAsync(request2, scheduledTime, CancellationToken.None).ConfigureAwait(false);
 			throw new TestFixtureAssertionException(
-				"Expected InvalidOperationException for duplicate RequestId but no exception was thrown");
+				"Expected DuplicateErasureRequestException for duplicate RequestId but no exception was thrown");
 		}
-		catch (InvalidOperationException)
+		catch (DuplicateErasureRequestException)
 		{
 			// Expected - SaveRequestAsync throws on duplicate, NOT upsert
 		}
@@ -205,7 +283,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SaveRequestAsync_ShouldHashDataSubjectId()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var rawDataSubjectId = "user@example.com";
 		var request = CreateErasureRequest(dataSubjectId: rawDataSubjectId);
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
@@ -240,7 +318,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetStatusAsync_NonExistent_ShouldReturnNull()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateRequestId();
 
 		var status = await store.GetStatusAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
@@ -261,7 +339,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateStatusAsync_ShouldUpdateStatus()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
@@ -299,7 +377,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateStatusAsync_ToInProgress_ShouldSetExecutedAt()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
@@ -339,7 +417,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateStatusAsync_NonExistent_ShouldReturnFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateRequestId();
 
 		var updated = await store.UpdateStatusAsync(
@@ -364,7 +442,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordCompletionAsync_ShouldMarkCompleted()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 		var certificateId = Guid.NewGuid();
@@ -422,7 +500,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordCompletionAsync_NonExistent_ShouldThrowKeyNotFoundException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateRequestId();
 		var certificateId = Guid.NewGuid();
 
@@ -453,7 +531,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordCancellationAsync_Scheduled_ShouldCancel()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
@@ -510,7 +588,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordCancellationAsync_Pending_ShouldCancel()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
@@ -549,7 +627,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordCancellationAsync_InProgress_ShouldReturnFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var request = CreateErasureRequest();
 		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
 
@@ -590,7 +668,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordCancellationAsync_NonExistent_ShouldReturnFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateRequestId();
 
 		var cancelled = await store.RecordCancellationAsync(
@@ -615,7 +693,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetScheduledRequestsAsync_ShouldReturnDueRequests()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Request that is due (scheduled time in the past)
 		var dueRequest = CreateErasureRequest();
@@ -645,7 +723,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetScheduledRequestsAsync_ShouldOrderByScheduledTime()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Create requests with different scheduled times (all in the past)
 		var laterRequest = CreateErasureRequest();
@@ -701,7 +779,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListRequestsAsync_WithStatusFilter_ShouldFilterByStatus()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var scheduledRequest = CreateErasureRequest();
 		await store.SaveRequestAsync(scheduledRequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
@@ -737,7 +815,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListRequestsAsync_WithTenantFilter_ShouldFilterByTenant()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var tenantARequest = CreateErasureRequest(tenantId: "tenant-A");
 		await store.SaveRequestAsync(tenantARequest, DateTimeOffset.UtcNow.AddDays(7), CancellationToken.None).ConfigureAwait(false);
@@ -772,7 +850,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListRequestsAsync_WithDateRange_ShouldFilterByDates()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		var oldRequest = CreateErasureRequest();
@@ -823,7 +901,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SaveCertificateAsync_ShouldPersistCertificate()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var certificate = CreateErasureCertificate();
 
 		await GetCertificateStore(store).SaveCertificateAsync(certificate, CancellationToken.None).ConfigureAwait(false);
@@ -850,24 +928,40 @@ public abstract class ErasureStoreConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that SaveCertificateAsync throws InvalidOperationException for duplicate certificate ID.
+	/// Verifies that SaveCertificateAsync throws <see cref="DuplicateErasureCertificateException"/> for a
+	/// duplicate certificate ID — and that a first save of a fresh ID still stores a retrievable certificate.
 	/// </summary>
-	public virtual async Task SaveCertificateAsync_DuplicateId_ShouldThrowInvalidOperationException()
+	/// <remarks>
+	/// Paired for the same reason as the request arm: a store that refuses every certificate satisfies
+	/// "a duplicate throws" and issues no attestation at all.
+	/// </remarks>
+	public virtual async Task SaveCertificateAsync_DuplicateId_ShouldThrowDuplicateErasureCertificateException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var certificateId = Guid.NewGuid();
 		var cert1 = CreateErasureCertificate(certificateId: certificateId);
 		var cert2 = CreateErasureCertificate(certificateId: certificateId, requestId: Guid.NewGuid());
 
+		// LIVENESS: the first certificate must persist and be readable back by its own id.
 		await GetCertificateStore(store).SaveCertificateAsync(cert1, CancellationToken.None).ConfigureAwait(false);
 
+		var stored = await GetCertificateStore(store)
+			.GetCertificateByIdAsync(certificateId, CancellationToken.None).ConfigureAwait(false);
+		if (stored is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"A first save of a fresh CertificateId {certificateId} must store a retrievable "
+				+ "certificate. The duplicate assertion below is vacuous against a store that accepts nothing.");
+		}
+
+		// SAFETY: the re-issue must fail with the type that means "already issued" and nothing else.
 		try
 		{
 			await GetCertificateStore(store).SaveCertificateAsync(cert2, CancellationToken.None).ConfigureAwait(false);
 			throw new TestFixtureAssertionException(
-				"Expected InvalidOperationException for duplicate CertificateId but no exception was thrown");
+				"Expected DuplicateErasureCertificateException for duplicate CertificateId but no exception was thrown");
 		}
-		catch (InvalidOperationException)
+		catch (DuplicateErasureCertificateException)
 		{
 			// Expected
 		}
@@ -878,7 +972,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetCertificateAsync_ByRequestId_ShouldReturnCertificate()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var requestId = Guid.NewGuid();
 		var certificate = CreateErasureCertificate(requestId: requestId);
 
@@ -904,7 +998,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetCertificateByIdAsync_ShouldReturnCertificate()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var certificate = CreateErasureCertificate();
 
 		await GetCertificateStore(store).SaveCertificateAsync(certificate, CancellationToken.None).ConfigureAwait(false);
@@ -933,7 +1027,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CleanupExpiredCertificatesAsync_ShouldRemoveExpired()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Create expired certificate (RetainUntil in the past)
 		var expiredCertificate = CreateErasureCertificate(retainUntil: DateTimeOffset.UtcNow.AddMinutes(-5));
@@ -971,7 +1065,7 @@ public abstract class ErasureStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CleanupExpiredCertificatesAsync_ShouldKeepValid()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Create valid certificate (RetainUntil in the future)
 		var validCertificate = CreateErasureCertificate(retainUntil: DateTimeOffset.UtcNow.AddYears(7));
@@ -990,4 +1084,130 @@ public abstract class ErasureStoreConformanceTestKit
 	}
 
 	#endregion
+
+	#region Duplicate Translation Narrowness
+
+	/// <summary>
+	/// Gets a <see cref="ErasureRequest.RequestedBy"/> value long enough that a store backed by a
+	/// width-constrained column rejects it, producing a failure that is <b>not</b> a duplicate.
+	/// </summary>
+	/// <value>
+	/// A string far longer than any plausible column width. Override to supply a different non-duplicate
+	/// trigger, or to shorten it if a store rejects at a lower bound for an unrelated reason.
+	/// </value>
+	/// <remarks>
+	/// Deliberately a property rather than an abstract method. An abstract member would oblige every
+	/// consumer already deriving this kit to implement it before their suite compiles again, and the arm
+	/// below is written so that a store which simply <i>accepts</i> this value is treated as conforming.
+	/// A store with no width constraint therefore needs no override and loses nothing.
+	/// </remarks>
+	protected virtual string NonDuplicateFailureRequestedBy => new('x', 100_000);
+
+	/// <summary>
+	/// Verifies that the store translates <b>only</b> the duplicate-key condition, and that a failure which
+	/// is not a duplicate reaches the caller as something other than
+	/// <see cref="DuplicateErasureRequestException"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Every other duplicate assertion in this kit is satisfied perfectly by a store whose save is wrapped
+	/// in a blanket catch that reports <i>every</i> failure as a duplicate. That store is not merely
+	/// imprecise: a caller told "the request is already on file" when the real fault was a dropped
+	/// connection, a timeout, or a value too long for its column treats a write that never happened as
+	/// already done and never re-files it. An erasure request is a data subject's exercise of a statutory
+	/// right, so a request dropped that way is not recoverable by anything the caller does later.
+	/// </para>
+	/// <para>
+	/// The trigger is provider-neutral by construction rather than by naming an engine. A store backed by
+	/// a width-constrained column rejects an over-long value with its own native failure, and this arm
+	/// requires that failure to arrive as anything other than a duplicate. A store with no such
+	/// constraint accepts the value instead, and that branch is asserted too — the request must be
+	/// readable back — so neither outcome is a silent pass. What the arm forbids is the third outcome: a
+	/// store that answers "already on file" for a condition that is nothing of the sort.
+	/// </para>
+	/// <para>
+	/// The final step is the liveness half, and it is what stops the fix from being "never translate
+	/// anything". A filter narrowed until it no longer fires would satisfy everything above; requiring a
+	/// genuine duplicate to still raise <see cref="DuplicateErasureRequestException"/> after the
+	/// non-duplicate trigger has run is what makes the safety half mean something.
+	/// </para>
+	/// </remarks>
+	public virtual async Task SaveRequestAsync_NonDuplicateFailure_ShouldNotTranslateToDuplicate()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var scheduledTime = DateTimeOffset.UtcNow.AddDays(7);
+
+		var triggerId = GenerateRequestId();
+		var trigger = CreateErasureRequest(requestId: triggerId) with
+		{
+			RequestedBy = NonDuplicateFailureRequestedBy,
+		};
+
+		var accepted = false;
+		try
+		{
+			await store.SaveRequestAsync(trigger, scheduledTime, CancellationToken.None).ConfigureAwait(false);
+			accepted = true;
+		}
+		catch (DuplicateErasureRequestException ex)
+		{
+			// SAFETY. This identifier has never been saved, so "already on file" cannot be true. The store
+			// is reporting a non-duplicate failure as a duplicate, which is the condition this arm exists
+			// to catch — a caller branching on the type would abandon a write that never landed.
+			throw new TestFixtureAssertionException(
+				$"SaveRequestAsync reported DuplicateErasureRequestException for RequestId {triggerId}, "
+				+ "which had never been saved. Only the duplicate-key condition may be translated; every "
+				+ "other failure must reach the caller unchanged. A blanket catch around the save, or an "
+				+ "exception filter that matches more than the unique-constraint violation, produces "
+				+ "exactly this. The store's own failure was: "
+				+ (ex.InnerException?.ToString() ?? "(not preserved as InnerException)"),
+				ex);
+		}
+#pragma warning disable CA1031 // Any other exception is the conforming outcome: the failure surfaced unchanged.
+		catch (Exception)
+#pragma warning restore CA1031
+		{
+			// CONFORMING. The store rejected the value and said so in its own terms rather than
+			// mistranslating it. Nothing further to assert about the type: this kit deliberately does not
+			// name any engine's exception, because doing so would make it underivable for the next one.
+		}
+
+		if (accepted)
+		{
+			// The store has no width constraint, so no failure was induced and nothing could have been
+			// mistranslated. Assert the accepted path rather than returning quietly — a store that
+			// swallowed the save would otherwise reach the end of this arm looking conforming.
+			var storedTrigger = await store.GetStatusAsync(triggerId, CancellationToken.None).ConfigureAwait(false);
+			if (storedTrigger is null)
+			{
+				throw new TestFixtureAssertionException(
+					$"SaveRequestAsync accepted RequestId {triggerId} without error, so it must be "
+					+ "retrievable. A save that neither throws nor stores is a silent data loss on the "
+					+ "erasure path.");
+			}
+		}
+
+		// LIVENESS. A store that satisfies everything above by never translating anything is not
+		// conforming either, so a genuine duplicate must still be reported as one.
+		var duplicateId = GenerateRequestId();
+		var first = CreateErasureRequest(requestId: duplicateId);
+		var second = CreateErasureRequest(requestId: duplicateId);
+
+		await store.SaveRequestAsync(first, scheduledTime, CancellationToken.None).ConfigureAwait(false);
+
+		try
+		{
+			await store.SaveRequestAsync(second, scheduledTime, CancellationToken.None).ConfigureAwait(false);
+			throw new TestFixtureAssertionException(
+				$"A second save of RequestId {duplicateId} must raise DuplicateErasureRequestException. "
+				+ "Nothing was thrown, so the duplicate condition is not being reported at all.");
+		}
+		catch (DuplicateErasureRequestException)
+		{
+			// Expected: the narrowing above did not cost the store its duplicate signal.
+		}
+	}
+
+	#endregion
+
 }

@@ -23,8 +23,6 @@ namespace Excalibur.Dispatch.Transport.Aws;
 ///     sqs.UseRegion("us-east-1")
 ///        .ConfigureSns(sns =>
 ///        {
-///            sns.TopicPrefix("myapp-prod-")
-///               .AutoCreateTopics(true)
 ///               .RawMessageDelivery(true)
 ///               .MapTopic&lt;OrderCreated&gt;("arn:aws:sns:us-east-1:123:orders")
 ///               .SubscribeQueue&lt;OrderCreated&gt;(sub =>
@@ -44,53 +42,6 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </example>
 public interface IAwsSqsSnsBuilder
 {
-	/// <summary>
-	/// Sets the prefix to apply to automatically generated topic names.
-	/// </summary>
-	/// <param name="prefix">The topic name prefix (e.g., "myapp-", "prod-").</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="prefix"/> is null, empty, or whitespace.
-	/// </exception>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="prefix"/> exceeds 256 characters.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// The prefix is applied to topic names that are automatically derived from
-	/// message type names, helping to organize topics by application or environment.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sns.TopicPrefix("myapp-prod-");
-	/// // Messages of type OrderCreated would go to "myapp-prod-ordercreated"
-	/// </code>
-	/// </example>
-	IAwsSqsSnsBuilder TopicPrefix(string prefix);
-
-	/// <summary>
-	/// Enables or disables automatic topic creation for mapped topics.
-	/// </summary>
-	/// <param name="enable">
-	/// <see langword="true"/> to auto-create missing topics; <see langword="false"/> to disable.
-	/// Default is <see langword="false"/>.
-	/// </param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// When enabled, the transport will call <c>CreateTopic</c> for mapped topics
-	/// that don't exist. This is useful for development but may not be appropriate
-	/// for production environments where topics should be pre-provisioned.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sns.AutoCreateTopics(true);
-	/// </code>
-	/// </example>
-	IAwsSqsSnsBuilder AutoCreateTopics(bool enable = true);
-
 	/// <summary>
 	/// Enables or disables raw message delivery for all subscriptions.
 	/// </summary>
@@ -259,21 +210,6 @@ internal sealed class AwsSqsSnsBuilder : IAwsSqsSnsBuilder
 	public AwsSqsSnsBuilder(AwsSqsSnsOptions options)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-	}
-
-	/// <inheritdoc/>
-	public IAwsSqsSnsBuilder TopicPrefix(string prefix)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
-		_options.TopicPrefix = prefix;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IAwsSqsSnsBuilder AutoCreateTopics(bool enable = true)
-	{
-		_options.AutoCreateTopics = enable;
-		return this;
 	}
 
 	/// <inheritdoc/>

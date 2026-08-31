@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Monitors timeout events and provides timeout statistics for adaptive timeout calculations. R7.4: Timeout monitoring and adaptive timeout management.
+/// Monitors timeout events and provides timeout statistics for adaptive timeout calculations. Timeout monitoring and adaptive timeout management.
 /// </summary>
 public interface ITimeoutMonitor
 {

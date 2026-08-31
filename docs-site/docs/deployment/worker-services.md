@@ -40,13 +40,13 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
-        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+        es.UseSqlServer(opts => opts.ConnectionString(connectionString));
         es.AddRepository<OrderAggregate, OrderId>();
     });
 
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+        outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
               .EnableBackgroundProcessing()
               .WithProcessing(p =>
               {
@@ -73,7 +73,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+        outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
               .EnableBackgroundProcessing(options =>
               {
                   options.PollingInterval = TimeSpan.FromSeconds(1);

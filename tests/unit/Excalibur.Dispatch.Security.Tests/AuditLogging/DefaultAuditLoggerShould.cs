@@ -240,7 +240,7 @@ public sealed class DefaultAuditLoggerShould
 		// Arrange
 		var startDate = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var endDate = new DateTimeOffset(2025, 1, 31, 0, 0, 0, TimeSpan.Zero);
-		var expectedResult = AuditIntegrityResult.Valid(100, startDate, endDate);
+		var expectedResult = AuditIntegrityResult.Verified(100, startDate, endDate, isHashChained: true);
 
 		_ = A.CallTo(() => _mockStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.Returns(Task.FromResult(expectedResult));
@@ -249,7 +249,7 @@ public sealed class DefaultAuditLoggerShould
 		var result = await _auditLogger.VerifyIntegrityAsync(startDate, endDate, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(100);
 		_ = A.CallTo(() => _mockStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -261,8 +261,8 @@ public sealed class DefaultAuditLoggerShould
 		// Arrange
 		var startDate = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var endDate = new DateTimeOffset(2025, 1, 31, 0, 0, 0, TimeSpan.Zero);
-		var expectedResult = AuditIntegrityResult.Invalid(
-			50, startDate, endDate, "evt-25", "Hash mismatch", 3);
+		var expectedResult = AuditIntegrityResult.ViolationsDetected(
+			50, startDate, endDate, "evt-25", "Hash mismatch", 3, isHashChained: true);
 
 		_ = A.CallTo(() => _mockStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.Returns(Task.FromResult(expectedResult));
@@ -271,7 +271,7 @@ public sealed class DefaultAuditLoggerShould
 		var result = await _auditLogger.VerifyIntegrityAsync(startDate, endDate, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeFalse();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
 		result.EventsVerified.ShouldBe(50);
 		result.FirstViolationEventId.ShouldBe("evt-25");
 		result.ViolationDescription.ShouldBe("Hash mismatch");
@@ -294,7 +294,7 @@ public sealed class DefaultAuditLoggerShould
 	{
 		// Arrange
 		var date = new DateTimeOffset(2025, 1, 15, 0, 0, 0, TimeSpan.Zero);
-		var expectedResult = AuditIntegrityResult.Valid(0, date, date);
+		var expectedResult = AuditIntegrityResult.NoEventsInScope(date, date);
 
 		_ = A.CallTo(() => _mockStore.VerifyChainIntegrityAsync(date, date, A<CancellationToken>._))
 			.Returns(Task.FromResult(expectedResult));
@@ -303,7 +303,7 @@ public sealed class DefaultAuditLoggerShould
 		var result = await _auditLogger.VerifyIntegrityAsync(date, date, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.NoEventsInScope);
 	}
 
 	[Fact]
@@ -329,7 +329,7 @@ public sealed class DefaultAuditLoggerShould
 		var endDate = new DateTimeOffset(2025, 1, 31, 0, 0, 0, TimeSpan.Zero);
 		using var cts = new CancellationTokenSource();
 		var token = cts.Token;
-		var expectedResult = AuditIntegrityResult.Valid(0, startDate, endDate);
+		var expectedResult = AuditIntegrityResult.NoEventsInScope(startDate, endDate);
 
 		_ = A.CallTo(() => _mockStore.VerifyChainIntegrityAsync(startDate, endDate, token))
 			.Returns(Task.FromResult(expectedResult));

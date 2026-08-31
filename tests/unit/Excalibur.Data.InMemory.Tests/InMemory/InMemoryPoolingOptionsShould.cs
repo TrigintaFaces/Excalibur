@@ -20,26 +20,8 @@ public sealed class InMemoryPoolingOptionsShould : UnitTestBase
 		var options = new InMemoryPoolingOptions();
 
 		// Assert
-		options.EnableConnectionPooling.ShouldBeFalse();
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(0);
 		options.ConnectionTimeout.ShouldBe(30);
 		options.CommandTimeout.ShouldBe(30);
-	}
-
-	[Fact]
-	public void AllowCustomPoolSizes()
-	{
-		// Arrange & Act
-		var options = new InMemoryPoolingOptions
-		{
-			MaxPoolSize = 200,
-			MinPoolSize = 10
-		};
-
-		// Assert
-		options.MaxPoolSize.ShouldBe(200);
-		options.MinPoolSize.ShouldBe(10);
 	}
 
 	[Fact]
@@ -55,41 +37,6 @@ public sealed class InMemoryPoolingOptionsShould : UnitTestBase
 		// Assert
 		options.ConnectionTimeout.ShouldBe(60);
 		options.CommandTimeout.ShouldBe(120);
-	}
-
-	[Fact]
-	public void AllowEnablingConnectionPooling()
-	{
-		// Arrange & Act
-		var options = new InMemoryPoolingOptions
-		{
-			EnableConnectionPooling = true
-		};
-
-		// Assert
-		options.EnableConnectionPooling.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void HaveRangeAttributeOnMaxPoolSize()
-	{
-		// Assert -- [Range(1, int.MaxValue)]
-		var prop = typeof(InMemoryPoolingOptions).GetProperty(nameof(InMemoryPoolingOptions.MaxPoolSize))!;
-		var attr = prop.GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.RangeAttribute), false);
-		attr.ShouldNotBeEmpty();
-		var range = (System.ComponentModel.DataAnnotations.RangeAttribute)attr[0];
-		range.Minimum.ShouldBe(1);
-	}
-
-	[Fact]
-	public void HaveRangeAttributeOnMinPoolSize()
-	{
-		// Assert -- [Range(0, int.MaxValue)]
-		var prop = typeof(InMemoryPoolingOptions).GetProperty(nameof(InMemoryPoolingOptions.MinPoolSize))!;
-		var attr = prop.GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.RangeAttribute), false);
-		attr.ShouldNotBeEmpty();
-		var range = (System.ComponentModel.DataAnnotations.RangeAttribute)attr[0];
-		range.Minimum.ShouldBe(0);
 	}
 
 	[Fact]

@@ -269,7 +269,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions();
-		using var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		using var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var messageId = "test-message";
@@ -280,7 +280,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		// Act
 		var entry = await store.CreateEntryAsync(messageId, handlerType, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 		await store.MarkProcessedAsync(messageId, handlerType, CancellationToken.None);
-		var statistics = await store.GetStatisticsAsync(CancellationToken.None);
+		var statistics = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 
 		// Assert
 		_ = entry.ShouldNotBeNull();

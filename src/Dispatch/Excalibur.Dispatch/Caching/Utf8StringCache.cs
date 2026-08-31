@@ -47,13 +47,13 @@ internal sealed class Utf8StringCache : IDisposable
 		_bytesToString = new ConcurrentDictionary<ByteArrayKey, string>(Environment.ProcessorCount, maxCacheSize);
 
 		_cacheMeter = meterFactory?.Create("Excalibur.Dispatch.Utf8StringCache") ?? new Meter("Excalibur.Dispatch.Utf8StringCache", "1.0.0");
-		_evictionCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.evictions", "evictions", "Number of Utf8StringCache eviction cycles");
-		_itemsRemovedCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.items_removed", "items", "Number of items removed during Utf8StringCache cleanup");
+		_evictionCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.evictions", "{evictions}", "Number of Utf8StringCache eviction cycles");
+		_itemsRemovedCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.items_removed", "{items}", "Number of items removed during Utf8StringCache cleanup");
 		_cleanupDurationHistogram = _cacheMeter.CreateHistogram<double>("dispatch.utf8cache.cleanup_duration", "ms", "Duration of Utf8StringCache cleanup operations in milliseconds");
-		_encodingHitCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.hits", "hits", "Number of encoding cache hits");
-		_encodingMissCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.misses", "misses", "Number of encoding cache misses");
-		_decodingHitCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.hits", "hits", "Number of decoding cache hits");
-		_decodingMissCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.misses", "misses", "Number of decoding cache misses");
+		_encodingHitCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.hits", "{hits}", "Number of encoding cache hits");
+		_encodingMissCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.misses", "{misses}", "Number of encoding cache misses");
+		_decodingHitCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.hits", "{hits}", "Number of decoding cache hits");
+		_decodingMissCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.misses", "{misses}", "Number of decoding cache misses");
 
 		// Cleanup timer runs every 5 minutes
 		_cleanupTimer = new Timer(_ => CleanupIfNeeded(), state: null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));

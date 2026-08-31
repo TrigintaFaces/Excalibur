@@ -74,7 +74,7 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 		var valuesBuilder = new StringBuilder();
 		var parameters = new DynamicParameters();
 
-		// The event store is a KEYED tenant table (FR-8): every row carries a non-null tenant term, so the
+		// The event store is a KEYED tenant table: every row carries a non-null tenant term, so the
 		// tenant column and parameter are ALWAYS emitted — routing through KeyedTenantPartition makes an
 		// unscoped write bind the reserved __untenanted__ sentinel rather than omit the column, so an
 		// un-partitioned (all-tenants) write is unconstructable. One value for the whole batch, bound once

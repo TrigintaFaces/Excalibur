@@ -32,8 +32,11 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		var optionsBuilder = services.AddOptions<DispatchPatternsJsonOptions>()
-			.ValidateOnStart();
+		// No ValidateOnStart(): DispatchPatternsJsonOptions has nothing an IValidateOptions<T> could
+		// reject (SerializerOptions is always non-null from the constructor; SerializerContext is
+		// legitimately nullable). ValidateOnStart() with no attached validator runs the pipeline but
+		// validates nothing, which is false safety.
+		var optionsBuilder = services.AddOptions<DispatchPatternsJsonOptions>().ValidateOnStart();
 		if (configure is not null)
 		{
 			_ = optionsBuilder.Configure(configure);
@@ -61,9 +64,9 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		// No ValidateOnStart() -- see the no-configure overload above for why.
 		_ = services.AddOptions<DispatchPatternsJsonOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+			.Bind(configuration);
 
 		services.TryAddSingleton<DispatchJsonSerializer>();
 		return services;

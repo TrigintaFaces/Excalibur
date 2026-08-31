@@ -30,8 +30,6 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 
 	private volatile bool _disposed;
 	private volatile int _consecutiveFailures;
-	private DateTimeOffset _lastRotation = DateTimeOffset.UtcNow;
-	private DateTimeOffset? _nextRotationDue;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SecureElasticsearchAuthenticationProvider" /> class.
@@ -67,8 +65,6 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 				state: null,
 				_securitySettings.Authentication.CredentialRotation.RotationInterval,
 				_securitySettings.Authentication.CredentialRotation.RotationInterval);
-
-			_nextRotationDue = DateTimeOffset.UtcNow.Add(_securitySettings.Authentication.CredentialRotation.RotationInterval);
 		}
 		else
 		{
@@ -110,8 +106,6 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 					.ConfigureAwait(false),
 				ElasticsearchAuthenticationType.ApiKey => await GetApiKeyAuthenticationAsync(cancellationToken).ConfigureAwait(false),
 				ElasticsearchAuthenticationType.Base64ApiKey => await GetBase64ApiKeyAuthenticationAsync(cancellationToken)
-					.ConfigureAwait(false),
-				ElasticsearchAuthenticationType.CertificateAuthentication => await GetCertificateAuthenticationAsync(cancellationToken)
 					.ConfigureAwait(false),
 				ElasticsearchAuthenticationType.OAuth2 => await GetOAuth2AuthenticationAsync(cancellationToken).ConfigureAwait(false),
 				ElasticsearchAuthenticationType.ServiceAccount => await GetServiceAccountAuthenticationAsync(cancellationToken)
@@ -246,9 +240,6 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 
 			if (result.Success)
 			{
-				_lastRotation = result.RotatedAt;
-				_nextRotationDue = result.NextRotationDue;
-
 				// Fire the credentials rotated event
 				OnCredentialsRotated(new AuthenticationRotatedEventArgs(
 					AuthenticationType,
@@ -313,17 +304,6 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	}
 
 	/// <summary>
-	/// Retrieves certificate-based authentication configuration (mutual TLS).
-	/// </summary>
-	private static async Task<AuthenticationHeaderValue?> GetCertificateAuthenticationAsync(CancellationToken cancellationToken)
-	{
-		// Certificate authentication is handled at the transport level, not via headers This method exists for consistency but returns null
-		// as certificates are configured in ClientSettings
-		await Task.CompletedTask.ConfigureAwait(false);
-		return null;
-	}
-
-	/// <summary>
 	/// Refreshes an expired OAuth2 access token using the refresh token.
 	/// </summary>
 	/// <param name="cancellationToken">The cancellation token to monitor for cancellation requests.</param>
@@ -372,8 +352,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 
 			// Parse the token response
 			var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-			var tokenResponse = JsonSerializer.Deserialize<OAuth2TokenResponse>(responseContent);
+			var tokenResponse = JsonSerializer.Deserialize(responseContent, ElasticSearchInternalJsonContext.Default.OAuth2TokenResponse);
 #pragma warning restore IL2026, IL3050
 
 			if (tokenResponse is null || string.IsNullOrWhiteSpace(tokenResponse.AccessToken))
@@ -444,7 +423,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	/// <summary>
 	/// Represents an OAuth2 token response from the authorization server.
 	/// </summary>
-	private sealed record OAuth2TokenResponse(
+	internal sealed record OAuth2TokenResponse(
 		[property: JsonPropertyName("access_token")]
 		string AccessToken,
 		[property: JsonPropertyName("refresh_token")]
@@ -511,10 +490,9 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 				return false;
 			}
 
-#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			// Parse the token response (reuse OAuth2TokenResponse as the format is identical)
 			var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-			var tokenResponse = JsonSerializer.Deserialize<OAuth2TokenResponse>(responseContent);
+			var tokenResponse = JsonSerializer.Deserialize(responseContent, ElasticSearchInternalJsonContext.Default.OAuth2TokenResponse);
 #pragma warning restore IL2026, IL3050
 
 			if (tokenResponse is null || string.IsNullOrWhiteSpace(tokenResponse.AccessToken))
@@ -587,11 +565,6 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 		if (authConfig.ServiceAccount.Enabled)
 		{
 			return ElasticsearchAuthenticationType.ServiceAccount;
-		}
-
-		if (authConfig.Certificate.Enabled)
-		{
-			return ElasticsearchAuthenticationType.CertificateAuthentication;
 		}
 
 		if (!string.IsNullOrWhiteSpace(authConfig.Base64ApiKey))

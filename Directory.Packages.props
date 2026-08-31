@@ -2,7 +2,10 @@
 <Project>
 	<PropertyGroup>
 		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+		<!-- Conditional so a directory can opt out. This file is imported AFTER Directory.Build.props, so
+		     an unconditional set here silently overwrites any opt-out set there and the opt-out looks
+		     applied while doing nothing. src/metapackages/Directory.Build.props relies on this. -->
+		<CentralPackageTransitivePinningEnabled Condition="'$(CentralPackageTransitivePinningEnabled)' == ''">true</CentralPackageTransitivePinningEnabled>
 	</PropertyGroup>
 	<ItemGroup>
 		<!-- Core BCL / Extensions -->
@@ -131,6 +134,10 @@
 		<!-- Verify.Xunit→Verify.XunitV3 for xUnit v3 compat (Sprint 836) -->
 		<PackageVersion Include="Verify.XunitV3" Version="31.18.0" />
 		<PackageVersion Include="Alba" Version="8.5.2" />
+		<!-- Reads back generated PDFs so tests can assert on the rendered artifact (page count, page
+		     geometry, extracted text) rather than on the options object being passed along. Test-only:
+		     no shipped package references it. -->
+		<PackageVersion Include="PdfPig" Version="0.1.11" />
 		<!-- Xunit.SkippableFact removed: xUnit v3 has native Assert.SkipUnless()/Assert.SkipWhen() (Sprint 836) -->
 		<!-- EF Core -->
 		<PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
@@ -336,6 +343,12 @@
 		<PackageVersion Include="Testcontainers.PubSub" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.CosmosDb" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.Firestore" Version="4.11.0" />
+		<PackageVersion Include="Testcontainers.MySql" Version="4.11.0" />
+		<!-- Rancher K3s: no dedicated Consul Testcontainers module exists, so ConsulContainerFixture builds
+		     the hashicorp/consul image directly via the generic ContainerBuilder (see VaultContainerFixture
+		     for the established pattern); K3s DOES ship an official module and it is used here instead of
+		     hand-rolling privileged-mode + cgroup mounts + a "Node controller sync successful" wait strategy. -->
+		<PackageVersion Include="Testcontainers.K3s" Version="4.11.0" />
 		<!-- Cloud-Native Database SDKs -->
 		<PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.58.0" />
 		<PackageVersion Include="Testcontainers.ServiceBus" Version="4.11.0" />
@@ -355,7 +368,7 @@
 		<!-- Compression -->
 		<PackageVersion Include="Snappier" Version="1.3.1" />
 		<!-- PDF Generation -->
-		<PackageVersion Include="QuestPDF" Version="2026.2.4" />
+		<PackageVersion Include="QuestPDF" Version="2026.7.3" />
 		<!-- CLI Tool -->
 		<PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
 	</ItemGroup>

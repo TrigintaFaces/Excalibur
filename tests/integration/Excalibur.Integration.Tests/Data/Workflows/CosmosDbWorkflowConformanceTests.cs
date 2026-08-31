@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.CosmosDb;
 using Excalibur.Integration.Tests.Data.EventStore;
@@ -57,7 +58,7 @@ public sealed class CosmosDbWorkflowConformanceTests
             CreateContainerIfNotExists = true,
         });
 
-        return new CosmosDbEventStore(_fixture.Client, options, NullLogger<CosmosDbEventStore>.Instance);
+        return new CosmosDbEventStore(_fixture.Client, options, NullLogger<CosmosDbEventStore>.Instance, UntenantedContext.Instance);
     }
 
     /// <inheritdoc/>
@@ -84,4 +85,8 @@ public sealed class CosmosDbWorkflowConformanceTests
     [Fact]
     public override Task DelayedRestart_ResumesAndCompletesExactlyOnce() =>
         base.DelayedRestart_ResumesAndCompletesExactlyOnce();
+
+    [Fact]
+    public override Task ConformanceSuite_ShouldWireEveryArm() =>
+    	base.ConformanceSuite_ShouldWireEveryArm();
 }

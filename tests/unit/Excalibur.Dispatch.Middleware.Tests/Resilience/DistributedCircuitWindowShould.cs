@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
 /// <summary>
 /// Author≠impl regression lock for <c>zxb7fp</c> — the distributed circuit breaker's <b>windowed</b>
-/// (rolling, time-decayed) failure accounting on <see cref="DistributedCircuitMetrics"/>.
+/// (rolling, time-decayed) failure accounting on <see cref="LocalCircuitMetrics"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public sealed class DistributedCircuitWindowShould
 	[Fact]
 	public void AggregateAttemptsAndFailureRatio_WithinTheWindow()
 	{
-		var metrics = new DistributedCircuitMetrics();
+		var metrics = new LocalCircuitMetrics();
 		const long now = 100 * BucketTicks;
 
 		// 10 attempts in-window, 4 failures.
@@ -51,7 +51,7 @@ public sealed class DistributedCircuitWindowShould
 	[Fact]
 	public void ExcludeFailuresThatHaveRolledOutOfTheWindow_NotLifetimeCumulative()
 	{
-		var metrics = new DistributedCircuitMetrics();
+		var metrics = new LocalCircuitMetrics();
 		const long t0 = 100 * BucketTicks;
 
 		// 5 old failures, all in the t0 bucket.
@@ -72,7 +72,7 @@ public sealed class DistributedCircuitWindowShould
 	[Fact]
 	public void EvictRolledOutBucketsFromPersistedState_SoTheMetricNeverGrowsUnbounded()
 	{
-		var metrics = new DistributedCircuitMetrics();
+		var metrics = new LocalCircuitMetrics();
 		const long t0 = 100 * BucketTicks;
 
 		metrics.RecordWindow(failure: true, t0, BucketTicks, BucketCount);
@@ -89,7 +89,7 @@ public sealed class DistributedCircuitWindowShould
 	[Fact]
 	public void ReportZeroRatio_WhenNoAttemptsAreInTheWindow()
 	{
-		var metrics = new DistributedCircuitMetrics();
+		var metrics = new LocalCircuitMetrics();
 
 		var (attempts, ratio) = metrics.GetWindow(100 * BucketTicks, BucketTicks, BucketCount);
 
@@ -107,7 +107,7 @@ public sealed class DistributedCircuitWindowShould
 	public void DriveTheDocumentedOpenCondition_FromTheInWindowQuantities(
 		int attempts, int failures, int minimumThroughput, double failureRatio, bool expectedTrip)
 	{
-		var metrics = new DistributedCircuitMetrics();
+		var metrics = new LocalCircuitMetrics();
 		const long now = 100 * BucketTicks;
 
 		for (var i = 0; i < failures; i++) metrics.RecordWindow(failure: true, now, BucketTicks, BucketCount);

@@ -6,7 +6,6 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.ErrorHandling;
-using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 
 using Excalibur.Dispatch.Options.Delivery;

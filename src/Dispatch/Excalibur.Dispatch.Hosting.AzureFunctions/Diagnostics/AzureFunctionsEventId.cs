@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 /// <item>50300-50305: Durable Functions Orchestration (saga moved to Excalibur.Hosting)</item>
 /// </list>
 /// </remarks>
-public static class AzureFunctionsEventId
+internal static class AzureFunctionsEventId
 {
 	// ========================================
 	// 50200-50249: Azure Functions Host Provider
@@ -80,7 +80,7 @@ public static class AzureFunctionsEventId
 
 	// ========================================
 	// 50300-50399: Durable Functions Orchestration (Reserved)
-	// NOTE: Saga orchestration moved to Excalibur.Hosting (ExcaliburHostingEventId 162830-162849) in Sprint 507
+	// NOTE: Saga orchestration moved to Excalibur.Hosting (ExcaliburHostingEventId 162830-162849)
 	// ========================================
 
 	/// <summary>Durable orchestration started.</summary>

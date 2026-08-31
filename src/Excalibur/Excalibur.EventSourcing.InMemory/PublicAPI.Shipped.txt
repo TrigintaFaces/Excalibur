@@ -7,3 +7,7 @@ static Excalibur.EventSourcing.InMemory.EventSourcingBuilderInMemoryExtensions.U
 static Excalibur.EventSourcing.InMemory.EventSourcingBuilderInMemoryExtensions.UseInMemory(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.InMemory.IInMemoryEventSourcingBuilder!>? configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.InMemoryEventSourcingServiceCollectionExtensions.AddInMemoryEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemoryEventSourcingServiceCollectionExtensions.AddInMemoryEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! storeName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.EventSourcing.InMemory.InMemoryEventStoreOptions
+Excalibur.EventSourcing.InMemory.InMemoryEventStoreOptions.EventTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.EventSourcing.InMemory.InMemoryEventStoreOptions.EventTypeInfoResolver.set -> void
+Excalibur.EventSourcing.InMemory.InMemoryEventStoreOptions.InMemoryEventStoreOptions() -> void

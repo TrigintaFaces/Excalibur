@@ -55,12 +55,42 @@ public sealed class KafkaOptions
 	public GroupProtocol? GroupProtocol { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether enables encryption when sending/receiving messages.
+	/// Gets or sets the security protocol used for broker connections.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether enables encryption when sending/receiving messages.
+	/// The security protocol, or <see langword="null"/> to take it from the <c>security.protocol</c>
+	/// key in <see cref="AdditionalConfig"/>. When neither supplies one the connection is plaintext.
 	/// </value>
-	public bool EnableEncryption { get; set; }
+	/// <remarks>
+	/// <para>
+	/// Setting this property and the raw <c>security.protocol</c> key to different values is refused
+	/// rather than resolved: a silent winner between two spellings of a security control is how an
+	/// intended TLS posture becomes a plaintext connection. Set one or the other.
+	/// </para>
+	/// <para>
+	/// A protocol that does not carry TLS is refused entirely while <see cref="RequireTls"/> is set.
+	/// </para>
+	/// </remarks>
+	public SecurityProtocol? SecurityProtocol { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether broker connections must be encrypted.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> to refuse to build any Kafka client whose security protocol does not carry
+	/// TLS; <see langword="false"/> to permit an unencrypted connection. Default is <see langword="true"/>.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// The refusal happens when the client is built, so a misconfigured deployment fails where it is
+	/// wired rather than at the first message.
+	/// </para>
+	/// <para>
+	/// <strong>Setting this to false permits credentials and message payloads to travel in the clear.</strong>
+	/// It exists for local brokers and test fixtures, not for anything holding real data.
+	/// </para>
+	/// </remarks>
+	public bool RequireTls { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets the consumer tuning options for batching, offset management, and session timeouts.

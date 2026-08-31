@@ -22,7 +22,7 @@ namespace Excalibur.Cdc.Processing;
 /// failure when the host constructs <see cref="CdcProcessingHostedService"/>.
 /// </para>
 /// </remarks>
-internal sealed class CdcBackgroundProcessingStartupValidator : IHostedService
+internal sealed class CdcBackgroundProcessingStartupValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -36,6 +36,12 @@ internal sealed class CdcBackgroundProcessingStartupValidator : IHostedService
 	/// <inheritdoc/>
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		if (!_services.GetServices<ICdcBackgroundProcessor>().Any())
 		{
 			throw new InvalidOperationException(
@@ -45,8 +51,6 @@ internal sealed class CdcBackgroundProcessingStartupValidator : IHostedService
 				"yet supply a background processor. Remove EnableBackgroundProcessing() or select a " +
 				"provider that supports background processing.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>

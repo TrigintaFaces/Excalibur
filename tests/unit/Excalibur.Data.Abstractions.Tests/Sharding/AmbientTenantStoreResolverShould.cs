@@ -44,18 +44,39 @@ public sealed class AmbientTenantStoreResolverShould
         ambient.ResolveCurrent().ShouldBe("store-b");
     }
 
+    // An unresolved ambient tenant used to be folded onto the empty key, which the underlying
+    // resolver treats as an unknown tenant and answers with the configured default store. The caller
+    // then read and wrote whichever tenant that store belongs to, with nothing raised. This lock goes
+    // RED if that fold is reintroduced: the fold makes the call succeed, and it reaches the resolver.
     [Fact]
-    public void RouteToEmptyTenant_WhenThereIsNoAmbientTenant()
+    public void FailClosed_AndNeverReachTheStoreResolver_WhenThereIsNoAmbientTenant()
     {
         var context = A.Fake<ITenantContext>();
         A.CallTo(() => context.TenantId).Returns(null); // no ambient tenant
         var storeResolver = A.Fake<ITenantStoreResolver<string>>();
+
+        // The store a reintroduced empty-key fold would silently hand back.
         A.CallTo(() => storeResolver.Resolve(string.Empty)).Returns("default-store");
 
         var ambient = BuildAmbientResolver(context, storeResolver);
 
-        // A null ambient tenant maps to the empty key (the underlying resolver owns default-shard policy).
-        ambient.ResolveCurrent().ShouldBe("default-store");
+        _ = Should.Throw<TenantRequiredException>(() => ambient.ResolveCurrent());
+
+        // Refused before routing: no tenant term was substituted and no store was selected.
+        A.CallTo(() => storeResolver.Resolve(A<string>._)).MustNotHaveHappened();
+    }
+
+    // "Belongs to no tenant" is a value a caller states, not a tenant left unset. The untenanted
+    // context carries the reserved partition term, so it routes like any other key.
+    [Fact]
+    public void RouteToTheUntenantedPartition_WhenTheCallerIsExplicitlyUntenanted()
+    {
+        var storeResolver = A.Fake<ITenantStoreResolver<string>>();
+        A.CallTo(() => storeResolver.Resolve(TenantScope.UntenantedSentinel)).Returns("untenanted-store");
+
+        var ambient = BuildAmbientResolver(UntenantedContext.Instance, storeResolver);
+
+        ambient.ResolveCurrent().ShouldBe("untenanted-store");
     }
 
     private static IAmbientTenantStoreResolver<string> BuildAmbientResolver(

@@ -40,12 +40,31 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 
 		_logger = logger;
 
+		_innerClient = new CachedSchemaRegistryClient(BuildConfig(options));
+
+		LogClientCreated(options.Url);
+	}
+
+	/// <summary>
+	/// Translates the configured options into the client configuration the Confluent SDK is constructed with.
+	/// </summary>
+	/// <param name="options">The configured options.</param>
+	/// <returns>The configuration handed to the underlying client.</returns>
+	/// <remarks>
+	/// Separate from the constructor so the translation is observable. Every credential a consumer configures
+	/// has to be visible here or it is never presented, and a test that asserts an option stores what it was
+	/// set to cannot tell the difference — which is how the client keystore came to be configurable and inert.
+	/// </remarks>
+	internal static SchemaRegistryConfig BuildConfig(ConfluentSchemaRegistryOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+
 		var config = new SchemaRegistryConfig
 		{
 			Url = options.Url,
 			MaxCachedSchemas = options.MaxCachedSchemas,
 			RequestTimeoutMs = (int)options.RequestTimeout.TotalMilliseconds,
-			EnableSslCertificateVerification = options.Ssl.EnableSslCertificateVerification
+			EnableSslCertificateVerification = options.Ssl.EnableSslCertificateVerification,
 		};
 
 		if (!string.IsNullOrEmpty(options.BasicAuthUserInfo))
@@ -58,9 +77,13 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 			config.SslCaLocation = options.Ssl.SslCaLocation;
 		}
 
-		_innerClient = new CachedSchemaRegistryClient(config);
+		if (!string.IsNullOrEmpty(options.Ssl.SslKeystoreLocation))
+		{
+			config.SslKeystoreLocation = options.Ssl.SslKeystoreLocation;
+			config.SslKeystorePassword = options.Ssl.SslKeystorePassword;
+		}
 
-		LogClientCreated(options.Url);
+		return config;
 	}
 
 	/// <summary>

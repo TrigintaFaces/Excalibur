@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Data.Validation;
+
 namespace Excalibur.Outbox.SqlServer;
 
 /// <summary>
@@ -54,5 +56,24 @@ public sealed class SqlServerDeadLetterQueueOptions
 	/// <summary>
 	/// Gets the fully qualified table name.
 	/// </summary>
-	public string QualifiedTableName => $"[{SchemaName}].[{TableName}]";
+	/// <remarks>
+	/// Both identifiers are whitelisted through <see cref="SqlIdentifierValidator"/> before they are
+	/// bracketed. An identifier cannot be parameterized, so validation is the only control available:
+	/// bracket quoting alone does not contain a name carrying a <c>]</c>, which closes the quoting and
+	/// leaves the remainder to be read as SQL. The value is the application's own configuration rather
+	/// than request data, so this is defense-in-depth - and it is the same routing every event-store
+	/// sibling already uses, which is the invariant the dead-letter queue was the sole exception to.
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <see cref="SchemaName"/> or <see cref="TableName"/> is not a valid SQL identifier.
+	/// </exception>
+	public string QualifiedTableName
+	{
+		get
+		{
+			SqlIdentifierValidator.ThrowIfInvalid(SchemaName, nameof(SchemaName));
+			SqlIdentifierValidator.ThrowIfInvalid(TableName, nameof(TableName));
+			return $"[{SchemaName}].[{TableName}]";
+		}
+	}
 }

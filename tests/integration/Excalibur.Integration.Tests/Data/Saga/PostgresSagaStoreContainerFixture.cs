@@ -5,6 +5,7 @@ using Npgsql;
 
 using Testcontainers.PostgreSql;
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - table name is a constant in test fixture
 
@@ -21,7 +22,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 {
 	private PostgreSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Gets the connection string for the Postgres container.
@@ -59,57 +60,60 @@ public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the saga store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Create schema and saga store table
-		var createSchemaSql = $"""
-			CREATE SCHEMA IF NOT EXISTS {Schema};
+		// Provision from the DDL the package SHIPS, not a copy of it. A fixture that restates the schema can
+		// only ever agree with itself: a defect in Scripts/01-SagaSchema.sql -- a wrong key, a dropped column, a
+		// nullable discriminator, a statement that silently does not execute -- is invisible to every test that
+		// runs against the restatement, which is the class this suite exists to catch. A mirror cannot detect a
+		// defect in the thing it mirrors.
+		//
+		// Executed as ONE command rather than split on ';': the script's upgrade path is a DO $$ ... $$ block
+		// whose body contains semicolons, and splitting on them would submit its fragments as separate
+		// statements. Npgsql sends a multi-statement command in a single implicit transaction, which is also
+		// what a consumer running the file through psql gets.
+		var shippedDdl = await File.ReadAllTextAsync(ResolveShippedScriptPath()).ConfigureAwait(false);
 
-			CREATE TABLE IF NOT EXISTS "{Schema}"."{TableName}" (
-				saga_id UUID NOT NULL,
-				saga_type VARCHAR(256) NOT NULL,
-				state_json JSONB NOT NULL,
-				is_completed BOOLEAN NOT NULL DEFAULT FALSE,
-				-- Mirrors the shipped Scripts/01-SagaSchema.sql: NOT NULL with the reserved untenanted
-				-- sentinel. A nullable discriminator here would let the fixture accept rows the shipped
-				-- schema rejects, and the store's upsert now names (tenant_id, saga_id) as its ON CONFLICT
-				-- target, which must exist as a unique constraint or every save raises 42P10.
-				tenant_id VARCHAR(200) NOT NULL DEFAULT '__untenanted__',
-				version BIGINT NOT NULL DEFAULT 0,
-				created_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				updated_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				completed_at TIMESTAMPTZ NULL,
-				-- Composite key matching the shipped schema. Required, not cosmetic: it is both the
-				-- ON CONFLICT (tenant_id, saga_id) target the upsert names, and the only shape under which
-				-- two tenants can hold the same saga_id at all — so a cross-tenant test case is expressible.
-				CONSTRAINT pk_{TableName} PRIMARY KEY (tenant_id, saga_id)
-			);
-
-			CREATE INDEX IF NOT EXISTS idx_sagas_saga_type
-				ON "{Schema}"."{TableName}"(saga_type);
-
-			CREATE INDEX IF NOT EXISTS idx_sagas_is_completed
-				ON "{Schema}"."{TableName}"(is_completed) WHERE is_completed = FALSE;
-
-			-- w8aqq3: completed_at is a REAL INDEXED COLUMN (SA ruling — not a state_json JSONB proxy),
-			-- backing ISagaStore.PurgeCompletedBeforeAsync's completed-and-before-cutoff query (d0wpug lock).
-			-- The partial index keeps the retention purge sargable rather than a full scan.
-			CREATE INDEX IF NOT EXISTS idx_sagas_completed_at
-				ON "{Schema}"."{TableName}"(completed_at) WHERE completed_at IS NOT NULL;
-			""";
-
-		await using var command = new NpgsqlCommand(createSchemaSql, connection);
+		await using var command = new NpgsqlCommand(shippedDdl, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
-		_initialized = true;
+	}
+
+	/// <summary>
+	/// Locates the shipped script by walking up from the test binary to the repository root. Fails loudly
+	/// rather than falling back to an inline copy: a missing product script is the defect, not a licence to
+	/// invent a schema.
+	/// </summary>
+	private static string ResolveShippedScriptPath()
+	{
+		const string RelativePath = "src/Excalibur/Excalibur.Saga.Postgres/Scripts/01-SagaSchema.sql";
+
+		var directory = new DirectoryInfo(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			var candidate = Path.Combine(directory.FullName, RelativePath.Replace('/', Path.DirectorySeparatorChar));
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			directory = directory.Parent;
+		}
+
+		throw new FileNotFoundException(
+			$"The shipped Postgres saga DDL was not found by walking up from '{AppContext.BaseDirectory}' "
+			+ $"looking for '{RelativePath}'. This fixture provisions its schema from the script the package "
+			+ "ships; it deliberately does not carry its own copy.");
 	}
 
 	/// <summary>

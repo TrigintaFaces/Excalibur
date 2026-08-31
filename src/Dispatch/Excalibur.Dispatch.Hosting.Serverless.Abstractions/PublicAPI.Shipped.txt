@@ -56,7 +56,6 @@ Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Properties.get -> Sy
 Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.RemainingTime.get -> System.TimeSpan
 Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ServerlessContextBase(object! platformContext, Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform platform, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ThrowIfDisposed() -> void
-Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnableColdStartOptimization.get -> bool
 Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnableColdStartOptimization.set -> void
@@ -112,24 +111,6 @@ abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.LogStreamNa
 abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.MemoryLimitInMB.get -> int
 abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Region.get -> string!
 abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.RequestId.get -> string!
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ColdStartOptimizationCompleted = 50054 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ColdStartOptimizationEnabled = 50053 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ContextCreated = 50004 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionCancelled = 50009 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionCompleted = 50006 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionFailed = 50007 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionStarted = 50005 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionTimedOut = 50008 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.HostingServiceStarting = 50000 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.HostingServiceStopping = 50001 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.PlatformFallback = 50056 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.PlatformSelected = 50055 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderFactoryCreated = 50050 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderReady = 50003 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderRegistered = 50051 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderResolved = 50052 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderUnavailable = 50002 -> int
-const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.UnableToDetectPlatform = 50057 -> int
 static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAwsLambdaHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAzureFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddCustomServerlessProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider! provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

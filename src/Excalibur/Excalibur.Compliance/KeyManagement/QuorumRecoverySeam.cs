@@ -163,7 +163,7 @@ internal static class QuorumRecoverySeam
 
 		var shares = ExtractSharesFromCombinedToken(token);
 
-		// Reconstruct() fails closed on sub-threshold (FR-E6) and on its embedded commitment (FR-E7). That
+		// Reconstruct() fails closed on sub-threshold and on its embedded commitment. That
 		// embedded commitment is CALLER-supplied, so it is NOT sufficient on its own — we additionally verify
 		// against the SERVER-side commitment below.
 		byte[] reconstructedSecret;

@@ -183,7 +183,7 @@ CREATE TABLE dbo.OutboxMessages (
     LastAttemptAt    DATETIMEOFFSET NULL,
     CorrelationId    NVARCHAR(255)  NULL,
     CausationId      NVARCHAR(255)  NULL,
-    TenantId         NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
+    TenantId         NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
     Priority         INT            NOT NULL DEFAULT 0,
     TargetTransports NVARCHAR(MAX)  NULL,
     IsMultiTransport BIT            NOT NULL DEFAULT 0,

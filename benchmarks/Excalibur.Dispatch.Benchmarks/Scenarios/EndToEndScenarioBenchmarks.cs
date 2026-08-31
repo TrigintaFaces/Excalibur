@@ -147,10 +147,11 @@ public class EndToEndScenarioBenchmarks
 
 	private async Task SetupScenario2_EventSourcingFullCycleAsync()
 	{
-		_eventStore = new InMemoryEventStore();
+		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
 		_snapshotStore = new InMemorySnapshotStore(
 			Microsoft.Extensions.Options.Options.Create(new InMemorySnapshotOptions()),
-			NullLogger<InMemorySnapshotStore>.Instance);
+			NullLogger<InMemorySnapshotStore>.Instance,
+			BenchmarkTenantContext.SingleTenant);
 
 		// Pre-load an aggregate with 20 events for realistic load-modify-save benchmarks
 		_preloadedAggregateId = Guid.NewGuid().ToString();
@@ -246,7 +247,9 @@ public class EndToEndScenarioBenchmarks
 				SnapshotId = Guid.NewGuid().ToString(),
 				AggregateId = _preloadedAggregateId,
 				AggregateType = "BenchmarkOrder",
-				Version = appendResult.NextExpectedVersion,
+				Version = appendResult.NextExpectedVersion
+					?? throw new InvalidOperationException(
+						"The append reported no resulting version, so there is no version to snapshot at."),
 				CreatedAt = DateTimeOffset.UtcNow,
 				Data = new byte[256],
 			},
@@ -320,7 +323,7 @@ public class EndToEndScenarioBenchmarks
 		_ = services.AddLogging(b => b.ClearProviders());
 
 		// In-memory event store
-		_fullPipelineEventStore = new InMemoryEventStore();
+		_fullPipelineEventStore = new InMemoryEventStore(UntenantedContext.Instance);
 		_ = services.AddSingleton<IEventStore>(_fullPipelineEventStore);
 
 		// In-memory outbox store

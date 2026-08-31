@@ -5,6 +5,7 @@
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.ElasticSearch.Security;
 
@@ -13,12 +14,21 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </summary>
 internal sealed partial class SecurityMonitoringBackgroundService(
 	IElasticsearchSecurityMonitor securityMonitor,
+	IOptions<SecurityMonitoringOptions> options,
 	ILogger<SecurityMonitoringBackgroundService> logger)
 	: BackgroundService
 {
 	/// <inheritdoc/>
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
+		var settings = options.Value;
+
+		if (!settings.Enabled)
+		{
+			LogDisabled();
+			return;
+		}
+
 		LogStarted();
 
 		while (!stoppingToken.IsCancellationRequested)
@@ -26,7 +36,7 @@ internal sealed partial class SecurityMonitoringBackgroundService(
 			try
 			{
 				_ = await securityMonitor.ProcessSecurityAlertsAsync(stoppingToken).ConfigureAwait(false);
-				await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken).ConfigureAwait(false);
+				await Task.Delay(settings.MonitoringInterval, stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{

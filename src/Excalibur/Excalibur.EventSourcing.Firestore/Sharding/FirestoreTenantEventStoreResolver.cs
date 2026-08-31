@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
 
 using Google.Cloud.Firestore;
 
@@ -24,16 +25,21 @@ internal sealed class FirestoreTenantEventStoreResolver : ITenantStoreResolver<I
 	private readonly ITenantShardMap _shardMap;
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly FirestoreEventStoreOptions _defaultOptions;
+	private readonly ITenantContext _tenantContext;
 	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
 
 	internal FirestoreTenantEventStoreResolver(
 		ITenantShardMap shardMap,
 		ILoggerFactory loggerFactory,
-		IOptions<FirestoreEventStoreOptions> defaultOptions)
+		IOptions<FirestoreEventStoreOptions> defaultOptions,
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
 		ArgumentNullException.ThrowIfNull(defaultOptions);
+		ArgumentNullException.ThrowIfNull(tenantContext);
+
+		_tenantContext = tenantContext;
 
 		_shardMap = shardMap;
 		_loggerFactory = loggerFactory;
@@ -49,7 +55,7 @@ internal sealed class FirestoreTenantEventStoreResolver : ITenantStoreResolver<I
 
 	private IEventStore CreateStore(ShardInfo shardInfo)
 	{
-		var projectId = shardInfo.DatabaseName ?? _defaultOptions.ProjectId;
+		var projectId = shardInfo.RequireCoordinate(shardInfo.DatabaseName, nameof(ShardInfo.DatabaseName));
 		var db = FirestoreDb.Create(projectId);
 
 		var options = Options.Create(new FirestoreEventStoreOptions
@@ -58,9 +64,13 @@ internal sealed class FirestoreTenantEventStoreResolver : ITenantStoreResolver<I
 			EventsCollectionName = _defaultOptions.EventsCollectionName,
 		});
 
+		// A shard may host more than one tenant, so the store still composes the ambient tenant into its
+		// key. Routing to a shard is the physical half of confinement; the key is the logical half, and a
+		// co-located pair of tenants needs both.
 		return new FirestoreEventStore(
 			db,
 			options,
-			_loggerFactory.CreateLogger<FirestoreEventStore>());
+			_loggerFactory.CreateLogger<FirestoreEventStore>(),
+			_tenantContext);
 	}
 }

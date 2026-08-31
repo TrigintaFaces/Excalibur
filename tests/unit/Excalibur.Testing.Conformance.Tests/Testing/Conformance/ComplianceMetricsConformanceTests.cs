@@ -143,4 +143,7 @@ public sealed class ComplianceMetricsConformanceTests : ComplianceMetricsConform
 		RecordKeyUsage_ShouldCompleteSuccessfully();
 
 	#endregion RecordKeyUsage Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

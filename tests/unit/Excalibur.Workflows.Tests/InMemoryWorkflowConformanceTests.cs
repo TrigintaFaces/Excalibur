@@ -43,4 +43,8 @@ public sealed class InMemoryWorkflowConformanceTests : WorkflowConformanceTestKi
     [Fact]
     public override Task DelayedRestart_ResumesAndCompletesExactlyOnce() =>
         base.DelayedRestart_ResumesAndCompletesExactlyOnce();
+
+    [Fact]
+    public override Task ConformanceSuite_ShouldWireEveryArm() =>
+    	base.ConformanceSuite_ShouldWireEveryArm();
 }

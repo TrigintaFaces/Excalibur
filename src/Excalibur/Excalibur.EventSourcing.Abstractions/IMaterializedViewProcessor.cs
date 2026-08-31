@@ -4,6 +4,8 @@
 
 using Excalibur.Dispatch;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing;
 
 /// <summary>
@@ -29,6 +31,8 @@ public interface IMaterializedViewProcessor
 	/// <param name="position">The global position of the event for tracking.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task ProcessEventAsync(IDomainEvent @event, long position, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -37,6 +41,8 @@ public interface IMaterializedViewProcessor
 	/// <param name="events">The events to process with their positions.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task ProcessEventsAsync(IEnumerable<(IDomainEvent Event, long Position)> events, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -50,6 +56,8 @@ public interface IMaterializedViewProcessor
 	/// Use with caution in production as this can be a long-running operation.
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task RebuildAsync(CancellationToken cancellationToken);
 
 	/// <summary>
@@ -58,5 +66,7 @@ public interface IMaterializedViewProcessor
 	/// <param name="viewName">The view name to catch up.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task CatchUpAsync(string viewName, CancellationToken cancellationToken);
 }

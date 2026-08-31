@@ -209,4 +209,32 @@
     <Message Text="PROJECT_CLASSIFICATION|$(MSBuildProjectName)|$(ProjectClassification)|IsPackable=$(IsPackable)|IsTestProject=$(IsTestProject)|IsSampleProject=$(IsSampleProject)|IsBenchmarkProject=$(IsBenchmarkProject)"
              Importance="High" />
   </Target>
+
+  <!-- ============================================================================================
+       Pre-release notice in the shipped package description
+       ============================================================================================
+       A consumer browsing a package listing sees the version string and the description. The SemVer
+       pre-release suffix already carries the machine-readable half of the signal and the gallery acts
+       on it, but it says nothing about what the instability means in practice. This appends that
+       sentence to the description, and only while it is true.
+
+       Conditioned on the RESOLVED version rather than on a flag someone remembers to flip: the notice
+       appears exactly when the version carries a pre-release label, and disappears by itself at the
+       first stable release. There is no state to update and no way for the description to claim
+       stability the version contradicts, or to warn of instability the version denies.
+
+       PreReleaseNotice is declared once, centrally; a project cannot opt in or out of it locally.
+       ============================================================================================ -->
+  <Target Name="AppendPreReleaseNoticeToPackageDescription"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(IsPackable)' != 'false'
+                     And '$(PreReleaseNotice)' != ''
+                     And '$(PackageVersion)' != ''
+                     And $(PackageVersion.Contains('-'))">
+    <PropertyGroup>
+      <Description>$(Description) $(PreReleaseNotice)</Description>
+      <PackageDescription>$(Description)</PackageDescription>
+    </PropertyGroup>
+  </Target>
+
 </Project>

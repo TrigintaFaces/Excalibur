@@ -10,6 +10,8 @@ using Excalibur.Dispatch;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Outbox.InMemory;
 
 /// <summary>
@@ -67,7 +69,11 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
-	public InMemoryOutboxStore(
+	/// <remarks>
+	/// <see langword="internal"/>: consumers register the store via <c>AddInMemoryOutboxStore()</c> and resolve it
+	/// through its public interfaces; the framework's own DI factory is the only constructor caller.
+	/// </remarks>
+	internal InMemoryOutboxStore(
 		IOptions<InMemoryOutboxOptions> options,
 		ILogger<InMemoryOutboxStore> logger)
 	{
@@ -87,6 +93,13 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 		// Enforce capacity limits
 		EnforceCapacityLimit();
 
+		// Canonicalise the partition on the way in, exactly as a persisting provider's INSERT does. The
+		// untenanted partition has ONE representation on the drain contract — the reserved sentinel — so a
+		// message staged with no tenant is drained carrying that value rather than a null. Without this fold
+		// a consumer handler written as `msg.TenantId is null` would re-establish a different partition
+		// depending on which store happened to be underneath it.
+		message.TenantId = KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId;
+
 		if (!_messages.TryAdd(message.Id, message))
 		{
 			throw new InvalidOperationException($"Message with ID '{message.Id}' already exists in the outbox.");
@@ -98,6 +111,8 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -125,10 +140,14 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCore(batchSize, fencingToken: null, cancellationToken);
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCore(batchSize, fencingToken, cancellationToken);
 
@@ -157,7 +176,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 				_fencingHighWaterMark = Math.Max(_fencingHighWaterMark, fencingToken.Value);
 			}
 
-			// AD-251-3: Use array-based approach to avoid ToList() allocation
+			// Use array-based approach to avoid ToList() allocation
 			var count = 0;
 			foreach (var m in _messages.Values)
 			{
@@ -362,7 +381,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	}
 
 	/// <inheritdoc/>
-	public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(
+	public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -370,7 +389,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// AD-251-3: Use array-based approach to avoid ToList() allocation
+		// Use array-based approach to avoid ToList() allocation
 		var count = 0;
 		foreach (var m in _messages.Values)
 		{
@@ -414,14 +433,14 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	}
 
 	/// <inheritdoc/>
-	public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(
+	public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(
 		DateTimeOffset scheduledBefore,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// AD-251-3: Use array-based approach to avoid ToList() allocation
+		// Use array-based approach to avoid ToList() allocation
 		var count = 0;
 		foreach (var m in _messages.Values)
 		{
@@ -461,7 +480,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// AD-251-3: Use array-based approach to avoid ToList() allocation
+		// Use array-based approach to avoid ToList() allocation
 		var candidateCount = 0;
 		foreach (var m in _messages.Values)
 		{
@@ -511,11 +530,11 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	}
 
 	/// <inheritdoc/>
-	public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// AD-251-3: Single-pass statistics without ToList() allocations
+		// Single-pass statistics without ToList() allocations
 		var now = DateTimeOffset.UtcNow;
 		var stagedCount = 0;
 		var sendingCount = 0;
@@ -607,50 +626,79 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	{
 		if (_options.MaxMessages > 0 && _messages.Count >= _options.MaxMessages)
 		{
-			EvictOldestSentMessage();
+			EvictOldestTerminalMessage();
 		}
 	}
 
-	private void EvictOldestSentMessage()
+	/// <summary>
+	/// Reclaims one message to make room, choosing only among messages whose delivery is already OVER.
+	/// </summary>
+	/// <remarks>
+	/// Eviction must FAIL CLOSED, never silently drop a message that is still owed delivery. The store's
+	/// contract is at-least-once: every staged message reaches its transport at least once. A message that
+	/// is Staged, Sending (currently leased to a claimer), Failed or PartiallyFailed is still owed that
+	/// delivery, so removing it delivers it ZERO times -- the guarantee broken at its floor, silently, with
+	/// the claimer that holds the lease left to report against a message that no longer exists. Only Sent and
+	/// DeadLettered are terminal, and only they are candidates. If neither exists the store is full of
+	/// undelivered work and the staging call THROWS, so the caller (whose transaction has not yet committed)
+	/// learns the message was not accepted instead of believing it was queued.
+	///
+	/// No lock is needed around the choose-then-remove: both terminal states are absorbing -- nothing
+	/// transitions out of Sent or DeadLettered -- so a candidate chosen by the scan cannot become
+	/// delivery-owed before the removal, and a concurrent transition INTO a terminal state can only add
+	/// candidates. This mirrors the in-memory inbox, whose eviction fails closed rather than dropping a live
+	/// deduplication record.
+	/// </remarks>
+	private void EvictOldestTerminalMessage()
 	{
-		if (TryGetEvictionCandidateId(out var messageId))
+		if (!TryGetEvictionCandidateId(out var messageId))
 		{
-			_ = _messages.TryRemove(messageId, out _);
-			_ = _messageLocks.TryRemove(messageId, out _);
-			_ = _leases.TryRemove(messageId, out _);
-			_ = _nextAttempt.TryRemove(messageId, out _);
+			throw new InvalidOperationException(
+				$"The in-memory outbox is at capacity ({_options.MaxMessages}) and every message is still awaiting " +
+				"delivery. Evicting one would discard a message that has never been sent. Increase MaxMessages, or " +
+				"drain and clean up sent messages more frequently.");
 		}
+
+		_ = _messages.TryRemove(messageId, out _);
+		_ = _messageLocks.TryRemove(messageId, out _);
+		_ = _leases.TryRemove(messageId, out _);
+		_ = _nextAttempt.TryRemove(messageId, out _);
 	}
 
+	/// <summary>
+	/// Selects the message to reclaim: the oldest Sent message, else the oldest DeadLettered one.
+	/// </summary>
+	/// <remarks>
+	/// There is deliberately NO "oldest message overall" fallback. That fallback was the defect: with no Sent
+	/// message present it returned whatever was oldest -- routinely an unsent, currently-leased message --
+	/// and eviction dropped it. Restricting the scan to the two terminal states makes "evict something still
+	/// owed delivery" unrepresentable here rather than merely unlikely.
+	/// </remarks>
 	private bool TryGetEvictionCandidateId(out string messageId)
 	{
 		OutboundMessage? oldestSentMessage = null;
 		DateTimeOffset? oldestSentAt = null;
-		OutboundMessage? oldestOverallMessage = null;
-		var oldestCreatedAt = DateTimeOffset.MaxValue;
+		OutboundMessage? oldestDeadLetteredMessage = null;
 
 		foreach (var message in _messages.Values)
 		{
-			if (message.CreatedAt < oldestCreatedAt)
+			switch (message.Status)
 			{
-				oldestCreatedAt = message.CreatedAt;
-				oldestOverallMessage = message;
-			}
+				case OutboxStatus.Sent when oldestSentMessage is null || Nullable.Compare(message.SentAt, oldestSentAt) < 0:
+					oldestSentMessage = message;
+					oldestSentAt = message.SentAt;
+					break;
 
-			if (message.Status != OutboxStatus.Sent)
-			{
-				continue;
-			}
+				case OutboxStatus.DeadLettered when oldestDeadLetteredMessage is null || message.CreatedAt < oldestDeadLetteredMessage.CreatedAt:
+					oldestDeadLetteredMessage = message;
+					break;
 
-			if (oldestSentMessage is null ||
-				Nullable.Compare(message.SentAt, oldestSentAt) < 0)
-			{
-				oldestSentMessage = message;
-				oldestSentAt = message.SentAt;
+				default:
+					break;
 			}
 		}
 
-		var candidate = oldestSentMessage ?? oldestOverallMessage;
+		var candidate = oldestSentMessage ?? oldestDeadLetteredMessage;
 		if (candidate is null)
 		{
 			messageId = string.Empty;

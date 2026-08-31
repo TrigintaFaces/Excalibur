@@ -27,7 +27,7 @@ public sealed class OutboundMessage
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OutboundMessage" /> class with specified values.
 	/// </summary>
-	/// <param name="messageType"> The fully qualified type name of the message. </param>
+	/// <param name="messageType"> A type name for the message that the message type registry can resolve — its simple name, its assembly-qualified name, or "Namespace.TypeName, AssemblyName". </param>
 	/// <param name="payload"> The serialized message payload. </param>
 	/// <param name="destination"> The destination where the message should be delivered. </param>
 	/// <param name="headers"> Optional message headers and metadata. </param>
@@ -47,7 +47,7 @@ public sealed class OutboundMessage
 	/// propagating the cross-cutting context fields (correlation, causation, and tenant) onto the
 	/// staged message in a single place.
 	/// </summary>
-	/// <param name="messageType"> The fully qualified type name of the message. </param>
+	/// <param name="messageType"> A type name for the message that the message type registry can resolve — its simple name, its assembly-qualified name, or "Namespace.TypeName, AssemblyName". </param>
 	/// <param name="payload"> The serialized message payload. </param>
 	/// <param name="destination"> The destination where the message should be delivered. </param>
 	/// <param name="context"> The message context the cross-cutting fields are copied from. </param>
@@ -87,9 +87,18 @@ public sealed class OutboundMessage
 	public string Id { get; set; }
 
 	/// <summary>
-	/// Gets or sets the fully qualified type name of the message.
+	/// Gets or sets the name under which the message's .NET type is registered.
 	/// </summary>
-	/// <value> The .NET type name used for message deserialization and routing. </value>
+	/// <value>
+	/// A type name the message type registry can resolve, used to reconstruct the message when the entry is
+	/// dispatched. The framework's own
+	/// writers are not uniform — outbox staging from the dispatch pipeline stores the simple name
+	/// (<c>Type.Name</c>), while direct publication through the message-bus publisher stores
+	/// <c>Type.FullName</c>. Both resolve.
+	/// An ambiguous simple name — one shared by two registered types — resolves to
+	/// <b>nothing</b> rather than to either of them, so a collision fails loudly at resolution rather
+	/// than deserializing the payload as the wrong type.
+	/// </value>
 	public string MessageType { get; set; } = string.Empty;
 
 	/// <summary>
@@ -165,9 +174,31 @@ public sealed class OutboundMessage
 	public string? CausationId { get; set; }
 
 	/// <summary>
-	/// Gets or sets the tenant identifier for multi-tenant scenarios.
+	/// Gets or sets the tenant identifier this message belongs to.
 	/// </summary>
-	/// <value> Tenant ID for tenant isolation and routing. </value>
+	/// <value>
+	/// The tenant identifier. Settable as <see langword="null"/> when staging a message that carries no
+	/// tenant; on the way back out of a store it is never <see langword="null"/> — see the remarks.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// <b>Staging accepts an absence; the drain never returns one.</b> A message staged with
+	/// <see langword="null"/> here is drained carrying <see cref="TenantScope.UntenantedSentinel"/> — the
+	/// reserved untenanted partition — on every conformant store. Untenanted is a <em>value</em>, not an
+	/// absence: a second spelling of "no tenant" is a fold, and every fold is a place two paths can
+	/// disagree about which partition a message belongs to.
+	/// </para>
+	/// <para>
+	/// So a handler must not branch on <c>TenantId is null</c> to mean untenanted. Compare against
+	/// <see cref="TenantScope.UntenantedSentinel"/>, or route the value through
+	/// <see cref="KeyedTenantPartition.FromStoredValue(string?)"/>, which is total over every spelling.
+	/// </para>
+	/// <para>
+	/// This postcondition is a contract on the store, enforced by the published outbox conformance kit
+	/// rather than by this type — the property is settable so that staging can express "no tenant", which
+	/// means the type itself cannot make the absence unrepresentable.
+	/// </para>
+	/// </remarks>
 	public string? TenantId { get; set; }
 
 	/// <summary>

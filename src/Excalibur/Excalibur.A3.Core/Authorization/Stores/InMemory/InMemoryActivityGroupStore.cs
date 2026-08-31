@@ -66,7 +66,7 @@ internal sealed class InMemoryActivityGroupStore : IActivityGroupStore
 
 	/// <inheritdoc />
 	public Task<int> CreateActivityGroupAsync(
-		string? tenantId,
+		string tenantId,
 		string name,
 		string activityName,
 		CancellationToken cancellationToken)
@@ -91,5 +91,5 @@ internal sealed class InMemoryActivityGroupStore : IActivityGroupStore
 	/// <summary>
 	/// Internal record representing a single activity-group-to-activity mapping.
 	/// </summary>
-	private sealed record ActivityGroupEntry(string? TenantId, string Name, string ActivityName);
+	private sealed record ActivityGroupEntry(string TenantId, string Name, string ActivityName);
 }

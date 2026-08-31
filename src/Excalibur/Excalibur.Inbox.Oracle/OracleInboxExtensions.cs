@@ -35,11 +35,15 @@ public static class OracleInboxExtensions
 		_ = services.AddOptions<OracleInboxOptions>().Configure(configure).ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<OracleInboxOptions>, OracleInboxOptionsValidator>());
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore threads the resolved ITenantContext into construction (dep-gated: absent
-		// context ⇒ resolution fails closed, on which the store filters every keyed read) AND emits the
-		// ITenantScopingCapability<IInboxStore> marker inseparably.
-		services.AddTenantScopedStore<IInboxStore, OracleInboxStore>(
-			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<OracleInboxStore>(sp, tenantContext));
+		// The remaining constructor dependency, so this entry point can build its own store rather than only
+		// working in hosts that happen to have composed logging already. TryAdd-based, so a host that
+		// configures its own logging still wins.
+		_ = services.AddLogging();
+		// AddTenantAwareStore threads the resolved ITenantContext into construction (dep-gated: absent
+		// context ⇒ resolution fails closed, on which the store filters every keyed read, since this
+		// store's constructor declares one) AND emits the ITenantScopingCapability<IInboxStore> marker
+		// inseparably.
+		services.AddTenantAwareStore<IInboxStore, OracleInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("oracle", (sp, _) => sp.GetRequiredService<OracleInboxStore>());
 		services.AddInboxSchemaValidation();
 		services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<OracleInboxStore>());
@@ -70,15 +74,15 @@ public static class OracleInboxExtensions
 		_ = services.AddOptions<OracleInboxOptions>().Configure(configure).ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<OracleInboxOptions>, OracleInboxOptionsValidator>());
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext so this factory path applies the
-		// tenant predicate rather than silently dropping it) AND emits the ITenantScopingCapability<IInboxStore>
-		// marker inseparably.
-		services.AddTenantScopedStore<IInboxStore, OracleInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext so this factory path applies the
+		// tenant predicate rather than silently dropping it, since this store's constructor declares one)
+		// AND emits the ITenantScopingCapability<IInboxStore> marker inseparably.
+		services.AddTenantAwareStore<IInboxStore, OracleInboxStore>(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<OracleInboxOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<OracleInboxStore>>();
-			return new OracleInboxStore(connectionFactory, options, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
+			return new OracleInboxStore(connectionFactory, options, logger, sp.GetRequiredService<ITenantContext>(), sp.GetRequiredService<IOptions<TenantContextOptions>>());
 		});
 		services.AddKeyedSingleton<IInboxStore>("oracle", (sp, _) => sp.GetRequiredService<OracleInboxStore>());
 		services.AddInboxSchemaValidation();

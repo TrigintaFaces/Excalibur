@@ -131,7 +131,7 @@ public static class RoleServiceCollectionExtensions
 		IServiceProvider sp,
 		ServiceDescriptor descriptor)
 	{
-		// ybem93: read implementation members through the keyed-safe accessors (raw reads throw on
+		// read implementation members through the keyed-safe accessors (raw reads throw on
 		// keyed descriptors on .NET 8+).
 		if (descriptor.GetImplementationInstance() is IAuthorizationEvaluator instance)
 		{

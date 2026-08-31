@@ -43,7 +43,7 @@ namespace Excalibur.Dispatch.Middleware.Inbox;
 /// <b>Concurrency guarantee.</b> Both modes admit through a single atomic compare-and-set, so concurrent
 /// redeliveries of the same message can never both execute the handler: light mode claims through an
 /// <c>IClaimableDeduplicator</c>; full mode claims through the store's lease-based
-/// <see cref="IClaimableInboxStore.TryClaimAsync(string, string, System.TimeSpan, System.Threading.CancellationToken)"/>
+/// <see cref="ILeasedInboxStore.TryAcquireLeaseAsync(string, string, System.TimeSpan, System.Threading.CancellationToken)"/>
 /// (a self-expiring lease that also reclaims a dead processor's stuck claim). A full-mode store that does
 /// not implement lease claiming falls back to a durable-status check whose at-most-once guarantee holds
 /// across process restarts but is not race-free across concurrent processors — the registration guard
@@ -51,28 +51,27 @@ namespace Excalibur.Dispatch.Middleware.Inbox;
 /// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.All)]
-[RequiresFeatures(DispatchFeatures.Inbox)]
 public sealed partial class InboxMiddleware : IDispatchMiddleware
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ActivitySource InboxActivitySource = new(DispatchTelemetryConstants.ActivitySources.Inbox, "1.0.0");
 
-	// lnekjc / L5: inbox processing metrics. Static library Meter (ADR-142 lifecycle) mirroring the
+	// L5: inbox processing metrics. Static library Meter mirroring the
 	// ActivitySource name (source+meter pairing). Counts processed messages tagged by result + mode.
 	private static readonly Meter InboxMeter = new(DispatchTelemetryConstants.Meters.Inbox, "1.0.0");
 	private static readonly Counter<long> ProcessedCounter = InboxMeter.CreateCounter<long>(
 		"dispatch.inbox.processed",
-		unit: "messages",
+		unit: "{messages}",
 		description: "Number of inbox messages processed, tagged with inbox.result (success/failure/error) and inbox.mode (full/light).");
 
-	// b5lr6q / MS-D AC-D2: distinct dedup-disposition counter so dedup-rate is observable/alertable.
+	// Distinct dedup-disposition counter so dedup-rate is observable/alertable.
 	// dispatch.inbox.processed folds a duplicate skip into inbox.result=success (total throughput);
 	// this counter separately records the dedup dispositions (duplicate / timeout-reset) emitted by
 	// the inbox at-most-once guards, so dedup-rate = deduplicated{duplicate} / processed is computable.
 	// inbox.disposition is bounded by construction (the two literals below); inbox.mode is full/light.
 	private static readonly Counter<long> DeduplicatedCounter = InboxMeter.CreateCounter<long>(
 		"dispatch.inbox.deduplicated",
-		unit: "messages",
+		unit: "{messages}",
 		description: "Number of inbox messages skipped or reset by deduplication, tagged with inbox.disposition (duplicate/timeout-reset) and inbox.mode (full/light).");
 
 	// Bounded inbox.disposition / inbox.mode tag values (cardinality safety — bounded by construction).
@@ -177,7 +176,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		LogProcessingMessage(messageId);
 
-		// Re-parent the consumer span on the incoming producer trace (bhwl6e): parse the transmitted
+		// Re-parent the consumer span on the incoming producer trace: parse the transmitted
 		// W3C traceparent into the parent ActivityContext so the consumer span CONTINUES the producer's
 		// distributed trace instead of starting a new root. Activity parenting MUST be set at creation;
 		// a missing/malformed traceparent leaves a default context -> a root span (fail-open, never throws).
@@ -388,7 +387,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		string messageTypeName,
 		Exception ex);
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.InboxMiddlewareExecuting, LogLevel.Warning,
 		"Cannot process message without identifier, skipping inbox processing")]
 	private partial void LogCannotProcessMessageWithoutIdentifier();
@@ -412,6 +411,14 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 20, LogLevel.Warning,
 		"Message {MessageId} is already being processed, skipping")]
 	private partial void LogMessageBeingProcessed(string messageId);
+
+	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 27, LogLevel.Warning,
+		"Deduplication claim term lost before releasing message {MessageId}; the claim expired mid-handler and another caller re-claimed the id, so nothing was released. The re-claiming caller owns the message now.")]
+	private partial void LogDedupClaimTermLostOnRelease(string messageId);
+
+	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 26, LogLevel.Warning,
+		"Lease term lost before finalizing message {MessageId} for handler {HandlerType}; the lease expired mid-handler and another processor reclaimed the entry. The reclaiming processor owns the outcome. Increase the inbox ProcessingTimeout if this recurs.")]
+	private partial void LogLeaseTermLostOnFinalize(string messageId, string handlerType);
 
 	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 25, LogLevel.Warning,
 		"Message {MessageId} has been stuck in Processing state beyond timeout, resetting for reprocessing")]
@@ -467,14 +474,18 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		// Highest-precedence atomic path: IScopedTransactionalInboxStore — a document-store native transaction
 		// (a MongoDB session / a Cosmos DB TransactionalBatch) that commits the handler's enlisted writes and
 		// the processed-mark together (exactly-once). Everything else — including relational stores — falls
-		// through UNCHANGED to the idempotent claim protocol below. SupportsTransactional is probed via the
-		// EFFECTIVE capability (composing through decorators) with a fallback to the direct interface for plain
-		// stores — matching the ValidateOnStart capability guards.
-		var supportsTransactional = _inboxStore is IInboxStoreCapabilities capabilities
-			? capabilities.SupportsTransactional
+		// through UNCHANGED to the idempotent claim protocol below. The SCOPED capability is probed, not the
+		// union SupportsTransactional: the union is also satisfied by a plain relational store, which offers
+		// no scope to hand the handler, so the union does not decide this branch. A decorated relational
+		// store is a different case and still qualifies — the decorators bridge the scoped seam onto a
+		// relational inner and report the scoped capability accordingly. Probed via the EFFECTIVE capability
+		// (composing through decorators) with a fallback to the direct interface for plain stores, matching
+		// the ValidateOnStart capability guards.
+		var supportsScopedTransactional = _inboxStore is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsScopedTransactional
 			: _inboxStore is IScopedTransactionalInboxStore;
 
-		if (supportsTransactional && _inboxStore is IScopedTransactionalInboxStore scopedTransactionalStore)
+		if (supportsScopedTransactional && _inboxStore is IScopedTransactionalInboxStore scopedTransactionalStore)
 		{
 			return await ProcessWithScopedTransactionAsync(
 				scopedTransactionalStore, messageId, handlerType, message, context, nextDelegate, cancellationToken)
@@ -486,20 +497,34 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		// which two concurrent redeliveries of the same (messageId, handlerType) could both be admitted. The
 		// lease duration is the stuck-processing timeout. Stores that do not support lease claiming fall back
 		// to the durable-status check-then-act path (the registration guard surfaces that weaker guarantee).
-		if (_inboxStore is IClaimableInboxStore claimableStore)
+		// Probed via the EFFECTIVE capability so a decorator that declares ILeasedInboxStore but wraps a
+		// non-leasing inner is not selected here (it would forward into a store with no lease path). Plain
+		// stores fall back to the direct interface check. A type check ALONE was never sufficient: the two
+		// claim protocols were once overloads on one interface, so declaring the interface said nothing
+		// about which protocol the store actually implemented, and the unimplemented one threw at the first
+		// deduplicated message.
+		var supportsLeasedClaim = _inboxStore is IInboxStoreCapabilities leaseCapabilities
+			? leaseCapabilities.SupportsLeasedClaim
+			: _inboxStore is ILeasedInboxStore;
+
+		if (supportsLeasedClaim && _inboxStore is ILeasedInboxStore leasedStore)
 		{
-			var leaseClaimed = await claimableStore
-				.TryClaimAsync(messageId, handlerType, _options.ProcessingTimeout, cancellationToken)
+			var lease = await leasedStore
+				.TryAcquireLeaseAsync(messageId, handlerType, _options.ProcessingTimeout, cancellationToken)
 				.ConfigureAwait(false);
 
-			if (!leaseClaimed)
+			if (lease is not { } heldLease)
 			{
 				LogMessageBeingProcessed(messageId);
 				RecordDeduplicated(DispositionDuplicate, ModeFull);
 				return MR.Success();
 			}
 
-			return await ExecuteHandlerAndFinalizeAsync(messageId, handlerType, message, context, nextDelegate, cancellationToken)
+			// Finalize under the TERM the acquisition returned, never through the unfenced
+			// MarkProcessedAsync/MarkFailedAsync. Those carry nothing identifying the holder, so a handler
+			// that outran its lease would write onto the record of the processor that reclaimed it.
+			return await ExecuteHandlerAndFinalizeUnderLeaseAsync(
+					leasedStore, heldLease, messageId, handlerType, message, context, nextDelegate, cancellationToken)
 				.ConfigureAwait(false);
 		}
 
@@ -547,7 +572,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		{
 			// Create new inbox entry.
 			//
-			// Concurrency contract (ctgl6x): the check-then-act window between the GetEntryAsync read above
+			// Concurrency contract: the check-then-act window between the GetEntryAsync read above
 			// and this create is made safe by CreateEntryAsync being an ATOMIC insert on the (messageId,
 			// handlerType) primary key. If two concurrent redeliveries both observe "no entry" and both
 			// create, exactly one insert wins; every other store throws InvalidOperationException on the
@@ -556,7 +581,11 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			// — observing the winner's entry on the next attempt rather than double-admitting. (The preferred
 			// path is the single-round-trip IClaimableInboxStore lease claim above, which removes this window
 			// entirely; this fallback holds only because the create is PK-atomic.)
-			var messageTypeName = messageType.Name;
+			// Store the same name form the outbox stages and the explicit inbox API writes, so one registry
+			// lookup resolves a row from any of them. The simple name alone is not unique: two message types
+			// sharing it across namespaces are indistinguishable once written, and the registry refuses an
+			// ambiguous name rather than guessing -- so a short name here costs the entry its drain.
+			var messageTypeName = handlerType;
 			var payload = SerializeMessage(message);
 			var metadata = ExtractMetadata(message, context);
 
@@ -584,9 +613,75 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	}
 
 	/// <summary>
-	/// Runs the handler for an already-admitted full-inbox message and finalizes the durable entry:
-	/// <see cref="InboxStatus.Processed"/> on success, <see cref="InboxStatus.Failed"/> on failure or exception.
+	/// Runs the handler for a message admitted through the lease protocol, then finalizes the durable entry
+	/// under the term the acquisition returned: <see cref="InboxStatus.Processed"/> on success,
+	/// <see cref="InboxStatus.Failed"/> on failure or exception.
 	/// </summary>
+	/// <remarks>
+	/// A <see langword="false"/> result from either fenced write means this caller lost its term: its lease
+	/// lapsed and another processor reclaimed the entry mid-handler. The message is NOT re-run and NOT
+	/// failed here — the live holder owns the outcome now. The handler having already run is the documented
+	/// at-least-once behaviour, so this is logged rather than raised, but it is logged as a warning because
+	/// it means the configured processing timeout is shorter than real handler duration.
+	/// </remarks>
+	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware.SerializeMessage(IDispatchMessage)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware.SerializeMessage(IDispatchMessage)")]
+	private async Task<IMessageResult> ExecuteHandlerAndFinalizeUnderLeaseAsync(
+		ILeasedInboxStore leasedStore,
+		LeaseToken lease,
+		string messageId,
+		string handlerType,
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+
+			if (result.Succeeded)
+			{
+				if (await leasedStore.CompleteAsync(messageId, handlerType, lease, cancellationToken).ConfigureAwait(false))
+				{
+					LogMarkedMessageAsProcessed(messageId);
+				}
+				else
+				{
+					LogLeaseTermLostOnFinalize(messageId, handlerType);
+				}
+			}
+			else
+			{
+				var errorMessage = result.ErrorMessage ?? "Message processing failed";
+
+				if (await leasedStore.FailAsync(messageId, handlerType, lease, errorMessage, cancellationToken).ConfigureAwait(false))
+				{
+					LogMarkedMessageAsFailed(messageId, errorMessage);
+				}
+				else
+				{
+					LogLeaseTermLostOnFinalize(messageId, handlerType);
+				}
+			}
+
+			return result;
+		}
+		catch (Exception ex)
+		{
+			if (!await leasedStore.FailAsync(messageId, handlerType, lease, ex.Message, cancellationToken).ConfigureAwait(false))
+			{
+				LogLeaseTermLostOnFinalize(messageId, handlerType);
+			}
+			else
+			{
+				LogMarkedMessageAsFailedDueToException(messageId, ex);
+			}
+
+			throw;
+		}
+	}
+
 	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware.SerializeMessage(IDispatchMessage)")]
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware.SerializeMessage(IDispatchMessage)")]
 	private async Task<IMessageResult> ExecuteHandlerAndFinalizeAsync(
@@ -734,8 +829,8 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var claimKey = ClaimKeyPrefix + messageId;
 
 		// Atomically claim the message id: first writer wins and proceeds; the rest are duplicates.
-		var claimed = await claim.TryClaimAsync(claimKey, expiry, cancellationToken).ConfigureAwait(false);
-		if (!claimed)
+		var claimToken = await claim.TryClaimAsync(claimKey, expiry, cancellationToken).ConfigureAwait(false);
+		if (claimToken is not { } heldClaim)
 		{
 			LogMessageIsDuplicate(_logger, messageId);
 			RecordDeduplicated(DispositionDuplicate, ModeLight);
@@ -755,8 +850,15 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			}
 			else
 			{
-				// Release the claim so a redelivery of the failed message can be re-admitted.
-				await claim.ReleaseAsync(claimKey, cancellationToken).ConfigureAwait(false);
+				// Release the claim so a redelivery of the failed message can be re-admitted. A false result
+				// means this caller's claim had already lapsed and been taken by another caller, so there was
+				// nothing of ours to release -- read it rather than discarding it, or a release that did
+				// nothing is indistinguishable from one that worked.
+				if (!await claim.ReleaseAsync(claimKey, heldClaim, cancellationToken).ConfigureAwait(false))
+				{
+					LogDedupClaimTermLostOnRelease(messageId);
+				}
+
 				LogMessageProcessingFailedInLightMode(_logger, messageId, result.ErrorMessage ?? string.Empty);
 			}
 
@@ -764,8 +866,13 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		}
 		catch (Exception ex)
 		{
-			// Release the claim on exception so the message stays retryable on redelivery.
-			await claim.ReleaseAsync(claimKey, cancellationToken).ConfigureAwait(false);
+			// Release the claim on exception so the message stays retryable on redelivery. As above, a false
+			// result means the claim had already lapsed and belongs to someone else now.
+			if (!await claim.ReleaseAsync(claimKey, heldClaim, cancellationToken).ConfigureAwait(false))
+			{
+				LogDedupClaimTermLostOnRelease(messageId);
+			}
+
 			LogExceptionDuringLightModeProcessing(_logger, messageId, ex);
 			throw;
 		}
@@ -782,7 +889,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		{
 			// Route the WRITE through the configured DispatchJsonSerializer so it shares the consumer's
 			// naming policy, string-enum representation, custom converters, and AOT TypeInfoResolver with the
-			// READ path (InboxProcessor) — symmetric wire contract, no custom-converter drop, no AOT hole (15sf7a).
+			// READ path (InboxProcessor) — symmetric wire contract, no custom-converter drop, no AOT hole.
 			using var result = _serializer.SerializeToPooledBuffer(message, message.GetType());
 			return result.WrittenSpan.ToArray();
 		}

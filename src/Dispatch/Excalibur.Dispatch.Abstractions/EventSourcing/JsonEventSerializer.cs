@@ -75,7 +75,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
 
-		// ifgj5w: surface failures as SerializationException (canonical contract) so event-store
+		// surface failures as SerializationException (canonical contract) so event-store
 		// read/write failures are uniformly catchable/poison-routable, like SpanEventSerializer.
 		var eventType = domainEvent.GetType();
 		try
@@ -103,7 +103,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 
 		ArgumentNullException.ThrowIfNull(eventType);
 
-		// ifgj5w: surface failures as SerializationException (canonical contract) so event-store
+		// surface failures as SerializationException (canonical contract) so event-store
 		// read failures are uniformly catchable/poison-routable, like SpanEventSerializer.
 		try
 		{
@@ -144,21 +144,18 @@ public sealed class JsonEventSerializer : IEventSerializer
 			return cachedType;
 		}
 
-		// c6wd6f: consult the consumer-registered allow-list FIRST, independent of the scan. A registered
+		// consult the consumer-registered allow-list FIRST, independent of the scan. A registered
 		// type resolves securely (no reflection scan), making the secure default usable for event sourcing;
 		// an unregistered type still falls through to the scan gate below (rejected unless opted in).
 		var registered = _registry?.ResolveType(typeName);
 		if (registered is not null)
 		{
-			if (_typeCache.Count < MaxTypeCacheSize)
-			{
-				_ = _typeCache.TryAdd(typeName, registered);
-			}
+			CacheResolvedType(typeName, registered);
 
 			return registered;
 		}
 
-		// wpynky / S-E: the unbounded AppDomain.GetAssemblies() scan is the gadget-chain vector — it can
+		// S-E: the unbounded AppDomain.GetAssemblies() scan is the gadget-chain vector — it can
 		// resolve an attacker-chosen type from any loaded assembly. It is OFF by default: an unregistered
 		// type name is rejected unless the consumer explicitly opted into the scan (accepting the resolution
 		// risk in a trusted environment, symmetric with the reflection opt-in this serializer represents).
@@ -167,9 +164,10 @@ public sealed class JsonEventSerializer : IEventSerializer
 			throw new UnknownEventTypeException(
 				$"Cannot resolve event type '{typeName}': it is not registered and the assembly scan is " +
 				"disabled. Register your event types with AddEventTypes<T>() / AddEventTypesFromAssembly(...) " +
-				"(secure, recommended), or use AotJsonEventSerializer (source-generated type map), or " +
-				"construct JsonEventSerializer(allowAssemblyScan: true) to enable the reflection assembly " +
-				"scan in a trusted environment.");
+				"(secure, recommended), or switch to the reflection-free source-generated serializer with " +
+				"services.AddAotEventSerializer(MyJsonContext.Default), or construct " +
+				"JsonEventSerializer(allowAssemblyScan: true) to enable the reflection assembly scan in a " +
+				"trusted environment.");
 		}
 
 		// Resolve from loaded assemblies to support both full names and assembly-qualified names
@@ -178,13 +176,31 @@ public sealed class JsonEventSerializer : IEventSerializer
 				$"Cannot resolve type: '{typeName}'. Ensure the assembly containing this type is loaded. " +
 				"If using short type names, the type must be discoverable in loaded assemblies.");
 
-		// Only cache if we haven't exceeded the capacity — prevents unbounded memory growth
-		if (_typeCache.Count < MaxTypeCacheSize)
-		{
-			_typeCache.TryAdd(typeName, resolvedType);
-		}
+		CacheResolvedType(typeName, resolvedType);
 
 		return resolvedType;
+	}
+
+	/// <summary>
+	/// Records a successful resolution, bounding the cache by discarding it once it is full rather than
+	/// by refusing further entries.
+	/// </summary>
+	/// <remarks>
+	/// Refusing entries at the cap is a one-way latch: after the first <see cref="MaxTypeCacheSize"/>
+	/// distinct names the cache can never again admit a type, so every subsequent resolution of a new name
+	/// pays the full lookup for the lifetime of the process. Discarding and refilling keeps the same memory
+	/// bound while letting the cache continue to track whichever names are actually in use.
+	/// </remarks>
+	/// <param name="typeName">The name that was resolved.</param>
+	/// <param name="resolvedType">The type it resolved to.</param>
+	private void CacheResolvedType(string typeName, Type resolvedType)
+	{
+		if (_typeCache.Count >= MaxTypeCacheSize)
+		{
+			_typeCache.Clear();
+		}
+
+		_ = _typeCache.TryAdd(typeName, resolvedType);
 	}
 
 	/// <summary>

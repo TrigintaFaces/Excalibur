@@ -94,8 +94,14 @@ public static class InboxBuilderInMemoryExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<InMemoryInboxOptions>, InMemoryInboxOptionsValidator>());
 
-		// Register in-memory inbox store
-		builder.Services.TryAddSingleton<InMemoryInboxStore>();
+		// TryAdd, so a host that established its own tenancy keeps it. AddTenantAwareStore resolves
+		// ITenantContext with GetRequiredService, so without this the registration is not self-sufficient.
+		_ = builder.Services.AddDefaultTenantContext();
+
+		// Register in-memory inbox store. AddTenantAwareStore injects ITenantContext (so the dedup key
+		// carries the resolved tenant) and emits the ITenantScopingCapability<IInboxStore> marker
+		// inseparably from that wiring, so the marker cannot outlive the wiring it attests.
+		_ = builder.Services.AddTenantAwareStore<IInboxStore, InMemoryInboxStore>();
 		builder.Services.AddKeyedSingleton<IInboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("inmemory"));

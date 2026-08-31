@@ -24,13 +24,13 @@ internal sealed class AzureServiceBusOptionsValidator : IValidateOptions<AzureSe
 		{
 			return ValidateOptionsResult.Fail(
 				"Azure Service Bus requires either Namespace or ConnectionString to be configured. " +
-				"Set AzureServiceBusOptions.Namespace for managed identity or AzureServiceBusOptions.ConnectionString for connection string auth.");
+				"Set Namespace for managed identity, or ConnectionString for connection-string auth.");
 		}
 
-		if (string.IsNullOrWhiteSpace(options.QueueName))
+		if (string.IsNullOrWhiteSpace(options.Sender.DefaultEntityName))
 		{
 			return ValidateOptionsResult.Fail(
-				"Azure Service Bus QueueName is required. Set AzureServiceBusOptions.QueueName to the target queue or topic.");
+				"Azure Service Bus requires a default entity. Set Sender.DefaultEntityName to the target queue or topic.");
 		}
 
 		return ValidateOptionsResult.Success;

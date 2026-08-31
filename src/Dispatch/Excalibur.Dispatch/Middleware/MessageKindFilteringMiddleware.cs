@@ -10,8 +10,11 @@ namespace Excalibur.Dispatch.Middleware;
 /// </summary>
 internal sealed class MessageKindFilteringMiddleware(
 	IDispatchMiddleware inner,
-	MessageKinds applicableKinds) : IDispatchMiddleware
+	MessageKinds applicableKinds) : IDispatchMiddleware, IMiddlewareDecorator
 {
+	/// <inheritdoc />
+	public IDispatchMiddleware Inner => inner;
+
 	/// <inheritdoc />
 	public DispatchMiddlewareStage? Stage => inner.Stage;
 

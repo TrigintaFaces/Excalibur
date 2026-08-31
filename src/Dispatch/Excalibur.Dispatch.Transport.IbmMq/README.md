@@ -27,3 +27,34 @@ services.AddIbmMqTransport("ibmmq", o =>
 ```
 
 Credentials (`UserId`/`Password`) must come from configuration or a secret manager — never commit values.
+
+## Driver license
+
+This package depends on `IBMMQDotnetClient`, IBM's own MQ classes for .NET. It is **not** distributed
+under an OSI-approved open-source license. The package declares no SPDX license expression; it sets
+`requireLicenseAcceptance` and points at
+[IBM's license terms](https://www.ibm.com/support/customer/csol/terms/?id=L-MKDD-7KHY2Q), and it ships
+IBM's terms inside the package under `licenses/`. Those terms open:
+
+> IMPORTANT: READ CAREFULLY
+>
+> Two license agreements are presented below.
+>
+> 1. IBM International License Agreement for Evaluation of Programs
+> 2. IBM International Program License Agreement
+>
+> If Licensee is obtaining the Program for purposes of productive use (other than evaluation, testing,
+> trial "try or buy," or demonstration): By clicking on the "Accept" button below, Licensee accepts the
+> IBM International Program License Agreement, without modification.
+
+The evaluation agreement carries a 90-day evaluation period; the International Program License
+Agreement is the one the terms name for productive use.
+
+Excalibur redistributes no IBM software and asserts nothing about your entitlement on your behalf.
+Referencing this package makes NuGet install the driver into your application, so the obligations are
+yours. Read the terms shipped in the driver package, and the terms at the URL above, and confirm your
+deployment is covered before you ship.
+
+If those terms do not suit you, the other Excalibur transports carry OSI-approved driver licenses --
+see `THIRD-PARTY-NOTICES.md` in the repository for every dependency's license.
+

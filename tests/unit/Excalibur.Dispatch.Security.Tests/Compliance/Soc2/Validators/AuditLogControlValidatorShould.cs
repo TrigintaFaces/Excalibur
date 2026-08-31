@@ -78,7 +78,7 @@ public sealed class AuditLogControlValidatorShould
 				A<DateTimeOffset>._,
 				A<DateTimeOffset>._,
 				A<CancellationToken>._))
-			.Returns(AuditIntegrityResult.Valid(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow));
+			.Returns(AuditIntegrityResult.Verified(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, isHashChained: true));
 
 		// Act
 		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
@@ -96,7 +96,7 @@ public sealed class AuditLogControlValidatorShould
 				A<DateTimeOffset>._,
 				A<DateTimeOffset>._,
 				A<CancellationToken>._))
-			.Returns(AuditIntegrityResult.Invalid(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, "event-123", "Hash chain broken"));
+			.Returns(AuditIntegrityResult.ViolationsDetected(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, "event-123", "Hash chain broken", compromisedChainCount: 1, isHashChained: true));
 
 		// Act
 		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
@@ -104,6 +104,44 @@ public sealed class AuditLogControlValidatorShould
 		// Assert
 		result.IsEffective.ShouldBeFalse();
 		result.ConfigurationIssues.ShouldContain(i => i.Contains("integrity check failed"));
+	}
+
+	/// <summary>
+	/// A verification window that contained no audit events must be reported as unexercised, never as a
+	/// pass.
+	/// </summary>
+	/// <remarks>
+	/// The evidence produced here is handed to an external auditor. Reporting an empty window as "Passed"
+	/// would put an assurance in front of that auditor which nothing established: no event was read, so no
+	/// hash was checked. Both arms below are required -- the evidence must not claim a pass (safety) and it
+	/// must still be emitted and describe the window honestly (liveness), which a validator that silently
+	/// dropped the evidence item would fail.
+	/// </remarks>
+	[Fact]
+	public async Task ValidateAsync_SEC004_ReportEvidenceAsUnexercised_WhenNoEventsInScope()
+	{
+		// Arrange
+		_ = A.CallTo(() => _fakeAuditLogger.VerifyIntegrityAsync(
+				A<DateTimeOffset>._,
+				A<DateTimeOffset>._,
+				A<CancellationToken>._))
+			.Returns(AuditIntegrityResult.NoEventsInScope(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow));
+
+		// Act
+		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
+
+		// Assert -- the empty window is described, and never as a pass.
+		result.Evidence.ShouldContain(
+			e => e.Description.Contains("Not exercised", StringComparison.Ordinal),
+			"an empty verification window must be reported to the auditor as unexercised.");
+		result.Evidence.ShouldNotContain(
+			e => e.Description.Contains("integrity verification: Passed", StringComparison.Ordinal),
+			"nothing was examined, so no integrity assurance may be claimed.");
+
+		// An unexercised window is not itself a control failure -- it is reported honestly, not counted
+		// against the control.
+		result.IsEffective.ShouldBeTrue();
+		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("integrity check failed", StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -133,7 +171,7 @@ public sealed class AuditLogControlValidatorShould
 				A<DateTimeOffset>._,
 				A<DateTimeOffset>._,
 				A<CancellationToken>._))
-			.Returns(AuditIntegrityResult.Valid(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow));
+			.Returns(AuditIntegrityResult.Verified(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, isHashChained: true));
 
 		// Act
 		var result = await _sut.ValidateAsync("SEC-004", CancellationToken.None);
@@ -159,7 +197,7 @@ public sealed class AuditLogControlValidatorShould
 				capturedStart = start;
 				capturedEnd = end;
 			})
-			.Returns(AuditIntegrityResult.Valid(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow));
+			.Returns(AuditIntegrityResult.Verified(100, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, isHashChained: true));
 
 		// Act
 		_ = await _sut.ValidateAsync("SEC-004", CancellationToken.None);

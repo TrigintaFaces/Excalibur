@@ -53,6 +53,14 @@ foreach ($project in $projects) {
     # Parse csproj XML
     [xml]$csproj = Get-Content $csprojPath
 
+    # This audit's verdict is about SHIPPING packages, so its population must be shipping packages.
+    # A project marked IsPackable=false produces no package at all -- auditing it for Description,
+    # PackageTags and PackageReadmeFile asks a question that cannot apply, and answers it 'missing'.
+    $isPackable = $csproj.SelectSingleNode("//IsPackable")?.InnerText
+    if ($isPackable -and $isPackable.Trim() -ieq 'false') {
+        continue
+    }
+
     # Extract metadata
     $description = $csproj.SelectSingleNode("//Description")?.InnerText
     $packageTags = $csproj.SelectSingleNode("//PackageTags")?.InnerText

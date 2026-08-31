@@ -16,8 +16,16 @@ namespace Excalibur.Dispatch.Serialization;
 /// </para>
 /// <list type="bullet">
 /// <item><description>Copying this struct creates a shallow copy sharing the same underlying buffer.</description></item>
-/// <item><description>Disposing any copy returns the buffer to the pool, invalidating all copies.</description></item>
-/// <item><description>After disposal, accessing <see cref="WrittenMemory"/> or <see cref="WrittenSpan"/> returns invalid data.</description></item>
+/// <item><description>
+/// Disposing any copy returns the buffer to the pool and ends the lifetime of every copy. The return
+/// happens exactly once however many copies are disposed, and from however many threads at once.
+/// </description></item>
+/// <item><description>
+/// Once any copy has been disposed, reading <see cref="WrittenMemory"/>, <see cref="WrittenSpan"/> or
+/// calling <see cref="CopyTo"/> on any copy throws <see cref="ObjectDisposedException"/>. The data is
+/// never silently wrong: a read that comes too late fails rather than returning another renter's bytes.
+/// <see cref="Length"/> keeps reporting the length that was written and does not throw.
+/// </description></item>
 /// </list>
 /// <para>
 /// <strong>Best Practice:</strong> Use with <c>using</c> statement and avoid copying:
@@ -43,6 +51,9 @@ public readonly struct PooledSerializationResult : IDisposable, IEquatable<Poole
 	/// <value>
 	/// The written memory containing the serialized data.
 	/// </value>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown when this result, or any copy of it, has already been disposed.
+	/// </exception>
 	public ReadOnlyMemory<byte> WrittenMemory => _pooledBuffer.Buffer.AsMemory(0, Length);
 
 	/// <summary>
@@ -51,6 +62,9 @@ public readonly struct PooledSerializationResult : IDisposable, IEquatable<Poole
 	/// <value>
 	/// The written span containing the serialized data.
 	/// </value>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown when this result, or any copy of it, has already been disposed.
+	/// </exception>
 	public ReadOnlySpan<byte> WrittenSpan => _pooledBuffer.Buffer.AsSpan(0, Length);
 
 	/// <summary>
@@ -78,6 +92,11 @@ public readonly struct PooledSerializationResult : IDisposable, IEquatable<Poole
 	/// <summary>
 	/// Copies the serialized data to the specified buffer writer.
 	/// </summary>
+	/// <param name="writer">The writer to copy the serialized data into.</param>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="writer"/> is null.</exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown when this result, or any copy of it, has already been disposed.
+	/// </exception>
 	public void CopyTo(IBufferWriter<byte> writer)
 	{
 		ArgumentNullException.ThrowIfNull(writer);
@@ -85,7 +104,8 @@ public readonly struct PooledSerializationResult : IDisposable, IEquatable<Poole
 	}
 
 	/// <summary>
-	/// Returns the pooled buffer to the pool.
+	/// Returns the pooled buffer to the pool. Safe to call on more than one copy, and from more than one
+	/// thread: the buffer is returned exactly once.
 	/// </summary>
 	public void Dispose() => _pooledBuffer.Dispose();
 

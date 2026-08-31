@@ -14,10 +14,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class TenantContextServiceCollectionExtensions
 {
 	/// <summary>
-	/// Registers the ambient <see cref="ITenantContext"/> and the default <see cref="ITenantResolver"/> with
-	/// validated <see cref="TenantContextOptions"/>. The context reads the ambient tenant established by
-	/// <see cref="TenantContextHolder.BeginScope"/>; the resolver derives the tenant from a dispatched
-	/// message and the configured default.
+	/// Registers the ambient <see cref="ITenantContext"/> with validated
+	/// <see cref="TenantContextOptions"/>. The context reads the ambient tenant established by
+	/// <see cref="TenantContextHolder.BeginScope"/>, which a host opens for the duration of a request
+	/// or message from the tenant its inbound pipeline resolved.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional configuration for <see cref="TenantContextOptions"/>.</param>
@@ -39,10 +39,9 @@ public static class TenantContextServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TenantContextOptions>, TenantContextOptionsValidator>());
 
-		// Replace (not TryAdd): the ambient, resolver-driven context must win over the fail-closed
-		// single-tenant default registered on the core store path, regardless of composition order.
+		// Replace (not TryAdd): the ambient context must win over the fail-closed single-tenant
+		// default registered on the core store path, regardless of composition order.
 		services.Replace(ServiceDescriptor.Singleton<ITenantContext, AmbientTenantContext>());
-		services.TryAddSingleton<ITenantResolver, DefaultTenantResolver>();
 
 		return services;
 	}

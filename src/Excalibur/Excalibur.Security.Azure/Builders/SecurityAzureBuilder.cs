@@ -17,8 +17,6 @@ internal sealed class SecurityAzureBuilder : ISecurityAzureBuilder
 
 	internal string? KeyPrefixValue { get; private set; }
 
-	internal bool ServiceBusValidationEnabled { get; private set; } = true;
-
 	internal string? BindConfigurationPath { get; private set; }
 
 	ISecurityAzureBuilder ISecurityAzureBuilder.VaultUri(string vaultUri)
@@ -33,12 +31,6 @@ internal sealed class SecurityAzureBuilder : ISecurityAzureBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(keyPrefix);
 		KeyPrefixValue = keyPrefix;
-		return this;
-	}
-
-	public ISecurityAzureBuilder EnableServiceBusValidation(bool enable = true)
-	{
-		ServiceBusValidationEnabled = enable;
 		return this;
 	}
 

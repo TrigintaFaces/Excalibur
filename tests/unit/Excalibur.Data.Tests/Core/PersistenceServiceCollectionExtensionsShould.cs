@@ -12,28 +12,25 @@ namespace Excalibur.Data.Tests.Core;
 public sealed class PersistenceServiceCollectionExtensionsShould
 {
 	[Fact]
-	public void AddPersistence_RegistersCoreServices()
+	public void AddPersistence_RegistersSharedServices()
 	{
 		var services = new ServiceCollection();
 
 		services.AddPersistence();
 
-		services.ShouldContain(sd => sd.ServiceType == typeof(IPersistenceConfiguration));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IPersistenceProviderFactory));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IConnectionStringProvider));
+		services.ShouldContain(sd => sd.ServiceType == typeof(IStartupPrerequisiteValidator));
 	}
 
 	[Fact]
-	public void AddPersistence_WithConfigure_RegistersCoreServices()
+	public void AddPersistence_RegistersNonKeyedProviderAliasForwardingToDefault()
 	{
 		var services = new ServiceCollection();
 
-		services.AddPersistence(config =>
-		{
-			config.DefaultProvider = "test";
-		});
+		services.AddPersistence();
 
-		services.ShouldContain(sd => sd.ServiceType == typeof(IPersistenceConfiguration));
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IPersistenceProvider) && sd.ImplementationFactory != null);
 	}
 
 	[Fact]
@@ -42,15 +39,6 @@ public sealed class PersistenceServiceCollectionExtensionsShould
 		ServiceCollection? services = null;
 
 		Should.Throw<ArgumentNullException>(() => services!.AddPersistence());
-	}
-
-	[Fact]
-	public void AddPersistence_ThrowsForNullConfigure()
-	{
-		var services = new ServiceCollection();
-
-		Should.Throw<ArgumentNullException>(
-			() => services.AddPersistence((Action<PersistenceConfiguration>)null!));
 	}
 
 	[Fact]
@@ -64,14 +52,14 @@ public sealed class PersistenceServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddPersistence_RegistersConfigurationValidator()
+	public void AddPersistence_RegistersPrerequisiteValidatorAsHostedService()
 	{
 		var services = new ServiceCollection();
 
 		services.AddPersistence();
 
-		// The hosted service for validation should be registered
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService));
+			sd.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+			&& sd.ImplementationType == typeof(PersistencePrerequisiteValidator));
 	}
 }

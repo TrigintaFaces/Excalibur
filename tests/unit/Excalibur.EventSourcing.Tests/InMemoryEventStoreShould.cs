@@ -41,7 +41,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task AppendAsync_ShouldStoreEventsSuccessfully()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
@@ -62,7 +62,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task AppendAsync_ShouldReturnConcurrencyConflict_WhenVersionMismatch()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 
@@ -85,7 +85,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task AppendAsync_ShouldSucceed_WithCorrectExpectedVersion()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 
@@ -109,7 +109,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task AppendAsync_WithEmptyEventList_ShouldReturnSuccessWithoutStoring()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var events = new List<IDomainEvent>();
 
 		// Act
@@ -124,7 +124,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task AppendAsync_ShouldIncrementVersionForMultipleEvents()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
@@ -151,7 +151,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task LoadAsync_ShouldReturnEmptyList_WhenAggregateDoesNotExist()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Act
 		var events = await store.LoadAsync("non-existent", "TestAggregate", CancellationToken.None);
@@ -164,7 +164,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task LoadAsync_ShouldReturnAllEvents_ForExistingAggregate()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
@@ -187,7 +187,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task LoadAsync_WithFromVersion_ShouldReturnEventsAfterVersion()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
@@ -212,7 +212,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task LoadAsync_ShouldReturnEventsOrderedByVersion()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
@@ -241,7 +241,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task Clear_ShouldRemoveAllEvents()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var events = new List<IDomainEvent>
 		{
 			new TestCreatedEvent { Name = "Event1" },
@@ -267,7 +267,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task ShouldHandleConcurrentAppends()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateType = "TestAggregate";
 		var tasks = new List<Task<AppendResult>>();
 
@@ -296,7 +296,7 @@ public sealed class InMemoryEventStoreShould
 	public async Task ShouldHandleConcurrentLoads()
 	{
 		// Arrange
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 		var aggregateId = "agg-1";
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
@@ -325,7 +325,7 @@ public sealed class InMemoryEventStoreShould
 	public void ShouldImplementIEventStore()
 	{
 		// Arrange & Act
-		var store = new InMemoryEventStore();
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IEventStore>();

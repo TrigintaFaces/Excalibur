@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json.Serialization;
 
 using Excalibur.Data.CosmosDb.Diagnostics;
 using Excalibur.Dispatch;
@@ -24,8 +25,14 @@ public sealed class CosmosDbCdcStateStoreOptions
 		CompositeFormat.Parse("{0} is required.");
 
 	/// <summary>
-	/// Gets or sets the CosmosDb connection string.
+	/// Gets or sets the CosmosDb connection string used to build a client when none is supplied.
 	/// </summary>
+	/// <remarks>
+	/// Required only when the store builds its own client. A host that registers its own
+	/// <see cref="CosmosClient"/> — for token-credential authentication, a custom
+	/// <c>HttpClientFactory</c>, Gateway mode, or a chosen serializer — supplies the connection
+	/// implicitly and may leave this empty.
+	/// </remarks>
 	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
@@ -50,12 +57,22 @@ public sealed class CosmosDbCdcStateStoreOptions
 	public bool CreateContainerIfNotExists { get; set; } = true;
 
 	/// <summary>
-	/// Validates the options.
+	/// Validates the options for a store that builds its own client from <see cref="ConnectionString"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown if the options are invalid.</exception>
-	public void Validate()
+	public void Validate() => Validate(requireConnectionString: true);
+
+	/// <summary>
+	/// Validates the options, optionally waiving <see cref="ConnectionString"/>.
+	/// </summary>
+	/// <param name="requireConnectionString">
+	/// <see langword="false"/> when the caller supplies its own <see cref="CosmosClient"/>, which already
+	/// carries the endpoint and credentials the connection string would otherwise provide.
+	/// </param>
+	/// <exception cref="InvalidOperationException">Thrown if the options are invalid.</exception>
+	internal void Validate(bool requireConnectionString)
 	{
-		if (string.IsNullOrWhiteSpace(ConnectionString))
+		if (requireConnectionString && string.IsNullOrWhiteSpace(ConnectionString))
 		{
 			throw new InvalidOperationException(string.Format(System.Globalization.CultureInfo.CurrentCulture, PropertyRequiredFormat, nameof(ConnectionString)));
 		}
@@ -81,6 +98,20 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 	private readonly CosmosDbCdcStateStoreOptions _options;
 	private readonly ILogger<CosmosDbCdcStateStore> _logger;
 
+	// A create race, not an ordering problem. Concurrent first-writes for one processor all find no
+	// document and all attempt a create, so every writer but the winner is answered 409. Those losers are
+	// not stale and there is nothing to order them by -- a continuation token carries no comparable field,
+	// so refusing them would discard a write that is every bit as current as the one that won. Retrying
+	// converges by construction: once any writer has won, the document exists, so the retried upsert is a
+	// replace and cannot conflict again. The bound is margin over a race that resolves on the next attempt,
+	// not a backoff schedule; exhausting it rethrows rather than reporting a save that did not happen.
+	private const int SaveConflictRetryAttempts = 3;
+
+	// Only a client this store built is a client this store may destroy. A supplied client is a shared
+	// singleton the host also hands to its other stores, so disposing it here would tear down connections
+	// belonging to code that never asked this store for anything.
+	private readonly bool _ownsClient;
+
 	private Container? _container;
 	// Serialises first-time initialisation. Without it concurrent first callers each run the
 	// provisioning below, and where more than one field is assigned a second caller can observe
@@ -92,10 +123,17 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 	private volatile bool _disposed;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="CosmosDbCdcStateStore"/> class.
+	/// Initializes a new instance of the <see cref="CosmosDbCdcStateStore"/> class, building a client from
+	/// <see cref="CosmosDbCdcStateStoreOptions.ConnectionString"/>.
 	/// </summary>
 	/// <param name="options">The state store options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <remarks>
+	/// A connection string carries an account key, so this overload cannot authenticate with a
+	/// <c>TokenCredential</c>, cannot route through a supplied <c>HttpClientFactory</c>, and cannot select
+	/// Gateway mode or a serializer. Use the overload that accepts a <see cref="CosmosClient"/> for any of
+	/// those; the store's registration prefers a client the host registered whenever one is present.
+	/// </remarks>
 	public CosmosDbCdcStateStore(
 		IOptions<CosmosDbCdcStateStoreOptions> options,
 		ILogger<CosmosDbCdcStateStore> logger)
@@ -117,6 +155,40 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
 				},
 			});
+		_ownsClient = true;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbCdcStateStore"/> class using a client the caller
+	/// already configured.
+	/// </summary>
+	/// <param name="client">
+	/// The Cosmos client to read and write state through. The caller keeps ownership: the store never
+	/// disposes it.
+	/// </param>
+	/// <param name="options">The state store options. <see cref="CosmosDbCdcStateStoreOptions.ConnectionString"/>
+	/// is not consulted and may be left empty, because <paramref name="client"/> already carries the endpoint
+	/// and credentials.</param>
+	/// <param name="logger">The logger.</param>
+	/// <remarks>
+	/// This is the overload that makes token-credential authentication, a custom <c>HttpClientFactory</c>,
+	/// Gateway mode, and a chosen serializer reachable — none of which a connection string can express.
+	/// </remarks>
+	public CosmosDbCdcStateStore(
+		CosmosClient client,
+		IOptions<CosmosDbCdcStateStoreOptions> options,
+		ILogger<CosmosDbCdcStateStore> logger)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(logger);
+
+		_options = options.Value;
+		_options.Validate(requireConnectionString: false);
+		_logger = logger;
+
+		_client = client;
+		_ownsClient = false;
 	}
 
 	/// <inheritdoc/>
@@ -174,16 +246,50 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 			UpdatedAt = DateTimeOffset.UtcNow,
 		};
 
-		_ = await _container!.UpsertItemAsync(
-			document,
-			new PartitionKey(processorName),
-			cancellationToken: cancellationToken).ConfigureAwait(false);
+		for (var attempt = 1; ; attempt++)
+		{
+			try
+			{
+				_ = await _container!.UpsertItemAsync(
+					document,
+					new PartitionKey(processorName),
+					cancellationToken: cancellationToken).ConfigureAwait(false);
+
+				break;
+			}
+			catch (CosmosException ex)
+				when (ex.StatusCode == HttpStatusCode.Conflict && attempt < SaveConflictRetryAttempts)
+			{
+				LogPositionSaveRetriedAfterConflict(processorName, attempt);
+			}
+		}
 
 		LogPositionSaved(processorName, position.ToString());
 	}
 
 	/// <inheritdoc/>
 	public async Task DeletePositionAsync(
+		string processorName,
+		CancellationToken cancellationToken)
+	{
+		_ = await TryDeletePositionAsync(processorName, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Deletes the checkpoint for the specified processor and reports whether one was there to delete.
+	/// </summary>
+	/// <param name="processorName">The processor whose checkpoint to delete.</param>
+	/// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+	/// <returns>
+	/// <see langword="true"/> when a checkpoint was deleted; <see langword="false"/> when none existed.
+	/// </returns>
+	/// <remarks>
+	/// The absent case is already observable here without a second round trip: Cosmos answers a delete of a
+	/// missing document with 404, which is the same response that tells us nothing was removed. Returning it
+	/// rather than discarding it is what lets a caller distinguish "reset a live consumer" from "there was
+	/// nothing to reset" — a distinction a constant answer cannot express.
+	/// </remarks>
+	private async Task<bool> TryDeletePositionAsync(
 		string processorName,
 		CancellationToken cancellationToken)
 	{
@@ -200,11 +306,13 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			LogPositionDeleted(processorName);
+			return true;
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{
 			// Already deleted or never existed
 			LogPositionNotFoundForDelete(processorName);
+			return false;
 		}
 	}
 
@@ -226,11 +334,8 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
-	{
-		await DeletePositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
-		return true;
-	}
+	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken) =>
+		await TryDeletePositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
@@ -277,7 +382,12 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
 		// frees a handle on a throw.
 		_initLock?.Dispose();
-		_client.Dispose();
+
+		if (_ownsClient)
+		{
+			_client.Dispose();
+		}
+
 		await Task.CompletedTask.ConfigureAwait(false);
 	}
 
@@ -290,7 +400,11 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 		}
 
 		_disposed = true;
-		_client.Dispose();
+
+		if (_ownsClient)
+		{
+			_client.Dispose();
+		}
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -347,32 +461,55 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 	[LoggerMessage(DataCosmosDbEventId.CdcPositionDeleted, LogLevel.Debug, "Deleted position for processor '{ProcessorName}'")]
 	private partial void LogPositionDeleted(string processorName);
 
+	[LoggerMessage(DataCosmosDbEventId.CdcPositionSaveRetriedAfterConflict, LogLevel.Debug, "Retrying position save for processor '{ProcessorName}' after a create conflict (attempt {Attempt})")]
+	private partial void LogPositionSaveRetriedAfterConflict(string processorName, int attempt);
+
 	[LoggerMessage(DataCosmosDbEventId.CdcPositionNotFoundForDeletion, LogLevel.Debug, "Position not found for deletion for processor '{ProcessorName}'")]
 	private partial void LogPositionNotFoundForDelete(string processorName);
 
 	/// <summary>
 	/// Internal document structure for storing CDC state in CosmosDb.
 	/// </summary>
+	/// <remarks>
+	/// Every property carries BOTH a <see cref="JsonPropertyNameAttribute"/> (System.Text.Json) and a
+	/// <see cref="Newtonsoft.Json.JsonPropertyAttribute"/> with the same lowercase name, so the document serializes
+	/// to the same keys whichever serializer the client in use happens to have. This became load-bearing the
+	/// moment the store accepted a caller-supplied client: the store's own client forces camelCase naming, but
+	/// a supplied one need not, and the Cosmos SDK v3 default serializer is Newtonsoft with no naming policy.
+	/// Under that default an unannotated document emits PascalCase <c>"Id"</c>/<c>"ProcessorName"</c>, which
+	/// leaves Cosmos's required system key <c>id</c> absent and the document's partition-key field mismatched
+	/// against the <c>/processorName</c> path — so the point read never finds the checkpoint and the processor
+	/// silently resumes from the beginning on every restart. The names chosen here are exactly what the
+	/// camelCase policy already produced, so documents written before this annotation still read back.
+	/// </remarks>
 	private sealed class CdcStateDocument
 	{
 		/// <summary>
-		/// Gets or sets the document ID (matches processor name).
+		/// Gets or sets the document ID (matches processor name; Cosmos-required lowercase <c>id</c>).
 		/// </summary>
+		[JsonPropertyName("id")]
+		[Newtonsoft.Json.JsonProperty("id")]
 		public string Id { get; set; } = string.Empty;
 
 		/// <summary>
-		/// Gets or sets the processor name (partition key).
+		/// Gets or sets the processor name (partition key, path <c>/processorName</c>).
 		/// </summary>
+		[JsonPropertyName("processorName")]
+		[Newtonsoft.Json.JsonProperty("processorName")]
 		public string ProcessorName { get; set; } = string.Empty;
 
 		/// <summary>
 		/// Gets or sets the serialized position data (base64).
 		/// </summary>
+		[JsonPropertyName("positionData")]
+		[Newtonsoft.Json.JsonProperty("positionData")]
 		public string PositionData { get; set; } = string.Empty;
 
 		/// <summary>
 		/// Gets or sets when this state was last updated.
 		/// </summary>
+		[JsonPropertyName("updatedAt")]
+		[Newtonsoft.Json.JsonProperty("updatedAt")]
 		public DateTimeOffset UpdatedAt { get; set; }
 	}
 }

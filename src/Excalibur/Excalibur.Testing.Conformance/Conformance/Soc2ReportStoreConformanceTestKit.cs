@@ -36,20 +36,27 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
-/// public class SqlServerSoc2ReportStoreConformanceTests : Soc2ReportStoreConformanceTestKit
+/// // AddSoc2ReportStore&lt;TStore&gt; is the registration a consumer uses, so resolving through the
+/// // container certifies the object they actually get rather than one you assembled by hand.
+/// // The store is registered scoped, so the arms resolve it from a scope.
+/// public class MySoc2ReportStoreConformanceTests : Soc2ReportStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
+///     private readonly ServiceProvider _provider;
+///
+///     public MySoc2ReportStoreConformanceTests(MyStoreFixture fixture) =&gt;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSingleton(fixture.DataSource)
+///             .AddSoc2ReportStore&lt;MySoc2ReportStore&gt;()
+///             .BuildServiceProvider();
 ///
 ///     protected override ISoc2ReportStore CreateStore() =&gt;
-///         new SqlServerSoc2ReportStore(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =&gt;
-///         await _fixture.CleanupAsync();
+///         _provider.CreateScope().ServiceProvider.GetRequiredService&lt;ISoc2ReportStore&gt;();
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class Soc2ReportStoreConformanceTestKit
+public abstract class Soc2ReportStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh SOC 2 report store instance for testing.
@@ -164,7 +171,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that SaveReportAsync persists a report retrievable via GetReportAsync.
 	/// </summary>
-	protected virtual async Task SaveReportAsync_ShouldPersistReport()
+	public virtual async Task SaveReportAsync_ShouldPersistReport()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -201,7 +208,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that SaveReportAsync upserts (replaces) on duplicate ReportId.
 	/// </summary>
-	protected virtual async Task SaveReportAsync_DuplicateReportId_ShouldUpsert()
+	public virtual async Task SaveReportAsync_DuplicateReportId_ShouldUpsert()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -239,7 +246,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that SaveReportAsync throws ArgumentNullException on null report.
 	/// </summary>
-	protected virtual async Task SaveReportAsync_NullReport_ShouldThrowArgumentNullException()
+	public virtual async Task SaveReportAsync_NullReport_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -276,7 +283,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetReportAsync returns the report for an existing ReportId.
 	/// </summary>
-	protected virtual async Task GetReportAsync_ExistingReport_ShouldReturnReport()
+	public virtual async Task GetReportAsync_ExistingReport_ShouldReturnReport()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -305,7 +312,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetReportAsync returns null for non-existent ReportId.
 	/// </summary>
-	protected virtual async Task GetReportAsync_NonExistent_ShouldReturnNull()
+	public virtual async Task GetReportAsync_NonExistent_ShouldReturnNull()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -335,7 +342,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that ListReportsAsync filters by ReportType.
 	/// </summary>
-	protected virtual async Task ListReportsAsync_FilterByReportType_ShouldFilterCorrectly()
+	public virtual async Task ListReportsAsync_FilterByReportType_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -367,7 +374,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that ListReportsAsync supports pagination with Skip and MaxResults.
 	/// </summary>
-	protected virtual async Task ListReportsAsync_Pagination_ShouldWorkCorrectly()
+	public virtual async Task ListReportsAsync_Pagination_ShouldWorkCorrectly()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -401,7 +408,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that ListReportsAsync supports all 4 sort orders.
 	/// </summary>
-	protected virtual async Task ListReportsAsync_SortOrder_ShouldSortCorrectly()
+	public virtual async Task ListReportsAsync_SortOrder_ShouldSortCorrectly()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -452,7 +459,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that ListReportsAsync projects to ReportSummary with calculated ExceptionCount.
 	/// </summary>
-	protected virtual async Task ListReportsAsync_ShouldProjectToReportSummary()
+	public virtual async Task ListReportsAsync_ShouldProjectToReportSummary()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -493,7 +500,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteReportAsync returns true when deleting an existing report.
 	/// </summary>
-	protected virtual async Task DeleteReportAsync_ExistingReport_ShouldReturnTrue()
+	public virtual async Task DeleteReportAsync_ExistingReport_ShouldReturnTrue()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -529,7 +536,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that DeleteReportAsync returns false when report does not exist.
 	/// </summary>
-	protected virtual async Task DeleteReportAsync_NonExistent_ShouldReturnFalse()
+	public virtual async Task DeleteReportAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -559,7 +566,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetReportCountAsync returns count with filters applied.
 	/// </summary>
-	protected virtual async Task GetReportCountAsync_WithFilter_ShouldReturnFilteredCount()
+	public virtual async Task GetReportCountAsync_WithFilter_ShouldReturnFilteredCount()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -593,7 +600,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetReportCountAsync returns 0 when no reports match.
 	/// </summary>
-	protected virtual async Task GetReportCountAsync_NoMatches_ShouldReturnZero()
+	public virtual async Task GetReportCountAsync_NoMatches_ShouldReturnZero()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -623,7 +630,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetReportCountAsync returns all reports with empty filter.
 	/// </summary>
-	protected virtual async Task GetReportCountAsync_EmptyFilter_ShouldReturnAll()
+	public virtual async Task GetReportCountAsync_EmptyFilter_ShouldReturnAll()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -661,7 +668,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that ListReportsAsync filters by TenantId correctly.
 	/// </summary>
-	protected virtual async Task ListReportsAsync_TenantFilter_ShouldFilterCorrectly()
+	public virtual async Task ListReportsAsync_TenantFilter_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var store = CreateStore();
@@ -717,7 +724,7 @@ public abstract class Soc2ReportStoreConformanceTestKit
 	/// <summary>
 	/// Verifies that GetReportCountAsync filters by TenantId correctly.
 	/// </summary>
-	protected virtual async Task GetReportCountAsync_TenantFilter_ShouldFilterCorrectly()
+	public virtual async Task GetReportCountAsync_TenantFilter_ShouldFilterCorrectly()
 	{
 		// Arrange
 		var store = CreateStore();

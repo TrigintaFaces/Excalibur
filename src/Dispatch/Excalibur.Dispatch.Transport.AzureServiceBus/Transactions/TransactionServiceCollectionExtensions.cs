@@ -12,8 +12,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Registers the <see cref="IAzureServiceBusTransaction"/> implementation and
-/// <see cref="TransactionalSendOptions"/> for transactional send operations.
+/// Registers the <see cref="IAzureServiceBusTransaction"/> implementation for transactional
+/// send operations.
 /// </para>
 /// </remarks>
 /// <example>

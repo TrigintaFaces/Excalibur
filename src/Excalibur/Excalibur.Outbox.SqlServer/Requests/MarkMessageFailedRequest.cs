@@ -13,6 +13,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to mark a message as failed in the outbox.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the outbox Id is the table's primary key, so this statement already addresses at most one row. The drain claims across tenants and hands back a row addressed by that globally-unique Id, so the mark must be able to address the row the claim returned; a tenant term could only subtract that row, never redirect the statement to a different one")]
 public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>
@@ -32,20 +35,22 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 	/// <param name="nextAttemptAt">
 	/// Optional per-message next-attempt time (the fine-grained backoff schedule). When provided, the row's
 	/// <c>NextAttemptAt</c> column is set so the claim predicate excludes the message until this time elapses.
-	/// Mutually exclusive with <paramref name="floorSeconds"/> and takes precedence.
+	/// COMPOSED with <paramref name="floorSeconds"/> rather than replacing it: the column receives the later of
+	/// the two, so this schedule can only ever defer the next attempt beyond F, never bring it forward.
 	/// </param>
 	/// <param name="floorSeconds">
-	/// Optional failure-anchored visibility floor F, in seconds, for the plain (no fine-grained backoff) path.
-	/// When provided (and <paramref name="nextAttemptAt"/> is <see langword="null"/>), <c>NextAttemptAt</c> is
-	/// set to <c>SYSUTCDATETIME() + F</c> on the server clock, so the message is re-claimable only after F —
-	/// never in the same drain cycle (no hot-loop) and never terminally (at-least-once). F must exceed the
-	/// poll interval. When both are <see langword="null"/>, the column is left unchanged.
+	/// Optional failure-anchored visibility floor F, in seconds. It applies on EVERY failure path, including
+	/// the fine-grained backoff one: <c>NextAttemptAt</c> is set to at least <c>SYSUTCDATETIME() + F</c> on the
+	/// server clock, so the message is re-claimable only after F — never in the same drain cycle (no hot-loop)
+	/// and never terminally (at-least-once). F must exceed the poll interval. When both are
+	/// <see langword="null"/>, the column is left unchanged.
 	/// </param>
 	/// <remarks>
 	/// The mark targets the globally-unique outbox <c>Id</c>, which addresses exactly one row, so no tenant
 	/// predicate is applied: the drain is cross-tenant infrastructure and must always be able to mark the row
 	/// it claimed, regardless of any ambient tenant context. Tenant isolation lives on the write/stage path
-	/// (<c>TenantId</c> stamping) and on tenant-facing queries.
+	/// (<c>TenantId</c> stamping) and on tenant-facing queries. The Postgres and Oracle providers address this
+	/// statement the same way, so the mark behaves identically across providers.
 	/// <para>
 	/// The transition releases the lease (<c>LeasedAt</c>/<c>LeasedBy</c> cleared), matching every other
 	/// terminal transition: the failed message is idle, not in-flight, so its computed backoff schedule
@@ -68,42 +73,20 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 		ArgumentNullException.ThrowIfNull(errorMessage);
 		ArgumentException.ThrowIfNullOrWhiteSpace(leasedBy);
 
-		// NextAttemptAt gates re-claim. Two mutually-exclusive sources:
-		//  • nextAttemptAt (fine-grained backoff path): the caller-computed schedule, bound verbatim.
-		//  • floorSeconds (plain MarkFailedAsync path): a failure-anchored visibility floor computed on the
-		//    SERVER clock — TODATETIMEOFFSET(DATEADD(SECOND, @FloorSeconds, SYSUTCDATETIME()), 0) — so re-claim
-		//    is deferred by at least F WITHOUT trusting a dispatcher-side clock. F exceeds the poll interval,
-		//    so the plain path cannot hot-loop the drain in the same cycle, and the message is never dropped
-		//    (at-least-once). When neither is supplied the column is left unchanged.
-		var nextAttemptClause = nextAttemptAt.HasValue
-			? ", NextAttemptAt = @NextAttemptAt"
-			: floorSeconds.HasValue
-				? ", NextAttemptAt = TODATETIMEOFFSET(DATEADD(SECOND, @FloorSeconds, SYSUTCDATETIME()), 0)"
-				: string.Empty;
+		// NextAttemptAt gates re-claim. The caller's computed schedule and the configured floor F are
+		// COMPOSED, not alternatives: the column receives the later of the two, so the fine-grained backoff can
+		// only push the next attempt further out than F, never pull it in. Treating the caller's value as an
+		// override was the defect — it made the message re-claimable roughly a second after failure on the very
+		// path production prefers, while the same failure without the capability correctly waited F.
+		var nextAttemptClause = OutboxFailureMark.NextAttemptClause(nextAttemptAt.HasValue, floorSeconds.HasValue);
 
-		// Release the lease on the failed transition (parity with the dead-letter/sent transitions) so the
-		// backoff/floor schedule — not a lingering lease — governs the next claim; and guard on ownership so a
-		// stale processor cannot mark-failed a row a peer has re-claimed. RetryCount is non-decreasing
-		// (a stale late writer must not lower the count and weaken the DLQ-ceiling termination guarantee).
-		// SENT IS TERMINAL AND IS NOT REVERSIBLE BY ANY MARK, current tenure or stale. The ownership guard
-		// below is necessary but not sufficient on its own, because this same statement releases the lease
-		// (LeasedBy = NULL) on every failed transition — so once any failure has occurred the row satisfies
-		// `LeasedBy IS NULL` for every processor thereafter, and a late or duplicated MarkFailed would match
-		// a row that has since been delivered. The result is a message re-delivered AFTER a successful send,
-		// reported as a routine failure.
-		//
-		// `Status <> 2` closes that by construction rather than by timing: there is no token, ordering, or
-		// lease state under which a delivered message can be moved back to Failed. It mirrors the guard the
-		// sent transition already carries, and the asymmetry between the two was the defect.
+		// Composed from the shared fragments rather than written out here, so this path and the batch path
+		// cannot drift apart on the guards or the floor again.
 		var sql = $"""
 			UPDATE {tableName}
-			SET Status = 3, LastError = @ErrorMessage,
-			    RetryCount = CASE WHEN RetryCount > @RetryCount THEN RetryCount ELSE @RetryCount END,
-			    LastAttemptAt = @LastAttemptAt,
-			    LeasedAt = NULL, LeasedBy = NULL{nextAttemptClause}
+			{OutboxFailureMark.SetClause}{nextAttemptClause}
 			WHERE Id = @MessageId
-			  AND Status <> 2
-			  AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy)
+			{OutboxFailureMark.Guards}
 			""";
 
 		var parameters = new DynamicParameters();
@@ -114,9 +97,10 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 		parameters.Add("@LastAttemptAt", DateTimeOffset.UtcNow);
 		if (nextAttemptAt.HasValue)
 		{
-			parameters.Add("@NextAttemptAt", nextAttemptAt.Value);
+			parameters.Add("@NextAttemptDelayMs", ToServerDelayMilliseconds(nextAttemptAt.Value));
 		}
-		else if (floorSeconds.HasValue)
+
+		if (floorSeconds.HasValue)
 		{
 			parameters.Add("@FloorSeconds", floorSeconds.Value);
 		}
@@ -125,5 +109,35 @@ public sealed class MarkMessageFailedRequest : DataRequestBase<IDbConnection, in
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Converts the caller's absolute next-attempt instant into the DELAY it represents, so the statement can
+	/// re-anchor it on the server clock.
+	/// </summary>
+	/// <param name="nextAttemptAt">The next-attempt instant the caller computed from its own clock.</param>
+	/// <returns>The delay in milliseconds, which is negative when the schedule has already elapsed.</returns>
+	/// <remarks>
+	/// <para>
+	/// The caller computes this instant as "now, plus a backoff" against its OWN clock; the claim predicate
+	/// reads the stored column back against the SERVER's. Binding the instant verbatim therefore straddles two
+	/// clocks, and where the dispatcher runs ahead of the database the message stays invisible for the whole
+	/// skew AFTER its backoff has genuinely elapsed — a due message withheld, bounded by nothing but the skew.
+	/// Recovering the duration here and re-adding it to <c>SYSUTCDATETIME()</c> in the statement keeps the
+	/// dispatcher's intent and puts one clock on both sides of the comparison.
+	/// </para>
+	/// <para>
+	/// An already-elapsed schedule yields a NEGATIVE delay, which is deliberate: composed with the floor it
+	/// simply loses to it, and with no floor configured it makes the message due immediately, which is what an
+	/// elapsed schedule means. The value is clamped to the range <c>DATEADD</c> accepts.
+	/// </para>
+	/// </remarks>
+	private static int ToServerDelayMilliseconds(DateTimeOffset nextAttemptAt)
+	{
+		var delayMs = (nextAttemptAt - DateTimeOffset.UtcNow).TotalMilliseconds;
+
+		return delayMs <= int.MinValue
+			? int.MinValue
+			: delayMs >= int.MaxValue ? int.MaxValue : (int)delayMs;
 	}
 }

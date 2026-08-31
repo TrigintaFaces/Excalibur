@@ -378,7 +378,7 @@ public sealed class CdcChangeApplierShould : UnitTestBase
 			appLifetime,
 			dbConfig,
 			new CdcRepository(new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true")),
-			new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true"),
+			() => new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true"),
 			stateStoreOptions: null,
 			policyFactory,
 			TimeProvider.System,

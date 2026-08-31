@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+
+using Excalibur.EventSourcing.Upcasting;
 using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.Extensions.Logging;
@@ -20,9 +22,12 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// </remarks>
 public sealed partial class SnapshotVersionManager
 {
-	// Copy-on-write (5gezua): the value is an immutable snapshot replaced (never mutated in place) under
+	// Copy-on-write: the value is an immutable snapshot replaced (never mutated in place) under
 	// _registrationLock, so read paths enumerate a stable list without a lock even if a registration races.
 	private readonly ConcurrentDictionary<string, IReadOnlyList<ISnapshotUpgrader>> _upgraders = new(StringComparer.Ordinal);
+
+	private readonly UpgradePathResolver<ISnapshotUpgrader> _paths =
+		new(static u => u.FromVersion, static u => u.ToVersion);
 	private readonly Lock _registrationLock = new();
 	private readonly ILogger<SnapshotVersionManager> _logger;
 
@@ -54,6 +59,14 @@ public sealed partial class SnapshotVersionManager
 	{
 		ArgumentNullException.ThrowIfNull(upgrader);
 
+		if (upgrader.FromVersion >= upgrader.ToVersion)
+		{
+			throw new ArgumentException(
+				$"Invalid upgrader: FromVersion ({upgrader.FromVersion}) must be less than ToVersion " +
+				$"({upgrader.ToVersion}). Only forward upgrading is supported.",
+				nameof(upgrader));
+		}
+
 		// Top-level lock eliminates the TOCTOU between GetOrAdd (which may create or return
 		// an existing list) and the subsequent mutation. RegisterUpgrader is called during
 		// startup only, so contention is negligible.
@@ -72,6 +85,7 @@ public sealed partial class SnapshotVersionManager
 
 			// Replace with a fresh immutable snapshot rather than mutating a list a reader may enumerate.
 			_upgraders[upgrader.AggregateType] = [.. existing, upgrader];
+			_paths.Invalidate();
 		}
 
 		LogUpgraderRegistered(upgrader.AggregateType, upgrader.FromVersion, upgrader.ToVersion);
@@ -106,7 +120,7 @@ public sealed partial class SnapshotVersionManager
 				$"No snapshot upgraders registered for aggregate type '{aggregateType}'.");
 		}
 
-		var upgradePath = FindUpgradePath(upgraderList, fromVersion, toVersion);
+		var upgradePath = _paths.Resolve(aggregateType, upgraderList, fromVersion, toVersion);
 		if (upgradePath is null || upgradePath.Count == 0)
 		{
 			throw new InvalidOperationException(
@@ -142,7 +156,7 @@ public sealed partial class SnapshotVersionManager
 			return false;
 		}
 
-		var path = FindUpgradePath(upgraderList, fromVersion, toVersion);
+		var path = _paths.Resolve(aggregateType, upgraderList, fromVersion, toVersion);
 		return path is not null && path.Count > 0;
 	}
 
@@ -162,44 +176,6 @@ public sealed partial class SnapshotVersionManager
 			? upgraders
 			: [];
 
-	/// <summary>
-	/// Finds the shortest upgrade path between versions using BFS.
-	/// </summary>
-	private static List<ISnapshotUpgrader>? FindUpgradePath(
-		IReadOnlyList<ISnapshotUpgrader> upgraders,
-		int fromVersion,
-		int toVersion)
-	{
-		var queue = new Queue<(int Version, List<ISnapshotUpgrader> Path)>();
-		var visited = new HashSet<int>();
-
-		queue.Enqueue((fromVersion, []));
-		_ = visited.Add(fromVersion);
-
-		while (queue.Count > 0)
-		{
-			var (currentVersion, currentPath) = queue.Dequeue();
-
-			if (currentVersion == toVersion)
-			{
-				return currentPath;
-			}
-
-			// Order candidates by ToVersion for a canonical, registration-order-independent tie-break: when two
-			// equal-length upgrade paths exist, the chosen chain must not depend on DI registration order.
-			foreach (var upgrader in upgraders.Where(u => u.FromVersion == currentVersion).OrderBy(u => u.ToVersion))
-			{
-				if (!visited.Contains(upgrader.ToVersion))
-				{
-					_ = visited.Add(upgrader.ToVersion);
-					var newPath = new List<ISnapshotUpgrader>(currentPath) { upgrader };
-					queue.Enqueue((upgrader.ToVersion, newPath));
-				}
-			}
-		}
-
-		return null;
-	}
 
 	[LoggerMessage(Diagnostics.EventSourcingEventId.SnapshotUpgraderRegistered, LogLevel.Information,
 		"Registered snapshot upgrader for {AggregateType} from version {FromVersion} to {ToVersion}")]

@@ -41,14 +41,17 @@ namespace Excalibur.Dispatch.Transport.Google;
 
 // Batch processing types
 [JsonSerializable(typeof(ProcessedMessage))]
-[JsonSerializable(typeof(FailedMessage))]
 [JsonSerializable(typeof(List<ProcessedMessage>))]
-[JsonSerializable(typeof(List<FailedMessage>))]
-[JsonSerializable(typeof(SerializedBatchResult))]
 
-// Dead letter types (shared from Transport.Abstractions)
-[JsonSerializable(typeof(DeadLetterMessage))]
-[JsonSerializable(typeof(List<DeadLetterMessage>))]
+// FailedMessage is deliberately NOT registered: it carries a live Exception, and generating a JSON
+// contract for it pulls in Exception.TargetSite, whose metadata a trimmer may remove. A failed batch
+// entry is an in-process result, not a wire type - the transport reports failures through the dead
+// letter types below, which serialize the error as text.
+
+// Dead letter types. The transport-abstraction DeadLetterMessage is deliberately NOT registered: it
+// holds a live Exception, an IMessageContext and a MessageEnvelope - in-process objects rather than a
+// wire shape - and generating a contract for it pulls in Exception.TargetSite, whose metadata a trimmer
+// may remove. The dead-letter payload that actually crosses the wire is DeadLetterMetadata.
 [JsonSerializable(typeof(DeadLetterMetadata))]
 [JsonSerializable(typeof(PubSubRetryRecord))]
 

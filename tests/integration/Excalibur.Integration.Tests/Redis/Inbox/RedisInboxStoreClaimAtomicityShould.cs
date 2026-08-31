@@ -51,7 +51,7 @@ public sealed class RedisInboxStoreClaimAtomicityShould
 		});
 
 		await using var connection = await ConnectionMultiplexer.ConnectAsync(_fixture.ConnectionString).ConfigureAwait(false);
-		var store = new RedisInboxStore(connection, options, NullLogger<RedisInboxStore>.Instance);
+		var store = new RedisInboxStore(connection, options, NullLogger<RedisInboxStore>.Instance, SingleTenantTestContext.Instance);
 
 		const string messageId = "msg-claim-atomicity";
 		const string handlerType = "TestHandler";

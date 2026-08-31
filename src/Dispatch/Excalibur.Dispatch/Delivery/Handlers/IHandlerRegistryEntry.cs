@@ -12,12 +12,13 @@ public interface IHandlerRegistryEntry
 	/// <summary>
 	/// Gets the type of message that this handler can process.
 	/// </summary>
+	[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.Interfaces)]
 	Type MessageType { get; }
 
 	/// <summary>
 	/// Gets the type of the handler implementation.
 	/// </summary>
-	[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
+	[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]
 	Type HandlerType { get; }
 
 	/// <summary>

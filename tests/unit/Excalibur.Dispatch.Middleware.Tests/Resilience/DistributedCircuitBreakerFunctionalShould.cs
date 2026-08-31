@@ -39,7 +39,6 @@ public sealed class DistributedCircuitBreakerFunctionalShould : IAsyncDisposable
 			BreakDuration = TimeSpan.FromSeconds(10),
 			SuccessThresholdToClose = 2,
 			SyncInterval = TimeSpan.FromHours(1), // prevent timer
-			MetricsRetention = TimeSpan.FromMinutes(5),
 		};
 		_sut = new DistributedCircuitBreaker(
 			"test-breaker",
@@ -207,7 +206,6 @@ public sealed class DistributedCircuitBreakerFunctionalShould : IAsyncDisposable
 			BreakDuration = TimeSpan.FromMilliseconds(500), // Polly minimum (>= 0.5s); break window we poll past
 			SuccessThresholdToClose = 2,                    // require 2 *consecutive* successes (proves accumulation)
 			SyncInterval = TimeSpan.FromHours(1),           // no background sync timer interference
-			MetricsRetention = TimeSpan.FromMinutes(5),
 		};
 		await using var sut = new DistributedCircuitBreaker(
 			"lpnsjb-halfopen-recovery",

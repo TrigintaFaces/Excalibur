@@ -188,19 +188,6 @@ public sealed class MessageEnvelopeShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ProviderMetadata_CanStoreAndRetrieveTypedData()
-	{
-		// Arrange
-		using var envelope = new MessageEnvelope();
-
-		// Act
-		envelope.AllProviderMetadata["sequenceNumber"] = 42L;
-
-		// Assert
-		envelope.GetProviderMetadata<long>("sequenceNumber").ShouldBe(42L);
-	}
-
-	[Fact]
 	public void ValidationResult_DefaultsToValid()
 	{
 		// Arrange & Act

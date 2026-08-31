@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Hosting.Serverless;
 /// <item>50050-50099: Serverless Host Factory</item>
 /// </list>
 /// </remarks>
-public static class ServerlessEventId
+internal static class ServerlessEventId
 {
 	// ========================================
 	// 50000-50049: Serverless Host Provider

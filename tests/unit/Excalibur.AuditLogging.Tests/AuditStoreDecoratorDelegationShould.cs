@@ -120,7 +120,10 @@ public sealed class AuditStoreDecoratorDelegationShould
 		_ = A.CallTo(() => roles.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(AuditLogRole.ComplianceOfficer);
 
-		return new RbacAuditStore(inner, roles, A.Fake<IAuditLogger>(), NullLogger<RbacAuditStore>.Instance);
+		return new RbacAuditStore(
+			inner,
+			TestScopeFactory.For(roles, metaAuditLogger: A.Fake<IAuditLogger>()),
+			NullLogger<RbacAuditStore>.Instance);
 	}
 
 	/// <remarks>
@@ -264,7 +267,7 @@ public sealed class AuditStoreDecoratorDelegationShould
 			DateTimeOffset startDate,
 			DateTimeOffset endDate,
 			CancellationToken cancellationToken) =>
-			Task.FromResult(AuditIntegrityResult.Valid(0, startDate, endDate));
+			Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
 		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken) =>
 			Task.FromResult<AuditEvent?>(null);

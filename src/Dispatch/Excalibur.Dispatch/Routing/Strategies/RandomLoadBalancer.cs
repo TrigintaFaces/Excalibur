@@ -40,7 +40,7 @@ public partial class RandomLoadBalancer(ILogger<RandomLoadBalancer> logger) : IL
 		{
 			totalWeight += Math.Max(1, route.Weight);
 		}
-		// CA5394: Random used for weighted load balancing, not cryptographic purposes (ADR-039)
+		// CA5394: Random used for weighted load balancing, not cryptographic purposes
 #pragma warning disable CA5394
 		var randomValue = _random.Next(totalWeight);
 #pragma warning restore CA5394

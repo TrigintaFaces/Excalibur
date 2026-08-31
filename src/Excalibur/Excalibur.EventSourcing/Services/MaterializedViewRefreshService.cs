@@ -9,6 +9,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Services;
 
 /// <summary>
@@ -69,6 +71,8 @@ internal sealed partial class MaterializedViewRefreshService : BackgroundService
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: the refresh work is trim-unsafe, but BackgroundService.ExecuteAsync is a BCL member that cannot carry the annotation and this type is internal, so no consumer signal is reachable from here. Tracked for a trim-safe view-serialization seam.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: the refresh work is trim-unsafe, but BackgroundService.ExecuteAsync is a BCL member that cannot carry the annotation and this type is internal, so no consumer signal is reachable from here. Tracked for a trim-safe view-serialization seam.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		var opts = _options.Value;
@@ -137,6 +141,8 @@ internal sealed partial class MaterializedViewRefreshService : BackgroundService
 		return opts.RefreshInterval ?? TimeSpan.FromSeconds(30);
 	}
 
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task RefreshWithRetryAsync(CancellationToken cancellationToken)
 	{
 		var opts = _options.Value;
@@ -178,6 +184,8 @@ internal sealed partial class MaterializedViewRefreshService : BackgroundService
 		}
 	}
 
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task RefreshAllViewsAsync(CancellationToken cancellationToken)
 	{
 		await using var scope = _scopeFactory.CreateAsyncScope();

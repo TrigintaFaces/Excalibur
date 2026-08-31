@@ -25,7 +25,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new SqlServerEventStore(
 			connectionString: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -34,7 +35,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerEventStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -43,7 +45,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerEventStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -59,7 +62,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerEventStore(
 			connectionFactory: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -71,7 +75,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerEventStore(
 			factory,
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -83,7 +88,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerEventStore(
 			factory,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -104,7 +110,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerEventStore(
 			factory,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert - factory is stored but not called during construction
 		_ = store.ShouldNotBeNull();
@@ -124,11 +131,13 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act
 		var simpleStore = new SqlServerEventStore(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		var advancedStore = new SqlServerEventStore(
 			() => new SqlConnection(connectionString),
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert - Both should be valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -147,7 +156,8 @@ public sealed class SqlServerEventStoreShould : UnitTestBase
 		// Act - Creating instance should not throw
 		var store = new SqlServerEventStore(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();

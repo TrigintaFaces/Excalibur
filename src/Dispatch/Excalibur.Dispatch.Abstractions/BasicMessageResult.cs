@@ -72,7 +72,7 @@ internal class BasicMessageResult(
 /// <param name="validationResult"> Optional validation result. </param>
 /// <param name="authorizationResult"> Optional authorization result. </param>
 /// <param name="problemDetails"> Optional problem details if the operation failed. </param>
-// R0.8: File may only contain a single type
+// File may only contain a single type
 #pragma warning disable SA1402
 
 internal sealed class BasicMessageResult<T>(

@@ -53,10 +53,6 @@ public static class ErasureServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="ErasureOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGdprErasure(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -81,6 +77,10 @@ public static class ErasureServiceCollectionExtensions
 	public static IServiceCollection AddInMemoryErasureStore(this IServiceCollection services)
 	{
 		_ = services.AddDataSubjectHashing();
+		// The store's constructor REQUIRES the ambient context, and it is registered here by type, so
+		// resolution must always succeed. TryAdd keeps a host's own context: the framework default is a
+		// single-tenant context, and the multi-tenancy composition replaces it with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton<InMemoryErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
@@ -109,6 +109,10 @@ public static class ErasureServiceCollectionExtensions
 	/// <remarks> This store is NOT suitable for production use. Use AddSqlServerLegalHoldStore for production deployments. </remarks>
 	public static IServiceCollection AddInMemoryLegalHoldStore(this IServiceCollection services)
 	{
+		// The store's constructor REQUIRES the ambient context, and it is registered here by type, so
+		// resolution must always succeed. TryAdd keeps a host's own context: the framework default is a
+		// single-tenant context, and the multi-tenancy composition replaces it with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton<InMemoryLegalHoldStore>();
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<InMemoryLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<InMemoryLegalHoldStore>());
@@ -136,6 +140,11 @@ public static class ErasureServiceCollectionExtensions
 	/// <remarks> This store is NOT suitable for production use. Use AddSqlServerDataInventoryStore for production deployments. </remarks>
 	public static IServiceCollection AddInMemoryDataInventoryStore(this IServiceCollection services)
 	{
+		// The store's constructor REQUIRES both the ambient context and the tenant-context options, and it is
+		// registered here by type, so both must resolve. AddDefaultTenantContext registers the single-tenant
+		// default context and the TenantContextOptions binding; TryAdd keeps a host's own context, which the
+		// multi-tenancy composition replaces with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton<InMemoryDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<InMemoryDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<InMemoryDataInventoryStore>());
@@ -167,6 +176,10 @@ public static class ErasureServiceCollectionExtensions
 	/// </remarks>
 	public static IServiceCollection AddErasureVerificationService(this IServiceCollection services)
 	{
+		// Verification reads the data inventory to decide what should have been erased, so it cannot be
+		// composed without the inventory service this package also owns. TryAdd throughout, so a consumer's
+		// own inventory service still wins.
+		_ = services.AddDataInventoryService();
 		services.TryAddScoped<IErasureVerificationService, ErasureVerificationService>();
 		return services;
 	}
@@ -223,10 +236,6 @@ public static class ErasureServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="ErasureSchedulerOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddErasureScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -284,10 +293,6 @@ public static class ErasureServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="LegalHoldExpirationOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddLegalHoldExpiration(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -335,7 +340,7 @@ public static class ErasureServiceCollectionExtensions
 		return services;
 	}
 
-	// Keyed data-subject pseudonymization (wrht38). The pepper is validated fail-closed on start so a
+	// Keyed data-subject pseudonymization. The pepper is validated fail-closed on start so a
 	// misconfigured deployment cannot silently pseudonymize identifiers with an unkeyed hash. Registered as a
 	// singleton so every erasure/legal-hold/data-inventory consumer hashes a given identifier to the same
 	// token. Consumers supply the pepper via Configure<DataSubjectHashingOptions> from a secret manager.
@@ -372,7 +377,7 @@ public static class ErasureServiceCollectionExtensions
 		// otherwise-empty IServiceCollection. The in-memory provider is suitable
 		// for development and tests; production deployments register a durable
 		// provider (Azure Key Vault, AWS KMS, etc.) which wins via TryAdd
-		// precedence. [bd-20ft0e FIX 2]
+		// precedence.
 		// See ComplianceEncryptionBuilder: volatile keys must be an explicit choice, never a silent default.
 		services.TryAddSingleton<InMemoryKeyManagementProvider>();
 		services.TryAddSingleton<IKeyManagementAdmin>(static sp =>
@@ -394,12 +399,13 @@ public static class ErasureServiceCollectionExtensions
 		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());
 		services.TryAddScoped<IErasureExecutor>(static sp => sp.GetRequiredService<ErasureService>());
 
-		// 88xrgq — startup fail-fast: reject an erasure registration that has no data-inventory discovery
+		// startup fail-fast: reject an erasure registration that has no data-inventory discovery
 		// source AND no key-shred-only opt-in, so a completion certificate is never issued over unverified
 		// coverage (marker-inseparable-from-wiring). Defense-in-depth with the runtime affirmative-coverage
 		// gate in ErasureService.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, ErasureDiscoverySourceValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ErasureDiscoverySourceValidator>());
 
 		// GDPR crypto-shred is a key-durability-REQUIRING composition: erasure works by destroying the
 		// encryption key, so a volatile key provider makes the guarantee meaningless (the keys are gone on

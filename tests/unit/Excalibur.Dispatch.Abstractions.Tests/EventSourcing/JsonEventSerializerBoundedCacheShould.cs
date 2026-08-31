@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.EventSourcing;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Collection("TypeResolverRegistry")]
 public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 {
 	[Fact]
@@ -84,9 +85,11 @@ public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 
 		// Assert — type resolved correctly even though cache is full
 		result.ShouldBe(typeof(int));
-		// The new entry should NOT have been added since cache is at capacity
-		cache.Count.ShouldBe(1024);
-		cache.ContainsKey(typeName).ShouldBeFalse();
+		// At capacity the cache is DISCARDED and refilled rather than latched shut, so the new entry is
+		// admitted into a fresh cache. This keeps the same memory bound while letting the cache continue
+		// to track the names actually in use.
+		cache.Count.ShouldBe(1);
+		cache.ContainsKey(typeName).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -117,8 +120,9 @@ public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 		var typeName2 = typeof(int).AssemblyQualifiedName!;
 		serializer.ResolveType(typeName2);
 
-		// Assert — still at capacity, new type NOT cached
-		cache.Count.ShouldBe(1024);
-		cache.ContainsKey(typeName2).ShouldBeFalse();
+		// Assert — the cache never EXCEEDS capacity: reaching it discards and refills, so the count
+		// drops to the single freshly-admitted entry rather than latching at the cap.
+		cache.Count.ShouldBe(1);
+		cache.ContainsKey(typeName2).ShouldBeTrue();
 	}
 }

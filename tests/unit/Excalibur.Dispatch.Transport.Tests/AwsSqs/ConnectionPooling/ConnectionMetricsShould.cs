@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.ConnectionPooling;
 [Trait("Component", "Platform")]
 public sealed class ConnectionMetricsShould : IDisposable
 {
-	private readonly ConnectionMetrics _metrics = new("test");
+	private readonly ConnectionMetrics _metrics = new();
 
 	[Fact]
 	public void StartWithZeroValues()

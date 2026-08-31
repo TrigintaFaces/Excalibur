@@ -13,29 +13,6 @@ namespace Excalibur.Data.Tests.SqlServer;
 public sealed class SqlServerProviderOptionsShould : UnitTestBase
 {
 	[Fact]
-	public void CreateWithDefaultConnectionString()
-	{
-		// Arrange & Act
-		var options = new SqlServerProviderOptions();
-
-		// Assert - ConnectionString defaults to empty (must be configured by consumer)
-		options.Connection.ConnectionString.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void ConnectionStringCanBeSet()
-	{
-		// Arrange
-		var options = new SqlServerProviderOptions();
-
-		// Act
-		options.Connection.ConnectionString = "Server=localhost;Database=TestDb;";
-
-		// Assert
-		options.Connection.ConnectionString.ShouldBe("Server=localhost;Database=TestDb;");
-	}
-
-	[Fact]
 	public void EnableMarsCanBeSet()
 	{
 		// Arrange
@@ -59,45 +36,6 @@ public sealed class SqlServerProviderOptionsShould : UnitTestBase
 
 		// Assert
 		options.CommandTimeout.ShouldBe(60);
-	}
-
-	[Fact]
-	public void MaxPoolSizeCanBeCustomized()
-	{
-		// Arrange
-		var options = new SqlServerProviderOptions();
-
-		// Act
-		options.Pooling.MaxPoolSize = 200;
-
-		// Assert
-		options.Pooling.MaxPoolSize.ShouldBe(200);
-	}
-
-	[Fact]
-	public void ApplicationNameCanBeSet()
-	{
-		// Arrange
-		var options = new SqlServerProviderOptions();
-
-		// Act
-		options.Connection.ApplicationName = "MyApplication";
-
-		// Assert
-		options.Connection.ApplicationName.ShouldBe("MyApplication");
-	}
-
-	[Fact]
-	public void EnablePoolingCanBeDisabled()
-	{
-		// Arrange
-		var options = new SqlServerProviderOptions();
-
-		// Act
-		options.Pooling.EnablePooling = false;
-
-		// Assert
-		options.Pooling.EnablePooling.ShouldBeFalse();
 	}
 
 	[Fact]

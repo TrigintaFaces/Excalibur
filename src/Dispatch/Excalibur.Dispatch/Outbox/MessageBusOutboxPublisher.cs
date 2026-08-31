@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Outbox;
 
 /// <summary>
@@ -29,7 +31,6 @@ namespace Excalibur.Dispatch.Outbox;
 public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 {
 	private readonly IOutboxStore _outboxStore;
-	private readonly IOutboxStoreAdmin? _outboxStoreAdmin;
 	private readonly IMultiTransportOutboxStore? _multiTransportStore;
 	private readonly IMultiTransportOutboxStoreAdmin? _multiTransportStoreAdmin;
 	private readonly IPayloadSerializer _serializer;
@@ -38,7 +39,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<MessageBusOutboxPublisher> _logger;
 
-	// Outbox-read DoS guard limit (m084l4): from OutboxDeliveryOptions; bounded 4 MiB when unconfigured
+	// Outbox-read DoS guard limit: from OutboxDeliveryOptions; bounded 4 MiB when unconfigured
 	// (never inert), null = explicit opt-out.
 	private readonly int? _maxPayloadBytes;
 
@@ -66,8 +67,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 		// Capabilities are resolved through the store's own service-provider seam, never by casting it.
 		// A cast sees only the outermost decorator's type, so a decorated store silently reports that it
-		// lacks capabilities the underlying store implements -- scheduled messages then never dispatch.
-		_outboxStoreAdmin = outboxStore.GetService(typeof(IOutboxStoreAdmin)) as IOutboxStoreAdmin;
+		// lacks capabilities the underlying store implements -- multi-transport rows then never dispatch.
 		_multiTransportStore = outboxStore.GetService(typeof(IMultiTransportOutboxStore)) as IMultiTransportOutboxStore;
 		_multiTransportStoreAdmin = outboxStore.GetService(typeof(IMultiTransportOutboxStoreAdmin)) as IMultiTransportOutboxStoreAdmin;
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -95,8 +95,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 		// Capabilities are resolved through the store's own service-provider seam, never by casting it.
 		// A cast sees only the outermost decorator's type, so a decorated store silently reports that it
-		// lacks capabilities the underlying store implements -- scheduled messages then never dispatch.
-		_outboxStoreAdmin = outboxStore.GetService(typeof(IOutboxStoreAdmin)) as IOutboxStoreAdmin;
+		// lacks capabilities the underlying store implements -- multi-transport rows then never dispatch.
 		_multiTransportStore = outboxStore.GetService(typeof(IMultiTransportOutboxStore)) as IMultiTransportOutboxStore;
 		_multiTransportStoreAdmin = outboxStore.GetService(typeof(IMultiTransportOutboxStoreAdmin)) as IMultiTransportOutboxStoreAdmin;
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -200,28 +199,21 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	}
 
 	/// <inheritdoc />
-	public async Task<PublishingResult> PublishPendingMessagesAsync(CancellationToken cancellationToken)
-	{
-		// Unfenced drain: this publisher holds no leadership tenure, so it claims through the unfenced
-		// IOutboxStore members. A fenced drain runs through OutboxProcessor, which presents its token.
-		var messages = await _outboxStore.GetUnsentMessagesAsync(100, cancellationToken).ConfigureAwait(false);
-		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
-	}
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<PublishingResult> PublishPendingMessagesAsync(CancellationToken cancellationToken) =>
+		DrainClaimedBatchAsync(cancellationToken);
 
 	/// <inheritdoc />
-	public async Task<PublishingResult> PublishScheduledMessagesAsync(CancellationToken cancellationToken)
-	{
-		if (_outboxStoreAdmin is null)
-		{
-			return PublishingResult.Success(0, 0, TimeSpan.Zero);
-		}
-
-		var messages = await _outboxStoreAdmin.GetScheduledMessagesAsync(DateTimeOffset.UtcNow, 100, cancellationToken).ConfigureAwait(false);
-		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
-	}
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<PublishingResult> PublishScheduledMessagesAsync(CancellationToken cancellationToken) =>
+		DrainClaimedBatchAsync(cancellationToken);
 
 	/// <inheritdoc />
-	public async Task<PublishingResult> RetryFailedMessagesAsync(
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public Task<PublishingResult> RetryFailedMessagesAsync(
 		int maxRetries,
 		CancellationToken cancellationToken)
 	{
@@ -232,12 +224,38 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				Resources.MessageBusOutboxPublisher_MaxRetriesNonNegative);
 		}
 
-		if (_outboxStoreAdmin is null)
-		{
-			return PublishingResult.Success(0, 0, TimeSpan.Zero);
-		}
+		return DrainClaimedBatchAsync(cancellationToken);
+	}
 
-		var messages = await _outboxStoreAdmin.GetFailedMessagesAsync(maxRetries, null, 100, cancellationToken).ConfigureAwait(false);
+	/// <summary>
+	/// Claims a batch of due messages and publishes it. This is the <b>only</b> path in this publisher that
+	/// hands a message to a transport.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Every drain entry point funnels through here, so a message reaches a transport only after this
+	/// dispatcher has won a lease on it. The store's claim is an atomic read-decide-write, so two concurrent
+	/// dispatchers receive disjoint batches and neither can publish a row the other holds.
+	/// </para>
+	/// <para>
+	/// The claim is also what decides <em>which</em> rows are due, and it already admits the two categories
+	/// that once had their own loops: a scheduled row becomes claimable when its scheduled time has arrived,
+	/// and a failed row becomes claimable when the next-attempt floor written by the failure path has
+	/// elapsed. Selecting those categories with a separate plain read was check-then-act — the read observed
+	/// a row as free without conditionally taking it, so two dispatchers could both publish it, and the
+	/// failed read consulted no floor at all and re-published a message the same drain had just deferred.
+	/// Routing them through the claim removes both, and needs no second reservation mechanism.
+	/// </para>
+	/// <para>
+	/// Unfenced drain: this publisher holds no leadership tenure, so it claims through the unfenced
+	/// <c>IOutboxStore</c> members. A fenced drain runs through the outbox processor, which presents its token.
+	/// </para>
+	/// </remarks>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private async Task<PublishingResult> DrainClaimedBatchAsync(CancellationToken cancellationToken)
+	{
+		var messages = await _outboxStore.GetUnsentMessagesAsync(100, cancellationToken).ConfigureAwait(false);
 		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
 	}
 
@@ -426,7 +444,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	{
 		try
 		{
-			// Outbox-read DoS guard (m084l4): reject an oversized stored payload before handing it to the
+			// Outbox-read DoS guard: reject an oversized stored payload before handing it to the
 			// transport. Fail-closed — PayloadTooLargeException propagates to the surrounding catch, which
 			// marks the message failed (rejected), never dispatches an over-limit body.
 			PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
@@ -443,7 +461,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 			// Propagate the persisted tenant onto the rebuilt context, mirroring the inbox restore side
 			// (InboxProcessor metadata restore). Only set when present so a null tenant stays absent rather
-			// than creating an empty identity feature (EC-R1.1).
+			// than creating an empty identity feature.
 			if (message.TenantId is not null)
 			{
 				context.GetOrCreateIdentityFeature().TenantId = message.TenantId;
@@ -672,7 +690,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				Resources.MessageBusOutboxPublisher_SingleTransportRequiresAdapter);
 		}
 
-		// Outbox-read DoS guard (m084l4): reject an oversized stored payload before handing it to the
+		// Outbox-read DoS guard: reject an oversized stored payload before handing it to the
 		// transport. Fail-closed — PayloadTooLargeException propagates to PublishMessagesAsync's catch,
 		// which marks the message failed (rejected), never dispatches an over-limit body.
 		PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
@@ -687,7 +705,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 		// Propagate the persisted tenant onto the rebuilt context, mirroring the inbox restore side
 		// (InboxProcessor metadata restore). Only set when present so a null tenant stays absent rather
-		// than creating an empty identity feature (EC-R1.1).
+		// than creating an empty identity feature.
 		if (message.TenantId is not null)
 		{
 			context.GetOrCreateIdentityFeature().TenantId = message.TenantId;
@@ -709,17 +727,20 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		OutboundMessage message,
 		CancellationToken cancellationToken)
 	{
-		if (_multiTransportStore is null || _transportRegistry is null)
+		if (_multiTransportStore is null || _multiTransportStoreAdmin is null || _transportRegistry is null)
 		{
 			throw new InvalidOperationException(
 				Resources.MessageBusOutboxPublisher_MultiTransportRequiresRegistry);
 		}
 
-		// Get transport deliveries for this message
+		// Get transport deliveries for this message. This drain claims outbox rows across every tenant by
+		// design, so the demand-load below deliberately goes through the estate-wide admin read rather than
+		// the tenant-confined consumer read: the drain holds no ambient tenant to confine it to, and
+		// confining it would return nothing for every tenanted message.
 		var deliveries = message.TransportDeliveries.Count > 0
 			? AsReadOnlyList(message.TransportDeliveries)
 			: AsReadOnlyList(
-				await _multiTransportStore.GetTransportDeliveriesAsync(message.Id, cancellationToken)
+				await _multiTransportStoreAdmin.GetAllTenantsTransportDeliveriesAsync(message.Id, cancellationToken)
 					.ConfigureAwait(false));
 
 		if (deliveries.Count == 0)

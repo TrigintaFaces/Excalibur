@@ -12,6 +12,8 @@ using Google.Cloud.Firestore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Data.Firestore.Projections;
 
 /// <summary>
@@ -66,6 +68,8 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
 	{
 		var docRef = GetCollection().Document(id);
@@ -80,6 +84,8 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task UpsertAsync(string id, TProjection projection, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(projection);
@@ -113,6 +119,8 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -296,8 +304,8 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 			return null;
 		}
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 	}
 }

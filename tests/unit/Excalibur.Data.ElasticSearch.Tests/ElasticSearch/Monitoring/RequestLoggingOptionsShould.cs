@@ -70,13 +70,23 @@ public sealed class RequestLoggingOptionsShould
 	}
 
 	[Fact]
-	public void DefaultSanitizeSensitiveData_ToTrue()
+	public void DefaultAllowedBodyProperties_ToEmpty()
 	{
 		// Arrange & Act
 		var settings = new RequestLoggingOptions();
 
-		// Assert
-		settings.SanitizeSensitiveData.ShouldBeTrue();
+		// Assert - an empty allow list redacts every body value, so the safe default needs no configuration
+		settings.AllowedBodyProperties.ShouldBeEmpty();
+	}
+
+	[Fact]
+	public void DefaultLogTransportDebugInformation_ToFalse()
+	{
+		// Arrange & Act
+		var settings = new RequestLoggingOptions();
+
+		// Assert - the transport dump cannot be redacted, so it is off unless asked for by name
+		settings.LogTransportDebugInformation.ShouldBeFalse();
 	}
 
 	#endregion
@@ -134,13 +144,26 @@ public sealed class RequestLoggingOptionsShould
 	}
 
 	[Fact]
-	public void AllowSanitizeSensitiveData_ToBeSetToFalse()
+	public void AllowAllowedBodyProperties_ToBeConfigured()
 	{
 		// Arrange & Act
-		var settings = new RequestLoggingOptions { SanitizeSensitiveData = false };
+		var settings = new RequestLoggingOptions
+		{
+			AllowedBodyProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "index" },
+		};
 
 		// Assert
-		settings.SanitizeSensitiveData.ShouldBeFalse();
+		settings.AllowedBodyProperties.ShouldContain("index");
+	}
+
+	[Fact]
+	public void AllowLogTransportDebugInformation_ToBeSetToTrue()
+	{
+		// Arrange & Act
+		var settings = new RequestLoggingOptions { LogTransportDebugInformation = true };
+
+		// Assert
+		settings.LogTransportDebugInformation.ShouldBeTrue();
 	}
 
 	#endregion
@@ -168,7 +191,8 @@ public sealed class RequestLoggingOptionsShould
 			LogResponseBody = true,
 			LogFailuresOnly = false,
 			MaxBodySizeBytes = 8192,
-			SanitizeSensitiveData = false
+			AllowedBodyProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "index" },
+			LogTransportDebugInformation = true,
 		};
 
 		// Assert
@@ -177,7 +201,8 @@ public sealed class RequestLoggingOptionsShould
 		settings.LogResponseBody.ShouldBeTrue();
 		settings.LogFailuresOnly.ShouldBeFalse();
 		settings.MaxBodySizeBytes.ShouldBe(8192);
-		settings.SanitizeSensitiveData.ShouldBeFalse();
+		settings.AllowedBodyProperties.ShouldContain("index");
+		settings.LogTransportDebugInformation.ShouldBeTrue();
 	}
 
 	#endregion

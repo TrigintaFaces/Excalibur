@@ -1,4 +1,4 @@
-using Excalibur.Compliance.Diagnostics;
+using Excalibur.Dispatch.Diagnostics;
 
 
 using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Diagnostics;
@@ -105,5 +105,45 @@ public sealed class TagCardinalityGuardShould
 			// Should be either the original value or __other__, never throw
 			result.ShouldNotBeNull();
 		});
+	}
+	[Fact]
+	public void Not_count_null_toward_cardinality()
+	{
+		var guard = new TagCardinalityGuard(maxCardinality: 2);
+
+		// Null returns the sentinel but must not consume one of the two slots.
+		guard.Guard(null);
+		guard.Guard("v1");
+		var result = guard.Guard("v2");
+
+		result.ShouldBe("v2");
+	}
+
+	[Fact]
+	public void Use_other_as_the_default_overflow_value()
+	{
+		var guard = new TagCardinalityGuard(maxCardinality: 1);
+
+		guard.Guard("v1");
+		var result = guard.Guard("v2");
+
+		result.ShouldBe("__other__");
+	}
+
+	[Fact]
+	public void Admit_more_distinct_values_than_the_initial_dictionary_capacity()
+	{
+		// The guard clamps the dictionary's INITIAL capacity to 1024; that is an allocation
+		// hint, not a limit. A configured maximum above it must still admit every value.
+		var guard = new TagCardinalityGuard(maxCardinality: 2000);
+
+		for (var i = 0; i < 1500; i++)
+		{
+			_ = guard.Guard($"value-{i}");
+		}
+
+		var result = guard.Guard("value-1499");
+
+		result.ShouldBe("value-1499");
 	}
 }

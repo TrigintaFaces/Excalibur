@@ -171,6 +171,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttributeCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "test",
@@ -266,6 +267,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(CacheableTestQuery)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "42",
@@ -306,6 +308,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttributeCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "cached-result",
@@ -346,6 +349,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttributeCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "test-value",
@@ -575,6 +579,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttributeCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "test",
@@ -924,6 +929,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttributeCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "test",
@@ -958,6 +964,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(NonGenericCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "cached-value",
@@ -1119,6 +1126,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(AttributeCacheableAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "test",

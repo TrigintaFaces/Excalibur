@@ -41,24 +41,6 @@ Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.DynamoDbCdcProcessor(Amazon.DynamoDB
 Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!>!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> bool
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AutoRefreshExpiredIterators.get -> bool
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AutoRefreshExpiredIterators.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.HandleShardSplitsGracefully.get -> bool
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.HandleShardSplitsGracefully.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.IteratorRefreshInterval.get -> System.TimeSpan
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.IteratorRefreshInterval.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.MaxRecoveryAttempts.get -> int
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.MaxRecoveryAttempts.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.OnPositionReset.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryAttemptDelay.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryStrategy.init -> void
-Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.Validate() -> void
 Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry
 Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.DynamoDbCdcStateEntry() -> void
 Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.EventCount.get -> long
@@ -111,16 +93,6 @@ Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType.Modify = 1 -> Excalibur.Cdc.Dynamo
 Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType.Remove = 2 -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType
 Excalibur.Cdc.DynamoDb.DynamoDbDataChangeTypeExtensions
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException() -> void
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message) -> void
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message, System.Exception! innerException) -> void
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.SequenceNumber.get -> string?
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ShardId.get -> string?
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.StreamArn.get -> string?
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.TableName.get -> string?
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes
 Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
 Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.KeysOnly = 0 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType

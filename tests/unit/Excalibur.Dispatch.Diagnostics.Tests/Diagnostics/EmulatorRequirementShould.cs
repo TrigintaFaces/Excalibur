@@ -12,8 +12,9 @@ namespace Excalibur.Dispatch.Tests.Diagnostics;
 /// <remarks>
 /// This binds the same source file the integration suite compiles, so the assertions below constrain
 /// the decision that actually runs rather than a restatement of it. The suite it governs cannot report
-/// its own correctness: a skipped test reports as a pass, so the only place the skip-versus-fail choice
-/// can be checked is here, where the choice is a pure function.
+/// its own correctness: when it skips it exits green with zero failures, so its own result summary looks
+/// the same whether the choice was right or wrong. The only place the skip-versus-fail choice can be
+/// checked is here, where the choice is a pure function.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Platform")]

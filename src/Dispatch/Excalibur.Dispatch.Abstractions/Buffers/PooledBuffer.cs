@@ -11,10 +11,22 @@ namespace Excalibur.Dispatch;
 /// </summary>
 public sealed class PooledBuffer : IDisposablePooledBuffer
 {
+	// Exactly one of these owns the array and is non-null; every constructor sets one and only one.
+	// _pool is the pool the array was RENTED from, so disposal can return it there rather than
+	// guessing at ArrayPool<byte>.Shared -- returning a foreign array to a process-wide pool starves
+	// the pool it came from and hands Shared an array it never allocated.
 	private readonly IPooledBufferService? _manager;
+	private readonly ArrayPool<byte>? _pool;
 	private readonly bool _clearOnReturn;
-	private byte[]? _buffer;
-	private volatile bool _disposed;
+
+	// The array is the single source of truth for "do I still own a buffer": null means returned.
+	// Volatile so a reader on another thread eventually observes the release rather than a stale array.
+	private volatile byte[]? _buffer;
+
+	// The claim token for the return. This is deliberately NOT a mirror of "_buffer is null" -- the two
+	// differ for exactly the duration of the return call, because IPooledBufferService.ReturnBuffer takes
+	// this wrapper and implementations read the array back off it.
+	private int _returnClaimed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PooledBuffer" /> class.
@@ -25,6 +37,7 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	{
 		_manager = manager ?? throw new ArgumentNullException(nameof(manager));
 		_buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+		_pool = null;
 		_clearOnReturn = true;
 	}
 
@@ -38,6 +51,7 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	{
 		_manager = manager ?? throw new ArgumentNullException(nameof(manager));
 		_buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+		_pool = null;
 		_clearOnReturn = clearOnReturn;
 	}
 
@@ -47,7 +61,8 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	/// <param name="size"> The minimum size of the buffer. </param>
 	public PooledBuffer(int size)
 	{
-		_buffer = ArrayPool<byte>.Shared.Rent(size);
+		_pool = ArrayPool<byte>.Shared;
+		_buffer = _pool.Rent(size);
 		_clearOnReturn = true;
 	}
 
@@ -58,7 +73,8 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	/// <param name="pool"> The array pool to use. </param>
 	public PooledBuffer(int size, ArrayPool<byte> pool)
 	{
-		_buffer = (pool ?? ArrayPool<byte>.Shared).Rent(size);
+		_pool = pool ?? ArrayPool<byte>.Shared;
+		_buffer = _pool.Rent(size);
 		_clearOnReturn = true;
 	}
 
@@ -70,9 +86,10 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	{
 		get
 		{
-			ObjectDisposedException.ThrowIf(_disposed, this);
+			var buffer = _buffer;
+			ObjectDisposedException.ThrowIf(buffer is null, this);
 
-			return _buffer!;
+			return buffer;
 		}
 	}
 
@@ -97,28 +114,12 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	/// <summary>
 	/// Gets a Memory&lt;byte&gt; view of the buffer.
 	/// </summary>
-	public Memory<byte> Memory
-	{
-		get
-		{
-			ObjectDisposedException.ThrowIf(_disposed, this);
-
-			return new Memory<byte>(_buffer);
-		}
-	}
+	public Memory<byte> Memory => new(Buffer);
 
 	/// <summary>
 	/// Gets a Span&lt;byte&gt; view of the buffer.
 	/// </summary>
-	public Span<byte> Span
-	{
-		get
-		{
-			ObjectDisposedException.ThrowIf(_disposed, this);
-
-			return new Span<byte>(_buffer);
-		}
-	}
+	public Span<byte> Span => new(Buffer);
 
 	/// <summary>
 	/// Gets a span over the buffer.
@@ -133,27 +134,39 @@ public sealed class PooledBuffer : IDisposablePooledBuffer
 	public Memory<byte> AsMemory() => Memory;
 
 	/// <summary>
-	/// Disposes the buffer and returns it to the pool.
+	/// Disposes the buffer and returns it to the pool. Safe to call more than once, and safe to call
+	/// from more than one thread: the buffer is returned exactly once.
 	/// </summary>
 	public void Dispose()
 	{
-		if (!_disposed)
+		// Claim the return atomically. A read of a flag followed by a separate write is not atomic, so
+		// two threads could both observe "not yet returned" and both return the same array to the pool --
+		// which hands one array to two renters, and (because the return clears) lets one of them zero the
+		// other's live data. Exactly one caller can observe 0 here, however many arrive at once.
+		if (Interlocked.Exchange(ref _returnClaimed, 1) != 0)
 		{
-			if (_buffer != null)
-			{
-				if (_manager != null)
-				{
-					_manager.ReturnBuffer(this, clearBuffer: _clearOnReturn);
-				}
-				else
-				{
-					ArrayPool<byte>.Shared.Return(_buffer, clearArray: _clearOnReturn);
-				}
-
-				_buffer = null;
-			}
-
-			_disposed = true;
+			return;
 		}
+
+		var buffer = _buffer;
+		if (buffer is null)
+		{
+			return;
+		}
+
+		// The array stays reachable through this instance until the return completes: ReturnBuffer takes
+		// the wrapper, and a buffer service reads the array back off it. Releasing the field first would
+		// make that read throw straight out of Dispose and leak the buffer.
+		if (_manager != null)
+		{
+			_manager.ReturnBuffer(this, clearBuffer: _clearOnReturn);
+		}
+		else
+		{
+			// Non-null whenever _manager is null: every constructor sets exactly one of the two.
+			_pool!.Return(buffer, clearArray: _clearOnReturn);
+		}
+
+		_buffer = null;
 	}
 }

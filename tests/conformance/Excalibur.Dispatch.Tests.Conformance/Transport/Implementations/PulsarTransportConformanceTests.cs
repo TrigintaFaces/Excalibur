@@ -64,6 +64,9 @@ public sealed class PulsarTransportConformanceTests
 			.AddLogging()
 			.AddPulsarTransport(TransportName, pulsar => pulsar
 				.ServiceUrl(_fixture.ServiceUrl)
+				// The container broker serves pulsar:// in the clear, so the secure-by-default posture
+				// is opted out here deliberately.
+				.RequireTls(false)
 				.Topic(_topic)
 				.SubscriptionName(_subscription)
 				.SubscriptionType(global::Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.Shared)

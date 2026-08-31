@@ -34,42 +34,6 @@ public sealed class OrderingKeyOptions
 	public bool RemoveEmptyQueues { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets the timeout for ordering key queue cleanup after inactivity. Default is 5 minutes.
-	/// </summary>
-	/// <value>
-	/// The timeout for ordering key queue cleanup after inactivity. Default is 5 minutes.
-	/// </value>
-	public TimeSpan QueueCleanupTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable detailed metrics collection. Default is true.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether gets or sets whether to enable detailed metrics collection. Default is true.
-	/// </value>
-	public bool EnableMetrics { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the maximum age of messages before they are considered stale. Messages older than this will be logged with
-	/// warnings. Default is 30 seconds.
-	/// </summary>
-	/// <value>
-	/// The maximum age of messages before they are considered stale. Messages older than this will be logged with
-	/// warnings. Default is 30 seconds.
-	/// </value>
-	public TimeSpan MessageStaleTimeout { get; set; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enforce strict ordering. When true, a failure in processing a message will block all subsequent messages
-	/// with the same ordering key until resolved. Default is false.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether gets or sets whether to enforce strict ordering. When true, a failure in processing a message will block all subsequent messages
-	/// with the same ordering key until resolved. Default is false.
-	/// </value>
-	public bool EnforceStrictOrdering { get; set; }
-
-	/// <summary>
 	/// Gets or sets the maximum number of retries for failed messages. Only applies when EnforceStrictOrdering is false. Default is 3.
 	/// </summary>
 	/// <value>
@@ -103,20 +67,6 @@ public sealed class OrderingKeyOptions
 			throw new ArgumentException(
 				"MaxMessagesPerOrderingKey must be greater than 0.",
 				nameof(MaxMessagesPerOrderingKey));
-		}
-
-		if (QueueCleanupTimeout <= TimeSpan.Zero)
-		{
-			throw new ArgumentException(
-				"QueueCleanupTimeout must be greater than zero.",
-				nameof(QueueCleanupTimeout));
-		}
-
-		if (MessageStaleTimeout <= TimeSpan.Zero)
-		{
-			throw new ArgumentException(
-				"MessageStaleTimeout must be greater than zero.",
-				nameof(MessageStaleTimeout));
 		}
 
 		if (MaxRetryAttempts < 0)

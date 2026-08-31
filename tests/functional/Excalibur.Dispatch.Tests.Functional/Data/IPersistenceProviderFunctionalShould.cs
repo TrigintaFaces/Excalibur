@@ -5,7 +5,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Data.SqlServer;
+using Excalibur.Data.Persistence;
 using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Data.SqlClient;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.Options;
 
 using Tests.Shared.Fixtures;
 
-using SqlServerProvider = Excalibur.Data.SqlServer.SqlServerPersistenceProvider;
+using SqlServerProvider = Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider;
 
 namespace Excalibur.Dispatch.Tests.Functional.Data;
 
@@ -41,6 +41,7 @@ namespace Excalibur.Dispatch.Tests.Functional.Data;
 public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 {
 	private readonly SqlServerContainerFixture _fixture;
+	private ServiceProvider? _services;
 	private SqlServerProvider? _provider;
 	private string? _testTableName;
 
@@ -56,8 +57,8 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 			return;
 		}
 
-		var options = CreateOptions(_fixture.ConnectionString);
-		_provider = new SqlServerProvider(options, NullLogger<SqlServerProvider>.Instance);
+		_services = CreateServices(_fixture.ConnectionString);
+		_provider = (SqlServerProvider)_services.GetRequiredService<ISqlPersistenceProvider>();
 
 		var persistenceOptions = new SqlServerPersistenceOptions
 		{
@@ -78,9 +79,10 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 			await DropTestTableAsync();
 		}
 
-		if (_provider != null)
+		if (_services != null)
 		{
-			await _provider.DisposeAsync();
+			// The container owns the provider singleton, so disposing it disposes the provider.
+			await _services.DisposeAsync();
 		}
 	}
 
@@ -137,8 +139,8 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 	public void RespectMaxRetryLimit()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString, retryCount: 2);
-		using var provider = new SqlServerProvider(options, NullLogger<SqlServerProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString, retryCount: 2);
+		var provider = (SqlServerProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act & Assert
 		provider.RetryPolicy.MaxRetryAttempts.ShouldBe(2);
@@ -288,8 +290,8 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 	public async Task ReportNotAvailable_AfterDispose()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		var provider = new SqlServerProvider(options, NullLogger<SqlServerProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (SqlServerProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 		var persistenceOptions = new SqlServerPersistenceOptions
 		{
 			ConnectionString = _fixture.ConnectionString,
@@ -321,23 +323,6 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 		metrics.ShouldContainKey("IsAvailable");
 		metrics["Provider"].ShouldBe("SqlServer");
 		metrics["IsAvailable"].ShouldBe(true);
-	}
-
-	[Fact]
-	public async Task ReportConnectionPoolStats()
-	{
-		// Arrange - Force a connection to populate pool stats
-		using (var connection = _provider.CreateConnection())
-		{
-			connection.Open();
-		}
-
-		// Act
-		var stats = await _provider.GetConnectionPoolStatsAsync(CancellationToken.None);
-
-		// Assert - stats may be null on some platforms but should not throw
-		// Connection pool stats are optional - verify the call doesn't fail
-		// Note: The provider may return null if pool statistics aren't available
 	}
 
 	[Fact]
@@ -416,27 +401,30 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 
 	#region Helper Methods
 
-	private static IOptions<SqlServerProviderOptions> CreateOptions(
-		string connectionString,
-		int retryCount = 3)
+	/// <summary>
+	/// Builds the provider through the production registration so these tests exercise the real wiring,
+	/// including the retry policy that registration supplies.
+	/// </summary>
+	private static ServiceProvider CreateServices(string connectionString, int retryCount = 3)
 	{
-		return Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
 		{
-			Connection =
-			{
-				ConnectionString = connectionString,
-				ConnectTimeout = 15,
-				TrustServerCertificate = true,
-			},
-			Name = "test-provider",
-			CommandTimeout = 30,
-			Pooling =
-			{
-				MaxPoolSize = 10,
-				MinPoolSize = 1,
-				EnablePooling = true,
-			},
-			RetryCount = retryCount
+			options.ConnectionString = connectionString;
+			options.CommandTimeout = 30;
+			options.Connection.ConnectionTimeout = 15;
+			options.Security.TrustServerCertificate = true;
+			options.Pooling.EnableConnectionPooling = true;
+			options.Pooling.MinPoolSize = 1;
+			options.Pooling.MaxPoolSize = 10;
+			options.Resiliency.MaxRetryAttempts = retryCount;
+		});
+
+		return services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = false,
+			ValidateScopes = true,
 		});
 	}
 

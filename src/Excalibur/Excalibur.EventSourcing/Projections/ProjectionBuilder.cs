@@ -268,8 +268,10 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 	/// <summary>
 	/// Builds and registers the projection using the registry provided at construction.
-	/// A second call for the same projection type replaces the first (R27.37).
+	/// A second call for the same projection type replaces the first.
 	/// </summary>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	internal void Build()
 	{
 		if (_registry is null)
@@ -283,9 +285,11 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 	/// <summary>
 	/// Builds and registers the projection in the specified registry.
-	/// A second call for the same projection type replaces the first (R27.37).
+	/// A second call for the same projection type replaces the first.
 	/// </summary>
 	/// <param name="registry">The projection registry to register in.</param>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	internal void Build(IProjectionRegistry registry)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
@@ -322,6 +326,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		registry.Register(registration);
 	}
 
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private ProjectionRegistration.InlineApplyDelegate CreateInlineApplyDelegate()
 	{
 		var projection = _projection;
@@ -449,6 +455,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	/// Creates a simplified delegate for projections that only have sync handlers.
 	/// Avoids Dictionary allocation and async overhead when no key selectors are present.
 	/// </summary>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private static ProjectionRegistration.InlineApplyDelegate CreateSyncOnlyApplyDelegate(
 		MultiStreamProjection<TProjection> projection,
 		Func<TProjection, string>? searchTextComputer,

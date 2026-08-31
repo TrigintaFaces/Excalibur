@@ -2,11 +2,18 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.Postgres.Persistence;
+
+/// <summary>
+/// Source-generated data-annotation validation for <see cref="PostgresPersistenceOptions"/> and its
+/// nested option objects. Generated at compile time, so validation costs no reflection.
+/// </summary>
+[OptionsValidator]
+internal sealed partial class PostgresPersistenceOptionsAnnotationValidator : IValidateOptions<PostgresPersistenceOptions>
+{
+}
 
 /// <summary>
 /// Options validator for Postgres persistence.
@@ -14,9 +21,6 @@ namespace Excalibur.Data.Postgres.Persistence;
 internal sealed class PostgresPersistenceOptionsValidator : IValidateOptions<PostgresPersistenceOptions>
 {
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[RequiresUnreferencedCode("Calls Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions.Validate()")]
 	public ValidateOptionsResult Validate(string? name, PostgresPersistenceOptions options)
 	{
 		try

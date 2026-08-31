@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Patterns.ClaimCheck;
@@ -30,7 +30,8 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// <item><description>StoreAsync throws ArgumentNullException on null payload</description></item>
 /// <item><description>RetrieveAsync throws ArgumentNullException on null reference</description></item>
 /// <item><description>RetrieveAsync throws KeyNotFoundException for non-existent payload</description></item>
-/// <item><description>RetrieveAsync throws InvalidOperationException for expired payload</description></item>
+/// <item><description>RetrieveAsync throws KeyNotFoundException for expired payload</description></item>
+/// <item><description>A zero time-to-live disables expiry rather than expiring immediately</description></item>
 /// <item><description>DeleteAsync returns true for existing, false for non-existent</description></item>
 /// <item><description>ShouldUseClaimCheck (SYNC!) returns based on PayloadThreshold</description></item>
 /// <item><description>Round-trip: Store → Retrieve returns original payload</description></item>
@@ -43,6 +44,16 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Pattern", "PROVIDER")]
 public sealed class InMemoryClaimCheckProviderConformanceTests : ClaimCheckProviderConformanceTestKit
 {
+
+	/// <summary>
+	/// Exposes the kit's own wiring check to the runner. The check is an arm like any other, so a
+	/// suite that omits THIS member disables it silently -- the one gap it cannot report itself.
+	/// </summary>
+	/// <returns>A completed task when every arm in the kit is wired.</returns>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() =>
+		ConformanceSuite_ShouldWireEveryArm();
+
 	/// <inheritdoc />
 	protected override IClaimCheckProvider CreateProvider()
 	{
@@ -142,8 +153,12 @@ public sealed class InMemoryClaimCheckProviderConformanceTests : ClaimCheckProvi
 	#region Expiration Tests
 
 	[Fact]
-	public Task RetrieveAsync_ExpiredPayload_ShouldThrowInvalidOperationException_Test() =>
-		RetrieveAsync_ExpiredPayload_ShouldThrowInvalidOperationException();
+	public Task RetrieveAsync_ExpiredPayload_ShouldThrowKeyNotFoundException_Test() =>
+		RetrieveAsync_ExpiredPayload_ShouldThrowKeyNotFoundException();
+
+	[Fact]
+	public Task RetrieveAsync_ZeroTtl_ShouldNotExpire_Test() =>
+		RetrieveAsync_ZeroTtl_ShouldNotExpire();
 
 	#endregion Expiration Tests
 }

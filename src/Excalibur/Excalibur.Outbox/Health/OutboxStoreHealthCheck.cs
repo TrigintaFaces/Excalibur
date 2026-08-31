@@ -13,7 +13,7 @@ namespace Excalibur.Outbox.Health;
 /// <remarks>
 /// <para>
 /// Validates that the underlying outbox store is reachable by calling
-/// <see cref="IOutboxStoreAdmin.GetStatisticsAsync"/> as a lightweight connectivity probe.
+/// <see cref="IOutboxStoreAdmin.GetAllTenantsStatisticsAsync"/> as a lightweight connectivity probe.
 /// Works with all outbox store providers (SqlServer, Postgres, MongoDB, Redis,
 /// ElasticSearch, InMemory, CosmosDb, DynamoDb, Firestore) since they all implement
 /// <see cref="IOutboxStoreAdmin"/>.
@@ -48,7 +48,7 @@ internal sealed class OutboxStoreHealthCheck : IHealthCheck
 	{
 		try
 		{
-			var stats = await _storeAdmin.GetStatisticsAsync(cancellationToken).ConfigureAwait(false);
+			var stats = await _storeAdmin.GetAllTenantsStatisticsAsync(cancellationToken).ConfigureAwait(false);
 
 			var data = new Dictionary<string, object>(StringComparer.Ordinal)
 			{

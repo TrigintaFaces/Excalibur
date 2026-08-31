@@ -1,6 +1,6 @@
-﻿# SOC 2 Certification Readiness Checklist
+# SOC 2 Certification Readiness Checklist
 
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Standard:** SOC 2 (Service Organization Control 2) - Trust Services Criteria
 **Categories:** Security (CC1-CC9) + Optional (Availability, Processing Integrity, Confidentiality, Privacy)
 **Status:** Automated control validation + evidence collection
@@ -131,15 +131,18 @@ builder.Services.AddInMemorySoc2ReportStore();
 ```csharp
 builder.Services.AddSoc2ComplianceWithMonitoring(options =>
 {
-    options.EnabledCategories = new[]
-    {
+    options.EnabledCategories =
+    [
         TrustServicesCategory.Security,
         TrustServicesCategory.Availability,
         TrustServicesCategory.ProcessingIntegrity,
         TrustServicesCategory.Confidentiality
-    };
-    options.MonitoringInterval = TimeSpan.FromHours(1);
-    options.AlertThreshold = GapSeverity.Medium;
+    ];
+
+    // Monitoring settings are nested under Monitoring.
+    options.Monitoring.EnableContinuousMonitoring = true;
+    options.Monitoring.MonitoringInterval = TimeSpan.FromHours(1);
+    options.Monitoring.AlertThreshold = GapSeverity.Medium;
 });
 
 // Add custom alert handler for PagerDuty/Slack/Email integration
@@ -220,7 +223,17 @@ public class UserService
 - `docs/security/audit-logging.md` - Audit logging guide
 - Audit log samples (anonymized)
 - Hash chain integrity verification tests
-- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 27 available)
+- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 30 available)
+
+:::caution The audit kit's SQL binding is partial
+Of this kit's 30 arms, **10 are wired on real SQL Server and real PostgreSQL**; the other 20 run
+against the in-memory store only. The 10 that do run on the SQL providers are the load-bearing ones
+for this control — chain integrity over an intact trail, violation detection when a record is
+rewritten, violation detection when a record is deleted from the middle, and the cross-tenant read
+arms. Cite that specifically. Do not cite "the audit conformance kit passes against our database",
+because two thirds of it did not run there.
+:::
+
 
 **SSP Statement:**
 > "CC4 is satisfied through tamper-evident audit logging using cryptographic hash chains. The framework's `IAuditLogger` captures all security-relevant events with correlation IDs, timestamps, and outcomes. Audit logs are append-only with RBAC access controls."
@@ -577,21 +590,53 @@ The entity monitors system components and resource utilization to enable the imp
 **Control Requirement:**
 The entity maintains data backup and recovery procedures to meet its objectives.
 
+**Framework Implementation:**
+- `AvailabilityControlValidator` validates backup infrastructure configuration as control AVL-003
+- `IBackupConfigurationProvider` is the registration point the validator reads
+- Configuration-based verification only: the validator confirms that a backup configuration is
+  registered and describes itself as configured. It does not enumerate snapshots, contact a backup
+  provider, or verify that any backup was actually taken.
+
 **Consumer Checklist:**
 
+- [ ] Implement and register a backup configuration provider in DI
 - [ ] Configure automated backups (SQL Server, Azure Storage, AWS S3)
 - [ ] Define RPO (Recovery Point Objective) and RTO (Recovery Time Objective)
 - [ ] Test backup restoration (quarterly recommended)
 - [ ] Document disaster recovery procedures
 
+**Code Example:**
+
+```csharp
+// The framework ships the interface, not an implementation — you describe your own backup
+// arrangement to the validator.
+public sealed class AzureBlobBackupConfiguration : IBackupConfigurationProvider
+{
+    public bool IsBackupConfigured => true;
+    public string? BackupProviderName => "Azure Blob Storage";
+    public string ConfigurationDescription =>
+        "Daily backups to geo-redundant storage with 30-day retention";
+}
+
+services.AddSingleton<IBackupConfigurationProvider, AzureBlobBackupConfiguration>();
+```
+
+:::warning What AVL-003 does and does not evidence
+`AvailabilityControlValidator` reports AVL-003 as satisfied when an `IBackupConfigurationProvider`
+is registered and returns `IsBackupConfigured == true`, and it records the provider name and
+description as evidence. Those values are supplied by you. A passing AVL-003 evidences that a
+backup arrangement has been *declared*, not that a backup *exists* or that it can be restored.
+Restoration testing remains entirely your control, and an assessor will ask for its results.
+:::
+
 **Evidence:**
-- Backup configuration
+- Backup configuration provider registration
 - Backup verification logs
 - Disaster recovery plan
 - Recovery test results
 
 **SSP Statement:**
-> "A3 is satisfied through automated daily backups with 30-day retention. SQL Server backups are replicated to geo-redundant storage. RPO is 24 hours, RTO is 4 hours. Quarterly backup restoration tests verify recoverability."
+> "A3 is satisfied through automated daily backups with 30-day retention. SQL Server backups are replicated to geo-redundant storage. RPO is 24 hours, RTO is 4 hours. The framework validates that backup infrastructure configuration is declared via `IBackupConfigurationProvider`. Quarterly backup restoration tests verify recoverability."
 
 ---
 
@@ -616,7 +661,7 @@ Inputs are complete, accurate, and valid for processing.
 ```csharp
 public class CreateOrderActionValidator : AbstractValidator<CreateOrderAction>
 {
-    public CreateOrderCommandValidator()
+    public CreateOrderActionValidator()
     {
         RuleFor(x => x.CustomerId)
             .NotEmpty().WithMessage("CustomerId is required");
@@ -668,12 +713,13 @@ Processing is complete, accurate, and timely.
 **Code Example:**
 
 ```csharp
-services.AddOutbox(options =>
-{
-    options.PublishingInterval = TimeSpan.FromSeconds(5);
-    options.MaxRetryAttempts = 3;
-    options.BatchSize = 100;
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .PollingInterval(TimeSpan.FromSeconds(5))
+        .MaxRetryCount(3)
+        .BatchSize(100))
+    .EnableBackgroundProcessing()));
 
 // Idempotency
 public class ProcessPaymentCommand : ICommand
@@ -848,9 +894,7 @@ var options = new ReportOptions
         TrustServicesCategory.Security,
         TrustServicesCategory.Availability,
         TrustServicesCategory.Confidentiality
-    ],
-    IncludeDetailedEvidence = true,
-    IncludeManagementAssertion = true
+    ]
 };
 
 var report = await _complianceService.GenerateTypeIReportAsync(
@@ -867,8 +911,40 @@ var pdf = await exporter.ExportForAuditorAsync(
     cancellationToken);
 ```
 
+:::caution PDF export is a separate package, and it carries a QuestPDF license obligation
+
+`Excalibur.Compliance` exports JSON, CSV, XML, Excel and text on its own. **PDF export requires the
+separate `Excalibur.Compliance.Pdf` package**, because PDF rendering uses
+[QuestPDF](https://www.questpdf.com/), whose Community edition is free only for organisations under
+**USD 1,000,000 total annual gross revenue, measured company-wide**. Above that threshold a paid
+QuestPDF license is required -- see
+[https://www.questpdf.com/license/](https://www.questpdf.com/license/) and pick the tier that applies
+to you. Keeping it in its own package means that obligation reaches only consumers who ask for PDFs.
+
+```bash
+dotnet add package Excalibur.Compliance.Pdf
+```
+
+```csharp
+// Select the QuestPDF license yourself, at startup. Excalibur never assigns
+// `QuestPDF.Settings.License`: it is a process-global static, so setting it would silently overwrite
+// a Professional or Enterprise license you configured, and would assert Community eligibility on
+// your behalf.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+services.AddSoc2Compliance();
+services.AddSoc2PdfExport();   // from Excalibur.Compliance.Pdf
+```
+
+Without `AddSoc2PdfExport()`, `ISoc2ReportExporter.GetSupportedFormats()` omits `ExportFormat.Pdf`
+and a PDF export request is rejected with a message naming the package to install. With the package
+registered but no license configured, QuestPDF itself throws when a PDF export is attempted. In both
+cases JSON, CSV, XML, Excel and text export are unaffected.
+
+:::
+
 - [ ] Review report sections (management assertion, control design, evidence)
-- [ ] Export report (JSON, CSV, Excel, PDF)
+- [ ] Export report (JSON, CSV, Excel; PDF with `Excalibur.Compliance.Pdf`)
 - [ ] Provide to auditor for Type I assessment
 
 ### Type II Report (Period Assessment)
@@ -980,7 +1056,7 @@ var report = await _complianceService.GenerateTypeIIReportAsync(
 
 **Automated Validation:**
 - Built-in validators (6 validators, 17+ controls)
-- Conformance test kits (80 tests: Audit, Erasure, LegalHold, DataInventory)
+- Conformance test kits (Audit, Erasure, LegalHold, DataInventory — 92 arms available to wrap; the count that evidences a control is the one your own run executed)
 
 **Evidence Artifacts:**
 - Audit log samples

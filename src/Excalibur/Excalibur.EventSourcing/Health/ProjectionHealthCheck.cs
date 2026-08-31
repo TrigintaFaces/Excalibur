@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.EventSourcing.Health;
 
 /// <summary>
-/// Health check for inline and async projections (R27.48/R27.50).
+/// Health check for inline and async projections.
 /// </summary>
 /// <remarks>
 /// <para>

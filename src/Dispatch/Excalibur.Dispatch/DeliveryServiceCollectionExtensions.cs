@@ -43,6 +43,10 @@ public static class DeliveryServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// TStore is activated by the container, so a store whose constructor requires an ITenantContext
+		// cannot be built unless one is registered. Provider-specific extensions do this themselves; this
+		// open-generic path is reachable directly (AddExactlyOnceMessaging routes through it) and did not.
+		services.AddDefaultTenantContext();
 		services.AddKeyedSingleton<IOutboxStore, TStore>("default");
 
 		// Note: IOutboxProcessor and IOutboxDispatcher implementations are now in Excalibur.Outbox
@@ -51,7 +55,7 @@ public static class DeliveryServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DeliveryOutboxOptions>, OutboxDeliveryOptionsValidator>());
 
-		// Anti-silent-absence guard (ADR-336 clause 2): the polling outbox must durably transition a
+		// Anti-silent-absence guard: the polling outbox must durably transition a
 		// retry-exhausted message to the terminal DeadLettered status. Fail fast at startup if the registered
 		// store cannot (does not implement IDeadLetterableOutboxStore) rather than re-claim it forever.
 		services.TryAddEnumerable(
@@ -94,21 +98,27 @@ public static class DeliveryServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// TStore is activated by the container, so a store whose constructor requires an ITenantContext
+		// cannot be built unless one is registered. Provider-specific extensions do this themselves; this
+		// open-generic path is reachable directly (AddExactlyOnceMessaging routes through it) and did not.
+		services.AddDefaultTenantContext();
 		services.AddKeyedSingleton<IInboxStore, TStore>("default");
 
-		// Note: IInboxProcessor, IInbox, and IInMemoryDeduplicator implementations are now in Excalibur.Outbox
-		// Use Excalibur.Outbox DI extensions to register those implementations
+		// Note: the IInboxProcessor and IInbox implementations live in Excalibur.Outbox; its
+		// AddInboxHostedService() registers both alongside the hosted service that drives them.
+		// IInMemoryDeduplicator is NOT among them -- its implementation is in this package and
+		// AddDispatch() already registers it.
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, InboxOptionsValidator>());
 
-		// Anti-silent-absence guard (ADR-336 clause 2): the full-inbox at-most-once guard and stuck-processing
+		// Anti-silent-absence guard: the full-inbox at-most-once guard and stuck-processing
 		// timeout require the store to durably persist the Processing status. Fail fast at startup if the
 		// registered store cannot (does not implement IProcessingTrackingInboxStore) rather than silently degrade.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DeliveryInboxOptions>, InboxProcessingCapabilityValidator>());
 
-		// Anti-silent-race guard (ADR-336 clause 2): the idempotency middleware's exactly-once admission under
+		// Anti-silent-race guard: the idempotency middleware's exactly-once admission under
 		// concurrent duplicate delivery requires the store to claim atomically (IClaimableInboxStore). Fail fast at
 		// startup if the registered store cannot, rather than silently degrading to a non-atomic check-then-act.
 		services.TryAddEnumerable(
@@ -143,10 +153,6 @@ public static class DeliveryServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddOutboxOptions(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -173,10 +179,6 @@ public static class DeliveryServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInboxOptions(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -205,10 +207,15 @@ public static class DeliveryServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// No durability attestation is emitted here, deliberately: this store forgets pending schedules on
-		// restart. Nothing refuses this default at startup, so a host that needs schedules to survive a
-		// restart must register a durable store itself.
+		// restart, and registering the type is not evidence that it keeps anything. Composing scheduling
+		// alone stays gate-free so a development host, or one replacing an in-process mediator, is not made
+		// to justify a store it never schedules against. The refusal is installed by the compositions that
+		// start the scheduler runtime, where the host begins accepting deliveries it owes later.
 		services.TryAddSingleton<IScheduleStore, InMemoryScheduleStore>();
 		services.TryAddSingleton<ICronScheduler, CronScheduler>();
+		// RecurringDispatchScheduler takes the concrete serializer, so scheduling composed on its own must
+		// seat it rather than rely on the consumer also having called AddDispatchPipeline/AddDispatchSerializer.
+		services.TryAddSingleton<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
 		services.TryAddSingleton<IDispatchScheduler, RecurringDispatchScheduler>();
 
 		services.TryAddEnumerable(

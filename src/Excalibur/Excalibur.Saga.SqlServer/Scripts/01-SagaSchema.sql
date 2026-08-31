@@ -58,7 +58,7 @@ BEGIN
         -- case-INSENSITIVE: without this pin 'Acme' and 'acme' are two tenants in memory and one
         -- tenant in storage, so one tenant reads another's sagas. Matches the tenant discriminator
         -- shape shipped by the audit schema.
-        TenantId NVARCHAR(200) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
+        TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
 
         -- Application-level optimistic concurrency version (matches SagaState.Version).
         -- The store performs a compare-and-swap on this column; RowVersion below is
@@ -125,7 +125,7 @@ BEGIN
     UPDATE dispatch.sagas SET TenantId = '__untenanted__' WHERE TenantId IS NULL;
 
     ALTER TABLE dispatch.sagas
-        ALTER COLUMN TenantId NVARCHAR(200) COLLATE Latin1_General_BIN2 NOT NULL;
+        ALTER COLUMN TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL;
 
     ALTER TABLE dispatch.sagas
         ADD CONSTRAINT DF_dispatch_sagas_TenantId DEFAULT '__untenanted__' FOR TenantId;

@@ -19,6 +19,29 @@ namespace Excalibur.Jobs.SqlServer;
 /// and <see cref="IJobDistributor"/> for distributed job coordination.
 /// Uses Dapper for all data access operations.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Tenancy: these tables have no tenant dimension, and that is a decision rather than an omission.</b>
+/// Every statement this type emits addresses process-coordination state -- which host holds a named job
+/// lock, which processing instances are alive, which instance a unit of work was handed to, and whether
+/// it finished. None of it is a tenant's data. A job lock is mutual exclusion between HOSTS: two hosts
+/// contending for one job key must see each other regardless of which tenants either is serving, so
+/// partitioning the lock table by tenant would not isolate anything, it would let two hosts hold the same
+/// lock. The instance registry and its heartbeats describe the deployment, and the queue and completion
+/// rows name an instance and a job key.
+/// </para>
+/// <para>
+/// The job PAYLOAD is a different question and is the caller's, not this table's: the coordinator carries
+/// it as an opaque string and never interprets it. A job whose work is tenant-scoped establishes that
+/// scope in the handler, from its own payload, against a store that is tenant-confined -- it does not
+/// inherit a scope from the coordination row that scheduled it.
+/// </para>
+/// <para>
+/// Recorded here because absence is not self-documenting: a reader who greps this package for a tenant
+/// term and finds none cannot tell a considered decision from a forgotten one, and adding a term to make
+/// the grep uniform is how a coordination table stops coordinating.
+/// </para>
+/// </remarks>
 public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegistry, IJobDistributor
 {
 	private readonly Func<SqlConnection> _connectionFactory;
@@ -107,7 +130,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 		var data = JsonSerializer.Serialize(instanceInfo, SqlServerJobCoordinatorSerializerContext.Default.JobInstanceInfo);
 
 		var sql = $"""
-			MERGE [{_schema}].[Instances] AS target
+			MERGE [{_schema}].[Instances] WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @InstanceId AS InstanceId) AS source
 			ON target.[InstanceId] = source.InstanceId
 			WHEN MATCHED THEN
@@ -218,7 +241,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 			return null;
 		}
 
-		var serializedData = JsonSerializer.Serialize(jobData, SqlServerJobCoordinatorSerializerContext.Default.JsonElement);
+		var serializedData = SerializePayload(jobData);
 
 		var sql = $"""
 			INSERT INTO [{_schema}].[Queue] ([JobKey], [AssignedInstance], [JobData], [CreatedAt], [Status])
@@ -256,9 +279,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 		string? resultData = null;
 		if (result is not null)
 		{
-			resultData = JsonSerializer.Serialize(
-				JsonSerializer.SerializeToElement(result),
-				SqlServerJobCoordinatorSerializerContext.Default.JsonElement);
+			resultData = SerializePayload(result);
 		}
 
 		var sql = $"""
@@ -312,4 +333,14 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 	[LoggerMessage(147427, LogLevel.Debug,
 		"Reported completion for job {JobKey} by instance {InstanceId}: {Status}")]
 	private partial void LogJobCompletionReported(string jobKey, string instanceId, string status);
+
+	/// <summary>
+	/// Serializes an arbitrary job payload to the JSON text stored in the coordination tables.
+	/// </summary>
+	/// <param name="value">The payload to serialize.</param>
+	/// <returns>The JSON representation of <paramref name="value"/>.</returns>
+	[RequiresUnreferencedCode("Serializing a payload of unknown type requires type metadata that may be removed during trimming")]
+	[RequiresDynamicCode("Serializing a payload of unknown type may require runtime code generation")]
+	internal static string SerializePayload(object value) =>
+		JsonSerializer.Serialize(value, value.GetType());
 }

@@ -7,7 +7,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Configuration options for time-based policies in message processing. R7.4: Configurable timeout handling with validation.
+/// Configuration options for time-based policies in message processing. Configurable timeout handling with validation.
 /// </summary>
 public sealed class TimePolicyOptions
 {
@@ -263,11 +263,4 @@ public sealed class TimePolicyObservabilityOptions
 	/// </summary>
 	/// <value> True to log timeout events; otherwise, false. </value>
 	public bool LogTimeoutEvents { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to include timeout information in metrics.
-	/// Default: true.
-	/// </summary>
-	/// <value> True to include timeout metrics; otherwise, false. </value>
-	public bool IncludeTimeoutMetrics { get; set; } = true;
 }

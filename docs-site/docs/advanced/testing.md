@@ -323,7 +323,7 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         });
         services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
         {
-            es.UseSqlServer(opts => opts.ConnectionString = _sqlContainer.GetConnectionString());
+            es.UseSqlServer(opts => opts.ConnectionString(_sqlContainer.GetConnectionString()));
         }));
 
         _services = services.BuildServiceProvider();
@@ -549,19 +549,26 @@ public class OrderHandlerTests : IDisposable
 
 ## Running Tests
 
+Every command below carries a hang bound. A test host that wedges — most often on a container, a
+socket, or a lock a test never releases — otherwise occupies the run until something kills it, and
+kills it without a dump to diagnose. `--blame-hang-timeout` ends the individual test and writes one.
+
 ```bash
 # Run all tests
-dotnet test
+dotnet test --blame-hang-timeout 5m
 
 # Run specific test project
-dotnet test tests/functional/Excalibur.Dispatch.Tests.Functional
+dotnet test tests/functional/Excalibur.Dispatch.Tests.Functional --blame-hang-timeout 5m
 
 # Run with coverage
-dotnet test --collect:"XPlat Code Coverage"
+dotnet test --collect:"XPlat Code Coverage" --blame-hang-timeout 5m
 
 # Run specific test
-dotnet test --filter "FullyQualifiedName~CreateOrderHandler"
+dotnet test --filter "FullyQualifiedName~CreateOrderHandler" --blame-hang-timeout 5m
 ```
+
+On a project using Microsoft.Testing.Platform, the equivalent bound is `-- --timeout 5m`; the VSTest
+`--blame-hang-timeout` argument is not recognised there.
 
 ## Related Documentation
 

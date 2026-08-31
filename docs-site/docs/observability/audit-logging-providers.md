@@ -6,11 +6,11 @@ description: Per-provider setup for Elasticsearch, OpenSearch, Datadog, Splunk, 
 
 # Audit Logging Providers
 
-Dispatch audit logging uses `IAuditStore` as its core abstraction for compliance-grade storage and `IAuditLogExporter` / audit sinks for search and analytics projections. Provider-specific backends ship audit events to external platforms for analysis, alerting, and compliance reporting.
+Dispatch audit logging uses `IAuditStore` as its core abstraction for compliance-grade storage and `IAuditLogExporter` for search and analytics projections. Provider-specific backends ship audit events to external platforms for analysis, alerting, and compliance reporting.
 
 :::info Compliance Boundary
 
-Only SQL Server (and Postgres) backends implement `IAuditStore` with tamper-evident hash chains. Elasticsearch and OpenSearch serve as **audit sinks** -- write-only, search-optimized projections. They are not compliance-grade stores. See [Compliance Audit Logging](../compliance/audit-logging.md#provider-compliance-boundary) for details.
+Only SQL Server (and Postgres) backends implement `IAuditStore` with tamper-evident hash chains. Elasticsearch and OpenSearch register `IAuditLogExporter` only -- write-only, search-optimized projections. They are not compliance-grade stores. See [Compliance Audit Logging](../compliance/audit-logging.md#provider-compliance-boundary) for details.
 :::
 
 ## Before You Start
@@ -55,9 +55,9 @@ services.AddAuditRoleProvider<MyRoleProvider>();
 
 ---
 
-## Elasticsearch (Audit Sink)
+## Elasticsearch (Audit Exporter)
 
-Index audit events into Elasticsearch for full-text search, aggregation dashboards, and real-time alerting. This is a **sink** (write-only) -- not an `IAuditStore` implementation. See the [provider compliance boundary](../compliance/audit-logging.md#provider-compliance-boundary) for rationale.
+Index audit events into Elasticsearch for full-text search, aggregation dashboards, and real-time alerting. The package registers `IAuditLogExporter` only -- never an `IAuditStore`. See the [provider compliance boundary](../compliance/audit-logging.md#provider-compliance-boundary) for rationale.
 
 ### Installation
 
@@ -67,65 +67,69 @@ dotnet add package Excalibur.AuditLogging.Elasticsearch
 
 **Dependencies:** `Excalibur.Compliance.Abstractions`, `Microsoft.Extensions.Http`
 
-### Audit Sink (Real-Time)
+### Registration
 
-Writes individual audit events via the Bulk API with retry and round-robin cluster support:
+One entry point covers both the single-event write (`ExportAsync`) and the batched Bulk-API
+write (`ExportBatchAsync`), with retry and round-robin cluster failover on every attempt:
 
 ```csharp
-// With options callback
-services.AddElasticsearchAuditSink(options =>
+using Excalibur.AuditLogging.Elasticsearch;
+
+// Single node
+services.AddElasticsearchAuditExporter(es =>
 {
-    // Single node
-    options.ElasticsearchUrl = "https://es.example.com:9200";
-
-    // Or cluster (round-robin)
-    options.NodeUrls = ["https://es1:9200", "https://es2:9200", "https://es3:9200"];
-
-    options.IndexPrefix = "dispatch-audit";   // indexes: dispatch-audit-2026.03.31
-    options.ApiKey = "your-api-key";
-    options.ApplicationName = "OrderService"; // fallback if AuditEvent.ApplicationName is null
-    options.MaxRetryAttempts = 3;
-    options.RetryBaseDelay = TimeSpan.FromSeconds(1); // exponential backoff
+    es.NodeUri(new Uri("https://es.example.com:9200"))
+      .IndexName("dispatch-audit");   // indexes: dispatch-audit-2026.03.31
 });
 
-// Or from IConfiguration (appsettings.json binding)
-services.AddElasticsearchAuditSink(configuration.GetSection("AuditSink:Elasticsearch"));
+// Or a cluster -- every retry attempt round-robins to the next node
+services.AddElasticsearchAuditExporter(es =>
+{
+    es.NodeUris([new Uri("https://es1:9200"), new Uri("https://es2:9200"), new Uri("https://es3:9200")])
+      .IndexName("dispatch-audit");
+});
+
+// Or bind the whole option set from configuration (appsettings.json)
+services.AddElasticsearchAuditExporter(es => es.BindConfiguration("AuditExporter:Elasticsearch"));
+```
+
+The builder exposes connection (`NodeUri`, `NodeUris`, `CloudId`), index naming (`IndexName`),
+and configuration binding (`BindConfiguration`). The remaining settings on
+`ElasticsearchExporterOptions` -- `ApiKey`, `BulkBatchSize`, `RefreshPolicy`, `ApplicationName`,
+`MaxRetryAttempts`, `RetryBaseDelay`, `Timeout` -- come from the bound configuration section, or
+from a `Configure` call registered after the exporter:
+
+```csharp
+using Excalibur.AuditLogging.Elasticsearch;
+
+services.AddElasticsearchAuditExporter(es => es.NodeUri(new Uri("https://es.example.com:9200")));
+services.Configure<ElasticsearchExporterOptions>(o =>
+{
+    o.ApiKey = configuration["Elasticsearch:ApiKey"];
+    o.BulkBatchSize = 500;
+    o.MaxRetryAttempts = 3;
+    o.RetryBaseDelay = TimeSpan.FromSeconds(1); // exponential backoff
+    o.ApplicationName = "OrderService";         // fallback if AuditEvent.ApplicationName is null
+});
 ```
 
 :::tip ApplicationName Preference
 
-The indexed `application_name` field uses `AuditEvent.ApplicationName` when set, falling back to the options-level `ApplicationName`. Set it once on the event via `ApplicationContext.ApplicationName` (automatic via DI) and all sinks pick it up.
+The indexed `application_name` field uses `AuditEvent.ApplicationName` when set, falling back to the options-level `ApplicationName`. Set it once on the event via `ApplicationContext.ApplicationName` (automatic via DI) and every exporter picks it up.
 :::
-
-### Audit Exporter (Batch)
-
-Bulk-exports audit events from your primary `IAuditStore` (e.g., SQL Server) into Elasticsearch for search indexing:
-
-```csharp
-// With options callback
-services.AddElasticsearchAuditExporter(options =>
-{
-    options.ElasticsearchUrl = "https://es.example.com:9200";
-    options.IndexPrefix = "dispatch-audit";
-    options.BulkBatchSize = 500;
-});
-
-// Or from IConfiguration
-services.AddElasticsearchAuditExporter(configuration.GetSection("AuditExporter:Elasticsearch"));
-```
 
 ### Recommended Architecture
 
 ```
 SQL Server = IAuditStore (compliance, hash-chained, tamper-evident)
-Elasticsearch = Audit Sink (search, dashboards, alerting)
+Elasticsearch = IAuditLogExporter (search, dashboards, alerting)
 ```
 
 ---
 
-## OpenSearch (Audit Sink)
+## OpenSearch (Audit Exporter)
 
-Full parity with the Elasticsearch audit sink, built on raw `HttpClient` (no `OpenSearch.Client` dependency). Same compliance boundary applies -- OpenSearch is a **sink**, not an `IAuditStore`.
+Full parity with the Elasticsearch audit exporter, built on raw `HttpClient` (no `OpenSearch.Client` dependency). Same compliance boundary applies -- OpenSearch registers `IAuditLogExporter`, not an `IAuditStore`.
 
 ### Installation
 
@@ -135,44 +139,47 @@ dotnet add package Excalibur.AuditLogging.OpenSearch
 
 **Dependencies:** `Excalibur.Compliance.Abstractions`, `Microsoft.Extensions.Http`
 
-### Audit Sink (Real-Time)
+### Registration
 
 ```csharp
-// With options callback
-services.AddOpenSearchAuditSink(options =>
+using Excalibur.AuditLogging.OpenSearch;
+
+// Single node
+services.AddOpenSearchAuditExporter(os =>
 {
-    // Single node
-    options.OpenSearchUrl = "https://os.example.com:9200";
-
-    // Or cluster (round-robin)
-    options.NodeUrls = ["https://os1:9200", "https://os2:9200", "https://os3:9200"];
-
-    options.IndexPrefix = "dispatch-audit";
-    options.ApiKey = "your-api-key";
-    options.ApplicationName = "OrderService"; // fallback if AuditEvent.ApplicationName is null
-    options.MaxRetryAttempts = 3;
+    os.NodeUri(new Uri("https://os.example.com:9200"))
+      .IndexName("dispatch-audit");
 });
 
-// Or from IConfiguration (appsettings.json binding)
-services.AddOpenSearchAuditSink(configuration.GetSection("AuditSink:OpenSearch"));
+// Or a cluster -- every retry attempt round-robins to the next node
+services.AddOpenSearchAuditExporter(os =>
+{
+    os.NodeUris([new Uri("https://os1:9200"), new Uri("https://os2:9200"), new Uri("https://os3:9200")])
+      .IndexName("dispatch-audit");
+});
+
+// Or bind the whole option set from configuration (appsettings.json)
+services.AddOpenSearchAuditExporter(os => os.BindConfiguration("AuditExporter:OpenSearch"));
 ```
 
-Same `ApplicationName` preference hierarchy as Elasticsearch: event field takes precedence over options-level fallback.
-
-### Audit Exporter (Batch)
+The OpenSearch builder is the Elasticsearch one minus `CloudId`. The remaining settings on
+`OpenSearchExporterOptions` come from the bound configuration section, or from a `Configure`
+call registered after the exporter:
 
 ```csharp
-// With options callback
-services.AddOpenSearchAuditExporter(options =>
-{
-    options.OpenSearchUrl = "https://os.example.com:9200";
-    options.IndexPrefix = "dispatch-audit";
-    options.BulkBatchSize = 500;
-});
+using Excalibur.AuditLogging.OpenSearch;
 
-// Or from IConfiguration
-services.AddOpenSearchAuditExporter(configuration.GetSection("AuditExporter:OpenSearch"));
+services.AddOpenSearchAuditExporter(os => os.NodeUri(new Uri("https://os.example.com:9200")));
+services.Configure<OpenSearchExporterOptions>(o =>
+{
+    o.ApiKey = configuration["OpenSearch:ApiKey"];
+    o.BulkBatchSize = 500;
+    o.MaxRetryAttempts = 3;
+    o.ApplicationName = "OrderService";
+});
 ```
+
+Same `ApplicationName` preference hierarchy as Elasticsearch: the event field takes precedence over the options-level fallback.
 
 ---
 
@@ -288,7 +295,7 @@ services.AddSqlServerAuditStore(auditOptions);
 
 ## Combining Providers
 
-You can register multiple backends. Use SQL Server as the compliance-grade `IAuditStore` and add sinks/exporters for search and analytics:
+You can register multiple backends. Use SQL Server as the compliance-grade `IAuditStore` and add exporters for search and analytics:
 
 ```csharp
 services.AddAuditLogging();
@@ -296,13 +303,13 @@ services.AddAuditLogging();
 // Primary: compliance-grade, hash-chained
 services.AddSqlServerAuditStore(options => { /* ... */ });
 
-// Search & analytics sinks
-services.AddElasticsearchAuditSink(options => { /* ... */ });
-services.AddOpenSearchAuditSink(options => { /* ... */ });
+// Search & analytics exporters
+services.AddElasticsearchAuditExporter(es => { /* ... */ });
+services.AddOpenSearchAuditExporter(os => { /* ... */ });
 
 // SIEM exporters
-services.AddDatadogAuditExporter(options => { /* ... */ });
-services.AddSentinelAuditExporter(options => { /* ... */ });
+services.AddDatadogAuditExporter(dd => { /* ... */ });
+services.AddSentinelAuditExporter(sentinel => { /* ... */ });
 ```
 
 ## See Also

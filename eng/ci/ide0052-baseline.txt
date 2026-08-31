@@ -1,0 +1,88 @@
+# ide0052-baseline.txt — the measured population of unread private members in src/ at the moment
+# IDE0052 was re-armed. See eng/ci/ide0052-ratchet-gate.sh.
+#
+# THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
+#   - An entry here is NOT blessed. It is a member the compiler says is assigned and never read,
+#     recorded so the detector could be turned back on without redding every build on day one.
+#   - A site NOT listed here FAILS the gate on first appearance. That is the safety arm.
+#   - Cleaning a site should DELETE its line. A stale entry (site no longer reported) is a warning,
+#     not a failure, so that fixing one in a parallel change never reds CI on a race.
+#
+# HOW THIS POPULATION WAS PRODUCED, so it can be reproduced rather than trusted:
+#   dotnet build Excalibur.sln -c Release --no-restore --no-incremental \
+#       -p:TreatWarningsAsErrors=false -p:BuildExamplesAndTests=true
+#   --no-incremental matters: an incremental build does not re-run analyzers on unchanged projects,
+#   so a census taken without it silently under-reports. BuildExamplesAndTests=true matters too --
+#   without it three of the entries below (Excalibur.Testing, Outbox.CosmosDb) are not compiled at
+#   all and the gate reports them STALE, which on a partial log means "not scanned", never "fixed".
+#   New-site detection is unaffected by log completeness; only the stale arm needs the full build.
+#
+# KEYED BY FILE + MEMBER, DELIBERATELY NOT BY LINE. A line-keyed baseline goes stale on every edit
+# above a site and manufactures false ratchet failures that train people to regenerate it blindly.
+#
+# WHAT AN ENTRY MEANS AND DOES NOT MEAN: the compiler proved the value assigned to this member is
+# never read. It does NOT say whether that is a dead field or a live dependency someone forgot to
+# use — those need different fixes and only a human can tell them apart. Several entries below are
+# the second kind (a handler never invoked, a timeout never applied, a serializer option never
+# passed); they are release-class defects, not cleanup, and are tracked separately.
+#
+# NOT COVERED BY THIS POPULATION, stated so nobody reads its silence as a clean bill:
+#   - tests/**   — tests/Directory.Build.props sets EnforceCodeStyleInBuild=false, so IDE analyzers
+#                  never run there at all. Measured, not assumed: a planted probe emitted CS0414 and
+#                  no IDE diagnostic.
+#   - members already carrying a #pragma/SuppressMessage for IDE0052 — suppressed at the site, so
+#     they never reach this list. Audited separately.
+#   - unread primary-constructor PARAMETERS — those are CS9113, a different diagnostic, itself set
+#     to suggestion in .editorconfig.
+#
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Channels/SqsBatchProcessor.cs::SqsBatchProcessor._bufferPool
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Channels/SqsBatchProcessor.cs::SqsBatchProcessor._receiveBatches
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/ConnectionPooling/Models/ConnectionMetrics.cs::ConnectionMetrics._metricsPrefix
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/LongPolling/AdaptiveLongPollingStrategy.cs::AdaptiveLongPollingStrategy._uptime
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Sqs/HighThroughputSqsChannelProcessor.cs::HighThroughputSqsChannelProcessor._bufferPool
+src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Sqs/HighThroughputSqsChannelProcessor.cs::HighThroughputSqsChannelProcessor._uptimeStopwatch
+src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/EventHubs/AzureEventHubMessageBus.cs::AzureEventHubMessageBus._options
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/BatchReceiving/Processing/AdaptiveBatchProcessor.cs::AdaptiveBatchProcessor._options
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/BatchReceiving/Processing/OrderedBatchProcessor.cs::OrderedBatchProcessor._options
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/BatchReceiving/Processing/ParallelBatchProcessor.cs::ParallelBatchProcessor._options
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Ordering/OrderingKeyManager.cs::OrderingKeyManager._metrics
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Parallel/ThreadUtilizationMonitor.cs::ThreadUtilizationMonitor._lastSampleTime
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/PubSubTransportReceiver.cs::PubSubTransportReceiver._requestTimeout
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Serialization/PubSubBatchSerializer.cs::PubSubBatchSerializer._arrayPool
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Serialization/PubSubBatchSerializer.cs::PubSubBatchSerializer._options
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Telemetry/GooglePubSubMetrics.cs::GooglePubSubMetrics._flowControlBytes
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Telemetry/GooglePubSubMetrics.cs::GooglePubSubMetrics._flowControlPermits
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Telemetry/PubSubTelemetryProvider.cs::PubSubTelemetryProvider._activeStreams
+src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Telemetry/PubSubTelemetryProvider.cs::PubSubTelemetryProvider._throughput
+src/Dispatch/Excalibur.Dispatch/Configuration/PipelineProfile.cs::PipelineProfile._orderedMiddlewareTypesSnapshot
+src/Excalibur/Excalibur.Caching/AdaptiveTtl/AdaptiveTtlCache.cs::AdaptiveTtlCache.CacheActivitySource
+src/Excalibur/Excalibur.Cdc.SqlServer/CdcProcessor.cs::CdcProcessor._policyFactory
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchMetrics.cs::ElasticsearchMetrics.ElasticsearchOperationContext._indexName
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchMetrics.cs::ElasticsearchMetrics.ElasticsearchOperationContext._operationType
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchMetrics.cs::ElasticsearchMetrics._circuitBreakerStateGauge
+src/Excalibur/Excalibur.Data.ElasticSearch/Monitoring/ElasticsearchMetrics.cs::ElasticsearchMetrics._healthStatusGauge
+src/Excalibur/Excalibur.Data.ElasticSearch/Projections/EventualConsistencyTracker.cs::EventualConsistencyTracker._alertConfiguration
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Auditing/SecurityAuditor.cs::SecurityAuditor.EventsFailedCounter
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Authentication/SecureElasticsearchAuthenticationProvider.cs::SecureElasticsearchAuthenticationProvider._lastRotation
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/Authentication/SecureElasticsearchAuthenticationProvider.cs::SecureElasticsearchAuthenticationProvider._nextRotationDue
+src/Excalibur/Excalibur.Data.ElasticSearch/Security/KeyManagement/AzureKeyVaultProvider.cs::AzureKeyVaultProvider._keyClient
+src/Excalibur/Excalibur.Data.Firestore/FirestoreListenerSubscription.cs::FirestoreListenerSubscription._options
+src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs::FirestoreProjectionStore._logger
+src/Excalibur/Excalibur.Data.InMemory/InMemoryTransactionScope.cs::InMemoryTransactionScope._timeout
+src/Excalibur/Excalibur.Data.MongoDB/MongoDbHealthCheck.cs::MongoDbHealthCheck._options
+src/Excalibur/Excalibur.Data.OpenSearch/Monitoring/OpenSearchMetrics.cs::OpenSearchMetrics.OpenSearchOperationContext._indexName
+src/Excalibur/Excalibur.Data.OpenSearch/Monitoring/OpenSearchMetrics.cs::OpenSearchMetrics.OpenSearchOperationContext._operationType
+src/Excalibur/Excalibur.Data.OpenSearch/Monitoring/OpenSearchMetrics.cs::OpenSearchMetrics._circuitBreakerStateGauge
+src/Excalibur/Excalibur.Data.OpenSearch/Monitoring/OpenSearchMetrics.cs::OpenSearchMetrics._healthStatusGauge
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceMetrics.cs::PostgresPersistenceMetrics._activeConnections
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceMetrics.cs::PostgresPersistenceMetrics._idleConnections
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceMetrics.cs::PostgresPersistenceMetrics._poolSize
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceMetrics.cs::PostgresPersistenceMetrics._poolUtilization
+src/Excalibur/Excalibur.Data.Postgres/Persistence/PostgresPersistenceMetrics.cs::PostgresPersistenceMetrics._preparedStatementCount
+src/Excalibur/Excalibur.EventSourcing.Postgres/PostgresCursorMapStore.cs::PostgresCursorMapStore._logger
+src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerCursorMapStore.cs::SqlServerCursorMapStore._logger
+src/Excalibur/Excalibur.EventSourcing/Health/MaterializedViewHealthCheck.cs::MaterializedViewHealthCheck._timeProvider
+src/Excalibur/Excalibur.LeaderElection/Diagnostics/TelemetryLeaderElection.cs::TelemetryLeaderElection._meter
+src/Excalibur/Excalibur.Outbox.CosmosDb/CosmosDbOutboxChangeFeedSubscription.cs::CosmosDbOutboxChangeFeedSubscription.JsonOptions
+src/Excalibur/Excalibur.Testing/AggregateTestFixtureResult.cs::AggregateTestFixtureResult._executed
+src/Excalibur/Excalibur.Testing/SagaTestFixtureResult.cs::SagaTestFixtureResult._executed

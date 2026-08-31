@@ -11,7 +11,12 @@ namespace Excalibur.EventSourcing;
 /// <param name="AggregateId">The aggregate identifier.</param>
 /// <param name="AggregateType">The aggregate type name.</param>
 /// <param name="EventType">The event type name.</param>
-/// <param name="EventData">The serialized event data.</param>
+/// <param name="EventData">
+/// The serialized event data, or <see langword="null"/> when the event has been erased. An event
+/// erased under a data-subject request is tombstoned in place: the payload is cleared and the entry
+/// remains in the stream so versions stay contiguous. Skip an entry whose payload is absent rather
+/// than deserializing it.
+/// </param>
 /// <param name="Metadata">The serialized event metadata.</param>
 /// <param name="Version">The event version within the aggregate.</param>
 /// <param name="Timestamp">When the event occurred.</param>
@@ -20,7 +25,7 @@ public sealed record StoredEvent(
 	string AggregateId,
 	string AggregateType,
 	string EventType,
-	byte[] EventData,
+	byte[]? EventData,
 	byte[]? Metadata,
 	long Version,
 	DateTimeOffset Timestamp)

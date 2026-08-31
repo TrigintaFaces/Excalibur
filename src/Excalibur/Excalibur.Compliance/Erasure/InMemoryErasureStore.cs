@@ -22,7 +22,16 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	private readonly ConcurrentDictionary<Guid, ErasureCertificate> _certificates = new();
 	private readonly ConcurrentDictionary<Guid, Guid> _requestToCertificate = new();
 	private readonly IDataSubjectHasher _dataSubjectHasher;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
+	/// the same term. When the deployment is not multi-tenant the store
+	/// binds the reserved untenanted partition. That fallback is stated here and nowhere else: a conversion
+	/// cannot make it on the store's behalf without inventing a tenant decision the host never made.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly bool _requireTenant;
 
 	/// <summary>
@@ -39,9 +48,10 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	/// widening it.
 	/// </para>
 	/// <para>
-	/// Deployment mode decides the shape. A deployment that has not opted into multi-tenancy resolves
-	/// <see cref="TenantScope.None"/>: no filter is applied, and rows keep whatever tenant value the caller
-	/// supplied — byte-identical to the single-tenant behaviour, so no stored row becomes unreachable. A
+	/// Deployment mode decides the shape, and it is read from the store's own configuration rather than
+	/// inferred from a missing tenant term. A deployment that has not opted into multi-tenancy applies no
+	/// filter, and rows keep whatever tenant value the caller supplied — byte-identical to the single-tenant
+	/// behaviour, so no stored row becomes unreachable. A
 	/// multi-tenant deployment resolves a scoped term that rides every tenant-facing path. Mode is "did the
 	/// consumer opt in", read from <see cref="TenantContextOptions.RequireTenant"/>, and deliberately not "is
 	/// an <see cref="ITenantContext"/> present" — the framework always registers a single-tenant default, so
@@ -49,9 +59,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	/// </para>
 	/// <para>
 	/// Multi-tenancy active with no resolved tenant fails closed: it throws rather than reaching an unfiltered
-	/// read. A missing context is the same failure and is stated as such, because degrading it to
-	/// <see cref="TenantScope.None"/> would apply no filter at all — the exact cross-tenant read this property
-	/// exists to remove.
+	/// read. A missing context is the same failure and is stated as such, because degrading it to an
+	/// unfiltered read is the exact cross-tenant read this property exists to remove.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="TenantRequiredException">
@@ -63,12 +72,10 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		{
 			if (!_requireTenant)
 			{
-				return TenantScope.None;
+				return TenantScope.Untenanted;
 			}
 
-			return _tenantContext is null
-				? throw new TenantRequiredException()
-				: TenantScope.FromContext(_tenantContext);
+			return CurrentTenantScope;
 		}
 	}
 
@@ -81,8 +88,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	/// tenant, and the write path stamps it rather than the value on the incoming request, so one tenant
 	/// cannot file a request into another tenant's partition. The estate-wide background surfaces
 	/// (<c>GetScheduledRequestsAsync</c>, <c>CleanupExpiredCertificatesAsync</c>) are deliberately unscoped
-	/// and documented as such at their call sites. Omitting it — the default — is the single-tenant
-	/// deployment shape, in which the store resolves <see cref="TenantScope.None"/> and applies no filter.
+	/// and documented as such at their call sites. It is required: the deployment mode is selected by
+	/// <paramref name="tenantContextOptions"/>, not by whether a context was supplied.
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
@@ -90,12 +97,13 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	/// </param>
 	public InMemoryErasureStore(
 		IDataSubjectHasher dataSubjectHasher,
-		ITenantContext? tenantContext = null,
-		IOptions<TenantContextOptions>? tenantContextOptions = null)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
-		_tenantContext = tenantContext;
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		ArgumentNullException.ThrowIfNull(tenantContextOptions);
+		_requireTenant = tenantContextOptions.Value.RequireTenant;
 	}
 
 	/// <summary>
@@ -114,6 +122,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		DateTimeOffset scheduledExecutionTime,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(request);
+
 		// The ambient term is authoritative on the write. Stamping the request's own TenantId would let a
 		// caller file a request into another tenant's partition — and, because every scoped read matches on
 		// the ambient term, that row would then be readable only by the tenant it was planted on.
@@ -124,7 +134,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 			RequestId = request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = request.IdType,
-			TenantId = tenant.IsScoped ? tenant.TenantId : request.TenantId,
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
 			Scope = request.Scope,
 			LegalBasis = request.LegalBasis,
 			ExternalReference = request.ExternalReference,
@@ -138,7 +149,9 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 
 		if (!_requests.TryAdd(request.RequestId, data))
 		{
-			throw new InvalidOperationException($"Request {request.RequestId} already exists");
+			// The specific type, not the base: a caller reading a bare InvalidOperationException as
+			// "already on file" would do the same for a fault that stored nothing, and drop the request.
+			throw DuplicateErasureRequestException.ForRequestId(request.RequestId);
 		}
 
 		return Task.CompletedTask;
@@ -360,9 +373,11 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 		ErasureCertificate certificate,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(certificate);
+
 		if (!_certificates.TryAdd(certificate.CertificateId, certificate))
 		{
-			throw new InvalidOperationException($"Certificate {certificate.CertificateId} already exists");
+			throw DuplicateErasureCertificateException.ForCertificateId(certificate.CertificateId);
 		}
 
 		_requestToCertificate[certificate.RequestId] = certificate.CertificateId;
@@ -516,8 +531,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	/// throw is a property of the deployment rather than of the data.
 	/// </para>
 	/// </remarks>
-	private static bool MatchesAmbientTenant(TenantScope tenant, string? rowTenantId) =>
-		!tenant.IsScoped || string.Equals(rowTenantId, tenant.TenantId, StringComparison.Ordinal);
+	private bool MatchesAmbientTenant(TenantScope tenant, string? rowTenantId) =>
+		!_requireTenant || string.Equals(rowTenantId, tenant.TenantId, StringComparison.Ordinal);
 
 	/// <summary>
 	/// Decides whether the request a certificate certifies belongs to the ambient tenant.
@@ -536,7 +551,7 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	/// </remarks>
 	private bool OwningRequestMatchesAmbientTenant(TenantScope tenant, Guid requestId)
 	{
-		if (!tenant.IsScoped)
+		if (!_requireTenant)
 		{
 			return true;
 		}

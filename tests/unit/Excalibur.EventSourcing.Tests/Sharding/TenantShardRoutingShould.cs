@@ -125,6 +125,66 @@ public sealed class TenantShardRoutingShould
 
 	#endregion
 
+	#region CurrentShard (ambient bridge)
+
+	// LIVENESS. The ambient tenant actually selects that tenant's shard — not the default one. A
+	// fail-closed change that refused everything, or one that always answered with the default shard,
+	// would pass the safety arm below and fail here.
+	[Fact]
+	public void RouteCurrentShardToTheAmbientTenantsOwnShard()
+	{
+		// A default shard is configured AND it is not the shard this tenant maps to, so answering with
+		// the default is distinguishable from answering with the tenant's own.
+		var map = CreateShardMap(defaultShardId: "shard-1");
+		var context = new MutableTenantContext { TenantId = "tenant-b" };
+
+		map.CurrentShard(context).ShouldBe(Shard2);
+
+		// Changing the ambient tenant re-routes.
+		context.TenantId = "tenant-a";
+		map.CurrentShard(context).ShouldBe(Shard1);
+	}
+
+	// SAFETY, and the composed defect this lock exists for. With a default shard configured, an
+	// unresolved ambient tenant used to be folded onto the empty key, which the map answers with the
+	// default shard — so the caller silently read and wrote the default shard's tenant data with no
+	// exception and no log. Reintroducing the fold makes this call return Shard1 instead of throwing.
+	[Fact]
+	public void FailClosedOnCurrentShard_WhenThereIsNoAmbientTenant_EvenWithADefaultShardConfigured()
+	{
+		var map = CreateShardMap(defaultShardId: "shard-1");
+		var context = new MutableTenantContext { TenantId = null };
+
+		_ = Should.Throw<TenantRequiredException>(() => map.CurrentShard(context));
+	}
+
+	// The refusal happens before the map is consulted: no tenant term is substituted, so no shard is
+	// ever selected. This holds whatever default-shard policy the map carries.
+	[Fact]
+	public void NotConsultTheShardMapAtAll_WhenThereIsNoAmbientTenant()
+	{
+		var map = A.Fake<ITenantShardMap>();
+		var context = new MutableTenantContext { TenantId = null };
+
+		_ = Should.Throw<TenantRequiredException>(() => map.CurrentShard(context));
+
+		A.CallTo(() => map.GetShardInfo(A<string>._)).MustNotHaveHappened();
+	}
+
+	// "Belongs to no tenant" is a value the caller states, not a tenant left unset. The untenanted
+	// partition term is routed like any other key, so a deliberately untenanted caller still resolves.
+	[Fact]
+	public void RouteAnExplicitlyUntenantedCallerToTheMapsAnswerForTheUntenantedPartition()
+	{
+		var map = CreateShardMap(defaultShardId: "shard-1");
+
+		// The untenanted partition has no mapping of its own here, so the map's own unknown-tenant
+		// policy applies to it — exactly as it would to any real tenant that is not mapped.
+		map.CurrentShard(UntenantedContext.Instance).ShouldBe(Shard1);
+	}
+
+	#endregion
+
 	#region TenantRoutingEventStore
 
 	[Fact]
@@ -198,28 +258,39 @@ public sealed class TenantShardRoutingShould
 			.MustHaveHappenedOnceExactly();
 	}
 
-	[Fact]
-	public void ThrowWhenTenantIdIsEmpty()
+	/// <summary>
+	/// The documented exception for a tenant-required path with no ambient tenant is
+	/// <see cref="TenantRequiredException"/>. A consumer writing that catch clause must catch this store too,
+	/// so asserting only the base <see cref="InvalidOperationException"/> would pass over the defect.
+	/// </summary>
+	[Theory]
+	[InlineData("")]
+	[InlineData(null)]
+	[InlineData("   ")]
+	public async Task ThrowTenantRequired_WhenEventStoreHasNoAmbientTenant(string? unresolved)
 	{
 		// Arrange
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
-		var tenantId = new MutableTenantContext { TenantId = string.Empty };
+		var tenantId = new MutableTenantContext { TenantId = unresolved! };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
 		// Act & Assert
-		Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<TenantRequiredException>(
 			async () => await routingStore.LoadAsync("agg-1", "Order", CancellationToken.None));
 	}
 
-	[Fact]
-	public void ThrowWhenTenantIdIsNull()
+	[Theory]
+	[InlineData("")]
+	[InlineData(null)]
+	[InlineData("   ")]
+	public async Task ThrowTenantRequired_WhenEventStoreAppendHasNoAmbientTenant(string? unresolved)
 	{
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
-		var tenantId = new MutableTenantContext { TenantId = null! };
+		var tenantId = new MutableTenantContext { TenantId = unresolved! };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
-		Should.ThrowAsync<InvalidOperationException>(
-			async () => await routingStore.LoadAsync("agg-1", "Order", CancellationToken.None));
+		_ = await Should.ThrowAsync<TenantRequiredException>(
+			async () => await routingStore.AppendAsync("agg-1", "Order", [], 0, CancellationToken.None));
 	}
 
 	[Fact]
@@ -335,14 +406,17 @@ public sealed class TenantShardRoutingShould
 		count.ShouldBe(42L);
 	}
 
-	[Fact]
-	public void ThrowWhenProjectionStoreTenantIdIsEmpty()
+	[Theory]
+	[InlineData("")]
+	[InlineData(null)]
+	[InlineData("   ")]
+	public async Task ThrowTenantRequired_WhenProjectionStoreHasNoAmbientTenant(string? unresolved)
 	{
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
-		var tenantId = new MutableTenantContext { TenantId = string.Empty };
+		var tenantId = new MutableTenantContext { TenantId = unresolved! };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
-		Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<TenantRequiredException>(
 			async () => await routingStore.GetByIdAsync("proj-1", CancellationToken.None));
 	}
 
@@ -422,14 +496,17 @@ public sealed class TenantSagaAndHealthCheckShould
 			.MustHaveHappenedOnceExactly();
 	}
 
-	[Fact]
-	public void ThrowWhenSagaTenantIdIsEmpty()
+	[Theory]
+	[InlineData("")]
+	[InlineData(null)]
+	[InlineData("   ")]
+	public async Task ThrowTenantRequired_WhenSagaStoreHasNoAmbientTenant(string? unresolved)
 	{
 		var resolver = A.Fake<ITenantStoreResolver<ISagaStore>>();
-		var tenantId = new MutableTenantContext { TenantId = string.Empty };
+		var tenantId = new MutableTenantContext { TenantId = unresolved! };
 		var routingStore = new TenantRoutingSagaStore(resolver, tenantId);
 
-		Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<TenantRequiredException>(
 			async () => await routingStore.LoadAsync<TestSagaState>(Guid.NewGuid(), CancellationToken.None));
 	}
 

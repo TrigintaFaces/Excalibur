@@ -48,8 +48,6 @@ public static class QuartzServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="services" /> or <paramref name="configurationSection" /> is null.
 	/// </exception>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public static void AddJobWatcher<TJob,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
 		this IServiceCollection services, IConfigurationSection configurationSection)

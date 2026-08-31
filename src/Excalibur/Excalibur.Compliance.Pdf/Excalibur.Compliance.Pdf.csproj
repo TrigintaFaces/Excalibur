@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Compliance.Pdf</PackageId>
+    <Description>Opt-in PDF export for SOC 2 reports in the Excalibur framework. Install this package only if you need ExportFormat.Pdf: it depends on QuestPDF, whose Community edition is free only for licensees below USD 1,000,000 total annual gross revenue measured company-wide.</Description>
+    <PackageTags>compliance;soc2;pdf;export;report;questpdf</PackageTags>
+    <!-- AOT status of the PDF export path is UNVERIFIED. QuestPDF 2026.7.3 targets net10.0 and its
+         assembly uses no Reflection.Emit, MakeGenericType, or Activator.CreateInstance, so it is a
+         plausible AOT candidate - but it ships no trim annotations or ILLink descriptors, and the
+         AOT publish validation in this repository does not reference this package, so no trim or AOT
+         analysis has ever covered this path. Treat PDF export as unvalidated under Native AOT.
+         IsAotCompatible is deliberately not set here for that reason. -->
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Compliance.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Security.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <!-- QuestPDF for production PDF generation. Its Community Edition is free only for licensees
+         below a total annual gross revenue threshold; a consumer above that threshold needs a paid
+         QuestPDF licence. It is not MIT-licensed. This package exists so that obligation reaches
+         only consumers who deliberately opt in to PDF export. -->
+    <PackageReference Include="QuestPDF" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Compliance.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+</Project>

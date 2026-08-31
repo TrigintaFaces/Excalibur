@@ -126,6 +126,7 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 				UseTransactionalBatch = useTransactionalBatch
 			}));
 		SetPrivateField(sut, "_logger", NullLogger<CosmosDbEventStore>.Instance);
+		SetPrivateField(sut, "_tenantContext", UntenantedContext.Instance);
 		SetPrivateField(sut, "_initialized", true);
 		return sut;
 	}

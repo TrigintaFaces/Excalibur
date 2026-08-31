@@ -10,7 +10,7 @@ namespace Excalibur.Saga.Tests.Core.Storage;
 [Trait("Component", "Core")]
 public sealed class InMemorySagaTimeoutStoreShould
 {
-	private readonly InMemorySagaTimeoutStore _sut = new();
+	private readonly InMemorySagaTimeoutStore _sut = new(new TestTenantContext());
 
 	[Fact]
 	public async Task ScheduleTimeoutAsync_StoreTimeout()

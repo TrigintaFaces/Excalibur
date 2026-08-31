@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -56,7 +56,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class CacheTagTrackerConformanceTestKit
+public abstract class CacheTagTrackerConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a new instance of the cache tag tracker for testing.
@@ -74,7 +74,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>RegisterKeyAsync</c> with valid tags registers the key correctly.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RegisterKeyAsync_WithTags_ShouldRegister()
+	public virtual async Task RegisterKeyAsync_WithTags_ShouldRegister()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -99,7 +99,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>RegisterKeyAsync</c> with empty tags is a no-op.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RegisterKeyAsync_EmptyTags_ShouldBeNoOp()
+	public virtual async Task RegisterKeyAsync_EmptyTags_ShouldBeNoOp()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -123,7 +123,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>RegisterKeyAsync</c> with null tags is a no-op.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RegisterKeyAsync_NullTags_ShouldBeNoOp()
+	public virtual async Task RegisterKeyAsync_NullTags_ShouldBeNoOp()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -147,7 +147,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that re-registering a key replaces its tags.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RegisterKeyAsync_ReRegister_ShouldReplaceTags()
+	public virtual async Task RegisterKeyAsync_ReRegister_ShouldReplaceTags()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -192,7 +192,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>GetKeysByTagsAsync</c> returns keys for a single tag.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetKeysByTagsAsync_SingleTag_ShouldReturnKeys()
+	public virtual async Task GetKeysByTagsAsync_SingleTag_ShouldReturnKeys()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -225,7 +225,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>GetKeysByTagsAsync</c> returns UNION of keys for multiple tags.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetKeysByTagsAsync_MultipleTags_ShouldReturnUnion()
+	public virtual async Task GetKeysByTagsAsync_MultipleTags_ShouldReturnUnion()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -254,7 +254,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>GetKeysByTagsAsync</c> with empty tags returns empty result.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetKeysByTagsAsync_EmptyTags_ShouldReturnEmpty()
+	public virtual async Task GetKeysByTagsAsync_EmptyTags_ShouldReturnEmpty()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -278,7 +278,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>GetKeysByTagsAsync</c> with null tags returns empty result.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetKeysByTagsAsync_NullTags_ShouldReturnEmpty()
+	public virtual async Task GetKeysByTagsAsync_NullTags_ShouldReturnEmpty()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -302,7 +302,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>GetKeysByTagsAsync</c> for non-existent tag returns empty result.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task GetKeysByTagsAsync_NonExistentTag_ShouldReturnEmpty()
+	public virtual async Task GetKeysByTagsAsync_NonExistentTag_ShouldReturnEmpty()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -331,7 +331,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>UnregisterKeyAsync</c> removes key from all associated tags.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task UnregisterKeyAsync_ShouldRemoveFromAllTags()
+	public virtual async Task UnregisterKeyAsync_ShouldRemoveFromAllTags()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -363,7 +363,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>UnregisterKeyAsync</c> for non-existent key is safe (no exception).
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task UnregisterKeyAsync_NonExistentKey_ShouldBeNoOp()
+	public virtual async Task UnregisterKeyAsync_NonExistentKey_ShouldBeNoOp()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -380,7 +380,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that <c>UnregisterKeyAsync</c> cleans up empty tag entries.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task UnregisterKeyAsync_ShouldCleanupEmptyTagEntries()
+	public virtual async Task UnregisterKeyAsync_ShouldCleanupEmptyTagEntries()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -417,7 +417,7 @@ public abstract class CacheTagTrackerConformanceTestKit
 	/// Verifies that a key can be registered with multiple tags.
 	/// </summary>
 	/// <returns>A task representing the asynchronous test operation.</returns>
-	protected virtual async Task RegisterKeyAsync_MultipleTags_ShouldBeFoundInAll()
+	public virtual async Task RegisterKeyAsync_MultipleTags_ShouldBeFoundInAll()
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -442,4 +442,5 @@ public abstract class CacheTagTrackerConformanceTestKit
 	}
 
 	#endregion
+
 }

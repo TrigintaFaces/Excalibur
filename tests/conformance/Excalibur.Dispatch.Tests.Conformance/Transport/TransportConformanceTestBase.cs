@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using CloudNative.CloudEvents;
+using System.Runtime.CompilerServices;
 
 using Shouldly;
 
@@ -30,13 +30,21 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	private static readonly TimeSpan ReceiveTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60));
 
 	/// <summary>
-	/// Caches Docker availability per closed generic type (e.g., Kafka, RabbitMQ).
+	/// Caches the transport-initialization outcome per closed generic type (e.g., Kafka, RabbitMQ).
 	/// Once init fails for a transport, all remaining tests in that class skip immediately
 	/// instead of each waiting for a 30-second timeout. null = not yet checked.
 	/// </summary>
-	private static bool? s_dockerAvailabilityChecked;
+	private static bool? s_transportInitialized;
 
-	private bool _dockerAvailable;
+	/// <summary>
+	/// Caches WHY initialization failed, so the fast-path skips report the real cause rather than a
+	/// fabricated one. See <see cref="IsTransportAvailable" /> for what this signal can and cannot say.
+	/// </summary>
+	private static string? s_initializationFailure;
+
+	private bool _transportAvailable;
+
+	private string? _initializationFailure;
 
 	protected TSender? Sender { get; private set; }
 	protected TReceiver? Receiver { get; private set; }
@@ -51,14 +59,78 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// </summary>
 	protected virtual ITransportConformanceCapabilities? AdvancedCapabilities => null;
 
+	/// <summary>
+	/// Gets a value indicating whether this transport may report its facts as SKIPPED when the transport
+	/// cannot be initialized, instead of failing the run.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Default is <see langword="false" />: a transport that cannot initialize FAILS. This mirrors
+	/// <c>ContainerFixtureBase.AllowGracefulDegradation</c>, which defaults false so required
+	/// infrastructure fails loudly, and is opted into only by the cloud-emulator fixtures (AWS SQS, Azure
+	/// Service Bus) whose emulators are genuinely absent in some environments.
+	/// </para>
+	/// <para>
+	/// The default matters because the alternative is indistinguishable from success. When every gated fact
+	/// skips, the assembly reports no failures, and "this transport was never verified" reads exactly like
+	/// "this transport conformed". Failing closed makes the difference visible.
+	/// </para>
+	/// </remarks>
+	protected virtual bool AllowUnavailableTransport => false;
+
+	/// <summary>
+	/// Gets a value indicating whether this transport talks to real external infrastructure (a broker in a
+	/// container) rather than running in-process.
+	/// </summary>
+	/// <remarks>
+	/// Only external-broker suites count toward the run's liveness. An in-process transport needs no
+	/// infrastructure, so its arms execute whether or not the container runtime is up; counting them would
+	/// make <see cref="ConformanceLivenessGate" /> green in exactly the situation it exists to catch.
+	/// </remarks>
+	protected virtual bool UsesExternalBroker => true;
+
+	/// <summary>
+	/// Gates a conformance arm on transport availability and records that the arm is executing.
+	/// </summary>
+	/// <remarks>
+	/// The recording is what lets the run be asked whether anything was verified. It sits AFTER the skip so
+	/// it means "this arm ran its body", not "this arm was declared".
+	/// </remarks>
+	/// <param name="arm">The calling fact's name; supplied by the compiler.</param>
+	protected void RequireTransport([CallerMemberName] string arm = "")
+	{
+		Assert.SkipUnless(IsTransportAvailable(), TransportUnavailableReason());
+		ConformanceExecutionLedger.RecordArmExecuted(GetType().Name, arm, UsesExternalBroker);
+	}
+
 	public async ValueTask InitializeAsync()
 	{
-		// Fast-path: if a previous test already determined Docker is unavailable, skip immediately
-		if (s_dockerAvailabilityChecked == false)
+		// Recorded first, before any early return or throw: a transport that fails to initialize must still
+		// count as SELECTED, or the liveness gate cannot tell "no broker was asked for" from "every broker
+		// was asked for and none answered".
+		if (UsesExternalBroker)
 		{
-			_dockerAvailable = false;
+			ConformanceExecutionLedger.RecordBrokerSuiteAttempted(GetType().Name);
+		}
+
+		// Fast-path: if a previous test already determined initialization fails, skip immediately,
+		// carrying forward the recorded cause so the skip still names it.
+		if (s_transportInitialized == false)
+		{
+			_transportAvailable = false;
+			_initializationFailure = s_initializationFailure;
+
+			// The cache exists so the remaining facts do not each wait out the 30s budget. It must not also
+			// convert a hard failure into silence: when this transport is required, every fact after the
+			// first failure fails too, naming the original cause.
+			ThrowIfTransportRequired(null);
 			return;
 		}
+
+		// Captured rather than rethrown in place: the throw belongs AFTER the catch, or the catch below
+		// swallows it and re-reports a required-transport failure as "initialization threw
+		// InvalidOperationException", burying the real cause one level down.
+		Exception? initializationException = null;
 
 		try
 		{
@@ -68,23 +140,65 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 
 			if (completedTask != initTask)
 			{
-				Console.WriteLine("Docker/transport initialization timed out after 30 seconds");
-				s_dockerAvailabilityChecked = false;
-				_dockerAvailable = false;
-				return;
+				RecordInitializationFailure("transport initialization did not complete within 30 seconds");
 			}
-
-			// Propagate any exception from the init task
-			await initTask.ConfigureAwait(false);
-			s_dockerAvailabilityChecked = true;
-			_dockerAvailable = true;
+			else
+			{
+				// Propagate any exception from the init task
+				await initTask.ConfigureAwait(false);
+				s_transportInitialized = true;
+				s_initializationFailure = null;
+				_transportAvailable = true;
+			}
 		}
 		catch (Exception ex) when (ex is not OutOfMemoryException)
 		{
-			Console.WriteLine($"Docker/transport initialization failed: {ex.Message}");
-			s_dockerAvailabilityChecked = false;
-			_dockerAvailable = false;
+			RecordInitializationFailure($"transport initialization threw {ex.GetType().Name}: {ex.Message}");
+			initializationException = ex;
 		}
+
+		if (!_transportAvailable)
+		{
+			ThrowIfTransportRequired(initializationException);
+		}
+	}
+
+	/// <summary>
+	/// Fails the run when this transport is REQUIRED and could not be initialized. No-ops for a transport
+	/// that has opted into <see cref="AllowUnavailableTransport" />, which skips instead.
+	/// </summary>
+	/// <param name="cause">The originating exception, preserved as the inner exception when there is one.</param>
+	private void ThrowIfTransportRequired(Exception? cause)
+	{
+		if (!AllowUnavailableTransport)
+		{
+			throw new InvalidOperationException(BuildUnavailableFailureMessage(), cause);
+		}
+	}
+
+	/// <summary>
+	/// Builds the failure message used when a REQUIRED transport cannot be initialized.
+	/// </summary>
+	private string BuildUnavailableFailureMessage() =>
+		$"Transport conformance initialization failed and this transport is REQUIRED: "
+		+ $"{_initializationFailure ?? "transport initialization did not run"}. "
+		+ "This is thrown deliberately rather than skipped: a skipped conformance suite reports no failures, "
+		+ "which is indistinguishable from a suite that verified the transport. Override "
+		+ $"{nameof(AllowUnavailableTransport)} to true ONLY for genuinely optional infrastructure "
+		+ "(a cloud emulator), matching the fixture that already declares it optional.";
+
+	/// <summary>
+	/// Records the verbatim cause of an initialization failure, both on this instance and in the
+	/// per-closed-generic cache, so a skip (or a required-transport failure) can name it.
+	/// </summary>
+	private void RecordInitializationFailure(string reason)
+	{
+		Console.WriteLine($"Transport conformance initialization failed: {reason}");
+		s_transportInitialized = false;
+		s_initializationFailure = reason;
+		_transportAvailable = false;
+		_initializationFailure = reason;
+		ConformanceExecutionLedger.RecordTransportUnavailable(GetType().Name, reason);
 	}
 
 	private async Task InitializeTransportAsync()
@@ -95,16 +209,54 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	}
 
 	/// <summary>
-	/// Returns true if the transport infrastructure (Docker) is available.
-	/// Tests should call this at the start and return early if false.
+	/// Returns true when the transport initialized successfully and the conformance facts can execute.
+	/// Every infrastructure-gated fact reaches this through <see cref="RequireTransport" />.
 	/// </summary>
-	protected bool IsTransportAvailable() => _dockerAvailable;
+	/// <remarks>
+	/// <para>
+	/// This is a single bool and it CONFLATES two different facts: "the infrastructure (Docker, or the
+	/// broker behind it) was unreachable" and "the transport's own initialization threw". Both land in
+	/// the same catch in <see cref="InitializeAsync" />, so a genuinely BROKEN transport is reported
+	/// unavailable exactly as an absent Docker daemon is.
+	/// </para>
+	/// <para>
+	/// That conflation no longer decides the outcome. <see cref="AllowUnavailableTransport" /> supplies the
+	/// per-transport required-vs-optional policy this class previously lacked, defaulting to REQUIRED, so an
+	/// unavailable transport fails rather than skipping. This method is now reached only by suites that have
+	/// explicitly opted out, and <see cref="TransportUnavailableReason" /> still carries the captured cause
+	/// into their skip lines.
+	/// </para>
+	/// </remarks>
+	protected bool IsTransportAvailable() => _transportAvailable;
+
+	/// <summary>
+	/// The reason the transport is unavailable, reported verbatim in every skip so the run output can
+	/// tell an unreachable daemon apart from a transport that failed to initialize.
+	/// </summary>
+	protected string TransportUnavailableReason() =>
+		$"[transport-unavailable] {_initializationFailure ?? "transport initialization did not run"}. "
+		+ "This fact did NOT execute; it is reported skipped, never passed. This reason does not by itself "
+		+ "classify unreachable infrastructure versus a broken transport — read the captured cause above.";
 
 	public async ValueTask DisposeAsync()
 	{
-		if (_dockerAvailable)
+		// Gating disposal on _transportAvailable leaked every partially-initialized transport: when
+		// CreateReceiverAsync throws, the sender (and its container) is already built, but the flag is
+		// false, so nothing was ever disposed. Dispose whenever initialization produced anything.
+		if (!_transportAvailable && Sender is null && Receiver is null && DlqManager is null)
+		{
+			return;
+		}
+
+		try
 		{
 			await DisposeTransportAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not OutOfMemoryException)
+		{
+			// Best-effort cleanup, matching ContainerFixtureBase.DisposeAsync: a teardown fault must not
+			// overwrite the verdict of the test that just ran. Reported so it is not invisible.
+			Console.WriteLine($"Transport conformance disposal failed (ignored): {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
@@ -137,7 +289,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	[Fact]
 	public virtual async Task Should_Send_And_Receive_Message_RoundTrip()
 	{
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		RequireTransport();
 
 		// Arrange
 		var testMessage = new TestMessage
@@ -171,7 +323,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	[Fact]
 	public virtual async Task Should_Preserve_Message_Metadata()
 	{
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		RequireTransport();
 
 		// Arrange
 		var testMessage = new TestMessageWithMetadata
@@ -203,7 +355,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	[Fact]
 	public virtual async Task Should_Handle_Concurrent_Messages()
 	{
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		RequireTransport();
 
 		// Arrange
 		const int messageCount = 100;
@@ -256,7 +408,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	[Fact]
 	public virtual async Task Should_Support_Message_Filtering()
 	{
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		RequireTransport();
 
 		var capabilities = AdvancedCapabilities;
 		if (capabilities is null || !capabilities.Capabilities.HasFlag(TransportCapability.Filtering))
@@ -306,7 +458,7 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	[Fact]
 	public virtual async Task Should_Handle_Poison_Messages()
 	{
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		RequireTransport();
 
 		if (DlqManager == null)
 		{
@@ -348,15 +500,22 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	[Fact]
 	public virtual async Task Should_Support_Graceful_Shutdown()
 	{
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		RequireTransport();
 
 		// Act - Trigger graceful shutdown
 		await DisposeTransportAsync().ConfigureAwait(false);
 
-		// Re-initialize transport
-		await InitializeAsync().ConfigureAwait(false);
-
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		// Re-initialize by calling the transport factory DIRECTLY, not the IAsyncLifetime entry point.
+		//
+		// InitializeAsync writes the per-closed-generic STATIC failure cache. Routing a restart through it
+		// meant a single flaky container restart inside THIS fact latched s_transportInitialized = false for
+		// the whole transport, and nothing ever reset it -- so every fact that happened to run afterwards
+		// skipped. xUnit does not guarantee intra-class ordering, so WHICH facts were disabled varied run to
+		// run, and the suite got quieter under load: exactly when it should be loudest.
+		//
+		// A restart that fails is this fact's own failure -- R15.2 is the guarantee under test -- so it
+		// propagates here instead of being recorded as an availability problem.
+		await InitializeTransportAsync().ConfigureAwait(false);
 
 		// Verify transport is functional after restart by sending and receiving a new message
 		var testMessage = new TestMessage
@@ -375,187 +534,5 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 		received.Id.ShouldBe(testMessage.Id);
 	}
 
-	/// <summary>
-	/// R2.1, R4.3: Transport MUST guarantee at-least-once delivery semantics.
-	/// </summary>
-	/// <remarks>
-	/// Skipped: proving at-least-once requires forcing a nack / crash-before-ack and asserting the message is
-	/// redelivered. A single send/receive does NOT prove the guarantee — a transport with broken redelivery
-	/// would still pass.
-	///
-	/// The harness gained the ack/nack vocabulary under Excalibur.Dispatch-urttf7:
-	/// TransportCapability.AckNackRedelivery exists and ConformanceReceivedMessage carries AcknowledgeAsync
-	/// and RejectAsync. What is missing is the wiring on both ends. This class gates only on
-	/// TransportCapability.Filtering; AckNackRedelivery is declared and never consumed here. And no real
-	/// transport conformance class overrides AdvancedCapabilities, so every transport advertises null.
-	/// Underneath both, IChannelReceiver is still a single ReceiveAsync&lt;T&gt;(ct) with no ack/nack to
-	/// advertise — so unskipping this needs production surface, not just test wiring. Tracked: bd-5dox7c.
-	/// </remarks>
-	[Fact]
-	public virtual async Task Should_Guarantee_At_Least_Once_Delivery()
-	{
-		Assert.Skip(
-			"At-least-once redelivery: the harness HAS the AckNackRedelivery capability and Acknowledge/Reject on its received-message type, but this base gates only on Filtering, no transport overrides AdvancedCapabilities, and IChannelReceiver exposes no ack/nack to advertise. Needs base-class gating + per-transport advertisement + receiver surface — tracked bd-5dox7c (umbrella Excalibur.Dispatch-urttf7).");
-
-		Assert.Skip("[infrastructure-unavailable] transport infrastructure (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
-
-		// Arrange
-		var testMessage = new TestMessage
-		{
-			Id = Guid.NewGuid().ToString(),
-			Content = "At-least-once test",
-			Timestamp = DateTimeOffset.UtcNow
-		};
-
-		// Act
-		using var cts = new CancellationTokenSource(ReceiveTimeout);
-		await Sender.SendAsync(testMessage, cts.Token).ConfigureAwait(false);
-
-		// Receive first time
-		var received1 = await Receiver.ReceiveAsync<TestMessage>(cts.Token).ConfigureAwait(false);
-		_ = received1.ShouldNotBeNull();
-		received1.Id.ShouldBe(testMessage.Id);
-
-		// Simulate crash before ACK - message should be redelivered
-		// (Implementation-specific behavior)
-	}
-
 	#endregion Core Conformance Tests
-
-	#region CloudEvents Conformance Tests (T10.34, R15.7)
-
-	/// <summary>
-	/// T10.34: Transport MUST support CloudEvents structured format (application/cloudevents+json).
-	/// </summary>
-	[Fact]
-	public virtual async Task Should_Support_CloudEvents_Structured_Format()
-	{
-		Assert.Skip(
-			"CloudEvents structured format: the harness HAS a CloudEvents binding (TransportCapability.CloudEventsBinding, CloudEventBinding.Structured, and real ce- attribute mapping in ConformanceTransportDoubles). What is missing is wiring: this base gates only on Filtering, and no transport overrides AdvancedCapabilities, so the binding is exercised against doubles and no shipping transport. Unskipping without that would assert a POCO round-trip and pass for a zero-CloudEvents transport — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).");
-
-		// Arrange
-		var cloudEvent = new CloudEvent
-		{
-			Id = Guid.NewGuid().ToString(),
-			Source = new Uri("https://example.com/test"),
-			Type = "com.example.test.structured",
-			DataContentType = "application/json",
-			Data = new { Message = "Hello CloudEvents Structured" }
-		};
-
-		// Act & Assert
-		// Note: Actual CloudEvents serialization depends on transport-specific mapper
-		// Derived classes MUST override this test to implement CloudEvents support validation
-		await Task.CompletedTask;
-	}
-
-	/// <summary>
-	/// T10.34: Transport MUST support CloudEvents binary format (CE headers in transport metadata).
-	/// </summary>
-	[Fact]
-	public virtual async Task Should_Support_CloudEvents_Binary_Format()
-	{
-		Assert.Skip(
-			"CloudEvents binary format: the harness HAS the binary binding (CloudEventBinding.Binary) and maps ce-id/ce-source/ce-type/ce-specversion onto headers. What is missing is wiring: this base gates only on Filtering, no transport overrides AdvancedCapabilities, and IChannelReceiver surfaces no headers for a real transport to advertise — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).");
-
-		// Arrange
-		var cloudEvent = new CloudEvent
-		{
-			Id = Guid.NewGuid().ToString(),
-			Source = new Uri("https://example.com/test"),
-			Type = "com.example.test.binary",
-			DataContentType = "application/json",
-			Data = new { Message = "Hello CloudEvents Binary" }
-		};
-
-		// Act & Assert
-		// Note: Binary format maps CloudEvents attributes to transport headers (ce-id, ce-source, etc.)
-		// Derived classes MUST override this test to implement CloudEvents support validation
-		await Task.CompletedTask;
-	}
-
-	/// <summary>
-	/// T10.34: Transport MUST preserve all CloudEvents required attributes.
-	/// </summary>
-	[Fact]
-	public virtual async Task Should_Preserve_CloudEvents_Attributes()
-	{
-		Assert.Skip(
-			"CloudEvents attribute preservation: the harness DOES surface CE attributes (ConformanceReceivedMessage.Headers, with ce-subject/ce-time/ce-datacontenttype mapped). What is missing is wiring: this base gates only on Filtering, no transport overrides AdvancedCapabilities, and IChannelReceiver returns a body only — so no shipping transport can surface them — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).");
-
-		// Required: id, source, specversion, type
-		// Optional: datacontenttype, dataschema, subject, time
-
-		var cloudEvent = new CloudEvent
-		{
-			Id = Guid.NewGuid().ToString(),
-			Source = new Uri("https://example.com/test"),
-			Type = "com.example.test.attributes",
-			DataContentType = "application/json",
-			Subject = "test/subject",
-			Time = DateTimeOffset.UtcNow,
-			Data = new { Message = "Test data" }
-		};
-
-		// Derived classes MUST implement CloudEvents round-trip validation
-		await Task.CompletedTask;
-	}
-
-	/// <summary>
-	/// T10.34: Transport MUST support CloudEvents round-trip without loss.
-	/// </summary>
-	[Fact]
-	public virtual async Task Should_RoundTrip_CloudEvents_Without_Loss()
-	{
-		Assert.Skip(
-			"CloudEvents round-trip: the harness HAS the binding and the attribute mapping to express semantic equality. What is missing is wiring: this base gates only on Filtering and no transport overrides AdvancedCapabilities, so the assertion would still run against a body-only receiver and pass for a zero-CloudEvents transport — tracked bd-jj4hx4 (umbrella Excalibur.Dispatch-urttf7).");
-
-		// Arrange
-		var cloudEvent = new CloudEvent
-		{
-			Id = Guid.NewGuid().ToString(),
-			Source = new Uri("https://example.com/test"),
-			Type = "com.example.test.roundtrip",
-			DataContentType = "application/json",
-			Data = new { Value = 42, Name = "Test" }
-		};
-
-		// CloudEvent → Transport → CloudEvent
-		// Assert: semantic equality
-		await Task.CompletedTask;
-	}
-
-	#endregion CloudEvents Conformance Tests (T10.34, R15.7)
-
-	#region Performance Tests (R9.*)
-
-	/// <summary>
-	/// R9.1-R9.18: Transport SHOULD handle high throughput efficiently.
-	/// </summary>
-	[Fact]
-	public virtual async Task Should_Handle_High_Throughput()
-	{
-		Assert.Skip(
-			"High-throughput SLO: unchanged by the capability build, which added no perf instrumentation and no capability flag for it. Throughput is a transport-specific SHOULD and does not belong as a behavioural-conformance Fact; the open decision is to move it to the benchmark suite or define a real conformance threshold — tracked bd-lpkwjr (umbrella Excalibur.Dispatch-urttf7).");
-
-		// Note: Performance characteristics vary by transport
-		// Derived classes MAY override to validate specific throughput SLOs
-		await Task.CompletedTask;
-	}
-
-	/// <summary>
-	/// R9.1-R9.18: Transport SHOULD maintain low latency under load.
-	/// </summary>
-	[Fact]
-	public virtual async Task Should_Maintain_Low_Latency()
-	{
-		Assert.Skip(
-			"Latency SLO: unchanged by the capability build, which added no perf instrumentation and no capability flag for it. p95/p99 latency is a transport-specific SHOULD and does not belong as a behavioural-conformance Fact; the open decision is to move it to the benchmark suite or define a real conformance threshold — tracked bd-lpkwjr (umbrella Excalibur.Dispatch-urttf7).");
-
-		// Note: Latency characteristics vary by transport
-		// Derived classes MAY override to validate p95/p99 latency SLOs
-		await Task.CompletedTask;
-	}
-
-	#endregion Performance Tests (R9.*)
 }

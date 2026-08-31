@@ -179,33 +179,3 @@ public sealed class RegionConfiguration
 	/// <value> Defaults to <c>true</c>. </value>
 	public bool Enabled { get; set; } = true;
 }
-
-/// <summary>
-/// Extended options for multi-region failover behavior.
-/// </summary>
-public sealed class FailoverOptions
-{
-	/// <summary>
-	/// Gets or sets the failover strategy.
-	/// </summary>
-	/// <value> Defaults to <see cref="FailoverStrategy.GracePeriod"/>. </value>
-	public FailoverStrategy Strategy { get; set; } = FailoverStrategy.GracePeriod;
-
-	/// <summary>
-	/// Gets or sets the grace period before failover when using <see cref="FailoverStrategy.GracePeriod"/>.
-	/// </summary>
-	/// <value> Defaults to 30 seconds. </value>
-	public TimeSpan GracePeriod { get; set; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to notify on failover events.
-	/// </summary>
-	/// <value> Defaults to <c>true</c>. </value>
-	public bool EnableNotifications { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the cooldown period after a failover before another failover can occur.
-	/// </summary>
-	/// <value> Defaults to 5 minutes. </value>
-	public TimeSpan FailoverCooldown { get; set; } = TimeSpan.FromMinutes(5);
-}

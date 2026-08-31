@@ -21,6 +21,29 @@ namespace Excalibur.Dispatch;
 /// </remarks>
 public interface IDirectLocalDispatcher
 {
+
+	/// <summary>
+	/// Gets a value indicating whether dispatching <paramref name="messageType"/> may skip the middleware
+	/// pipeline without changing observable behaviour.
+	/// </summary>
+	/// <param name="messageType">The message type about to be dispatched.</param>
+	/// <returns>
+	/// <see langword="true"/> only when the implementation knows no configured middleware applies.
+	/// The default is <see langword="false"/>.
+	/// </returns>
+	/// <remarks>
+	/// The direct-local path invokes the handler without running the pipeline, so nothing configured
+	/// there takes effect on it -- no validation, no authorization, no tenant identity -- and failures
+	/// are returned as a result rather than thrown. That is a sound optimisation when nothing is
+	/// configured and a silent hole when something is, and only the dispatcher can tell the difference.
+	/// <para>
+	/// Defaults to <see langword="false"/> so an implementation that does not answer gets the pipeline.
+	/// A needless microsecond is a better default than a configured stage that did not run. Override it
+	/// to opt into the fast path when you can determine the skip is unobservable.
+	/// </para>
+	/// </remarks>
+	bool CanBypassMiddlewareFor(Type messageType) => false;
+
 	/// <summary>
 	/// Dispatches a local action without materializing <see cref="IMessageResult"/> on the hot path.
 	/// </summary>

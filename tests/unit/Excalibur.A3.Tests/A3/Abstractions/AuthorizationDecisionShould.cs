@@ -77,15 +77,4 @@ public sealed class AuthorizationDecisionShould : UnitTestBase
 		original.Effect.ShouldBe(AuthorizationEffect.Permit);
 		modified.Effect.ShouldBe(AuthorizationEffect.Deny);
 	}
-
-	[Fact]
-	public void Create_WithIndeterminate_SetsCorrectEffect()
-	{
-		// Arrange & Act
-		var decision = new AuthorizationDecision(AuthorizationEffect.Indeterminate, "Missing context");
-
-		// Assert
-		decision.Effect.ShouldBe(AuthorizationEffect.Indeterminate);
-		decision.Reason.ShouldBe("Missing context");
-	}
 }

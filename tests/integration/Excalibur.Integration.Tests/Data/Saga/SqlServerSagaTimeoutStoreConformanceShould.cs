@@ -50,9 +50,14 @@ public sealed class SqlServerSagaTimeoutStoreConformanceShould
 
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 
+		// The single-tenant host shape. This suite used to pass no context at all, so the store resolved its
+		// partition by folding an unset ambient value through the storage fold and stamped the reserved
+		// untenanted sentinel -- a partition no other component in the framework addresses. A single-tenant
+		// deployment operates as the one canonical tenant identity, and that is what these arms round-trip.
 		return new SqlServerSagaTimeoutStore(
 			_fixture.ConnectionString,
-			NullLogger<SqlServerSagaTimeoutStore>.Instance);
+			NullLogger<SqlServerSagaTimeoutStore>.Instance,
+			SingleTenantTestContext.Instance);
 	}
 
 	/// <inheritdoc/>

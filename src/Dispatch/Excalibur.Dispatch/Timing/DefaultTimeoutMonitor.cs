@@ -7,7 +7,7 @@ using System.Collections.Concurrent;
 namespace Excalibur.Dispatch.Timing;
 
 /// <summary>
-/// Default implementation of timeout monitoring with statistical tracking. R7.4: Timeout monitoring and adaptive timeout management.
+/// Default implementation of timeout monitoring with statistical tracking. Timeout monitoring and adaptive timeout management.
 /// </summary>
 internal sealed class DefaultTimeoutMonitor : ITimeoutMonitor
 {

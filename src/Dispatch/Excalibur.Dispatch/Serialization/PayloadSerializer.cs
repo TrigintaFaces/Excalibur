@@ -93,14 +93,6 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-			"Trimming",
-			"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "Serialization is opt-in via configured serializers; trimming-safe usage requires explicit registration.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Serializer implementations may require dynamic code generation; AOT users must select compatible serializers.")]
 	public byte[] Serialize<T>(T value)
 	{
 		ArgumentNullException.ThrowIfNull(value);
@@ -175,14 +167,6 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-			"Trimming",
-			"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "Runtime type serialization is required for migration and persistence scenarios.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Runtime type serialization may require dynamic code generation; AOT users must select compatible serializers.")]
 	public byte[] SerializeObject(object value, Type type)
 	{
 		ArgumentNullException.ThrowIfNull(value);
@@ -206,6 +190,41 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 		Buffer.BlockCopy(payload, 0, result, 1, payload.Length);
 
 		return result;
+	}
+
+	/// <inheritdoc />
+	public object DeserializeObject(byte[] data, Type type)
+	{
+		ArgumentNullException.ThrowIfNull(data);
+		ArgumentNullException.ThrowIfNull(type);
+		if (data.Length == 0)
+		{
+			throw SerializationException.EmptyPayload();
+		}
+
+		// Extract magic byte
+		var serializerId = data[0];
+		var payload = data.AsSpan(1); // Zero-allocation slice
+
+		// Fast path: current serializer
+		var (currentId, currentSerializer) = _registry.GetCurrent();
+		if (serializerId == currentId)
+		{
+			return DeserializeObjectWithSerializer(currentSerializer, payload, type);
+		}
+
+		// Migration path: registered legacy serializer
+		var legacySerializer = _registry.GetById(serializerId)
+			?? throw SerializationException.UnknownSerializerId(
+				serializerId,
+				GetRegisteredSerializerNames());
+
+		LogLegacySerializerSelected(
+				legacySerializer.Name,
+				serializerId,
+				currentSerializer.Name);
+
+		return DeserializeObjectWithSerializer(legacySerializer, payload, type);
 	}
 
 	/// <summary>
@@ -292,14 +311,6 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 	/// <summary>
 	/// Deserializes using the specified serializer with proper exception handling.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-			"Trimming",
-			"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "Deserializer selection is registry-driven; trimming-safe usage requires explicit serializer registration.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Deserializer implementations may require dynamic code generation; AOT users must select compatible serializers.")]
 	private static T DeserializeWithSerializer<T>(ISerializer serializer, ReadOnlySpan<byte> payload)
 	{
 		try
@@ -310,6 +321,22 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 		catch (Exception ex) when (ex is not SerializationException)
 		{
 			throw SerializationException.Wrap<T>("deserialize", ex);
+		}
+	}
+
+	/// <summary>
+	/// Deserializes to a runtime type using the specified serializer with proper exception handling.
+	/// </summary>
+	private static object DeserializeObjectWithSerializer(ISerializer serializer, ReadOnlySpan<byte> payload, Type type)
+	{
+		try
+		{
+			return serializer.DeserializeObject(payload, type)
+				?? throw SerializationException.NullResultForType(type);
+		}
+		catch (Exception ex) when (ex is not SerializationException)
+		{
+			throw SerializationException.WrapObject(type, "deserialize", ex);
 		}
 	}
 

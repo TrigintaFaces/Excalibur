@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Data;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
@@ -92,7 +93,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="dbConfig"> The database configuration for CDC processing. </param>
 	/// <param name="cdcRepository"> The CDC repository for querying change data. </param>
-	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
+	/// <param name="stateStoreConnectionFactory"> Supplies a connection per CDC-state operation. </param>
 	/// <param name="stateStoreOptions"> The CDC state store options. </param>
 	/// <param name="policyFactory"> The factory for creating data access policies. </param>
 	/// <param name="timeProvider">
@@ -109,13 +110,13 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			IHostApplicationLifetime appLifetime,
 			IDatabaseOptions dbConfig,
 			CdcRepository cdcRepository,
-			SqlConnection stateStoreConnection,
+			Func<IDbConnection> stateStoreConnectionFactory,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IDataAccessPolicyFactory policyFactory,
 			TimeProvider timeProvider,
 			ILogger<CdcProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = null)
-		: this(appLifetime, dbConfig, cdcRepository, stateStoreConnection,
+		: this(appLifetime, dbConfig, cdcRepository, stateStoreConnectionFactory,
 			   stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions,
 			   idempotencyFilter: null)
 	{
@@ -128,7 +129,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	/// <param name="appLifetime">The application lifetime service for graceful shutdown.</param>
 	/// <param name="dbConfig">The database configuration options.</param>
 	/// <param name="cdcRepository">The CDC repository for reading change data.</param>
-	/// <param name="stateStoreConnection">The SQL connection for the CDC state store.</param>
+	/// <param name="stateStoreConnectionFactory">Supplies a connection per CDC-state operation.</param>
 	/// <param name="stateStoreOptions">The CDC state store options.</param>
 	/// <param name="policyFactory">The factory for creating data access policies.</param>
 	/// <param name="timeProvider">
@@ -157,7 +158,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			IHostApplicationLifetime appLifetime,
 			IDatabaseOptions dbConfig,
 			CdcRepository cdcRepository,
-			SqlConnection stateStoreConnection,
+			Func<IDbConnection> stateStoreConnectionFactory,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IDataAccessPolicyFactory policyFactory,
 			TimeProvider timeProvider,
@@ -170,7 +171,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(cdcRepository);
-		ArgumentNullException.ThrowIfNull(stateStoreConnection);
+		ArgumentNullException.ThrowIfNull(stateStoreConnectionFactory);
 		ArgumentNullException.ThrowIfNull(policyFactory);
 		ArgumentNullException.ThrowIfNull(timeProvider);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -179,8 +180,8 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		_cdcRepository = cdcRepository;
 		_timeProvider = timeProvider;
 		_stateStore = stateStoreOptions is null
-				? new CdcStateStore(stateStoreConnection)
-				: new CdcStateStore(stateStoreConnection, stateStoreOptions);
+				? new CdcStateStore(stateStoreConnectionFactory)
+				: new CdcStateStore(stateStoreConnectionFactory, stateStoreOptions);
 		_policyFactory = policyFactory;
 		_logger = logger;
 		_leaderElection = leaderElection;
@@ -566,12 +567,20 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	{
 		byte[]? newPosition = null;
 
+		// Recovery reads the CDC position bounds directly, outside the detector and applier that own the
+		// rest of the change pipeline. Both of those siblings run their repository calls through the shared
+		// data-access policy, and recovery must too: it is invoked from inside the producer's stale-position
+		// catch block, so a transient fault raised here is not caught by any sibling handler and stops the
+		// producer for the remainder of the run. Both position reads are idempotent, so retrying is safe.
+		var recoveryPolicy = _policyFactory.GetComprehensivePolicy();
+
 		switch (recoveryOptions.RecoveryStrategy)
 		{
 			case StalePositionRecoveryStrategy.FallbackToEarliest:
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
 				{
-					var minLsn = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken)
+					var minLsn = await recoveryPolicy
+						.ExecuteAsync(ct => _cdcRepository.GetMinPositionAsync(captureInstance, ct), cancellationToken)
 						.ConfigureAwait(false);
 					_checkpointManager.UpdateLsnTracking(captureInstance, minLsn, seqVal: null);
 				}
@@ -581,7 +590,8 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 				break;
 
 			case StalePositionRecoveryStrategy.FallbackToLatest:
-				newPosition = await _cdcRepository.GetMaxPositionAsync(cancellationToken)
+				newPosition = await recoveryPolicy
+					.ExecuteAsync(_cdcRepository.GetMaxPositionAsync, cancellationToken)
 					.ConfigureAwait(false);
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
 				{
@@ -600,7 +610,8 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 				// Fall through to callback invocation below — callback decides the action
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
 				{
-					var minLsn = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken)
+					var minLsn = await recoveryPolicy
+						.ExecuteAsync(ct => _cdcRepository.GetMinPositionAsync(captureInstance, ct), cancellationToken)
 						.ConfigureAwait(false);
 					_checkpointManager.UpdateLsnTracking(captureInstance, minLsn, seqVal: null);
 				}

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Patterns.ClaimCheck;
@@ -130,12 +130,28 @@ public sealed class ClaimCheckOptionsValidatorShould
 	}
 
 	[Fact]
-	public void FailWhenDefaultTtlIsZeroAndCleanupEnabled()
+	public void SucceedWhenDefaultTtlIsZeroAndCleanupEnabled()
 	{
-		// Arrange
+		// Arrange - zero means "never expires", which is a supported setting. Rejecting it here would
+		// make the documented no-expiry configuration unreachable, because cleanup is on by default.
 		var options = new ClaimCheckOptions();
 		options.Cleanup.EnableCleanup = true;
 		options.Cleanup.DefaultTtl = TimeSpan.Zero;
+
+		// Act
+		var result = _validator.Validate(null, options);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void FailWhenDefaultTtlIsNegativeAndCleanupEnabled()
+	{
+		// Arrange - a negative retention period expresses nothing, unlike zero
+		var options = new ClaimCheckOptions();
+		options.Cleanup.EnableCleanup = true;
+		options.Cleanup.DefaultTtl = TimeSpan.FromSeconds(-1);
 
 		// Act
 		var result = _validator.Validate(null, options);
@@ -224,7 +240,7 @@ public sealed class ClaimCheckOptionsValidatorShould
 		options.Compression.MinCompressionRatio = 2.0;
 		options.Cleanup.EnableCleanup = true;
 		options.Cleanup.CleanupInterval = TimeSpan.Zero;
-		options.Cleanup.DefaultTtl = TimeSpan.Zero;
+		options.Cleanup.DefaultTtl = TimeSpan.FromSeconds(-1);
 
 		// Act
 		var result = _validator.Validate(null, options);

@@ -45,7 +45,8 @@ public sealed class FirestoreInboxOptions
 	/// </summary>
 	/// <remarks>
 	/// Set to 0 for no expiration. Defaults to 7 days (604800 seconds).
-	/// Note: Firestore doesn't have native TTL - use CleanupAsync for cleanup.
+	/// Note: Firestore doesn't have native TTL - use CleanupAllTenantsProcessedEntriesAsync for cleanup,
+	/// which sweeps every tenant's processed entries.
 	/// </remarks>
 	[Range(0, int.MaxValue)]
 	public int DefaultTtlSeconds { get; set; } = 604800;

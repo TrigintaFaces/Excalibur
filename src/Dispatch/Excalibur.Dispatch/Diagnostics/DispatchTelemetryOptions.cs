@@ -7,7 +7,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Excalibur.Dispatch.Diagnostics;
 
 /// <summary>
-/// Configuration options for Dispatch telemetry and observability features. Implements R8.21 comprehensive telemetry and R7.17 performance monitoring.
+/// Configuration options for Dispatch telemetry and observability features, covering both telemetry emission and performance monitoring.
 /// </summary>
 /// <remarks>
 /// <para>

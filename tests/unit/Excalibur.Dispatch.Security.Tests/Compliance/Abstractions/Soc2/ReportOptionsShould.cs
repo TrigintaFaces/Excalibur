@@ -17,13 +17,9 @@ public sealed class ReportOptionsShould
         var options = new ReportOptions();
 
         options.Categories.ShouldBeNull();
-        options.IncludeDetailedEvidence.ShouldBeTrue();
         options.IncludeTestResults.ShouldBeTrue();
         options.TenantId.ShouldBeNull();
         options.CustomTitle.ShouldBeNull();
-        options.IncludeManagementAssertion.ShouldBeTrue();
-        options.IncludeSystemDescription.ShouldBeTrue();
-        options.MaxEvidenceItemsPerCriterion.ShouldBeNull();
     }
 
     [Fact]
@@ -32,18 +28,14 @@ public sealed class ReportOptionsShould
         var options = new ReportOptions
         {
             Categories = new[] { TrustServicesCategory.Security, TrustServicesCategory.Availability },
-            IncludeDetailedEvidence = false,
             IncludeTestResults = false,
             TenantId = "t1",
-            CustomTitle = "Custom Report",
-            IncludeManagementAssertion = false,
-            IncludeSystemDescription = false,
-            MaxEvidenceItemsPerCriterion = 10
+            CustomTitle = "Custom Report"
         };
 
         options.Categories.Length.ShouldBe(2);
-        options.IncludeDetailedEvidence.ShouldBeFalse();
-        options.MaxEvidenceItemsPerCriterion.ShouldBe(10);
+        options.IncludeTestResults.ShouldBeFalse();
+        options.TenantId.ShouldBe("t1");
     }
 
     [Theory]

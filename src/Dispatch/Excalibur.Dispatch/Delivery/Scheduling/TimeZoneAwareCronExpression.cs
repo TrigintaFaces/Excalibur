@@ -112,7 +112,7 @@ public sealed class TimeZoneAwareCronExpression : ICronExpression, ICronExpressi
 	{
 		// Cronos requires Kind=Utc for the (DateTime, TimeZoneInfo) overload and
 		// performs the timezone conversion internally. Use DateTimeOffset.UtcDateTime
-		// which always returns a DateTime with Kind=Utc. [bd-61s6mw]
+		// which always returns a DateTime with Kind=Utc.
 		var nextUtc = _cronExpression.GetNextOccurrence(from.UtcDateTime, TimeZone);
 
 		if (nextUtc.HasValue)
@@ -129,7 +129,7 @@ public sealed class TimeZoneAwareCronExpression : ICronExpression, ICronExpressi
 	public DateTimeOffset? GetNextOccurrenceUtc(DateTimeOffset fromUtc)
 	{
 		// Same Cronos contract as GetNextOccurrence: pass a Utc-kind DateTime and
-		// Cronos handles the timezone transition internally. [bd-61s6mw]
+		// Cronos handles the timezone transition internally.
 		var nextUtc = _cronExpression.GetNextOccurrence(fromUtc.UtcDateTime, TimeZone);
 
 		return nextUtc.HasValue
@@ -141,7 +141,7 @@ public sealed class TimeZoneAwareCronExpression : ICronExpression, ICronExpressi
 	public IEnumerable<DateTimeOffset> GetOccurrencesBetween(DateTimeOffset from, DateTimeOffset endTime)
 	{
 		// Cronos GetOccurrences(DateTime, DateTime, TimeZoneInfo) requires Kind=Utc
-		// on both bounds and returns Utc DateTimes. [bd-61s6mw]
+		// on both bounds and returns Utc DateTimes.
 		var occurrences = _cronExpression.GetOccurrences(from.UtcDateTime, endTime.UtcDateTime, TimeZone);
 
 		foreach (var occurrence in occurrences)

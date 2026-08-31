@@ -4,7 +4,7 @@ MySQL/MariaDB database provider implementation for the Excalibur data access lay
 
 ## Features
 
-- `MySqlPersistenceProvider` implementing `IPersistenceProvider`, `IPersistenceProviderHealth`, `IPersistenceProviderTransaction`
+- `MySqlPersistenceProvider` implementing `IPersistenceProvider`, `IPersistenceProviderHealth`, `IPersistenceProviderTransaction`, `IPersistenceProviderConnection`, `IDataRequestExecutor`
 - Transient error retry policy with exponential backoff (error codes 1040, 1205, 1213, 2002, 2003, 2006, 2013)
 - Connection pooling via MySqlConnector
 - Health check and metrics support

@@ -98,4 +98,63 @@ public sealed class SagaBuilderCosmosDbExtensionsShould : UnitTestBase
         // Assert
         configureInvoked.ShouldBeTrue();
     }
+
+    [Fact]
+    public void UseCosmosDb_ResolveOptions_WhenConnectionStringSupplied()
+    {
+        // Arrange
+        // The connection the consumer supplies through the builder must reach the options the store
+        // validates. Asserting on the registration SHAPE (that an IConfigureOptions was added) cannot
+        // see this: the descriptor is present either way. Only resolving the value runs the validator.
+        var services = new ServiceCollection();
+        var builder = A.Fake<ISagaBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+
+        builder.UseCosmosDb(cosmo => cosmo.ConnectionString(TestConnectionString));
+
+        // Act
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<CosmosDbSagaOptions>>().Value;
+
+        // Assert
+        options.Client.ConnectionString.ShouldBe(TestConnectionString);
+    }
+
+    [Fact]
+    public void UseCosmosDb_ResolveOptions_WhenEndpointAndAuthKeySupplied()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var builder = A.Fake<ISagaBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+
+        builder.UseCosmosDb(cosmo => cosmo.Endpoint("https://localhost:8081/", "dGVzdA=="));
+
+        // Act
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<CosmosDbSagaOptions>>().Value;
+
+        // Assert
+        options.Client.AccountEndpoint.ShouldBe("https://localhost:8081/");
+        options.Client.AccountKey.ShouldBe("dGVzdA==");
+    }
+
+    [Fact]
+    public void UseCosmosDb_RefuseOptions_WhenNoConnectionSupplied()
+    {
+        // Arrange
+        // The safety arm. Plumbing the supplied connection through must not turn into accepting a host
+        // that supplied none — a fix that merely relaxed the validator would pass the two arms above
+        // and fail here.
+        var services = new ServiceCollection();
+        var builder = A.Fake<ISagaBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+
+        builder.UseCosmosDb(cosmo => cosmo.DatabaseName("sagas_db"));
+
+        // Act & Assert
+        using var provider = services.BuildServiceProvider();
+        _ = Should.Throw<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<CosmosDbSagaOptions>>().Value);
+    }
 }

@@ -25,7 +25,12 @@ internal sealed class TenantRoutingEventStore : IEventStore
 	private readonly ITenantStoreResolver<IEventStore> _resolver;
 	private readonly ITenantContext _tenantContext;
 
-	internal TenantRoutingEventStore(
+	// Public on a type that is internal sealed, so this widens nothing outside the assembly. It is public
+	// because AddTenantAwareStore derives the tenancy mechanism from the PUBLIC constructors, and an
+	// internal one is invisible to that probe: the seam would classify this store as having no tenancy
+	// mechanism and emit no capability marker, which is the opposite of the truth -- it reads the ambient
+	// tenant below and refuses without one.
+	public TenantRoutingEventStore(
 		ITenantStoreResolver<IEventStore> resolver,
 		ITenantContext tenantContext)
 	{
@@ -69,15 +74,14 @@ internal sealed class TenantRoutingEventStore : IEventStore
 		return store.AppendAsync(aggregateId, aggregateType, events, expectedVersion, cancellationToken);
 	}
 
-	private IEventStore ResolveStore()
-	{
-		var tenantId = _tenantContext.TenantId;
-		if (string.IsNullOrEmpty(tenantId))
-		{
-			throw new InvalidOperationException(
-				"No ambient tenant is resolved. Ensure the tenant is established (TenantContextHolder.BeginScope) before accessing the event store.");
-		}
-
-		return _resolver.Resolve(tenantId);
-	}
+	/// <summary>
+	/// Resolves the shard for the ambient tenant, failing closed when none is established.
+	/// </summary>
+	/// <returns>The event store for the ambient tenant's shard.</returns>
+	/// <exception cref="TenantRequiredException">
+	/// No tenant is resolved. The guard is <see cref="TenantScope.FromContext(ITenantContext)"/> rather than a
+	/// local null check, so this path throws the same documented type as every other tenant-required path in
+	/// the framework — a consumer's <c>catch (TenantRequiredException)</c> handler covers routing too.
+	/// </exception>
+	private IEventStore ResolveStore() => _resolver.Resolve(TenantScope.FromContext(_tenantContext).TenantId);
 }

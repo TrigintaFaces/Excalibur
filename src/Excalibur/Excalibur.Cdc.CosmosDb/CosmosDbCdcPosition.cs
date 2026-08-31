@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 using System.Text;
 
 using Excalibur.Dispatch;
@@ -146,7 +145,6 @@ public sealed class CosmosDbCdcPosition : ChangePosition, IEquatable<CosmosDbCdc
 			return false;
 		}
 	}
-
 
 	/// <inheritdoc/>
 	public override string ToToken() => ToBase64();

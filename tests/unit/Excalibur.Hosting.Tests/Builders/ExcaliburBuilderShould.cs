@@ -61,21 +61,6 @@ public sealed class ExcaliburBuilderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void RegisterExcaliburOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddExcalibur(_ => { });
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType.Name.Contains("IConfigureOptions") ||
-			(sd.ServiceType.FullName != null && sd.ServiceType.FullName.Contains("ExcaliburOptions")));
-	}
-
-	[Fact]
 	public void SupportFluentChaining()
 	{
 		// Arrange

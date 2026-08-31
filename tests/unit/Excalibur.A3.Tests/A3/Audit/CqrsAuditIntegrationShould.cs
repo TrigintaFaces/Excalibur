@@ -23,11 +23,12 @@ namespace Excalibur.Tests.A3.Audit;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
-public sealed class CqrsAuditIntegrationShould
+public sealed class CqrsAuditIntegrationShould : IDisposable
 {
 	private readonly IActivityContext _activityContext;
 	private readonly IAuditMessagePublisher _auditPublisher;
 	private readonly IOutboxDispatcher _outbox;
+	private readonly ServiceProvider _serviceProvider;
 	private readonly AuditMiddleware _sut;
 
 	public CqrsAuditIntegrationShould()
@@ -35,8 +36,21 @@ public sealed class CqrsAuditIntegrationShould
 		_activityContext = A.Fake<IActivityContext>();
 		_auditPublisher = A.Fake<IAuditMessagePublisher>();
 		_outbox = A.Fake<IOutboxDispatcher>();
-		_sut = new AuditMiddleware(_activityContext, _auditPublisher, NullLogger<AuditMiddleware>.Instance, _outbox);
+
+		// The middleware resolves the audit context from a scope rather than holding one, so the
+		// context these tests assert on is supplied through the container.
+		var services = new ServiceCollection();
+		_ = services.AddScoped(_ => _activityContext);
+		_serviceProvider = services.BuildServiceProvider();
+
+		_sut = new AuditMiddleware(
+			_auditPublisher,
+			_outbox,
+			_serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+			NullLogger<AuditMiddleware>.Instance);
 	}
+
+	public void Dispose() => _serviceProvider.Dispose();
 
 	// ========================================
 	// CQRS Command + Auditable — Happy Path

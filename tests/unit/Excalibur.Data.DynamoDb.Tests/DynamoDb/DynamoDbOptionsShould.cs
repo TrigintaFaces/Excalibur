@@ -19,7 +19,7 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		var options = new DynamoDbOptions();
 
 		// Assert - root properties
-		options.Name.ShouldBe("DynamoDb");
+		options.Name.ShouldBe("dynamodb");
 		options.DefaultTableName.ShouldBeNull();
 		options.DefaultPartitionKeyAttribute.ShouldBe("pk");
 		options.DefaultSortKeyAttribute.ShouldBe("sk");

@@ -65,7 +65,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class EncryptionProviderRegistryConformanceTestKit
+public abstract class EncryptionProviderRegistryConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates an instance of the <see cref="IEncryptionProviderRegistry"/> implementation under test.
@@ -102,7 +102,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.Register"/> succeeds with valid parameters.
 	/// </summary>
-	protected virtual void Register_ShouldSucceed()
+	public virtual void Register_ShouldSucceed()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -123,7 +123,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.Register"/> throws on null providerId.
 	/// </summary>
-	protected virtual void Register_NullProviderId_ShouldThrowArgumentNullException()
+	public virtual void Register_NullProviderId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -145,7 +145,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.Register"/> throws on null provider.
 	/// </summary>
-	protected virtual void Register_NullProvider_ShouldThrowArgumentNullException()
+	public virtual void Register_NullProvider_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -166,7 +166,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.Register"/> throws on duplicate providerId.
 	/// </summary>
-	protected virtual void Register_DuplicateId_ShouldThrowInvalidOperationException()
+	public virtual void Register_DuplicateId_ShouldThrowInvalidOperationException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -194,7 +194,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetProvider"/> returns the registered provider.
 	/// </summary>
-	protected virtual void GetProvider_Registered_ShouldReturnProvider()
+	public virtual void GetProvider_Registered_ShouldReturnProvider()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -221,7 +221,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetProvider"/> returns null for unknown providerId.
 	/// </summary>
-	protected virtual void GetProvider_Unknown_ShouldReturnNull()
+	public virtual void GetProvider_Unknown_ShouldReturnNull()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -240,7 +240,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetProvider"/> throws on null providerId.
 	/// </summary>
-	protected virtual void GetProvider_NullId_ShouldThrowArgumentNullException()
+	public virtual void GetProvider_NullId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -265,7 +265,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetPrimary"/> throws when no primary is configured.
 	/// </summary>
-	protected virtual void GetPrimary_NoPrimary_ShouldThrowInvalidOperationException()
+	public virtual void GetPrimary_NoPrimary_ShouldThrowInvalidOperationException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -286,7 +286,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetPrimary"/> returns the primary provider after SetPrimary.
 	/// </summary>
-	protected virtual void GetPrimary_WithPrimary_ShouldReturnProvider()
+	public virtual void GetPrimary_WithPrimary_ShouldReturnProvider()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -318,7 +318,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.SetPrimary"/> throws on null providerId.
 	/// </summary>
-	protected virtual void SetPrimary_NullProviderId_ShouldThrowArgumentNullException()
+	public virtual void SetPrimary_NullProviderId_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -339,7 +339,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.SetPrimary"/> throws for unregistered providerId.
 	/// </summary>
-	protected virtual void SetPrimary_Unregistered_ShouldThrowInvalidOperationException()
+	public virtual void SetPrimary_Unregistered_ShouldThrowInvalidOperationException()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -364,7 +364,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetLegacyProviders"/> returns empty list initially.
 	/// </summary>
-	protected virtual void GetLegacyProviders_Initially_ShouldBeEmpty()
+	public virtual void GetLegacyProviders_Initially_ShouldBeEmpty()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -393,7 +393,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.GetAll"/> returns all registered providers.
 	/// </summary>
-	protected virtual void GetAll_WithProviders_ShouldReturnAll()
+	public virtual void GetAll_WithProviders_ShouldReturnAll()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -426,7 +426,7 @@ public abstract class EncryptionProviderRegistryConformanceTestKit
 	/// <summary>
 	/// Verifies that <see cref="IEncryptionProviderRegistry.FindDecryptionProvider"/> throws on null encryptedData.
 	/// </summary>
-	protected virtual void FindDecryptionProvider_NullEncryptedData_ShouldThrowArgumentNullException()
+	public virtual void FindDecryptionProvider_NullEncryptedData_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var registry = CreateRegistry();

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -13,6 +13,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to mark a message as sent in the outbox.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the outbox Id is the table's primary key, so this statement already addresses at most one row. The drain claims across tenants and hands back a row addressed by that globally-unique Id, so the mark must be able to address the row the claim returned; a tenant term could only subtract that row, never redirect the statement to a different one")]
 public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>

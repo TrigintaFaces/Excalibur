@@ -20,7 +20,7 @@ docker run -d -p 9200:9200 \
 | 1 | Single-node DI registration | `AddOpenSearchServices(nodeUri, configureSettings)` |
 | 2 | Multi-node cluster setup | `AddOpenSearchServices(nodeUris, configureSettings)` |
 | 3 | Preconfigured client | `AddOpenSearchServices(client, registry)` |
-| 4 | Resilience configuration | `OpenSearchResilienceOptions`, `CircuitBreakerOptions`, `OpenSearchRetryPolicyOptions`, `OpenSearchTimeoutOptions` |
+| 4 | Index state management (ISM) | `AddOpenSearchIndexManagement()` |
 | 5 | Persistence provider | `AddOpenSearchPersistence(options)` with `OpenSearchPersistenceOptions` |
 | 6 | Dead letter handling | `OpenSearchDeadLetterHandler` with `OpenSearchDeadLetterOptions` |
 | 7 | Health checks | `AddOpenSearchHealthCheck(name, timeout)` |
@@ -33,7 +33,8 @@ docker run -d -p 9200:9200 \
 - **`VerifyOpenSearchConnectivityAsync`** -- Host extension that pings the cluster at startup and throws if unreachable.
 - **`AddOpenSearchPersistence`** -- Registers `IPersistenceProvider` (keyed as `"opensearch"` and `"default"`) with configurable index prefix, shard count, replica count, and refresh policy.
 - **`OpenSearchDeadLetterHandler`** -- Routes failed documents to a dated dead letter index (`dlq-prefix-yyyy-MM`) and supports retrying stored dead letters.
-- **`OpenSearchResilienceOptions`** -- Composes retry policy (exponential backoff with jitter), circuit breaker (failure rate threshold), and per-operation timeouts.
+- **`AddOpenSearchIndexManagement`** -- Registers `IIndexLifecycleManager`, `IIndexTemplateManager`, `IIndexOperationsManager` and `IIndexAliasManager` against whichever OpenSearch client the container holds. Register a client first.
+- **Retries and timeouts** -- Owned by `OpenSearch.Client`; set them on the `ConnectionSettings` you pass to `AddOpenSearchServices` (`MaximumRetries`, `RequestTimeout`). This package adds no policy of its own.
 
 ## Additional Capabilities (Not Shown Inline)
 
@@ -44,7 +45,6 @@ These are registered through separate DI extensions and builders:
 | Projection Store | `AddOpenSearchProjectionStore<T>(nodeUri)` | Event sourcing read model store per projection type |
 | Materialized Views | `builder.UseOpenSearch(options)` via `IMaterializedViewsBuilder` | CDC-style materialized view store |
 | Tenant Sharding | `UseOpenSearchTenantProjectionStore<T>()` via `IEventSourcingBuilder` | Index-per-tenant projection isolation |
-| Index Management | `IIndexOperationsManager` | Create, delete, check, and update indices programmatically |
 
 ## Run
 

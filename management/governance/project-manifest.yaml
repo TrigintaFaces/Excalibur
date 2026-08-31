@@ -130,6 +130,8 @@ projects:
   - path: src/Excalibur/Excalibur.Compliance.Aws/Excalibur.Compliance.Aws.csproj
   - path: src/Excalibur/Excalibur.Compliance.Azure/Excalibur.Compliance.Azure.csproj
   - path: src/Excalibur/Excalibur.Compliance.Vault/Excalibur.Compliance.Vault.csproj
+  - path: src/Excalibur/Excalibur.Compliance.MongoDb/Excalibur.Compliance.MongoDb.csproj
+  - path: src/Excalibur/Excalibur.Compliance.Pdf/Excalibur.Compliance.Pdf.csproj
   - path: src/Excalibur/Excalibur.Compliance/Excalibur.Compliance.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/Excalibur.Dispatch.Hosting.AspNetCore.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/Excalibur.Dispatch.Hosting.AwsLambda.csproj
@@ -194,6 +196,7 @@ projects:
   - path: src/Excalibur/Excalibur.Compliance.Postgres/Excalibur.Compliance.Postgres.csproj
   - path: src/Excalibur/Excalibur.Compliance.SqlServer/Excalibur.Compliance.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Data.Abstractions/Excalibur.Data.Abstractions.csproj
+  - path: src/Excalibur/Excalibur.Data.Analyzers/Excalibur.Data.Analyzers.csproj
   - path: src/Excalibur/Excalibur.Data.CosmosDb/Excalibur.Data.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.Data.DataProcessing/Excalibur.Data.DataProcessing.csproj
   - path: src/Excalibur/Excalibur.Data.DynamoDb/Excalibur.Data.DynamoDb.csproj
@@ -234,7 +237,6 @@ projects:
   - path: src/Excalibur/Excalibur.Hosting.Jobs/Excalibur.Hosting.Jobs.csproj
   - path: src/Excalibur/Excalibur.Hosting.Logging.Serilog/Excalibur.Hosting.Logging.Serilog.csproj
   - path: src/Excalibur/Excalibur.Hosting.Observability/Excalibur.Hosting.Observability.csproj
-  - path: src/Excalibur/Excalibur.Hosting.Serverless/Excalibur.Hosting.Serverless.csproj
   - path: src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj
   - path: src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj
   - path: src/metapackages/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj
@@ -320,6 +322,7 @@ projects:
   - path: tests/unit/Excalibur.Caching.Tests/Excalibur.Caching.Tests.csproj
   - path: tests/unit/Excalibur.Cdc.Tests/Excalibur.Cdc.Tests.csproj
   - path: tests/unit/Excalibur.Data.Abstractions.Tests/Excalibur.Data.Abstractions.Tests.csproj
+  - path: tests/unit/Excalibur.Data.Analyzers.Tests/Excalibur.Data.Analyzers.Tests.csproj
   - path: tests/unit/Excalibur.Data.CosmosDb.Tests/Excalibur.Data.CosmosDb.Tests.csproj
   - path: tests/unit/Excalibur.Data.DataProcessing.Tests/Excalibur.Data.DataProcessing.Tests.csproj
   - path: tests/unit/Excalibur.Data.DynamoDb.Tests/Excalibur.Data.DynamoDb.Tests.csproj
@@ -328,12 +331,14 @@ projects:
   - path: tests/unit/Excalibur.Data.IdentityMap.Tests/Excalibur.Data.IdentityMap.Tests.csproj
   - path: tests/unit/Excalibur.Data.InMemory.Tests/Excalibur.Data.InMemory.Tests.csproj
   - path: tests/unit/Excalibur.Data.MongoDB.Tests/Excalibur.Data.MongoDB.Tests.csproj
+  - path: tests/unit/Excalibur.Data.Spanner.Tests/Excalibur.Data.Spanner.Tests.csproj
   - path: tests/unit/Excalibur.Data.MySql.Tests/Excalibur.Data.MySql.Tests.csproj
   - path: tests/unit/Excalibur.Data.Postgres.Tests/Excalibur.Data.Postgres.Tests.csproj
   - path: tests/unit/Excalibur.Data.Redis.Tests/Excalibur.Data.Redis.Tests.csproj
   - path: tests/unit/Excalibur.Data.SqlServer.Tests/Excalibur.Data.SqlServer.Tests.csproj
   - path: tests/unit/Excalibur.Data.Tests/Excalibur.Data.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Abstractions.Tests/Excalibur.Dispatch.Abstractions.Tests.csproj
+  - path: tests/unit/Excalibur.Dispatch.Analyzers.Tests/Excalibur.Dispatch.Analyzers.Tests.csproj
   - path: tests/unit/Excalibur.AuditLogging.Aws.Tests/Excalibur.AuditLogging.Aws.Tests.csproj
   - path: tests/unit/Excalibur.AuditLogging.Datadog.Tests/Excalibur.AuditLogging.Datadog.Tests.csproj
   - path: tests/unit/Excalibur.AuditLogging.Elasticsearch.Tests/Excalibur.AuditLogging.Elasticsearch.Tests.csproj
@@ -342,6 +347,7 @@ projects:
   - path: tests/unit/Excalibur.AuditLogging.Sentinel.Tests/Excalibur.AuditLogging.Sentinel.Tests.csproj
   - path: tests/unit/Excalibur.AuditLogging.Splunk.Tests/Excalibur.AuditLogging.Splunk.Tests.csproj
   - path: tests/unit/Excalibur.AuditLogging.SqlServer.Tests/Excalibur.AuditLogging.SqlServer.Tests.csproj
+  - path: tests/unit/Excalibur.AuditLogging.Abstractions.Tests/Excalibur.AuditLogging.Abstractions.Tests.csproj
   - path: tests/unit/Excalibur.AuditLogging.Tests/Excalibur.AuditLogging.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.Caching.Tests/Excalibur.Dispatch.Caching.Tests.csproj
   - path: tests/unit/Excalibur.Dispatch.ClaimCheck.AwsS3.Tests/Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj
@@ -379,6 +385,7 @@ projects:
   - path: tests/unit/Excalibur.Jobs.Tests/Excalibur.Jobs.Tests.csproj
   - path: tests/unit/Excalibur.LeaderElection.Tests/Excalibur.LeaderElection.Tests.csproj
   - path: tests/unit/Excalibur.MediatRMigration.Tests/Excalibur.MediatRMigration.Tests.csproj
+  - path: tests/unit/Excalibur.Metapackages.Tests/Excalibur.Metapackages.Tests.csproj
   - path: tests/unit/Excalibur.MultiTenancy.Tests/Excalibur.MultiTenancy.Tests.csproj
   - path: tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj
   - path: tests/unit/Excalibur.Postgres.Tests/Excalibur.Postgres.Tests.csproj

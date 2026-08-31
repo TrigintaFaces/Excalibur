@@ -28,7 +28,7 @@ internal sealed partial class DefaultGrantRiskAssessor(
 	{
 		// Fail-safe: no real assessor is configured, so return the maximum score. This guarantees any
 		// RiskScoreAbove approval step triggers (fail toward human review) instead of being silently
-		// bypassed by a benign score (the lftwn1 fail-open defect).
+		// bypassed by a benign score (the fail-open defect).
 		LogNoRiskAssessment(logger, userId, grantScope);
 		return Task.FromResult(MaxRiskScore);
 	}

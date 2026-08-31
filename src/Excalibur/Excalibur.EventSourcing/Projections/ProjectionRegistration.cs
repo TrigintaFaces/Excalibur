@@ -74,7 +74,7 @@ internal sealed class ProjectionRegistration
 	internal TimeSpan? CacheTtl { get; }
 
 	/// <summary>
-	/// Gets the optional deletion handler registered via <c>WhenDeleted</c> (R27.23).
+	/// Gets the optional deletion handler registered via <c>WhenDeleted</c>.
 	/// Null means no deletion handler is configured.
 	/// </summary>
 	internal Func<string, CancellationToken, Task>? DeleteAction { get; }

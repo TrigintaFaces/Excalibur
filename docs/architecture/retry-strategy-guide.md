@@ -13,7 +13,7 @@ retry behavior.
 | **Dispatch Core** | `IRetryPolicy` + `DefaultRetryPolicy` + `NoOpRetryPolicy` | `src/Dispatch/Excalibur.Dispatch/Resilience/` | Framework-level message handler retries. Use for custom handler-level retry logic. |
 | **Polly Integration** | `PollyRetryPolicyAdapter` implements `IRetryPolicy` | `src/Dispatch/Excalibur.Dispatch.Resilience.Polly/` | When consumers want Polly v8 resilience policies for handler retries. Wraps `ResiliencePipeline` as an `IRetryPolicy`. |
 | **Outbox** | Custom loop with configurable delay | `src/Excalibur/Excalibur.Outbox/` | Background service retry for failed outbox message delivery. Retry interval and max attempts configured via `OutboxProcessingOptions`. |
-| **AWS SQS** | `RetryStrategy` + `AwsSqsRetryOptions` | `src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Resilience/` | SQS-specific retry with exponential backoff. Uses SQS visibility timeout for retry spacing. |
+| **AWS SQS** | AWS SDK retry via `AmazonSQSConfig.MaxErrorRetry` | `src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/` | SDK-level transient fault handling. Attempt count set by `UseMaxRetryAttempts` on the transport builder. |
 | **Google PubSub** | `IRetryPolicyManager` + `RetryPolicyManager` | `src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/DeadLetter/` | PubSub-specific retry for dead-letter processing. Uses PubSub acknowledgment deadlines. |
 | **Persistence Providers** | SDK retry (Cosmos DB, DynamoDB, Firestore, etc.) | Various `src/Excalibur/Excalibur.Data.*` | Database-level transient fault handling. Relies on SDK built-in retry (e.g., Cosmos DB `CosmosClientOptions.MaxRetryAttemptsOnRateLimitedRequests`). |
 | **Leader Election** | Per-provider retry (Kubernetes, Consul) | Various `src/Excalibur/Excalibur.LeaderElection.*` | Leader election renewal retry. Uses provider-specific lease renewal semantics. |
@@ -53,12 +53,10 @@ Use subsystem-specific retry for:
 
 These are tracked for future sprints:
 
-1. **AWS SQS `RetryStrategy`** could delegate to `IRetryPolicy` internally for backoff calculation,
-   while still managing SQS visibility timeouts externally.
-2. **PubSub `IRetryPolicyManager`** could wrap `IRetryPolicy` for the retry decision logic,
+1. **PubSub `IRetryPolicyManager`** could wrap `IRetryPolicy` for the retry decision logic,
    while still managing PubSub ack deadlines externally.
 
-These changes would reduce code duplication in backoff calculation without forcing architectural
+This change would reduce code duplication in backoff calculation without forcing architectural
 changes on the transport-specific retry semantics.
 
 ## Transport Resilience Comparison (Sprint 681)
@@ -70,12 +68,12 @@ changes on the transport-specific retry semantics.
 | **RabbitMQ** | Custom `RetryPolicy` class | No | Connection timeout | Yes (S680) |
 | **Kafka** | Confluent SDK retry | No | Producer timeout | Yes (S680) |
 | **Azure ServiceBus** | SDK retry (`AmqpRetryOptions`) | No | SDK timeout | No |
-| **AWS SQS** | Polly-based `RetryStrategy` + `AwsSqsRetryOptions` | Polly circuit breaker | Polly timeout | No |
+| **AWS SQS** | AWS SDK retry (`MaxErrorRetry`) | No | SDK request timeout | No |
 | **Google PubSub** | `RetryPolicyManager` | No | gRPC deadline | No |
 
 ### Analysis
 
-**AWS SQS is the most mature** — it uses Polly v8 `ResiliencePipeline` properly with retry, circuit breaker, and timeout.
+**No transport currently uses Polly `ResiliencePipeline`.** Each relies on either its SDK's built-in retry (AWS SQS, Kafka, Azure ServiceBus) or a transport-specific retry class (RabbitMQ, Google PubSub). Circuit breaking is available at the dispatch layer via `CircuitBreakerMiddleware` and `Excalibur.Dispatch.Resilience.Polly`, not per-transport.
 
 ### Ideal Target State
 

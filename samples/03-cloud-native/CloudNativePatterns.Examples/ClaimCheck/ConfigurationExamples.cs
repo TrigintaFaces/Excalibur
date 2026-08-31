@@ -50,7 +50,6 @@ public static class ConfigurationExamples
 
 				// Performance settings
 				options.PayloadThreshold = 64 * 1024; // 64KB
-				options.Storage.ChunkSize = 1024 * 1024; // 1MB chunks
 				options.Storage.Operations.MaxConcurrency = Environment.ProcessorCount;
 				options.Storage.Operations.BufferPoolSize = 100;
 
@@ -71,9 +70,9 @@ public static class ConfigurationExamples
 				options.Storage.Operations.MaxRetries = 3;
 				options.Storage.Operations.RetryDelay = TimeSpan.FromSeconds(1);
 
-				// Security
+				// Security. Payloads are encrypted at rest by the storage account itself; claim check
+				// carries no encryption setting of its own, because it holds no key.
 				options.ValidateChecksum = true;
-				options.Storage.EnableEncryption = false; // Use Azure Storage encryption
 			});
 		});
 	}
@@ -89,7 +88,6 @@ public static class ConfigurationExamples
 
 			// Optimized for large files
 			options.PayloadThreshold = 1024 * 1024; // 1MB threshold
-			options.Storage.ChunkSize = 4 * 1024 * 1024; // 4MB chunks
 			options.Storage.Operations.MaxConcurrency = Environment.ProcessorCount * 2;
 			options.Storage.Operations.BufferPoolSize = 50;
 

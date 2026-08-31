@@ -23,7 +23,7 @@ namespace Excalibur.Data.Persistence;
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class PersistencePrerequisiteValidator : IHostedService
+internal sealed class PersistencePrerequisiteValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -34,6 +34,12 @@ internal sealed class PersistencePrerequisiteValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		if (_services.GetKeyedService<IPersistenceProvider>("default") is null)
 		{
 			throw new InvalidOperationException(
@@ -42,8 +48,6 @@ internal sealed class PersistencePrerequisiteValidator : IHostedService
 				"services.AddSqlServerPersistence(...), services.AddPostgresPersistence(...), " +
 				"or services.AddInMemoryPersistence() — before host startup.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

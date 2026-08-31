@@ -55,36 +55,26 @@ dotnet add package Excalibur.Compliance.Aws
 ### Setup
 
 ```csharp
-// Basic registration
-services.AddAwsKmsKeyManagement(options =>
+// Registration. The key is selected by ALIAS PREFIX plus purpose, not by a key id.
+services.AddAwsKmsKeyManagement(aws => aws
+    .Region("us-east-1")
+    .KeyAliasPrefix("master-encryption-")
+    .Environment("prod"));
+
+// LocalStack for development -- point ServiceUrl at the emulator.
+services.AddAwsKmsKeyManagement(aws => aws
+    .Region("us-east-1")
+    .ServiceUrl("http://localhost:4566")
+    .KeyAliasPrefix("dev-"));
+
+// Multi-region keys. The fluent builder covers the five connection settings above;
+// key-policy and cache settings live on AwsKmsOptions and are set through
+// Configure<AwsKmsOptions> or by binding a configuration section.
+services.Configure<AwsKmsOptions>(options =>
 {
-    options.KeyId = "arn:aws:kms:us-east-1:123456789:key/your-key-id";
+    options.KeyPolicy.CreateMultiRegionKeys = true;
+    options.KeyPolicy.ReplicaRegions = [RegionEndpoint.USWest2, RegionEndpoint.EUWest1];
 });
-
-// With custom client factory
-services.AddAwsKmsKeyManagement(
-    sp => new AmazonKeyManagementServiceClient(RegionEndpoint.USEast1),
-    options =>
-    {
-        options.KeyId = "alias/my-key";
-    });
-
-// LocalStack for development
-services.AddAwsKmsKeyManagementLocalStack(
-    localStackEndpoint: "http://localhost:4566",
-    options =>
-    {
-        options.KeyId = "alias/dev-key";
-    });
-
-// Multi-region for high availability
-services.AddAwsKmsKeyManagementMultiRegion(
-    primaryRegion: RegionEndpoint.USEast1,
-    replicaRegions: new[] { RegionEndpoint.USWest2, RegionEndpoint.EUWest1 },
-    options =>
-    {
-        options.KeyId = "mrk-key-id";
-    });
 ```
 
 ---
@@ -125,13 +115,12 @@ services.AddDispatch(dispatch =>
     dispatch.UseSecurity(configuration);
 });
 
-// Or standalone Azure security setup — the Key Vault credential store and
-// Service Bus validation are wired through the Azure security builder.
-// The credential store is registered only when a VaultUri is supplied.
+// Or standalone Azure security setup — the Key Vault credential store is
+// wired through the Azure security builder, and is registered only when a
+// VaultUri is supplied.
 services.AddDispatchSecurityAzure(azure =>
 {
-    azure.VaultUri("https://my-vault.vault.azure.net/")
-         .EnableServiceBusValidation();
+    azure.VaultUri("https://my-vault.vault.azure.net/");
 });
 ```
 
@@ -173,8 +162,8 @@ services.AddVaultKeyManagement(vault => vault.BindConfiguration("Vault"));
 
 | Feature | AWS KMS | Azure Key Vault | HashiCorp Vault |
 |---------|---------|-----------------|-----------------|
-| Multi-region | `AddAwsKmsKeyManagementMultiRegion` | Via Azure replication | Via Vault replication |
-| Local development | `AddAwsKmsKeyManagementLocalStack` | N/A | Dev mode |
+| Multi-region | `AwsKmsOptions.KeyPolicy.CreateMultiRegionKeys` + `ReplicaRegions` | Via Azure replication | Via Vault replication |
+| Local development | `ServiceUrl("http://localhost:4566")` (LocalStack) | N/A | Dev mode |
 | Configuration binding | Action callback | Action, options, config section | Action, options, config section |
 | Custom client | Factory overload | Via Azure Identity | Token-based |
 

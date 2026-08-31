@@ -42,6 +42,20 @@ public abstract class TransportConnectionBase : IAsyncDisposable
 	protected TransportSecurityOptions SecurityOptions { get; }
 
 	/// <summary>
+	/// When overridden in a derived class, gets the transport family this connection belongs to,
+	/// such as <c>Kafka</c> or <c>RabbitMQ</c>.
+	/// </summary>
+	/// <value>The transport family name reported by <see cref="TransportSecurityException.TransportName"/>.</value>
+	/// <remarks>
+	/// This is the family, not the implementing class and not the name a connection was registered under
+	/// in dependency injection: a consumer branching on
+	/// <see cref="TransportSecurityException.TransportName"/> must see the same value whichever code path
+	/// refused the connection. It is abstract rather than defaulted so a derived transport cannot report
+	/// its class name by omission.
+	/// </remarks>
+	protected abstract string TransportLabel { get; }
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="TransportConnectionBase"/> class.
 	/// </summary>
 	/// <param name="securityOptions">The security options for this transport connection.</param>
@@ -88,7 +102,11 @@ public abstract class TransportConnectionBase : IAsyncDisposable
 			{
 				throw new TransportSecurityException(
 					"Transport requires a TLS-secured connection but the connection is not secure. " +
-					"Ensure TLS is properly configured for your transport.");
+					"Ensure TLS is properly configured for your transport.")
+				{
+					TransportName = TransportLabel,
+					FailureReason = TransportSecurityFailureReason.TlsNotEnabled,
+				};
 			}
 
 			_tlsVerified = true;

@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// Scheduler with timezone-aware cron support and advanced job management.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="RecurringDispatchScheduler" /> class. </remarks>
-public sealed partial class RecurringDispatchScheduler(
+internal sealed partial class RecurringDispatchScheduler(
 	IScheduleStore scheduleStore,
 	DispatchJsonSerializer serializer,
 	IOptions<SchedulerOptions> options,
@@ -30,16 +30,17 @@ public sealed partial class RecurringDispatchScheduler(
 	private readonly SchedulerOptions _options = options.Value;
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
 
-	// ywodwj — due/past-schedule and next-occurrence decisions read the clock through TimeProvider so the
+	// due/past-schedule and next-occurrence decisions read the clock through TimeProvider so the
 	// boundary is testable (default TimeProvider.System keeps existing DI/callers unchanged).
 	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "IDispatchScheduler interface is kept clean for future AOT-safe implementations. This implementation uses runtime JSON serialization.")]
+			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
 	public async Task ScheduleOnceAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			DateTimeOffset executeAtUtc, TMessage message,
 			CancellationToken cancellationToken)
@@ -56,7 +57,12 @@ public sealed partial class RecurringDispatchScheduler(
 		}
 
 		var type = typeof(TMessage);
-		var name = type.AssemblyQualifiedName ?? type.FullName!;
+		// A schedule row outlives the process that wrote it, so its type name must not encode anything that
+		// changes between releases. An assembly-qualified name embeds the assembly version, and message types
+		// live in the consumer's assembly -- so every persisted row would stop resolving the first time they
+		// shipped a new version, and the schedule would silently never fire again. The bare full name carries
+		// no version and is the form the inbox and outbox writers store.
+		var name = type.FullName ?? type.Name;
 		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		var scheduled = new ScheduledMessage
@@ -80,10 +86,11 @@ public sealed partial class RecurringDispatchScheduler(
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "IDispatchScheduler interface is kept clean for future AOT-safe implementations. This implementation uses runtime JSON serialization.")]
+			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 		string cronExpression, TMessage message,
 		CancellationToken cancellationToken)
@@ -103,17 +110,19 @@ public sealed partial class RecurringDispatchScheduler(
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			string cronExpression, TimeZoneInfo timeZone, TMessage message,
 			CancellationToken cancellationToken)
 			where TMessage : class
 	{
 		var type = typeof(TMessage);
-		var name = type.AssemblyQualifiedName ?? type.FullName!;
+		// A schedule row outlives the process that wrote it, so its type name must not encode anything that
+		// changes between releases. An assembly-qualified name embeds the assembly version, and message types
+		// live in the consumer's assembly -- so every persisted row would stop resolving the first time they
+		// shipped a new version, and the schedule would silently never fire again. The bare full name carries
+		// no version and is the form the inbox and outbox writers store.
+		var name = type.FullName ?? type.Name;
 
 		// Validate cron expression using our cron scheduler
 		var cronExpr = cronScheduler.Parse(cronExpression, timeZone);
@@ -145,10 +154,11 @@ public sealed partial class RecurringDispatchScheduler(
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "IDispatchScheduler interface is kept clean for future AOT-safe implementations. This implementation uses runtime JSON serialization.")]
+			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			TimeSpan interval,
 			TMessage message,
@@ -156,7 +166,12 @@ public sealed partial class RecurringDispatchScheduler(
 			where TMessage : class
 	{
 		var type = typeof(TMessage);
-		var name = type.AssemblyQualifiedName ?? type.FullName!;
+		// A schedule row outlives the process that wrote it, so its type name must not encode anything that
+		// changes between releases. An assembly-qualified name embeds the assembly version, and message types
+		// live in the consumer's assembly -- so every persisted row would stop resolving the first time they
+		// shipped a new version, and the schedule would silently never fire again. The bare full name carries
+		// no version and is the form the inbox and outbox writers store.
+		var name = type.FullName ?? type.Name;
 		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		var entry = new ScheduledMessage
@@ -194,8 +209,28 @@ public sealed partial class RecurringDispatchScheduler(
 	private static string? ExtractCorrelationId<TMessage>(TMessage message) =>
 		message is ICorrelationAware aware ? aware.CorrelationId?.ToString() : null;
 
+	/// <summary>
+	/// Resolves the tenant to persist on the schedule: the message's own <see cref="ITenantAware.TenantId"/>
+	/// when it declares one, otherwise the ambient tenant established at the moment of scheduling (never
+	/// overwrites a more specific source; a message-level value always wins).
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The message-level check is not merely a formality kept for symmetry with the ambient fallback: it
+	/// is the ONLY correct source when a caller schedules a message on behalf of a tenant other than its
+	/// own ambient one (e.g. an admin tool scheduling per-tenant reports from an unscoped context).
+	/// </para>
+	/// <para>
+	/// Reads <see cref="TenantContextHolder.Current"/> directly rather than resolving
+	/// <see cref="ITenantContext"/> through DI -- the default single-tenant registration's
+	/// <c>TenantId</c> is a fixed constant that ignores the ambient holder entirely, so a caller with no
+	/// ambient tenant established would otherwise get the default tenant stamped on every schedule
+	/// regardless. A deployment with no ambient tenant established stays untenanted here, exactly as it
+	/// did before this fallback existed.
+	/// </para>
+	/// </remarks>
 	private static string? ExtractTenantId<TMessage>(TMessage message) =>
-		message is ITenantAware aware ? aware.TenantId : null;
+		message is ITenantAware aware ? aware.TenantId : TenantContextHolder.Current;
 
 	private static string? ExtractUserId() =>
 		Activity.Current?.GetBaggageItem("user.id");

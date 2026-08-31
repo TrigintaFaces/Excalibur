@@ -33,7 +33,11 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 	/// </summary>
 	/// <param name="grants">The user's grants, keyed by scope string.</param>
 	/// <param name="activityGroups">Activity group mappings.</param>
-	/// <param name="tenantContext">The ambient tenant context for the current execution flow.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="userId">The user identifier for the current context.</param>
 	public AuthorizationPolicy(
 		IDictionary<string, object> grants,

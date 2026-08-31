@@ -56,7 +56,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public async Task InitializeAsync_SetsIsConnected()
+	public async Task InitializeAsync_DoesNotClaimConnected_BecauseNothingDrainsUntilStart()
 	{
 		// Arrange
 		var options = A.Fake<MessageBusOptions>();
@@ -64,7 +64,21 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		// Act
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
-		// Assert
+		// Assert -- IsConnected means "ready for operations"; the pump starts in StartAsync.
+		_adapter.IsConnected.ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task InitializeThenStart_ReportsConnected()
+	{
+		// Arrange
+		var options = A.Fake<MessageBusOptions>();
+		await _adapter.InitializeAsync(options, CancellationToken.None);
+
+		// Act
+		await _adapter.StartAsync(CancellationToken.None);
+
+		// Assert -- the liveness direction: once the pump is running, the claim still holds.
 		_adapter.IsConnected.ShouldBeTrue();
 	}
 
@@ -89,6 +103,8 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		// Arrange
 		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
+		// the pump must be running before the adapter is ready for operations
+		await _adapter.StartAsync(CancellationToken.None);
 
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
@@ -143,6 +159,8 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		// Arrange
 		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
+		// the pump must be running before the adapter is ready for operations
+		await _adapter.StartAsync(CancellationToken.None);
 
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult<IMessageResult>(MessageResult.Success());
@@ -184,6 +202,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		// Arrange
 		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
+		await _adapter.StartAsync(CancellationToken.None);
 
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult<IMessageResult>(MessageResult.Success());
@@ -224,6 +243,8 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		// Arrange
 		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
+		// the pump must be running before the adapter is ready for operations
+		await _adapter.StartAsync(CancellationToken.None);
 
 		// Act
 		var result = await _adapter.CheckHealthAsync(CancellationToken.None);

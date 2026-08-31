@@ -38,9 +38,23 @@ public interface IWorkflowStoreAdmin
 	ValueTask<WorkflowInstanceSummary?> GetSummaryAsync(string instanceId, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Gets aggregate counts of workflow instances by lifecycle status.
+	/// Gets aggregate counts of workflow instances by lifecycle status, for the calling tenant.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Scope: tenant-confined — this is an obligation on the implementer, not a guarantee of this
+	/// package.</b> The counts must cover the ambient tenant's partition and no other. The plain name carries
+	/// the confined meaning, framework-wide: an operation that observes every partition must say so in its
+	/// name, so a reader of a call site can tell the two apart without tracing where a scope came from.
+	/// </para>
+	/// <para>
+	/// The framework ships no implementation of this interface, so no shipped code enforces the obligation
+	/// above and it is <b>UNVERIFIED</b> here — there is no conformance test that can red-detect a violation
+	/// of a contract with no implementation. An implementer that cannot confine these counts must not
+	/// implement this member; estate-wide counters belong on a separate, explicitly named operation.
+	/// </para>
+	/// </remarks>
 	/// <param name="cancellationToken">A token to observe for cancellation.</param>
-	/// <returns>The aggregate workflow-instance statistics.</returns>
+	/// <returns>The aggregate workflow-instance statistics for the ambient tenant partition.</returns>
 	ValueTask<WorkflowStoreStatistics> GetStatisticsAsync(CancellationToken cancellationToken);
 }

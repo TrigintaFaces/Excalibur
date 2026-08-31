@@ -42,7 +42,13 @@ public static partial class HandlerInvokerRegistry
 	/// Frozen cache for optimal read performance after warmup (PERF-13/PERF-14).
 	/// Null until freeze is called.
 	/// </summary>
-	private static FrozenDictionary<Type, Func<object, IDispatchMessage, CancellationToken, Task<object?>>>? _frozenCache;
+	// Volatile because FreezeCache publishes it BEFORE setting _isFrozen and BEFORE nulling
+	// _warmupCache. That ordering is what lets every reader below test THIS field instead of
+	// _isFrozen: a reader that sees it non-null has a complete cache to use, and a reader that sees
+	// it null still has _warmupCache. Testing _isFrozen first was the defect -- a reader could
+	// observe it false, lose the race to FreezeCache, and then dereference a _warmupCache that had
+	// just been set to null.
+	private static volatile FrozenDictionary<Type, Func<object, IDispatchMessage, CancellationToken, Task<object?>>>? _frozenCache;
 
 	/// <summary>
 	/// Flag indicating if the cache has been frozen.
@@ -63,14 +69,15 @@ public static partial class HandlerInvokerRegistry
 		where THandler : class
 		where TMessage : IDispatchMessage
 	{
-		if (_isFrozen)
+		var warmup = _warmupCache;
+		if (_isFrozen || warmup is null)
 		{
 			throw new InvalidOperationException(
 				$"Cannot register invoker for {typeof(THandler).Name} after cache has been frozen. " +
 				"Register all handlers before calling FreezeCache().");
 		}
 
-		_warmupCache![typeof(THandler)] = async (handler, message, ct) =>
+		warmup[typeof(THandler)] = async (handler, message, ct) =>
 		{
 			await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return null;
@@ -86,14 +93,15 @@ public static partial class HandlerInvokerRegistry
 		where THandler : class
 		where TMessage : IDispatchMessage
 	{
-		if (_isFrozen)
+		var warmup = _warmupCache;
+		if (_isFrozen || warmup is null)
 		{
 			throw new InvalidOperationException(
 				$"Cannot register invoker for {typeof(THandler).Name} after cache has been frozen. " +
 				"Register all handlers before calling FreezeCache().");
 		}
 
-		_warmupCache![typeof(THandler)] = async (handler, message, ct) =>
+		warmup[typeof(THandler)] = async (handler, message, ct) =>
 		{
 			var result = await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return result;
@@ -109,11 +117,12 @@ public static partial class HandlerInvokerRegistry
 		Justification = "Handler invoker creation uses reflection as fallback. In AOT scenarios, source-generated invokers are used instead.")]
 	internal static Func<object, IDispatchMessage, CancellationToken, Task<object?>>? GetInvoker(Type handlerType)
 	{
-		// PERF-13/PERF-14: Three-phase lazy freeze pattern
-		// Phase 3 (frozen): Fast path with zero synchronization overhead
-		if (_isFrozen)
+		// Phase 3 (frozen): fast path. Read the field once and test IT rather than _isFrozen, so the
+		// value used is the value observed.
+		var frozen = _frozenCache;
+		if (frozen is not null)
 		{
-			if (_frozenCache!.TryGetValue(handlerType, out var frozenInvoker))
+			if (frozen.TryGetValue(handlerType, out var frozenInvoker))
 			{
 				return frozenInvoker;
 			}
@@ -122,8 +131,10 @@ public static partial class HandlerInvokerRegistry
 			return CreateInvoker(handlerType);
 		}
 
-		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-		return _warmupCache!.GetOrAdd(handlerType, CreateInvoker);
+		// Phase 1 (warmup): thread-safe population. A null here means FreezeCache completed between
+		// the two reads, which is rare and harmless: build without caching, as the frozen miss does.
+		var warmup = _warmupCache;
+		return warmup is not null ? warmup.GetOrAdd(handlerType, CreateInvoker) : CreateInvoker(handlerType);
 	}
 
 	/// <summary>
@@ -142,12 +153,21 @@ public static partial class HandlerInvokerRegistry
 		Type handlerType,
 		[NotNullWhen(true)] out Func<object, IDispatchMessage, CancellationToken, Task<object?>>? invoker)
 	{
-		if (_isFrozen)
+		var frozen = _frozenCache;
+		if (frozen is not null)
 		{
-			return _frozenCache!.TryGetValue(handlerType, out invoker);
+			return frozen.TryGetValue(handlerType, out invoker);
 		}
 
-		return _warmupCache!.TryGetValue(handlerType, out invoker);
+		var warmup = _warmupCache;
+		if (warmup is not null)
+		{
+			return warmup.TryGetValue(handlerType, out invoker);
+		}
+
+		// Both null only while FreezeCache is mid-transition; the caller has its own fallback.
+		invoker = null;
+		return false;
 	}
 
 	[RequiresUnreferencedCode("Uses reflection to create handler invokers")]

@@ -54,7 +54,7 @@ public sealed class ObservabilityValidationSuite : IDisposable
 	{
 		// Arrange
 		var options = new InMemoryInboxOptions { MaxEntries = 100 };
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var payload = new byte[50];
@@ -220,7 +220,7 @@ public sealed class ObservabilityValidationSuite : IDisposable
 	{
 		// Arrange
 		var inboxOptions = new InMemoryInboxOptions { MaxEntries = 100 };
-		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger);
+		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(inboxStore);
 
 		var batchOptions = new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(100) };
@@ -288,7 +288,7 @@ public sealed class ObservabilityValidationSuite : IDisposable
 	{
 		// Arrange
 		var inboxOptions = new InMemoryInboxOptions { MaxEntries = 500 };
-		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger);
+		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _inboxLogger, UntenantedContext.Instance);
 		_disposables.Add(inboxStore);
 
 		// Use larger batch size and shorter delay to ensure timely processing
@@ -431,7 +431,7 @@ public sealed class ObservabilityValidationSuite : IDisposable
 		// that the component works correctly under normal logging conditions.
 		var testLogger = new TestLogger<InMemoryInboxStore>();
 		var options = new InMemoryInboxOptions { MaxEntries = 10 };
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), testLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), testLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		// Act - Perform operations with working logger
@@ -442,7 +442,7 @@ public sealed class ObservabilityValidationSuite : IDisposable
 		await store.MarkProcessedAsync("resilience-test", "TestHandler", CancellationToken.None);
 
 		// Assert - Verify the component worked correctly
-		var entries = await store.GetAllEntriesAsync(CancellationToken.None);
+		var entries = await store.GetAllTenantsEntriesAsync(CancellationToken.None);
 		var entry = entries.FirstOrDefault(e => e.MessageId == "resilience-test");
 		_ = entry.ShouldNotBeNull();
 		entry.Status.ShouldBe(InboxStatus.Processed);

@@ -45,7 +45,7 @@ public sealed class ElasticsearchInboxStoreClaimAtomicityShould : IClassFixture<
 			IndexName = _fixture.IndexName,
 			RefreshPolicy = "wait_for",
 		});
-		var store = new ElasticsearchInboxStore(_fixture.Client, options, NullLogger<ElasticsearchInboxStore>.Instance);
+		var store = new ElasticsearchInboxStore(_fixture.Client, options, NullLogger<ElasticsearchInboxStore>.Instance, SingleTenantTestContext.Instance);
 
 		try
 		{

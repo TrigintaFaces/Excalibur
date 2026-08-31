@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+
 using Dapper;
 
 using Excalibur.Data;
@@ -460,11 +462,106 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 			"LoadAsync<TSagaState>(id) must return null when the saga at id is a different type (1f5om2)");
 	}
 
+	/// <summary>
+	/// Concurrent creates of one saga key resolve as exactly one winner, with every loser seeing the
+	/// contract's concurrency conflict rather than a raw provider failure.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>What this arm does NOT prove, stated first so it is not mistaken for more.</b> It does not
+	/// reproduce the MERGE conversion deadlock (error 1205) and it is not the lock for the hint pair that
+	/// prevents it. That was attempted and measured, not assumed: with the shared-lock-only form of the
+	/// upsert restored, this shape produced zero deadlocks over 200 real races (8 writers x 25 fresh keys)
+	/// and again over 7,200 (48 x 150), against real SQL Server both times. It is GREEN on the broken code
+	/// and cannot discriminate. The conversion window inside a single autocommit MERGE is too narrow to hit
+	/// reliably from one client process -- production load finds it, a test loop does not. So the hint pair
+	/// is locked structurally instead, next to the reasoning for it, in the unit tier
+	/// (<c>SagaUpsertLockHintShould</c>), and this arm claims only what it can show.
+	/// </para>
+	/// <para>
+	/// <b>What it does prove</b> is the property the hints exist to protect, observed through the store's own
+	/// contract: several writers arriving together on a key that does not yet exist resolve into exactly one
+	/// creation and N-1 concurrency conflicts. Zero would mean the race resolved by losing every write; more
+	/// than one would mean the version gate did not hold; anything other than a concurrency conflict -- a key
+	/// violation, a deadlock victim -- would mean a raw provider failure reached the caller where the
+	/// contract promises a typed one. The winner count is what keeps the failure count honest, since a race
+	/// that never actually raced would also report zero failures.
+	/// </para>
+	/// <para>
+	/// Real SQL Server, never skipped: the outcome under contention is the engine's own behaviour, and a
+	/// mocked or absent database would certify it either way.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task ResolveConcurrentCreatesOfOneSagaKey_AsExactlyOneWinner()
+	{
+		_sqlFixture.DockerAvailable.ShouldBeTrue(
+			"the outcome of concurrent upserts is the SQL Server engine's own behaviour -- it cannot be "
+			+ "observed without it, so this arm is never skipped.");
+
+		await InitializeSagaTableAsync();
+		var store = CreateSagaStore();
+
+		// Many short races rather than one long one. Each round is a fresh key, so every round is a genuine
+		// create-vs-create contention on a key no session has seen.
+		const int WritersPerKey = 8;
+		const int Rounds = 25;
+
+		var unexpected = new ConcurrentBag<string>();
+		var winners = 0;
+
+		for (var round = 0; round < Rounds; round++)
+		{
+			var sagaId = Guid.NewGuid();
+
+			// Released once, after every writer is already parked on it, so the MERGEs are issued together
+			// instead of drifting apart as the tasks start.
+			var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			var writers = Enumerable.Range(0, WritersPerKey).Select(async _ =>
+			{
+				await gate.Task;
+
+				var state = TestSagaState.Create(sagaId);
+				state.Status = "Started";
+
+				try
+				{
+					await store.SaveAsync(state, TestCancellationToken);
+					_ = Interlocked.Increment(ref winners);
+				}
+				catch (ConcurrencyException)
+				{
+					// The contract's own answer for a loser: another writer created the saga first, so this
+					// one's expected version no longer matches. Expected, and not a failure.
+				}
+				catch (Exception ex)
+				{
+					// Anything else -- a deadlock victim, a primary-key violation -- is the defect. Recorded
+					// as text so the assertion names what actually happened instead of a bare count.
+					unexpected.Add($"{ex.GetType().Name}: {ex.Message}");
+				}
+			}).ToArray();
+
+			gate.SetResult();
+			await Task.WhenAll(writers);
+		}
+
+		unexpected.ShouldBeEmpty(
+			"a losing writer must see the contract's concurrency conflict, never a raw provider failure such "
+			+ "as a key violation or a deadlock victim");
+
+		winners.ShouldBe(
+			Rounds,
+			"exactly one writer per key must create the saga -- zero would mean the race resolved by losing "
+			+ "every write, and more than one would mean the version gate did not hold");
+	}
+
 	private SqlServerSagaStore CreateSagaStore()
 	{
 		var logger = NullLogger<SqlServerSagaStore>.Instance;
 		var serializer = new DispatchJsonSerializer();
-		return new SqlServerSagaStore(_sqlFixture.ConnectionString, logger, serializer);
+		return new SqlServerSagaStore(_sqlFixture.ConnectionString, logger, serializer, tenantContext: new TestTenantContext());
 	}
 
 	/// <summary>

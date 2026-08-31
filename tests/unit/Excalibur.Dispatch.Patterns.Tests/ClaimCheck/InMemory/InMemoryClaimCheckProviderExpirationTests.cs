@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Patterns.ClaimCheck;
@@ -63,6 +63,28 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 
 		reference.ExpiresAt.Value.ShouldBeGreaterThanOrEqualTo(expectedMin);
 		reference.ExpiresAt.Value.ShouldBeLessThanOrEqualTo(expectedMax);
+	}
+
+	[Fact]
+	public async Task StoreAsync_WithZeroTtl_ShouldLeaveExpiryUnsetAndStayRetrievable()
+	{
+		// Arrange - a zero time-to-live means "never expires". Adding it to the store time would stamp an
+		// expiry equal to that instant, marking every payload expired the moment it is written.
+		var provider = CreateProvider(options =>
+		{
+			options.DefaultTtl = TimeSpan.Zero;
+		});
+		var payload = "Payload that never expires"u8.ToArray();
+
+		// Act
+		var reference = await provider.StoreAsync(payload, CancellationToken.None);
+		var retrieved = await provider.RetrieveAsync(reference, CancellationToken.None);
+
+		// Assert
+		reference.ExpiresAt.ShouldBeNull();
+		retrieved.ShouldBe(payload);
+		provider.RemoveExpiredEntries().ShouldBe(0);
+		provider.EntryCount.ShouldBe(1);
 	}
 
 	[Fact]
@@ -153,7 +175,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Assert
 		countBefore.ShouldBe(1);
 
-		var exception = await Should.ThrowAsync<InvalidOperationException>(
+		var exception = await Should.ThrowAsync<KeyNotFoundException>(
 			async () => await provider.RetrieveAsync(reference, CancellationToken.None));
 
 		exception.Message.ShouldContain("expired");

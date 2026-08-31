@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.AuditLogging.Abstractions.Tests</RootNamespace>
+    <AssemblyName>Excalibur.AuditLogging.Abstractions.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) via Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.AuditLogging.Abstractions\Excalibur.AuditLogging.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

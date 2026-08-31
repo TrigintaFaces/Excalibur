@@ -27,7 +27,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Firestore")]
-public sealed class FirestoreInboxStoreConformanceShould : InboxStoreConformanceTestBase, IClassFixture<FirestoreInboxStoreContainerFixture>
+public sealed class FirestoreInboxStoreConformanceShould : InboxStoreConformanceTestBase
 {
 	private readonly FirestoreInboxStoreContainerFixture _fixture;
 
@@ -55,7 +55,8 @@ public sealed class FirestoreInboxStoreConformanceShould : InboxStoreConformance
 		var store = new FirestoreInboxStore(
 			_fixture.Db,
 			options,
-			NullLogger<FirestoreInboxStore>.Instance);
+			NullLogger<FirestoreInboxStore>.Instance,
+			SingleTenantTestContext.Instance);
 
 		return Task.FromResult<IInboxStore>(store);
 	}

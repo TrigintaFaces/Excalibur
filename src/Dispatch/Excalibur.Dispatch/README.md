@@ -5,7 +5,7 @@ Core messaging framework providing message dispatching, middleware pipeline, and
 ## Installation
 
 ```bash
-dotnet add package Dispatch
+dotnet add package Excalibur.Dispatch
 ```
 
 ## Purpose
@@ -17,7 +17,7 @@ Dispatch is a lightweight, extensible messaging framework for building distribut
 - `IDispatchBuilder` - Fluent configuration builder
 - `DispatchBuilder` - DI service registration
 - `AddDispatch()` - Service collection extension
-- `IMessageMiddleware` - Pipeline middleware base
+- `IDispatchMiddleware` - Pipeline middleware base
 - `MessageResult` - Standard result type
 
 ## Quick Start
@@ -35,13 +35,13 @@ public record CreateOrder(string CustomerId, decimal Amount) : IDispatchAction;
 // Create a handler
 public class CreateOrderHandler : IDispatchHandler<CreateOrder>
 {
-    public Task<IDispatchResult> HandleAsync(
+    public Task<IMessageResult> HandleAsync(
         CreateOrder command,
         IMessageContext context,
         CancellationToken cancellationToken)
     {
         // Implementation
-        return Task.FromResult<IDispatchResult>(MessageResult.Success());
+        return Task.FromResult(MessageResult.Success());
     }
 }
 
@@ -77,4 +77,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

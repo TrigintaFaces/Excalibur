@@ -440,7 +440,7 @@ sequenceDiagram
 | Aspect | Behavior |
 |--------|----------|
 | **Timing** | Projections update *after* events are committed but *before* `SaveAsync` returns to the caller |
-| **Concurrency** | Multiple projection types run concurrently via `Task.WhenAll` (R27.20) |
+| **Concurrency** | Multiple projection types run concurrently via `Task.WhenAll` |
 | **Event ordering** | Events are applied sequentially within each projection type |
 | **Failure policy** | Configurable: `Propagate` (throw to caller) or `LogAndContinue` (best-effort) |
 | **Partial failure** | If one projection fails, others still commit — only the failed projection needs recovery |
@@ -913,7 +913,7 @@ var results = await projectionStore.QueryAsync(
         ["Status:neq"] = "Deleted",
         ["TotalAmount:gte"] = 100m
     },
-    new QueryOptions { Skip = 0, Take = 25, SortBy = "CreatedAt", SortDescending = true },
+    new QueryOptions(Skip: 0, Take: 25, OrderBy: "CreatedAt", Descending: true),
     cancellationToken);
 
 var summary = await projectionStore.GetByIdAsync(orderId.ToString(), cancellationToken);
@@ -1029,50 +1029,69 @@ See [Custom Repositories](#custom-repositories) for ElasticSearch and SQL Server
 
 ### Paginated Queries
 
-For UI-facing scenarios that need pagination metadata, check if your store supports the `IPageableProjectionStore<T>` or `ICursorProjectionStore<T>` sub-interfaces via pattern matching:
+For UI-facing scenarios that need pagination metadata, call the `QueryPagedAsync` and `QueryCursorAsync`
+extension methods on your store. They use the provider's native pagination when it offers the
+`IPageableProjectionStore<T>` or `ICursorProjectionStore<T>` sub-interface, and degrade predictably when it
+does not.
+
+:::warning Do not type-test for these capabilities
+
+`projectionStore is IPageableProjectionStore<T>` looks like the right check and is not. Your store is
+commonly reached through a decorator — tenant scoping, encryption — and a decorator's interface list is
+fixed when it is compiled, while the capabilities of the store it wraps are only known at run time. The
+test therefore reports the decorator, returns `false`, and silently sends you down the slow path against a
+provider that supports native paging perfectly well.
+
+The extension methods below ask the store for the capability instead, which a decorator answers on behalf
+of the store it wraps.
+
+:::
 
 #### Offset-Based Pagination (IPageableProjectionStore)
 
 ```csharp
-if (projectionStore is IPageableProjectionStore<OrderSummary> pagedStore)
-{
-    var page = await pagedStore.QueryPagedAsync(
-        filters,
-        pageNumber: 1,
-        pageSize: 25,
-        options: new QueryOptions { SortBy = "CreatedAt", SortDescending = true },
-        cancellationToken);
+var page = await projectionStore.QueryPagedAsync(
+    filters,
+    pageNumber: 1,
+    pageSize: 25,
+    options: new QueryOptions(OrderBy: "CreatedAt", Descending: true),
+    cancellationToken);
 
-    // page.Items — the current page of results
-    // page.TotalItems — total matching records
-    // page.TotalPages — computed from TotalItems / pageSize
-    // page.HasNextPage — whether more pages exist
-}
+// page.Items — the current page of results
+// page.TotalItems — total matching records
+// page.TotalPages — computed from TotalItems / pageSize
+// page.HasNextPage — whether more pages exist
 ```
+
+A store that implements `IPageableProjectionStore<T>` pages in the database. One that does not returns the
+same shape, paged in memory from `QueryAsync` — correct, but it reads the whole matching set, so prefer a
+provider with native paging for large result sets.
 
 Best for: traditional table UIs with page numbers, small-to-medium datasets, jump-to-page-N navigation.
 
 #### Cursor-Based Pagination (ICursorProjectionStore)
 
 ```csharp
-if (projectionStore is ICursorProjectionStore<OrderSummary> cursorStore)
+// First page. Returns null when the store has no native cursor support: a cursor is an opaque provider
+// token, so there is no correct way to synthesise one, and inventing a page would be worse than saying so.
+var firstPage = await projectionStore.QueryCursorAsync(
+    filters,
+    cursor: null,    // null = start from beginning
+    pageSize: 25,
+    cancellationToken);
+
+if (firstPage is null)
 {
-    // First page
-    var firstPage = await cursorStore.QueryCursorAsync(
+    // Provider has no cursor support — use QueryPagedAsync instead.
+}
+else if (firstPage.HasMore)
+{
+    // Subsequent pages — pass the opaque cursor from the previous result
+    var nextPage = await projectionStore.QueryCursorAsync(
         filters,
-        cursor: null,    // null = start from beginning
+        cursor: firstPage.NextCursor,
         pageSize: 25,
         cancellationToken);
-
-    // Subsequent pages — pass the opaque cursor from the previous result
-    if (firstPage.HasMore)
-    {
-        var nextPage = await cursorStore.QueryCursorAsync(
-            filters,
-            cursor: firstPage.NextCursor,
-            pageSize: 25,
-            cancellationToken);
-    }
 }
 ```
 
@@ -1083,57 +1102,6 @@ Best for: infinite scroll UIs, large datasets, Elasticsearch (avoids the 10K `ma
 Use **offset** (`IPageableProjectionStore`) when users need to jump to arbitrary page numbers (e.g., "go to page 5"). Use **cursor** (`ICursorProjectionStore`) when scrolling forward through large result sets — it provides stable results under concurrent writes and better performance on large datasets.
 
 Both sub-interfaces follow the `IBufferDistributedCache` ISP precedent — providers implement them only when they can offer an optimized implementation.
-:::
-
-#### Optimistic Concurrency (IVersionedProjectionStore)
-
-When consumers need to read a projection, modify it, and write it back safely (e.g., in an API controller), use `IVersionedProjectionStore<T>` for optimistic concurrency:
-
-```csharp
-if (projectionStore is IVersionedProjectionStore<OrderSummary> versionedStore)
-{
-    // 1. Read projection with its version
-    var result = await versionedStore.GetVersionedAsync(orderId, cancellationToken);
-    if (result is null) return NotFound();
-
-    // 2. Modify the projection
-    var modified = result.Projection;
-    modified.Notes = "Updated by operator";
-
-    // 3. Write back with version check — throws ConcurrencyException on stale version
-    await versionedStore.UpsertVersionedAsync(
-        orderId, modified, result.Version, cancellationToken);
-}
-```
-
-**Version semantics:**
-
-| Aspect | Behavior |
-|--------|----------|
-| **Start** | Version starts at `1` on first insert |
-| **Increment** | Version increments by 1 on each update |
-| **Type** | `long` (numeric, not HTTP ETag strings) |
-| **Initial insert** | Pass `expectedVersion: null` to skip the concurrency check |
-| **Mismatch** | Throws `ConcurrencyException` (namespace `Excalibur.Data`, package `Excalibur.Data.Abstractions`) |
-
-**`VersionedProjection<T>`** wraps the projection and its version:
-
-```csharp
-public sealed class VersionedProjection<TProjection>
-{
-    public TProjection Projection { get; }
-    public long Version { get; }
-}
-```
-
-:::note Engine vs Consumer Writes
-
-The projection engine (inline/async processing) is the sole writer during event processing — it auto-increments the version without reading it. `IVersionedProjectionStore<T>` is for **consumer read-path concurrency** scenarios where application code reads, modifies, and writes back a projection outside of event processing.
-:::
-
-:::tip Pattern Matching Discovery
-
-Like `IPageableProjectionStore<T>` and `ICursorProjectionStore<T>`, `IVersionedProjectionStore<T>` is an ISP sub-interface. Not all store implementations support it. Use pattern matching (`if (store is IVersionedProjectionStore<T> versioned)`) to detect support at runtime.
 :::
 
 ### Document Storage Format
@@ -1217,7 +1185,7 @@ services.Configure<EventNotificationOptions>(options =>
 
 | Policy | Behavior |
 |--------|----------|
-| `Propagate` (default) | Failed projections throw `InlineProjectionException`. Events remain committed. **Do NOT retry `SaveAsync`**. |
+| `Propagate` (default) | Failed projections throw `AggregateException`, whose `InnerExceptions` carry each projection failure. Events remain committed. **Do NOT retry `SaveAsync`**. |
 | `LogAndContinue` | Failures logged at Error level. Processing continues. Async path catches up. |
 
 ### Recovery
@@ -1229,12 +1197,12 @@ try
 {
     await repository.SaveAsync(order, cancellationToken);
 }
-catch (InlineProjectionException ex)
+catch (AggregateException)
 {
     // Events ARE committed -- recover the projection only
     var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
     await recovery.ReapplyAsync<OrderSummary>(
-        ex.AggregateId, nameof(OrderAggregate), cancellationToken);
+        order.Id, nameof(OrderAggregate), cancellationToken);
 }
 ```
 
@@ -1557,15 +1525,15 @@ When an inline projection fails during `SaveAsync()`, events are **already commi
 ```csharp
 // WRONG: This duplicates events!
 try { await repository.SaveAsync(order, ct); }
-catch (InlineProjectionException) { await repository.SaveAsync(order, ct); }
+catch (AggregateException) { await repository.SaveAsync(order, ct); }
 
 // CORRECT: Recover the projection only
 try { await repository.SaveAsync(order, ct); }
-catch (InlineProjectionException ex)
+catch (AggregateException)
 {
     var recovery = sp.GetRequiredService<IProjectionRecovery>();
     await recovery.ReapplyAsync<OrderSummary>(
-        ex.AggregateId, nameof(OrderAggregate), ct);
+        order.Id, nameof(OrderAggregate), ct);
 }
 ```
 

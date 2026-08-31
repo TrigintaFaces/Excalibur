@@ -34,3 +34,9 @@ Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.WaitIntervalMillise
 Microsoft.Extensions.DependencyInjection.IbmMqTransportServiceCollectionExtensions
 const Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSizeCeiling = 256 -> int
 static Microsoft.Extensions.DependencyInjection.IbmMqTransportServiceCollectionExtensions.AddIbmMqTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.RequireTls.get -> bool
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.RequireTls.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslCipherSpec.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslCipherSpec.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslPeerName.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.SslPeerName.set -> void

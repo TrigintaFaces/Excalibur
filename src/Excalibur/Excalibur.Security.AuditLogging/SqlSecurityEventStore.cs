@@ -150,7 +150,7 @@ internal sealed class SqlSecurityEventStore : ISecurityEventStore
 				&& auditEvent.Metadata.TryGetValue(MessageTypeMetadataKey, out var messageType)
 					? messageType
 					: null,
-			// AdditionalData intentionally not restored — see class remarks (bd-8f1l09).
+			// AdditionalData intentionally not restored — see class remarks.
 		};
 	}
 

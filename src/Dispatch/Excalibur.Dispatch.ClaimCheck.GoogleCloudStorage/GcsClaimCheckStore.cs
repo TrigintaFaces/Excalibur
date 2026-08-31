@@ -127,14 +127,16 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 
 		LogStoredPayload(id, payload.Length);
 
+		var storedAt = DateTimeOffset.UtcNow;
+
 		return new ClaimCheckReference
 		{
 			Id = id,
 			BlobName = objectName,
 			Location = $"gs://{_options.BucketName}/{objectName}",
 			Size = payload.Length,
-			StoredAt = DateTimeOffset.UtcNow,
-			ExpiresAt = DateTimeOffset.UtcNow.Add(_claimCheckOptions.RetentionPeriod),
+			StoredAt = storedAt,
+			ExpiresAt = _claimCheckOptions.ResolveExpiresAt(storedAt),
 			Metadata = metadata
 		};
 	}
@@ -146,7 +148,19 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 	{
 		ArgumentNullException.ThrowIfNull(reference);
 
-		var objectName = GetObjectName(reference.Id);
+		// Resolve from the recorded name rather than recomputing one. GetObjectName derives a
+		// date-partitioned name from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
+		// under the next day's prefix a second later and reported not-found while still in the bucket.
+		var objectName = string.IsNullOrEmpty(reference.BlobName) ? GetObjectName(reference.Id) : reference.BlobName;
+
+		// An expired payload is a form of missing payload, so it surfaces as the same exception a deleted
+		// or never-stored one does. Cloud Storage has no per-object time-to-live -- its lifecycle rules
+		// are bucket-wide and delete on a daily schedule rather than at a per-payload instant -- so expiry
+		// is enforced here, before the object is downloaded, rather than delegated to the store.
+		if (reference.IsExpired(DateTimeOffset.UtcNow))
+		{
+			throw new KeyNotFoundException($"Claim check '{reference.Id}' has expired.");
+		}
 
 		try
 		{
@@ -174,16 +188,26 @@ public sealed partial class GcsClaimCheckStore : IClaimCheckProvider
 	{
 		ArgumentNullException.ThrowIfNull(reference);
 
-		var objectName = GetObjectName(reference.Id);
+		// Resolve from the recorded name rather than recomputing one. GetObjectName derives a
+		// date-partitioned name from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
+		// under the next day's prefix a second later and reported not-found while still in the bucket.
+		var objectName = string.IsNullOrEmpty(reference.BlobName) ? GetObjectName(reference.Id) : reference.BlobName;
 
 		try
 		{
+			// KNOWN GAP, tracked separately: this returns true whether or not an object was there. The
+			// contract defines the result as an observation, and Cloud Storage's delete is idempotent and
+			// silent, so answering it needs an existence check the storage seam does not currently expose.
+			// The sibling S3 store was fixed by asking for object metadata first; doing the same here means
+			// widening IStorageClientSeam, and this provider has no conformance deriver to verify the
+			// change against -- so it is left visible rather than changed blind.
 			await _storageClient.DeleteObjectAsync(
 				_options.BucketName,
 				objectName,
 				cancellationToken).ConfigureAwait(false);
 
 			LogDeletedClaimCheck(reference.Id);
+
 			return true;
 		}
 		catch (Google.GoogleApiException)

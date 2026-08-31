@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Data;
+
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.Decorators;
 
 using Microsoft.Extensions.Logging;
 
@@ -28,15 +31,15 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	private readonly IEventStore _hotStore;
 	private readonly IColdEventStore _coldStore;
 	private readonly ISnapshotStore? _snapshotStore;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
 	private readonly ILogger<TieredEventStoreDecorator> _logger;
 
 	internal TieredEventStoreDecorator(
 		IEventStore hotStore,
 		IColdEventStore coldStore,
 		ILogger<TieredEventStoreDecorator> logger,
-		ISnapshotStore? snapshotStore = null,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext,
+		ISnapshotStore? snapshotStore = null)
 	{
 		ArgumentNullException.ThrowIfNull(hotStore);
 		ArgumentNullException.ThrowIfNull(coldStore);
@@ -45,6 +48,7 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		_hotStore = hotStore;
 		_coldStore = coldStore;
 		_snapshotStore = snapshotStore;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger;
 	}
@@ -55,7 +59,8 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	/// read was. This is distinct from the archive service, which enumerates every tenant in one pass and
 	/// therefore has no ambient tenant to inherit.
 	/// </summary>
-	private KeyedTenantPartition CurrentTenant => KeyedTenantPartition.FromContext(_tenantContext);
+	private KeyedTenantPartition CurrentTenant =>
+		KeyedTenantPartition.FromContext(_tenantContext);
 
 	/// <inheritdoc />
 	public ValueTask<AppendResult> AppendAsync(
@@ -186,5 +191,53 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		// Snapshot at version S covers versions 1..S.
 		// If hot events start at S+1 or earlier, the snapshot fills the gap.
 		return snapshot is not null && firstHotVersion <= snapshot.Version + 1;
+	}
+
+	/// <summary>
+	/// Resolves a capability, mediating the hot store's so a caller cannot reach it without the cold tier.
+	/// </summary>
+	/// <param name="serviceType">The capability interface being resolved.</param>
+	/// <returns>A tiered view over the capability, or <see langword="null"/> when the hot store lacks it.</returns>
+	/// <remarks>
+	/// The transactional append writes to the hot store, as the ordinary append does, so it can be mediated.
+	/// What must not escape is the capability's inherited read surface: the archive service deletes from hot
+	/// after copying to cold, so a caller loading through the bare hot store would receive a history missing
+	/// everything already archived, and would have no way to tell. The view routes every read back through
+	/// this decorator, which consults both tiers.
+	/// </remarks>
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType.IsInstanceOfType(this))
+		{
+			return this;
+		}
+
+		// Deny by default. This decorator deliberately does NOT inherit the delegating base, because that base
+		// declares IEventStoreErasure and this decorator must not answer the erasure probe: it can erase the
+		// hot tier only, and the archived range in cold is outside its reach. Answering would be a claim it
+		// cannot honour. Only the transactional append is mediated, and only its read surface is re-routed.
+		if (serviceType == typeof(ITransactionalEventStore)
+			&& _hotStore.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore transactional)
+		{
+			return new TieredTransactionalView(this, transactional);
+		}
+
+		return null;
+	}
+
+	private sealed class TieredTransactionalView(TieredEventStoreDecorator outer, ITransactionalEventStore capability)
+		: EventStoreCapabilityView(outer), ITransactionalEventStore
+	{
+		public ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+			string aggregateId,
+			string aggregateType,
+			IEnumerable<IDomainEvent> events,
+			long expectedVersion,
+			Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+			CancellationToken cancellationToken) =>
+			capability.AppendWithOutboxStagingAsync(
+				aggregateId, aggregateType, events, expectedVersion, stageOutbox, cancellationToken);
 	}
 }

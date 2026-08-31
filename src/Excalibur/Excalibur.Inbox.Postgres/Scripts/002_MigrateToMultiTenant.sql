@@ -23,7 +23,7 @@
 
 -- 1) Add the tenant_id column, anchoring existing rows to the reserved sentinel.
 ALTER TABLE public.inbox_messages
-    ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT '__untenanted__';
+    ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) NOT NULL DEFAULT '__untenanted__';
 
 -- 2) Rebuild the unique key: drop the pair PK, add the triple PK.
 ALTER TABLE public.inbox_messages DROP CONSTRAINT IF EXISTS pk_inbox_messages;

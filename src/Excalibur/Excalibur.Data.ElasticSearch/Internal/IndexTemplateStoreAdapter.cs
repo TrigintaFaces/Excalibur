@@ -17,9 +17,9 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// <summary>
 /// Default <see cref="IIndexTemplateStore"/> implementation that forwards to
 /// <c>_inner.Indices.*IndexTemplate*</c> endpoints on a real
-/// <see cref="ElasticsearchClient"/>. Split per ADR-142 §D7 "Surface area"
-/// ≤5-method cap (S799 F1 remediation, OVERWATCH msg 1818); companion
-/// adapter: <see cref="ComponentTemplateStoreAdapter"/>.
+/// <see cref="ElasticsearchClient"/>. Split along the SDK sub-client boundary
+/// to keep each seam within a five-method surface; companion adapter:
+/// <see cref="ComponentTemplateStoreAdapter"/>.
 /// </summary>
 internal sealed class IndexTemplateStoreAdapter : IIndexTemplateStore
 {

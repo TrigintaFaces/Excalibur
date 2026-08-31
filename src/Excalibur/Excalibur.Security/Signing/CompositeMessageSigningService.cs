@@ -121,7 +121,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			var key = await GetSigningKeyAsync(context, forVerification: false, cancellationToken).ConfigureAwait(false);
 
 			// Capture the signing time ONCE onto the context so the caller can transmit it; the verifier
-			// MUST reuse this exact value (re-deriving the current time would never reproduce the HMAC) — qtogpu.
+			// MUST reuse this exact value (re-deriving the current time would never reproduce the HMAC) —.
 			byte[] dataToSign;
 			if (context.IncludeTimestamp)
 			{
@@ -208,7 +208,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			var key = await GetSigningKeyAsync(context, forVerification: IsAsymmetricAlgorithm(context.Algorithm), cancellationToken).ConfigureAwait(false);
 
 			// For a timestamped signature the verifier MUST reuse the transmitted signing timestamp; if it
-			// is absent we fail closed rather than substituting the current time (qtogpu).
+			// is absent we fail closed rather than substituting the current time ().
 			byte[] dataToVerify;
 			if (context.IncludeTimestamp)
 			{
@@ -297,7 +297,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		}
 
 		// Set context from signed message, including the transmitted timestamp — verification MUST reuse
-		// the original signing timestamp to reproduce the HMAC (qtogpu).
+		// the original signing timestamp to reproduce the HMAC ().
 		context.Algorithm = signedMessage.Algorithm;
 		context.KeyId = signedMessage.KeyId;
 		context.SignedAt = signedMessage.SignedAt;

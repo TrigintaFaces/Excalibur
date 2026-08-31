@@ -14,6 +14,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Outbox.Outbox;
 
 /// <summary>
@@ -32,13 +34,24 @@ public sealed class OutboxProcessingOptions
 	public int MaxRetries { get; set; } = 3;
 
 	/// <summary>
-	/// Gets or sets whether to process scheduled messages.
+	/// Gets or sets whether each cycle runs an extra drain pass for scheduled messages.
 	/// </summary>
+	/// <value><see langword="true"/> to run the extra pass. Default is <see langword="true"/>.</value>
+	/// <remarks>
+	/// Scheduled messages are delivered by the ordinary claim-backed drain once their time has arrived, so
+	/// they are never stranded by turning this off; the flag only decides whether the cycle drains a further
+	/// batch. Leave it on when scheduled volume is high enough that one batch per cycle falls behind.
+	/// </remarks>
 	public bool ProcessScheduledMessages { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets whether to retry failed messages.
+	/// Gets or sets whether each cycle runs an extra drain pass for retry-eligible messages.
 	/// </summary>
+	/// <value><see langword="true"/> to run the extra pass. Default is <see langword="true"/>.</value>
+	/// <remarks>
+	/// A failed message is redelivered by the ordinary claim-backed drain once its backoff floor has elapsed,
+	/// so retries continue with this off; the flag only decides whether the cycle drains a further batch.
+	/// </remarks>
 	public bool RetryFailedMessages { get; set; } = true;
 
 	/// <summary>
@@ -150,6 +163,8 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: the drain loop reaches the reflective outbox serializer, but BackgroundService.ExecuteAsync is a BCL member that cannot carry the annotation and this type is not the consumer's entry point. Tracked for a source-generated outbox serialization seam.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: the drain loop reaches the reflective outbox serializer, but BackgroundService.ExecuteAsync is a BCL member that cannot carry the annotation and this type is not the consumer's entry point. Tracked for a source-generated outbox serialization seam.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		if (!_options.Value.Enabled)
@@ -236,6 +251,8 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	/// <summary>
 	/// Runs a single partition's processing loop using a scoped <see cref="IOutboxProcessor"/>.
 	/// </summary>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task ExecutePartitionAsync(int partitionId, int processorIndex, CancellationToken stoppingToken)
 	{
 		LogPartitionStarted(partitionId);
@@ -301,6 +318,8 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 		}
 	}
 
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task ProcessOutboxAsync(CancellationToken cancellationToken)
 	{
 		var stopwatch = ValueStopwatch.StartNew();
@@ -329,7 +348,10 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 				pendingResult.FailureCount);
 		}
 
-		// Process scheduled messages if enabled
+		// Extra drain passes. Each is the same claim-backed drain as the pass above -- the claim admits a
+		// scheduled message once its time has arrived and a failed one once its backoff floor has elapsed, so
+		// no category needs a read of its own. Selecting either with a plain read would publish rows this
+		// dispatcher never leased.
 		if (_options.Value.ProcessScheduledMessages)
 		{
 			var scheduledResult = await _publisher.PublishScheduledMessagesAsync(cancellationToken).ConfigureAwait(false);
@@ -417,11 +439,11 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	private partial void LogProcessedPendingMessages(int successCount, int failureCount);
 
 	[LoggerMessage(OutboxEventId.OutboxBackgroundProcessedScheduled, LogLevel.Debug,
-			"Processed scheduled messages: {SuccessCount} succeeded, {FailureCount} failed.")]
+			"Scheduled drain pass: {SuccessCount} succeeded, {FailureCount} failed.")]
 	private partial void LogProcessedScheduledMessages(int successCount, int failureCount);
 
 	[LoggerMessage(OutboxEventId.OutboxBackgroundRetriedFailed, LogLevel.Debug,
-			"Retried failed messages: {SuccessCount} succeeded, {FailureCount} failed.")]
+			"Retry drain pass: {SuccessCount} succeeded, {FailureCount} failed.")]
 	private partial void LogRetriedFailedMessages(int successCount, int failureCount);
 
 	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceDrainTimeout, LogLevel.Warning,

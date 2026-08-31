@@ -272,7 +272,9 @@ public static class GrantManagementEndpoints
                 },
             }, ct);
 
-            return result.IsSuccess ? Results.Created() : Results.BadRequest();
+            return result.IsSuccess
+                ? Results.Created()
+                : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
         });
 
         // Revoke a permission
@@ -305,7 +307,9 @@ public static class GrantManagementEndpoints
                 TenantId = req.TenantId,
             }, ct);
 
-            return result.IsSuccess ? Results.NoContent() : Results.BadRequest();
+            return result.IsSuccess
+                ? Results.NoContent()
+                : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
         });
     }
 }
@@ -318,9 +322,28 @@ public record RevokeRequest(
     string UserId, string GrantType, string Qualifier, string? TenantId);
 ```
 
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `Results.BadRequest(...)` reports a server-side fault to
+the caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Results.Problem`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+
+The `Excalibur.Dispatch.Hosting.AspNetCore` package does the whole mapping in one call:
+`return result.ToHttpResult();` — it honours an authorization failure (403) and a validation failure
+(400) first, then `ProblemDetails.Status`, then falls back to 500. `ToNoContentResult()`,
+`ToCreatedResult(location)` and the `Task`-chaining `ToApiResult()` cover the other success shapes.
+:::
+
 ## Step 6: Wire It Up
 
-```csharp title="Program.cs"
+```csharp title="Program.cs" ignore
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using OrderSystem.Domain;
@@ -342,7 +365,7 @@ builder.Services.AddDispatch(dispatch =>
 // 2. Event Sourcing (aggregates + event store)
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.UseSqlServer(opts => opts.ConnectionString(connectionString));
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 }));
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
@@ -522,7 +545,13 @@ var result = await auditLogger.VerifyIntegrityAsync(
     startDate: DateTimeOffset.UtcNow.AddDays(-7),
     endDate: DateTimeOffset.UtcNow,
     cancellationToken);
-// result.IsValid == true if chain is unbroken
+
+// result.Outcome is one of three values, not a pass/fail flag:
+//   AuditIntegrityOutcome.Verified           - every event in the window was checked, chain unbroken
+//   AuditIntegrityOutcome.ViolationsDetected - the chain is broken; see FirstViolationEventId
+//   AuditIntegrityOutcome.NoEventsInScope    - the window held no events, so nothing was checked
+//
+// Treat NoEventsInScope as "no evidence", never as a pass.
 ```
 
 ## Production Checklist
@@ -531,7 +560,7 @@ Before going to production, swap out the demo defaults:
 
 | Demo Default | Production Replacement |
 |-------------|----------------------|
-| `AddAuditLogging()` (in-memory) | `AddAuditLogging<SqlServerAuditStore>()` or custom `IAuditStore` |
+| `AddAuditLogging()` (in-memory) | `AddSqlServerAuditStore()` or a custom `IAuditStore` |
 | No encryption | `UseAuditLogEncryption()` for PII fields |
 | No retention | `AddAuditRetention(opts => opts.RetentionPeriod = TimeSpan.FromDays(365))` |
 | No alerting | `AddAuditAlerting(opts => opts.EvaluationMode = EvaluationMode.RealTime)` |

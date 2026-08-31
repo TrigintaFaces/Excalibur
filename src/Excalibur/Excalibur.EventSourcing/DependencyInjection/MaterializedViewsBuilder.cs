@@ -31,7 +31,10 @@ internal sealed class MaterializedViewsBuilder : IMaterializedViewsBuilder
 	/// <inheritdoc />
 	public IMaterializedViewsBuilder AddBuilder<
 		TView,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TBuilder>()
+		[DynamicallyAccessedMembers(
+			DynamicallyAccessedMemberTypes.PublicConstructors
+			| DynamicallyAccessedMemberTypes.PublicProperties
+			| DynamicallyAccessedMemberTypes.PublicMethods)] TBuilder>()
 		where TView : class, new()
 		where TBuilder : class, IMaterializedViewBuilder<TView>
 	{

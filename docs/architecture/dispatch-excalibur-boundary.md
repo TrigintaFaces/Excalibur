@@ -78,7 +78,7 @@ var app = builder.Build();
 app.MapDispatchEndpoints();           // thin router from Excalibur.Dispatch.Hosting.AspNetCore
 app.MapPost("/orders", async (CreateOrder command, IDispatcher dispatcher, CancellationToken ct) =>
 {
-    var result = await dispatcher.DispatchAsync(command, MessageContext.Create(), ct);
+    var result = await dispatcher.DispatchAsync(command, ct);
     return result.ToHttpResult();
 });
 

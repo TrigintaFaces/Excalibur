@@ -203,6 +203,14 @@ internal sealed class EventArchiveService : BackgroundService
 			deleteUpToVersion,
 			cancellationToken).ConfigureAwait(false);
 
-		_logger.ArchivingAggregate(candidate.AggregateId, events.Count, events[0].Version, deleteUpToVersion);
+		// Report what the hot delete actually removed, not what was submitted. A zero-row delete leaves the
+		// events in both tiers: correct on read, but the archive moved nothing and must not read as success.
+		if (deleted == 0)
+		{
+			_logger.ArchiveHotDeleteRemovedNothing(candidate.AggregateId, events.Count, deleteUpToVersion);
+			return;
+		}
+
+		_logger.ArchivingAggregate(candidate.AggregateId, deleted, events[0].Version, deleteUpToVersion);
 	}
 }

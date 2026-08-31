@@ -263,10 +263,6 @@ internal static class AdvertisedStrategyRegistry
 			"Failure-handling policy: parameterizes how the single notification path reacts to a failure (e.g. "
 			+ "ignore/throw/log); selects no implementor or infrastructure."),
 		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy", "Excalibur.Dispatch.Transport.AwsSqs",
-			"Retry shape/behavior within one resilience path (back-off timing); does not select an implementor. (Any "
-			+ "inertness of the retry feature is tracked separately, not by this guard.)"),
-		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.Transport.Kafka.CompatibilityMode", "Excalibur.Dispatch.Transport.Kafka",
 			"Schema-registry compatibility setting forwarded to the SR client as configuration; parameterizes a call, "
 			+ "selects no implementor."),
@@ -303,10 +299,6 @@ internal static class AdvertisedStrategyRegistry
 			"Excalibur.Dispatch.DeduplicationStrategy", "Excalibur.Dispatch.Abstractions",
 			"Parameterizes the dedup hash-key option only; IDeduplicationStrategy implementations are DI-selected "
 			+ "independently, not chosen by this enum."),
-		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.MessageIdStrategy", "Excalibur.Dispatch.Abstractions",
-			"IdempotentHandlerMiddleware switch computes an id string; the Custom value defers to a DI IMessageIdProvider, "
-			+ "the enum itself selects no implementor."),
 		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.Observability.Sampling.SamplingStrategy", "Excalibur.Dispatch.Observability",
 			"TraceSampler switch returns a bool sampling decision; selects no implementor."),

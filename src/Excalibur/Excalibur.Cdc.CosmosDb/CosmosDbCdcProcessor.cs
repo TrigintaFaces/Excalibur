@@ -31,8 +31,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	private volatile bool _disposed;
 	private long _eventCount;
 
-	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
-	// an infinite silent reconnect loop (ADR-338). _onFatalError receives the in-flight event for a
+	// optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// an infinite silent reconnect loop. _onFatalError receives the in-flight event for a
 	// per-event fatal, or null for a connection/poll-level fatal.
 	private readonly CdcFatalErrorHandler<CosmosDbDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
@@ -41,7 +41,11 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CosmosDbCdcProcessor"/> class.
 	/// </summary>
-	/// <param name="client">The CosmosDB client from DI.</param>
+	/// <param name="client">
+	/// The CosmosDB client to read the change feed through. The processor <em>borrows</em> it and never
+	/// disposes it: the client is a shared singleton owned by the host, so its lifetime outlives this
+	/// processor and belongs to whoever created it.
+	/// </param>
 	/// <param name="stateStore">The state store for position tracking.</param>
 	/// <param name="options">The CDC options.</param>
 	/// <param name="logger">The logger.</param>
@@ -108,11 +112,11 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 			}
 			catch (Exception ex)
 			{
-				// pxhqri/q3w5cv: delegate the fatal-vs-transient decision to the single shared guard
+				// delegate the fatal-vs-transient decision to the single shared guard
 				// (CdcFatalGuard.Decide) — the same unit the regression lock binds — instead of an inline
 				// `catch when IsFatal` filter. The durable checkpoint advance inside ProcessBatchInternalAsync
 				// is now LITERALLY gated on decision.AdvanceCheckpoint (false on every fault), so a fault never
-				// advances the checkpoint past the failing change. 14z4ao behavior is preserved.
+				// advances the checkpoint past the failing change. behavior is preserved.
 				var decision = CdcFatalGuard.Decide(ex, _failureClassifier);
 
 				if (decision.Stop)
@@ -190,7 +194,13 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		}
 
 		_disposed = true;
-		_client.Dispose();
+
+		// The CosmosClient is BORROWED, never owned: this type has a single constructor and it always
+		// receives the client from the container, where it is a shared singleton the host also hands to its
+		// other stores. There is no self-constructing path here, so there is no ownership to track and no
+		// case in which disposing it would be correct — disposing it would tear down the connection pool for
+		// every other consumer of that singleton. Sibling types that DO build their own client carry an
+		// _ownsClient flag; a flag here could only ever hold one value.
 		await _stateStore.DisposeAsync().ConfigureAwait(false);
 	}
 
@@ -203,7 +213,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		}
 
 		_disposed = true;
-		_client.Dispose();
+
+		// Borrowed, not owned — see DisposeAsync above.
 		_stateStore.Dispose();
 	}
 
@@ -290,10 +301,10 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 			batchFailure = ex;
 		}
 
-		// STRUCTURAL durability gate (q3w5cv / FR-B2 / ADR-338): advance the durable checkpoint ONLY when
+		// STRUCTURAL durability gate: advance the durable checkpoint ONLY when
 		// the single shared guard permits it. CdcFatalGuard.Decide(null) => AdvanceCheckpoint=true on clean
 		// success; Decide(fault) => AdvanceCheckpoint=false on ANY fault. Mutating this gate to `if (true)`
-		// would advance past an unprocessed change and turns AC-N3.1 RED — the violation is inexpressible
+		// would advance past an unprocessed change and turns the durability arm RED — the violation is inexpressible
 		// without editing this one literal gate.
 		var decision = CdcFatalGuard.Decide(batchFailure, _failureClassifier);
 		if (decision.AdvanceCheckpoint && lastPosition is not null)
@@ -342,7 +353,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		// (>= 3.32.0-preview) and are NOT in the public surface of the pinned STABLE 3.58.0
 		// (reflection-verified: ChangeFeedItem<T> is internal; ChangeFeedMode exposes only
 		// Incremental/LatestVersion). A shipping framework must not take a preview Azure dependency,
-		// so full-fidelity is gated to bd-ajt1iy (revisit on stable GA). Stable mode is Incremental.
+		// so full-fidelity is gated to (revisit on stable GA). Stable mode is Incremental.
 		if (_options.ChangeFeed.Mode == CosmosDbCdcMode.AllVersionsAndDeletes)
 		{
 			throw new NotSupportedException(

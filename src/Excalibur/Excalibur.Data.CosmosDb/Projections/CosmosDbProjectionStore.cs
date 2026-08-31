@@ -83,6 +83,16 @@ public sealed partial class CosmosDbProjectionStore<
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly JsonSerializerOptions _jsonOptions;
 	private CosmosClient? _client;
+	/// <summary>
+	/// Whether this store created the Cosmos client it holds, and may therefore dispose it.
+	/// </summary>
+	/// <remarks>
+	/// A store handed the host's shared client must not dispose it: the client is a singleton several
+	/// features share, and disposing it leaves every other feature throwing ObjectDisposedException from
+	/// a call that names this store's disposal rather than anything the caller did. The flag is set only
+	/// on the path that constructs one.
+	/// </remarks>
+	private bool _ownsClient;
 	private Container? _container;
 	private volatile bool _initialized;
 	private volatile bool _disposed;
@@ -107,6 +117,28 @@ public sealed partial class CosmosDbProjectionStore<
 	}
 
 	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbProjectionStore{TProjection}"/> class over a
+	/// client the host owns.
+	/// </summary>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="client">The Cosmos client registered by the host. Borrowed, never disposed here.</param>
+	/// <remarks>
+	/// Selected by dependency injection whenever a <see cref="CosmosClient"/> is registered, which the
+	/// Cosmos registration does. Borrowing that client is what keeps a host enabling several Cosmos
+	/// features on one connection pool rather than one per feature, and the store does not dispose it.
+	/// </remarks>
+	public CosmosDbProjectionStore(
+		IOptions<CosmosDbProjectionStoreOptions> options,
+		ILogger<CosmosDbProjectionStore<TProjection>> logger,
+		CosmosClient client)
+		: this(options, logger)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		_client = client;
+	}
+
+	/// <summary>
 	/// Initializes the Cosmos DB client and container reference.
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
@@ -126,7 +158,13 @@ public sealed partial class CosmosDbProjectionStore<
 			}
 
 			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
+			// Only when the host supplied none. A store that borrows the registered client shares its
+			// connection pool with every other Cosmos feature instead of opening a second one.
+			if (_client is null)
+			{
+				_client = CreateClient(clientOptions);
+				_ownsClient = true;
+			}
 
 			var database = _client.GetDatabase(_options.DatabaseName);
 
@@ -161,6 +199,8 @@ public sealed partial class CosmosDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(
 		string id,
 		CancellationToken cancellationToken)
@@ -201,6 +241,8 @@ public sealed partial class CosmosDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task UpsertAsync(
 		string id,
 		TProjection projection,
@@ -282,6 +324,8 @@ public sealed partial class CosmosDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -373,6 +417,8 @@ public sealed partial class CosmosDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<PagedResult<TProjection>> QueryPagedAsync(
 		IDictionary<string, object>? filters,
 		int pageNumber,
@@ -421,6 +467,8 @@ public sealed partial class CosmosDbProjectionStore<
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<CursorPagedResult<TProjection>> QueryCursorAsync(
 		IDictionary<string, object>? filters,
 		string? cursor,
@@ -556,7 +604,12 @@ public sealed partial class CosmosDbProjectionStore<
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -569,7 +622,12 @@ public sealed partial class CosmosDbProjectionStore<
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
@@ -685,7 +743,7 @@ public sealed partial class CosmosDbProjectionStore<
 		var direction = options.Descending ? "DESC" : "ASC";
 
 		// Always append the unique `c.id` tiebreaker so page boundaries are deterministic even when the
-		// consumer-supplied OrderBy is non-unique (y6swku). Without it, documents with equal sort values have
+		// consumer-supplied OrderBy is non-unique (). Without it, documents with equal sort values have
 		// undefined relative order across page requests and can be skipped or duplicated between adjacent pages.
 		return string.Equals(propertyName, "id", StringComparison.Ordinal)
 			? $" ORDER BY c.{propertyName} {direction}"

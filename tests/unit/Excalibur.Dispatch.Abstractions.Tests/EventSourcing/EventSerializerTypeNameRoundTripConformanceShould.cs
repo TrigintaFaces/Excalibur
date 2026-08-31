@@ -105,7 +105,7 @@ public sealed class AotJsonEventSerializerTypeNameRoundTripShould : EventSeriali
 			registry.Register(type.FullName!, type);
 		}
 
-		return new AotJsonEventSerializer(registry, new ConformanceJsonContext());
+		return new AotJsonEventSerializer(registry, ConformanceJsonContext.Default);
 	}
 }
 
@@ -168,6 +168,10 @@ internal sealed class ConformanceTypeRegistry : IEventTypeRegistry
 }
 
 /// <summary>AOT source-gen context for the conformance event types (construction requirement only).</summary>
+[JsonSourceGenerationOptions(
+	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+	UseStringEnumConverter = true,
+	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ConformanceOrderPlaced))]
 [JsonSerializable(typeof(ConformancePaymentReceived))]
 internal sealed partial class ConformanceJsonContext : JsonSerializerContext;

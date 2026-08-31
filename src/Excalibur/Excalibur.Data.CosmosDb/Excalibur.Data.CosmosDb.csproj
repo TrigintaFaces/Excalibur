@@ -12,7 +12,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.CosmosDb.Tests" />
     <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
-    <!-- bd-aa1ufr: the sibling Cosmos packages (EventSourcing.CosmosDb / Outbox.CosmosDb) share the
+    <InternalsVisibleTo Include="Excalibur.Cdc.CosmosDb" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.CosmosDb" />
+    <InternalsVisibleTo Include="Excalibur.Saga.CosmosDb" />
+    <!-- the sibling Cosmos packages (EventSourcing.CosmosDb / Outbox.CosmosDb) share the
          change-feed durability default via the PUBLIC AddCosmosDbChangeFeedDurabilityDefaults
          registration contract — a deliberate, versioned cross-package surface, NOT InternalsVisibleTo
          leakage. No production InternalsVisibleTo is needed here (the InMemory store itself stays

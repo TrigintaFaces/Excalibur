@@ -10,7 +10,7 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses tenant_id as the partition key (PK) with "__null__" for null tenant values
+/// Uses tenant_id as the partition key (PK)
 /// to support efficient partition-based queries while maintaining consistency.
 /// </para>
 /// <para>
@@ -20,11 +20,6 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// </remarks>
 internal static class ActivityGroupItem
 {
-	/// <summary>
-	/// The value used for null tenant IDs in the partition key.
-	/// </summary>
-	internal const string NullTenantPartitionKey = "__null__";
-
 	/// <summary>
 	/// The prefix for activity group sort keys.
 	/// </summary>
@@ -36,7 +31,6 @@ internal static class ActivityGroupItem
 	private const string SkAttr = "sk";
 	private const string UserIdAttr = "user_id";
 	private const string FullNameAttr = "full_name";
-	private const string OriginalTenantIdAttr = "original_tenant_id";
 	private const string GrantTypeAttr = "grant_type";
 	private const string QualifierAttr = "qualifier";
 	private const string ExpiresOnAttr = "expires_on";
@@ -77,14 +71,6 @@ internal static class ActivityGroupItem
 	public static string UserIdAttribute => UserIdAttr;
 
 	/// <summary>
-	/// Creates the partition key (tenant_id) for the given tenant ID.
-	/// </summary>
-	/// <param name="tenantId">The tenant identifier.</param>
-	/// <returns>The partition key value.</returns>
-	public static string CreatePK(string? tenantId) =>
-		tenantId ?? NullTenantPartitionKey;
-
-	/// <summary>
 	/// Creates the sort key for an activity group.
 	/// </summary>
 	/// <param name="userId">The user identifier.</param>
@@ -101,8 +87,8 @@ internal static class ActivityGroupItem
 	/// <param name="grantType">The grant type.</param>
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The GSI sort key value.</returns>
-	public static string CreateGsiSK(string? tenantId, string grantType, string qualifier) =>
-		$"{tenantId ?? "null"}#ACTGRP#{grantType}#{qualifier}";
+	public static string CreateGsiSK(string tenantId, string grantType, string qualifier) =>
+		$"{tenantId}#ACTGRP#{grantType}#{qualifier}";
 
 	/// <summary>
 	/// Converts activity group data to a DynamoDB item.
@@ -120,7 +106,7 @@ internal static class ActivityGroupItem
 	public static Dictionary<string, AttributeValue> ToItem(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,
@@ -130,7 +116,7 @@ internal static class ActivityGroupItem
 	{
 		var item = new Dictionary<string, AttributeValue>
 		{
-			[PkAttr] = new() { S = CreatePK(tenantId) },
+			[PkAttr] = new() { S = tenantId },
 			[SkAttr] = new() { S = CreateSK(userId, grantType, qualifier) },
 			[UserIdAttr] = new() { S = userId },
 			[FullNameAttr] = new() { S = fullName },
@@ -143,11 +129,6 @@ internal static class ActivityGroupItem
 			[GsiUserIdAttr] = new() { S = userId },
 			[GsiSkAttr] = new() { S = CreateGsiSK(tenantId, grantType, qualifier) }
 		};
-
-		if (tenantId is not null)
-		{
-			item[OriginalTenantIdAttr] = new() { S = tenantId };
-		}
 
 		if (expiresOn.HasValue)
 		{
@@ -166,11 +147,11 @@ internal static class ActivityGroupItem
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The key attributes.</returns>
 	public static Dictionary<string, AttributeValue> CreateKey(
-		string? tenantId,
+		string tenantId,
 		string userId,
 		string grantType,
 		string qualifier) =>
-		new() { [PkAttr] = new() { S = CreatePK(tenantId) }, [SkAttr] = new() { S = CreateSK(userId, grantType, qualifier) } };
+		new() { [PkAttr] = new() { S = tenantId }, [SkAttr] = new() { S = CreateSK(userId, grantType, qualifier) } };
 
 	/// <summary>
 	/// Gets the user ID from a DynamoDB item.

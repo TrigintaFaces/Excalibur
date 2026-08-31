@@ -1,5 +1,4 @@
 #nullable enable
-Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId
 Excalibur.AuditLogging.Aws.AwsAuditOptions
 Excalibur.AuditLogging.Aws.AwsAuditOptions.AwsAuditOptions() -> void
 Excalibur.AuditLogging.Aws.AwsAuditOptions.BatchSize.get -> int
@@ -32,12 +31,4 @@ Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.Region(string! region) -> Exc
 Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
 Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.StreamName(string! streamName) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
 Microsoft.Extensions.DependencyInjection.AwsAuditServiceCollectionExtensions
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.BatchForwarded = 93481 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.EventForwarded = 93480 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedBatchChunk = 93490 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedHttpError = 93488 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedStatus = 93485 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedTimeout = 93489 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardRetried = 93486 -> int
-const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.HealthCheckFailed = 93487 -> int
 static Microsoft.Extensions.DependencyInjection.AwsAuditServiceCollectionExtensions.AddAwsAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

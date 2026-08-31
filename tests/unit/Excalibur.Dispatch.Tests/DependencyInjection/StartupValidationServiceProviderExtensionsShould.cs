@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.DependencyInjection;
@@ -92,5 +93,54 @@ public sealed class StartupValidationServiceProviderExtensionsShould
     {
         _ = Should.Throw<ArgumentNullException>(
             static () => ((IServiceProvider)null!).ValidateStartupGates());
+    }
+
+    private sealed class BoundOptions
+    {
+        public int Retries { get; set; }
+    }
+
+    private static ServiceProvider BuildMalformedBinding(bool validateOnStart)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Retries"] = "not-a-number" })
+            .Build();
+
+        var services = new ServiceCollection();
+        var builder = services.AddOptions<BoundOptions>().Bind(configuration);
+        if (validateOnStart)
+        {
+            _ = builder.ValidateOnStart();
+        }
+
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public void Force_eager_binding_at_startup_even_with_no_validator_registered()
+    {
+        // SAFETY. ValidateOnStart() is NOT inert without an IValidateOptions<T>: it registers a startup action that
+        // resolves the options, which runs the configuration binder. A value the binder cannot convert therefore
+        // fails at startup, where an operator sees it, instead of on first use deep in a request path.
+        using var provider = BuildMalformedBinding(validateOnStart: true);
+        provider.GetService<IValidateOptions<BoundOptions>>().ShouldBeNull();
+
+        var thrown = Should.Throw<InvalidOperationException>(() => provider.ValidateStartupGates());
+
+        thrown.Message.ShouldContain("not-a-number");
+    }
+
+    [Fact]
+    public void Defer_the_same_malformed_binding_to_first_use_when_ValidateOnStart_is_omitted()
+    {
+        // LIVENESS for the arm above: without the call the identical malformed binding passes startup silently and
+        // only throws when something first reads the options. Removing ValidateOnStart() is a behaviour change, not
+        // a no-op -- this arm is what makes that concrete rather than asserted.
+        using var provider = BuildMalformedBinding(validateOnStart: false);
+
+        Should.NotThrow(() => provider.ValidateStartupGates());
+
+        _ = Should.Throw<InvalidOperationException>(
+            () => provider.GetRequiredService<IOptions<BoundOptions>>().Value);
     }
 }

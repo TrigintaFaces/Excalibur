@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch;
@@ -80,6 +81,10 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	public async Task<FirestoreCdcPosition?> GetPositionAsync(
 		string processorName,
 		CancellationToken cancellationToken)
@@ -104,17 +109,19 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 			return null;
 		}
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (!FirestoreCdcPosition.TryFromBase64(positionData, out var position))
 		{
 			return null;
 		}
-#pragma warning restore IL2026
 
 		return position;
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	public async Task SavePositionAsync(
 		string processorName,
 		FirestoreCdcPosition position,
@@ -128,7 +135,6 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 
 		var docRef = _db.Collection(_collectionName).Document(processorName);
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		var data = new Dictionary<string, object>
 		{
 			["processorName"] = processorName,
@@ -136,7 +142,6 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 			["updatedAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
 			["collectionPath"] = position.CollectionPath,
 		};
-#pragma warning restore IL2026
 
 		// Optimistic-concurrency guard (native Firestore transaction): refuse to regress the CDC
 		// watermark. Reading the current position and writing the new one inside one transaction
@@ -176,20 +181,26 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken) =>
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (position is not FirestoreCdcPosition firestorePosition)
 		{
 			firestorePosition = FirestoreCdcPosition.FromBase64(position.ToToken());
 		}
-#pragma warning restore IL2026
 
 		return SavePositionAsync(consumerId, firestorePosition, cancellationToken);
 	}
@@ -202,6 +213,10 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this Firestore implementation instead.")]
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{
@@ -213,14 +228,12 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 		foreach (var doc in snapshot.Documents)
 		{
 			var positionData = doc.GetValue<string>("positionData");
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 			if (!string.IsNullOrWhiteSpace(positionData) &&
 				FirestoreCdcPosition.TryFromBase64(positionData, out var position) &&
 				position is not null)
 			{
 				yield return (doc.Id, position);
 			}
-#pragma warning restore IL2026
 		}
 	}
 

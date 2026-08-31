@@ -23,9 +23,17 @@ namespace Excalibur.Inbox.Redis;
 /// </summary>
 /// <remarks>
 /// Uses Redis SETNX (SET ... NX) for atomic first-writer-wins semantics.
-/// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}, so the tenant is a key segment and the
-/// write/dedup/claim paths and keyed reads are isolated by construction — two tenants carrying the same
-/// message id never dedup against each other.
+/// <para>
+/// Keys are formatted as <c>{KeyPrefix}:{tenant}:{messageId}:{handlerType}</c>. The tenant segment is
+/// <b>always present</b>: a multi-tenant host composes the resolved tenant identifier, and a host with no
+/// resolved tenant composes the framework's reserved untenanted marker, so the key shape is identical in
+/// every deployment. The write, dedup, claim, and keyed-read paths are therefore isolated by construction —
+/// two tenants carrying the same message id never dedup against each other. The tenant, message id, and
+/// handler type are percent-escaped (<c>%</c> becomes <c>%25</c> and <c>:</c> becomes <c>%3A</c>) so a term
+/// containing a colon cannot shift the segment boundaries; the key prefix is not escaped, so a
+/// <c>{KeyPrefix}:*</c> pattern still matches every key. An external tool that scans, audits, or cleans
+/// these keys must parse four segments and unescape the last three.
+/// </para>
 /// Uses Redis TTL for automatic cleanup of processed entries.
 /// <para>
 /// The <see cref="IInboxStoreAdmin"/> operator surface (<c>GetAllEntries</c>, <c>GetFailedEntries</c>,
@@ -36,7 +44,7 @@ namespace Excalibur.Inbox.Redis;
 /// is a deliberate global, not an oversight — matching <c>SqlServerInboxStore</c>.
 /// </para>
 /// </remarks>
-public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
+public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, ILeasedInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	// Atomic conditional delete: remove the claim only if it exists and is NOT terminal (Processed), so a
 	// concurrently-finalized entry is never deleted. Mirrors the Postgres "DELETE ... WHERE status <> Processed"
@@ -85,9 +93,13 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	// Atomic lease CAS. Claim IFF the entry is absent, its status is Received, or its status is Processing
 	// but its lease has expired (reclaiming a dead processor). "now" comes from redis.call('TIME') (the
 	// SERVER clock) so competing app instances never decide expiry with a skewed local clock. The lease
-	// expiry is written into the entry JSON (LeaseExpiresAt, unix-ms) server-side via cjson.
+	// expiry is written into the entry JSON (LeaseExpiresAt, unix-ms) server-side via cjson, and that SAME
+	// server-resolved value is returned as the caller's ownership term (LeaseToken) — never recomputed in
+	// C#. Returns the term as a plain-decimal string (via string.format('%.0f', ...), never tostring(),
+	// which can fall back to scientific notation for large magnitudes) on claim/reclaim; false (-> a RESP
+	// Nil reply, i.e. RedisResult.IsNull) otherwise.
 	// KEYS[1] = entry key. ARGV[1] = new Processing entry JSON; ARGV[2] = lease ms; ARGV[3] = Received
-	// status; ARGV[4] = Processing status. Returns 1 on claim/reclaim, 0 otherwise.
+	// status; ARGV[4] = Processing status.
 	private const string LeaseClaimScript =
 		"""
 		local cur = redis.call('GET', KEYS[1])
@@ -120,11 +132,57 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 				end
 			end
 		end
-		if not claimable then return 0 end
+		if not claimable then return false end
 		local ok2, newdoc = pcall(cjson.decode, ARGV[1])
-		if not ok2 or not newdoc then return 0 end
-		newdoc.LeaseExpiresAt = now_ms + lease_ms
+		if not ok2 or not newdoc then return false end
+		local expiresAt = now_ms + lease_ms
+		newdoc.LeaseExpiresAt = expiresAt
 		newdoc.RetryCount = carried_retry
+		redis.call('SET', KEYS[1], cjson.encode(newdoc))
+		return string.format('%.0f', expiresAt)
+		""";
+
+	// Atomic lease-fenced finalize to Processed. Succeeds ONLY while ARGV[1] (the term returned by
+	// TryAcquireLeaseAsync, formatted identically via string.format('%.0f', ...)) still matches the
+	// entry's current LeaseExpiresAt. A caller whose lease has lapsed presents a stale term that matches
+	// no row, so its finalize takes no effect — this is the fence, not a status predicate: at this
+	// instant the entry is legitimately Processing, its successor's. A terminal (already-Processed) or
+	// non-lease entry has no LeaseExpiresAt field, so it never matches and this correctly refuses.
+	// KEYS[1] = entry key. ARGV[1] = caller's term. ARGV[2] = new serialized Processed document.
+	// ARGV[3] = retention TTL seconds (<= 0 => no TTL). Returns 1 = finalized, 0 = stale term / missing.
+	private const string LeaseCompleteScript =
+		"""
+		local v = redis.call('GET', KEYS[1])
+		if not v then return 0 end
+		local ok, doc = pcall(cjson.decode, v)
+		if not ok or not doc then return 0 end
+		local exp = doc.LeaseExpiresAt
+		if exp == nil then return 0 end
+		if string.format('%.0f', tonumber(exp)) ~= ARGV[1] then return 0 end
+		redis.call('SET', KEYS[1], ARGV[2])
+		local ttl = tonumber(ARGV[3])
+		if ttl and ttl > 0 then redis.call('PEXPIRE', KEYS[1], ttl * 1000) end
+		return 1
+		""";
+
+	// Atomic lease-fenced transition to Failed. Same term fence as LeaseCompleteScript. The written
+	// document carries no LeaseExpiresAt field (the caller's ARGV[2] never sets one), so the lease term is
+	// cleared as a side effect of the CAS — a failed entry has no holder. Carries the current RetryCount
+	// forward incremented by one, since ARGV[2] was built without seeing the stored count.
+	// KEYS[1] = entry key. ARGV[1] = caller's term. ARGV[2] = new serialized Failed document.
+	// Returns 1 = recorded, 0 = stale term / missing.
+	private const string LeaseFailScript =
+		"""
+		local v = redis.call('GET', KEYS[1])
+		if not v then return 0 end
+		local ok, doc = pcall(cjson.decode, v)
+		if not ok or not doc then return 0 end
+		local exp = doc.LeaseExpiresAt
+		if exp == nil then return 0 end
+		if string.format('%.0f', tonumber(exp)) ~= ARGV[1] then return 0 end
+		local ok2, newdoc = pcall(cjson.decode, ARGV[2])
+		if not ok2 or not newdoc then return 0 end
+		newdoc.RetryCount = (tonumber(doc.RetryCount) or 0) + 1
 		redis.call('SET', KEYS[1], cjson.encode(newdoc))
 		return 1
 		""";
@@ -141,10 +199,19 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	private readonly RedisInboxOptions _options;
 	private readonly ILogger<RedisInboxStore> _logger;
 
-	// Ambient tenant context. When active, the tenant is composed INTO the Redis key (via GetKey) so two
-	// tenants' identical (messageId, handlerType) never collide on the dedup key, and stamped on write. When
-	// null / no resolved tenant (non-multi-tenant), keys and rows are byte-identical to the un-scoped form.
-	private readonly ITenantContext? _tenantContext;
+	// Ambient tenant context. The tenant is composed INTO the Redis key (via GetKey) so two tenants'
+	// identical (messageId, handlerType) never collide on the dedup key, and stamped on write. TenantScope
+	// is total, so there is no "no tenant" case: a host with no resolved tenant composes the reserved
+	// untenanted sentinel and the key carries the same four segments as a tenanted one.
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	private ConnectionMultiplexer? _connection;
 	private IDatabase? _database;
@@ -156,11 +223,15 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	/// </summary>
 	/// <param name="options">The Redis inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
-	/// <param name="tenantContext">Optional ambient tenant context; when active it scopes the Redis dedup key and stamps the tenant on write (null = non-multi-tenant, byte-identical behavior).</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public RedisInboxStore(
 		IOptions<RedisInboxOptions> options,
 		ILogger<RedisInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -168,6 +239,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -177,12 +249,16 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	/// <param name="connection">An existing Redis connection multiplexer.</param>
 	/// <param name="options">The Redis inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
-	/// <param name="tenantContext">Optional ambient tenant context; when active it scopes the Redis dedup key and stamps the tenant on write (null = non-multi-tenant, byte-identical behavior).</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public RedisInboxStore(
 		ConnectionMultiplexer connection,
 		IOptions<RedisInboxOptions> options,
 		ILogger<RedisInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 		ArgumentNullException.ThrowIfNull(options);
@@ -192,15 +268,17 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_database = connection.GetDatabase(_options.DatabaseId);
 	}
 
-	// The tenant to stamp on a written row: the ambient tenant when scoped, else the entry's own tenant.
-	private string? StampTenant(string? fallback = null)
+	// The tenant to stamp on a written row. The ambient scope always binds a concrete term, so a written
+	// row always carries one.
+	private string StampTenant()
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
-		return scope.IsScoped ? scope.TenantId : fallback;
+		var scope = CurrentTenantScope;
+		return scope.TenantId;
 	}
 
 	/// <inheritdoc/>
@@ -429,7 +507,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<bool> TryClaimAsync(
+	public async ValueTask<LeaseToken?> TryAcquireLeaseAsync(
 		string messageId,
 		string handlerType,
 		TimeSpan leaseDuration,
@@ -451,7 +529,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 			ReceivedAt = DateTimeOffset.UtcNow,
 		};
 
-		var result = (long)await db.ScriptEvaluateAsync(
+		var result = await db.ScriptEvaluateAsync(
 			LeaseClaimScript,
 			[key],
 			[
@@ -462,18 +540,106 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 				(int)InboxStatus.Failed
 			]).ConfigureAwait(false);
 
-		var claimed = result == 1;
-
-		if (claimed)
+		if (result.IsNull)
 		{
-			_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			return null;
+		}
+
+		_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		return new LeaseToken((string)result!);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> CompleteAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+		var key = GetKey(messageId, handlerType);
+
+		var entry = new InboxEntry
+		{
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = "Unknown",
+			Status = InboxStatus.Processed,
+			ProcessedAt = DateTimeOffset.UtcNow,
+		};
+
+		var result = (long)await db.ScriptEvaluateAsync(
+			LeaseCompleteScript,
+			[key],
+			[
+				lease.Value,
+				SerializeEntry(entry),
+				_options.DefaultTtlSeconds
+			]).ConfigureAwait(false);
+
+		var completed = result == 1;
+
+		if (completed)
+		{
+			_logger.LogDebug("Lease-completed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 		}
 		else
 		{
-			_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			_logger.LogDebug("Lease-complete refused (stale term or missing entry) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 		}
 
-		return claimed;
+		return completed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> FailAsync(
+		string messageId,
+		string handlerType,
+		LeaseToken lease,
+		string errorMessage,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+		var key = GetKey(messageId, handlerType);
+
+		var entry = new InboxEntry
+		{
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = "Unknown",
+			Status = InboxStatus.Failed,
+			LastError = errorMessage,
+			LastAttemptAt = DateTimeOffset.UtcNow,
+		};
+
+		var result = (long)await db.ScriptEvaluateAsync(
+			LeaseFailScript,
+			[key],
+			[
+				lease.Value,
+				SerializeEntry(entry)
+			]).ConfigureAwait(false);
+
+		var recorded = result == 1;
+
+		if (recorded)
+		{
+			LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+		}
+		else
+		{
+			_logger.LogDebug("Lease-fail refused (stale term or missing entry) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return recorded;
 	}
 
 	/// <inheritdoc/>
@@ -597,7 +763,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		var entry = DeserializeEntry(value!);
 
 		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
-		// re-admittable without consuming a delivery attempt (FR-4).
+		// re-admittable without consuming a delivery attempt.
 		entry.Status = InboxStatus.Failed;
 		entry.LastError = errorMessage;
 		entry.RetryCount = retryCount;
@@ -613,7 +779,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -624,9 +790,26 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		var entries = new List<InboxEntry>();
 		var pattern = $"{_options.KeyPrefix}:*";
 
-		foreach (var entry in await ReadAllEntriesAsync(db, pattern, cancellationToken).ConfigureAwait(false))
+		// The drain's re-admission predicate. A Failed entry is retryable, and so is a Processing entry
+		// whose lease has run out: that is a processor that died holding the entry, and admitting it is the
+		// only way it ever reaches a terminal state. Without the expired-lease arm, leasing the drain would
+		// move an entry to Processing and never select it again -- trading a duplicate dispatch for a
+		// permanently stranded entry, which is the worse failure.
+		//
+		// This comparison uses the app clock while the lease CAS uses the SERVER clock, and that asymmetry
+		// is safe BECAUSE this read is not the fence. A skewed reader can only offer an entry early or late;
+		// the Lua compare-and-set still refuses it while the lease is genuinely live, so a duplicate
+		// dispatch remains impossible. Only the fence needs the single skew-free clock.
+		var nowUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+		foreach (var (entry, leaseExpiresAt) in await ReadAllDocumentsAsync(db, pattern, cancellationToken).ConfigureAwait(false))
 		{
-			if (entry.Status == InboxStatus.Failed && entry.RetryCount < maxRetries)
+			// A null lease means a claim taken through the lease-less overload, which is held until its own
+			// caller finalises or releases it. Absent is "no expiry", never "expired".
+			var retryEligible = entry.Status == InboxStatus.Failed
+				|| (entry.Status == InboxStatus.Processing && leaseExpiresAt is { } expiry && expiry < nowUnixMs);
+
+			if (retryEligible && entry.RetryCount < maxRetries)
 			{
 				if (!olderThan.HasValue || entry.LastAttemptAt < olderThan)
 				{
@@ -652,6 +835,30 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		string pattern,
 		CancellationToken cancellationToken)
 	{
+		var documents = await ReadAllDocumentsAsync(db, pattern, cancellationToken).ConfigureAwait(false);
+		var mapped = new List<InboxEntry>(documents.Count);
+
+		foreach (var (entry, _) in documents)
+		{
+			mapped.Add(entry);
+		}
+
+		return mapped;
+	}
+
+	/// <summary>
+	/// The same scan as <see cref="ReadAllEntriesAsync"/>, but keeping each entry's lease term alongside it.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="InboxEntry"/> carries no lease term, so a caller that must distinguish a live claim from a
+	/// dead processor's expired one cannot do it from the mapped entry alone. Only the retry drain's read
+	/// needs that; every other caller uses the mapped overload above.
+	/// </remarks>
+	private async Task<List<(InboxEntry Entry, long? LeaseExpiresAt)>> ReadAllDocumentsAsync(
+		IDatabase db,
+		string pattern,
+		CancellationToken cancellationToken)
+	{
 		var keys = new List<RedisKey>();
 		await foreach (var key in ScanKeysAsync(pattern).ConfigureAwait(false))
 		{
@@ -665,18 +872,18 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		if (keys.Count == 0)
 		{
-			return new List<InboxEntry>();
+			return [];
 		}
 
 		// Single MGET round-trip for all scanned keys.
 		var values = await db.StringGetAsync(keys.ToArray()).ConfigureAwait(false);
 
-		var entries = new List<InboxEntry>(values.Length);
+		var entries = new List<(InboxEntry Entry, long? LeaseExpiresAt)>(values.Length);
 		foreach (var value in values)
 		{
 			if (!value.IsNullOrEmpty)
 			{
-				entries.Add(DeserializeEntry(value!));
+				entries.Add(DeserializeDocument(value!));
 			}
 		}
 
@@ -684,7 +891,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
@@ -693,7 +900,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		var db = await GetDatabaseAsync().ConfigureAwait(false);
 
@@ -733,7 +940,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
@@ -862,7 +1069,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 			RetryCount = entry.RetryCount,
 			LastAttemptAt = entry.LastAttemptAt,
 			CorrelationId = entry.CorrelationId,
-			TenantId = StampTenant(entry.TenantId),
+			TenantId = StampTenant(),
 			Source = entry.Source
 		};
 
@@ -877,14 +1084,27 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		"Trimming",
 		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
 		Justification = "Inbox entries include dynamic metadata that requires runtime deserialization.")]
-	private static InboxEntry DeserializeEntry(string json)
+	private static InboxEntry DeserializeEntry(string json) => DeserializeDocument(json).Entry;
+
+	/// <summary>
+	/// Deserializes an entry together with its lease term, which <see cref="InboxEntry"/> does not carry.
+	/// </summary>
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Using RequiresDynamicCode member in AOT",
+		Justification = "Inbox entries include dynamic metadata that requires runtime deserialization.")]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
+		Justification = "Inbox entries include dynamic metadata that requires runtime deserialization.")]
+	private static (InboxEntry Entry, long? LeaseExpiresAt) DeserializeDocument(string json)
 	{
 		var document = JsonSerializer.Deserialize<RedisInboxDocument>(json)
 					   ?? throw new InvalidOperationException("Failed to deserialize inbox entry.");
 
 		var metadata = document.Metadata ?? new Dictionary<string, object>(StringComparer.Ordinal);
 
-		return new InboxEntry
+		var entry = new InboxEntry
 		{
 			MessageId = document.MessageId,
 			HandlerType = document.HandlerType,
@@ -901,6 +1121,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 			TenantId = document.TenantId,
 			Source = document.Source
 		};
+
+		return (entry, document.LeaseExpiresAt);
 	}
 
 	[LoggerMessage(DataRedisEventId.InboxEntryCreated, LogLevel.Debug,
@@ -927,15 +1149,34 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	[LoggerMessage(DataRedisEventId.InboxCleanedUp, LogLevel.Information, "Cleaned up {Count} inbox entries")]
 	private static partial void LogCleanedUpEntries(ILogger logger, int count, Exception? exception);
 
-	// Composes the tenant INTO the Redis key when multi-tenancy is active (byte-identical when None), so the
-	// dedup/claim key — and thus every keyed read/write — is tenant-isolated by construction.
+	// Composes the tenant INTO the Redis key, so the dedup/claim key — and thus every keyed read/write — is
+	// tenant-isolated by construction. An untenanted deployment composes the reserved sentinel, so the key
+	// shape is the same in every deployment and a single-tenant host cannot collide with a tenanted one.
 	private string GetKey(string messageId, string handlerType)
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
-		return scope.IsScoped
-			? $"{_options.KeyPrefix}:{scope.TenantId}:{messageId}:{handlerType}"
-			: $"{_options.KeyPrefix}:{messageId}:{handlerType}";
+		var scope = CurrentTenantScope;
+		return $"{_options.KeyPrefix}:{EscapeSegment(scope.TenantId)}:{EscapeSegment(messageId)}:{EscapeSegment(handlerType)}";
 	}
+
+	// The ':' joining the terms is not injective on its own. Neither the tenant term nor the message id is
+	// validated against any charset -- both are caller data -- so tenant "a:b" with message "c" and tenant
+	// "a" with message "b:c" both composed the same Redis key and shared one entry. This is the dedup key,
+	// so the collision does not surface as an error: the second message reads as already-processed and is
+	// dropped, silently, across a tenant boundary.
+	//
+	// '%' is escaped FIRST and is what makes the encoding reversible. Escaping only ':' would map the
+	// distinct terms "a:b" and "a%3Ab" onto one key -- a collision introduced by the escaping itself.
+	//
+	// The KeyPrefix is deliberately NOT escaped. It is configuration rather than caller data, it is
+	// constant within a deployment so it cannot vary a key across messages, and the maintenance scans
+	// match on "{KeyPrefix}:*" -- escaping it would break that pattern for a prefix containing a colon.
+	//
+	// This is deliberately a no-op for any term containing neither '%' nor ':'. The key is PERSISTED, so an
+	// encoding that moved every existing key would orphan every in-flight dedup record on upgrade and
+	// re-deliver already-processed messages. Only the previously-ambiguous keys change.
+	private static string EscapeSegment(string value) =>
+		value.Replace("%", "%25", StringComparison.Ordinal)
+			.Replace(":", "%3A", StringComparison.Ordinal);
 
 	/// <summary>
 	/// Ensures the Redis connection is established and returns the database instance.
@@ -1004,4 +1245,11 @@ internal sealed class RedisInboxDocument
 	public string? CorrelationId { get; set; }
 	public string? TenantId { get; set; }
 	public string? Source { get; set; }
+
+	// Unix-ms lease expiry, written SERVER-side by the lease Lua scripts and read back here so the retry
+	// drain can tell a live claim from a dead processor's. Deserialize-only in practice: every C# write
+	// builds this document from an InboxEntry, which carries no lease term, so this stays null on those
+	// paths and they continue to clear the lease exactly as before. The lease is owned by the Lua scripts,
+	// which are the only writers that may set it.
+	public long? LeaseExpiresAt { get; set; }
 }

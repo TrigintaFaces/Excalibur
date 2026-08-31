@@ -17,7 +17,7 @@ namespace Excalibur.A3.Diagnostics;
 /// <item>182500-182999: Reserved</item>
 /// </list>
 /// </remarks>
-public static class A3EventId
+internal static class A3EventId
 {
 	// ========================================
 	// 180000-180099: Authentication Core
@@ -83,4 +83,7 @@ public static class A3EventId
 
 	/// <summary>Failed to publish audit event.</summary>
 	public const int AuditPublishFailure = 181100;
+
+	/// <summary>The caller's access token could not be resolved, so the audit record has no actor identity.</summary>
+	public const int AuditAccessTokenUnavailable = 181101;
 }

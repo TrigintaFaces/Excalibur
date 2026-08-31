@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Data.OpenSearch.MaterializedViews;
 
 /// <summary>
@@ -45,6 +47,11 @@ public static class OpenSearchMaterializedViewExtensions
 
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<OpenSearchMaterializedViewStoreOptions>, OpenSearchMaterializedViewStoreOptionsValidator>());
+
+		// The store resolves its tenant partition from ITenantContext, so the container must be able to
+		// supply one. Idempotent single-tenant default: a multi-tenant host registers its own first and
+		// TryAdd leaves it alone.
+		builder.Services.AddDefaultTenantContext();
 
 		return builder.UseStore<OpenSearchMaterializedViewStore>();
 	}

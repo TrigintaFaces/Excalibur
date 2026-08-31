@@ -139,7 +139,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.None));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Act & Assert - None role should throw UnauthorizedAccessException via EnsureReadAccess
 		await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -158,7 +158,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// A ConfigurationChange event that SecurityAnalyst cannot access
 		var configEvent = new AuditEvent
@@ -191,7 +191,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var securityEvent = new AuditEvent
 		{
@@ -224,7 +224,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var authEvent = new AuditEvent
 		{
@@ -257,7 +257,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var adminEvent = new AuditEvent
 		{
@@ -289,7 +289,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var integrationEvent = new AuditEvent
 		{
@@ -319,7 +319,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	public async Task InMemoryAuditStore_QueryAsync_WithDescendingOrder_NoTenant_ReturnsCorrectOrder()
 	{
 		// Arrange - test descending order without tenant filter (uses _eventsById.Values path)
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -359,7 +359,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	public async Task InMemoryAuditStore_QueryAsync_WithAscendingOrder_NoTenant_ReturnsCorrectOrder()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -408,7 +408,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	public async Task InMemoryAuditStore_CountAsync_DoesNotCountOtherTenantsEvents()
 	{
 		// Arrange — no ambient tenant, so this store resolves to the untenanted partition.
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -501,7 +501,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 		// Use a custom scoped factory registration
 		var scopedDescriptor = new ServiceDescriptor(
 			typeof(IAuditStore),
-			_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()),
+			_ => AuditStoreTenantScope.Untenanted(),
 			ServiceLifetime.Scoped);
 		((ICollection<ServiceDescriptor>)services).Add(scopedDescriptor);
 

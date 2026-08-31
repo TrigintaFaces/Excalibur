@@ -192,12 +192,10 @@ public sealed class VerificationScenarioTests
 		services.AddLogging();
 		services.AddDispatch();
 
-		// Register security with encryption enabled (signing requires IKeyProvider from cloud packages)
-		services.AddDispatchSecurityMiddleware(options =>
-		{
-			options.Encryption.EnableEncryption = true;
-			// Signing left disabled -- IKeyProvider requires cloud-specific package (Azure/AWS)
-		});
+		// Register security with encryption enabled and nothing else. Signing is opt-in (EnableSigning
+		// defaults to false), so it is deliberately NOT composed here -- which is the point: asking for one
+		// security component must not drag in another that demands infrastructure the host never chose.
+		services.AddDispatchSecurityMiddleware(options => options.Encryption.EnableEncryption = true);
 
 		// Also register encryption directly to verify standalone resolution
 		services.AddMessageEncryption(opt => opt.Enabled = true);

@@ -63,7 +63,7 @@ internal sealed class SqlServerFencingTokenProvider : IFencingTokenProvider
 		// require a literal identifier, so each materializes its QUOTENAME-bracketed, hash-derived
 		// (injection-proof) name into an nvarchar variable and runs through sp_executesql — NOT EXEC(<concat>),
 		// because EXEC(string) only accepts literals + @variables concatenated and rejects an inline function
-		// call like QUOTENAME (server-side parse error, bd-397kyu). The whole batch is one round-trip.
+		// call like QUOTENAME (server-side parse error,). The whole batch is one round-trip.
 		const string sql = @"
 SET NOCOUNT ON;
 IF NOT EXISTS (SELECT 1 FROM sys.sequences WHERE name = @name)
@@ -96,7 +96,7 @@ SELECT @token;";
 		{
 			// A NO CYCLE bigint SEQUENCE raises error 11732 ("reached its minimum or maximum value") at its
 			// ceiling rather than wrapping; translate to the contract's FencingTokenExhaustedException so a
-			// consumer's fail-closed catch relinquishes rather than seeing a raw SqlException (nxjn2k — a
+			// consumer's fail-closed catch relinquishes rather than seeing a raw SqlException (a
 			// wrapped/reused fencing token would be a split-brain catastrophe).
 			throw new FencingTokenExhaustedException(
 				string.Format(
@@ -122,7 +122,7 @@ SELECT @token;";
 		var sequenceName = SequenceName(resourceId);
 
 		// null = the sequence has never been created -> no token ever issued -> no active leader. Never a
-		// fabricated/sentinel value (the idiomatic "no value" signal, ADR-339 Decision 2). After at least one
+		// fabricated/sentinel value (the idiomatic "no value" signal, Decision 2). After at least one
 		// IssueToken, current_value is the last drawn token (the high-water mark).
 		const string sql = "SELECT CAST(current_value AS bigint) FROM sys.sequences WHERE name = @name;";
 

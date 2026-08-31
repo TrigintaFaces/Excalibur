@@ -25,18 +25,12 @@ namespace Excalibur.Compliance.Encryption;
 /// </remarks>
 public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 {
-	/// <summary>
-	/// Maximum number of per-key locks to retain. When exceeded, new keys skip lock-based
-	/// deduplication and fall through to the factory directly. This prevents unbounded
-	/// growth of the lock dictionary in high-cardinality key scenarios.
-	/// </summary>
-	private const int MaxKeyLocks = 1024;
-
 	private readonly MemoryCache _cache;
 	private readonly KeyCacheOptions _options;
 	private readonly IEncryptionTelemetryDetails? _telemetryDetails;
 	private readonly ConcurrentDictionary<string, byte> _trackedKeys = new(StringComparer.Ordinal);
-	private readonly ConcurrentDictionary<string, SemaphoreSlim> _keyLocks = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, KeyLock> _keyLocks = new(StringComparer.Ordinal);
+	private readonly Lock _keyLocksGate = new();
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -102,31 +96,33 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 			return cached;
 		}
 
-		// When the lock dictionary is at capacity, skip per-key locking to prevent unbounded growth.
-		// This may allow concurrent factory calls for the same key, but correctness is maintained
-		// because MemoryCache.Set is thread-safe.
-		if (_keyLocks.Count >= MaxKeyLocks)
-		{
-			return await ExecuteFactoryAsync(keyId, cacheKey, ttl, factory, cancellationToken).ConfigureAwait(false);
-		}
-
-		// Per-key lock to prevent concurrent factory calls for the same key (TOCTOU fix)
-		var keyLock = _keyLocks.GetOrAdd(keyId, static _ => new SemaphoreSlim(1, 1));
-		await keyLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		// Per-key lock so that concurrent misses for the same key make a single factory call. The lock
+		// table is rented and returned around the call, so it holds one entry per key with a call in
+		// flight rather than one per key ever seen -- deduplication does not decay as key cardinality
+		// grows over the process lifetime.
+		var keyLock = RentKeyLock(keyId);
 		try
 		{
-			// Double-check after acquiring lock
-			if (_cache.TryGetValue(cacheKey, out cached))
+			await keyLock.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+			try
 			{
-				_telemetryDetails?.RecordCacheAccess(hit: true, "KeyCache");
-				return cached;
-			}
+				// Double-check after acquiring lock
+				if (_cache.TryGetValue(cacheKey, out cached))
+				{
+					_telemetryDetails?.RecordCacheAccess(hit: true, "KeyCache");
+					return cached;
+				}
 
-			return await ExecuteFactoryAsync(keyId, cacheKey, ttl, factory, cancellationToken).ConfigureAwait(false);
+				return await ExecuteFactoryAsync(keyId, cacheKey, ttl, factory, cancellationToken).ConfigureAwait(false);
+			}
+			finally
+			{
+				_ = keyLock.Semaphore.Release();
+			}
 		}
 		finally
 		{
-			keyLock.Release();
+			ReturnKeyLock(keyId, keyLock);
 		}
 	}
 
@@ -218,18 +214,62 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 			_cache.Dispose();
 			_trackedKeys.Clear();
 
-			// Dispose all semaphores in the lock dictionary
-			foreach (var kvp in _keyLocks)
+			// Any key lock still present has a factory call in flight; the caller that rented it
+			// disposes it on return, so only the table is cleared here.
+			lock (_keyLocksGate)
 			{
-				kvp.Value.Dispose();
+				_keyLocks.Clear();
 			}
 
-			_keyLocks.Clear();
 			_disposed = true;
 		}
 	}
 
 	private static string CreateCacheKey(string keyId) => $"key:{keyId}";
+
+	/// <summary>
+	/// Takes a reference on the lock for <paramref name="keyId"/>, creating it if no caller currently
+	/// holds one. Every rental must be matched by a <see cref="ReturnKeyLock"/>.
+	/// </summary>
+	/// <param name="keyId">The key whose lock is required.</param>
+	/// <returns>The reference-counted lock for the key.</returns>
+	private KeyLock RentKeyLock(string keyId)
+	{
+		lock (_keyLocksGate)
+		{
+			if (!_keyLocks.TryGetValue(keyId, out var keyLock))
+			{
+				keyLock = new KeyLock();
+				_keyLocks[keyId] = keyLock;
+			}
+
+			keyLock.References++;
+			return keyLock;
+		}
+	}
+
+	/// <summary>
+	/// Releases a reference taken by <see cref="RentKeyLock"/>, removing and disposing the lock once no
+	/// caller holds it.
+	/// </summary>
+	/// <param name="keyId">The key whose lock is being returned.</param>
+	/// <param name="keyLock">The lock returned by <see cref="RentKeyLock"/>.</param>
+	private void ReturnKeyLock(string keyId, KeyLock keyLock)
+	{
+		lock (_keyLocksGate)
+		{
+			if (--keyLock.References > 0)
+			{
+				return;
+			}
+
+			// The count reaching zero means no caller holds or is waiting on the semaphore, so both the
+			// removal and the disposal are safe: a later caller for the same key creates a fresh lock.
+			_ = _keyLocks.Remove(keyId);
+		}
+
+		keyLock.Semaphore.Dispose();
+	}
 
 	private async Task<KeyMetadata?> ExecuteFactoryAsync(
 		string keyId,
@@ -276,5 +316,22 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 
 		_ = _cache.Set(cacheKey, metadata, options);
 		_trackedKeys[cacheKey] = 0;
+	}
+
+	/// <summary>
+	/// A per-key mutual-exclusion primitive together with the number of callers currently using it.
+	/// </summary>
+	private sealed class KeyLock
+	{
+		/// <summary>
+		/// Gets the semaphore serialising factory calls for the key.
+		/// </summary>
+		public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+		/// <summary>
+		/// Gets or sets the number of callers holding a rental on this lock. Read and written only
+		/// under the owning cache's lock-table gate.
+		/// </summary>
+		public int References { get; set; }
 	}
 }

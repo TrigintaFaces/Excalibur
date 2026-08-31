@@ -18,7 +18,7 @@ namespace Excalibur.Data.ElasticSearch.Diagnostics;
 /// <item>106600-106699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataElasticsearchEventId
+internal static class DataElasticsearchEventId
 {
 	// ========================================
 	// 106000-106099: Client Management
@@ -257,6 +257,9 @@ public static class DataElasticsearchEventId
 	/// <summary>Security monitoring service stopped.</summary>
 	public const int SecurityMonitoringStopped = 106701;
 
+	/// <summary>Security monitoring service did not start because monitoring is disabled by configuration.</summary>
+	public const int SecurityMonitoringDisabled = 106702;
+
 	// ========================================
 	// 106800-106899: Performance/Repository
 	// ========================================
@@ -295,4 +298,14 @@ public static class DataElasticsearchEventId
 
 	/// <summary>Failed to create projection index.</summary>
 	public const int ProjectionIndexCreationFailed = 106913;
+
+	// ========================================
+	// 106920-106929: Outbox Claim / Delivery
+	// ========================================
+
+	/// <summary>Outbox messages were claimed for delivery under a lease.</summary>
+	public const int OutboxMessagesClaimed = 106920;
+
+	/// <summary>A non-success outbox transition was skipped because the message is already sent.</summary>
+	public const int OutboxTerminalTransitionSkipped = 106921;
 }

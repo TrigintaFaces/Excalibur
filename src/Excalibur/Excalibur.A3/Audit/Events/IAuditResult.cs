@@ -15,8 +15,6 @@ public interface IAuditResult
 	/// <value>The request payload or details associated with the activity.</value>
 	string Request
 	{
-		[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-		[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		get;
 		init;
 	}

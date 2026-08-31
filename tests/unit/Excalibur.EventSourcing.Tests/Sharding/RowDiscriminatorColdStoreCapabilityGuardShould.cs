@@ -7,6 +7,7 @@ using Excalibur.EventSourcing.Sharding;
 using Excalibur.MultiTenancy;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.EventSourcing.Tests.Sharding;
 
@@ -45,7 +46,7 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
 
         // A registered but tenant-UNAWARE cold store: no ITenantScopingCapability<IColdEventStore> marker.
         // Cold stores (AzureBlob/S3/GCS) key by aggregate id with zero tenant awareness — the leak vector.
-        services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore());
+        services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore(A.Fake<ITenantContext>()));
 
         var ex = Should.Throw<InvalidOperationException>(() =>
             services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
@@ -62,7 +63,7 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
         // LIVENESS (single-tenant): a cold tier with NO AddMultiTenancy. The gate lives inside the
         // row-discriminator path, so a non-MT app with tiered+cold storage must start unaffected.
         var services = new ServiceCollection();
-        services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore());
+        services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore(A.Fake<ITenantContext>()));
 
         using var provider = services.BuildServiceProvider();
 
@@ -76,8 +77,9 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
         // NO cold tier. The cold gate is triggered only when an IColdEventStore is registered, so this safe
         // configuration must start and resolve the fail-closed tenant-scoping decorator.
         var services = new ServiceCollection();
-        services.AddSingleton<IEventStore>(new TenantUnawareEventStore());
-        services.AddTenantScopedStore<IEventStore, TenantUnawareEventStore>((_, _) => new TenantUnawareEventStore());
+        services.AddSingleton<IEventStore>(new TenantUnawareEventStore(A.Fake<ITenantContext>()));
+        services.AddTenantAwareStore<IEventStore, TenantUnawareEventStore>(
+            sp => new TenantUnawareEventStore(sp.GetRequiredService<ITenantContext>()));
 
         Should.NotThrow(() =>
             services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
@@ -91,7 +93,7 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
     public void Start_WhenRowDiscriminatorRegistersACapabilityProvingColdStore()
     {
         // LIVENESS (positive capability): a cold tier that PROVES tenant-scoping capability via the dep-gated
-        // AddTenantScopedStore seam (the S886 inseparable marker) IS accepted by the gate — it starts. This is
+        // AddTenantAwareStore seam (the S886 inseparable marker) IS accepted by the gate — it starts. This is
         // the "permitted thing happens" arm: the gate is not reject-everything; a genuinely tenant-scoping cold
         // store passes. (No tenant-aware cold impl ships yet — that is the S895 e6t62k fix — so this uses the
         // sanctioned marker seam to stand in for a future capable cold store, as Frontend's B3 arm does.)
@@ -100,16 +102,19 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
         // A realistic tiered + multi-tenant host: a PRIMARY tenant-owned hot store (RowDiscriminator requires
         // at least one of IEventStore/IProjectionStore/ISagaStore/IInboxStore/IOutboxStore) AND a cold tier —
         // BOTH capability-proving. The hot store is registered exactly as the MT-without-cold arm does.
-        services.AddSingleton<IEventStore>(new TenantUnawareEventStore());
-        services.AddTenantScopedStore<IEventStore, TenantUnawareEventStore>((_, _) => new TenantUnawareEventStore());
+        services.AddSingleton<IEventStore>(new TenantUnawareEventStore(A.Fake<ITenantContext>()));
+        services.AddTenantAwareStore<IEventStore, TenantUnawareEventStore>(
+            sp => new TenantUnawareEventStore(sp.GetRequiredService<ITenantContext>()));
 
-        // Register the cold tier through the dep-gated seam with the CONTRACT itself as TStore, so the
-        // IColdEventStore service type IS registered (the gate at line 180 fires on
-        // `services.Any(ServiceType == IColdEventStore)`) AND the ITenantScopingCapability<IColdEventStore>
-        // marker is emitted inseparably (S886) — the cold gate then fires and PASSES. This is the exact seam a
-        // real tenant-aware cold provider uses (mirrors TenantScopedTieredReadThroughShould:165).
-        services.AddTenantScopedStore<IColdEventStore, IColdEventStore>(
-            (_, _) => new TenantUnawareColdEventStore());
+        // Register the cold tier's CONCRETE type through the dep-gated seam, so the
+        // ITenantScopingCapability<IColdEventStore> marker is emitted inseparably (S886) — the seam derives
+        // the scoped marker from TenantUnawareColdEventStore's constructor, which now declares
+        // ITenantContext. Forward-register IColdEventStore separately so the gate at line 180 (which fires
+        // on `services.Any(ServiceType == IColdEventStore)`) still sees the service type registered — the
+        // same two-registration pattern every real provider uses (concrete + interface forwarder).
+        services.AddTenantAwareStore<IColdEventStore, TenantUnawareColdEventStore>(
+            sp => new TenantUnawareColdEventStore(sp.GetRequiredService<ITenantContext>()));
+        services.TryAddSingleton<IColdEventStore>(sp => sp.GetRequiredService<TenantUnawareColdEventStore>());
 
         Should.NotThrow(() =>
             services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator));
@@ -121,7 +126,7 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
     }
 
     /// <summary>A minimal cold store that ignores the ambient tenant — the cross-tenant cold-read leak vector.</summary>
-    private sealed class TenantUnawareColdEventStore : IColdEventStore
+    private sealed class TenantUnawareColdEventStore(ITenantContext tenantContext) : IColdEventStore
     {
         // NOTE: the tenant term is accepted and deliberately IGNORED. That is the point of this fixture —
         // it is the tenant-unaware leak vector the guard must reject. Accepting the parameter keeps it a
@@ -146,7 +151,7 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
     }
 
     /// <summary>A minimal event store used only to satisfy the IEventStore gate in the MT-without-cold liveness arm.</summary>
-    private sealed class TenantUnawareEventStore : IEventStore
+    private sealed class TenantUnawareEventStore(ITenantContext tenantContext) : IEventStore
     {
         public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
             string aggregateId, string aggregateType, CancellationToken cancellationToken) =>

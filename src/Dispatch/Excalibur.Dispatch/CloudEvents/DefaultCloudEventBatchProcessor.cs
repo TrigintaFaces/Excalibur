@@ -30,14 +30,6 @@ public sealed class DefaultCloudEventBatchProcessor(
 	/// <param name="batch"> The CloudEvent batch to process. </param>
 	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
 	/// <returns> A task representing the asynchronous processing operation. </returns>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "CloudEvent batch processor dispatches converted events through the dispatcher pipeline which requires reflection-based handler resolution.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "CloudEvent batch processor dispatches converted events through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	public async Task ProcessBatchAsync(CloudEventBatch batch, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(batch);

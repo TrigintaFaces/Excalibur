@@ -75,7 +75,7 @@ public static class PostgresAuditServiceCollectionExtensions
 
 	private static void RegisterPostgresAuditStoreCore(IServiceCollection services)
 	{
-		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider (qa71t5) —
+		// Shared keyed-MAC + hash-chain integrity strategy + default signing-key provider —
 		// PostgresAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
 
@@ -84,7 +84,18 @@ public static class PostgresAuditServiceCollectionExtensions
 		// it up directly still passed. TryAdd leaves a multi-tenant host's own registration untouched.
 		_ = services.AddDefaultTenantContext();
 
-		services.TryAddSingleton<PostgresAuditStore>();
+		// Registered through the capability seam rather than a bare TryAddSingleton. PostgresAuditStore takes
+		// ITenantContext, and every read it builds binds the ambient tenant term (the query filter is a
+		// scope, not a caller-supplied filter), so the seam derives the ambient-scoping mechanism from the
+		// constructor and emits ITenantScopingCapability<IAuditStore> as part of the same act. Without that
+		// marker a host wiring this store alongside the row discriminator is refused at startup, because
+		// IAuditStore carries [TenantOwned] and nothing attested the store honours it.
+		//
+		// The estate-wide scope recorded for this provider in ARCHITECTURE.md is chain VERIFICATION only,
+		// enumerated per partition. It is not the store's tenancy mechanism, and the partitioned marker
+		// would be the wrong attestation here: that one states the tenant is re-established from the row
+		// and never inferred from ambient state, which is the opposite of what this store does.
+		_ = services.AddTenantAwareStore<IAuditStore, PostgresAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<PostgresAuditStore>());
 	}
 }

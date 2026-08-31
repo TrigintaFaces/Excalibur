@@ -70,6 +70,57 @@ public sealed class FirestoreSnapshotStoreOptions
 	public int MaxBatchSize { get; set; } = 500;
 
 	/// <summary>
+	/// Gets or sets how many times a contended snapshot write is attempted before the contention is
+	/// reported to the caller as a concurrency failure.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is a guard against an unbounded spin, not a writer budget, and correctness does not depend on
+	/// its value. A snapshot write reads the stored version and then writes conditionally on what that read
+	/// observed, so every attempt is idempotent: a writer overtaken while it waited finds the higher version
+	/// already stored and returns without writing. An attempt is only repeated because another writer's
+	/// write landed, and a write that lands strictly raises the stored version, so the loop makes progress
+	/// however many writers contend.
+	/// </para>
+	/// <para>
+	/// This is the total number of attempts the backend sees, not a multiplier on top of another budget:
+	/// the store's own loop is the only retry in the path, so set this to four and a contended write is
+	/// attempted four times. Each attempt costs one read and one rejected write, plus the wait described on
+	/// <see cref="ContendedWriteBackoffMilliseconds"/> -- no attempt waits on a lock, because the write
+	/// takes none.
+	/// </para>
+	/// <para>
+	/// A writer needs at most one extra attempt per concurrent writer holding a lower version, since each
+	/// of those lands once and then leaves. The default covers well beyond the concurrency a single
+	/// aggregate's snapshot document realistically attracts; reaching it means something is contending
+	/// pathologically, which is reported as a failure rather than absorbed.
+	/// </para>
+	/// </remarks>
+	/// <value>Defaults to 16.</value>
+	[Range(1, 1000)]
+	public int MaxContendedWriteAttempts { get; set; } = 16;
+
+	/// <summary>
+	/// Gets or sets the base wait between contended snapshot-write attempts, in milliseconds.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The ceiling doubles with each attempt, starting from this value and capped at a quarter of a second,
+	/// and the actual wait is drawn at random from the interval up to that ceiling. Uncontended writes
+	/// never wait, so this value does not affect them.
+	/// </para>
+	/// <para>
+	/// The randomness is the load-bearing part rather than the growth. Writers contending for one
+	/// document are rejected at nearly the same instant, so a wait computed only from the attempt number
+	/// is identical for all of them: they wake together and reproduce the collision they were waiting
+	/// out. Drawing from a range separates them, which is what lets the contention drain.
+	/// </para>
+	/// </remarks>
+	/// <value>Defaults to 25 milliseconds.</value>
+	[Range(1, 60000)]
+	public int ContendedWriteBackoffMilliseconds { get; set; } = 25;
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

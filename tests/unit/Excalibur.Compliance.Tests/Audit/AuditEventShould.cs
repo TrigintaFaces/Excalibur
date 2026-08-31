@@ -179,16 +179,16 @@ public sealed class AuditOutcomeShould
 public sealed class AuditIntegrityResultShould
 {
 	[Fact]
-	public void Create_valid_result()
+	public void Create_verified_result()
 	{
 		var start = DateTimeOffset.UtcNow.AddDays(-7);
 		var end = DateTimeOffset.UtcNow;
 		var lowerBound = DateTimeOffset.UtcNow;
 
-		var result = AuditIntegrityResult.Valid(1000, start, end);
+		var result = AuditIntegrityResult.Verified(1000, start, end, isHashChained: true);
 		var upperBound = DateTimeOffset.UtcNow;
 
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(1000);
 		result.StartDate.ShouldBe(start);
 		result.EndDate.ShouldBe(end);
@@ -196,35 +196,69 @@ public sealed class AuditIntegrityResultShould
 		result.VerifiedAt.ShouldBeLessThanOrEqualTo(upperBound);
 		result.FirstViolationEventId.ShouldBeNull();
 		result.ViolationDescription.ShouldBeNull();
-		result.ViolationCount.ShouldBe(0);
+		result.CompromisedChainCount.ShouldBe(0);
 	}
 
 	[Fact]
-	public void Create_invalid_result()
+	public void Create_no_events_in_scope_result()
+	{
+		var start = DateTimeOffset.UtcNow.AddDays(-7);
+		var end = DateTimeOffset.UtcNow;
+		var lowerBound = DateTimeOffset.UtcNow;
+
+		var result = AuditIntegrityResult.NoEventsInScope(start, end);
+		var upperBound = DateTimeOffset.UtcNow;
+
+		// An empty window is neither a pass nor a failure: it establishes nothing about the chain.
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.NoEventsInScope);
+		result.Outcome.ShouldNotBe(AuditIntegrityOutcome.Verified);
+		result.EventsVerified.ShouldBe(0);
+		result.StartDate.ShouldBe(start);
+		result.EndDate.ShouldBe(end);
+		result.VerifiedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		result.VerifiedAt.ShouldBeLessThanOrEqualTo(upperBound);
+		result.FirstViolationEventId.ShouldBeNull();
+		result.ViolationDescription.ShouldBeNull();
+		result.CompromisedChainCount.ShouldBe(0);
+	}
+
+	[Fact]
+	public void Reject_a_verified_result_over_zero_events()
 	{
 		var start = DateTimeOffset.UtcNow.AddDays(-7);
 		var end = DateTimeOffset.UtcNow;
 
-		var result = AuditIntegrityResult.Invalid(
-			500, start, end, "evt-42", "Hash mismatch", 3);
-
-		result.IsValid.ShouldBeFalse();
-		result.EventsVerified.ShouldBe(500);
-		result.FirstViolationEventId.ShouldBe("evt-42");
-		result.ViolationDescription.ShouldBe("Hash mismatch");
-		result.ViolationCount.ShouldBe(3);
+		// A verification that examined nothing cannot be recorded as a successful verification.
+		_ = Should.Throw<ArgumentOutOfRangeException>(
+			() => AuditIntegrityResult.Verified(0, start, end, isHashChained: true));
 	}
 
 	[Fact]
-	public void Default_violation_count_to_one_when_invalid()
+	public void Create_violations_detected_result()
+	{
+		var start = DateTimeOffset.UtcNow.AddDays(-7);
+		var end = DateTimeOffset.UtcNow;
+
+		var result = AuditIntegrityResult.ViolationsDetected(
+			500, start, end, "evt-42", "Hash mismatch", 3, isHashChained: true);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.EventsVerified.ShouldBe(500);
+		result.FirstViolationEventId.ShouldBe("evt-42");
+		result.ViolationDescription.ShouldBe("Hash mismatch");
+		result.CompromisedChainCount.ShouldBe(3);
+	}
+
+	[Fact]
+	public void Default_violation_count_to_one_when_violations_detected()
 	{
 		var start = DateTimeOffset.UtcNow.AddDays(-1);
 		var end = DateTimeOffset.UtcNow;
 
-		var result = AuditIntegrityResult.Invalid(
-			100, start, end, "evt-1", "Tampered");
+		var result = AuditIntegrityResult.ViolationsDetected(
+			100, start, end, "evt-1", "Tampered", compromisedChainCount: 1, isHashChained: true);
 
-		result.ViolationCount.ShouldBe(1);
+		result.CompromisedChainCount.ShouldBe(1);
 	}
 }
 
@@ -245,7 +279,6 @@ public sealed class AuditQueryShould
 		query.ResourceId.ShouldBeNull();
 		query.ResourceType.ShouldBeNull();
 		query.MinimumClassification.ShouldBeNull();
-		query.TenantId.ShouldBeNull();
 		query.CorrelationId.ShouldBeNull();
 		query.Action.ShouldBeNull();
 		query.IpAddress.ShouldBeNull();
@@ -270,7 +303,6 @@ public sealed class AuditQueryShould
 			ResourceId = "res-1",
 			ResourceType = "Customer",
 			MinimumClassification = DataClassification.Confidential,
-			TenantId = "tenant-1",
 			CorrelationId = "corr-1",
 			Action = "Login",
 			IpAddress = "10.0.0.1",

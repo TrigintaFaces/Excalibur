@@ -46,20 +46,27 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<IErasureStore> marker in the same act. The marker is not separately
-		// registerable, so a store that was never handed the context cannot carry a truthful-looking
-		// capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<IErasureStore, PostgresErasureStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<IErasureStore> marker in the same act. The
+		// marker is not separately registerable, so a store that was never handed the context cannot carry
+		// a truthful-looking capability and pass the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<IErasureStore, PostgresErasureStore>(sp =>
 			new PostgresErasureStore(
 				sp.GetRequiredService<IOptions<PostgresErasureStoreOptions>>(),
 				sp.GetRequiredService<IDataSubjectHasher>(),
 				sp.GetRequiredService<ILogger<PostgresErasureStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
+
+		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
+		// path of every write. The hosted service verifies this store's schema before the host accepts
+		// traffic, so a mis-provisioned deployment fails to start instead of reporting a deployment fault
+		// as the failure of one data subject's erasure request.
+		services.AddSingleton<IErasureSchemaValidator>(sp => sp.GetRequiredService<PostgresErasureStore>());
+		_ = services.AddErasureSchemaValidation();
 
 		return services;
 	}
@@ -90,10 +97,6 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 	/// <param name="connectionStringName">The connection string name from configuration.</param>
 	/// <param name="configure">Optional additional configuration.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresErasureStoreFromConfiguration(
 		this IServiceCollection services,
 		string connectionStringName,
@@ -126,20 +129,27 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<IErasureStore> marker in the same act. The marker is not separately
-		// registerable, so a store that was never handed the context cannot carry a truthful-looking
-		// capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<IErasureStore, PostgresErasureStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<IErasureStore> marker in the same act. The
+		// marker is not separately registerable, so a store that was never handed the context cannot carry
+		// a truthful-looking capability and pass the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<IErasureStore, PostgresErasureStore>(sp =>
 			new PostgresErasureStore(
 				sp.GetRequiredService<IOptions<PostgresErasureStoreOptions>>(),
 				sp.GetRequiredService<IDataSubjectHasher>(),
 				sp.GetRequiredService<ILogger<PostgresErasureStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
+
+		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
+		// path of every write. The hosted service verifies this store's schema before the host accepts
+		// traffic, so a mis-provisioned deployment fails to start instead of reporting a deployment fault
+		// as the failure of one data subject's erasure request.
+		services.AddSingleton<IErasureSchemaValidator>(sp => sp.GetRequiredService<PostgresErasureStore>());
+		_ = services.AddErasureSchemaValidation();
 
 		return services;
 	}

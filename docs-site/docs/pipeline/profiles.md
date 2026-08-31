@@ -156,10 +156,9 @@ unresolved entry and why:
 
 ```
 Pipeline 'default' cannot be built because 2 required middleware could not be resolved:
-  - AuthorizationMiddleware: not registered in the service provider
-  - AuditLoggingMiddleware: Unable to resolve service for type 'IAuditSink'
-How to fix: register the missing service(s) with the dependency injection container, or remove the
-middleware from the pipeline configuration.
+  - Excalibur.Dispatch.Middleware.AuthorizationMiddleware: the middleware type itself is not registered. Register it together with the services it depends on - typically by calling the Add... extension method that enables this feature.
+  - Excalibur.Dispatch.Middleware.AuditLoggingMiddleware: Unable to resolve service for type 'Excalibur.Dispatch.Observability.ITelemetrySanitizer' while attempting to activate 'Excalibur.Dispatch.Middleware.AuditLoggingMiddleware'.
+How to fix: each entry above names what it needs. Register the missing service(s) before building the host, or remove that middleware from the pipeline configuration. Every unresolved entry is listed together so they can be fixed in one pass rather than one build at a time.
 ```
 
 The failure is at **startup**, not on the first dispatch, so a host that is missing a dependency does not
@@ -416,14 +415,6 @@ public class MyCustomProfile : IPipelineProfile
     }
 
     public bool IsCompatible(IDispatchMessage message) => true;
-
-    public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind)
-        => MiddlewareEntries.Select(e => e.MiddlewareType).ToList();
-
-    public IReadOnlyList<Type> GetApplicableMiddleware(
-        MessageKinds messageKind,
-        IReadOnlySet<DispatchFeatures> enabledFeatures)
-        => GetApplicableMiddleware(messageKind);
 }
 ```
 
@@ -554,14 +545,10 @@ public interface IPipelineProfile
     /// <summary>
     /// Gets middleware applicable to the specified message kind.
     /// </summary>
-    IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind);
 
     /// <summary>
     /// Gets middleware applicable to the message kind and enabled features.
     /// </summary>
-    IReadOnlyList<Type> GetApplicableMiddleware(
-        MessageKinds messageKind,
-        IReadOnlySet<DispatchFeatures> enabledFeatures);
 }
 ```
 

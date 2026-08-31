@@ -56,6 +56,7 @@ public static class ConsulLeaderElectionBuilderExtensions
 		configure(consulBuilder);
 
 		RegisterOptionsAndServices(builder, consulBuilder);
+		ConsulElectionRegistration.RegisterSingletonElectionAndGate(builder.Services, consulBuilder.ResourceNameValue);
 
 		return builder;
 	}

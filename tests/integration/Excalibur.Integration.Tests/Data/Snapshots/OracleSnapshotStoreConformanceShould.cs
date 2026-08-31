@@ -54,7 +54,7 @@ public sealed class OracleSnapshotStoreConformanceShould : SnapshotConformanceTe
 	/// <remarks>
 	/// <para>
 	/// The tenant context is load-bearing, not decoration. The store resolves its tenant per call via
-	/// <c>TenantScope.FromContext</c>; constructed without one it resolves to <c>None</c>, the row key
+	/// <c>TenantScope.FromContext</c>; constructed without one its scope accessor falls back to <c>None</c>, the row key
 	/// omits the tenant, and every tenant collides on a single row — the untenanted path, exercised
 	/// silently by a suite whose entire purpose is to prove the tenanted one.
 	/// </para>

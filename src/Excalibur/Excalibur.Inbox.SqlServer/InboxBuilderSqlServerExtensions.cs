@@ -145,15 +145,15 @@ public static class InboxBuilderSqlServerExtensions
 		builder.Services.AddDefaultTenantContext();
 
 		// Register inbox store with connection factory
-		// AddTenantScopedStore builds the store (injecting ITenantContext so the documented UseSqlServer()
-		// path applies the tenant predicate) AND emits the ITenantScopingCapability<IInboxStore> marker
-		// inseparably (S886 rw2ull — no lying marker).
-		builder.Services.AddTenantScopedStore<IInboxStore, SqlServerInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext so the documented UseSqlServer()
+		// path applies the tenant predicate, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably (no lying marker).
+		builder.Services.AddTenantAwareStore<IInboxStore, SqlServerInboxStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			var inboxOptions = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<SqlServerInboxStore>>();
-			return new SqlServerInboxStore(factory, inboxOptions, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
+			return new SqlServerInboxStore(factory, inboxOptions, logger, sp.GetRequiredService<ITenantContext>(), sp.GetRequiredService<IOptions<TenantContextOptions>>());
 		});
 		builder.Services.AddKeyedSingleton<IInboxStore>(
 			"sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
@@ -162,8 +162,8 @@ public static class InboxBuilderSqlServerExtensions
 		builder.Services.AddInboxSchemaValidation();
 		builder.Services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<SqlServerInboxStore>());
 
-		// The ITenantScopingCapability<IInboxStore> marker is emitted by AddTenantScopedStore above,
-		// inseparably from the store registration (S886 rw2ull).
+		// The ITenantScopingCapability<IInboxStore> marker is emitted by AddTenantAwareStore above,
+		// inseparably from the store registration.
 
 		// Register health checks if enabled
 		if (sqlBuilder.HealthChecksEnabled && !string.IsNullOrWhiteSpace(options.ConnectionString))

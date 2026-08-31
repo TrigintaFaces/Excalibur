@@ -43,8 +43,9 @@ internal sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter
 	private long _totalMessages;
 	private long _successfulMessages;
 	private long _failedMessages;
-	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
-	private TransportHealthStatus _lastStatus = TransportHealthStatus.Healthy;
+	// MinValue means "no health check has completed yet" -- it must not read as a recent check.
+	private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
+	private TransportHealthStatus _lastStatus = TransportHealthStatus.Unknown;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AzureEventHubsTransportAdapter"/> class.
@@ -218,9 +219,12 @@ internal sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter
 		IsRunning = true;
 
 		TransportMeter.RecordTransportStarted(Name, TransportType);
-		TransportMeter.UpdateTransportState(Name, TransportType, isConnected: true, pendingMessages: 0);
-		_lastStatus = TransportHealthStatus.Healthy;
-
+		// Connection state is deliberately NOT published here, for the same reason health is not: starting
+		// the adapter contacts no broker, so it establishes no connection. The gauge reports a transport
+		// only once its state is known, so an unobserved transport is absent from it rather than being
+		// reported as connected.
+		// Health is deliberately NOT set here: starting the adapter contacts nothing,
+		// so it establishes no health. It stays Unknown until a health probe completes.
 		return Task.CompletedTask;
 	}
 
@@ -383,7 +387,7 @@ internal sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter
 		GC.SuppressFinalize(this);
 	}
 
-	// Source-generated logging methods (Sprint 362 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(AzureServiceBusEventId.EventHubsTransportStarting, LogLevel.Information,
 		"Starting Azure Event Hubs transport adapter")]
 	private partial void LogStarting();

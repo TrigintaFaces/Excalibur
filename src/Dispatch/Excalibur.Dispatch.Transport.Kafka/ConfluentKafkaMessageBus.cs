@@ -10,6 +10,7 @@ using Confluent.Kafka;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Kafka;
 
@@ -51,13 +52,13 @@ internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisp
 	public ConfluentKafkaMessageBus(
 		IProducer<string, byte[]> producer,
 		IConfluentFormatSerializer serializer,
-		KafkaOptions options,
+		IOptions<KafkaOptions> options,
 		ILogger<ConfluentKafkaMessageBus> logger)
 	{
 		_producer = producer ?? throw new ArgumentNullException(nameof(producer));
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 		ArgumentNullException.ThrowIfNull(options);
-		_topic = options.Topic;
+		_topic = options.Value.Topic;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 

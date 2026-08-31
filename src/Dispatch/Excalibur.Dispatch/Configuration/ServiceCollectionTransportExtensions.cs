@@ -41,7 +41,7 @@ public static class ServiceCollectionTransportExtensions
 		// Create and configure binding builder. FromTransport() now accepts pending
 		// factories as well as materialized adapters; the binding registry records
 		// any truly-unknown references and the BindingRegistrationValidator reports
-		// them at host start via ValidateOnStart. [bd-20ft0e FIX 4]
+		// them at host start via ValidateOnStart.
 		var bindingBuilder = new Transport.BindingConfigurationBuilder(transportRegistry, bindingRegistry);
 		configure(bindingBuilder);
 

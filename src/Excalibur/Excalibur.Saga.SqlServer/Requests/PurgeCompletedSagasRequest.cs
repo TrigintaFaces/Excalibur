@@ -24,7 +24,7 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
 	/// The tenant scope restricting the purge. <see cref="TenantScope.Scoped(string)"/> deletes only that
-	/// tenant's sagas; <see cref="TenantScope.None"/> deletes only the untenanted partition — the rows that
+	/// tenant's sagas; <see cref="TenantScope.Untenanted"/> deletes only the untenanted partition — the rows that
 	/// carry no tenant at all. Neither can reach another tenant's rows.
 	/// </param>
 	/// <param name="allTenants">
@@ -62,7 +62,7 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 		var partition = KeyedTenantPartition.FromScope(scope);
 		var tenantPredicate = allTenants ? string.Empty : " AND TenantId = @TenantId";
 
-		// Keys on the indexed CompletedAt column (SA w8aqq3 ruling), not IsCompleted+UpdatedUtc: retention
+		// Keys on the indexed CompletedAt column (SA ruling), not IsCompleted+UpdatedUtc: retention
 		// correctness must not be coupled to the "completed sagas never re-save" invariant via a proxy column.
 		var sql = $"DELETE FROM {qualifiedTableName} WHERE CompletedAt IS NOT NULL AND CompletedAt < @Threshold{tenantPredicate};";
 

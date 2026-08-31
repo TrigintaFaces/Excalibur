@@ -1,0 +1,106 @@
+# gate-denominator-baseline.txt — gate scripts that do not yet report WHAT THEY EXAMINED.
+#
+# Read gate-denominator-gate.sh for the why. In one line: a gate that prints only what it FOUND
+# cannot be told apart from a gate whose matcher stopped matching, because both print the same
+# green. The fix is one counter and one line — `EXAMINED: <n> <label>` — emitted over the real tree
+# at the moment of the verdict, via gate_denominator() in gate-denominator.sh.
+#
+# TWO SECTIONS, and they mean different things.
+#
+#   NOT A GATE      — a helper, census, report generator, or manually-run tool. It renders no
+#                     pass/fail verdict, so there is no green for a zero denominator to forge.
+#                     These are permanent entries, not debt.
+#
+#   TRACKED DEBT    — a real gate that DOES render a verdict and does NOT yet say what it examined.
+#                     THIS SECTION IS A SHRINK TARGET. Migrating a gate deletes its line here.
+#
+# Adding a NEW gate to the debt section is an explicit, reviewed admission — the default expectation
+# for a new gate is that it reports its denominator on the day it lands.
+#
+# HOW TO MIGRATE ONE (about four lines):
+#   1. source the helper:  . "$(dirname "${BASH_SOURCE[0]}")/gate-denominator.sh"
+#   2. count the POPULATION the gate walks — NOT the findings. This is the step that goes wrong:
+#      where the good outcome is "0 findings", the finding count can never distinguish a clean tree
+#      from a scan that read nothing. Count the files/symbols/candidates examined. (Caught live
+#      during this file being written: a first attempt counted files-carrying-a-skip, which is zero
+#      on a healthy tree, and the gate refused its own passing self-test arms.)
+#   3. call gate_denominator "$count" "<label>" || return/exit 2   before the verdict
+#      (gate_denominator_may_be_empty ONLY where the population is a diff and zero is normal)
+#   4. delete the line below.
+#
+# Format: one basename per line. Blank lines and #-comments ignored.
+
+# --- NOT A GATE: helpers, censuses, report generators, manually-run tools ---------------------
+assert-binary-matches-source.sh
+build-lock.sh
+capture-container-logs.sh
+conformance-arm-census.sh
+cosmos-census.sh
+job-summary.sh
+premise-triage.sh
+run-filtered-tests.sh
+shipped-ddl-sweep.sh
+ci-sli-report.py
+conformance-arm-skip-census.py
+docs-csharp-extract.py
+flake-report.py
+generate-workflow-inventory.py
+p0-classify.py
+prepull-test-images.py
+receipt-without-work-census.py
+release-receipt.py
+
+# --- TRACKED DEBT: real gates that render a verdict without reporting their denominator --------
+# Ordered as the gate emits them, NOT by priority. If you are picking one, pick by how badly a
+# vacuous green would hurt — a whole-tree scanner whose population can silently drift beats a gate
+# whose subject is a single file it either finds or errors on.
+actionlint-gate.sh
+aot-acceptance-arms.sh
+assert-compiled-not-skipped.sh
+assert-tests-executed.sh
+committed-sha-build-gate.sh
+config-binder-completeness-gate.sh
+conformance-arm-skip-gate.sh
+conformance-backend-coverage-gate.sh
+conformance-fork-gate.sh
+cosmos-liveness-gate.sh
+cosmos-readiness-gate.sh
+coverage-shard-reports-complete.sh
+f5-sweep.sh
+full-ci-shard-completeness.sh
+gate-wiring.sh
+harness-gates-ci.sh
+ide0052-ratchet-gate.sh
+integration-serial-runner-gate.sh
+integration-shard-partition-gate.sh
+lockfile-drift-gate.sh
+npm-audit.sh
+orphan-test-project-gate.sh
+package-metadata-gate.sh
+pre-commit-dispatch-gate.sh
+real-infra-tenant-gate.sh
+receipt-without-work-gate.sh
+release-test-verdict-gate.sh
+shard-hang-timeout-gate.sh
+shipped-ddl-sweep-gate.sh
+spa-gate.sh
+sqlserver-ddl-hygiene.sh
+staged-snapshot-coherence.sh
+tracked-artifact-gate.sh
+workflow-hygiene-gate.sh
+wwmd-reinvention-smells.sh
+aot-annotation-inventory-gate.py
+aot-promise-coherence-gate.py
+assert-packages-signed.py
+changed-code-coverage.py
+config-binder-completeness-gate.py
+conformance-arm-wiring.py
+container-image-pinning-gate.py
+ddl-migration-completeness.py
+ddl-pack-completeness.py
+docs-csharp-member-gate.py
+policy-consistency-gate.py
+promotion-contract-gate.py
+required-contexts-satisfiable.py
+shard-coverage-gate.py
+wallclock-deadline-sweep.py

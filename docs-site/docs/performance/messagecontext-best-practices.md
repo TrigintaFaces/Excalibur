@@ -116,7 +116,7 @@ public async ValueTask<IMessageResult> InvokeAsync(
         return await nextDelegate(message, context, cancellationToken);
     }
 
-    return MessageResult.Empty;
+    return MessageResult.Failed("Validation failed");
 }
 ```
 

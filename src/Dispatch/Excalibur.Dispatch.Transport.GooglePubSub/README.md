@@ -10,7 +10,7 @@ This package provides Google Cloud Pub/Sub integration for Excalibur.Dispatch, e
 - **Exactly-Once Delivery**: Guaranteed delivery with deduplication
 - **Message Ordering**: Ordering keys for sequential processing
 - **Dead Letter Topics**: Automatic handling of failed messages
-- **CloudEvents Support**: Standards-compliant structured event formatting
+- **CloudEvents Support**: Standards-compliant structured event formatting. Registering the bundled mapper is annotated for trimming and ahead-of-time builds (it serializes payloads with reflection-based JSON); supply your own `ICloudEventMapper<TTransportMessage>` over a source-generated serializer to avoid the requirement.
 - **Cloud Monitoring**: Native Google Cloud observability integration
 - **Emulator Support**: Local development without GCP account
 
@@ -27,12 +27,11 @@ dotnet add package Excalibur.Dispatch.Transport.GooglePubSub
 #### Basic Configuration
 
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.ProjectId = "your-gcp-project-id";
-    options.Subscription.MaxMessages = 100;
-    options.Subscription.AckDeadline = TimeSpan.FromSeconds(30);
-});
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options => options.Subscriber.MaxPullMessages = 100));
 ```
 
 #### Environment Variables
@@ -40,27 +39,30 @@ services.Configure<GoogleProviderOptions>(options =>
 Configure via environment variables for containerized deployments:
 
 ```bash
-GOOGLE__PROJECTID=your-gcp-project-id
-GOOGLE__SUBSCRIPTION__MAXMESSAGES=100
+PUBSUB__CONNECTION__PROJECTID=your-gcp-project-id
+PUBSUB__CONNECTION__TOPICID=orders
+PUBSUB__CONNECTION__SUBSCRIPTIONID=orders-worker
+PUBSUB__SUBSCRIBER__MAXPULLMESSAGES=100
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ```
 
 ```csharp
-services.Configure<GoogleProviderOptions>(configuration.GetSection("Google"));
+services.AddGooglePubSubTransport("pubsub", configuration.GetSection("PubSub"));
 ```
 
 #### Local Development with Emulator
 
 Use the Pub/Sub emulator for local development without GCP credentials:
 
+The Google client libraries pick the emulator up from the `PUBSUB_EMULATOR_HOST` environment
+variable, so no framework-side switch is needed — point the variable at the emulator and configure
+the transport exactly as you would against the real service:
+
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.ProjectId = "test-project";
-    options.Emulator.UseEmulator = true;
-    options.Emulator.EmulatorHost = "localhost:8085";
-    options.ValidateOnStartup = false;  // Emulator may not support all validations
-});
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("test-project")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker"));
 ```
 
 Start the emulator:
@@ -89,20 +91,20 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 
 ```csharp
 // Application Default Credentials are used automatically
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.ProjectId = "your-gcp-project-id";
-});
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker"));
 ```
 
 #### Service Account Key File
 
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.ProjectId = "your-gcp-project-id";
-    // Credentials loaded from GOOGLE_APPLICATION_CREDENTIALS environment variable
-});
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker"));
+// Credentials are loaded from the GOOGLE_APPLICATION_CREDENTIALS environment variable
 ```
 
 #### Workload Identity (GKE)
@@ -128,196 +130,95 @@ Required IAM roles:
 #### Provider Settings
 
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    // Project configuration
-    options.ProjectId = "your-gcp-project-id";
-
-    // Emulator settings
-    options.Emulator.UseEmulator = false;
-    options.Emulator.EmulatorHost = "localhost:8085";
-
-    // Request handling
-    options.RequestTimeout = TimeSpan.FromSeconds(60);
-    options.ValidateOnStartup = true;
-
-    // Subscription / delivery
-    options.Subscription.MaxMessages = 100;
-    options.Subscription.AckDeadline = TimeSpan.FromSeconds(30);
-    options.Subscription.EnableExactlyOnceDelivery = false;
-    options.Subscription.EnableMessageOrdering = false;
-    options.Subscription.AutoCreateResources = true;
-
-    // Flow control
-    options.FlowControl = new FlowControlOptions
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options =>
     {
-        MaxOutstandingMessages = 1000,
-        MaxOutstandingBytes = 100_000_000,  // 100 MB
-        LimitExceededBehavior = true
-    };
+        // Pull behaviour
+        options.Subscriber.MaxPullMessages = 100;
+        options.Subscriber.MaxPayloadBytes = 10 * 1024 * 1024;
 
-    // Retry settings
-    options.PubSubRetryOptions = new PubSubRetryOptions
-    {
-        InitialRetryDelay = TimeSpan.FromMilliseconds(100),
-        RetryDelayMultiplier = 2.0,
-        MaxRetryDelay = TimeSpan.FromSeconds(60),
-        TotalTimeout = TimeSpan.FromMinutes(10)
-    };
-});
+        // Delivery guarantees. Both are verified against the subscription at start-up and fail
+        // loud when the subscription does not provide what was asked for.
+        options.Subscriber.EnableExactlyOnceDelivery = false;
+        options.Subscriber.EnableMessageOrdering = false;
+
+        // Streaming-pull flow control
+        options.Subscriber.FlowControl.MaxOutstandingElementCount = 1000;
+        options.Subscriber.FlowControl.MaxOutstandingByteCount = 100_000_000;  // 100 MB
+    }));
 ```
 
 #### CloudEvents Configuration
 
 ```csharp
-services.Configure<GooglePubSubCloudEventOptions>(options =>
-{
-    // Topic/Subscription settings
-    options.ProjectId = "your-gcp-project-id";
-    options.DefaultTopic = "cloud-events";
-    options.DefaultSubscription = "cloud-events-subscription";
-
-    // Message ordering
-    options.UseOrderingKeys = true;
-
-    // Message size (Pub/Sub supports up to 10MB)
-    options.MaxMessageSizeBytes = 10 * 1024 * 1024;
-
-    // Deduplication
-    options.EnableDeduplication = true;
-
-    // Compression
-    options.EnableCompression = false;
-    options.CompressionThreshold = 1024 * 1024;  // 1 MB
-
-    // Delivery semantics
-    options.UseExactlyOnceDelivery = false;
-    options.AckDeadline = TimeSpan.FromMinutes(10);
-
-    // Cloud Monitoring integration
-    options.EnableCloudMonitoring = true;
-    options.CloudMonitoringPrefix = "dispatch.cloudevents";
-
-    // Retry policy
-    options.RetryPolicy = new GooglePubSubRetryPolicy
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("cloud-events")
+    .SubscriptionId("cloud-events-subscription")
+    .ConfigureCloudEvents(options =>
     {
-        MaxRetryAttempts = 3,
-        InitialDelay = TimeSpan.FromMilliseconds(100),
-        MaxDelay = TimeSpan.FromSeconds(60),
-        DelayMultiplier = 2.0,
-        UseJitter = true
-    };
-});
+        // Message ordering
+        options.UseOrderingKeys = true;
+
+        // Compression
+        options.Transport.EnableCompression = false;
+        options.Transport.CompressionThreshold = 1024 * 1024;  // 1 MB
+    }));
 ```
 
 #### Dead Letter Queue Configuration
 
+Dead lettering is a property of the Pub/Sub subscription: the transport applies the policy at
+start-up so messages a handler rejects are moved by Pub/Sub itself after the delivery-attempt
+ceiling, rather than by a framework-side retry loop.
+
 ```csharp
-services.Configure<DeadLetterOptions>(options =>
-{
-    // DLQ topic
-    options.DeadLetterTopicName = TopicName.FromProjectTopic("your-project", "your-dlq-topic");
-
-    // Delivery attempts
-    options.DefaultMaxDeliveryAttempts = 5;
-
-    // Auto-creation
-    options.AutoCreateDeadLetterResources = true;
-
-    // Retention
-    options.DeadLetterRetentionDuration = TimeSpan.FromDays(7);
-
-    // Automatic retry from DLQ
-    options.EnableAutomaticRetry = false;
-    options.AutomaticRetryInterval = TimeSpan.FromHours(1);
-    options.AutomaticRetryBatchSize = 100;
-
-    // Monitoring
-    options.EnableMonitoring = true;
-    options.MonitoringInterval = TimeSpan.FromMinutes(5);
-
-    // Alerting thresholds
-    options.AlertThresholdMessageCount = 1000;
-    options.AlertThresholdMessageAge = TimeSpan.FromHours(24);
-
-    // Non-retryable errors
-    options.NonRetryableReasons = new HashSet<string>
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options =>
     {
-        "INVALID_MESSAGE_FORMAT",
-        "UNAUTHORIZED",
-        "MESSAGE_TOO_LARGE",
-        "UNSUPPORTED_OPERATION"
-    };
+        options.Subscriber.DeadLetter.Enable = true;
+        options.Subscriber.DeadLetter.TopicId = "orders-dlq";
 
-    // Message handling
-    options.PreserveMessageOrdering = false;
-    options.EnableCompression = true;
-});
+        // Apply the policy to the subscription at start-up rather than expecting it to
+        // already exist.
+        options.Subscriber.DeadLetter.AutoApplyPolicy = true;
+
+        // Delivery attempts before Pub/Sub moves the message to the dead-letter topic.
+        options.Subscriber.DeadLetter.MaxDeliveryAttempts = 5;
+    }));
 ```
+
+`EnableDeadLetter("orders-dlq")` on the builder is shorthand for the first two lines.
 
 ### Retry Policies
 
-```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.PubSubRetryOptions = new PubSubRetryOptions
-    {
-        InitialRetryDelay = TimeSpan.FromMilliseconds(100),   // Initial delay
-        RetryDelayMultiplier = 2.0,                           // Exponential backoff
-        MaxRetryDelay = TimeSpan.FromSeconds(60),             // Maximum delay
-        TotalTimeout = TimeSpan.FromMinutes(10)               // Total retry window
-    };
-});
-```
+Transient RPC retries are handled by the Google client library's own default retry settings; the
+transport does not layer a second retry policy over them. Delivery retries for a message a handler
+rejects are governed by the subscription's dead-letter policy — see
+[Dead Letter Queue Configuration](#dead-letter-queue-configuration).
 
 ## Health Checks
 
-### Registration
+The transport adapter implements `ITransportHealthChecker`. Register the transport-agnostic health
+check from `Excalibur.Dispatch`, which resolves every registered transport checker:
 
 ```csharp
 services.AddHealthChecks()
-    .AddCheck<GooglePubSubHealthCheck>("pubsub", tags: new[] { "ready", "messaging" });
+    .AddTransportHealthChecks(
+        name: "transports",
+        tags: new[] { "ready", "messaging" });
 ```
 
-### Configuration
+For finer control, `AddTransportHealthChecks` also accepts an options delegate or an
+`IConfiguration` section.
 
-```csharp
-services.Configure<GooglePubSubHealthCheckOptions>(options =>
-{
-    options.Timeout = TimeSpan.FromSeconds(10);
-    options.ProjectId = "your-gcp-project-id";
-});
-```
-
-### Custom Health Check Implementation
-
-```csharp
-public class GooglePubSubHealthCheck : IHealthCheck
-{
-    private readonly ITransportHealthChecker _healthChecker;
-
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var result = await _healthChecker.CheckQuickHealthAsync(cancellationToken);
-
-            return result.Status switch
-            {
-                TransportHealthStatus.Healthy => HealthCheckResult.Healthy("Pub/Sub reachable"),
-                TransportHealthStatus.Degraded => HealthCheckResult.Degraded(result.Description),
-                _ => HealthCheckResult.Unhealthy(result.Description)
-            };
-        }
-        catch (Exception ex)
-        {
-            return HealthCheckResult.Unhealthy("Pub/Sub unreachable", ex);
-        }
-    }
-}
-```
+You do not need to author a health check yourself.
 
 ## Production Considerations
 
@@ -331,15 +232,16 @@ public class GooglePubSubHealthCheck : IHealthCheck
 
 ```csharp
 // High-throughput configuration
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.Subscription.MaxMessages = 1000;
-    options.FlowControl = new FlowControlOptions
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options =>
     {
-        MaxOutstandingMessages = 10000,
-        MaxOutstandingBytes = 500_000_000  // 500 MB
-    };
-});
+        options.Subscriber.MaxPullMessages = 1000;
+        options.Subscriber.FlowControl.MaxOutstandingElementCount = 10_000;
+        options.Subscriber.FlowControl.MaxOutstandingByteCount = 500_000_000;  // 500 MB
+    }));
 ```
 
 #### Topic Scaling
@@ -353,52 +255,56 @@ services.Configure<GoogleProviderOptions>(options =>
 #### High-Throughput Publisher
 
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.Subscription.MaxMessages = 1000;
-    options.RequestTimeout = TimeSpan.FromSeconds(30);
-    options.FlowControl = new FlowControlOptions
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options =>
     {
-        MaxOutstandingMessages = 10000,
-        MaxOutstandingBytes = 500_000_000
-    };
-});
+        options.Subscriber.MaxPullMessages = 1000;
+        options.Subscriber.FlowControl.MaxOutstandingElementCount = 10_000;
+        options.Subscriber.FlowControl.MaxOutstandingByteCount = 500_000_000;
+    }));
+```
 
+```csharp
 services.Configure<GooglePubSubCloudEventOptions>(options =>
 {
-    options.EnableCompression = true;
-    options.CompressionThreshold = 10240;  // 10 KB
+    options.Transport.EnableCompression = true;
+    options.Transport.CompressionThreshold = 10240;  // 10 KB
 });
 ```
 
 #### Low-Latency Consumer
 
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.Subscription.MaxMessages = 10;  // Smaller batches
-    options.Subscription.AckDeadline = TimeSpan.FromSeconds(10);  // Shorter deadline
-    options.FlowControl = new FlowControlOptions
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options =>
     {
-        MaxOutstandingMessages = 100
-    };
-});
+        options.Subscriber.MaxPullMessages = 10;  // Smaller batches
+        options.Subscriber.FlowControl.MaxOutstandingElementCount = 100;
+    }));
 ```
 
 #### Exactly-Once Processing
 
 ```csharp
-services.Configure<GoogleProviderOptions>(options =>
-{
-    options.Subscription.EnableExactlyOnceDelivery = true;
-    options.Subscription.AckDeadline = TimeSpan.FromMinutes(10);  // Longer deadline for exactly-once
-});
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options => options.Subscriber.EnableExactlyOnceDelivery = true));
+```
 
-services.Configure<GooglePubSubCloudEventOptions>(options =>
-{
-    options.UseExactlyOnceDelivery = true;
-    options.EnableDeduplication = true;
-});
+```csharp
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .ConfigureOptions(options => options.Subscriber.EnableExactlyOnceDelivery = true));
 ```
 
 ### Monitoring and Alerting
@@ -563,98 +469,42 @@ Enable detailed logging for troubleshooting:
 ## Complete Configuration Reference
 
 ```csharp
-// Provider Options
-services.Configure<GoogleProviderOptions>(options =>
-{
-    // Project configuration
-    options.ProjectId = "your-gcp-project-id";
-
-    // Emulator settings
-    options.Emulator.UseEmulator = false;
-    options.Emulator.EmulatorHost = "localhost:8085";
-
-    // Request handling
-    options.RequestTimeout = TimeSpan.FromSeconds(60);
-    options.ValidateOnStartup = true;
-
-    // Subscription / delivery
-    options.Subscription.MaxMessages = 100;
-    options.Subscription.AckDeadline = TimeSpan.FromSeconds(30);
-    options.Subscription.EnableExactlyOnceDelivery = false;
-    options.Subscription.EnableMessageOrdering = false;
-    options.Subscription.AutoCreateResources = true;
-
-    // Flow control
-    options.FlowControl = new FlowControlOptions
+services.AddGooglePubSubTransport("pubsub", transport => transport
+    .ProjectId("your-gcp-project-id")
+    .TopicId("orders")
+    .SubscriptionId("orders-worker")
+    .MapTopic<OrderPlaced>("orders")
+    .EnableDeadLetter("orders-dlq")
+    .ConfigureOptions(options =>
     {
-        MaxOutstandingMessages = 1000,
-        MaxOutstandingBytes = 100_000_000,
-        LimitExceededBehavior = true
-    };
+        // Pull behaviour
+        options.Subscriber.MaxPullMessages = 100;
+        options.Subscriber.MaxPayloadBytes = 10 * 1024 * 1024;
 
-    // Retry settings
-    options.PubSubRetryOptions = new PubSubRetryOptions
+        // Delivery guarantees, verified against the subscription at start-up
+        options.Subscriber.EnableExactlyOnceDelivery = false;
+        options.Subscriber.EnableMessageOrdering = false;
+
+        // Streaming-pull flow control
+        options.Subscriber.FlowControl.MaxOutstandingElementCount = 1000;
+        options.Subscriber.FlowControl.MaxOutstandingByteCount = 100_000_000;
+
+        // Dead letter
+        options.Subscriber.DeadLetter.Enable = true;
+        options.Subscriber.DeadLetter.TopicId = "orders-dlq";
+        options.Subscriber.DeadLetter.AutoApplyPolicy = true;
+        options.Subscriber.DeadLetter.MaxDeliveryAttempts = 5;
+
+        // Telemetry
+        options.Telemetry.EnableOpenTelemetry = true;
+        options.Telemetry.ExportToCloudMonitoring = false;
+    })
+    .ConfigureCloudEvents(options =>
     {
-        InitialRetryDelay = TimeSpan.FromMilliseconds(100),
-        RetryDelayMultiplier = 2.0,
-        MaxRetryDelay = TimeSpan.FromSeconds(60),
-        TotalTimeout = TimeSpan.FromMinutes(10)
-    };
-});
-
-// CloudEvents Options
-services.Configure<GooglePubSubCloudEventOptions>(options =>
-{
-    // Topic/Subscription
-    options.ProjectId = "your-gcp-project-id";
-    options.DefaultTopic = "cloud-events";
-    options.DefaultSubscription = "cloud-events-subscription";
-
-    // Message handling
-    options.UseOrderingKeys = true;
-    options.MaxMessageSizeBytes = 10 * 1024 * 1024;
-    options.EnableDeduplication = true;
-
-    // Compression
-    options.EnableCompression = false;
-    options.CompressionThreshold = 1024 * 1024;
-
-    // Delivery
-    options.UseExactlyOnceDelivery = false;
-    options.AckDeadline = TimeSpan.FromMinutes(10);
-
-    // Monitoring
-    options.EnableCloudMonitoring = true;
-    options.CloudMonitoringPrefix = "dispatch.cloudevents";
-
-    // Retry
-    options.RetryPolicy = new GooglePubSubRetryPolicy
-    {
-        MaxRetryAttempts = 3,
-        InitialDelay = TimeSpan.FromMilliseconds(100),
-        MaxDelay = TimeSpan.FromSeconds(60),
-        DelayMultiplier = 2.0,
-        UseJitter = true
-    };
-});
-
-// Dead Letter Options
-services.Configure<DeadLetterOptions>(options =>
-{
-    options.DeadLetterTopicName = TopicName.FromProjectTopic("your-project", "your-dlq-topic");
-    options.DefaultMaxDeliveryAttempts = 5;
-    options.AutoCreateDeadLetterResources = true;
-    options.DeadLetterRetentionDuration = TimeSpan.FromDays(7);
-    options.EnableAutomaticRetry = false;
-    options.AutomaticRetryInterval = TimeSpan.FromHours(1);
-    options.AutomaticRetryBatchSize = 100;
-    options.EnableMonitoring = true;
-    options.MonitoringInterval = TimeSpan.FromMinutes(5);
-    options.AlertThresholdMessageCount = 1000;
-    options.AlertThresholdMessageAge = TimeSpan.FromHours(24);
-    options.PreserveMessageOrdering = false;
-    options.EnableCompression = true;
-});
+        options.UseOrderingKeys = true;
+        options.Transport.EnableCompression = false;
+        options.Transport.CompressionThreshold = 1024 * 1024;
+    }));
 ```
 
 ## See Also

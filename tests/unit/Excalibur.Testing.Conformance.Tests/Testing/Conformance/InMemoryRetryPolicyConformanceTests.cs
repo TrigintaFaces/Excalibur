@@ -76,4 +76,7 @@ public sealed class InMemoryRetryPolicyConformanceTests : RetryPolicyConformance
 
 		public bool ShouldRetry(Exception exception) => exception is InvalidOperationException;
 	}
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

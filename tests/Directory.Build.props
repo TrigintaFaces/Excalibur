@@ -39,7 +39,17 @@
     <!-- CA1849: Synchronous blocking detected (some test setups require it) -->
     <!-- CA1854: Prefer TryGetValue over ContainsKey (readability in tests) -->
     <!-- CA1860: Prefer IsEmpty check rather than Any() (test clarity) -->
-    <!-- CA1812: Internal class never instantiated (test middleware/helpers) -->
+    <!-- CA1812: Internal class never instantiated (test middleware/helpers). Measured: 608 hits in this tree,
+         dominated by handler/middleware doubles the dispatcher instantiates by reflection — the analyzer's known
+         blind spot, not dead code. See the CA1812 note in src/Directory.Build.props for the src-side census. -->
+    <!-- CA1823: Unused private field. SUPPRESSION REMOVED. EnforceCodeStyleInBuild is false below, so IDE0052
+             does not run here at all — this list was the only thing standing between the test tree and the
+             unused-field detector, which is why it was described as the load-bearing one.
+             It recorded 30 hits. THAT NUMBER WAS STALE: a whole-solution re-measurement (100 test projects, CA1823
+             forced to warning so the build completed rather than stopping, exit 0, zero build errors) found ZERO in
+             this tree and one in src. Before accepting that zero, an unused private field was planted in a test
+             project and did fire CA1823 — a subtree that never compiled reports the same clean zero as a clean one,
+             and this tree was the one the old figure put 30 of the hits in. -->
     <!-- CA5394: Random is insecure (acceptable in test data generation) -->
     <!-- CA1506: Class coupling too high (integration tests expected) -->
     <!-- CA2000: Dispose objects (test setup/teardown handles lifecycle) -->
@@ -57,7 +67,7 @@
     <!-- CS9113: Parameter is unread (test helper classes use primary constructors for consistency) -->
     <!-- CS8625: Cannot convert null literal to non-nullable (tests intentionally test null scenarios) -->
     <!-- NU1510: net10 SDK package-pruning hint (informational; per-package cleanup tracked by S797 Workstream B) -->
-    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;CA1816;xUnit1030;xUnit1051;MA0020;MA0044;NU1504;CS8602;CS8604;CS8625;CS9113;CA1711;CA1823;CA1852;CA1859;NU1510</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;CA1816;xUnit1030;xUnit1051;MA0020;MA0044;NU1504;CS8602;CS8604;CS8625;CS9113;CA1711;CA1852;CA1859;NU1510</NoWarn>
 
     <!-- Allow test-friendly code style -->
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>

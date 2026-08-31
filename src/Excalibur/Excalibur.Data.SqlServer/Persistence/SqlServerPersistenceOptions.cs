@@ -16,8 +16,17 @@ namespace Excalibur.Data.SqlServer.Persistence;
 /// for connection, security, resiliency, pooling, and observability settings.
 /// Follows the Microsoft <c>KestrelServerOptions</c> pattern of grouped sub-option classes.
 /// </remarks>
-public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersistenceResilienceOptions, IPersistencePoolingOptions, IPersistenceObservabilityOptions
+public sealed class SqlServerPersistenceOptions : IPersistenceOptions
 {
+	/// <summary>
+	/// Gets or sets the provider name. This is the consumer-configured instance name, reported as
+	/// <c>Name</c> on the provider and in its metrics. It identifies <i>which configured instance</i>
+	/// answered, and is distinct from the engine identity reported under the <c>Provider</c> metrics
+	/// key, which is a fixed literal. When unset it defaults to <c>"sqlserver"</c>.
+	/// </summary>
+	/// <value>The provider name, or <see langword="null"/> to use the default.</value>
+	public string? Name { get; set; }
+
 	/// <inheritdoc />
 	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
@@ -64,7 +73,7 @@ public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersiste
 
 	// Explicit interface implementations delegating to sub-options.
 	// These maintain backward compatibility with IPersistenceOptions consumers
-	// (e.g., PersistenceConfiguration) while keeping the root class <=10 properties.
+	// while keeping the root class <=10 properties.
 
 	/// <inheritdoc />
 	int IPersistenceOptions.ConnectionTimeout
@@ -78,55 +87,6 @@ public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersiste
 	{
 		get => CommandTimeout;
 		set => CommandTimeout = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistenceResilienceOptions.MaxRetryAttempts
-	{
-		get => Resiliency.MaxRetryAttempts;
-		set => Resiliency.MaxRetryAttempts = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistenceResilienceOptions.RetryDelayMilliseconds
-	{
-		get => Resiliency.RetryDelayMilliseconds;
-		set => Resiliency.RetryDelayMilliseconds = value;
-	}
-
-	/// <inheritdoc />
-	bool IPersistencePoolingOptions.EnableConnectionPooling
-	{
-		get => Pooling.EnableConnectionPooling;
-		set => Pooling.EnableConnectionPooling = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistencePoolingOptions.MaxPoolSize
-	{
-		get => Pooling.MaxPoolSize;
-		set => Pooling.MaxPoolSize = value;
-	}
-
-	/// <inheritdoc />
-	int IPersistencePoolingOptions.MinPoolSize
-	{
-		get => Pooling.MinPoolSize;
-		set => Pooling.MinPoolSize = value;
-	}
-
-	/// <inheritdoc />
-	bool IPersistenceObservabilityOptions.EnableDetailedLogging
-	{
-		get => Observability.EnableDetailedLogging;
-		set => Observability.EnableDetailedLogging = value;
-	}
-
-	/// <inheritdoc />
-	bool IPersistenceObservabilityOptions.EnableMetrics
-	{
-		get => Observability.EnableMetrics;
-		set => Observability.EnableMetrics = value;
 	}
 
 	/// <inheritdoc />
@@ -331,13 +291,6 @@ public sealed class SqlServerResiliencyOptions
 	/// <value>The delay between command retry attempts in milliseconds. Defaults to 1000.</value>
 	[Range(0, 60000)]
 	public int RetryDelayMilliseconds { get; set; } = 1000;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable connection resiliency.
-	/// </summary>
-	/// <value><see langword="true"/> if connection resiliency is enabled; otherwise, <c>false</c>.</value>
-	public bool EnableConnectionResiliency { get; set; } = true;
-
 	/// <summary>
 	/// Gets or sets the connect retry count for connection resiliency.
 	/// </summary>

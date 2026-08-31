@@ -83,6 +83,10 @@ var rabbitConnectionString = builder.Configuration["RabbitMq:ConnectionString"]
 builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
 	_ = rmq.ConnectionString(rabbitConnectionString)
+		// This sample talks to the plaintext broker from its docker-compose file, so it opts out of
+		// the transport's secure-by-default posture explicitly. A deployment against a real broker
+		// uses an 'amqps://' connection string and leaves this off.
+		.RequireTls(false)
 		.ConfigureExchange(exchange =>
 		{
 			_ = exchange.Name("dispatch.multibus")
@@ -104,6 +108,12 @@ var kafkaBootstrapServers = builder.Configuration["Kafka:BootstrapServers"]
 builder.Services.AddKafkaTransport("kafka", kafka =>
 {
 	_ = kafka.BootstrapServers(kafkaBootstrapServers)
+		// This sample talks to a local broker with no TLS listener, so it turns the requirement off
+		// explicitly. Against a real cluster, delete this line and set the protocol instead:
+		//     .UseSecurityProtocol(SecurityProtocol.SaslSsl)
+		// Leaving it on is the default: the transport refuses to build a client that would carry
+		// credentials and payloads in the clear.
+		.RequireTls(false)
 		.ConfigureProducer(producer =>
 		{
 			_ = producer.ClientId("dispatch-multibus-producer")

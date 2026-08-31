@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
@@ -38,14 +38,22 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
 		services.AddDefaultTenantContext();
-		services.TryAddKeyedSingleton<IEventStore>("oracle", (sp, _) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably, so the
+		// attestation cannot exist without the wiring it describes. A bare keyed registration here wired a
+		// store that honors the ambient tenant while attesting nothing, so RowDiscriminator refused every
+		// Oracle host — a gate rejecting a correct host, not a leak.
+		_ = services.AddTenantAwareStore<IEventStore, OracleEventStore>(sp =>
 			new OracleEventStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<OracleEventStore>>(),
-				sp.GetService<IPayloadSerializer>(),
-				schema,
-				table,
-				sp.GetService<ITenantContext>()));
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				payloadSerializer: sp.GetService<IPayloadSerializer>(),
+				schema: schema,
+				table: table,
+				eventTypeInfoResolver: sp.GetService<IOptions<OracleEventStoreOptions>>()?.Value.EventTypeInfoResolver));
+		services.TryAddKeyedSingleton<IEventStore>("oracle", (sp, _) =>
+			sp.GetRequiredService<OracleEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("oracle"));
 
@@ -75,7 +83,12 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		_ = services.AddOptions<OracleEventStoreOptions>().ValidateOnStart();
 
 		services.AddDefaultTenantContext();
-		services.TryAddKeyedSingleton<IEventStore>("oracle", (sp, _) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably, so the
+		// attestation cannot exist without the wiring it describes. A bare keyed registration here wired a
+		// store that honors the ambient tenant while attesting nothing, so RowDiscriminator refused every
+		// Oracle host — a gate rejecting a correct host, not a leak.
+		_ = services.AddTenantAwareStore<IEventStore, OracleEventStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OracleEventStoreOptions>>().Value;
 			var connectionString = options.ConnectionString
@@ -84,11 +97,14 @@ public static class OracleEventSourcingServiceCollectionExtensions
 			return new OracleEventStore(
 				() => new OracleConnection(connectionString),
 				sp.GetRequiredService<ILogger<OracleEventStore>>(),
-				sp.GetService<IPayloadSerializer>(),
-				options.Schema,
-				options.Table,
-				sp.GetService<ITenantContext>());
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				payloadSerializer: sp.GetService<IPayloadSerializer>(),
+				schema: options.Schema,
+				table: options.Table,
+				eventTypeInfoResolver: options.EventTypeInfoResolver);
 		});
+		services.TryAddKeyedSingleton<IEventStore>("oracle", (sp, _) =>
+			sp.GetRequiredService<OracleEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("oracle"));
 
@@ -113,17 +129,30 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		string schema = "EXCALIBUR",
 		string table = "EVENTSTORESNAPSHOTS")
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
 		// Keyed registration mirroring the sibling IEventStore so the core's keyed-"default" consumers
 		// (GDPR snapshot erasure resolves ISnapshotStore via GetKeyedService("default")) participate on Oracle.
-		services.TryAddKeyedSingleton<ISnapshotStore>("oracle", (sp, _) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably, so the
+		// attestation cannot exist without the wiring it describes. A bare keyed registration here wired a
+		// store that honors the ambient tenant while attesting nothing, so RowDiscriminator refused every
+		// Oracle host — a gate rejecting a correct host, not a leak.
+		_ = services.AddTenantAwareStore<ISnapshotStore, OracleSnapshotStore>(sp =>
 			new OracleSnapshotStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<OracleSnapshotStore>>(),
-				schema,
-				table));
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				schema: schema,
+				table: table));
+		services.TryAddKeyedSingleton<ISnapshotStore>("oracle", (sp, _) =>
+			sp.GetRequiredService<OracleSnapshotStore>());
 		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("oracle"));
 
@@ -140,6 +169,11 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		this IServiceCollection services,
 		Action<OracleSnapshotStoreOptions> configure)
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
@@ -150,7 +184,12 @@ public static class OracleEventSourcingServiceCollectionExtensions
 
 		// Keyed registration mirroring the sibling IEventStore so the core's keyed-"default" consumers
 		// (GDPR snapshot erasure resolves ISnapshotStore via GetKeyedService("default")) participate on Oracle.
-		services.TryAddKeyedSingleton<ISnapshotStore>("oracle", (sp, _) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably, so the
+		// attestation cannot exist without the wiring it describes. A bare keyed registration here wired a
+		// store that honors the ambient tenant while attesting nothing, so RowDiscriminator refused every
+		// Oracle host — a gate rejecting a correct host, not a leak.
+		_ = services.AddTenantAwareStore<ISnapshotStore, OracleSnapshotStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OracleSnapshotStoreOptions>>().Value;
 			var connectionString = options.ConnectionString
@@ -159,9 +198,12 @@ public static class OracleEventSourcingServiceCollectionExtensions
 			return new OracleSnapshotStore(
 				() => new OracleConnection(connectionString),
 				sp.GetRequiredService<ILogger<OracleSnapshotStore>>(),
-				options.Schema,
-				options.Table);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				schema: options.Schema,
+				table: options.Table);
 		});
+		services.TryAddKeyedSingleton<ISnapshotStore>("oracle", (sp, _) =>
+			sp.GetRequiredService<OracleSnapshotStore>());
 		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("oracle"));
 

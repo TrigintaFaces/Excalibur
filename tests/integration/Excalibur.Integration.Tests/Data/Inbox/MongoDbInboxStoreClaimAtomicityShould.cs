@@ -47,7 +47,7 @@ public sealed class MongoDbInboxStoreClaimAtomicityShould : IClassFixture<MongoD
 			ConnectionString = _fixture.ConnectionString,
 			DatabaseName = _fixture.DatabaseName,
 		});
-		var store = new MongoDbInboxStore(options, NullLogger<MongoDbInboxStore>.Instance);
+		var store = new MongoDbInboxStore(options, NullLogger<MongoDbInboxStore>.Instance, SingleTenantTestContext.Instance);
 
 		const string messageId = "msg-claim-atomicity";
 		const string handlerType = "TestHandler";

@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Defines the complexity levels for operations, affecting timeout calculations. R7.4: Complexity-based timeout scaling.
+/// Defines the complexity levels for operations, affecting timeout calculations. Complexity-based timeout scaling.
 /// </summary>
 public enum OperationComplexity
 {

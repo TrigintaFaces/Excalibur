@@ -26,6 +26,9 @@
 #   2 REFUSE   no fixtures could be found, so NOTHING was measured (an empty oracle passes vacuously)
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCAN_ROOT="${COSMOS_FIXTURE_SCAN_ROOT:-$REPO/tests/integration}"
 
@@ -136,5 +139,8 @@ if [ -n "$DRIFTED" ]; then
   exit 1
 fi
 
+# The denominator, in the standard machine-readable form: what was EXAMINED, not only what was
+# FOUND. The zero case already REFUSEs above; this states the earned denominator out loud.
+gate_denominator "$N" "Cosmos fixture(s)" || exit 2
 echo "PASS: all $N Cosmos fixtures use the ruled client pattern"
 exit 0

@@ -30,7 +30,8 @@ namespace Excalibur.Inbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "Oracle")]
-public sealed class OracleInboxStoreConformanceShould : InboxStoreConformanceTestBase, IClassFixture<OracleInboxStoreContainerFixture>
+[Collection(OracleInboxTestCollection.CollectionName)]
+public sealed class OracleInboxStoreConformanceShould : InboxStoreConformanceTestBase
 {
 	private readonly OracleInboxStoreContainerFixture _fixture;
 
@@ -58,7 +59,7 @@ public sealed class OracleInboxStoreConformanceShould : InboxStoreConformanceTes
 			TableName = _fixture.TableName
 		});
 
-		return new OracleInboxStore(options, NullLogger<OracleInboxStore>.Instance);
+		return new OracleInboxStore(options, NullLogger<OracleInboxStore>.Instance, tenantContext: new TestTenantContext(), tenantContextOptions: Options.Create(new TenantContextOptions()));
 	}
 
 	/// <inheritdoc/>

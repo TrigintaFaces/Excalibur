@@ -405,7 +405,7 @@ public sealed class TestMessageContext : IMessageContext
 
 Use it when your handler reads context items set by middleware:
 
-```csharp
+```csharp ignore
 [Fact]
 public async Task Use_tenant_from_context()
 {
@@ -529,7 +529,7 @@ public async Task Reject_invalid_action_before_handler_runs()
 
 If you write your own middleware, test that it correctly calls `next` (or doesn't) and that it modifies context or results as expected.
 
-```csharp
+```csharp ignore
 public class CorrelationIdMiddleware : IDispatchMiddleware
 {
     public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Start;

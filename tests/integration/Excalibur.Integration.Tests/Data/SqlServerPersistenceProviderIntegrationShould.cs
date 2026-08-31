@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-using Excalibur.Data.SqlServer;
+using Excalibur.Data.Persistence;
+using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using PersistenceOptions = Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions;
+using Provider = Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider;
 
 namespace Excalibur.Integration.Tests.Data;
 
@@ -32,8 +34,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public async Task ConnectSuccessfullyToSqlServerInstance()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act - Initialize the provider first (sets _initialized = true)
 		// InitializeAsync requires IPersistenceOptions - create one with connection string
@@ -55,8 +57,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public async Task TestConnectionReturnsTrue_WhenConnected()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act
 		var result = await provider.TestConnectionAsync(CancellationToken.None);
@@ -70,20 +72,20 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	{
 		// Arrange
 		var connectionString = _fixture.ConnectionString;
-		var options = CreateOptions(connectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(connectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act & Assert
 		provider.ConnectionString.ShouldNotBeNullOrEmpty();
-		provider.Name.ShouldBe("sqlserver-test");
+		provider.Name.ShouldBe("primary");
 	}
 
 	[Fact]
 	public void ReportProviderProperties()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act & Assert
 		provider.SupportsBulkOperations.ShouldBeTrue();
@@ -98,8 +100,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public void CreateConnection()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act
 		using var connection = provider.CreateConnection();
@@ -115,8 +117,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public async Task CreateConnectionAsync()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act
 		using var connection = await provider.CreateConnectionAsync(CancellationToken.None);
@@ -129,8 +131,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public void CreateTransactionScope()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act
 		using var scope = provider.CreateTransactionScope();
@@ -147,8 +149,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public async Task GetMetricsReturnsValidData()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Initialize provider first with SqlServerPersistenceOptions
 		var persistenceOptions = new PersistenceOptions
@@ -164,49 +166,16 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 		// Assert
 		_ = metrics.ShouldNotBeNull();
 		metrics["Provider"].ShouldBe("SqlServer");
-		metrics["Name"].ShouldBe("sqlserver-test");
+		metrics["Name"].ShouldBe("primary");
 		metrics["IsAvailable"].ShouldBe(true);
-	}
-
-	[Fact]
-	public async Task GetConnectionPoolStatsReturnsValidData()
-	{
-		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
-
-		// Initialize provider first with SqlServerPersistenceOptions
-		var persistenceOptions = new PersistenceOptions
-		{
-			ConnectionString = _fixture.ConnectionString,
-			Security = { TrustServerCertificate = true }
-		};
-		await provider.InitializeAsync(persistenceOptions, CancellationToken.None);
-
-		// Force a connection to populate pool stats
-		using (var connection = provider.CreateConnection())
-		{
-			connection.Open();
-		}
-
-		// Act
-		var stats = await provider.GetConnectionPoolStatsAsync(CancellationToken.None);
-
-		// Assert - stats may be null if pool statistics are not available
-		// The provider returns null on exception, which is valid behavior
-		if (stats != null)
-		{
-			stats.ContainsKey("MaxPoolSize").ShouldBeTrue();
-			stats.ContainsKey("MinPoolSize").ShouldBeTrue();
-		}
 	}
 
 	[Fact]
 	public async Task GetDatabaseStatisticsReturnsValidData()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		using var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Initialize provider first with SqlServerPersistenceOptions
 		var persistenceOptions = new PersistenceOptions
@@ -232,8 +201,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public void ReportUnavailableAfterDispose()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act
 		provider.Dispose();
@@ -246,8 +215,8 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 	public async Task DisposeAsync()
 	{
 		// Arrange
-		var options = CreateOptions(_fixture.ConnectionString);
-		var provider = new SqlServerPersistenceProvider(options, NullLogger<SqlServerPersistenceProvider>.Instance);
+		using var services = CreateServices(_fixture.ConnectionString);
+		var provider = (Provider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Act
 		await provider.DisposeAsync();
@@ -260,25 +229,27 @@ public sealed class SqlServerPersistenceProviderIntegrationShould
 
 	#region Helper Methods
 
-	private static IOptions<SqlServerProviderOptions> CreateOptions(string connectionString)
+	private static ServiceProvider CreateServices(string connectionString)
 	{
-		return Options.Create(new SqlServerProviderOptions
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
 		{
-			Connection =
-			{
-				ConnectionString = connectionString,
-				ConnectTimeout = 15,
-				TrustServerCertificate = true,
-			},
-			Name = "sqlserver-test",
-			CommandTimeout = 30,
-			Pooling =
-			{
-				MaxPoolSize = 10,
-				MinPoolSize = 1,
-				EnablePooling = true,
-			},
-			RetryCount = 3
+			options.Name = "primary";
+			options.ConnectionString = connectionString;
+			options.CommandTimeout = 30;
+			options.Connection.ConnectionTimeout = 15;
+			options.Security.TrustServerCertificate = true;
+			options.Pooling.EnableConnectionPooling = true;
+			options.Pooling.MinPoolSize = 1;
+			options.Pooling.MaxPoolSize = 10;
+			options.Resiliency.MaxRetryAttempts = 3;
+		});
+
+		return services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = false,
+			ValidateScopes = true,
 		});
 	}
 

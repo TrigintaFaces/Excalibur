@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Grpc.Core;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -8,6 +9,7 @@ using System.Text.Json;
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.Firestore;
 using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
 
 using Google.Api.Gax;
@@ -21,7 +23,7 @@ namespace Excalibur.Outbox.Firestore;
 /// <summary>
 /// Google Cloud Firestore implementation of the cloud-native outbox store.
 /// </summary>
-public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, IAsyncDisposable
+public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, ICloudNativeOutboxStoreClaim, IAsyncDisposable, ITenantPartitionedStore
 {
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -225,9 +227,14 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 		var result = WriteStoreTelemetry.Results.Success;
 		try
 		{
+			// OrderBy("createdAt") is load-bearing, not cosmetic: with no explicit order Firestore
+			// returns documents in an unspecified order (in practice, roughly by document ID), which is
+			// not FIFO. createdAt is stored as a fixed-offset ISO-8601 string (message.CreatedAt.ToString
+			// ("o") on a UTC DateTimeOffset), so lexicographic string ordering is chronological ordering.
 			var query = _collection!
 				.WhereEqualTo("partitionKey", partitionKey.Value)
 				.WhereEqualTo("isPublished", false)
+				.OrderBy("createdAt")
 				.Limit(batchSize);
 
 			var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -265,6 +272,159 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 				stopwatch.Elapsed);
 		}
 	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// The atomic step is a Firestore transaction. The read of the document and the write of its lease are
+	/// committed together, and Firestore aborts and re-runs the transaction if the document changed
+	/// underneath it, so of two claimants transacting on the same document exactly one commits a lease.
+	/// </para>
+	/// <para>
+	/// The query that precedes it only nominates candidates and excludes nobody. Note that the transaction
+	/// body can run more than once: every decision it makes is taken from the snapshot read inside that
+	/// attempt, and the value it yields is produced by that attempt. Nothing is carried between attempts, so
+	/// a re-run cannot report a claim an earlier attempt made and then lost.
+	/// </para>
+	/// </remarks>
+	public async Task<CloudQueryResult<CloudOutboxMessage>> ClaimPendingAsync(
+		IPartitionKey partitionKey,
+		int batchSize,
+		string claimantId,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(partitionKey);
+		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+		ArgumentException.ThrowIfNullOrWhiteSpace(claimantId);
+		EnsureInitialized();
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+		var leaseCutoff = DateTimeOffset.UtcNow.AddSeconds(-_options.LeaseTimeoutSeconds)
+			.ToString("o", CultureInfo.InvariantCulture);
+
+		try
+		{
+			// Candidates only. Firestore cannot express "no lease field OR an expired one" as a single
+			// query — an inequality on leasedAt would silently drop every document that has never been
+			// claimed — so eligibility is decided inside the transaction, where it is decided atomically
+			// anyway. OrderBy("createdAt") so a claim call hands out its own batch in creation order, same
+			// as GetPendingAsync and closing the gap ICloudNativeOutboxStoreClaim left undocumented.
+			var query = _collection!
+				.WhereEqualTo("partitionKey", partitionKey.Value)
+				.WhereEqualTo("isPublished", false)
+				.OrderBy("createdAt")
+				.Limit(batchSize);
+
+			var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+			var claimed = new List<CloudOutboxMessage>(snapshot.Documents.Count);
+
+			foreach (var candidate in snapshot.Documents)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				var message = await TryClaimOneAsync(candidate.Id, claimantId, leaseCutoff, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (message is not null)
+				{
+					claimed.Add(message);
+				}
+			}
+
+			LogOperationCompleted("ClaimPending");
+
+			return new CloudQueryResult<CloudOutboxMessage>(claimed, claimed.Count);
+		}
+		catch (Exception ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			using var scope = WriteStoreTelemetry.BeginLogScope(
+				_logger,
+				WriteStoreTelemetry.Stores.OutboxStore,
+				WriteStoreTelemetry.Providers.Firestore,
+				"claim_pending");
+			LogOperationFailed("ClaimPending", ex.Message, ex);
+			throw;
+		}
+		finally
+		{
+			WriteStoreTelemetry.RecordOperation(
+				WriteStoreTelemetry.Stores.OutboxStore,
+				WriteStoreTelemetry.Providers.Firestore,
+				"claim_pending",
+				result,
+				stopwatch.Elapsed);
+		}
+	}
+
+	/// <summary>
+	/// Attempts to win one document inside a transaction, stamping the lease.
+	/// </summary>
+	/// <param name="messageId">The document to claim.</param>
+	/// <param name="claimantId">The claimant to record as the lease owner.</param>
+	/// <param name="leaseCutoff">The instant before which an existing lease has expired.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The claimed message when this claimant won, otherwise <see langword="null"/>.</returns>
+	private async Task<CloudOutboxMessage?> TryClaimOneAsync(
+		string messageId,
+		string claimantId,
+		string leaseCutoff,
+		CancellationToken cancellationToken)
+	{
+		var docRef = _collection!.Document(messageId);
+
+		return await _db!.RunTransactionAsync(
+			async transaction =>
+			{
+				// Every local below is declared inside the attempt, so a re-run starts from the document as
+				// it is NOW rather than from anything the previous attempt observed or decided.
+				var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
+
+				if (!snapshot.Exists)
+				{
+					return null;
+				}
+
+				var isPublished = snapshot.ContainsField("isPublished") && snapshot.GetValue<bool>("isPublished");
+				var leasedAt = snapshot.ContainsField("leasedAt") ? snapshot.GetValue<string?>("leasedAt") : null;
+
+				if (isPublished || !IsLeaseClaimable(leasedAt, leaseCutoff))
+				{
+					return null;
+				}
+
+				// The stamp is taken HERE, immediately before the write that establishes the lease, and not at the
+				// start of the drain. A batch-start instant would hand the last message of an N-message batch a
+				// lease that has already burned the query round-trip plus N-1 conditional writes, so its protective
+				// interval would shrink as the batch grows -- and the lease is the only thing standing between a
+				// slow drain and a second dispatcher publishing the same message. The eligibility cutoff is
+				// deliberately NOT re-anchored: it stays at the batch-start value, because an older cutoff is the
+				// conservative direction (it judges fewer leases expired) and so cannot admit a live lease.
+				var nowText = DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+
+				transaction.Update(
+					docRef,
+					new Dictionary<string, object> { ["leasedAt"] = nowText, ["leasedBy"] = claimantId });
+
+				return FromFirestoreDocument(snapshot) with
+				{
+					LeasedAt = DateTimeOffset.Parse(nowText, CultureInfo.InvariantCulture),
+					LeasedBy = claimantId
+				};
+			},
+			cancellationToken: cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Decides whether a stored lease instant leaves the message claimable, given the cutoff before which a
+	/// lease has expired.
+	/// </summary>
+	/// <param name="leasedAt">The stored lease instant, or <see langword="null"/> / empty when unclaimed.</param>
+	/// <param name="leaseCutoff">The round-trip-formatted instant before which a lease has expired.</param>
+	/// <returns><see langword="true"/> when the message may be claimed.</returns>
+	private static bool IsLeaseClaimable(string? leasedAt, string leaseCutoff) =>
+		string.IsNullOrEmpty(leasedAt) || string.CompareOrdinal(leasedAt, leaseCutoff) < 0;
 
 	/// <inheritdoc/>
 	public async Task<CloudOperationResult> MarkAsPublishedAsync(
@@ -597,9 +757,9 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 
 		if (message.Headers != null)
 		{
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 			doc["headers"] = JsonSerializer.Serialize(message.Headers, JsonOptions);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 		}
 
 		if (!string.IsNullOrEmpty(message.AggregateId))
@@ -622,10 +782,10 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 			doc["causationId"] = message.CausationId;
 		}
 
-		if (!string.IsNullOrEmpty(message.TenantId))
-		{
-			doc["tenantId"] = message.TenantId;
-		}
+		// Always emit the tenant field, folded through the single total conversion. An untenanted
+		// message binds the reserved sentinel rather than omitting the field, converging on the same
+		// representation the SQL providers and Redis outbox use for "no tenant".
+		doc["tenantId"] = KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId;
 
 		if (!string.IsNullOrEmpty(message.Destination))
 		{
@@ -652,16 +812,20 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 			MessageId = doc.GetValue<string>("messageId"),
 			MessageType = doc.GetValue<string>("messageType"),
 			Payload = Convert.FromBase64String(doc.GetValue<string>("payload")),
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 			Headers = doc.ContainsField("headers") && doc.GetValue<string?>("headers") != null
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.GetValue<string>("headers"), JsonOptions)
 				: null,
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			AggregateId = doc.ContainsField("aggregateId") ? doc.GetValue<string?>("aggregateId") : null,
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,
 			CausationId = doc.ContainsField("causationId") ? doc.GetValue<string?>("causationId") : null,
-			TenantId = doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null,
+			// Read-tolerant: a document written before this fix carries no tenantId field at all.
+			// FromStoredValue folds a missing field the same way it folds a stored null/empty/sentinel
+			// — onto Untenanted — so TenantId is never null after this store reloads a document.
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null).TenantId,
 			Destination = doc.ContainsField("destination") ? doc.GetValue<string?>("destination") : null,
 			CreatedAt = DateTimeOffset.Parse(doc.GetValue<string>("createdAt"), CultureInfo.InvariantCulture),
 			PublishedAt = doc.ContainsField("publishedAt") && doc.GetValue<string?>("publishedAt") != null
@@ -669,7 +833,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 				: null,
 			RetryCount = doc.ContainsField("retryCount") ? doc.GetValue<int>("retryCount") : 0,
 			LastError = doc.ContainsField("lastError") ? doc.GetValue<string?>("lastError") : null,
-			PartitionKeyValue = doc.GetValue<string>("partitionKey")
+			PartitionKeyValue = doc.GetValue<string>("partitionKey"),
+			LeasedAt = doc.ContainsField("leasedAt") && doc.GetValue<string?>("leasedAt") != null
+				? DateTimeOffset.Parse(doc.GetValue<string>("leasedAt"), CultureInfo.InvariantCulture)
+				: null,
+			LeasedBy = doc.ContainsField("leasedBy") ? doc.GetValue<string?>("leasedBy") : null
 		};
 	}
 
@@ -679,8 +847,14 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 
 		if (!string.IsNullOrWhiteSpace(_options.EmulatorHost))
 		{
-			builder.EmulatorDetection = EmulatorDetection.EmulatorOnly;
-			_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
+			// Point this client at the configured emulator directly rather than through the process-wide
+			// FIRESTORE_EMULATOR_HOST variable. That variable is first-write-wins — the helper reports a
+			// conflicting value by returning false — so routing through it means a second store configured
+			// for a different emulator silently talks to the first one's, and keeps doing so after that
+			// endpoint is gone. An explicit endpoint is per-instance and cannot be captured by another
+			// store. This matches how the dependency-injection registration already builds the client.
+			builder.Endpoint = _options.EmulatorHost;
+			builder.ChannelCredentials = ChannelCredentials.Insecure;
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{

@@ -17,9 +17,11 @@ namespace Excalibur.AuditLogging.Tests;
 /// <para>
 /// Durability is now proven by asking the registered store — <c>GetService(typeof(IDurableAuditStore))</c>
 /// answers non-null on a durable store and null on a volatile one — not by a separately-registered marker.
-/// Every arm resolves the options through a <em>real</em> <see cref="ServiceProvider" /> built from the
-/// production registration path, so the assertion binds whether the registration wires the validator, not
-/// merely the validator's own arithmetic.
+/// Every arm resolves the options through a <em>real</em> <see cref="ServiceProvider" />, so the assertion
+/// binds observable behaviour rather than the validator's own arithmetic. Note the distinction the arms
+/// draw: the SAFETY/LIVENESS arms call <c>AddAuditDurabilityGate()</c> themselves, so they prove the gate
+/// WORKS without proving any shipped entry point INSTALLS it; the PRODUCTION-PATH arms below are the ones
+/// that bind the registration.
 /// </para>
 /// <para>
 /// The refusal arm is the fail-closed safety property and doubles as the design's non-vacuity proof: a
@@ -117,6 +119,48 @@ public sealed class AuditStoreDurabilityGateShould
 		IAuditStore volatileStore = new FakeVolatileAuditStore();
 
 		volatileStore.GetService(typeof(IDurableAuditStore)).ShouldBeNull();
+	}
+
+	// ---------- PRODUCTION-PATH WIRING ----------
+	//
+	// The arms above install the gate themselves, so none of them would notice if a shipped entry point
+	// stopped installing it. Measured: with AddAuditDurabilityGate() deleted from both AddAuditRetention
+	// overloads, the whole Excalibur.AuditLogging.Tests suite still passed (415/415). These arms bind the
+	// registration — configuring retention is the composition that declares "I require a durable trail".
+
+	[Fact]
+	public void Fail_closed_through_AddAuditRetention_over_the_default_volatile_store()
+	{
+		// AddAuditLogging() TryAdds the in-memory store, which answers null for IDurableAuditStore. Asking
+		// for retention over it is the contradiction the gate exists to refuse: you do not enforce a
+		// retention policy on a trail you are willing to lose on restart.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddAuditLogging();
+		_ = services.AddAuditRetention(o => o.CleanupInterval = TimeSpan.FromHours(1));
+
+		using var provider = services.BuildServiceProvider();
+
+		_ = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"AddAuditRetention must install the gate; retention enforced over a volatile trail is a policy "
+			+ "applied to records that will not survive the process.");
+	}
+
+	[Fact]
+	public void Start_through_AddAuditRetention_when_the_store_is_durable()
+	{
+		// Liveness for the arm above: retention over a durable trail is the ordinary production
+		// composition and must start. A gate that refused this would make the entry point unusable.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSingleton<IAuditStore, FakeDurableAuditStore>();
+		_ = services.AddAuditLogging();
+		_ = services.AddAuditRetention(o => o.CleanupInterval = TimeSpan.FromHours(1));
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => Resolve(provider));
 	}
 
 	/// <summary>

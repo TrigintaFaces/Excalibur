@@ -31,7 +31,7 @@ CREATE TABLE DISPATCH.SAGATIMEOUTS (
     -- identity: saga identity is (TenantId, SagaId). A cancel-by-SagaId would delete another tenant's
     -- pending timeouts, and a claimed batch would hand one tenant's TimeoutData to a processor
     -- operating for another.
-    TenantId     VARCHAR2(200 CHAR) DEFAULT '__untenanted__' NOT NULL,
+    TenantId     VARCHAR2(64 CHAR) DEFAULT '__untenanted__' NOT NULL,
 
     CONSTRAINT PK_SAGATIMEOUTS PRIMARY KEY (TimeoutId)
 );

@@ -47,6 +47,7 @@ obj/
                 ├── FluentValidationDispatcher.g.cs
                 ├── GeneratedHandlerActivatorRegistrations.g.cs
                 ├── GeneratedHandlerRegistrationExtensions.g.cs
+                ├── GeneratedMessageTypeRegistrations.g.cs
                 ├── GeneratedSagaRegistrationExtensions.g.cs
                 ├── GeneratedServiceCollectionExtensions.g.cs
                 ├── HandlerInvokerRegistry.g.cs

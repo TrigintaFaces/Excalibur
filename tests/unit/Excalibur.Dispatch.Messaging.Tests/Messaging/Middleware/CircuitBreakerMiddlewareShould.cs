@@ -163,19 +163,19 @@ public sealed class CircuitBreakerMiddlewareShould
 	}
 
 	[Fact]
-	public async Task RecordFailure_WhenDelegateThrowsException()
+	public async Task RecordFailure_WhenDelegateThrowsException_AndRethrowTheOriginal()
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 5 });
 		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
 
-		// Act
-		var result = await middleware.InvokeAsync(_message, _context, _exceptionDelegate, CancellationToken.None);
+		// Act — the breaker observes the fault and lets it through; it does not restate somebody else's
+		// fault as an outcome of its own. The failure IS recorded, which the threshold arm below proves.
+		var thrown = await Should.ThrowAsync<InvalidOperationException>(
+			() => middleware.InvokeAsync(_message, _context, _exceptionDelegate, CancellationToken.None).AsTask());
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
-		_ = result.ProblemDetails.ShouldNotBeNull();
-		result.ProblemDetails.Type.ShouldBe("CircuitBreakerFailure");
+		thrown.Message.ShouldBe("Test exception");
 	}
 
 	#endregion
@@ -220,10 +220,12 @@ public sealed class CircuitBreakerMiddlewareShould
 		});
 		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
 
-		// Act - Cause exceptions to reach threshold
+		// Act - Cause exceptions to reach threshold. Each one propagates, and each one is still recorded:
+		// that the circuit opens below is what proves the recording survived the rethrow.
 		for (var i = 0; i < 3; i++)
 		{
-			_ = await middleware.InvokeAsync(_message, _context, _exceptionDelegate, CancellationToken.None);
+			_ = await Should.ThrowAsync<InvalidOperationException>(
+				() => middleware.InvokeAsync(_message, _context, _exceptionDelegate, CancellationToken.None).AsTask());
 		}
 
 		// Next call should be rejected due to open circuit
@@ -350,22 +352,21 @@ public sealed class CircuitBreakerMiddlewareShould
 	}
 
 	[Fact]
-	public async Task ReturnCircuitBreakerFailureProblemDetails_WhenExceptionOccurs()
+	public async Task PreserveTheOriginalExceptionType_WhenExceptionOccurs()
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
 		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
 
 		// Act
-		var result = await middleware.InvokeAsync(_message, _context, _exceptionDelegate, CancellationToken.None);
+		var thrown = await Should.ThrowAsync<InvalidOperationException>(
+			() => middleware.InvokeAsync(_message, _context, _exceptionDelegate, CancellationToken.None).AsTask());
 
-		// Assert
-		result.IsSuccess.ShouldBeFalse();
-		_ = result.ProblemDetails.ShouldNotBeNull();
-		result.ProblemDetails.Type.ShouldBe("CircuitBreakerFailure");
-		result.ProblemDetails.Title.ShouldBe("Circuit Breaker Failure");
-		result.ProblemDetails.ErrorCode.ShouldBe(500);
-		result.ProblemDetails.Detail.ShouldContain("Circuit breaker recorded failure");
+		// Assert — the consumer's own exception reaches the middleware above with type and message intact,
+		// so their exception mapper and typed handler can match on it. The open-circuit rejection stays a
+		// synthesized result (locked by OpenCircuit_AfterFailureThresholdIsReached) because that outcome is
+		// the breaker's own.
+		thrown.Message.ShouldBe("Test exception");
 	}
 
 	#endregion

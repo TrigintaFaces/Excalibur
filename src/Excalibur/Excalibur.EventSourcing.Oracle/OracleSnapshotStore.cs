@@ -25,7 +25,15 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 {
 	private readonly Func<OracleConnection> _connectionFactory;
 	private readonly ILogger<OracleSnapshotStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly string _schema;
 	private readonly string _table;
 
@@ -34,8 +42,9 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 	/// </summary>
 	/// <param name="connectionString">The Oracle connection string.</param>
 	/// <param name="logger">The logger instance.</param>
-	public OracleSnapshotStore(string connectionString, ILogger<OracleSnapshotStore> logger)
-		: this(CreateConnectionFactory(connectionString), logger)
+	/// <param name="tenantContext">The ambient tenant context. Required: this store resolves the tenant partition it reads and writes from here.</param>
+	public OracleSnapshotStore(string connectionString, ILogger<OracleSnapshotStore> logger, ITenantContext tenantContext)
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext: tenantContext)
 	{
 	}
 
@@ -47,20 +56,22 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 	/// <param name="schema">The schema name for the snapshot store table. Default: "EXCALIBUR".</param>
 	/// <param name="table">The snapshot store table name. Default: "EVENTSTORESNAPSHOTS".</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, every
-	/// read, save, and delete is restricted to the resolved tenant's own rows.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public OracleSnapshotStore(
 		Func<OracleConnection> connectionFactory,
 		ILogger<OracleSnapshotStore> logger,
+		ITenantContext tenantContext,
 		string schema = "EXCALIBUR",
-		string table = "EVENTSTORESNAPSHOTS",
-		ITenantContext? tenantContext = null)
+		string table = "EVENTSTORESNAPSHOTS")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_schema = schema;
 		_table = table;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -79,7 +90,7 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var snapshot = await connection.ResolveAsync(
-					new GetLatestSnapshotRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new GetLatestSnapshotRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (snapshot == null)
@@ -118,7 +129,7 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 			await using var connection = _connectionFactory();
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-			var scope = TenantScope.FromContext(_tenantContext);
+			var scope = CurrentTenantScope;
 
 			try
 			{
@@ -177,7 +188,7 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new DeleteSnapshotsRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots for {AggregateType}/{AggregateId}", aggregateType, aggregateId);
@@ -214,7 +225,7 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots older than version {Version} for {AggregateType}/{AggregateId}",

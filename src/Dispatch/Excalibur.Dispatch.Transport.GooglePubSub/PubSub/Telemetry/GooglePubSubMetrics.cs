@@ -59,26 +59,26 @@ internal sealed class GooglePubSubMetrics : IGooglePubSubMetrics, IDisposable
 		_meter = meterFactory?.Create(GooglePubSubTelemetryConstants.MeterName) ?? new Meter(GooglePubSubTelemetryConstants.MeterName, GooglePubSubTelemetryConstants.Version);
 
 		// Create counters
-		_messagesEnqueued = _meter.CreateCounter<long>("pubsub.messages.enqueued", "messages", "Messages enqueued for processing");
-		_messagesDequeued = _meter.CreateCounter<long>("pubsub.messages.dequeued", "messages", "Messages dequeued for processing");
-		_messagesProcessed = _meter.CreateCounter<long>("pubsub.messages.processed", "messages", "Messages successfully processed");
-		_messagesFailed = _meter.CreateCounter<long>("pubsub.messages.failed", "messages", "Messages that failed processing");
-		_batchesCreated = _meter.CreateCounter<long>("pubsub.batches.created", "batches", "Batches created");
-		_batchesCompleted = _meter.CreateCounter<long>("pubsub.batches.completed", "batches", "Batches completed");
-		_connectionsCreated = _meter.CreateCounter<long>("pubsub.connections.created", "connections", "Connections created");
-		_connectionsClosed = _meter.CreateCounter<long>("pubsub.connections.closed", "connections", "Connections closed");
+		_messagesEnqueued = _meter.CreateCounter<long>("pubsub.messages.enqueued", "{messages}", "Messages enqueued for processing");
+		_messagesDequeued = _meter.CreateCounter<long>("pubsub.messages.dequeued", "{messages}", "Messages dequeued for processing");
+		_messagesProcessed = _meter.CreateCounter<long>("pubsub.messages.processed", "{messages}", "Messages successfully processed");
+		_messagesFailed = _meter.CreateCounter<long>("pubsub.messages.failed", "{messages}", "Messages that failed processing");
+		_batchesCreated = _meter.CreateCounter<long>("pubsub.batches.created", "{batches}", "Batches created");
+		_batchesCompleted = _meter.CreateCounter<long>("pubsub.batches.completed", "{batches}", "Batches completed");
+		_connectionsCreated = _meter.CreateCounter<long>("pubsub.connections.created", "{connections}", "Connections created");
+		_connectionsClosed = _meter.CreateCounter<long>("pubsub.connections.closed", "{connections}", "Connections closed");
 
 		// Create histograms
-		_queueTime = _meter.CreateHistogram<double>("pubsub.message.queue_time", "milliseconds", "Time messages spend in queue");
-		_processingTime = _meter.CreateHistogram<double>("pubsub.message.processing_time", "milliseconds", "Message processing time");
-		_batchSize = _meter.CreateHistogram<long>("pubsub.batch.size", "messages", "Batch sizes");
-		_batchDuration = _meter.CreateHistogram<double>("pubsub.batch.duration", "milliseconds", "Batch processing duration");
+		_queueTime = _meter.CreateHistogram<double>("pubsub.message.queue_time", "ms", "Time messages spend in queue");
+		_processingTime = _meter.CreateHistogram<double>("pubsub.message.processing_time", "ms", "Message processing time");
+		_batchSize = _meter.CreateHistogram<long>("pubsub.batch.size", "{messages}", "Batch sizes");
+		_batchDuration = _meter.CreateHistogram<double>("pubsub.batch.duration", "ms", "Batch processing duration");
 
 		// Create observable gauges
-		_flowControlPermits = _meter.CreateObservableGauge("pubsub.flow_control.permits", () => _lastPermits, "permits",
+		_flowControlPermits = _meter.CreateObservableGauge("pubsub.flow_control.permits", () => _lastPermits, "{permits}",
 			"Available flow control permits");
 		_flowControlBytes =
-			_meter.CreateObservableGauge("pubsub.flow_control.bytes", () => _lastBytes, "bytes", "Available flow control bytes");
+			_meter.CreateObservableGauge("pubsub.flow_control.bytes", () => _lastBytes, "By", "Available flow control bytes");
 
 		// High-performance counters for hot paths
 		_enqueuedCount = new RateCounter();

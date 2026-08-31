@@ -7,6 +7,8 @@ using Excalibur.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Jobs.Jobs;
 
 /// <summary>
@@ -21,6 +23,8 @@ public sealed class OutboxProcessorJob(
 	private readonly ILogger<OutboxProcessorJob> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but IBackgroundJob.ExecuteAsync has 13 implementations of which only this one touches the outbox, so annotating the interface would mislabel twelve unrelated jobs. Tracked for a source-generated outbox serialization seam.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but IBackgroundJob.ExecuteAsync has 13 implementations of which only this one touches the outbox, so annotating the interface would mislabel twelve unrelated jobs. Tracked for a source-generated outbox serialization seam.")]
 	public async Task ExecuteAsync(CancellationToken cancellationToken)
 	{
 		OutboxProcessorJobLog.JobStarting(_logger);

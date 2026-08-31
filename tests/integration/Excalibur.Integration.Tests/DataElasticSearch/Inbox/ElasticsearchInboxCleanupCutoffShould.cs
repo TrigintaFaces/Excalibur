@@ -10,7 +10,7 @@ using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClass
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.Inbox;
 
-// bd-6toaue (S841, ADR-336): ElasticsearchInboxStore.CleanupAsync issued a MatchAll DeleteByQuery, deleting
+// bd-6toaue (S841, ADR-336): ElasticsearchInboxStore.CleanupAllTenantsProcessedEntriesAsync issued a MatchAll DeleteByQuery, deleting
 // EVERY inbox document regardless of age (FR-4 silent data-loss). The fix is a strict older-than DateRange on
 // ReceivedAt against the configured IndexName. Independent engage-test (author≠impl), run against a CUSTOM
 // IndexName so it is non-vacuous against BOTH defects extinguished in 6toaue: the original MatchAll (would
@@ -46,10 +46,11 @@ public sealed class ElasticsearchInboxCleanupCutoffShould(ElasticsearchContainer
 		var store = new ElasticsearchInboxStore(
 			Client,
 			Options.Create(new ElasticsearchInboxOptions { IndexName = customIndex }),
-			LoggerFactory.CreateLogger<ElasticsearchInboxStore>());
+			LoggerFactory.CreateLogger<ElasticsearchInboxStore>(),
+			SingleTenantTestContext.Instance);
 
 		// Act
-		var deleted = await store.CleanupAsync(cutoff, CancellationToken.None);
+		var deleted = await store.CleanupAllTenantsProcessedEntriesAsync(cutoff, CancellationToken.None);
 		_ = await Client.Indices.RefreshAsync(customIndex).ConfigureAwait(false);
 
 		// Assert — only the two strictly-older entries were deleted; the boundary + the two recent ones remain.

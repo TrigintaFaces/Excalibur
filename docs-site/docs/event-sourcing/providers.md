@@ -12,15 +12,25 @@ Each event store provider implements `IEventStore` with database-specific optimi
 
 Pick your database and copy the registration:
 
-| Database | Package | Registration |
-|----------|---------|-------------|
-| **SQL Server** | `Excalibur.EventSourcing.SqlServer` | `es.UseSqlServer(sql => sql.ConnectionString(connStr))` |
-| **PostgreSQL** | `Excalibur.EventSourcing.Postgres` | `es.UsePostgres(pg => pg.ConnectionString(connStr))` |
-| **MongoDB** | `Excalibur.EventSourcing.MongoDB` | `es.UseMongoDB(mg => mg.ConnectionString(connStr).DatabaseName("events"))` |
-| **Cosmos DB** | `Excalibur.EventSourcing.CosmosDb` | `es.UseCosmosDb(c => c.ConnectionString(connStr).DatabaseName("events"))` |
-| **DynamoDB** | `Excalibur.EventSourcing.DynamoDb` | `es.UseDynamoDb(opts => { ... })` |
-| **Firestore** | `Excalibur.EventSourcing.Firestore` | `es.UseFirestore(opts => { ... })` |
-| **In-Memory** | `Excalibur.EventSourcing.InMemory` | `es.UseInMemory()` (builder only) |
+| Database | Package | Registration | Multi-tenant? |
+|----------|---------|-------------|---------------|
+| **SQL Server** | `Excalibur.EventSourcing.SqlServer` | `es.UseSqlServer(sql => sql.ConnectionString(connStr))` | Yes |
+| **PostgreSQL** | `Excalibur.EventSourcing.Postgres` | `es.UsePostgres(pg => pg.ConnectionString(connStr))` | Yes |
+| **MongoDB** | `Excalibur.EventSourcing.MongoDB` | `es.UseMongoDB(mg => mg.ConnectionString(connStr).DatabaseName("events"))` | Yes |
+| **Cosmos DB** | `Excalibur.EventSourcing.CosmosDb` | `es.UseCosmosDb(c => c.ConnectionString(connStr).DatabaseName("events"))` | Yes |
+| **DynamoDB** | `Excalibur.EventSourcing.DynamoDb` | `es.UseDynamoDb(opts => { ... })` | Yes |
+| **Firestore** | `Excalibur.EventSourcing.Firestore` | `es.UseFirestore(opts => { ... })` | Yes |
+| **In-Memory** | `Excalibur.EventSourcing.InMemory` | `es.UseInMemory()` (builder only) | Yes |
+
+:::danger Upgrading a MongoDB, Cosmos DB, DynamoDB or Firestore event store: the key shape changed
+These four now compose the owning tenant into the document key, so they confine tenants. **Documents
+written by an earlier version have no tenant segment and are not addressable by the new key.** Nothing
+is destroyed, and the store **refuses rather than reading them back as an empty stream** — so an
+unmigrated deployment fails at its first read instead of silently splitting an aggregate's history in
+two. You must re-key existing documents. This applies **even if you never enabled multi-tenancy**: the
+key carries a reserved single-tenant or untenanted segment either way. See
+[Upgrading the four document providers](#upgrading-the-four-document-providers) before you deploy.
+:::
 
 Each `AddXxxEventSourcing()` call registers `IEventStore` and `ISnapshotStore` for that provider. Outbox is registered separately via `services.AddExcalibur(x => x.AddOutbox(...))`.
 
@@ -313,30 +323,116 @@ dotnet add package Excalibur.EventSourcing.DynamoDb
 
 ### Setup
 
+`UseDynamoDb` takes a configuration action on `IDynamoDBEventSourcingBuilder`. Every setting is a fluent
+method call, and the connection methods (`ServiceUrl`, `Region`, `Client`, `ClientFactory`,
+`BindConfiguration`) are **last-wins** — the last one you call is the one that takes effect.
+
 ```csharp
-// Recommended: Builder-integrated registration
+using Amazon;
+using Microsoft.Extensions.DependencyInjection;
+
+// AWS region, using the default credential chain
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseDynamoDb(options =>
+    es.UseDynamoDb(dynamo =>
     {
-        options.TableName = "event-store";
-        options.Region = "us-east-1";
+        dynamo.Region(RegionEndpoint.USEast1)
+              .TableName("event-store");
     })
     .AddRepository<OrderAggregate, Guid>();
 }));
 
-// Or with IConfiguration binding
+// Local DynamoDB / LocalStack
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseDynamoDb(configuration.GetSection("DynamoDb"));
+    es.UseDynamoDb(dynamo =>
+    {
+        dynamo.ServiceUrl("http://localhost:8000")
+              .TableName("event-store");
+    });
 }));
 
-// Alternative: Direct registration
-services.AddDynamoDbEventStore(options =>
+// Bind from IConfiguration
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    options.EventsTableName = "Events";
-});
+    es.UseDynamoDb(dynamo => dynamo.BindConfiguration("DynamoDb"));
+}));
 ```
+
+### Change Feed (DynamoDB Streams)
+
+The event store appends, loads, and reads versions through the DynamoDB client alone. **A DynamoDB Streams
+client is only needed to consume a change feed** — if you are not reading one, you do not need to configure
+anything here, and the store will register and resolve without it.
+
+When you configure the connection by **service URL or region**, the registration owns the connection and
+builds a matching Streams client for you, so the change feed works with no extra configuration:
+
+```csharp
+// Change feed available: the registration builds both clients from the region
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+    es.UseDynamoDb(dynamo =>
+    {
+        dynamo.Region(RegionEndpoint.USEast1)
+              .TableName("event-store");
+    });
+}));
+```
+
+When you supply your **own** `IAmazonDynamoDB` via `Client` or `ClientFactory`, the registration will not
+guess at the endpoint and credentials behind it, so no Streams client is built. Supply one yourself with
+`StreamsClient` (an instance) or `StreamsClientFactory` (resolved from the container), so the change feed
+runs under your own credentials, endpoint, and telemetry:
+
+```csharp
+using Amazon.DynamoDBStreams;
+using Amazon.DynamoDBv2;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+// Your own clients, wired for the change feed
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+    es.UseDynamoDb(dynamo =>
+    {
+        dynamo.Client(myDynamoDbClient)
+              .StreamsClient(myStreamsClient)
+              .TableName("event-store");
+    });
+}));
+
+// Or build both from the container, so configuration resolves at startup
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+{
+    es.UseDynamoDb(dynamo =>
+    {
+        dynamo.ClientFactory(sp => new AmazonDynamoDBClient(
+                  new AmazonDynamoDBConfig
+                  {
+                      ServiceURL = sp.GetRequiredService<IConfiguration>()["Aws:ServiceUrl"]
+                  }))
+              .StreamsClientFactory(sp => new AmazonDynamoDBStreamsClient(
+                  new AmazonDynamoDBStreamsConfig
+                  {
+                      ServiceURL = sp.GetRequiredService<IConfiguration>()["Aws:ServiceUrl"]
+                  }))
+              .TableName("event-store");
+    });
+}));
+```
+
+`StreamsClient` and `StreamsClientFactory` are **last-wins against each other**, but are independent of the
+connection method: choosing or changing a connection mode neither sets nor clears the Streams client. Either
+one may be combined with any connection method.
+
+:::note What happens if you skip it
+
+A store built without a Streams client is fully functional for appends, loads, and version queries. It
+reports the change feed as **unavailable** rather than failing to construct: asking it for
+`ICloudNativeEventStoreChangeFeed` returns `null` instead of an instance that throws on first use. Calling a
+change-feed operation on it directly throws `InvalidOperationException` naming the missing client.
+:::
 
 ### Key Schema
 
@@ -356,31 +452,54 @@ dotnet add package Excalibur.EventSourcing.Firestore
 
 ### Setup
 
+`UseFirestore` takes a fluent builder. Each connection value is configured by a method call.
+
 ```csharp
-// Recommended: Builder-integrated registration
+// Application Default Credentials (ADC) -- the ambient service account of the host
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseFirestore(options =>
-    {
-        options.ProjectId = "my-gcp-project";
-        options.CollectionName = "events";
-    })
+    es.UseFirestore(firestore => firestore
+        .ProjectId("my-gcp-project")
+        .CollectionName("events"))
     .AddRepository<OrderAggregate, Guid>();
 }));
 
-// Or with IConfiguration binding
+// Or bind the connection values from IConfiguration
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseFirestore(configuration.GetSection("Firestore"));
+    es.UseFirestore(firestore => firestore.BindConfiguration("Firestore"));
 }));
-
-// Alternative: Direct registration
-services.AddFirestoreEventStore(options =>
-{
-    options.ProjectId = "my-gcp-project";
-    options.EventsCollectionName = "events";
-});
 ```
+
+### Authenticating
+
+When no credential is configured the client uses Application Default Credentials, so it connects as
+whatever identity the host exposes. Supply a service account explicitly when the store must connect as a
+specific principal -- for example under least privilege, or when each tenant has its own service account.
+
+```csharp
+// Service account from a file on disk
+es.UseFirestore(firestore => firestore
+    .ProjectId("my-gcp-project")
+    .CredentialsPath("/var/secrets/event-store-service-account.json")
+    .CollectionName("events"));
+
+// Service account supplied inline, e.g. read from a secret manager during startup
+string credentialJson = secrets.GetEventStoreCredential();
+
+es.UseFirestore(firestore => firestore
+    .ProjectId("my-gcp-project")
+    .CredentialsJson(credentialJson)
+    .CollectionName("events"));
+```
+
+`CredentialsPath` and `CredentialsJson` each clear the other, so the last call wins and the fluent builder
+cannot hold both. When both arrive together through configuration binding, the inline JSON credential is
+used and the path is ignored.
+
+:::note Emulator
+`EmulatorHost(...)` clears any configured credentials, because the emulator does not authenticate.
+:::
 
 ### Collection Structure
 
@@ -524,6 +643,122 @@ services.AddInMemoryEventStore();
 | SQLite | `Excalibur.EventSourcing.Sqlite` | Full ACID (single-writer) | Single process |
 | In-Memory | `Excalibur.EventSourcing.InMemory` | None | Single process |
 
+## Tenant confinement by provider
+
+Tenant confinement is **per provider**. It is not a property of the event-sourcing subsystem, and the
+providers do not all have it.
+
+**The property, stated so you can test it yourself.** A provider *confines* when an operation performed
+under tenant A observes and mutates only rows written under A. Append three events for aggregate `a` under
+tenant A, then load `a` under tenant B. A confining provider returns **zero** events. A non-confining
+provider returns **three**.
+
+| Provider | Confines? | What holds the boundary | How this was established |
+|----------|-----------|-------------------------|--------------------------|
+| SQL Server | **Yes** | Tenant column bound in every statement; tenant is inside the stream uniqueness constraint | Conformance suite — three tenant arms |
+| PostgreSQL | **Yes** | Same | Conformance suite — three tenant arms |
+| Oracle | **Yes** | Same | Conformance suite — three tenant arms |
+| SQLite | **Yes** | Same | Conformance suite — three tenant arms |
+| Redis | **Yes** | Tenant is a segment of the stream key, so the version counter is tenant-scoped too | Conformance suite — three tenant arms, plus a dedicated tenancy suite |
+| In-Memory | **Yes** | Tenant is a component of the stream dictionary key | Conformance suite — three tenant arms, run without a container |
+| MongoDB | **Yes** | Tenant leads the stored stream id, which is inside the unique `(streamId, aggregateType, version)` index — so the version sequence is tenant-scoped too | Conformance suite — three tenant arms, against a real MongoDB |
+| Cosmos DB | **Yes** | Tenant leads the partition key, so each tenant has its own logical partition and its own version sequence | Conformance suite — three tenant arms, against the Cosmos emulator |
+| DynamoDB | **Yes** | Tenant leads the partition key, so each tenant has its own item set and its own sort-key sequence | Conformance suite — three tenant arms, against DynamoDB Local |
+| Firestore | **Yes** | Tenant leads the document id, so each tenant has its own documents and its own version sequence | Conformance suite — three tenant arms, against the Firestore emulator |
+| Tenant routing (sharding) | **UNVERIFIED** | Routes each tenant to a distinct physical store; confinement is your shard map's, not the inner store's | Source only. The sharding integration suite is not among those we hold a measurement of executing |
+| Cold store — S3, Azure Blob, GCS | **UNVERIFIED** | The tenant is an encoded segment of the object key | Source only. We hold no measurement of the tiered-storage integration suites executing |
+
+**What "established" means here, exactly.** Every provider suite inherits the same three tenant arms from
+the shared conformance kit, and none overrides or skips them. No event-store container fixture opts into
+graceful degradation, so a missing container fails that provider's run loudly rather than passing it by
+skipping. That is what was checked for each row: the arm exists, it is inherited unmodified, and it cannot
+pass by not running.
+
+The last two rows say UNVERIFIED for a different reason: their suites exist and are not quarantined, but we
+hold no measurement of them actually executing. We are not willing to call that verified.
+
+### How the four document providers confine
+
+Each composes the owning tenant into the document key as its leading segment:
+
+```
+DynamoDB    partition key    t:{tenantId}:{aggregateType}:{aggregateId}
+Cosmos DB   partition key    t:{tenantId}:{aggregateType}:{aggregateId}
+Firestore   document id      t:{tenantId}:{aggregateType}:{aggregateId}:{version}
+MongoDB     streamId         t:{tenantId}:{aggregateId}
+```
+
+**The tenant is in the key, not in a filter, and the difference is not cosmetic.** A filter confines reads
+while leaving both tenants on one document set and one version counter — so the second tenant to use an
+aggregate identifier is told it has a concurrency conflict on a stream it never wrote, and can never create
+it. Aggregate identifiers come from your domain, so natural keys such as an order number collide across
+tenants as a matter of course. Composing the key makes a cross-tenant read unaddressable rather than
+filtered out, and gives each tenant its own version sequence as a consequence rather than as a second
+mechanism.
+
+The tenant term is always present. A host that never enables multi-tenancy resolves the framework
+single-tenant default; a genuinely untenanted deployment resolves the reserved untenanted value. There is no
+key without a tenant segment.
+
+Their **snapshot** stores already composed the tenant into the document id and are unchanged — that
+asymmetry is why these four confined snapshots but not events until now.
+
+### Upgrading the four document providers
+
+**The stored key shape changed, and there is no migration tool.** Documents written by an earlier version
+carry `{aggregateType}:{aggregateId}` (MongoDB: a `streamId` of `{aggregateId}`) with no tenant segment.
+Nothing reads that shape any more, so after upgrading, an aggregate written by the earlier version is
+**unaddressable** — its events are still in the store and still readable by the earlier package version,
+but no key this version composes names them.
+
+**The store refuses rather than reading them back as an empty stream.** Each of the four guards every
+point at which it would otherwise act on the absence of documents. The first time one is reached, it
+checks the configured collection or table for a document whose key carries no tenant segment; finding
+one, it throws `InvalidOperationException` naming the collection and the offending key, and **modifies
+nothing**. An empty stream would otherwise be taken for a new aggregate and appended at version 0,
+leaving you with two disjoint histories under one identity while the store still held the first — so an
+unmigrated deployment fails at its first misleading read, with every event intact.
+
+The check is not on the startup path and costs nothing in normal operation: a read that returns documents
+proves the collection is addressable and is never probed, so only silence is checked, at most once per
+store instance. **The full procedure, both limits of the guard, and the saga-store half of this change
+are in [Cosmos DB, DynamoDB, Firestore and MongoDB keys carry the
+tenant](../migration/nosql-tenant-key-rekey.md).**
+
+**Which keys — because your snapshots were re-keyed already.** On these four backends the *snapshot*
+store has composed the tenant into its document id since an earlier release. Only the **event** documents
+change here. You did not have to migrate the snapshots and you do not have to now: a snapshot whose key
+misses is simply not found, and the aggregate rebuilds from its event stream. **An event stream that
+misses has nothing behind it to rebuild from**, which is the whole reason this one needs a procedure and
+that one did not.
+
+A tool cannot do this for you in the general case: deciding which tenant an existing untenanted document
+belongs to is a question about your deployment, not about the data. Per collection or table:
+
+1. **Stop writers.** The re-key is not safe against a live writer.
+2. **Export every event document**, preserving `version` order within each stream.
+3. **Re-key each document** by prefixing `t:{tenantId}:` to the existing key. If you ran single-tenant, use
+   the framework's default tenant identifier; if you never enabled ambient tenancy at all, use the reserved
+   untenanted value. Both are public constants (`TenantDefaults.DefaultTenantId`,
+   `TenantScope.UntenantedSentinel`) — copy the value from there rather than retyping it. A mistyped variant
+   strands every row in a partition nothing queries, and nothing reports it.
+4. **Re-import**, then load one aggregate per tenant and check the event count matches the export.
+
+If you can afford to rebuild your read models, the cheaper route is to point the provider at a fresh
+collection and leave the old one in place.
+
+### What happens if you register one in a multi-tenant host
+
+**It starts.** Each provider registration supplies the ambient tenant to the store and declares the
+capability in the same act, for every contract the store is registered under, so the multi-tenancy startup
+check passes under both isolation strategies and in either registration order.
+
+Under `Sharding`, routing each tenant to a distinct physical store is the *physical* half of separation and
+the key is the *logical* half. **A shard map that points two tenants at the same database is now still
+safe**, because the store contributes its own tenant term.
+
+A single-tenant host is unaffected: there is one partition, so there is nothing to cross.
+
 ## Batch Projection Registration
 
 When registering multiple projections for the same provider, use the batch registrar API instead of individual `AddXxxProjectionStore<T>()` calls:
@@ -600,9 +835,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseAzureBlobColdEventStore(opts =>
     {
-        opts.ConnectionString = "DefaultEndpointsProtocol=https;...";
-        opts.ContainerName = "event-archive";
-        opts.BlobPrefix = "events";
+        opts.ConnectionString("DefaultEndpointsProtocol=https;...");
+        opts.ContainerName("event-archive");
+        opts.BlobPrefix("events");
     });
 }));
 ```
@@ -618,9 +853,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseAwsS3ColdEventStore(opts =>
     {
-        opts.BucketName = "my-event-archive";
-        opts.Region = "us-east-1";
-        opts.KeyPrefix = "events";
+        opts.BucketName("my-event-archive");
+        opts.Region("us-east-1");
+        opts.KeyPrefix("events");
     });
 }));
 ```
@@ -636,8 +871,8 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.UseGcsColdEventStore(opts =>
     {
-        opts.BucketName = "my-event-archive";
-        opts.ObjectPrefix = "events";
+        opts.BucketName("my-event-archive");
+        opts.ObjectPrefix("events");
     });
 }));
 ```
@@ -650,7 +885,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 | **AWS S3** | `Excalibur.EventSourcing.AwsS3` | AWS SDK default credential chain |
 | **GCS** | `Excalibur.EventSourcing.Gcs` | Google Application Default Credentials |
 
-All providers store events as `{prefix}/{aggregateId}/events.json.gz` and support merge-on-write (read existing, append new, write back).
+All providers store events as `{prefix}/{tenant}/{aggregateId}/events.json.gz` and support merge-on-write (read existing, append new, write back). Both the tenant and aggregate segments are encoded, so events archived under one tenant are not addressable from another tenant's read or watermark check.
 
 ### Archive Metrics
 

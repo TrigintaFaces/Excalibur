@@ -40,7 +40,9 @@ var app = builder.Build();
 app.MapPost("/greet", async (GreetAction action, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(action, ct);
-    return result.IsSuccess ? Results.Ok("Greeted!") : Results.BadRequest(result.ErrorMessage);
+    return result.IsSuccess
+        ? Results.Ok("Greeted!")
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 // Query endpoint (with return value)
@@ -48,7 +50,9 @@ app.MapGet("/greet/{name}", async (string name, IDispatcher dispatcher, Cancella
 {
     // TResponse (string) inferred from IDispatchAction<string>
     var result = await dispatcher.DispatchAsync(new GetGreetingQuery(name), ct);
-    return result.IsSuccess ? Results.Ok(result.ReturnValue) : Results.NotFound();
+    return result.IsSuccess
+        ? Results.Ok(result.ReturnValue)
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 app.Run();
@@ -83,6 +87,25 @@ public class GreetedEventHandler : IEventHandler<GreetedEvent>
     }
 }
 ```
+
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `Results.BadRequest(...)` reports a server-side fault to
+the caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Results.Problem`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+
+The `Excalibur.Dispatch.Hosting.AspNetCore` package does the whole mapping in one call:
+`return result.ToHttpResult();` — it honours an authorization failure (403) and a validation failure
+(400) first, then `ProblemDetails.Status`, then falls back to 500. `ToNoContentResult()`,
+`ToCreatedResult(location)` and the `Task`-chaining `ToApiResult()` cover the other success shapes.
+:::
 
 ---
 
@@ -125,7 +148,7 @@ app.MapPost("/counters", async (IDispatcher dispatcher, CancellationToken ct) =>
     var result = await dispatcher.DispatchAsync(new CreateCounterAction(), ct);
     return result.IsSuccess
         ? Results.Created($"/counters/{result.ReturnValue}", new { Id = result.ReturnValue })
-        : Results.BadRequest(result.ErrorMessage);
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 // Increment a counter
@@ -133,7 +156,9 @@ app.MapPost("/counters/{id:guid}/increment", async (
     Guid id, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new IncrementCounterAction(id), ct);
-    return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.ErrorMessage);
+    return result.IsSuccess
+        ? Results.NoContent()
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 // Get counter value
@@ -237,7 +262,9 @@ var app = builder.Build();
 app.MapPost("/process", async (ProcessRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new ProcessDataAction(req.Data), ct);
-    return result.IsSuccess ? Results.Accepted() : Results.BadRequest(result.ErrorMessage);
+    return result.IsSuccess
+        ? Results.Accepted()
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 app.Run();
@@ -295,7 +322,7 @@ builder.Services.AddDispatchWithSqlServer(connectionString);
 
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.UseSqlServer(opts => opts.ConnectionString(connectionString));
     es.AddRepository<TodoAggregate, Guid>(id => new TodoAggregate(id));
 
     // Inline projection: updated synchronously during SaveAsync()
@@ -323,14 +350,16 @@ app.MapPost("/todos", async (CreateTodoRequest req, IDispatcher dispatcher, Canc
     var result = await dispatcher.DispatchAsync(new CreateTodoAction(req.Title), ct);
     return result.IsSuccess
         ? Results.Created($"/todos/{result.ReturnValue}", new { Id = result.ReturnValue })
-        : Results.BadRequest(result.ErrorMessage);
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 app.MapPost("/todos/{id:guid}/complete", async (
     Guid id, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new CompleteTodoAction(id), ct);
-    return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.ErrorMessage);
+    return result.IsSuccess
+        ? Results.NoContent()
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 // Read side: queries read from projection store (denormalized, fast)

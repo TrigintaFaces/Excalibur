@@ -28,10 +28,17 @@ public sealed class ClaimCheckServiceCollectionExtensionsShould
 		services.AddClaimCheck<FakeClaimCheckProvider>();
 
 		// Assert
+		// EnableMetrics defaults to true, so the registered provider is the instrumented one. With
+		// metrics off the container hands back the provider itself, undecorated.
 		var provider = services.BuildServiceProvider();
 		var claimCheckProvider = provider.GetService<IClaimCheckProvider>();
 		claimCheckProvider.ShouldNotBeNull();
-		claimCheckProvider.ShouldBeOfType<FakeClaimCheckProvider>();
+		claimCheckProvider.ShouldBeOfType<TelemetryClaimCheckProvider>();
+
+		var unmetered = new ServiceCollection();
+		unmetered.AddClaimCheck<FakeClaimCheckProvider>(o => o.EnableMetrics = false);
+		using var unmeteredProvider = unmetered.BuildServiceProvider();
+		unmeteredProvider.GetService<IClaimCheckProvider>().ShouldBeOfType<FakeClaimCheckProvider>();
 	}
 
 	[Fact]

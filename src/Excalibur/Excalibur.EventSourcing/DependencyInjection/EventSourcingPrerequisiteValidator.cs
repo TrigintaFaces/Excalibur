@@ -23,7 +23,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// — no reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class EventSourcingPrerequisiteValidator : IHostedService
+internal sealed class EventSourcingPrerequisiteValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -33,6 +33,12 @@ internal sealed class EventSourcingPrerequisiteValidator : IHostedService
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		// All providers register IEventStore as a keyed singleton (key = "default").
 		// A non-keyed forwarding alias is also registered by AddExcaliburEventSourcing(),
@@ -45,8 +51,6 @@ internal sealed class EventSourcingPrerequisiteValidator : IHostedService
 				"es => es.UseSqlServer(sql => sql.ConnectionString(...)), " +
 				"es => es.UsePostgres(...), or es => es.UseCosmosDb(...) — before host startup.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

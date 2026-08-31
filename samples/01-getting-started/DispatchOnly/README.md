@@ -22,7 +22,7 @@ dotnet run --project samples/01-getting-started/DispatchOnly/Excalibur.DispatchO
 
 ### Patterns
 
-1. **Handler Registration** - Using `AddDispatch(assembly)` for auto-discovery
+1. **Handler Registration** - Using `AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(...))` to name the assembly explicitly
 2. **Message Dispatching** - Using `IDispatcher.DispatchAsync()`
 3. **Custom Middleware** - Logging middleware showing pipeline interception
 4. **Multiple Event Handlers** - Same event handled by different handlers
@@ -138,6 +138,6 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.
 
 

@@ -42,7 +42,8 @@ using Excalibur.Dispatch.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Register Dispatch — auto-discovers handlers from the entry assembly
+// Register Dispatch — auto-discovers handlers from the entry assembly.
+// Handlers in another project? Name it: AddDispatch(typeof(MyHandler).Assembly)
 builder.Services.AddDispatch();
 
 var app = builder.Build();
@@ -51,14 +52,18 @@ var app = builder.Build();
 app.MapPost("/orders", async (CreateOrderRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(new CreateOrderAction(req.CustomerId, req.Items), ct);
-    return result.IsSuccess ? Results.Created() : Results.BadRequest(result.ErrorMessage);
+    return result.IsSuccess
+        ? Results.Created()
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 // Query (with return value)
 app.MapGet("/orders/{id}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(new GetOrderQuery(id), ct);
-    return result.IsSuccess ? Results.Ok(result.ReturnValue) : Results.NotFound();
+    return result.IsSuccess
+        ? Results.Ok(result.ReturnValue)
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 app.Run();
@@ -99,6 +104,25 @@ public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 public record CreateOrderRequest(string CustomerId, List<string> Items);
 public record OrderDto(Guid Id, string CustomerId, List<string> Items);
 ```
+
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `Results.BadRequest(...)` reports a server-side fault to
+the caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Results.Problem`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+
+The `Excalibur.Dispatch.Hosting.AspNetCore` package does the whole mapping in one call:
+`return result.ToHttpResult();` — it honours an authorization failure (403) and a validation failure
+(400) first, then `ProblemDetails.Status`, then falls back to 500. `ToNoContentResult()`,
+`ToCreatedResult(location)` and the `Task`-chaining `ToApiResult()` cover the other success shapes.
+:::
 
 All messages dispatch **in-process** — no broker, no database, no infrastructure needed.
 

@@ -6,6 +6,7 @@ using System.Diagnostics.Metrics;
 
 using Amazon.SQS;
 
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Aws;
 using Excalibur.Dispatch.Transport.Builders;
@@ -39,7 +40,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 ///     sqs.UseRegion("us-east-1")
 ///        .ConfigureQueue(queue => queue.VisibilityTimeout(TimeSpan.FromMinutes(5)))
 ///        .ConfigureFifo(fifo => fifo.ContentBasedDeduplication(true))
-///        .ConfigureBatch(batch => batch.SendBatchSize(10))
 ///        .MapQueue&lt;OrderCreated&gt;("https://sqs.us-east-1.amazonaws.com/123/orders");
 /// });
 /// </code>
@@ -105,42 +105,78 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		var builder = new AwsSqsTransportBuilder(adapterOptions);
 		configure(builder);
 
+		// The adapter binds the UNNAMED AwsSqsCloudEventOptions, so this registers unnamed too.
+		// A transport that also copies values into these options registers that copy separately;
+		// where both apply, the later registration wins.
+		if (builder.CloudEventsConfigure is not null)
+		{
+			_ = services.AddOptions<AwsSqsCloudEventOptions>()
+				.Configure(builder.CloudEventsConfigure)
+				.ValidateOnStart();
+		}
+
 		// Register core AWS SQS services
-		RegisterAwsSqsServices(services, adapterOptions);
+		RegisterAwsSqsServices(services, name, adapterOptions);
 
 		// Flow the configured FIFO selectors to the message bus so ConfigureFifo applies on the
 		// wire (MessageGroupId + MessageDeduplicationId) rather than being a silently-inert option.
 		if (adapterOptions.HasFifoOptions)
 		{
 			var fifo = adapterOptions.FifoOptions!;
-			_ = services.Configure<AwsSqsFifoOptions>(o =>
+
+			// Named as well as unnamed: two named SQS transports each keep their own FIFO selectors,
+			// while the unnamed instance stays available to AwsSqsMessageBus, whose constructor takes
+			// IOptions<AwsSqsFifoOptions>.
+			_ = services.Configure<AwsSqsFifoOptions>(name, MapFifo);
+			_ = services.Configure<AwsSqsFifoOptions>(MapFifo);
+
+			void MapFifo(AwsSqsFifoOptions o)
 			{
 				o.ContentBasedDeduplication = fifo.ContentBasedDeduplication;
 				o.MessageGroupIdSelector = fifo.MessageGroupIdSelector;
 				o.DeduplicationIdSelector = fifo.DeduplicationIdSelector;
-			});
+			}
 		}
 
 		// Configure the AwsSqsOptions the message bus requires (its ctor takes IOptions<AwsSqsOptions>).
 		// Nothing else registered it, so the advertised AddAwsSqsTransport(...) ->
 		// GetRequiredService<AwsSqsMessageBus>() path threw at runtime on the missing dependency. Map it
 		// from the configured adapter options, mirroring the AwsSqsFifoOptions Configure flow above.
-		_ = services.AddOptions<AwsSqsOptions>().Configure(o =>
+		// NAMED, so two named SQS transports in one container no longer write the same instance and let
+		// the second silently replace the first. The unnamed instance is configured as well and keeps its
+		// existing last-registration-wins behaviour, because AwsSqsMessageBus takes
+		// IOptions<AwsSqsOptions> in its constructor and would otherwise resolve an empty object.
+		_ = services.AddOptions<AwsSqsOptions>(name).Configure(MapSqs).ValidateOnStart();
+		_ = services.AddOptions<AwsSqsOptions>().Configure(MapSqs).ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSqsOptions>>(new AwsSqsOptionsValidator()));
+
+		// One mapping, applied to both registrations, so a property added here cannot reach one and miss
+		// the other.
+		void MapSqs(AwsSqsOptions o)
 		{
 			o.QueueUrl = adapterOptions.HasQueueMappings
 				? new Uri(adapterOptions.QueueMappings.Values.First())
 				: null;
-			o.UseFifoQueue = adapterOptions.HasFifoOptions;
-			o.ContentBasedDeduplication =
-				adapterOptions.HasFifoOptions && adapterOptions.FifoOptions!.ContentBasedDeduplication;
-
 			if (!string.IsNullOrWhiteSpace(adapterOptions.Region))
 			{
 				o.Region = adapterOptions.Region;
 			}
-		}).ValidateOnStart();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<AwsSqsOptions>>(new AwsSqsOptionsValidator()));
+		}
+
+		// Server-side encryption on SQS is a queue attribute, so a requested KMS key has to be applied to
+		// the queue at start-up; without this the key would stay in configuration and never reach AWS.
+		// The service is inert unless the consumer asked for encryption.
+		//
+		// Registered PER NAME with a factory rather than by type: TryAddEnumerable de-duplicates by
+		// implementation type, so two named SQS transports would otherwise share one applier reading one
+		// unnamed configuration, and a per-transport KMS key could not reach its own queue.
+		_ = services.AddSingleton<IHostedService>(sp => new AwsSqsQueueEncryptionService(
+			sp.GetRequiredKeyedService<IAmazonSQS>(name),
+			sp.GetRequiredService<IOptionsMonitor<AwsSqsOptions>>(),
+			name,
+			sp.GetRequiredService<ILogger<AwsSqsQueueEncryptionService>>()));
 
 		// Register the transport adapter with the transport factory
 		RegisterTransportAdapter(services, name, adapterOptions);
@@ -149,11 +185,11 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		RegisterSubscriber(services, name, adapterOptions);
 
 		// Register optional, opt-in startup provisioning (redrive policy + SNS subscriptions).
-		RegisterProvisioning(services, adapterOptions);
+		RegisterProvisioning(services, name, adapterOptions);
 
 		// Route the rich ITransportSender/ITransportReceiver classes through DI so configured
 		// capabilities (FIFO group/dedup, batching) are reachable on the AddAwsSqsTransport path
-		// instead of orphaned (kek7vm shared-seam wiring).
+		// instead of orphaned (shared-seam wiring).
 		RegisterTransportSenderReceiver(services, name, adapterOptions);
 
 		return services;
@@ -194,19 +230,40 @@ public static class AwsSqsTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the core AWS SQS services with the service collection.
 	/// </summary>
-	private static void RegisterAwsSqsServices(IServiceCollection services, AwsSqsTransportAdapterOptions adapterOptions)
+	private static void RegisterAwsSqsServices(IServiceCollection services, string name, AwsSqsTransportAdapterOptions adapterOptions)
 	{
 		// Register AWS SQS client honoring the configured region, retry count, and request timeout.
 		// Previously the client was constructed with `new AmazonSQSClient()`, silently ignoring these
 		// options (unlike the SNS registration, which already honors the region).
-		services.TryAddSingleton<IAmazonSQS>(_ => CreateSqsClient(adapterOptions));
+		//
+		// Keyed by transport name: TryAddSingleton-by-type de-duplicates, so a second named SQS
+		// transport contributed no registration and both names resolved the first transport's
+		// client/bus, silently sending every named transport to the first transport's queue.
+		services.TryAddKeyedSingleton<IAmazonSQS>(name, (_, _) => CreateSqsClient(adapterOptions));
 
 		// Ensure IOptions<AwsSqsFifoOptions> resolves for the message bus even when no FIFO queue
 		// is configured (defaults to empty options, leaving group/dedup ids unset).
 		_ = services.AddOptions<AwsSqsFifoOptions>();
 
 		// Register SQS message bus
-		services.TryAddSingleton<AwsSqsMessageBus>();
+		services.TryAddKeyedSingleton<AwsSqsMessageBus>(name, (sp, key) =>
+		{
+			var client = sp.GetRequiredKeyedService<IAmazonSQS>(key);
+			var serializer = sp.GetRequiredService<IPayloadSerializer>();
+			var options = sp.GetRequiredService<IOptionsMonitor<AwsSqsOptions>>().Get(name);
+			var fifoOptions = sp.GetRequiredService<IOptionsMonitor<AwsSqsFifoOptions>>().Get(name);
+			var logger = sp.GetRequiredService<ILogger<AwsSqsMessageBus>>();
+			return new AwsSqsMessageBus(
+				client, serializer, Microsoft.Extensions.Options.Options.Create(options),
+				Microsoft.Extensions.Options.Options.Create(fifoOptions), logger);
+		});
+
+		// Unkeyed convenience registrations for the single-transport host and for consumers of a
+		// separate entry point (e.g. AddSqsChannel) that resolve IAmazonSQS unkeyed. TryAdd*, so the
+		// first-registered named transport wins -- a multi-transport host must resolve the keyed
+		// client/bus by name instead.
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<IAmazonSQS>(name));
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AwsSqsMessageBus>(name));
 	}
 
 	/// <summary>
@@ -221,7 +278,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AwsSqsTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AwsSqsMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AwsSqsMessageBus>(name);
 			return new AwsSqsTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -229,7 +286,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AwsSqsTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AwsSqsMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AwsSqsMessageBus>(name);
 			return new AwsSqsTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -280,17 +337,28 @@ public static class AwsSqsTransportServiceCollectionExtensions
 
 		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
 		{
-			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var sqsClient = sp.GetRequiredKeyedService<IAmazonSQS>(name);
 			var logger = sp.GetRequiredService<ILogger<SqsTransportSender>>();
 			return new SqsTransportSender(sqsClient, queueUrl, logger);
 		});
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 		{
-			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var sqsClient = sp.GetRequiredKeyedService<IAmazonSQS>(name);
 			var logger = sp.GetRequiredService<ILogger<SqsTransportReceiver>>();
+			// The queue options are the surface a consumer configures through ConfigureQueue(...); the
+			// receive call is where they take effect. Passing the defaults instead would leave a
+			// configured long-poll window and visibility timeout with no observable behaviour.
+			var queueOptions = adapterOptions.QueueOptions;
 			return new SqsTransportReceiver(
-				sqsClient, queueUrl, logger, maxPayloadBytes: adapterOptions.MaxPayloadBytes);
+				sqsClient,
+				queueUrl,
+				logger,
+				waitTimeSeconds: queueOptions?.ReceiveWaitTimeSeconds ?? 20,
+				visibilityTimeoutSeconds: queueOptions is null
+					? 30
+					: (int)queueOptions.VisibilityTimeout.TotalSeconds,
+				maxPayloadBytes: adapterOptions.MaxPayloadBytes);
 		});
 	}
 
@@ -304,14 +372,19 @@ public static class AwsSqsTransportServiceCollectionExtensions
 	{
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
-			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var sqsClient = sp.GetRequiredKeyedService<IAmazonSQS>(name);
 			var logger = sp.GetRequiredService<ILogger<SqsTransportSubscriber>>();
 			var queueUrl = adapterOptions.HasQueueMappings
 				? adapterOptions.QueueMappings.Values.First()
 				: name;
+			var queueOptions = adapterOptions.QueueOptions;
 			var nativeSubscriber = new SqsTransportSubscriber(
 				sqsClient, name, queueUrl, adapterOptions.VisibilityHeartbeat, logger,
-				maxPayloadBytes: adapterOptions.MaxPayloadBytes);
+				maxPayloadBytes: adapterOptions.MaxPayloadBytes,
+				waitTimeSeconds: queueOptions?.ReceiveWaitTimeSeconds ?? 20,
+				visibilityTimeoutSeconds: queueOptions is null
+					? null
+					: (int)queueOptions.VisibilityTimeout.TotalSeconds);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));
@@ -360,7 +433,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 	/// Registers the opt-in provisioning hosted service when provisioning is enabled. The SNS client is
 	/// resolved optionally so SQS-only deployments do not require it.
 	/// </summary>
-	private static void RegisterProvisioning(IServiceCollection services, AwsSqsTransportAdapterOptions adapterOptions)
+	private static void RegisterProvisioning(IServiceCollection services, string name, AwsSqsTransportAdapterOptions adapterOptions)
 	{
 		if (!adapterOptions.Provisioning.Enabled)
 		{
@@ -369,7 +442,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 
 		_ = services.AddSingleton(sp =>
 		{
-			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
+			var sqsClient = sp.GetRequiredKeyedService<IAmazonSQS>(name);
 			var snsClient = sp.GetService<Amazon.SimpleNotificationService.IAmazonSimpleNotificationService>();
 			var logger = sp.GetRequiredService<ILogger<AwsSqsProvisioner>>();
 			return new AwsSqsProvisioner(sqsClient, snsClient, logger);

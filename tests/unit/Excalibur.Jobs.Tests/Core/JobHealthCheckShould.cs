@@ -55,32 +55,6 @@ public sealed class JobHealthCheckShould
 	}
 
 	[Fact]
-	public async Task ReturnDegraded_WhenHeartbeatExceedsDegradedThreshold()
-	{
-		// Arrange
-		var jobName = "degraded-job-" + Guid.NewGuid();
-		var config = new TestJobOptions
-		{
-			DegradedThreshold = TimeSpan.FromMilliseconds(1),
-			UnhealthyThreshold = TimeSpan.FromHours(1),
-		};
-		var healthCheck = new JobHealthCheck(jobName, config, _tracker);
-		var context = new HealthCheckContext();
-
-		_tracker.RecordHeartbeat(jobName);
-
-		// Wait past the degraded threshold
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
-
-		// Act
-		var result = await healthCheck.CheckHealthAsync(context, CancellationToken.None);
-
-		// Assert
-		result.Status.ShouldBe(HealthStatus.Degraded);
-		result.Description.ShouldContain("is degraded");
-	}
-
-	[Fact]
 	public void RecordHeartbeat_UpdatesExistingEntry()
 	{
 		// Arrange

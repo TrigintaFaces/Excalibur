@@ -429,7 +429,7 @@ public sealed partial class RetryPolicyManager(
 		return totalAttempts > 0 ? (double)successfulAttempts / totalAttempts : 0;
 	}
 
-	// Source-generated logging methods (Sprint 363 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(GooglePubSubEventId.RetryAttemptLogged, LogLevel.Debug,
 		"Retry attempt {Attempt} for message {MessageId}")]
 	private partial void LogRetryAttempt(int attempt, string messageId);

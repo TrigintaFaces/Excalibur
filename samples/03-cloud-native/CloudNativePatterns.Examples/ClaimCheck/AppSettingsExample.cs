@@ -15,7 +15,6 @@ public sealed class AppSettingsExample
 	                                                        "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=mystorageaccount;AccountKey=...",
 	                                                        "ContainerName": "claim-checks",
 	                                                        "PayloadThreshold": 65536,
-	                                                        "ChunkSize": 1048576,
 	                                                        "MaxConcurrency": 4,
 	                                                        "EnableCompression": true,
 	                                                        "CompressionThreshold": 1024,

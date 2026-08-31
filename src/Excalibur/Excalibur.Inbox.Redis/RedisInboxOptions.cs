@@ -27,7 +27,12 @@ public sealed class RedisInboxOptions
 	/// Gets or sets the key prefix for inbox entries.
 	/// </summary>
 	/// <remarks>
-	/// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}
+	/// Keys are formatted as <c>{KeyPrefix}:{tenant}:{messageId}:{handlerType}</c>. The tenant segment is
+	/// always present — a multi-tenant host composes the resolved tenant identifier, and a host with no
+	/// resolved tenant composes the framework's reserved untenanted marker — so the key shape is identical
+	/// in every deployment. The three trailing segments are percent-escaped (<c>%</c> becomes <c>%25</c> and
+	/// <c>:</c> becomes <c>%3A</c>); this prefix is not escaped, so a <c>{KeyPrefix}:*</c> pattern still
+	/// matches every key.
 	/// </remarks>
 	[Required]
 	public string KeyPrefix { get; set; } = "inbox";

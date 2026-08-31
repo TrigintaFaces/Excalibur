@@ -129,7 +129,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  _legalHoldService = legalHoldService;
  _dataInventoryService = dataInventoryService;
  _annotationSource = annotationSource ?? throw new ArgumentNullException(nameof(annotationSource));
- // 9ox4sb: materialize once — the injected IEnumerable is enumerated in both ExecuteAsync and
+ // materialize once — the injected IEnumerable is enumerated in both ExecuteAsync and
 		// EvaluateCoverage, so a lazy/once-only sequence would yield inconsistent results (or re-run
 		// factories). Matches RetentionEnforcementService's [.. contributors].
 		_contributors = contributors is null ? [] : [.. contributors];
@@ -334,7 +334,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  DataCategories = [],
  TablesAffected = []
  },
- // 06jl26: this fallback reconstructs the certificate from persisted status alone, which carries the
+ // this fallback reconstructs the certificate from persisted status alone, which carries the
  // KeysDeleted COUNT but not the deleted key IDs (those exist only on the live execution path via
  // PersistCompletionCertificateAsync). Without the key IDs we cannot substantiate key-deletion, so we
  // must NOT claim Verified=true with an empty DeletedKeyIds (a trivially-passing, dishonest attestation).
@@ -409,7 +409,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 
  try
  {
- // Discover keys to delete via data inventory (AD-544.9: use hash-based lookup)
+ // Discover keys to delete via data inventory (use hash-based lookup)
  var keysToDelete = new List<string>();
  IReadOnlyList<DataLocation> discoveredLocations = [];
  if (_dataInventoryService is not null)
@@ -429,7 +429,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  LogErasureKeysDiscovered(requestId, keysToDelete.Count);
  }
 
- // Per-subject crypto-shred (uahb0i): a subject's dedicated key handle is deterministically the
+ // Per-subject crypto-shred: a subject's dedicated key handle is deterministically the
  // subject-id hash (SubjectKeyManager derives keyId = IDataSubjectHasher.HashDataSubjectId, the
  // same hash as status.DataSubjectIdHash). Always destroy it -- even when the data inventory does
  // not enumerate it -- so destroying the key erases the subject regardless of inventory coverage.
@@ -483,13 +483,13 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  }
  }
 
- // fot516 / Amendment 1/1a — STRUCTURAL key-aware coverage gate (computed by EvaluateCoverage).
+ // Amendment 1/1a — STRUCTURAL key-aware coverage gate (computed by EvaluateCoverage).
  // A location is Covered iff its key was deleted (crypto-shred), its store-kind has a registered
  // contributor, or its store-kind is a declared exemption. Any Uncovered location means personal data
  // would survive, so the Completed outcome is made UNREACHABLE below (enforce-invariants-structurally):
  // the branch that records completion is the only one that does NOT run when an uncovered location
- // exists. Exemptions actually in play are carried onto the certificate (412fo4 / FR-4a).
- // Structural key-aware coverage gate (fot516 / vxp56x) + 88xrgq affirmative-proof, assembled in
+ // exists. Exemptions actually in play are carried onto the certificate.
+ // Structural key-aware coverage gate + affirmative-proof, assembled in
  // AppendCoverageGateErrors (extracted to keep ExecuteAsync within its class-coupling budget). Any
  // uncovered, undiscovered-annotated, or unverified-coverage condition adds an error, which makes the
  // Completed branch below (errors.Count == 0) UNREACHABLE (enforce-invariants-structurally) — a
@@ -620,7 +620,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 	/// <summary>Evaluates erasure coverage for the discovered locations (delegates to the evaluator).</summary>
 	private void AppendCoverageGateErrors(List<string> errors, CoverageOutcome coverage)
 	{
- // 88xrgq — AFFIRMATIVE coverage proof. A completion certificate is a compliance PROOF, so it fails
+ // AFFIRMATIVE coverage proof. A completion certificate is a compliance PROOF, so it fails
  // CLOSED: the absence of discovered-uncovered stores is NOT proof of coverage when discovery never ran.
  // Without a data-inventory discovery source, store-level coverage is UNVERIFIED; feeding it into the
  // same errors gate makes a "Completed" certificate over unverified coverage structurally inexpressible.
@@ -635,7 +635,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  + "key-destruction-only erasure. A completion certificate is not issued over unverified coverage.");
  }
 
- // fot516 — a discovered location not covered by crypto-shred, a contributor, or an exemption means
+ // a discovered location not covered by crypto-shred, a contributor, or an exemption means
  // personal data would survive the erasure.
  if (coverage.UncoveredStoreKinds.Count > 0)
  {
@@ -644,7 +644,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  + "no erasure contributor, crypto-shred, or declared exemption covers these locations.");
  }
 
- // vxp56x — [PersonalData]-annotated categories with no discovered/registered location are annotated
+ // [PersonalData]-annotated categories with no discovered/registered location are annotated
  // personal data the inventory never located.
  if (coverage.UncoveredAnnotatedCategories.Count > 0)
  {
@@ -730,7 +730,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  DeletedKeyIds = deletedKeyIds
  },
  LegalBasis = status.LegalBasis,
- // FR-4a: enumerate exemptions (e.g. audit store) with their legal basis — explicit, never silent.
+ // enumerate exemptions (e.g. audit store) with their legal basis — explicit, never silent.
  Exceptions = exemptions,
  Signature = GenerateSignature(requestId, status.DataSubjectIdHash, completedAt),
  RetainUntil = completedAt.Add(_options.Value.Retention.CertificateRetentionPeriod)

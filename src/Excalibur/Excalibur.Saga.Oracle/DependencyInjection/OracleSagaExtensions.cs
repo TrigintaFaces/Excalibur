@@ -27,6 +27,8 @@ public static class OracleSagaExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure saga store options (connection string, schema, table names).</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddOracleSagaStore(
 		this IServiceCollection services,
 		Action<OracleSagaStoreOptions> configure)
@@ -34,21 +36,28 @@ public static class OracleSagaExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
+
 		RegisterSagaStoreOptions(services, configure);
 
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
 		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
 		// multi-tenant context still wins regardless of composition order.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext for the row-level tenant
-		// predicate) AND emits the ITenantScopingCapability<ISagaStore> marker as one inseparable act, so a
-		// store wired WITHOUT the ambient tenant can never carry a truthful-looking marker (S886 rw2ull).
-		services.AddTenantScopedStore<ISagaStore, OracleSagaStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext for the row-level tenant
+		// predicate, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<ISagaStore> marker as one inseparable act, so a store wired WITHOUT the
+		// ambient tenant can never carry a truthful-looking marker.
+		services.AddTenantAwareStore<ISagaStore, OracleSagaStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OracleSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OracleSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new OracleSagaStore(options.Value.ConnectionString!, options, logger, serializer, tenantContext);
+			return new OracleSagaStore(options.Value.ConnectionString!, options, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		services.AddKeyedSingleton<ISagaStore>("oracle", (sp, _) => sp.GetRequiredService<OracleSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
@@ -69,6 +78,8 @@ public static class OracleSagaExtensions
 	/// </param>
 	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddOracleSagaStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<OracleConnection>> connectionFactoryProvider,
@@ -77,21 +88,28 @@ public static class OracleSagaExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
+
 		RegisterSagaStoreOptions(services, configure);
 
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
 		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
 		// multi-tenant context still wins regardless of composition order.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<ISagaStore> marker as one inseparable act (S886 rw2ull).
-		services.AddTenantScopedStore<ISagaStore, OracleSagaStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISagaStore> marker as one inseparable act
+		//.
+		services.AddTenantAwareStore<ISagaStore, OracleSagaStore>(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<OracleSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OracleSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new OracleSagaStore(connectionFactory, options, logger, serializer, tenantContext);
+			return new OracleSagaStore(connectionFactory, options, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		services.AddKeyedSingleton<ISagaStore>("oracle", (sp, _) => sp.GetRequiredService<OracleSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
@@ -109,12 +127,20 @@ public static class OracleSagaExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddOracleSagaStore<TDb>(
 		this IServiceCollection services,
 		Action<OracleSagaStoreOptions>? configure = null)
 		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
+
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
 
 		return services.AddOracleSagaStore(
 			sp => () => (OracleConnection)sp.GetRequiredService<TDb>().Connection,
@@ -127,6 +153,8 @@ public static class OracleSagaExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IDispatchBuilder UseOracleSagaStore(
 		this IDispatchBuilder builder,
 		Action<OracleSagaStoreOptions> configure)
@@ -154,11 +182,16 @@ public static class OracleSagaExtensions
 
 		RegisterSagaTimeoutStoreOptions(services, configure);
 
+		// The timeout store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OracleSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OracleSagaTimeoutStore>>();
-			return new OracleSagaTimeoutStore(options.Value.ConnectionString!, options, logger);
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			return new OracleSagaTimeoutStore(options.Value.ConnectionString!, options, logger, tenantContext);
 		});
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<OracleSagaTimeoutStore>());
 
@@ -184,12 +217,17 @@ public static class OracleSagaExtensions
 
 		RegisterSagaTimeoutStoreOptions(services, configure);
 
+		// The timeout store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<OracleSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<OracleSagaTimeoutStore>>();
-			return new OracleSagaTimeoutStore(connectionFactory, options, logger);
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			return new OracleSagaTimeoutStore(connectionFactory, options, logger, tenantContext);
 		});
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<OracleSagaTimeoutStore>());
 

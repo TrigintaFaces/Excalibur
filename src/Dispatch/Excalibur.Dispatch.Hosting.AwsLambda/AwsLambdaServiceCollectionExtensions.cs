@@ -32,7 +32,7 @@ public static class AwsLambdaServiceCollectionExtensions
 		services.TryAddSingleton<IColdStartOptimizer, AwsLambdaColdStartOptimizer>();
 		services.TryAddSingleton<DefaultLambdaJsonSerializer>();
 
-		// bfak2b — the "running on AWS Lambda?" decision is configuration: default the cold-start flag ONCE
+		// the "running on AWS Lambda?" decision is configuration: default the cold-start flag ONCE
 		// at the composition root from the AWS_LAMBDA_FUNCTION_NAME environment variable (AWS sets it on
 		// every invocation). The optimizer injects IOptions<AwsLambdaOptions> and reads the flag; tests set
 		// it directly, with no environment-variable mocking.

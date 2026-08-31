@@ -25,13 +25,6 @@ public sealed class SecurityAlertRequest
 	/// </value>
 	public AlertCriteria Criteria { get; set; } = new();
 
-	/// <summary>
-	/// Gets or sets a value indicating whether to automatically distribute alerts.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to automatically distribute alerts.
-	/// </value>
-	public bool AutoDistribute { get; set; }
 
 	/// <summary>
 	/// Gets or sets the minimum severity level for alerts to be included in the request.
@@ -59,15 +52,6 @@ public sealed class SecurityAlertRequest
 	public sealed class AlertCriteria
 	{
 		/// <summary>
-		/// Gets or sets the minimum risk level for filtering security alerts.
-		/// </summary>
-		/// <value>
-		/// A nullable SecurityRiskLevel that specifies the minimum severity threshold for including alerts in the results. If null, no
-		/// risk level filtering is applied.
-		/// </value>
-		public SecurityRiskLevel? MinimumRiskLevel { get; set; }
-
-		/// <summary>
 		/// Gets or sets the list of event types to include in the security alert filtering.
 		/// </summary>
 		/// <value>
@@ -85,16 +69,5 @@ public sealed class SecurityAlertRequest
 		/// </value>
 		public List<string> TargetSystems { get; set; } = [];
 
-		/// <summary>
-		/// Gets or sets a value indicating whether anomaly detection events should be included in the security alerts.
-		/// </summary>
-		/// <value> True if anomaly detection events should be included in the security alert criteria; otherwise, false. </value>
-		public bool IncludeAnomalies { get; set; }
-
-		/// <summary>
-		/// Gets or sets a value indicating whether threat detection events should be included in the security alerts.
-		/// </summary>
-		/// <value> True if threat detection events should be included in the security alert criteria; otherwise, false. </value>
-		public bool IncludeThreats { get; set; }
 	}
 }

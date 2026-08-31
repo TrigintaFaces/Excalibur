@@ -14,6 +14,19 @@ Building comprehensive Grafana dashboards for monitoring Excalibur applications 
 
 ## Overview
 
+:::info These dashboards chart metrics you define, not framework metrics
+This page builds dashboards on **your own** instruments, declared with the third-party
+`prometheus-net` library in the samples below. The series names here (`dispatch_messages_total`,
+`eventstore_events_appended_total`, `outbox_messages_published_total`, …) exist only once you add
+the middleware and decorators shown on this page.
+
+The framework's **own** instruments are separate: they use `System.Diagnostics.Metrics` and reach
+Prometheus through the OpenTelemetry exporter, under different names. If you want to chart those,
+see the [metrics reference](./metrics-reference.md) — it lists the instrument names and the exact
+rules the exporter applies when renaming them. Pointing a panel at a framework instrument's raw
+name will render an empty graph.
+:::
+
 Grafana provides powerful visualization and alerting for:
 - **Application Metrics**: Request rates, error rates, latency
 - **Business Metrics**: Commands processed, events published, aggregates loaded
@@ -120,7 +133,7 @@ app.Run();
 
 ## Custom Dispatch Metrics
 
-### Command Processing Metrics
+### Message Processing Metrics
 
 ```csharp
 using Prometheus;
@@ -342,40 +355,40 @@ public class MetricsOutboxPublisher : IOutboxPublisher
 
 ## Grafana Dashboard JSON
 
-### Command Processing Dashboard
+### Message Processing Dashboard
 
-Save as `grafana/dashboards/dispatch-commands.json`:
+Save as `grafana/dashboards/dispatch-messages.json`:
 
 ```json
 {
   "dashboard": {
-    "title": "Excalibur - Command Processing",
-    "tags": ["dispatch", "commands"],
+    "title": "Excalibur - Message Processing",
+    "tags": ["dispatch", "messages"],
     "timezone": "browser",
     "panels": [
       {
         "id": 1,
-        "title": "Command Rate",
+        "title": "Message Rate",
         "type": "graph",
         "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
         "targets": [
           {
-            "expr": "sum(rate(dispatch_commands_total[5m])) by (command_type)",
-            "legendFormat": "{{command_type}}"
+            "expr": "sum(rate(dispatch_messages_total[5m])) by (message_type)",
+            "legendFormat": "{{message_type}}"
           }
         ],
         "yaxes": [
-          { "label": "Commands/sec", "format": "short" }
+          { "label": "Messages/sec", "format": "short" }
         ]
       },
       {
         "id": 2,
-        "title": "Command Success Rate",
+        "title": "Message Success Rate",
         "type": "graph",
         "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
         "targets": [
           {
-            "expr": "sum(rate(dispatch_commands_total{status=\"success\"}[5m])) / sum(rate(dispatch_commands_total[5m]))",
+            "expr": "sum(rate(dispatch_messages_total{status=\"success\"}[5m])) / sum(rate(dispatch_messages_total[5m]))",
             "legendFormat": "Success Rate"
           }
         ],
@@ -385,21 +398,21 @@ Save as `grafana/dashboards/dispatch-commands.json`:
       },
       {
         "id": 3,
-        "title": "Command Duration (p50, p95, p99)",
+        "title": "Message Duration (p50, p95, p99)",
         "type": "graph",
         "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
         "targets": [
           {
-            "expr": "histogram_quantile(0.50, sum(rate(dispatch_command_duration_seconds_bucket[5m])) by (le, command_type))",
-            "legendFormat": "p50 - {{command_type}}"
+            "expr": "histogram_quantile(0.50, sum(rate(dispatch_message_duration_seconds_bucket[5m])) by (le, message_type))",
+            "legendFormat": "p50 - {{message_type}}"
           },
           {
-            "expr": "histogram_quantile(0.95, sum(rate(dispatch_command_duration_seconds_bucket[5m])) by (le, command_type))",
-            "legendFormat": "p95 - {{command_type}}"
+            "expr": "histogram_quantile(0.95, sum(rate(dispatch_message_duration_seconds_bucket[5m])) by (le, message_type))",
+            "legendFormat": "p95 - {{message_type}}"
           },
           {
-            "expr": "histogram_quantile(0.99, sum(rate(dispatch_command_duration_seconds_bucket[5m])) by (le, command_type))",
-            "legendFormat": "p99 - {{command_type}}"
+            "expr": "histogram_quantile(0.99, sum(rate(dispatch_message_duration_seconds_bucket[5m])) by (le, message_type))",
+            "legendFormat": "p99 - {{message_type}}"
           }
         ],
         "yaxes": [
@@ -408,13 +421,13 @@ Save as `grafana/dashboards/dispatch-commands.json`:
       },
       {
         "id": 4,
-        "title": "Active Commands",
+        "title": "Active Messages",
         "type": "graph",
         "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
         "targets": [
           {
-            "expr": "sum(dispatch_commands_active) by (command_type)",
-            "legendFormat": "{{command_type}}"
+            "expr": "sum(dispatch_messages_active) by (message_type)",
+            "legendFormat": "{{message_type}}"
           }
         ],
         "yaxes": [
@@ -651,8 +664,8 @@ datasources:
 
 ```
 customMetrics
-| where name == "dispatch_commands_total"
-| summarize sum(value) by bin(timestamp, 5m), tostring(customDimensions.command_type)
+| where name == "dispatch_messages_total"
+| summarize sum(value) by bin(timestamp, 5m), tostring(customDimensions.message_type)
 ```
 
 ## CloudWatch Integration
@@ -694,31 +707,31 @@ groups:
   - name: dispatch-alerts
     interval: 1m
     rules:
-      - alert: HighCommandFailureRate
+      - alert: HighMessageFailureRate
         expr: |
-          sum(rate(dispatch_commands_total{status="failure"}[5m]))
+          sum(rate(dispatch_messages_total{status="failure"}[5m]))
           /
-          sum(rate(dispatch_commands_total[5m]))
+          sum(rate(dispatch_messages_total[5m]))
           > 0.05
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "High command failure rate"
-          description: "Command failure rate is {{ $value | humanizePercentage }}"
+          summary: "High message failure rate"
+          description: "Message failure rate is {{ $value | humanizePercentage }}"
 
-      - alert: SlowCommandProcessing
+      - alert: SlowMessageProcessing
         expr: |
           histogram_quantile(0.95,
-            sum(rate(dispatch_command_duration_seconds_bucket[5m]))
-            by (le, command_type)
+            sum(rate(dispatch_message_duration_seconds_bucket[5m]))
+            by (le, message_type)
           ) > 5
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Slow command processing"
-          description: "p95 latency for {{ $labels.command_type }} is {{ $value }}s"
+          summary: "Slow message processing"
+          description: "p95 latency for {{ $labels.message_type }} is {{ $value }}s"
 
       - alert: HighConcurrencyConflicts
         expr: |
@@ -772,16 +785,16 @@ Add dashboard variables for filtering:
       {
         "name": "environment",
         "type": "query",
-        "query": "label_values(dispatch_commands_total, environment)",
+        "query": "label_values(dispatch_messages_total, environment)",
         "current": {
           "text": "production",
           "value": "production"
         }
       },
       {
-        "name": "command_type",
+        "name": "message_type",
         "type": "query",
-        "query": "label_values(dispatch_commands_total{environment=\"$environment\"}, command_type)",
+        "query": "label_values(dispatch_messages_total{environment=\"$environment\"}, message_type)",
         "multi": true,
         "includeAll": true
       }
@@ -792,7 +805,7 @@ Add dashboard variables for filtering:
 
 **Usage in queries:**
 ```
-sum(rate(dispatch_commands_total{environment="$environment", command_type=~"$command_type"}[5m]))
+sum(rate(dispatch_messages_total{environment="$environment", message_type=~"$message_type"}[5m]))
 ```
 
 ## Kubernetes Dashboards

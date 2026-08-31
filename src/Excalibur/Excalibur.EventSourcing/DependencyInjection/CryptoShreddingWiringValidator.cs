@@ -42,7 +42,7 @@ internal sealed class EventStoreEncryptionMarker;
 /// constructs nothing. AOT-safe: no reflection.
 /// </para>
 /// </remarks>
-internal sealed partial class CryptoShreddingWiringValidator : IHostedService
+internal sealed partial class CryptoShreddingWiringValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 	private readonly ILogger<CryptoShreddingWiringValidator> _logger;
@@ -54,6 +54,12 @@ internal sealed partial class CryptoShreddingWiringValidator : IHostedService
 	}
 
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		// Probe REGISTRATION, never RESOLUTION. This service is a singleton and therefore holds the ROOT
 		// provider: resolving the scoped SubjectFieldCryptor from it throws InvalidOperationException
@@ -83,8 +89,6 @@ internal sealed partial class CryptoShreddingWiringValidator : IHostedService
 				+ "subject key would not erase them. Call AddEventSourcingCryptoShredding() to activate "
 				+ "at-rest field encryption for the event store.");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

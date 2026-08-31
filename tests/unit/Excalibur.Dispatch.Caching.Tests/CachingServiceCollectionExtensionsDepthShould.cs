@@ -35,9 +35,13 @@ public sealed class CachingServiceCollectionExtensionsDepthShould
 		options.Enabled.ShouldBeTrue();
 		options.CacheMode.ShouldBe(CacheMode.Distributed);
 
+		// The registered backend is wrapped so its calls are bounded by CacheTimeout, but it must still be
+		// the backend the consumer asked for -- a decorator that swapped it would pass a bare type check on
+		// the wrapper alone.
 		var distributedCache = sp.GetService<IDistributedCache>();
 		distributedCache.ShouldNotBeNull();
-		distributedCache.ShouldBeOfType<FakeDistributedCache>();
+		var bounded = distributedCache.ShouldBeOfType<TimeoutDistributedCache>();
+		bounded.Inner.ShouldBeOfType<FakeDistributedCache>();
 	}
 
 	[Fact]

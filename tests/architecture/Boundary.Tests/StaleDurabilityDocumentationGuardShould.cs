@@ -67,16 +67,46 @@ internal sealed record DocumentationFinding(string MemberName, DocumentationVerd
 public sealed class StaleDurabilityDocumentationGuardShould
 {
 	/// <summary>
-	/// Phrases by which documentation asserts that startup is refused. Matched against documentation text
-	/// only, never against identifiers, so renaming a member cannot silence the guard.
+	/// Words placing a claim at process start. Deliberately the stem rather than whole words: "startup",
+	/// "start-up" and "refuses to start" are all the same claim, and a list of whole words silently drops
+	/// whichever spelling the next author picks. Matched against documentation text only, never against
+	/// identifiers, so renaming a member cannot silence the guard.
 	/// </summary>
-	private static readonly string[] StartupConsequenceClaims =
-	[
-		"fails startup",
-		"fail startup",
-		"refuses to start",
-		"blocks startup",
-	];
+	private static readonly string[] StartupWords = ["start", "boot"];
+
+	/// <summary>
+	/// Words by which documentation asserts that something is refused or checked rather than merely
+	/// described.
+	/// </summary>
+	private static readonly string[] RefusalWords = ["fail", "refus", "reject", "block", "gate", "error"];
+
+	/// <summary>
+	/// Decides whether documentation claims a consequence at process start.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Why co-occurrence and not a phrase list.</b> This began as four exact phrases — "fails startup",
+	/// "fail startup", "refuses to start", "blocks startup" — taken from the wording the defect shipped
+	/// with. The wording was later improved to "the framework fails fast at startup if a volatile store is
+	/// registered", and the single word inserted between "fails" and "startup" made the guard blind. It
+	/// then reported Pass over all four options files it exists to police, including one whose seam had no
+	/// production call site at all, and its own fixtures kept passing because they were written to match
+	/// the phrase list rather than the text the product ships.
+	/// </para>
+	/// <para>
+	/// A phrase list tests whether an author chose a particular sentence. The property that matters is
+	/// whether the documentation tells a reader something is enforced at startup. Co-occurrence is a closer
+	/// approximation of that and, unlike a phrase list, does not silently narrow when prose is edited. It
+	/// is still an approximation: it can call a claim where a sentence merely mentions both ideas. That
+	/// direction is the safe one — a false claim is only ever reported when the seam is <i>also</i>
+	/// unreachable, which is a fact worth surfacing however the sentence was phrased.
+	/// </para>
+	/// </remarks>
+	/// <param name="documentation">The documentation text of a single member.</param>
+	/// <returns><see langword="true"/> when the text asserts a consequence at process start.</returns>
+	private static bool ClaimsStartupConsequence(string documentation) =>
+		StartupWords.Any(word => documentation.Contains(word, StringComparison.OrdinalIgnoreCase))
+		&& RefusalWords.Any(word => documentation.Contains(word, StringComparison.OrdinalIgnoreCase));
 
 	// ---------- the injected-data core ----------
 
@@ -123,10 +153,7 @@ public sealed class StaleDurabilityDocumentationGuardShould
 				continue;
 			}
 
-			var claimsStartupConsequence = StartupConsequenceClaims.Any(
-				claim => documentation.Contains(claim, StringComparison.OrdinalIgnoreCase));
-
-			if (!claimsStartupConsequence)
+			if (!ClaimsStartupConsequence(documentation))
 			{
 				findings.Add(new DocumentationFinding(
 					property.Identifier.ValueText,
@@ -169,6 +196,36 @@ public sealed class StaleDurabilityDocumentationGuardShould
 		}
 		""";
 
+	/// <summary>
+	/// The sentence the options files actually ship, copied from them rather than composed here. A fixture
+	/// written to match the predicate proves only that the predicate matches itself; this one fails if the
+	/// predicate ever again stops seeing the product.
+	/// </summary>
+	private const string PropertyUsingShippedWording = """
+		public sealed class SomeOptions
+		{
+			/// <summary>Whether a volatile store is permitted.</summary>
+			/// <value>
+			/// <see langword="false" /> — the default — states that this host expects a durable store, and
+			/// the framework fails fast at startup if a volatile store is registered.
+			/// </value>
+			public bool AllowVolatileStore { get; set; }
+		}
+		""";
+
+	/// <summary>
+	/// A documented property asserting nothing about startup, so the predicate is shown to discriminate
+	/// rather than to call everything a claim.
+	/// </summary>
+	private const string PropertyClaimingNothing = """
+		public sealed class SomeOptions
+		{
+			/// <summary>Whether a volatile store is permitted.</summary>
+			/// <value>Set this only for development hosts, where losing pending work is intended.</value>
+			public bool AllowVolatileStore { get; set; }
+		}
+		""";
+
 	private const string MethodClaimingStartupEnforcement = """
 		public static class SomeRegistration
 		{
@@ -201,6 +258,31 @@ public sealed class StaleDurabilityDocumentationGuardShould
 		findings.ShouldHaveSingleItem().Verdict.ShouldBe(
 			DocumentationVerdict.Pass,
 			"once the enforcement is wired the sentence is true and must not be reported");
+	}
+
+	// ---------- SAFETY: the predicate must see the wording the product ships ----------
+
+	[Fact]
+	public void Recognise_the_wording_the_options_files_actually_ship()
+	{
+		var findings = Classify(PropertyUsingShippedWording, enforcementIsReachable: false);
+
+		findings.ShouldHaveSingleItem().Verdict.ShouldBe(
+			DocumentationVerdict.Fail,
+			"this is the sentence the four options files carry; a predicate that cannot see it reports "
+			+ "Pass over its entire real population while a seam sits wired to nothing");
+	}
+
+	// ---------- LIVENESS: the predicate discriminates ----------
+
+	[Fact]
+	public void Not_call_a_claim_where_documentation_asserts_no_startup_consequence()
+	{
+		var findings = Classify(PropertyClaimingNothing, enforcementIsReachable: false);
+
+		findings.ShouldHaveSingleItem().Verdict.ShouldBe(
+			DocumentationVerdict.Pass,
+			"a guard that called every documented property a claim would fail the honest ones too");
 	}
 
 	// ---------- LIVENESS: the registration method is out of population ----------

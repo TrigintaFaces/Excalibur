@@ -31,11 +31,6 @@ internal sealed class BatchOptionsValidator : IValidateOptions<BatchOptions>
 			failures.Add($"{nameof(BatchOptions.MinMessagesPerBatch)} must be between 1 and {nameof(BatchOptions.MaxMessagesPerBatch)} ({options.MaxMessagesPerBatch}). Was {options.MinMessagesPerBatch}.");
 		}
 
-		if (options.MaxBatchWaitTime <= TimeSpan.Zero)
-		{
-			failures.Add($"{nameof(BatchOptions.MaxBatchWaitTime)} must be greater than zero. Was {options.MaxBatchWaitTime}.");
-		}
-
 		if (options.MaxBatchSizeBytes <= 0)
 		{
 			failures.Add($"{nameof(BatchOptions.MaxBatchSizeBytes)} must be greater than zero. Was {options.MaxBatchSizeBytes}.");
@@ -49,11 +44,6 @@ internal sealed class BatchOptionsValidator : IValidateOptions<BatchOptions>
 		if (options.ConcurrentBatchProcessors <= 0)
 		{
 			failures.Add($"{nameof(BatchOptions.ConcurrentBatchProcessors)} must be greater than zero. Was {options.ConcurrentBatchProcessors}.");
-		}
-
-		if (options.Acknowledgment.AckDeadlineSeconds is < 10 or > 600)
-		{
-			failures.Add($"{nameof(BatchAcknowledgmentOptions)}.{nameof(BatchAcknowledgmentOptions.AckDeadlineSeconds)} must be between 10 and 600. Was {options.Acknowledgment.AckDeadlineSeconds}.");
 		}
 
 		return failures.Count > 0

@@ -8,7 +8,7 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
-    <!-- One-way dependency: compat -> canonical Dispatch. Canonical NEVER references compat (ADR-341 §8). -->
+    <!-- One-way dependency: compat -> canonical Dispatch. Canonical NEVER references compat. -->
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

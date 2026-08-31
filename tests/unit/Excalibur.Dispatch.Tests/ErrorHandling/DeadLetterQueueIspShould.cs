@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.ErrorHandling;
 /// <summary>
 /// ISP compliance tests for IDeadLetterQueue and IDeadLetterQueueAdmin interfaces.
 /// Verifies interface shape, method semantics, and ISP gate compliance.
-/// IDeadLetterQueue has 5 core methods; IDeadLetterQueueAdmin has 3 admin methods (ReplayBatch, Purge, PurgeOlderThan).
+/// IDeadLetterQueue has 5 tenant-scoped core methods; IDeadLetterQueueAdmin has 6 estate-wide operator methods.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
@@ -100,11 +100,11 @@ public sealed class DeadLetterQueueIspShould
 	}
 
 	[Fact]
-	public void AdminHavePurgeOlderThanAsyncMethod()
+	public void AdminHavePurgeAllTenantsEntriesOlderThanAsyncMethod()
 	{
-		var method = typeof(IDeadLetterQueueAdmin).GetMethod("PurgeOlderThanAsync", DeclaredPublicInstance);
+		var method = typeof(IDeadLetterQueueAdmin).GetMethod("PurgeAllTenantsEntriesOlderThanAsync", DeclaredPublicInstance);
 
-		method.ShouldNotBeNull("IDeadLetterQueueAdmin must have PurgeOlderThanAsync");
+		method.ShouldNotBeNull("IDeadLetterQueueAdmin must have PurgeAllTenantsEntriesOlderThanAsync");
 		method.ReturnType.ShouldBe(typeof(Task<int>));
 	}
 
@@ -126,16 +126,29 @@ public sealed class DeadLetterQueueIspShould
 	}
 
 	[Fact]
-	public void HaveThreeAdminMethods()
+	public void HaveSixAdminMethods()
 	{
-		// Admin operations moved to IDeadLetterQueueAdmin: ReplayBatch, Purge, PurgeOlderThan
-		var adminMethodNames = new[] { "ReplayBatchAsync", "PurgeAsync", "PurgeOlderThanAsync" };
+		// The operator surface: three mutating operations and three estate-wide reads. The reads are named
+		// rather than reached by leaving a tenant unset, which is why they are declared here and not on
+		// IDeadLetterQueue — that interface is tenant-scoped.
+		string[] adminMethodNames =
+		[
+			"ReplayBatchAsync",
+			"PurgeAsync",
+			"PurgeAllTenantsEntriesOlderThanAsync",
+			"GetAllTenantsEntriesAsync",
+			"GetAllTenantsEntryAsync",
+			"ReplayAllTenantsEntryAsync",
+		];
 
 		var methods = typeof(IDeadLetterQueueAdmin).GetMethods(DeclaredPublicInstance);
-		var adminFound = methods.Where(m => adminMethodNames.Contains(m.Name)).ToList();
+		var adminFound = methods.Where(m => adminMethodNames.Contains(m.Name)).Select(m => m.Name).ToList();
 
-		adminFound.Count.ShouldBe(3,
-			"IDeadLetterQueueAdmin should have exactly 3 admin methods (ReplayBatch, Purge, PurgeOlderThan)");
+		// Asserting the SET, not just the count: a count alone stays green if one operation is renamed and
+		// another added, which is the change most likely to drop an estate-wide seam by accident.
+		adminFound.OrderBy(n => n, StringComparer.Ordinal).ToList().ShouldBe(
+			[.. adminMethodNames.OrderBy(n => n, StringComparer.Ordinal)],
+			customMessage: "IDeadLetterQueueAdmin must declare exactly its six operator methods");
 	}
 
 	#endregion
@@ -235,13 +248,13 @@ public sealed class DeadLetterQueueIspShould
 	[Fact]
 	public async Task AcceptPurgeOlderThan()
 	{
-		// Arrange -- PurgeOlderThanAsync moved to IDeadLetterQueueAdmin ISP sub-interface
+		// Arrange -- PurgeAllTenantsEntriesOlderThanAsync moved to IDeadLetterQueueAdmin ISP sub-interface
 		var dlq = A.Fake<IDeadLetterQueueAdmin>();
-		A.CallTo(() => dlq.PurgeOlderThanAsync(A<TimeSpan>.Ignored, A<CancellationToken>.Ignored))
+		A.CallTo(() => dlq.PurgeAllTenantsEntriesOlderThanAsync(A<TimeSpan>.Ignored, A<CancellationToken>.Ignored))
 			.Returns(5);
 
 		// Act
-		var result = await dlq.PurgeOlderThanAsync(TimeSpan.FromDays(30), CancellationToken.None);
+		var result = await dlq.PurgeAllTenantsEntriesOlderThanAsync(TimeSpan.FromDays(30), CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(5);

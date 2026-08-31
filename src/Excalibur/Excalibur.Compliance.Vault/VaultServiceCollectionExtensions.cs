@@ -62,7 +62,7 @@ public static class VaultServiceCollectionExtensions
 		IServiceCollection services,
 		ComplianceVaultBuilder builder)
 	{
-		// bd-r5r7fe (enforce-invariants-structurally): project ONLY the builder-owned fields into the
+		// (enforce-invariants-structurally): project ONLY the builder-owned fields into the
 		// DI-managed instance via the builder's single-source-of-truth projection. The builder field-level-
 		// sets exactly the fields it owns and NEVER touches Auth/Retry/Suspension/whole-Keys — those are
 		// owned by the consumer's own Configure<VaultOptions>/BindConfiguration and a wholesale copy would

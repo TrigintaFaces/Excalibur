@@ -29,7 +29,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// store's own prerequisite validation. Only a store that exists and cannot deliver the guarantee is rejected.
 /// </para>
 /// </remarks>
-internal sealed class AtomicMaterializedViewStoreValidator : IHostedService
+internal sealed class AtomicMaterializedViewStoreValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -40,20 +40,26 @@ internal sealed class AtomicMaterializedViewStoreValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		var isService = _services.GetRequiredService<IServiceProviderIsService>();
 
 		// No view builder registered means nothing is being projected, so there is no guarantee to hold.
 		// AddMaterializedViews() ahead of any view is a legal call and must start.
 		if (!isService.IsService(typeof(MaterializedViewBuilderRegistration)))
 		{
-			return Task.CompletedTask;
+			return;
 		}
 
 		// A processor supplied through UseProcessor<TProcessor>() owns its own persistence contract. Only the
 		// built-in processor's contract is the framework's to enforce.
 		if (!isService.IsService(typeof(DefaultMaterializedViewProcessorMarker)))
 		{
-			return Task.CompletedTask;
+			return;
 		}
 
 		// A view is declared and the built-in processor will persist it. It cannot, without a store.
@@ -74,8 +80,6 @@ internal sealed class AtomicMaterializedViewStoreValidator : IHostedService
 		{
 			_ = AtomicViewStoreRequirement.Require(viewStore);
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -105,7 +105,14 @@ public static class OutboxBuilderMongoDbExtensions
 		}
 		else
 		{
-			services.TryAddSingleton<MongoDbOutboxStore>();
+			// AddTenantAwareStore emits the ITenantPartitionedCapability<IOutboxStore> marker as part
+			// of THIS registration, so the marker cannot exist without the store it attests. It is the
+			// partitioned seam rather than the scoped one because this store reads no ambient tenant on any
+			// path: it persists the tenant on the document and hands that value back on drain, so the owning
+			// tenant is re-established from the row. That seam takes no ITenantContext, so there is no
+			// dependency here to be handed to the factory and silently discarded.
+			services.AddTenantAwareStore<IOutboxStore, MongoDbOutboxStore>(
+				static sp => ActivatorUtilities.CreateInstance<MongoDbOutboxStore>(sp));
 			services.AddKeyedSingleton<IOutboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbOutboxStore>());
 			services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 				sp.GetRequiredKeyedService<IOutboxStore>("mongodb"));
@@ -127,7 +134,10 @@ public static class OutboxBuilderMongoDbExtensions
 			services.TryAddSingleton<IMongoClient>(factory);
 		}
 
-		services.TryAddSingleton(sp =>
+		// Same partitioned attestation on the explicit-client branch. Both branches are registration call
+		// sites for the same contract, so a marker emitted on only one of them would leave the other shape
+		// rejected by row-discriminator multi-tenancy while looking fixed.
+		services.AddTenantAwareStore<IOutboxStore, MongoDbOutboxStore>(sp =>
 		{
 			var client = sp.GetRequiredService<IMongoClient>();
 			var opts = sp.GetRequiredService<IOptions<MongoDbOutboxOptions>>();

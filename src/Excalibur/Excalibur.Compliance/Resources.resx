@@ -78,9 +78,6 @@
   <data name="Soc2ReportExporter_ExportingReport" xml:space="preserve">
     <value>Exporting report {ReportId} to {Format}</value>
   </data>
-  <data name="Soc2ReportExporter_PdfPlaceholder" xml:space="preserve">
-    <value>PDF export is a placeholder. For production, integrate a PDF library like QuestPDF or iTextSharp</value>
-  </data>
   <data name="Soc2ReportExporter_ReportNotExportable" xml:space="preserve">
     <value>Report cannot be exported: {0}</value>
   </data>

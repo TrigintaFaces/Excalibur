@@ -31,7 +31,15 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 	private readonly ILogger<OracleSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
 	private readonly OracleSagaStoreOptions _options;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OracleSagaStore"/> class.
@@ -40,17 +48,15 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
-	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
-	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
-	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
-	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public OracleSagaStore(
 		string connectionString,
 		ILogger<OracleSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString), new OracleSagaStoreOptions(), logger, serializer, tenantContext)
 	{
 	}
@@ -63,14 +69,16 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context for row-level tenant scoping (see the primary constructor's remarks).
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public OracleSagaStore(
 		string connectionString,
 		IOptions<OracleSagaStoreOptions> options,
 		ILogger<OracleSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString),
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
@@ -86,13 +94,15 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context for row-level tenant scoping (see the primary constructor's remarks).
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public OracleSagaStore(
 		Func<OracleConnection> connectionFactory,
 		ILogger<OracleSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(connectionFactory, new OracleSagaStoreOptions(), logger, serializer, tenantContext)
 	{
 	}
@@ -105,14 +115,16 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context for row-level tenant scoping (see the primary constructor's remarks).
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public OracleSagaStore(
 		Func<OracleConnection> connectionFactory,
 		IOptions<OracleSagaStoreOptions> options,
 		ILogger<OracleSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 		: this(connectionFactory,
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
@@ -126,13 +138,14 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		OracleSagaStoreOptions options,
 		ILogger<OracleSagaStore> logger,
 		DispatchJsonSerializer serializer,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_options.Validate();
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -144,7 +157,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var result = await connection.ResolveAsync(
-				new LoadSagaRequest<TSagaState>(sagaId, _serializer, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new LoadSagaRequest<TSagaState>(sagaId, _serializer, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 
 		if (result is not null)
@@ -167,7 +180,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rowsAffected = await connection.ResolveAsync(
-				new SaveSagaRequest<TSagaState>(sagaState, _serializer, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new SaveSagaRequest<TSagaState>(sagaState, _serializer, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 
 		if (rowsAffected == 0)
@@ -177,7 +190,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 			// ConcurrencyException rather than silently losing the write.
 			var expectedVersion = sagaState.Version;
 			var current = await connection.ResolveAsync(
-					new LoadSagaRequest<TSagaState>(sagaState.SagaId, _serializer, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+					new LoadSagaRequest<TSagaState>(sagaState.SagaId, _serializer, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 				.ConfigureAwait(false);
 
 			throw new ConcurrencyException(
@@ -210,7 +223,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 					threshold,
 					_options.QualifiedTableName,
 					cancellationToken,
-					TenantScope.FromContext(_tenantContext)))
+					CurrentTenantScope))
 			.ConfigureAwait(false);
 
 		_logger.LogDebug("Purged {Count} completed sagas older than {Threshold}", removed, threshold);
@@ -249,7 +262,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new QuerySagaSummariesRequest(filter, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new QuerySagaSummariesRequest(filter, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 	}
 
@@ -260,7 +273,7 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new GetSagaSummaryRequest(sagaId, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new GetSagaSummaryRequest(sagaId, _options.QualifiedTableName, CurrentTenantScope, cancellationToken))
 			.ConfigureAwait(false);
 	}
 
@@ -271,7 +284,21 @@ public sealed class OracleSagaStore : ISagaStore, ISagaStoreAdmin
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new GetSagaStatisticsRequest(_options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+				new GetSagaStatisticsRequest(_options.QualifiedTableName, CurrentTenantScope, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<SagaStoreStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// No tenant discriminator: this counts every tenant's sagas. The ambient scope is passed through
+		// unchanged and deliberately ignored by the request when allTenants is set -- the estate-wide intent
+		// is spelled at the call site, never reached by an absent or permissive scope.
+		return await connection.ResolveAsync(
+				new GetSagaStatisticsRequest(_options.QualifiedTableName, CurrentTenantScope, cancellationToken, allTenants: true))
 			.ConfigureAwait(false);
 	}
 

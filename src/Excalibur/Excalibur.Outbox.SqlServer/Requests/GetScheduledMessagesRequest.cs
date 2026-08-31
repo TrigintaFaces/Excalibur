@@ -13,6 +13,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to get scheduled messages from the outbox.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and the row carries TenantId so the handler can re-establish the owning tenant per message. Scoping this read to the ambient tenant would stall delivery for every other tenant")]
 public sealed class GetScheduledMessagesRequest : DataRequestBase<IDbConnection, IEnumerable<OutboxMessageRow>>
 {
 	/// <summary>

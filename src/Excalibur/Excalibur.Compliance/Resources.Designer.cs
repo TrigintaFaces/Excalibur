@@ -205,15 +205,6 @@ namespace Excalibur.Compliance {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to PDF export is a placeholder. For production, integrate a PDF library like QuestPDF or iTextSharp.
-        /// </summary>
-        internal static string Soc2ReportExporter_PdfPlaceholder {
-            get {
-                return ResourceManager.GetString("Soc2ReportExporter_PdfPlaceholder", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Report cannot be exported: {Issues}.
         /// </summary>
         internal static string Soc2ReportExporter_ReportNotExportable {

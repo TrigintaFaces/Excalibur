@@ -14,14 +14,9 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 
 	public AdaptiveLongPollingStrategyShould()
 	{
-		_config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
+		_config = new LongPollingOptions();
 		_config.Polling.MaxWaitTimeSeconds = 20;
 		_config.Polling.MinWaitTimeSeconds = 1;
-		_config.Polling.MaxNumberOfMessages = 10;
-		_config.Visibility.VisibilityTimeoutSeconds = 30;
 		_config.Adaptive.Enabled = true;
 
 		_strategy = new AdaptiveLongPollingStrategy(_config);
@@ -37,10 +32,7 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 	public async Task ReturnMaxWaitTimeWhenAdaptivePollingDisabled()
 	{
 		// Arrange
-		var config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
+		var config = new LongPollingOptions();
 		config.Adaptive.Enabled = false;
 		using var strategy = new AdaptiveLongPollingStrategy(config);
 

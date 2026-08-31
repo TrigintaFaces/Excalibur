@@ -52,14 +52,29 @@ public sealed class AddOutboxMinimalWiringConformanceTests
 		static services => services.AddExcalibur(static x => x.AddOutbox(static _ => { }));
 
 	/// <inheritdoc />
-	protected override MinimalWiringBucket Bucket => MinimalWiringBucket.SensibleDefaults;
+	/// <remarks>
+	/// Bucket B, matching the class remarks above: <c>AddOutbox(...)</c> registers the outbox
+	/// pipeline but cannot default the store it drains, so a bare call in a consumer-empty
+	/// container must fail loudly and name the provider call that fixes it. This property read
+	/// <c>SensibleDefaults</c> while the prose described Bucket B; the prose was right.
+	/// </remarks>
+	protected override MinimalWiringBucket Bucket => MinimalWiringBucket.ExplicitPrerequisite;
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// ADR-078 boundary invariant: <c>AddExcalibur(x =&gt; x.AddOutbox(_ =&gt; {}))</c>
-	/// against a foundation-only container must leave <see cref="IDispatcher"/>
-	/// resolvable. This is the contract <c>WrapperDIComplianceShould</c> was asserting
-	/// for the Outbox subsystem.
+	/// Matches <c>OutboxStorePrerequisite.MissingStoreMessage</c>, the single wording shared by the
+	/// <c>ValidateOnStart</c> hook, the host-start prerequisite validator, and the
+	/// <see cref="IOutboxProcessor"/> / <see cref="IOutboxDispatcher"/> factories.
+	/// </remarks>
+	protected override string ExpectedPrerequisiteMessageFragment =>
+		"No outbox store has been configured";
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Declared for documentation only -- the Isolation gate ignores this list for Bucket B, where
+	/// nothing is expected to resolve from a container missing the prerequisite. The <c>IDispatcher</c>
+	/// boundary invariant it records is asserted instead by <see cref="AssertOverridePreserved"/>,
+	/// which runs against a container that HAS the store, and is where that invariant belongs.
 	/// </remarks>
 	protected override IReadOnlyList<Type> ExpectedResolvableServices { get; } =
 		new[] { typeof(IDispatcher) };
@@ -87,7 +102,7 @@ public sealed class AddOutboxMinimalWiringConformanceTests
 			"WrapperDIComplianceShould previously asserted for the Outbox subsystem.");
 	}
 
-	/// <summary>Bucket A isolation gate — IDispatcher resolves after AddOutbox with default config.</summary>
+	/// <summary>Bucket B isolation gate — a bare AddOutbox names the missing store provider.</summary>
 	[Fact]
 	public void Gate_Isolation() => ExecuteIsolationGate();
 

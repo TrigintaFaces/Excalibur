@@ -177,9 +177,14 @@ public static class EventSourcingBuilderSqlServerExtensions
 			opt.EventStoreTable = options.EventStoreTable;
 			opt.SnapshotStoreSchema = options.SnapshotStoreSchema;
 			opt.SnapshotStoreTable = options.SnapshotStoreTable;
-			opt.OutboxSchema = options.OutboxSchema;
-			opt.OutboxTable = options.OutboxTable;
 			opt.HealthChecks = options.HealthChecks;
+			// Only when the builder was actually given one. This delegate runs alongside any
+			// Configure<SqlServerEventSourcingOptions> the consumer registered directly, so an
+			// unconditional assignment would overwrite their resolver with the builder's null.
+			if (options.EventTypeInfoResolver is not null)
+			{
+				opt.EventTypeInfoResolver = options.EventTypeInfoResolver;
+			}
 		});
 
 		// Register BindConfiguration if set
@@ -243,19 +248,20 @@ public static class EventSourcingBuilderSqlServerExtensions
 		string table)
 	{
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull).
-		services.AddTenantScopedStore<IEventStore, SqlServerEventStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably.
+		services.AddTenantAwareStore<IEventStore, SqlServerEventStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			return new SqlServerEventStore(
 				factory,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>(),
-				schema,
-				table,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				internalSerializer: sp.GetService<ISerializer>(),
+				payloadSerializer: sp.GetService<IPayloadSerializer>(),
+				schema: schema,
+				table: table,
+				eventTypeInfoResolver: sp.GetService<IOptions<SqlServerEventSourcingOptions>>()?.Value.EventTypeInfoResolver);
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterEventStoreTelemetryWrapper(services);
@@ -267,18 +273,28 @@ public static class EventSourcingBuilderSqlServerExtensions
 		string schema,
 		string table)
 	{
-		services.TryAddSingleton(sp =>
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably, mirroring
+		// RegisterEventStore above. Without it this builder path registered a tenant-scoped snapshot store
+		// that attested nothing, and RowDiscriminator rejected the whole host at startup.
+		_ = services.AddTenantAwareStore<ISnapshotStore, SqlServerSnapshotStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
+			// The tenant context is a required dependency, so the partition this store writes to is
+			// decided the same way on every registration path. It was previously optional, and omitting
+			// it here collapsed every tenant onto one untenanted row per aggregate id -- a silent
+			// cross-tenant overwrite. That state is no longer expressible.
 			return new SqlServerSnapshotStore(
 				factory,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
-				schema,
-				table,
-				// Without this the store's optional tenant context stayed null, TenantScope.FromContext
-				// returned None, and all tenants shared one untenanted row per aggregate id -- a silent
-				// cross-tenant overwrite on the supported registration path.
-				sp.GetService<ITenantContext>());
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				schema: schema,
+				table: table);
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);
@@ -303,12 +319,18 @@ public static class EventSourcingBuilderSqlServerExtensions
 		string? viewTableName,
 		string? positionTableName)
 	{
+		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves
+		// for a host that never registered multi-tenancy. A multi-tenant host registers its own first and
+		// TryAdd leaves it alone.
+		services.AddDefaultTenantContext();
+
 		services.TryAddSingleton<Excalibur.EventSourcing.IMaterializedViewStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			return new SqlServerMaterializedViewStore(
 				factory,
 				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
+				sp.GetRequiredService<ITenantContext>(),
 				viewTableName,
 				positionTableName);
 		});

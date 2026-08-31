@@ -11,148 +11,16 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StringCachesShould : IDisposable
 {
-	private readonly StringEncodingCache _encodingCache;
 	private readonly Utf8StringCache _utf8Cache;
 
 	public StringCachesShould()
 	{
-		_encodingCache = new StringEncodingCache(100);
 		_utf8Cache = new Utf8StringCache(100);
 	}
 
 	public void Dispose()
 	{
-		_encodingCache.Dispose();
 		_utf8Cache.Dispose();
-	}
-
-	// --- StringEncodingCache ---
-
-	[Fact]
-	public void StringEncodingCache_GetUtf8Bytes_EmptyString_ReturnsEmpty()
-	{
-		// Act
-		var result = _encodingCache.GetUtf8Bytes("");
-
-		// Assert
-		result.IsEmpty.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void StringEncodingCache_GetUtf8Bytes_NullString_ReturnsEmpty()
-	{
-		// Act
-		var result = _encodingCache.GetUtf8Bytes(null!);
-
-		// Assert
-		result.IsEmpty.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void StringEncodingCache_GetUtf8Bytes_ValidString_ReturnsCorrectBytes()
-	{
-		// Act
-		var result = _encodingCache.GetUtf8Bytes("hello");
-
-		// Assert
-		result.Length.ShouldBe(5);
-		result.ToArray().ShouldBe(Encoding.UTF8.GetBytes("hello"));
-	}
-
-	[Fact]
-	public void StringEncodingCache_GetUtf8Bytes_SecondCall_ReturnsCachedResult()
-	{
-		// Act
-		_ = _encodingCache.GetUtf8Bytes("cached-value");
-		var result = _encodingCache.GetUtf8Bytes("cached-value");
-
-		// Assert
-		result.ToArray().ShouldBe(Encoding.UTF8.GetBytes("cached-value"));
-	}
-
-	[Fact]
-	public void StringEncodingCache_GetUtf8Bytes_IntoBuffer_CopiesCorrectly()
-	{
-		// Arrange
-		var destination = new byte[100];
-
-		// Act
-		var length = _encodingCache.GetUtf8Bytes("test", destination);
-
-		// Assert
-		length.ShouldBe(4);
-		destination.AsSpan(0, 4).ToArray().ShouldBe(Encoding.UTF8.GetBytes("test"));
-	}
-
-	[Fact]
-	public void StringEncodingCache_GetUtf8Bytes_IntoSmallBuffer_Throws()
-	{
-		// Arrange
-		var destination = new byte[2];
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			_encodingCache.GetUtf8Bytes("toolong", destination));
-	}
-
-	[Fact]
-	public void StringEncodingCache_Preload_CachesStrings()
-	{
-		// Act
-		_encodingCache.Preload("a", "b", "c");
-
-		// Assert
-		var stats = _encodingCache.GetStatistics();
-		stats.CacheSize.ShouldBeGreaterThanOrEqualTo(3);
-	}
-
-	[Fact]
-	public void StringEncodingCache_Preload_WithNullArg_Throws()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			_encodingCache.Preload(null!));
-	}
-
-	[Fact]
-	public void StringEncodingCache_GetStatistics_ReturnsValidData()
-	{
-		// Arrange - preload to ensure entry exists, then access it
-		_encodingCache.Preload("stat-test");
-		_ = _encodingCache.GetUtf8Bytes("stat-test"); // should be a hit
-
-		// Act
-		var stats = _encodingCache.GetStatistics();
-
-		// Assert
-		stats.CacheSize.ShouldBeGreaterThanOrEqualTo(1);
-		stats.TotalAccesses.ShouldBeGreaterThanOrEqualTo(1);
-	}
-
-	[Fact]
-	public void StringEncodingCache_Clear_ResetsCache()
-	{
-		// Arrange
-		_ = _encodingCache.GetUtf8Bytes("clear-test");
-
-		// Act
-		_encodingCache.Clear();
-		var stats = _encodingCache.GetStatistics();
-
-		// Assert
-		stats.CacheSize.ShouldBe(0);
-		stats.TotalAccesses.ShouldBe(0);
-	}
-
-	[Fact]
-	public void StringEncodingCache_Dispose_MultipleCalls_DoesNotThrow()
-	{
-		// Arrange
-		var cache = new StringEncodingCache(10);
-
-		// Act & Assert
-		cache.Dispose();
-		cache.Dispose(); // safe double dispose
 	}
 
 	// --- Utf8StringCache ---
@@ -312,24 +180,5 @@ public sealed class StringCachesShould : IDisposable
 
 		// Act & Assert
 		cache.Dispose();
-	}
-
-	// --- GlobalStringCache ---
-
-	[Fact]
-	public void GlobalStringCache_Instance_IsNotNull()
-	{
-		// Assert
-		GlobalStringCache.Instance.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void GlobalStringCache_Instance_HasPreloadedEntries()
-	{
-		// Act
-		var stats = GlobalStringCache.Instance.GetStatistics();
-
-		// Assert
-		stats.CacheSize.ShouldBeGreaterThan(0);
 	}
 }

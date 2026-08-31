@@ -40,6 +40,28 @@ public sealed class CachedValueJsonConverterShould
 	}
 
 	[Fact]
+	public void RoundTrip_PreservingTheStoringActionIdentity()
+	{
+		// The read side declines an entry it cannot attribute to the action requesting it, so a converter
+		// that drops this field does not fail — it turns every cache hit into a miss, silently, and only
+		// once an entry has crossed the serializer.
+		var original = new CachedValue
+		{
+			Value = "hello world",
+			ShouldCache = true,
+			HasExecuted = true,
+			TypeName = typeof(string).AssemblyQualifiedName,
+			ActionTypeName = "Some.Assembly/Some.Namespace.SomeQuery",
+		};
+
+		var json = JsonSerializer.Serialize(original, Options);
+		var deserialized = JsonSerializer.Deserialize<CachedValue>(json, Options);
+
+		deserialized.ShouldNotBeNull();
+		deserialized.ActionTypeName.ShouldBe("Some.Assembly/Some.Namespace.SomeQuery");
+	}
+
+	[Fact]
 	public void RoundTrip_WithIntValue()
 	{
 		// Arrange

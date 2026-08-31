@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Targeted tests to cover remaining uncovered lines in Excalibur.Dispatch.Caching.
 /// Covers: CacheResilienceOptions defaults, CachedValueJsonConverter edge cases,
 /// CachingServiceCollectionExtensions wrapper classes, CachingDispatchBuilderExtensions
-/// Configure lambda, DefaultCacheKeyBuilder fallback, and LruCache timer callback.
+/// Configure lambda, and DefaultCacheKeyBuilder fallback.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Caching)]
@@ -395,49 +395,6 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 
 		// Assert -- should fall back to serialization and produce a valid key
 		key.ShouldNotBeNullOrWhiteSpace();
-	}
-
-	// =========================================================================
-	// LruCache: timer-based cleanup of expired items (line 70)
-	// =========================================================================
-
-	[Fact]
-	public async Task LruCache_WithTtl_RemovesExpiredItemsViaTimer()
-	{
-		// Arrange -- short TTL and short cleanup interval to trigger timer callback (line 70)
-		using var cache = new LruCache<string, string>(
-			capacity: 10,
-			defaultTtl: TimeSpan.FromMilliseconds(50),
-			cleanupInterval: TimeSpan.FromMilliseconds(30));
-
-		cache.Set("key1", "value1");
-		cache.Set("key2", "value2");
-		cache.Count.ShouldBe(2);
-
-		// Act -- wait for items to expire and timer to clean up
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200);
-
-		// Assert -- expired items should have been removed by the timer callback
-		cache.TryGetValue("key1", out _).ShouldBeFalse();
-		cache.TryGetValue("key2", out _).ShouldBeFalse();
-	}
-
-	// =========================================================================
-	// LruCache: GetOrAdd double-check path inside lock (lines 246-250)
-	// =========================================================================
-
-	[Fact]
-	public void LruCache_GetOrAdd_ConcurrentInsert_DoubleCheckReturnsExisting()
-	{
-		// Arrange -- pre-populate cache so the double-check inside GetOrAdd lock hits
-		using var cache = new LruCache<string, int>(10, defaultTtl: TimeSpan.FromMinutes(5));
-		cache.Set("race-key", 42);
-
-		// Act -- GetOrAdd should find the existing value (double-check path at lines 246-250)
-		var result = cache.GetOrAdd("race-key", _ => 99, TimeSpan.FromMinutes(1));
-
-		// Assert
-		result.ShouldBe(42);
 	}
 
 	// =========================================================================

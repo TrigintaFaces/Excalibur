@@ -12,24 +12,6 @@ namespace Excalibur.Data.InMemory;
 public sealed class InMemoryStorageOptions
 {
 	/// <summary>
-	/// Gets or sets the maximum retry attempts.
-	/// </summary>
-	/// <value>
-	/// The maximum retry attempts.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int MaxRetryAttempts { get; set; }
-
-	/// <summary>
-	/// Gets or sets the retry delay in milliseconds.
-	/// </summary>
-	/// <value>
-	/// The retry delay in milliseconds.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int RetryDelayMilliseconds { get; set; } = 1000;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether metrics are enabled.
 	/// </summary>
 	/// <value>
@@ -38,10 +20,10 @@ public sealed class InMemoryStorageOptions
 	public bool EnableMetrics { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to persist data to disk on dispose.
+	/// Gets or sets a value indicating whether disk persistence is enabled.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if data is persisted to disk on dispose; otherwise, <c>false</c>.
+	/// <see langword="true"/> if disk persistence is enabled; otherwise, <c>false</c>.
 	/// </value>
 	public bool PersistToDisk { get; set; }
 

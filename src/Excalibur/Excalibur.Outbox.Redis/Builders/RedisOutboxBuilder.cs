@@ -25,6 +25,7 @@ internal sealed class RedisOutboxBuilder : IRedisOutboxBuilder
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ConnectionStringValue = connectionString;
 		_options.ConnectionString = connectionString;
+		_options.ConnectionSuppliedExternally = false;
 		MultiplexerInstance = null;
 		MultiplexerFactoryFunc = null;
 		BindConfigurationPath = null;
@@ -35,6 +36,7 @@ internal sealed class RedisOutboxBuilder : IRedisOutboxBuilder
 	{
 		ArgumentNullException.ThrowIfNull(multiplexer);
 		MultiplexerInstance = multiplexer;
+		_options.ConnectionSuppliedExternally = true;
 		_options.ConnectionString = null!;
 		ConnectionStringValue = null;
 		MultiplexerFactoryFunc = null;
@@ -46,6 +48,7 @@ internal sealed class RedisOutboxBuilder : IRedisOutboxBuilder
 	{
 		ArgumentNullException.ThrowIfNull(factory);
 		MultiplexerFactoryFunc = factory;
+		_options.ConnectionSuppliedExternally = true;
 		_options.ConnectionString = null!;
 		ConnectionStringValue = null;
 		MultiplexerInstance = null;
@@ -57,6 +60,7 @@ internal sealed class RedisOutboxBuilder : IRedisOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
+		_options.ConnectionSuppliedExternally = false;
 		_options.ConnectionString = null!;
 		ConnectionStringValue = null;
 		MultiplexerInstance = null;

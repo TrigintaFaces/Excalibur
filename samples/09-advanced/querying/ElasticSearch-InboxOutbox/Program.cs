@@ -114,7 +114,7 @@ Console.WriteLine($"   Second attempt: result={secondAttempt} (expected: false -
 
 // Step 6: Get inbox statistics
 Console.WriteLine("6. Retrieving inbox statistics...");
-var inboxStats = await inboxStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+var inboxStats = await inboxStore.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 Console.WriteLine($"   Total={inboxStats.TotalEntries}, Processed={inboxStats.ProcessedEntries}, " +
                   $"Failed={inboxStats.FailedEntries}, Pending={inboxStats.PendingEntries}");
 
@@ -167,7 +167,7 @@ Console.WriteLine("   Marked as sent.");
 
 // Step 5: Get outbox statistics
 Console.WriteLine("5. Retrieving outbox statistics...");
-var outboxStats = await outboxStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+var outboxStats = await outboxStore.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 Console.WriteLine($"   {outboxStats}");
 
 // Step 6: Clean up old sent messages

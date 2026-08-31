@@ -65,56 +65,15 @@ public sealed class InboxBatchOptions
 }
 
 /// <summary>
-/// Immutable configuration options for the inbox pattern.
+/// Immutable, resolved configuration for the inbox pattern.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Use the preset factory methods (<see cref="HighThroughput"/>, <see cref="Balanced"/>,
-/// <see cref="HighReliability"/>) to create options with sensible defaults, then apply
-/// overrides using the fluent builder methods.
+/// This type is produced by the framework from the inbox configuration, not constructed by
+/// consumers. Resolve it from dependency injection when you need to read the settings the inbox is
+/// actually running with, for example in a diagnostics endpoint or a startup log.
 /// </para>
-/// <para>
-/// <strong>Preset Selection Guide:</strong>
-/// </para>
-/// <list type="bullet">
-///   <item>
-///     <term><see cref="HighThroughput"/></term>
-///     <description>For high-volume systems (QueueCapacity: 2000, ParallelProcessingDegree: 8)</description>
-///   </item>
-///   <item>
-///     <term><see cref="Balanced"/></term>
-///     <description>For most production systems (QueueCapacity: 500, ParallelProcessingDegree: 4)</description>
-///   </item>
-///   <item>
-///     <term><see cref="HighReliability"/></term>
-///     <description>For critical systems (QueueCapacity: 100, Sequential processing)</description>
-///   </item>
-///   <item>
-///     <term><see cref="Custom"/></term>
-///     <description>For advanced users who need full control</description>
-///   </item>
-/// </list>
 /// </remarks>
-/// <example>
-/// <code>
-/// // Preset-based (recommended for most users)
-/// var options = InboxOptions.HighThroughput().Build();
-///
-/// // Preset with overrides
-/// var options = InboxOptions.HighThroughput()
-///     .WithQueueCapacity(3000)
-///     .WithParallelism(16)
-///     .Build();
-///
-/// // Full custom configuration
-/// var options = InboxOptions.Custom()
-///     .WithQueueCapacity(1000)
-///     .WithProducerBatchSize(200)
-///     .WithConsumerBatchSize(100)
-///     .WithMaxAttempts(7)
-///     .Build();
-/// </code>
-/// </example>
 public sealed class InboxOptions
 {
 	/// <summary>
@@ -178,7 +137,7 @@ public sealed class InboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IInboxOptionsBuilder HighThroughput() =>
+	internal static IInboxOptionsBuilder HighThroughput() =>
 		InboxOptionsBuilder.FromPreset(InboxPreset.HighThroughput);
 
 	/// <summary>
@@ -204,7 +163,7 @@ public sealed class InboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IInboxOptionsBuilder Balanced() =>
+	internal static IInboxOptionsBuilder Balanced() =>
 		InboxOptionsBuilder.FromPreset(InboxPreset.Balanced);
 
 	/// <summary>
@@ -230,7 +189,7 @@ public sealed class InboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IInboxOptionsBuilder HighReliability() =>
+	internal static IInboxOptionsBuilder HighReliability() =>
 		InboxOptionsBuilder.FromPreset(InboxPreset.HighReliability);
 
 	/// <summary>
@@ -253,7 +212,7 @@ public sealed class InboxOptions
 	///     .Build();
 	/// </code>
 	/// </example>
-	public static IInboxOptionsBuilder Custom() =>
+	internal static IInboxOptionsBuilder Custom() =>
 		InboxOptionsBuilder.FromPreset(InboxPreset.Custom);
 
 	// ========================================

@@ -52,7 +52,7 @@ public static class ClaimCheckServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ClaimCheckOptions>, ClaimCheckOptionsValidator>());
 
-		services.TryAddSingleton<IClaimCheckProvider, TProvider>();
+		AddProvider<TProvider>(services);
 		services.TryAddSingleton<IClaimCheckNamingStrategy, DefaultClaimCheckNamingStrategy>();
 
 		// Add background service for cleanup if enabled
@@ -96,7 +96,7 @@ public static class ClaimCheckServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ClaimCheckOptions>, ClaimCheckOptionsValidator>());
 
-		services.TryAddSingleton<IClaimCheckProvider, TProvider>();
+		AddProvider<TProvider>(services);
 		services.TryAddSingleton<IClaimCheckNamingStrategy, DefaultClaimCheckNamingStrategy>();
 
 		// Add background service for cleanup if enabled
@@ -106,5 +106,28 @@ public static class ClaimCheckServiceCollectionExtensions
 		}
 
 		return services;
+	}
+
+	/// <summary>
+	/// Registers the provider, wrapping it in the metrics and tracing decorator when
+	/// <see cref="ClaimCheckOptions.EnableMetrics"/> is set. The decorator is applied here rather than
+	/// inside each provider so that turning metrics off removes the instrumentation entirely instead of
+	/// leaving instruments that are created and never read.
+	/// </summary>
+	private static void AddProvider<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(
+		IServiceCollection services)
+		where TProvider : class, IClaimCheckProvider
+	{
+		services.TryAddSingleton<TProvider>();
+		services.TryAddSingleton<IClaimCheckProvider>(static sp =>
+		{
+			var inner = sp.GetRequiredService<TProvider>();
+			return sp.GetRequiredService<IOptions<ClaimCheckOptions>>().Value.EnableMetrics
+				? new TelemetryClaimCheckProvider(
+					inner,
+					ClaimCheckTelemetryConstants.Meter,
+					ClaimCheckTelemetryConstants.ActivitySource)
+				: inner;
+		});
 	}
 }

@@ -14,7 +14,7 @@ namespace Excalibur.Data.InMemory.Tests.InMemory;
 // OutboxStatus.DeadLettered (terminal) + IDeadLetterableOutboxStore.MarkDeadLetteredAsync, and every store's
 // claim predicate is an explicit allow-list that structurally excludes the terminal status. Independent engage-
 // test (author≠impl): a DeadLettered message is NEVER returned by either claim path (GetUnsentMessagesAsync /
-// GetFailedMessagesAsync) — no re-deliver, no re-dead-letter. RED if the terminal transition or the claim
+// GetAllTenantsFailedMessagesAsync) — no re-deliver, no re-dead-letter. RED if the terminal transition or the claim
 // allow-list regressed (e.g. MarkDeadLettered left it claimable).
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
@@ -55,7 +55,7 @@ public sealed class OutboxDeadLetteredNotReclaimedShould
 		await store.StageMessageAsync(msg, CancellationToken.None);
 		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", CancellationToken.None);
 
-		var failed = await store.GetFailedMessagesAsync(
+		var failed = await store.GetAllTenantsFailedMessagesAsync(
 			maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None);
 
 		failed.ShouldNotContain(m => m.Id == msg.Id);

@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
@@ -13,6 +14,7 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Performance;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
@@ -20,6 +22,11 @@ using Excalibur.Dispatch.TypeResolution;
 using Excalibur.Dispatch.ZeroAlloc;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using Excalibur.Dispatch.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,14 +40,11 @@ public static class DispatchServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Handler activator and LocalMessageBus use reflection for dispatch plan construction; AOT paths rely on source-generated handlers and precompiled activators.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "HandlerActivator and LocalMessageBus require dynamic code for typed invoker construction. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
+	[SuppressMessage(
+		"Maintainability",
+		"CA1506:AvoidExcessiveClassCoupling",
+		Justification =
+			"This is the pipeline composition root, so it necessarily references every component it registers.")]
 	public static IServiceCollection AddDispatchPipeline(this IServiceCollection services)
 	{
 		// Registered here rather than left to the consumer because pipeline components resolve it —
@@ -56,6 +60,23 @@ public static class DispatchServiceCollectionExtensions
 			new PooledMessageContextFactory(sp.GetRequiredService<IMessageContextPool>()));
 		services.TryAddSingleton<IMiddlewareApplicabilityStrategy, DefaultMiddlewareApplicabilityStrategy>();
 		services.TryAddSingleton<IPipelineProfileRegistry, PipelineProfileRegistry>();
+
+		// Cache freezing. PerformanceOptions.AutoFreezeOnStart defaults to TRUE and the handler doc
+		// comments tell consumers freezing happens automatically at startup, so both the manager and the
+		// hosted service that acts on that option have to be in the container: without them the option is
+		// settable, the promise is documented, and nothing ever freezes.
+		services.TryAddSingleton<IDispatchCacheManager>(static sp => new DispatchCacheManager(
+			sp.GetService<ILogger<DispatchCacheManager>>(),
+			freezeLockTimeout: null,
+			sp.GetService<IPipelineProfileRegistry>()));
+		// Constructed by factory, not by the activator: the lifetime is optional (a container composed
+		// without a generic host has none) and the activator cannot supply a missing constructor argument.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DispatchCacheOptimizationHostedService>(static sp =>
+			new DispatchCacheOptimizationHostedService(
+				sp.GetRequiredService<IDispatchCacheManager>(),
+				sp.GetService<IHostApplicationLifetime>(),
+				sp.GetRequiredService<IOptions<DispatchOptions>>(),
+				sp.GetService<ILogger<DispatchCacheOptimizationHostedService>>())));
 
 		// Transport context resolution - enables pipeline profile selection based on message origin
 		services.TryAddSingleton<TransportBindingRegistry>();
@@ -80,10 +101,10 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<IDictionary<string, MessageBusOptions>>(static _ =>
 			new Dictionary<string, MessageBusOptions>(StringComparer.Ordinal));
 		services.TryAddSingleton<IRetryPolicy>(static _ => NoOpRetryPolicy.Instance);
-		// Shared failure classifier (S-A, shu41d): the single retry-vs-dead-letter taxonomy consumed by
+		// Shared failure classifier (S-A): the single retry-vs-dead-letter taxonomy consumed by
 		// the retry policy/middleware and the outbox/inbox/CDC processors. Consumers override via TryAdd.
 		services.TryAddSingleton<IMessageFailureClassifier, DefaultMessageFailureClassifier>();
-		// Public construction seam for fresh, independently-owned circuit-breaker policies (ADR-338, yi59t5).
+		// Public construction seam for fresh, independently-owned circuit-breaker policies.
 		// Consumers that own their breaker lifecycle (e.g. the distributed-cache middleware) resolve this and
 		// call Create(name, options); shared per-transport breakers use ITransportCircuitBreakerRegistry.
 		services.TryAddSingleton<ICircuitBreakerPolicyFactory, CircuitBreakerPolicyFactory>();
@@ -92,15 +113,37 @@ public static class DispatchServiceCollectionExtensions
 		// Configure handler invocation based on AOT requirements
 		services.ConfigureHandlerInvoker();
 
-		// Lean default path for all targets: HandlerActivator supports precompiled context injection when available.
-		services.TryAddSingleton<IHandlerActivator, HandlerActivator>();
+		// The activator and the event serializer each have a reflection-based default and a
+		// reflection-free alternative. Select on what the runtime can actually do, the way
+		// ConfigureHandlerInvoker already selects the invoker -- rather than registering the reflective
+		// one unconditionally and then annotating this method to say so.
+		if (RuntimeFeature.IsDynamicCodeSupported)
+		{
+			services.TryAddSingleton<IHandlerActivator, HandlerActivator>();
+		}
+		else
+		{
+			// Resolves handlers from the container and applies context through IMessageContextAware:
+			// no expression compilation, and no reflection over handler members.
+			services.TryAddSingleton<IHandlerActivator, AotHandlerActivator>();
+		}
+
 		services.TryAddSingleton<DispatchJsonSerializer>();
 
-		// Default JSON event serializer (ADR-295: JSON-first). Consumers can override with binary
-		// serializer packages (e.g., AddMemoryPackSerializer()) which register their own IEventSerializer.
-		// c6wd6f: inject the optional consumer-registered event-type registry (AddEventTypes<T>()) so the
-		// secure-default serializer resolves registered types without the scan. No registry ⇒ identical to before.
-		services.TryAddSingleton<IEventSerializer>(static sp => new JsonEventSerializer(sp.GetService<IEventTypeRegistry>()));
+		if (RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// JSON-first default. Consumers override with a binary serializer package (for example
+			// AddMemoryPackSerializer()), which registers its own IEventSerializer. The optional
+			// consumer-registered event-type registry (AddEventTypes<T>()) lets this serializer resolve
+			// registered types without a scan; no registry leaves its behaviour unchanged.
+			RegisterReflectionEventSerializer(services);
+		}
+		else
+		{
+			// No default is possible here -- see AotEventSerializerRequirement. The composition is
+			// rejected at startup, naming the call that fixes it.
+			AotEventSerializerRequirement.Register(services);
+		}
 
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
 		services.TryAddSingleton<Excalibur.Dispatch.Telemetry.ITelemetrySanitizer>(
@@ -116,6 +159,13 @@ public static class DispatchServiceCollectionExtensions
 		// singleton LocalMessageBus resolves scoped handlers from a scope, never the root container.
 		services.TryAddSingleton(new HandlerLifetimeRegistry(services));
 
+		// LocalMessageBus and Dispatcher both resolve IHandlerRegistry, which is built from the DI
+		// descriptor set by AddDispatchHandlers. Calling it here with no assemblies scans nothing -- it only
+		// seats the registry factory (TryAdd), so the pipeline this method advertises can actually be
+		// constructed. AddDispatch's later AddDispatchHandlers(assemblies) call still registers the scanned
+		// handlers; the registry reads the descriptor set lazily at resolve time, so it sees them.
+		_ = services.AddDispatchHandlers();
+
 		services.TryAddSingleton<LocalMessageBus>();
 		_ = services.AddMessageBus(
 			"Local",
@@ -126,6 +176,27 @@ public static class DispatchServiceCollectionExtensions
 		// configuration based on requirements
 		return services;
 	}
+
+	/// <summary>
+	/// Registers the reflection-based JSON event serializer. Only reached where the runtime supports
+	/// dynamic code.
+	/// </summary>
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification =
+			"The only call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes "
+			+ "that property to false and removes the branch, so this serializer is never constructed in a trimmed, "
+			+ "natively compiled application; where it is constructed, the reflection it performs is available.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling",
+		Justification =
+			"The only call site is behind RuntimeFeature.IsDynamicCodeSupported, and the native compiler removes "
+			+ "that branch, so the dynamic code this serializer needs is never required in a natively compiled "
+			+ "application.")]
+	private static void RegisterReflectionEventSerializer(IServiceCollection services) =>
+		services.TryAddSingleton<IEventSerializer>(static sp => new JsonEventSerializer(sp.GetService<IEventTypeRegistry>()));
 
 	/// <summary>
 	/// Registers the system <see cref="TimeProvider"/> unless the consumer already supplied one.
@@ -170,19 +241,9 @@ public static class DispatchServiceCollectionExtensions
 	/// is performed. The consumer controls exactly which handlers are registered.
 	/// </para>
 	/// </remarks>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Handler registration uses source generation via AddDiscoveredHandlers(), falls back to reflection via AddHandlersFromAssembly().")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Handler warmup uses expression compilation. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2072:Target parameter of 'HandlerRegistry.Register' has DynamicallyAccessedMemberTypes requirements.",
-		Justification = "Handler types come from DI ServiceDescriptor.ImplementationType which lacks annotations. In AOT scenarios, source-generated registration bypasses this code path.")]
+	[RequiresUnreferencedCode(
+		"Scans the supplied assemblies for handler types, which trimming may remove. Call the no-assembly overload "
+		+ "with source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services, params Assembly[]? assembliesToScan)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -193,7 +254,48 @@ public static class DispatchServiceCollectionExtensions
 		// This is the reflection path for consumers using AddDispatch(typeof(Program).Assembly).
 		RegisterMessageHandlers(services, assemblies);
 
-		// Step 2: Build IHandlerRegistry from DI ServiceDescriptors.
+		return services.AddDispatchHandlers();
+	}
+
+	/// <summary>
+	/// Registers the handler registry over the handlers already present in the service collection.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is <c> null </c>. </exception>
+	/// <remarks>
+	/// <para>
+	/// This overload scans no assemblies. It builds <c>IHandlerRegistry</c> from the DI descriptor set,
+	/// so it discovers exactly the handlers already registered -- by source-generated registration, or by
+	/// hand. It is the ahead-of-time compatible entry point: nothing here reads a type that the container
+	/// does not already reference, so trimming and native compilation preserve everything it needs.
+	/// </para>
+	/// <para>
+	/// To discover handlers by scanning an assembly instead, call
+	/// <see cref="AddDispatchHandlers(IServiceCollection, Assembly[])" />, which is annotated because that
+	/// scan is not statically analysable.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:Target parameter of 'HandlerRegistry.Register' has DynamicallyAccessedMemberTypes requirements.",
+		Justification =
+			"The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of "
+			+ "them is already referenced by the registration that put it in the collection, so trimming keeps it and its "
+			+ "constructors: this method reads types the composition root named, never types it discovered.")]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2062:Value passed to parameter 'messageType' of method 'HandlerRegistry.Register' can not be statically determined.",
+		Justification =
+			"The message type is a generic argument of a handler interface the composition root itself named -- reading "
+			+ "IActionHandler<TMessage, TResponse> back off the descriptor cannot reach a type the registration did not "
+			+ "already reference. Trimming therefore keeps the message type and the action interface it implements, which "
+			+ "is the whole of what the annotation on the parameter asks for.")]
+	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Build IHandlerRegistry from DI ServiceDescriptors.
 		// This is the single source of truth — it discovers every handler that was registered
 		// via AddDiscoveredHandlers() (AOT), AddHandlersFromAssembly() (reflection), or
 		// manual DI registration. No magic AppDomain scanning.
@@ -214,7 +316,7 @@ public static class DispatchServiceCollectionExtensions
 					if (handlerInterfaces.Contains(genericDef))
 					{
 						var messageType = descriptor.ServiceType.GetGenericArguments()[0];
-						// ybem93: keyed-safe accessors handle the keyed/non-keyed distinction (wl9s4v).
+						// keyed-safe accessors handle the keyed/non-keyed distinction.
 						var handlerType = descriptor.GetImplementationType() ?? descriptor.GetImplementationInstance()?.GetType();
 
 						if (handlerType is { IsAbstract: false, IsInterface: false })
@@ -233,21 +335,13 @@ public static class DispatchServiceCollectionExtensions
 
 			var registryEntries = registry.GetAll();
 
-			// Only pre-warm reflection-based caches in JIT mode.
-			// In AOT, source-generated dispatchers (PrecompiledHandlerInvoker,
-			// SourceGeneratedHandlerActivator) use direct static calls and bypass
-			// these caches entirely. Calling them in AOT would fail because
-			// BuildInvoker uses GetMethod/Expression.Compile which are unavailable.
+			// Only pre-warm reflection-based caches in JIT mode. Under AOT the generated
+			// direct-dispatch table resolves handlers with closed-generic calls and bypasses
+			// these caches entirely, and pre-warming would fail anyway because BuildInvoker
+			// uses GetMethod/Expression.Compile, which are unavailable there.
 			if (System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
 			{
-				var handlerTypes = registryEntries
-					.Select(static entry => entry.HandlerType)
-					.Distinct()
-					.ToArray();
-
-				HandlerActivator.PreWarmCache(handlerTypes);
-				HandlerActivator.PreBindResolutionModes(serviceProvider, handlerTypes);
-				HandlerInvoker.PreWarmGeneratedInvokerCache(registryEntries);
+				PreWarmJitCaches(serviceProvider, registryEntries);
 			}
 
 			return registry;
@@ -257,12 +351,63 @@ public static class DispatchServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Pre-warms the reflection-backed invoker and activator caches. Reachable only when the runtime
+	/// supports dynamic code.
+	/// </summary>
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification =
+			"Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that "
+			+ "property to false and removes the branch, so this method is unreachable in a trimmed, natively "
+			+ "compiled application; under a JIT runtime the reflection it performs is available and correct.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling",
+		Justification =
+			"Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that "
+			+ "property to false and removes the branch, so the expression compilation these calls perform is "
+			+ "unreachable in a natively compiled application.")]
+	private static void PreWarmJitCaches(
+		IServiceProvider serviceProvider,
+		IReadOnlyCollection<HandlerRegistryEntry> registryEntries)
+	{
+		var handlerTypes = registryEntries
+			.Select(static entry => entry.HandlerType)
+			.Distinct()
+			.ToArray();
+
+		HandlerActivator.PreWarmCache(handlerTypes);
+		HandlerActivator.PreBindResolutionModes(serviceProvider, handlerTypes);
+		HandlerInvoker.PreWarmGeneratedInvokerCache(registryEntries);
+	}
+
+	/// <summary>
 	/// Registers the core Dispatch pipeline and message handlers.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="assembliesToScan"> Assemblies containing handlers or <c> null </c>. </param>
+	/// <param name="assembliesToScan">
+	/// Assemblies containing handlers. When none are supplied, handlers are discovered from the entry
+	/// assembly.
+	/// </param>
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is <c> null </c>. </exception>
+	/// <remarks>
+	/// Handlers discovered from the entry assembly are registered as transient, and never replace a
+	/// handler already registered for the same message: an implicit scan does not outrank a registration
+	/// the consumer wrote by hand.
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // Zero configuration: handlers are discovered from the entry assembly.
+	/// services.AddDispatch();
+	///
+	/// // Explicit: scan the named assemblies instead.
+	/// services.AddDispatch(typeof(Program).Assembly);
+	/// </code>
+	/// </example>
+	[RequiresUnreferencedCode("Discovers handlers by scanning assemblies, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Discovers handlers by scanning assemblies and constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddDispatch(this IServiceCollection services, params Assembly[]? assembliesToScan)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -271,6 +416,27 @@ public static class DispatchServiceCollectionExtensions
 		_ = MessageTypeResolver.Instance;
 
 		var assemblies = assembliesToScan ?? [];
+
+		// Zero-config: when the caller named no assembly, discover handlers from the entry assembly.
+		//
+		// This is the same fallback AddDispatch(Action<IDispatchBuilder>) already applies, and it is here
+		// because a bare AddDispatch() cannot reach that overload — its parameter has no default value, so
+		// overload resolution sends the no-argument call to this one. Without this, the two overloads
+		// disagreed: the documented zero-config entry point registered no handlers at all, and said nothing
+		// about it. The consumer learned of it on their first dispatch, at run time.
+		//
+		// Nothing is imposed on a caller who named their assemblies; this fires only when they named none.
+		// The scan itself is deferential — RegisterMessageHandlers uses TryAdd, so a handler the consumer
+		// registered explicitly wins over one merely found — and it registers transient, matching the
+		// lifetime the builder path pins for the same reason (see AddDispatch(Action) below).
+		if (assemblies.Length == 0)
+		{
+			var entryAssembly = Assembly.GetEntryAssembly();
+			if (entryAssembly != null)
+			{
+				assemblies = [entryAssembly];
+			}
+		}
 
 		_ = services.AddDispatchPipeline();
 		_ = services.AddDispatchHandlers(assemblies);
@@ -302,10 +468,6 @@ public static class DispatchServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is <c> null </c>. </exception>
 	/// <example>
 	/// <code>
-	/// // Simple usage (no configuration needed)
-	/// services.AddDispatch();
-	///
-	/// // With configuration
 	/// services.AddDispatch(dispatch =>
 	/// {
 	///     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -313,6 +475,14 @@ public static class DispatchServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
+	/// <remarks>
+	/// <paramref name="configure" /> has no default value, so a no-argument <c> AddDispatch() </c> call
+	/// resolves to <see cref="AddDispatch(IServiceCollection, Assembly[])" /> rather than to this overload.
+	/// That overload discovers handlers from the entry assembly when none were named; this one registers
+	/// exactly the handlers <paramref name="configure" /> names, so it stays free of assembly scanning and
+	/// is safe to call from a trimmed or ahead-of-time compiled application. A composition that names no
+	/// handler at all still starts, and logs a warning at start-up naming the calls that register some.
+	/// </remarks>
 	public static IServiceCollection AddDispatch(
 		this IServiceCollection services,
 		Action<IDispatchBuilder>? configure)
@@ -336,7 +506,6 @@ public static class DispatchServiceCollectionExtensions
 		// masks consumer intent, so the guard fires *before* configure is
 		// called. Consumers wanting a different pipeline config must call
 		// AddDispatch(configure) exactly once per service collection.
-		// [S794 bd-ffecs4 / COMPASS msg 1480]
 		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
 		{
 			return services;
@@ -352,15 +521,29 @@ public static class DispatchServiceCollectionExtensions
 		EnableDefaultPerformancePromotion(builder);
 		configure?.Invoke(builder);
 
-		// Zero-config: auto-scan entry assembly for handlers if none were registered
-		if (!builder.HasHandlerRegistrations)
-		{
-			var entryAssembly = Assembly.GetEntryAssembly();
-			if (entryAssembly != null)
-			{
-				builder.AddHandlersFromAssembly(entryAssembly);
-			}
-		}
+		// This overload deliberately does NOT scan for handlers. It once fell back to
+		// Assembly.GetEntryAssembly() whenever the configure action named none, and that single branch
+		// made the trim analyser treat EVERY caller as reflective — including a caller who composed
+		// entirely from source-generated registrations and reflected over nothing. The analyser reads the
+		// body, not the argument, so no runtime condition could have narrowed it: the scan had to leave
+		// the method for the diagnostic to stop reaching correct consumers.
+		//
+		// Zero-config is unaffected. A bare AddDispatch() cannot reach this overload at all — configure
+		// has no default value, so overload resolution sends it to AddDispatch(params Assembly[]), which
+		// discovers the entry assembly and carries the honest annotation for doing so.
+		//
+		// A composition that reaches here and names no handler is not an error — a send-only host is a
+		// supported shape — but it is far more often a mistake, and an expensive one to find later:
+		// an action or query with no handler throws on the first dispatch, while an EVENT with no handler
+		// only logs, so a broken composition can run for a long time quietly dropping events. Say so once,
+		// at start-up, and name both remedies.
+		//
+		// Registered unconditionally, and it re-reads the handler registry when the host starts rather
+		// than trusting what the builder knew here: a consumer may register handlers after this call
+		// returns, and a warning that fired for them would be the kind of false alarm that teaches people
+		// to filter the category out.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, NoHandlersRegisteredStartupWarning>());
 
 		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost
 		_ = builder.Build();
@@ -391,6 +574,8 @@ public static class DispatchServiceCollectionExtensions
 	/// For full control over middleware composition, use <see cref="AddDispatch(IServiceCollection, Action{IDispatchBuilder}?)"/> instead.
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Scans the supplied assembly for handlers, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Scans the supplied assembly for handlers and constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddDispatchWithDefaults(
 		this IServiceCollection services,
 		Assembly handlerAssembly)
@@ -438,7 +623,7 @@ public static class DispatchServiceCollectionExtensions
 	{
 		// Build a list of concrete types implementing the handler interfaces
 		var handlerTypes = assemblies
-			.SelectMany(static a => a.GetTypes())
+			.SelectMany(static a => a.GetLoadableTypes())
 			.Where(static t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false })
 			.Select(static t => new
 			{
@@ -461,10 +646,28 @@ public static class DispatchServiceCollectionExtensions
 			// Register the handler type itself so the activator can resolve it
 			services.TryAddTransient(handler.Type);
 
-			// Register the handler for each interface it implements
+			// Register the handler for each interface it implements. Which of the two branches applies
+			// is decided by the same predicate HandlerRegistry.Register uses to choose fan-out over
+			// replacement, so the container and the registry cannot disagree about whether a message
+			// type has one handler or many.
 			foreach (var iface in handler.Interfaces)
 			{
-				services.TryAddTransient(iface, handler.Type);
+				var descriptor = ServiceDescriptor.Transient(iface, handler.Type);
+
+				if (typeof(IDispatchEvent).IsAssignableFrom(iface.GetGenericArguments()[0]))
+				{
+					// Events fan out to every handler. A plain TryAdd here would match on the service
+					// type alone and silently discard every event handler after the first one found.
+					services.TryAddEnumerable(descriptor);
+				}
+				else
+				{
+					// One handler wins for everything else, and it must be the consumer's: TryAdd
+					// yields to a registration made before this call, and a registration made after it
+					// already wins, because the registry takes the last descriptor for a non-event
+					// message type.
+					services.TryAdd(descriptor);
+				}
 			}
 		}
 	}

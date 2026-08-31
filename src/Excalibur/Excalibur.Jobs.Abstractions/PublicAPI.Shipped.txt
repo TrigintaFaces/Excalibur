@@ -52,17 +52,17 @@ Excalibur.Jobs.IBackgroundJob<TContext>.ExecuteAsync(TContext! context, System.T
 Excalibur.Jobs.IConfigurableJob<TOptions>
 Excalibur.Jobs.IJobOptions
 Excalibur.Jobs.IJobOptions.CronSchedule.get -> string!
-Excalibur.Jobs.IJobOptions.CronSchedule.init -> void
 Excalibur.Jobs.IJobOptions.DegradedThreshold.get -> System.TimeSpan
-Excalibur.Jobs.IJobOptions.DegradedThreshold.init -> void
 Excalibur.Jobs.IJobOptions.Disabled.get -> bool
-Excalibur.Jobs.IJobOptions.Disabled.init -> void
 Excalibur.Jobs.IJobOptions.JobGroup.get -> string!
-Excalibur.Jobs.IJobOptions.JobGroup.init -> void
 Excalibur.Jobs.IJobOptions.JobName.get -> string!
-Excalibur.Jobs.IJobOptions.JobName.init -> void
 Excalibur.Jobs.IJobOptions.UnhealthyThreshold.get -> System.TimeSpan
-Excalibur.Jobs.IJobOptions.UnhealthyThreshold.init -> void
 Excalibur.Jobs.IJobSchedulerProvider
 Excalibur.Jobs.IJobSchedulerProvider.DeleteJobAsync(string! jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.IJobSchedulerProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.IJobOptions.JobName.set -> void
+Excalibur.Jobs.IJobOptions.JobGroup.set -> void
+Excalibur.Jobs.IJobOptions.CronSchedule.set -> void
+Excalibur.Jobs.IJobOptions.DegradedThreshold.set -> void
+Excalibur.Jobs.IJobOptions.Disabled.set -> void
+Excalibur.Jobs.IJobOptions.UnhealthyThreshold.set -> void

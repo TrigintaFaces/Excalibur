@@ -67,7 +67,7 @@ internal static class KafkaProducerConfigBuilder
 			config.Set(kvp.Key, kvp.Value);
 		}
 
-		return config;
+		return KafkaSecurityPosture.Apply(config, options);
 	}
 
 	public static async Task EnsureTopicExistsAsync(
@@ -95,7 +95,7 @@ internal static class KafkaProducerConfigBuilder
 			adminConfig.Set(kvp.Key, kvp.Value);
 		}
 
-		using var admin = new AdminClientBuilder(adminConfig).Build();
+		using var admin = new AdminClientBuilder(KafkaSecurityPosture.Apply(adminConfig, options)).Build();
 
 		var metadata = admin.GetMetadata(topic, TimeSpan.FromSeconds(10));
 		if (metadata.Topics.Any(t => t.Topic == topic && t.Error.Code == ErrorCode.NoError))

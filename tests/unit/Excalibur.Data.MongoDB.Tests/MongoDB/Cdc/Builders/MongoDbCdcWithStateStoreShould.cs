@@ -16,6 +16,8 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc.Builders;
 public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 {
 	private const string SourceConnectionString = "mongodb://source-host:27017";
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "Every test configures the state store by name alone, so no test here proves the state store can live on a connection distinct from the change source. Held until one does.")]
 	private const string StateConnectionString = "mongodb://state-host:27017";
 
 	// --- WithStateStore(Action<ICdcStateStoreBuilder>) ---

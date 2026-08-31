@@ -106,7 +106,7 @@ When `UseOpenTelemetry()` is enabled, each message creates a span that flows thr
 [Excalibur.Dispatch.Pipeline] ProcessMessage OrderCreatedEvent
   ├── [Excalibur.Dispatch.Middleware] ValidationMiddleware (0.2ms)
   ├── [Excalibur.Dispatch.Middleware] AuthorizationMiddleware (0.1ms)
-  ├── [Excalibur.Dispatch.Middleware] IdempotentHandlerMiddleware (1.5ms)
+  ├── [Excalibur.Dispatch.Middleware] InboxMiddleware (1.5ms)
   │     └── [Excalibur.Dispatch.Inbox] CheckProcessed (1.2ms)
   ├── [Excalibur.Dispatch.Handler] ProcessOrderHandler (45ms)
   │     ├── [Database] INSERT Orders (12ms)

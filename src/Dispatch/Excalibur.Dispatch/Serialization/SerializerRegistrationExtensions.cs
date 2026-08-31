@@ -37,17 +37,20 @@ internal static class SerializerRegistrationExtensions
 		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
+		// Selecting a serializer must actually deliver it. AddPluggableSerialization seats the registry,
+		// the IPayloadSerializer facade the inbox and transports resolve, and
+		// AddOptions<PluggableSerializationOptions>().ValidateOnStart() — all first-wins, so calling it here
+		// is idempotent and never clobbers a consumer's own registrations. Without it an AddXSerializer()
+		// call configured a format nothing read: no IPayloadSerializer at all, and a consumer who followed
+		// the package README silently stayed on JSON with no error and no log.
+		_ = services.AddPluggableSerialization();
+
+		// Single source of truth: direct ISerializer resolution must agree with the
 		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
 		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
 		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
 		services.RemoveAll<ISerializer>();
 		services.AddSingleton<ISerializer>(serializer);
-
-		// ValidateOnStart is part of the ritual — previously present on Protobuf/Avro but missing on
-		// MessagePack/MemoryPack (drift, not a decision). Centralizing it here removes that divergence.
-		_ = services.AddOptions<PluggableSerializationOptions>()
-			.ValidateOnStart();
 
 		services.PostConfigure<PluggableSerializationOptions>(options =>
 		{

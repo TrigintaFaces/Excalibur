@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 
 namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 
@@ -19,6 +21,17 @@ internal static class ClaimCheckTelemetryConstants
 	/// The activity source name for claim check telemetry.
 	/// </summary>
 	public const string ActivitySourceName = "Excalibur.Dispatch.Patterns.ClaimCheck";
+
+	/// <summary>
+	/// The process-lifetime meter that claim check instruments are created on. The name is fixed, so a
+	/// single static instance is correct and lets a consumer subscribe by name once for the process.
+	/// </summary>
+	public static readonly Meter Meter = new(MeterName);
+
+	/// <summary>
+	/// The process-lifetime activity source claim check spans are started from.
+	/// </summary>
+	public static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
 	/// <summary>
 	/// Standard metric names for claim check operations.

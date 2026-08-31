@@ -54,6 +54,7 @@ public static class InMemoryLeaderElectionServiceCollectionExtensions
 		services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("inmemory"));
 		services.TryAddSingleton<InMemoryLeaderElectionFactory>();
+		InMemoryElectionRegistration.RegisterSingletonElectionAndGate(services);
 
 		return services;
 	}
@@ -87,6 +88,7 @@ public static class InMemoryLeaderElectionServiceCollectionExtensions
 		services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("inmemory"));
 		services.TryAddSingleton<InMemoryLeaderElectionFactory>();
+		InMemoryElectionRegistration.RegisterSingletonElectionAndGate(services);
 
 		return services;
 	}

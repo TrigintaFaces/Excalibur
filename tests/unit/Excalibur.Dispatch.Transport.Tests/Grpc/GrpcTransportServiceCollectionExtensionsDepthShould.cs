@@ -99,8 +99,16 @@ public sealed class GrpcTransportServiceCollectionExtensionsDepthShould
 		services.AddGrpcTransport(options => options.ServerAddress = "https://server1:5001");
 		services.AddGrpcTransport(options => options.ServerAddress = "https://server2:5001");
 
-		// Assert — TryAddSingleton prevents duplicate GrpcChannel registration
-		services.Count(sd => sd.ServiceType == typeof(GrpcChannel)).ShouldBe(1);
+		// Assert — TryAddSingleton prevents a duplicate UNKEYED GrpcChannel registration, and
+		// TryAddKeyedSingleton prevents a duplicate for the same transport name. Both overloads here use
+		// the default name, so exactly one of each survives.
+		//
+		// The channel is registered per transport name as well as unkeyed, because it carries the server
+		// address: one channel shared between two named transports sent one transport's traffic to the
+		// other transport's server. So this counts the two kinds separately rather than counting every
+		// descriptor whose ServiceType is GrpcChannel, which is now two by design.
+		services.Count(sd => sd.ServiceType == typeof(GrpcChannel) && !sd.IsKeyedService).ShouldBe(1);
+		services.Count(sd => sd.ServiceType == typeof(GrpcChannel) && sd.IsKeyedService).ShouldBe(1);
 	}
 
 	[Fact]
@@ -169,8 +177,14 @@ public sealed class GrpcTransportServiceCollectionExtensionsDepthShould
 		services.AddGrpcTransport(options => options.ServerAddress = "https://localhost:5001");
 
 		// Assert
-		var channelDescriptor = services.Single(sd => sd.ServiceType == typeof(GrpcChannel));
-		channelDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+		// Both the unkeyed channel and the per-transport-name channel must be singletons: a transient
+		// channel would open a new HTTP/2 connection per resolution.
+		foreach (var channelDescriptor in services.Where(sd => sd.ServiceType == typeof(GrpcChannel)))
+		{
+			channelDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+		}
+
+		services.Count(sd => sd.ServiceType == typeof(GrpcChannel)).ShouldBe(2);
 	}
 
 	[Fact]

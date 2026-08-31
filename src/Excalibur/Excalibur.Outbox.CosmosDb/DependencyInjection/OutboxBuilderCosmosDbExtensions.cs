@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -126,14 +126,26 @@ public static class OutboxBuilderCosmosDbExtensions
 			});
 		}
 
-		// Register store services
-		builder.Services.TryAddSingleton<CosmosDbOutboxStore>();
+		// Register store services. AddTenantAwareStore emits the
+		// ITenantPartitionedCapability<ICloudNativeOutboxStore> marker as part of THIS registration, so the
+		// marker cannot exist without the store it attests. It is the partitioned seam and not the scoped one
+		// because this store reads no ambient tenant on any path: it persists the tenant on the document it
+		// writes and hands that value back when the change feed reads it, so the owning tenant is
+		// re-established from the row. That seam takes no ITenantContext, so there is no dependency here to be
+		// handed to the factory and silently discarded.
+		//
+		// Without this the contract is not merely unattested, it is INVISIBLE: this provider registers no
+		// IOutboxStore at all, so the outbox gate keyed on that contract never fires, and a host selecting
+		// row-discriminator multi-tenancy starts cleanly with an outbox nothing confines. An ungated store is
+		// silent where a refused one is loud.
+		builder.Services.AddTenantAwareStore<ICloudNativeOutboxStore, CosmosDbOutboxStore>(
+			static sp => ActivatorUtilities.CreateInstance<CosmosDbOutboxStore>(sp));
 		builder.Services.TryAddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<CosmosDbOutboxStore>());
 
 		// Change-feed durability default + non-durable startup warning, shared with the Cosmos data provider.
 		// Registering here means an outbox-only consumer (no AddExcaliburCosmosDb) still gets the default
 		// checkpoint store and is warned when continuation is non-durable, instead of silently replaying from
-		// the start position on every restart (bd-egwtku / bd-ydln24).
+		// the start position on every restart.
 		_ = builder.Services.AddCosmosDbChangeFeedDurabilityDefaults();
 	}
 

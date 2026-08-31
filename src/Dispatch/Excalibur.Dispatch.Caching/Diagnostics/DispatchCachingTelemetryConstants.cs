@@ -5,7 +5,7 @@ namespace Excalibur.Dispatch.Caching.Diagnostics;
 
 /// <summary>
 /// Shared telemetry constants for the Excalibur.Dispatch.Caching package.
-/// All Dispatch caching components MUST use these constants for Meter and ActivitySource names
+/// All Dispatch caching components MUST use these constants for Meter names
 /// to ensure a single, consolidated telemetry surface.
 /// </summary>
 internal static class DispatchCachingTelemetryConstants
@@ -14,11 +14,6 @@ internal static class DispatchCachingTelemetryConstants
 	/// The shared Meter name for all Dispatch caching telemetry.
 	/// </summary>
 	public const string MeterName = "Excalibur.Dispatch.Caching";
-
-	/// <summary>
-	/// The shared ActivitySource name for all Dispatch caching telemetry.
-	/// </summary>
-	public const string ActivitySourceName = "Excalibur.Dispatch.Caching";
 
 	/// <summary>
 	/// Version string for telemetry instruments.

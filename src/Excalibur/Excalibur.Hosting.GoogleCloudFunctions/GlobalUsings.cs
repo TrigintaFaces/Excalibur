@@ -3,7 +3,7 @@
 
 // Global using directives for Excalibur.Hosting.GoogleCloudFunctions
 
-#pragma warning disable IDE0005 // Required: serverless types consolidated to Excalibur.Dispatch.Hosting.Serverless in Sprint 508
+#pragma warning disable IDE0005 // Required: serverless types consolidated to Excalibur.Dispatch.Hosting.Serverless
 
 global using Excalibur.Dispatch.Hosting.Serverless;
 

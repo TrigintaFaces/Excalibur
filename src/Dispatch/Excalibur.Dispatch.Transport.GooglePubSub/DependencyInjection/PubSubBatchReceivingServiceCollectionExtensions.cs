@@ -38,7 +38,6 @@ public static class PubSubBatchReceivingServiceCollectionExtensions
 			.Configure(static config =>
 			{
 				config.MaxMessagesPerBatch = 1000;
-				config.MaxBatchWaitTime = TimeSpan.FromMilliseconds(100);
 				config.EnableAdaptiveBatching = true;
 				config.ConcurrentBatchProcessors = Environment.ProcessorCount;
 			})

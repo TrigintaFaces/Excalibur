@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <item>21400-21499: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class RabbitMqEventId
+internal static class RabbitMqEventId
 {
 	// ========================================
 	// 21000-21099: Core (Connection, Channel)

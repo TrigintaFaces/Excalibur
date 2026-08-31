@@ -35,21 +35,32 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
+/// // The kit resolves the store from a container built by the store's own registration
+/// // extension, so every arm runs against the object a consumer actually gets -- including
+/// // the ambient ITenantContext the extension registers. Constructing the store by hand
+/// // certifies an instance you assembled rather than the one your registration produces.
 /// public class SqlServerLegalHoldStoreConformanceTests : LegalHoldStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
-///
+///     private readonly ServiceProvider _provider;
+/// 
+///     public SqlServerLegalHoldStoreConformanceTests(SqlServerFixture fixture) =&gt;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSqlServerLegalHoldStore(o =&gt;
+///             {
+///                 o.ConnectionString = fixture.ConnectionString;
+///                 o.AutoCreateSchema = true;
+///             })
+///             .BuildServiceProvider();
+/// 
 ///     protected override ILegalHoldStore CreateStore() =&gt;
-///         new SqlServerLegalHoldStore(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =&gt;
-///         await _fixture.CleanupAsync();
+///         _provider.GetRequiredService&lt;ILegalHoldStore&gt;();
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class LegalHoldStoreConformanceTestKit
+public abstract class LegalHoldStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh legal hold store instance for testing.
@@ -62,6 +73,40 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	/// <returns>A task representing the cleanup operation.</returns>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
+
+	/// <summary>
+	/// Clears residual data before an arm runs. Defaults to <see cref="CleanupAsync"/>.
+	/// </summary>
+	/// <returns>A task that completes when the store holds no data from a previous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any suite whose teardown only deletes
+	/// rows, keys or documents. A suite whose <see cref="CleanupAsync"/> <em>also</em> disposes a
+	/// connection or client MUST override this with the data-only half — otherwise it disposes the store
+	/// the arm is about to use, and every arm fails on a disposed handle rather than on the contract.
+	/// </para>
+	/// <para>
+	/// Resetting <em>before</em> an arm is what makes the arm independent; resetting only afterwards makes
+	/// every arm's starting state a function of whether its predecessor finished cleanly.
+	/// </para>
+	/// </remarks>
+	protected virtual Task ResetDataAsync() => CleanupAsync();
+
+	/// <summary>
+	/// Creates the store for a single arm and clears residual data before the arm runs.
+	/// </summary>
+	/// <returns>A store ready for one conformance arm.</returns>
+	/// <remarks>
+	/// Every arm in this kit obtains its store here rather than from <see cref="CreateStore"/> directly.
+	/// That is the only thing that causes <see cref="CleanupAsync"/> to run: a cleanup a deriver overrides
+	/// but the kit never calls is indistinguishable, from the deriver's side, from one that works.
+	/// </remarks>
+	protected async Task<ILegalHoldStore> CreateStoreForArmAsync()
+	{
+		var store = CreateStore();
+		await ResetDataAsync().ConfigureAwait(false);
+		return store;
+	}
 
 	/// <summary>
 	/// Creates a test legal hold with the given parameters.
@@ -112,7 +157,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SaveHoldAsync_ShouldPersistHold()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var hold = CreateLegalHold();
 
 		await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
@@ -149,7 +194,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SaveHoldAsync_DuplicateHoldId_ShouldThrowInvalidOperationException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var holdId = GenerateHoldId();
 		var hold1 = CreateLegalHold(holdId: holdId);
 		var hold2 = CreateLegalHold(holdId: holdId);
@@ -173,7 +218,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SaveHoldAsync_NullHold_ShouldThrowArgumentNullException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -196,7 +241,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetHoldAsync_ExistingHold_ShouldReturnHold()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var hold = CreateLegalHold();
 
 		await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
@@ -221,7 +266,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetHoldAsync_NonExistent_ShouldReturnNull()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateHoldId();
 
 		var hold = await store.GetHoldAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
@@ -242,7 +287,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateHoldAsync_ExistingHold_ShouldUpdateAndReturnTrue()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var hold = CreateLegalHold();
 
 		await store.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
@@ -291,7 +336,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateHoldAsync_NonExistent_ShouldReturnFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var hold = CreateLegalHold();
 
 		var updated = await store.UpdateHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
@@ -308,7 +353,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateHoldAsync_NullHold_ShouldThrowArgumentNullException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -342,7 +387,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetActiveHoldsForDataSubjectAsync_ActiveHolds_ShouldReturnMatching()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var dataSubjectIdHash = GenerateDataSubjectIdHash();
 
 		// Active hold for data subject
@@ -373,7 +418,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var dataSubjectIdHash = GenerateDataSubjectIdHash();
 
 		// Hold for tenant-A
@@ -402,11 +447,140 @@ public abstract class LegalHoldStoreConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that a hold belonging to no tenant is reachable, and that naming a tenant does not widen
+	/// the result to another tenant's holds.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A hold with no tenant is a preservation order that applies across the deployment rather than within
+	/// one tenant, and a legal hold blocks erasure: a global order that no query returns is an order that
+	/// silently stops blocking. The sibling tenant-filter arm plants tenant-A against tenant-B and so never
+	/// creates one, which leaves the whole untenanted row shape unexercised — a store could drop global
+	/// holds entirely and every arm in this kit would stay green.
+	/// </para>
+	/// <para>
+	/// The two halves are what stop each other passing vacuously. LIVENESS: an unscoped read returns the
+	/// global hold, so a store cannot satisfy the arm by returning nothing. SAFETY: a scoped read does not
+	/// return another tenant's hold, so a store cannot satisfy it by returning everything.
+	/// </para>
+	/// <para>
+	/// Whether a caller who names their own tenant ALSO sees the global hold is pinned separately, by
+	/// <see cref="GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller"/>. This arm
+	/// stays on the unscoped read so the two directions fail independently: a store that lost global holds
+	/// only on the scoped path would still be caught, and by exactly one arm.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the asynchronous operation. </returns>
+	public virtual async Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var dataSubjectIdHash = GenerateDataSubjectIdHash();
+
+		// A preservation order that names no tenant: it applies to the data subject wherever they appear.
+		var globalHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: null, isActive: true);
+		await store.SaveHoldAsync(globalHold, CancellationToken.None).ConfigureAwait(false);
+
+		var otherTenantHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: "tenant-B", isActive: true);
+		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
+
+		// LIVENESS: the global order is readable. Without this half, a store that returns nothing at all
+		// passes the safety half below having demonstrated nothing.
+		var unscoped = await GetQueryStore(store)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, null, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (!unscoped.Any(h => h.HoldId == globalHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"An active legal hold with no tenant ({globalHold.HoldId}) was saved and an unscoped read for "
+				+ "the same data subject did not return it. A legal hold blocks erasure, so a preservation "
+				+ "order this store will not surface is one that has silently stopped blocking.");
+		}
+
+		// SAFETY: naming a tenant does not widen the answer to a different tenant's order.
+		var scoped = await GetQueryStore(store)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, "tenant-A", CancellationToken.None)
+			.ConfigureAwait(false);
+
+		if (scoped.Any(h => h.HoldId == otherTenantHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A read scoped to tenant-A returned tenant-B's hold ({otherTenantHold.HoldId}). The caller's "
+				+ "tenant argument can only narrow the result; a store that widens it discloses one tenant's "
+				+ "legal matters to another.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a caller who names their own tenant still sees a hold that belongs to no tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A hold with no tenant is a preservation order in force across the whole deployment, and a legal
+	/// hold BLOCKS erasure. A store whose tenant argument removes those rows therefore reports "nothing is
+	/// blocking" to a tenant-scoped erasure check that is in fact covered by a live order, and the
+	/// deletion that follows cannot be undone.
+	/// </para>
+	/// <para>
+	/// The two failure directions are not comparable, which is why the tenant argument widens rather than
+	/// the global term narrowing: missing a hold destroys preserved data permanently, while seeing an
+	/// extra one delays a deletion until someone releases the hold or re-scopes the query.
+	/// </para>
+	/// <para>
+	/// The halves stop each other passing vacuously, and each reds under its own mutation. LIVENESS: a
+	/// store that drops untenanted rows from the scoped read fails here and leaves SAFETY untouched.
+	/// SAFETY: a store that "fixes" liveness by ignoring the tenant argument altogether fails here and
+	/// leaves LIVENESS untouched. Neither mutation can satisfy both.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the asynchronous operation. </returns>
+	public virtual async Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var dataSubjectIdHash = GenerateDataSubjectIdHash();
+		var tenantA = $"tenant-A-{Guid.NewGuid():N}";
+		var tenantB = $"tenant-B-{Guid.NewGuid():N}";
+
+		// A preservation order naming no tenant: it is in force for tenant A as much as for anyone.
+		var globalHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: null, isActive: true);
+		await store.SaveHoldAsync(globalHold, CancellationToken.None).ConfigureAwait(false);
+
+		// Another tenant's order for the same data subject. Without this row the arm is satisfied by a
+		// store that returns everything, which is the opposite defect.
+		var otherTenantHold = CreateLegalHold(dataSubjectIdHash: dataSubjectIdHash, tenantId: tenantB, isActive: true);
+		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
+
+		var scoped = await GetQueryStore(store)
+			.GetActiveHoldsForDataSubjectAsync(dataSubjectIdHash, tenantA, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// LIVENESS -- the global order survives the caller's tenant argument.
+		if (!scoped.Any(h => h.HoldId == globalHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A read scoped to '{tenantA}' did not return the active legal hold that belongs to no tenant "
+				+ $"({globalHold.HoldId}). A hold with no tenant is in force for every tenant, and a legal hold "
+				+ "blocks erasure: a caller who names their own tenant and is told nothing is blocking will "
+				+ "proceed with a deletion that cannot be undone. The caller's tenant argument must admit the "
+				+ "holds that belong to no tenant, exactly as the store's own ambient term does.");
+		}
+
+		// SAFETY -- widening to admit global holds must not widen to another tenant's holds.
+		if (scoped.Any(h => h.HoldId == otherTenantHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A read scoped to '{tenantA}' returned '{tenantB}'s hold ({otherTenantHold.HoldId}). Admitting "
+				+ "untenanted holds must not become admitting everything: a store that returns every tenant's "
+				+ "holds discloses one tenant's legal matters to another.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that GetActiveHoldsForDataSubjectAsync throws ArgumentException for null/whitespace.
 	/// </summary>
 	public virtual async Task GetActiveHoldsForDataSubjectAsync_NullDataSubjectIdHash_ShouldThrowArgumentException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -435,7 +609,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </remarks>
 	public virtual async Task GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var tenantA = $"tenant-A-{Guid.NewGuid():N}";
 		var tenantB = $"tenant-B-{Guid.NewGuid():N}";
 
@@ -491,11 +665,66 @@ public abstract class LegalHoldStoreConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that a tenant-scoped read of tenant-wide holds still sees a hold that belongs to no tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the sibling of the data-subject arm, on the path that carries the greater risk. A
+	/// tenant-wide hold names no data subject, so the subject-scoped query can never return one - a null
+	/// does not equal a value. If this read also drops the untenanted rows, then an estate-wide
+	/// preservation order is reachable through NO query the erasure check makes, and the check reports
+	/// nothing blocking with complete confidence.
+	/// </para>
+	/// <para>
+	/// LIVENESS and SAFETY red independently, under the same pair of mutations as the data-subject arm:
+	/// dropping untenanted rows fails liveness alone, ignoring the tenant argument fails safety alone.
+	/// </para>
+	/// </remarks>
+	/// <returns> A task representing the asynchronous operation. </returns>
+	public virtual async Task GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller()
+	{
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var tenantA = $"tenant-A-{Guid.NewGuid():N}";
+		var tenantB = $"tenant-B-{Guid.NewGuid():N}";
+
+		// An estate-wide preservation order: no tenant, and no data subject either.
+		var globalHold = CreateLegalHold(tenantId: null, isActive: true);
+		await store.SaveHoldAsync(globalHold, CancellationToken.None).ConfigureAwait(false);
+
+		var otherTenantHold = CreateLegalHold(tenantId: tenantB, isActive: true);
+		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
+
+		var scoped = await GetQueryStore(store)
+			.GetActiveHoldsForTenantAsync(tenantA, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		// LIVENESS -- the estate-wide order is in force for this tenant and must be returned to it.
+		if (!scoped.Any(h => h.HoldId == globalHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A read of tenant-wide holds scoped to '{tenantA}' did not return the active legal hold that "
+				+ $"belongs to no tenant ({globalHold.HoldId}). A tenant-wide hold carries no data subject, so "
+				+ "the subject-scoped query cannot return it either -- an estate-wide preservation order this "
+				+ "read omits is reachable through no query the erasure check makes, and the erasure it was "
+				+ "filed to prevent proceeds.");
+		}
+
+		// SAFETY -- still no cross-tenant disclosure.
+		if (scoped.Any(h => h.HoldId == otherTenantHold.HoldId))
+		{
+			throw new TestFixtureAssertionException(
+				$"A read of tenant-wide holds scoped to '{tenantA}' returned '{tenantB}'s hold "
+				+ $"({otherTenantHold.HoldId}). Admitting untenanted holds must not become admitting "
+				+ "everything.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that GetActiveHoldsForTenantAsync throws ArgumentException for null/whitespace tenantId.
 	/// </summary>
 	public virtual async Task GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -518,7 +747,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListActiveHoldsAsync_AllActive_ShouldReturnNonExpiredOrderedByCreatedAtDesc()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Create holds with different timestamps
 		var olderHold = CreateLegalHold(isActive: true);
@@ -582,7 +811,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListActiveHoldsAsync_WithTenantFilter_ShouldFilterCorrectly()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var tenantA = $"tenant-A-{Guid.NewGuid():N}";
 		var tenantB = $"tenant-B-{Guid.NewGuid():N}";
 
@@ -616,7 +845,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListAllHoldsAsync_IncludesReleasedHolds_ShouldReturnAll()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var tenantId = $"tenant-{Guid.NewGuid():N}";
 
 		var activeHold = CreateLegalHold(tenantId: tenantId, isActive: true);
@@ -645,7 +874,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task ListAllHoldsAsync_DateRangeFilters_ShouldFilterCorrectly()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		// Old hold (created 10 days ago simulation - we'll filter it out)
@@ -690,7 +919,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetExpiredHoldsAsync_ShouldReturnActiveHoldsWithPassedExpiration()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Expired hold (active but ExpiresAt in past)
 		var expiredHold = CreateLegalHold(isActive: true, expiresAt: DateTimeOffset.UtcNow.AddMinutes(-5));
@@ -730,7 +959,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetExpiredHoldsAsync_ShouldExcludeReleasedHolds()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		// Released hold with past expiration (should NOT be returned)
 		var releasedExpiredHold = CreateLegalHold(isActive: false, expiresAt: DateTimeOffset.UtcNow.AddMinutes(-5));
@@ -756,4 +985,5 @@ public abstract class LegalHoldStoreConformanceTestKit
 	}
 
 	#endregion
+
 }

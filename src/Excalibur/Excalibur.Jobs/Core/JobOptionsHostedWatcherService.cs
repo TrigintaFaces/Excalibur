@@ -59,7 +59,7 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 			// OnChange registers a synchronous Action<T>. Do NOT pass an async lambda — it would bind as
 			// async void, and a fault after the first await (or a rethrow) would surface with no awaiter →
 			// unobserved → host crash. Offload to a guarded task whose faults are always caught + logged,
-			// never rethrown / never left unobserved (FR-J1/J2/J3).
+			// never rethrown / never left unobserved.
 			_changeListener = configMonitor.OnChange(newConfig =>
 			{
 				_ = HandleConfigurationChangeAsync(jobKey, newConfig);
@@ -97,8 +97,8 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 		catch (Exception ex)
 		{
 			// The callback has no awaiter (registered as a synchronous Action), so faults MUST be caught
-			// and logged here — never rethrown, never left unobserved (FR-J2). The host stays alive and
-			// subsequent config changes are still handled (FR-J4).
+			// and logged here — never rethrown, never left unobserved. The host stays alive and
+			// subsequent config changes are still handled.
 			LogErrorHandlingConfigurationChange(jobKey, ex);
 		}
 	}

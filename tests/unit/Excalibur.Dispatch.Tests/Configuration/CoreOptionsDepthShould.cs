@@ -128,86 +128,6 @@ public sealed class CoreOptionsDepthShould
 		options.ProcessingDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
 	}
 
-	// --- JsonSerializationOptions ---
-
-	[Fact]
-	public void JsonSerializationOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new JsonSerializationOptions();
-
-		// Assert
-		options.JsonSerializerOptions.ShouldNotBeNull();
-		options.PreserveReferences.ShouldBeFalse();
-		options.MaxDepth.ShouldBe(64);
-	}
-
-	[Fact]
-	public void JsonSerializationOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new JsonSerializationOptions
-		{
-			PreserveReferences = true,
-			MaxDepth = 32,
-		};
-
-		// Assert
-		options.PreserveReferences.ShouldBeTrue();
-		options.MaxDepth.ShouldBe(32);
-	}
-
-	[Fact]
-	public void JsonSerializationOptions_SetNull_CreatesNewInstance()
-	{
-		// Arrange
-		var options = new JsonSerializationOptions();
-
-		// Act
-		options.JsonSerializerOptions = null!;
-
-		// Assert
-		options.JsonSerializerOptions.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void JsonSerializationOptions_BuildJsonSerializerOptions_SetsMaxDepth()
-	{
-		// Arrange
-		var options = new JsonSerializationOptions { MaxDepth = 16 };
-
-		// Act
-		var result = options.BuildJsonSerializerOptions();
-
-		// Assert
-		result.MaxDepth.ShouldBe(16);
-	}
-
-	[Fact]
-	public void JsonSerializationOptions_BuildJsonSerializerOptions_SetsPreserveReferences()
-	{
-		// Arrange
-		var options = new JsonSerializationOptions { PreserveReferences = true };
-
-		// Act
-		var result = options.BuildJsonSerializerOptions();
-
-		// Assert
-		result.ReferenceHandler.ShouldBe(ReferenceHandler.Preserve);
-	}
-
-	[Fact]
-	public void JsonSerializationOptions_BuildJsonSerializerOptions_NoPreserveReferences_ByDefault()
-	{
-		// Arrange
-		var options = new JsonSerializationOptions();
-
-		// Act
-		var result = options.BuildJsonSerializerOptions();
-
-		// Assert
-		result.ReferenceHandler.ShouldBeNull();
-	}
 
 	// --- MessageBusHealthCheckOptions ---
 
@@ -243,49 +163,6 @@ public sealed class CoreOptionsDepthShould
 		options.FailureThreshold.ShouldBe(5);
 	}
 
-	// --- MultiTransportOptions ---
-
-	[Fact]
-	public void MultiTransportOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new MultiTransportOptions();
-
-		// Assert
-		options.Transports.ShouldNotBeNull();
-		options.Transports.ShouldBeEmpty();
-		options.DefaultTransport.ShouldBeNull();
-		options.EnableFailover.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void MultiTransportOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new MultiTransportOptions
-		{
-			DefaultTransport = "rabbitmq",
-			EnableFailover = false,
-		};
-
-		// Assert
-		options.DefaultTransport.ShouldBe("rabbitmq");
-		options.EnableFailover.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void MultiTransportOptions_Transports_CanAddEntries()
-	{
-		// Arrange
-		var options = new MultiTransportOptions();
-
-		// Act
-		options.Transports["rabbitmq"] = new TransportOptions();
-
-		// Assert
-		options.Transports.Count.ShouldBe(1);
-		options.Transports.ShouldContainKey("rabbitmq");
-	}
 
 	// --- TracingOptions ---
 

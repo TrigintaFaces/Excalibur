@@ -141,7 +141,7 @@ internal sealed partial class GrpcDeadLetterQueueManager : IDeadLetterQueueManag
 	}
 
 	/// <inheritdoc />
-	public Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		var purged = 0;
 		while (_messages.TryDequeue(out _))

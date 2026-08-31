@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -139,6 +138,9 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this DynamoDB position instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ChangePosition is the base for provider positions that never reach reflective serialization, so the requirement cannot be declared on the base member without binding those too. It is declared on this DynamoDB position instead.")]
 	public override string ToToken() => ToBase64();
 
 	/// <inheritdoc/>
@@ -167,13 +169,19 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// </summary>
 	/// <returns>A base64-encoded string representation.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public string ToBase64()
 	{
+		// Deliberately NOT including Timestamp. A position's token must be a function of the position: two
+		// constructions of the same logical position must serialize identically, or the token cannot be
+		// compared, deduplicated, or diffed in a log. Timestamp is stamped from the wall clock at
+		// construction, so including it made the token vary with WHEN it was built rather than with what it
+		// denotes -- and left the type holding two contradictory notions of identity, since Equals and
+		// GetHashCode already exclude it. The token now agrees with equality.
 		var data = new PositionData
 		{
 			StreamArn = StreamArn,
 			ShardPositions = ShardPositions.ToDictionary(x => x.Key, x => x.Value),
-			Timestamp = Timestamp,
 		};
 
 		var json = JsonSerializer.Serialize(data, JsonOptions);
@@ -186,6 +194,7 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// </summary>
 	/// <returns>A UTF-8 encoded byte array representation.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public byte[] ToBytes()
 	{
 		var data = new PositionData
@@ -206,6 +215,7 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// <returns>The deserialized position.</returns>
 	/// <exception cref="FormatException">Thrown if the string format is invalid.</exception>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static DynamoDbCdcPosition FromBase64(string base64)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(base64);
@@ -239,6 +249,8 @@ public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdc
 	/// <param name="base64">The base64-encoded string.</param>
 	/// <param name="position">The deserialized position if successful.</param>
 	/// <returns><see langword="true"/> if parsing succeeded; otherwise, <see langword="false"/>.</returns>
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("The position is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public static bool TryFromBase64(string? base64, out DynamoDbCdcPosition? position)
 	{
 		if (string.IsNullOrWhiteSpace(base64))

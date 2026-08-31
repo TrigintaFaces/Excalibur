@@ -4,6 +4,8 @@
 
 using System.Collections.Concurrent;
 
+using Excalibur.Compliance.Encryption;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -126,12 +128,129 @@ public sealed class KeyDurabilityGateShould
 	//
 	// The arms above build their own host and call AddKeyDurabilityGate() directly, so they prove the gate
 	// WORKS while proving nothing about whether the shipped registration paths INSTALL it. Verified the
-	// hard way: with the gate call deleted from all three production sites, every arm above still passed.
-	// These arms close that hole — each drives a real consumer entry point and asserts the gate arrived.
+	// hard way: with the gate call deleted from each production site in turn, every arm above still passed.
+	// The arms below close that hole — each drives a real consumer entry point and asserts the gate arrived.
+	//
+	// Each was verified by deleting its site's gate call, rebuilding, and confirming exactly that arm went
+	// RED while the other thirteen stayed GREEN:
+	//   AddComplianceEncryption -> ComplianceEncryptionBuilder.Build()
+	//   AddEncryption           -> EncryptionServiceCollectionExtensions.AddEncryption
+	//   AddGdprErasure          -> ErasureServiceCollectionExtensions.RegisterGdprErasureCore
+	//
+	// Each asserts the gate's EFFECT — a volatile provider is refused when the options resolve — and not
+	// that a validator is present in the collection. Presence is satisfied by a validator that refuses
+	// nothing; the refusal is what the entry point owes the consumer. Each safety arm below is paired with
+	// a liveness arm on the same entry point, because a gate that refused every composition would satisfy
+	// the safety arm alone while making the entry point unusable.
 
+	[Fact]
+	public void Fail_closed_through_AddComplianceEncryption_when_no_key_management_was_chosen()
+	{
+		// Site 1: ComplianceEncryptionBuilder.Build(). The bare builder selects no key management, so the
+		// in-memory provider wins registration and nothing sets AllowVolatileKeyProvider. This is the
+		// composition a consumer reaches by following the documented entry point without thinking about
+		// durability — precisely the host the gate exists for.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddComplianceEncryption(builder => builder.WithEncryption());
 
+		using var provider = services.BuildServiceProvider();
 
+		var error = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"AddComplianceEncryption must install the gate: a host composing encryption through this entry "
+			+ "point gets no later chance to learn its key material is volatile.");
 
+		error.Message.ShouldContain("unrecoverab", Case.Insensitive);
+	}
+
+	[Fact]
+	public void Start_through_AddComplianceEncryption_when_in_memory_keys_were_chosen_deliberately()
+	{
+		// Liveness for the arm above: WithInMemoryKeyManagement IS the host stating it accepts volatile
+		// keys, and the gate this entry point installs must admit that.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddComplianceEncryption(builder => builder.WithInMemoryKeyManagement());
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => Resolve(provider));
+	}
+
+	[Fact]
+	public void Fail_closed_through_AddEncryption_when_the_host_brings_a_volatile_key_provider()
+	{
+		// Site 2: EncryptionServiceCollectionExtensions.AddEncryption. A consumer bringing their own key
+		// management: UseInMemoryKeyManagement would have BEEN the explicit acceptance of volatile keys,
+		// and this path deliberately is not it. The provider registered here answers null for
+		// IDurableKeyProvider, which is the signal the gate reads.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSingleton<IKeyManagementProvider, FakeVolatileKeyProvider>();
+		_ = services.AddEncryption(
+			encryption => encryption.UseKeyManagement<AesGcmEncryptionProvider>("byo-key-management"));
+
+		using var provider = services.BuildServiceProvider();
+
+		var error = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"AddEncryption must install the gate; otherwise a host that never stated a durability intention "
+			+ "encrypts under keys that vanish with the process.");
+
+		error.Message.ShouldContain("unrecoverab", Case.Insensitive);
+	}
+
+	[Fact]
+	public void Start_through_AddEncryption_when_in_memory_key_management_was_selected()
+	{
+		// Liveness for the arm above. AddDevEncryption rides this same path, so a gate that refused here
+		// would break the documented development entry point.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddEncryption(encryption => encryption.UseInMemoryKeyManagement("dev-inmemory"));
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => Resolve(provider));
+	}
+
+	[Fact]
+	public void Fail_closed_through_AddGdprErasure_on_its_default_key_management()
+	{
+		// Site 3: ErasureServiceCollectionExtensions.RegisterGdprErasureCore. Crypto-shred erasure works by
+		// destroying the key, so this is the composition where volatile keys are most misleading: the keys
+		// are gone on restart regardless, and a shred over keys already lost cannot be attested. The entry
+		// point TryAdds the in-memory provider and sets no opt-out.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddGdprErasure();
+
+		using var provider = services.BuildServiceProvider();
+
+		var error = Should.Throw<OptionsValidationException>(
+			() => Resolve(provider),
+			"AddGdprErasure must install the gate; an erasure certificate issued over keys that vanish on "
+			+ "restart attests nothing.");
+
+		error.Message.ShouldContain(nameof(KeyDurabilityOptions.AllowVolatileKeyProvider));
+	}
+
+	[Fact]
+	public void Start_through_AddGdprErasure_when_a_durable_key_provider_is_registered()
+	{
+		// Liveness for the arm above, on the composition a production host actually has: a durable provider
+		// registered ahead of the entry point's TryAdd fallback, which therefore does not win.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSingleton(new ConcurrentDictionary<string, KeyMetadata>());
+		_ = services.AddSingleton<IKeyManagementProvider, FakeDurableKeyProvider>();
+		_ = services.AddGdprErasure();
+
+		using var provider = services.BuildServiceProvider();
+
+		Should.NotThrow(() => Resolve(provider));
+	}
 	private static ServiceProvider BuildHost(
 		bool? volatileKeysAccepted,
 		bool durable,

@@ -1,3 +1,4 @@
+using Excalibur.Dispatch;
 using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
@@ -11,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 [Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemoryErasureStoreShould
 {
-	private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance);
+	private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance, UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
 	#region SaveRequestAsync Tests
 
@@ -29,15 +30,37 @@ public sealed class InMemoryErasureStoreShould
 	}
 
 	[Fact]
-	public async Task SaveRequestAsync_ThrowsInvalidOperationException_WhenRequestAlreadyExists()
+	public async Task SaveRequestAsync_ThrowsDuplicateErasureRequestException_WhenRequestAlreadyExists()
 	{
 		// Arrange
 		var request = CreateRequest();
 		await _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
-		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(
+		// LIVENESS: the first save must be visible. A store that accepted nothing would pass the assertion
+		// below while storing no erasure request at all.
+		var stored = await _sut.GetStatusAsync(request.RequestId, CancellationToken.None).ConfigureAwait(false);
+		stored.ShouldNotBeNull(
+			"a first save of a fresh RequestId must store a retrievable request, or the duplicate "
+			+ "assertion below proves nothing");
+
+		// SAFETY: the specific type, not the base. An unprovisioned schema, a disposed store and an
+		// unresolved tenant all surface as InvalidOperationException, so a caller branching on the base
+		// type would treat a request that was never stored as already on file and never re-file it.
+		var thrown = await Should.ThrowAsync<DuplicateErasureRequestException>(
 			() => _sut.SaveRequestAsync(request, DateTimeOffset.UtcNow, CancellationToken.None)).ConfigureAwait(false);
+
+		thrown.RequestId.ShouldBe(
+			request.RequestId,
+			"the exception must name the request that was re-filed so a caller can act on it");
+	}
+
+	[Fact]
+	public async Task SaveRequestAsync_ThrowsArgumentNullException_WhenRequestIsNull()
+	{
+		// A missing argument is the caller's mistake, reported as such — matching what both SQL stores
+		// already do, rather than dereferencing null and surfacing a NullReferenceException.
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			() => _sut.SaveRequestAsync(null!, DateTimeOffset.UtcNow, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	#endregion
@@ -236,15 +259,31 @@ public sealed class InMemoryErasureStoreShould
 	#region Certificate Tests
 
 	[Fact]
-	public async Task SaveCertificateAsync_ThrowsInvalidOperationException_WhenAlreadyExists()
+	public async Task SaveCertificateAsync_ThrowsDuplicateErasureCertificateException_WhenAlreadyExists()
 	{
 		// Arrange
 		var cert = CreateCertificate();
 		await _sut.SaveCertificateAsync(cert, CancellationToken.None).ConfigureAwait(false);
 
-		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(
+		// LIVENESS: the first certificate must persist and be readable back by its own id.
+		var stored = await _sut.GetCertificateByIdAsync(cert.CertificateId, CancellationToken.None)
+			.ConfigureAwait(false);
+		stored.ShouldNotBeNull(
+			"a first save of a fresh CertificateId must store a retrievable certificate, or the duplicate "
+			+ "assertion below proves nothing");
+
+		// SAFETY: the re-issue must fail with the type that means "already issued" and nothing else.
+		var thrown = await Should.ThrowAsync<DuplicateErasureCertificateException>(
 			() => _sut.SaveCertificateAsync(cert, CancellationToken.None)).ConfigureAwait(false);
+
+		thrown.CertificateId.ShouldBe(cert.CertificateId);
+	}
+
+	[Fact]
+	public async Task SaveCertificateAsync_ThrowsArgumentNullException_WhenCertificateIsNull()
+	{
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			() => _sut.SaveCertificateAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]

@@ -208,8 +208,6 @@ packages:
     category: Hosting
   - id: Excalibur.Hosting.Observability
     category: Hosting
-  - id: Excalibur.Hosting.Serverless
-    category: Hosting
   - id: Excalibur.Hosting.Web
     category: Hosting
 
@@ -259,6 +257,10 @@ packages:
   - id: Excalibur.Compliance.Aws
     category: Provider
   - id: Excalibur.Compliance.Azure
+    category: Provider
+  - id: Excalibur.Compliance.MongoDb
+    category: Provider
+  - id: Excalibur.Compliance.Pdf
     category: Provider
   - id: Excalibur.Compliance.Postgres
     category: Provider

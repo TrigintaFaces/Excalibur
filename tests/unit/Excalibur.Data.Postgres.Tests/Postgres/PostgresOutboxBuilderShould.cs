@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data;
 using Excalibur.Dispatch;
 
 using Excalibur.Outbox.Postgres;
@@ -150,6 +151,17 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IOutboxStore) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
+
+		// And the dependency it resolves is registered under the type it asks for. The store's factory
+		// calls GetRequiredService<IDb>(), so a descriptor for IOutboxStore alone proves nothing: the
+		// registration above used a no-argument lambda, which cannot bind the factory overload and bound
+		// the instance overload instead, registering a Func<NpgsqlConnection> under its own type. IDb was
+		// registered nowhere and the store threw on first resolve. Asserting the service TYPE catches that
+		// without a database; resolving the store here would open a real connection and throw either way,
+		// which is why this arm checks the descriptor rather than building the provider.
+		services.ShouldContain(
+			sd => sd.ServiceType == typeof(IDb),
+			"UsePostgres must register IDb, which is what PostgresOutboxStore resolves");
 	}
 
 	[Fact]

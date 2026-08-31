@@ -36,7 +36,6 @@ public static partial class MigrationGuide
 
 			// Benefits over direct usage:
 			options.EnableCompression = true; // Automatic compression
-			options.Storage.ChunkSize = 1024 * 1024; // Automatic chunking
 			options.ValidateChecksum = true; // Data integrity
 			options.EnableCleanup = true; // Automatic cleanup
 		});

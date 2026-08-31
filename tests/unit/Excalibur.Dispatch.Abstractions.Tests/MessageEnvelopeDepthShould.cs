@@ -164,30 +164,6 @@ public sealed class MessageEnvelopeDepthShould
 	}
 
 	[Fact]
-	public void SetProviderMetadata_StoresAndRetrieves()
-	{
-		var envelope = new MessageEnvelope();
-		envelope.SetProviderMetadata("aws.receipt", "handle-123");
-		envelope.GetProviderMetadata<string>("aws.receipt").ShouldBe("handle-123");
-	}
-
-	[Fact]
-	public void SetProviderMetadata_WithNull_RemovesMetadata()
-	{
-		var envelope = new MessageEnvelope();
-		envelope.SetProviderMetadata("aws.receipt", "handle-123");
-		envelope.SetProviderMetadata<string?>("aws.receipt", null);
-		envelope.GetProviderMetadata<string>("aws.receipt").ShouldBeNull();
-	}
-
-	[Fact]
-	public void GetProviderMetadata_ReturnsDefault_WhenMissing()
-	{
-		var envelope = new MessageEnvelope();
-		envelope.GetProviderMetadata<int>("missing").ShouldBe(0);
-	}
-
-	[Fact]
 	public void Clone_CopiesAllProperties()
 	{
 		// Arrange
@@ -197,28 +173,17 @@ public sealed class MessageEnvelopeDepthShould
 			CausationId = "cause-1",
 			TenantId = "tenant-1",
 			UserId = "user-1",
-			Source = "test",
 			MessageType = "TestType",
 			ContentType = "application/json",
 			DeliveryCount = 3,
-			PartitionKey = "pk-1",
 			ReplyTo = "reply-queue",
 			ReceiptHandle = "handle-1",
-			IsDeadLettered = true,
 			DeadLetterReason = "MaxRetries",
-			SessionId = "session-1",
-			WorkflowId = "workflow-1",
 			MessageGroupId = "group-1",
 			MessageDeduplicationId = "dedup-1",
-			RequestId = "req-1",
-			FunctionName = "MyFunc",
-			FunctionVersion = "v2",
-			CloudProvider = "AWS",
-			Region = "us-east-1",
 		};
 		envelope.SetItem("key1", "val1");
 		envelope.SetHeader("X-Test", "headerVal");
-		envelope.SetProviderMetadata("meta1", "metaVal");
 
 		// Act
 		var clone = envelope.Clone();
@@ -228,19 +193,11 @@ public sealed class MessageEnvelopeDepthShould
 		clone.CausationId.ShouldBe("cause-1");
 		clone.TenantId.ShouldBe("tenant-1");
 		clone.UserId.ShouldBe("user-1");
-		clone.Source.ShouldBe("test");
 		clone.MessageType.ShouldBe("TestType");
 		clone.DeliveryCount.ShouldBe(3);
-		clone.PartitionKey.ShouldBe("pk-1");
-		clone.IsDeadLettered.ShouldBeTrue();
 		clone.DeadLetterReason.ShouldBe("MaxRetries");
-		clone.SessionId.ShouldBe("session-1");
-		clone.WorkflowId.ShouldBe("workflow-1");
-		clone.FunctionName.ShouldBe("MyFunc");
-		clone.Region.ShouldBe("us-east-1");
 		clone.GetItem<string>("key1").ShouldBe("val1");
 		clone.GetHeader("X-Test").ShouldBe("headerVal");
-		clone.GetProviderMetadata<string>("meta1").ShouldBe("metaVal");
 	}
 
 	[Fact]
@@ -252,17 +209,9 @@ public sealed class MessageEnvelopeDepthShould
 			CorrelationId = "corr-1",
 			TenantId = "tenant-1",
 			DeliveryCount = 5,
-			IsDeadLettered = true,
-			SessionId = "session-1",
-			FunctionName = "MyFunc",
-			ProcessingAttempts = 3,
-			IsRetry = true,
-			TimeoutExceeded = true,
-			RateLimitExceeded = true,
 		};
 		envelope.SetItem("key1", "val1");
 		envelope.SetHeader("X-Test", "headerVal");
-		envelope.SetProviderMetadata("meta1", "metaVal");
 
 		// Act
 		envelope.Reset();
@@ -271,16 +220,8 @@ public sealed class MessageEnvelopeDepthShould
 		envelope.CorrelationId.ShouldBeNull();
 		envelope.TenantId.ShouldBeNull();
 		envelope.DeliveryCount.ShouldBe(0);
-		envelope.IsDeadLettered.ShouldBeFalse();
-		envelope.SessionId.ShouldBeNull();
-		envelope.FunctionName.ShouldBeNull();
-		envelope.ProcessingAttempts.ShouldBe(0);
-		envelope.IsRetry.ShouldBeFalse();
-		envelope.TimeoutExceeded.ShouldBeFalse();
-		envelope.RateLimitExceeded.ShouldBeFalse();
 		envelope.ContainsItem("key1").ShouldBeFalse();
 		envelope.GetHeader("X-Test").ShouldBeNull();
-		envelope.GetProviderMetadata<string>("meta1").ShouldBeNull();
 		envelope.MessageId.ShouldNotBeNullOrEmpty(); // Re-generates
 	}
 
@@ -299,13 +240,10 @@ public sealed class MessageEnvelopeDepthShould
 		{
 			TenantId = "tenant-1",
 			UserId = "user-1",
-			SessionId = "session-1",
-			WorkflowId = "workflow-1",
 			TraceParent = "trace-1",
 		});
 		envelope.SetFeature<IMessageRoutingFeature>(new MessageRoutingFeature
 		{
-			Source = "test-source",
 		});
 
 		// Act
@@ -380,53 +318,6 @@ public sealed class MessageEnvelopeDepthShould
 	}
 
 	[Fact]
-	public void TraceId_IsAliasForTraceParent()
-	{
-		var envelope = new MessageEnvelope { TraceId = "trace-123" };
-		envelope.TraceParent.ShouldBe("trace-123");
-		envelope.TraceId.ShouldBe("trace-123");
-	}
-
-	[Fact]
-	public void RetryCount_IsAliasForDeliveryCount()
-	{
-		var envelope = new MessageEnvelope { RetryCount = 5 };
-		envelope.DeliveryCount.ShouldBe(5);
-		envelope.RetryCount.ShouldBe(5);
-	}
-
-	[Fact]
-	public void RetryCount_ReturnsNull_WhenDeliveryCountIsZero()
-	{
-		var envelope = new MessageEnvelope { DeliveryCount = 0 };
-		envelope.RetryCount.ShouldBeNull();
-	}
-
-	[Fact]
-	public void RetryCount_SetNull_SetsDeliveryCountToZero()
-	{
-		var envelope = new MessageEnvelope { DeliveryCount = 3 };
-		envelope.RetryCount = null;
-		envelope.DeliveryCount.ShouldBe(0);
-	}
-
-	[Fact]
-	public void Timestamp_IsAliasForReceivedTimestampUtc()
-	{
-		var ts = new DateTimeOffset(2026, 1, 15, 10, 30, 0, TimeSpan.Zero);
-		var envelope = new MessageEnvelope { Timestamp = ts };
-		envelope.ReceivedTimestampUtc.ShouldBe(ts);
-	}
-
-	[Fact]
-	public void ScheduledTime_IsAliasForSentTimestampUtc()
-	{
-		var ts = new DateTimeOffset(2026, 1, 15, 10, 30, 0, TimeSpan.Zero);
-		var envelope = new MessageEnvelope { ScheduledTime = ts };
-		envelope.SentTimestampUtc.ShouldBe(ts);
-	}
-
-	[Fact]
 	public void ValidationResult_SetNull_DefaultsToValid()
 	{
 		var envelope = new MessageEnvelope();
@@ -461,9 +352,6 @@ public sealed class MessageEnvelopeDepthShould
 		envelope.Items.ShouldContainKey("key");
 	}
 
-	/// <summary>
-	/// Concrete test implementation since IValidationResult has static abstract members and cannot be faked.
-	/// </summary>
 	private sealed class TestValidationResult : IValidationResult
 	{
 		public TestValidationResult(bool isValid) => IsValid = isValid;

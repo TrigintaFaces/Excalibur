@@ -125,4 +125,7 @@ public sealed class ControlValidationServiceConformanceTests : ControlValidation
 		GetControlsForCriterion_UnregisteredCriterion_ShouldReturnEmpty();
 
 	#endregion GetControlsForCriterion Method Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

@@ -6,7 +6,7 @@ namespace Excalibur.Outbox.Oracle.Diagnostics;
 /// <summary>
 /// Event IDs for Oracle outbox store operations (101900-101999, 102000-102099).
 /// </summary>
-public static class OutboxOracleEventId
+internal static class OutboxOracleEventId
 {
 	// ========================================
 	// 101900-101999: Outbox Store

@@ -148,8 +148,6 @@ public class CorrelationMiddleware : IDispatchMiddleware
 ```csharp
 public class TenantMiddleware : IDispatchMiddleware
 {
-    private readonly ITenantResolver _resolver;
-
     public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 
     public async ValueTask<IMessageResult> InvokeAsync(
@@ -158,19 +156,20 @@ public class TenantMiddleware : IDispatchMiddleware
         DispatchRequestDelegate next,
         CancellationToken ct)
     {
-        // Resolve tenant from message or context
-        var tenantId = await _resolver.ResolveAsync(message, context, ct);
+        // The tenant is carried on the message's identity feature, stamped upstream
+        // by TenantIdentityMiddleware. Note that it derives from a transport header
+        // (X-Tenant-ID) by default: the ambient scope below selects the partition every
+        // tenant-aware store reads, so authorise the tenant before trusting it here.
+        var tenantId = context.GetTenantId();
 
         if (string.IsNullOrEmpty(tenantId))
         {
-            return MessageResult.Failed(new TenantRequiredError());
+            throw new TenantRequiredException();
         }
 
-        // Store tenant in context via identity feature
-        var identity = context.GetOrCreateIdentityFeature();
-        identity.TenantId = tenantId;
-
-        // Configure tenant-specific services
+        // Establish the ambient tenant for the whole downstream handler chain, so
+        // ITenantContext and every tenant-aware store see it without extra plumbing.
+        using (TenantContextHolder.BeginScope(tenantId))
         using (var scope = context.RequestServices.CreateScope())
         {
             var tenantDb = scope.ServiceProvider.GetRequiredService<ITenantDatabase>();

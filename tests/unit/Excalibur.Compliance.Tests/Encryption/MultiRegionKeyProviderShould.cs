@@ -389,16 +389,6 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	}
 
 	[Fact]
-	public void Have_default_failover_options_values()
-	{
-		var options = new FailoverOptions();
-		options.Strategy.ShouldBe(FailoverStrategy.GracePeriod);
-		options.GracePeriod.ShouldBe(TimeSpan.FromSeconds(30));
-		options.EnableNotifications.ShouldBeTrue();
-		options.FailoverCooldown.ShouldBe(TimeSpan.FromMinutes(5));
-	}
-
-	[Fact]
 	public async Task ImplementIAsyncDisposable()
 	{
 		// Assert — MultiRegionKeyProvider now implements IAsyncDisposable (Bug #11)

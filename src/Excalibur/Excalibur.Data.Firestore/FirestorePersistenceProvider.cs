@@ -19,17 +19,6 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.Firestore;
 
 /// <summary>
-/// Internal interface for create batch operations.
-/// </summary>
-internal interface IFirestoreBatchCreateOperation
-{
-	/// <summary>
-	/// Gets the document to create.
-	/// </summary>
-	object Document { get; }
-}
-
-/// <summary>
 /// Google Cloud Firestore implementation of the cloud-native persistence provider.
 /// </summary>
 [SuppressMessage(
@@ -38,7 +27,7 @@ internal interface IFirestoreBatchCreateOperation
 	Justification = "Cloud persistence providers inherently couple with many SDK and abstraction types.")]
 public sealed partial class FirestorePersistenceProvider : ICloudNativePersistenceProvider,
 	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
-	IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
+	IPersistenceProviderHealth, IPersistenceProviderConnection, IAsyncDisposable
 {
 	private readonly FirestoreOptions _options;
 	private readonly ILogger<FirestorePersistenceProvider> _logger;
@@ -60,7 +49,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options.Validate();
 
-		Name = _options.Name;
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "firestore" : _options.Name;
 	}
 
 	/// <summary>
@@ -79,7 +68,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_initialized = true;
 
-		Name = _options.Name;
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "firestore" : _options.Name;
 	}
 
 	/// <inheritdoc/>
@@ -147,7 +136,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var collectionPath = GetCollectionPath(partitionKey);
 		var docRef = _db!.Collection(collectionPath).Document(id);
@@ -163,9 +152,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 				return null;
 			}
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			return DeserializeDocument<TDocument>(snapshot);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 		}
 		catch (Exception ex)
 		{
@@ -183,7 +172,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = GetDocumentId(document);
 		var collectionPath = GetCollectionPath(partitionKey);
@@ -191,9 +180,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		try
 		{
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			var data = SerializeDocument(document);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Create");
@@ -233,7 +222,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = GetDocumentId(document);
 		var collectionPath = GetCollectionPath(partitionKey);
@@ -241,9 +230,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		try
 		{
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			var data = SerializeDocument(document);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 
 			if (!string.IsNullOrEmpty(etag))
 			{
@@ -253,6 +242,13 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 				await _db!.RunTransactionAsync(async transaction =>
 				{
+					// Reset per attempt: Firestore re-runs this callback when the transaction conflicts, and a
+					// verdict left over from a failed attempt would outlive the attempt that produced it,
+					// reporting a not-found or an etag mismatch the retry disproved -- so a write that
+					// succeeded is reported as a failure and the caller retries work that already landed.
+					notFound = false;
+					versionMismatch = false;
+
 					var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 						.ConfigureAwait(false);
 
@@ -320,7 +316,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		string? etag,
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var collectionPath = GetCollectionPath(partitionKey);
 		var docRef = _db!.Collection(collectionPath).Document(id);
@@ -334,6 +330,13 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 				await _db!.RunTransactionAsync(async transaction =>
 				{
+					// Reset per attempt: Firestore re-runs this callback when the transaction conflicts, and a
+					// verdict left over from a failed attempt would outlive the attempt that produced it,
+					// reporting a not-found or an etag mismatch the retry disproved -- so a write that
+					// succeeded is reported as a failure and the caller retries work that already landed.
+					notFound = false;
+					versionMismatch = false;
+
 					var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 						.ConfigureAwait(false);
 
@@ -402,7 +405,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var collectionPath = GetCollectionPath(partitionKey);
 		var collectionRef = _db!.Collection(collectionPath);
@@ -416,9 +419,9 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 			foreach (var doc in snapshot.Documents)
 			{
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 				var document = DeserializeDocument<TDocument>(doc);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 				if (document != null)
 				{
 					documents.Add(document);
@@ -441,7 +444,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		IEnumerable<ICloudBatchOperation> operations,
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var operationsList = operations.ToList();
 		if (operationsList.Count == 0)
@@ -452,55 +455,40 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 				operationResults: []);
 		}
 
+		var batch = _db!.StartBatch();
+		var collectionPath = GetCollectionPath(partitionKey);
+
+		foreach (var operation in operationsList)
+		{
+			var docRef = _db!.Collection(collectionPath).Document(operation.DocumentId);
+
+			switch (operation.OperationType)
+			{
+				case CloudBatchOperationType.Create:
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+					_ = batch.Create(docRef, SerializeDocument(RequireDocument(operation)));
+#pragma warning restore IL2026, IL3050
+					break;
+
+				case CloudBatchOperationType.Replace:
+				case CloudBatchOperationType.Upsert:
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+					_ = batch.Set(docRef, SerializeDocument(RequireDocument(operation)));
+#pragma warning restore IL2026, IL3050
+					break;
+
+				case CloudBatchOperationType.Delete:
+					_ = batch.Delete(docRef);
+					break;
+
+				default:
+					throw new NotSupportedException(
+						$"A Firestore batch cannot perform a '{operation.OperationType}' operation. Supported operations are Create, Replace, Upsert and Delete.");
+			}
+		}
+
 		try
 		{
-			var batch = _db!.StartBatch();
-
-			foreach (var operation in operationsList)
-			{
-				var collectionPath = GetCollectionPath(partitionKey);
-				var docRef = _db!.Collection(collectionPath).Document(operation.DocumentId);
-
-				switch (operation.OperationType)
-				{
-					case CloudBatchOperationType.Create:
-						if (operation is IFirestoreBatchCreateOperation createOp)
-						{
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-							var data = SerializeDocument(createOp.Document);
-#pragma warning restore IL2026
-							_ = batch.Create(docRef, data);
-						}
-
-						break;
-
-					case CloudBatchOperationType.Replace:
-					case CloudBatchOperationType.Upsert:
-						if (operation is IFirestoreBatchReplaceOperation replaceOp)
-						{
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-							var data = SerializeDocument(replaceOp.Document);
-#pragma warning restore IL2026
-							_ = batch.Set(docRef, data);
-						}
-
-						break;
-
-					case CloudBatchOperationType.Delete:
-						_ = batch.Delete(docRef);
-						break;
-
-					case CloudBatchOperationType.Patch:
-						break;
-
-					case CloudBatchOperationType.Read:
-						break;
-
-					default:
-						break;
-				}
-			}
-
 			_ = await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Batch");
@@ -535,7 +523,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var subscription = new FirestoreListenerSubscription<TDocument>(
 			_db!,
@@ -605,10 +593,10 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	}
 
 	/// <inheritdoc/>
-	public Task<IDictionary<string, object>> GetDocumentStoreStatisticsAsync(
+	public async Task<IDictionary<string, object>> GetDocumentStoreStatisticsAsync(
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -618,7 +606,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 			["ProjectId"] = _options.ProjectId ?? "N/A"
 		};
 
-		return Task.FromResult<IDictionary<string, object>>(stats);
+		return stats;
 	}
 
 	/// <inheritdoc/>
@@ -626,7 +614,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		string collectionName,
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var info = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -664,48 +652,24 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	#region IPersistenceProvider Implementation
 
 	/// <inheritdoc/>
-	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(
-			"Use cloud-native specific methods for Firestore operations.");
-	}
-
-	/// <inheritdoc/>
-	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		ITransactionScope transactionScope,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(
-			"Use ExecuteBatchAsync for transactional operations in Firestore.");
-	}
-
-	/// <inheritdoc/>
-	public ITransactionScope CreateTransactionScope(
-		System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted,
-		TimeSpan? timeout = null)
-	{
-		throw new NotSupportedException(
-			"Firestore uses RunTransactionAsync for transactions. Use ExecuteBatchAsync instead.");
-	}
-
-	/// <inheritdoc/>
 	public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
 			await InitializeAsync(cancellationToken).ConfigureAwait(false);
 
-			// Try to list collections to verify connectivity
-			var collections = _db!.ListRootCollectionsAsync();
-			await foreach (var _ in collections.ConfigureAwait(false))
-			{
-				break;
-			}
+			// A single document read, not ListRootCollectionsAsync. Listing collections is an admin-surface
+			// operation the Firestore emulator does not implement, so probing with it reports a reachable
+			// emulator as unreachable -- and because this method swallows every exception into false, that
+			// looked identical to a genuine connectivity failure. A get on a document that need not exist
+			// round-trips through the same channel and is supported everywhere Firestore runs; a miss is a
+			// successful answer, which is exactly what proves the connection.
+			// The identifiers deliberately avoid the __x__ shape: Firestore RESERVES identifiers matching
+			// __.*__ and rejects them, which this codebase already documents for its grant and activity-group
+			// document ids. A probe named that way fails validation before any traffic leaves the process --
+			// and this method would then report a perfectly reachable database as unreachable.
+			_ = await _db!.Collection("excalibur-connectivity-probe").Document("probe")
+				.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 			return true;
 		}
@@ -763,19 +727,6 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		request != null;
 
 	/// <inheritdoc/>
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
-		{
-			["ConnectionMode"] = "gRPC",
-			["IsInitialized"] = _initialized,
-			["IsDisposed"] = _disposed
-		};
-
-		return Task.FromResult<IDictionary<string, object>?>(stats);
-	}
-
-	/// <inheritdoc/>
 	public async Task InitializeAsync(
 		IDictionary<string, object>? initializationParameters,
 		CancellationToken cancellationToken)
@@ -795,10 +746,17 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 			return this;
 		}
 
-		if (serviceType == typeof(IPersistenceProviderTransaction))
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
+
+		// IPersistenceProviderTransaction is deliberately not offered, and is not implemented. That
+		// capability's scope is ambient: created before the provider knows what will enrol in it, then
+		// written through, and committed once. Firestore's atomicity comes from RunTransactionAsync,
+		// which owns the control flow and may re-run the caller's callback on contention -- a shape an
+		// ambient scope cannot express. Callers needing atomicity use ExecuteBatchAsync, which states
+		// those constraints in its own signature rather than discovering them at commit.
 
 		if (serviceType == typeof(ICloudNativePersistenceQueryOperations))
 		{
@@ -867,16 +825,65 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		_initLock?.Dispose();
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static Dictionary<string, object> SerializeDocument<TDocument>(TDocument document)
+	/// <summary>
+	/// Returns the document a writing batch operation carries, or throws when the operation declares a write but
+	/// supplies no payload -- a caller mistake that would otherwise be committed as an empty batch entry.
+	/// </summary>
+	private static object RequireDocument(ICloudBatchOperation operation) =>
+		operation is ICloudBatchDocumentOperation documentOperation
+			? documentOperation.Document
+			: throw new ArgumentException(
+				$"Batch operation '{operation.OperationType}' for document '{operation.DocumentId}' carries no document. "
+				+ $"Use {nameof(CloudBatchCreateOperation)}, {nameof(CloudBatchReplaceOperation)} or {nameof(CloudBatchUpsertOperation)}, "
+				+ $"or any {nameof(ICloudBatchDocumentOperation)} implementation.",
+				nameof(operation));
+
+	/// <summary>
+	/// Projects a document onto the map shape Firestore writes.
+	/// </summary>
+	/// <remarks>
+	/// Every value is converted to a CLR type the Firestore SDK has a converter for. Handing the SDK the
+	/// <see cref="JsonElement"/> values a plain dictionary deserialization produces makes it throw
+	/// "Unable to create converter for type System.Text.Json.JsonElement" on the first write of any document
+	/// with a field, so the conversion is not cosmetic -- it is what makes a write possible at all.
+	/// </remarks>
+	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToDocument<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToDocument<TValue>(TValue, JsonSerializerOptions)")]
+	private static Dictionary<string, object?> SerializeDocument<TDocument>(TDocument document)
 	{
-		var json = JsonSerializer.Serialize(document);
-		var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-		return dict ?? new Dictionary<string, object>();
+		using var json = JsonSerializer.SerializeToDocument(document);
+
+		return json.RootElement.ValueKind == JsonValueKind.Object
+			? ToFirestoreMap(json.RootElement)
+			: [];
 	}
+
+	private static Dictionary<string, object?> ToFirestoreMap(JsonElement element)
+	{
+		var map = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+		foreach (var property in element.EnumerateObject())
+		{
+			map[property.Name] = ToFirestoreValue(property.Value);
+		}
+
+		return map;
+	}
+
+	private static object? ToFirestoreValue(JsonElement element) => element.ValueKind switch
+	{
+		JsonValueKind.Object => ToFirestoreMap(element),
+		JsonValueKind.Array => element.EnumerateArray().Select(ToFirestoreValue).ToList(),
+		JsonValueKind.String => element.GetString(),
+		JsonValueKind.Number => element.TryGetInt64(out var integer) ? integer : element.GetDouble(),
+		JsonValueKind.True => true,
+		JsonValueKind.False => false,
+		_ => null,
+	};
 
 	[return: MaybeNull]
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static TDocument DeserializeDocument<TDocument>(DocumentSnapshot snapshot)
 		where TDocument : class
 	{
@@ -916,8 +923,17 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		// Check for emulator
 		if (!string.IsNullOrWhiteSpace(_options.EmulatorHost))
 		{
-			_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
-			return await FirestoreDb.CreateAsync(_options.ProjectId ?? "test-project").ConfigureAwait(false);
+			// Point this client at the emulator directly. The process-wide FIRESTORE_EMULATOR_HOST
+			// variable is first-write-wins, so routing through it lets a second store silently talk to
+			// another store's emulator. Endpoint and EmulatorDetection.EmulatorOnly are mutually
+			// exclusive -- setting both throws -- so an explicit endpoint with insecure credentials is
+			// the combination that reaches an emulator per instance.
+			return await new FirestoreDbBuilder
+			{
+				ProjectId = _options.ProjectId ?? "test-project",
+				Endpoint = _options.EmulatorHost,
+				ChannelCredentials = ChannelCredentials.Insecure,
+			}.BuildAsync().ConfigureAwait(false);
 		}
 
 		FirestoreDbBuilder builder;
@@ -950,23 +966,24 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		return partitionKey.Value;
 	}
 
-	private void EnsureInitialized()
-	{
-		if (!_initialized || _db == null)
-		{
-			throw new InvalidOperationException(
-				$"Provider '{Name}' has not been initialized. Call InitializeAsync first.");
-		}
-	}
-}
-
-/// <summary>
-/// Internal interface for replace batch operations.
-/// </summary>
-internal interface IFirestoreBatchReplaceOperation
-{
 	/// <summary>
-	/// Gets the document to replace.
+	/// Initializes the provider if it is not already initialized, then returns.
 	/// </summary>
-	object Document { get; }
+	/// <remarks>
+	/// Every operation drives this, so the provider is usable straight out of the container without the
+	/// consumer calling <see cref="InitializeAsync(CancellationToken)"/> first. A connection failure surfaces the underlying
+	/// Firestore error naming what is unreachable, and leaves the provider uninitialized so the next
+	/// operation retries.
+	/// </remarks>
+	private async ValueTask EnsureInitializedAsync(CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		if (_initialized && _db != null)
+		{
+			return;
+		}
+
+		await InitializeAsync(cancellationToken).ConfigureAwait(false);
+	}
 }

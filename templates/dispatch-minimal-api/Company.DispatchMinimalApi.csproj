@@ -4,7 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
+    <!-- Floats to the newest 10.0.0 PRERELEASE, which is what is published today. A bare
+         10.* asks for >= 10.0.0 STABLE, which does not exist yet, so a fresh scaffold fails
+         restore with NU1102 before the consumer has written a line of code. Change this to
+         10.* AT the 10.0.0 stable cut - not before - so a scaffold then stops resolving
+         prereleases. -->
+    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">10.0.0-*</ExcaliburDispatchVersion>
   </PropertyGroup>
 
   <ItemGroup>

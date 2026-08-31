@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Patterns.ClaimCheck;
@@ -118,15 +118,16 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 	}
 
 	[Fact]
-	public async Task RetrieveAsync_ThrowsInvalidOperationException_WhenEntryExpired()
+	public async Task RetrieveAsync_ThrowsKeyNotFoundException_WhenEntryExpired()
 	{
 		// Arrange
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
 		var reference = await provider.StoreAsync("expired"u8.ToArray(), CancellationToken.None);
 		await WaitForExpirationAsync(reference);
 
-		// Act & Assert
-		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+		// Act & Assert - an expired payload is a form of missing payload, so it raises the same
+		// exception a deleted or never-stored payload raises.
+		var ex = await Should.ThrowAsync<KeyNotFoundException>(() =>
 			provider.RetrieveAsync(reference, CancellationToken.None));
 		ex.Message.ShouldContain("expired");
 	}

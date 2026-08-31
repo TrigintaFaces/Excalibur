@@ -91,6 +91,29 @@ public sealed record EncryptedData
 	public byte[]? AuthTag { get; init; }
 
 	/// <summary>
+	/// Gets the data encryption key for this payload, wrapped by the key service identified by
+	/// <see cref="KeyId"/> and <see cref="KeyVersion"/>. Null when the payload was encrypted directly
+	/// with key material rather than under an envelope.
+	/// </summary>
+	/// <value>
+	/// The wrapped data encryption key, or <see langword="null"/> when <see cref="Ciphertext"/> was
+	/// encrypted directly under the identified key.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// Envelope encryption is the path a cloud KMS or HSM can actually serve, because it never requires
+	/// the key service to export key bytes. The payload is encrypted locally with a single-use data
+	/// encryption key, and only that key is handed to the key service to be wrapped.
+	/// </para>
+	/// <para>
+	/// This property records which of the two schemes produced the payload, so a reader selects the
+	/// correct one from the data itself rather than from how it happens to be configured at read time.
+	/// Data written under either scheme therefore remains readable after the configuration changes.
+	/// </para>
+	/// </remarks>
+	public WrappedDataKey? WrappedKey { get; init; }
+
+	/// <summary>
 	/// Gets the timestamp when this data was encrypted.
 	/// </summary>
 	public DateTimeOffset EncryptedAt { get; init; } = DateTimeOffset.UtcNow;

@@ -5,8 +5,6 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Configuration;
 
 using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxConfigurationOptions;
-using ConfigResilienceOptions = Excalibur.Dispatch.Options.Configuration.ResilienceOptions;
-using ConfigSecurityOptions = Excalibur.Dispatch.Options.Configuration.SecurityOptions;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
@@ -69,7 +67,6 @@ public sealed class ConfigurationOptionsShould
 		options.EnableMetrics.ShouldBeTrue();
 		options.EnableStructuredLogging.ShouldBeTrue();
 		options.ValidateMessageSchemas.ShouldBeTrue();
-		options.EnableCacheMiddleware.ShouldBeTrue();
 		options.EnableMultiTenancy.ShouldBeFalse();
 		options.EnableVersioning.ShouldBeTrue();
 		options.EnableAuthorization.ShouldBeTrue();
@@ -86,7 +83,6 @@ public sealed class ConfigurationOptionsShould
 			EnableMetrics = false,
 			EnableStructuredLogging = false,
 			ValidateMessageSchemas = false,
-			EnableCacheMiddleware = false,
 			EnableMultiTenancy = true,
 			EnableVersioning = false,
 			EnableAuthorization = false,
@@ -98,7 +94,6 @@ public sealed class ConfigurationOptionsShould
 		options.EnableMetrics.ShouldBeFalse();
 		options.EnableStructuredLogging.ShouldBeFalse();
 		options.ValidateMessageSchemas.ShouldBeFalse();
-		options.EnableCacheMiddleware.ShouldBeFalse();
 		options.EnableMultiTenancy.ShouldBeTrue();
 		options.EnableVersioning.ShouldBeFalse();
 		options.EnableAuthorization.ShouldBeFalse();
@@ -107,85 +102,7 @@ public sealed class ConfigurationOptionsShould
 
 	// --- DispatchCrossCuttingOptions ---
 
-	[Fact]
-	public void DispatchCrossCuttingOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new DispatchCrossCuttingOptions();
-
-		// Assert
-		options.DefaultRetryPolicy.ShouldNotBeNull();
-		options.Performance.ShouldNotBeNull();
-		options.Security.ShouldNotBeNull();
-		options.Observability.ShouldNotBeNull();
-		options.Resilience.ShouldNotBeNull();
-		options.Caching.ShouldNotBeNull();
-	}
-
-	// --- RetryPolicy ---
-
-	[Fact]
-	public void RetryPolicy_DefaultValues_AreCorrect()
-	{
-		// Act
-		var policy = new DispatchRetryOptions();
-
-		// Assert
-		policy.MaxAttempts.ShouldBe(3);
-		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
-		policy.BackoffMultiplier.ShouldBe(2.0);
-		policy.UseExponentialBackoff.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void RetryPolicy_AllProperties_AreSettable()
-	{
-		// Act
-		var policy = new DispatchRetryOptions
-		{
-			MaxAttempts = 5,
-			InitialDelay = TimeSpan.FromSeconds(2),
-			MaxDelay = TimeSpan.FromMinutes(5),
-			BackoffMultiplier = 3.0,
-			UseExponentialBackoff = false,
-		};
-
-		// Assert
-		policy.MaxAttempts.ShouldBe(5);
-		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(2));
-		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		policy.BackoffMultiplier.ShouldBe(3.0);
-		policy.UseExponentialBackoff.ShouldBeFalse();
-	}
-
 	// --- CachingOptions ---
-
-	[Fact]
-	public void CachingOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new CachingOptions();
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.DefaultExpiration.ShouldBe(TimeSpan.FromMinutes(5));
-	}
-
-	[Fact]
-	public void CachingOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new CachingOptions
-		{
-			Enabled = true,
-			DefaultExpiration = TimeSpan.FromMinutes(30),
-		};
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.DefaultExpiration.ShouldBe(TimeSpan.FromMinutes(30));
-	}
 
 	// --- ConsumerOptions ---
 
@@ -273,76 +190,7 @@ public sealed class ConfigurationOptionsShould
 
 	// --- ObservabilityOptions ---
 
-	[Fact]
-	public void ObservabilityOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new ObservabilityOptions();
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.EnableTracing.ShouldBeTrue();
-		options.EnableMetrics.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ObservabilityOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new ObservabilityOptions
-		{
-			Enabled = false,
-			EnableTracing = false,
-			EnableMetrics = false,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.EnableTracing.ShouldBeFalse();
-		options.EnableMetrics.ShouldBeFalse();
-	}
-
 	// --- OutboxOptions (Configuration) ---
-
-	[Fact]
-	public void ConfigOutboxOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new ConfigOutboxOptions();
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.BatchSize.ShouldBe(100);
-		options.PublishIntervalMs.ShouldBe(1000);
-		options.MaxRetries.ShouldBe(3);
-		options.SentMessageRetention.ShouldBe(TimeSpan.FromDays(1));
-		options.UseInMemoryStorage.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void ConfigOutboxOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new ConfigOutboxOptions
-		{
-			Enabled = false,
-			BatchSize = 50,
-			PublishIntervalMs = 2000,
-			MaxRetries = 5,
-			SentMessageRetention = TimeSpan.FromDays(7),
-			UseInMemoryStorage = true,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.BatchSize.ShouldBe(50);
-		options.PublishIntervalMs.ShouldBe(2000);
-		options.MaxRetries.ShouldBe(5);
-		options.SentMessageRetention.ShouldBe(TimeSpan.FromDays(7));
-		options.UseInMemoryStorage.ShouldBeTrue();
-	}
-
-	// --- PerformanceOptions ---
 
 	[Fact]
 	public void PerformanceOptions_DefaultValues_AreCorrect()
@@ -351,7 +199,6 @@ public sealed class ConfigurationOptionsShould
 		var options = new PerformanceOptions();
 
 		// Assert
-		options.EnableCacheMiddleware.ShouldBeTrue();
 		options.EnableTypeMetadataCaching.ShouldBeTrue();
 		options.MessagePoolSize.ShouldBe(1000);
 		options.UseAllocationFreeExecution.ShouldBeTrue();
@@ -364,7 +211,6 @@ public sealed class ConfigurationOptionsShould
 		// Act
 		var options = new PerformanceOptions
 		{
-			EnableCacheMiddleware = false,
 			EnableTypeMetadataCaching = false,
 			MessagePoolSize = 500,
 			UseAllocationFreeExecution = false,
@@ -372,7 +218,6 @@ public sealed class ConfigurationOptionsShould
 		};
 
 		// Assert
-		options.EnableCacheMiddleware.ShouldBeFalse();
 		options.EnableTypeMetadataCaching.ShouldBeFalse();
 		options.MessagePoolSize.ShouldBe(500);
 		options.UseAllocationFreeExecution.ShouldBeFalse();
@@ -381,69 +226,4 @@ public sealed class ConfigurationOptionsShould
 
 	// --- ResilienceOptions (Configuration) ---
 
-	[Fact]
-	public void ConfigResilienceOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new ConfigResilienceOptions();
-
-		// Assert
-		options.DefaultRetryCount.ShouldBe(3);
-		options.EnableCircuitBreaker.ShouldBeFalse();
-		options.EnableTimeout.ShouldBeFalse();
-		options.EnableBulkhead.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void ConfigResilienceOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new ConfigResilienceOptions
-		{
-			DefaultRetryCount = 5,
-			EnableCircuitBreaker = true,
-			EnableTimeout = true,
-			EnableBulkhead = true,
-		};
-
-		// Assert
-		options.DefaultRetryCount.ShouldBe(5);
-		options.EnableCircuitBreaker.ShouldBeTrue();
-		options.EnableTimeout.ShouldBeTrue();
-		options.EnableBulkhead.ShouldBeTrue();
-	}
-
-	// --- SecurityOptions (Configuration) ---
-
-	[Fact]
-	public void ConfigSecurityOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new ConfigSecurityOptions();
-
-		// Assert
-		options.EnableEncryption.ShouldBeFalse();
-		options.EnableSigning.ShouldBeFalse();
-		options.EnableRateLimiting.ShouldBeFalse();
-		options.EnableValidation.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ConfigSecurityOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new ConfigSecurityOptions
-		{
-			EnableEncryption = true,
-			EnableSigning = true,
-			EnableRateLimiting = true,
-			EnableValidation = false,
-		};
-
-		// Assert
-		options.EnableEncryption.ShouldBeTrue();
-		options.EnableSigning.ShouldBeTrue();
-		options.EnableRateLimiting.ShouldBeTrue();
-		options.EnableValidation.ShouldBeFalse();
-	}
 }

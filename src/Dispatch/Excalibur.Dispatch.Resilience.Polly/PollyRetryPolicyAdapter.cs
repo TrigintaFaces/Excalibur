@@ -5,6 +5,7 @@
 using Excalibur.Dispatch.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Polly;
 using Polly.Retry;
@@ -37,9 +38,9 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 	/// </summary>
 	/// <param name="options"> Retry configuration options. </param>
 	/// <param name="logger"> Optional logger instance. </param>
-	public PollyRetryPolicyAdapter(RetryOptions options, ILogger? logger = null)
+	public PollyRetryPolicyAdapter(IOptions<RetryOptions> options, ILogger? logger = null)
 	{
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger.Instance;
 
 		// Create Polly resilience pipeline with retry strategy

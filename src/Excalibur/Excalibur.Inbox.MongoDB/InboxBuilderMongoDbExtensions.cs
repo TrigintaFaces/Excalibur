@@ -109,14 +109,15 @@ public static class InboxBuilderMongoDbExtensions
 		}
 		else
 		{
-			// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup _id + every keyed
-			// read/claim scope per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker
-			// inseparably from that wiring (S886 rw2ull — an unwired provider can't carry a truthful marker).
-			services.AddTenantScopedStore<IInboxStore, MongoDbInboxStore>((sp, tenantContext) =>
+			// AddTenantAwareStore builds the store injecting ITenantContext (so the dedup _id + every keyed
+			// read/claim scope per tenant, since this store's constructor declares one) AND emits the
+			// ITenantScopingCapability<IInboxStore> marker inseparably from that wiring (an
+			// unwired provider can't carry a truthful marker).
+			services.AddTenantAwareStore<IInboxStore, MongoDbInboxStore>(sp =>
 				new MongoDbInboxStore(
 					sp.GetRequiredService<IOptions<MongoDbInboxOptions>>(),
 					sp.GetRequiredService<ILogger<MongoDbInboxStore>>(),
-					tenantContext));
+					sp.GetRequiredService<ITenantContext>()));
 			services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
 			services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 				sp.GetRequiredKeyedService<IInboxStore>("mongodb"));
@@ -127,6 +128,11 @@ public static class InboxBuilderMongoDbExtensions
 		IServiceCollection services,
 		MongoDBInboxBuilder mongoBuilder)
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		if (mongoBuilder.ClientInstance is not null)
 		{
 			var client = mongoBuilder.ClientInstance;
@@ -138,14 +144,15 @@ public static class InboxBuilderMongoDbExtensions
 			services.TryAddSingleton<IMongoClient>(factory);
 		}
 
-		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup _id + keyed reads scope
-		// per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably (S886 rw2ull).
-		services.AddTenantScopedStore<IInboxStore, MongoDbInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store injecting ITenantContext (so the dedup _id + keyed reads scope
+		// per tenant, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably.
+		services.AddTenantAwareStore<IInboxStore, MongoDbInboxStore>(sp =>
 			new MongoDbInboxStore(
 				sp.GetRequiredService<IMongoClient>(),
 				sp.GetRequiredService<IOptions<MongoDbInboxOptions>>(),
 				sp.GetRequiredService<ILogger<MongoDbInboxStore>>(),
-				tenantContext));
+				sp.GetRequiredService<ITenantContext>()));
 		services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("mongodb"));

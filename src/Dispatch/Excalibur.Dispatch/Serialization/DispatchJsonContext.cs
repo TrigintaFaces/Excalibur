@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
 /// Comprehensive source generation context for System.Text.Json serialization of all Dispatch message types. Optimized for AOT compilation
-/// and trimmed deployments. Additional message types can be added at application compile time via partial classes. R7.6: High-performance
+/// and trimmed deployments. Additional message types can be added at application compile time via partial classes. High-performance
 /// serialization with source generation for optimal throughput.
 /// </summary>
 [JsonSourceGenerationOptions(

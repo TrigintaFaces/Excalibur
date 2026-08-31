@@ -215,6 +215,9 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		// The store resolves its tenant partition from an ITenantContext, so a registration that names the
+		// implementation type directly must supply one. AddInMemoryEventStore does this for its callers.
+		_ = services.AddDefaultTenantContext();
 		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
 		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
 		var builder = new ExcaliburEventSourcingBuilder(services);
@@ -250,6 +253,9 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		// The store resolves its tenant partition from an ITenantContext, so a registration that names the
+		// implementation type directly must supply one. AddInMemoryEventStore does this for its callers.
+		_ = services.AddDefaultTenantContext();
 		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
 		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
 		var builder = new ExcaliburEventSourcingBuilder(services);
@@ -285,6 +291,9 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		// The store resolves its tenant partition from an ITenantContext, so a registration that names the
+		// implementation type directly must supply one. AddInMemoryEventStore does this for its callers.
+		_ = services.AddDefaultTenantContext();
 		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
 		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
 		var builder = new ExcaliburEventSourcingBuilder(services);
@@ -297,6 +306,139 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 		var provider = services.BuildServiceProvider();
 		var repo = provider.GetService<IEventSourcedRepository<ProductAggregate, Guid>>();
 		repo.ShouldNotBeNull();
+	}
+
+	#endregion
+
+	#region AddRepository wires EventSourcedRepositoryOptions into the constructed repository (bd-py7p5h)
+
+	// Reads a private instance field off the resolved repository -- the value the CONSTRUCTOR actually
+	// received, not the options DTO. This is what let the pre-fix registration pass round-trip tests on
+	// EventSourcedRepositoryOptions while the constructed repository never saw three of its four settings.
+	private static T GetPrivateField<T>(object instance, string fieldName)
+	{
+		for (var type = instance.GetType(); type is not null; type = type.BaseType)
+		{
+			var field = type.GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+			if (field is not null)
+			{
+				return (T)field.GetValue(instance)!;
+			}
+		}
+
+		throw new InvalidOperationException($"Field '{fieldName}' not found on {instance.GetType()} or its base types.");
+	}
+
+	[Fact]
+	public void AddRepository_StringKey_ShouldWireEnableAutoUpcast_FromPerAggregateOptions()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddDefaultTenantContext();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
+		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
+		var builder = new ExcaliburEventSourcingBuilder(services);
+
+		// Act -- no UpcastingOptions registered, so only the dedicated EventSourcedRepositoryOptions
+		// setting can be the source of this value.
+		_ = builder.AddRepository(id => new OrderAggregate(id), o => o.EnableAutoUpcast = true);
+		var provider = services.BuildServiceProvider();
+		var repo = provider.GetRequiredService<IEventSourcedRepository<OrderAggregate>>();
+
+		// Assert
+		GetPrivateField<bool>(repo, "_enableAutoUpcast").ShouldBeTrue();
+	}
+
+	[Fact]
+	public void AddRepository_StringKey_ShouldWireEnableAutoSnapshotUpgrade_FromPerAggregateOptions()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddDefaultTenantContext();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
+		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
+		var builder = new ExcaliburEventSourcingBuilder(services);
+
+		// Act -- SnapshotUpgradingOptions.EnableAutoUpgradeOnLoad defaults to TRUE, so asserting "true"
+		// here would pass even pre-fix by coincidence (the framework-wide default, not the dedicated
+		// option, supplying the value). Asserting the EXPLICIT OVERRIDE to false is what discriminates:
+		// pre-fix, the per-aggregate override never reaches the constructor and the framework default
+		// (true) wins; post-fix, the override wins outright as documented.
+		_ = builder.AddRepository(id => new OrderAggregate(id), o => o.EnableAutoSnapshotUpgrade = false);
+		var provider = services.BuildServiceProvider();
+		var repo = provider.GetRequiredService<IEventSourcedRepository<OrderAggregate>>();
+
+		// Assert
+		GetPrivateField<bool>(repo, "_enableAutoSnapshotUpgrade").ShouldBeFalse();
+	}
+
+	[Fact]
+	public void AddRepository_StringKey_ShouldWireTargetSnapshotVersion_FromPerAggregateOptions()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddDefaultTenantContext();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
+		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
+		var builder = new ExcaliburEventSourcingBuilder(services);
+
+		// Act -- no SnapshotUpgradingOptions registered, and the value deliberately differs from the
+		// shared default of 1 so the assertion cannot pass by coincidence.
+		_ = builder.AddRepository(id => new OrderAggregate(id), o => o.TargetSnapshotVersion = 7);
+		var provider = services.BuildServiceProvider();
+		var repo = provider.GetRequiredService<IEventSourcedRepository<OrderAggregate>>();
+
+		// Assert
+		GetPrivateField<int>(repo, "_targetSnapshotVersion").ShouldBe(7);
+	}
+
+	[Fact]
+	public void AddRepository_GenericKey_ShouldWireAllThreeSettings_FromPerAggregateOptions()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddDefaultTenantContext();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
+		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
+		var builder = new ExcaliburEventSourcingBuilder(services);
+
+		// Act
+		_ = builder.AddRepository<CustomerAggregate, Guid>(id => new CustomerAggregate(id), o =>
+		{
+			o.EnableAutoUpcast = true;
+			o.EnableAutoSnapshotUpgrade = true;
+			o.TargetSnapshotVersion = 9;
+		});
+		var provider = services.BuildServiceProvider();
+		var repo = provider.GetRequiredService<IEventSourcedRepository<CustomerAggregate, Guid>>();
+
+		// Assert -- the TKey ctor overload is a distinct DI factory from the string-key one; this proves
+		// the fix reaches both, not just the overload exercised above.
+		GetPrivateField<bool>(repo, "_enableAutoUpcast").ShouldBeTrue();
+		GetPrivateField<bool>(repo, "_enableAutoSnapshotUpgrade").ShouldBeTrue();
+		GetPrivateField<int>(repo, "_targetSnapshotVersion").ShouldBe(9);
+	}
+
+	[Fact]
+	public void AddRepository_ShouldNotLetDedicatedOption_SilentlyDisable_WhatUpcastingOptionsEnabled()
+	{
+		// Arrange -- the framework-wide UpcastingOptions enables replay upcasting; the dedicated
+		// EventSourcedRepositoryOptions is left at its default (false). Folding the dedicated option in
+		// must combine rather than overwrite, or registering it would silently turn upcasting back off.
+		var services = new ServiceCollection();
+		_ = services.AddDefaultTenantContext();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
+		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
+		_ = services.Configure<UpcastingOptions>(o => o.EnableAutoUpcastOnReplay = true);
+		var builder = new ExcaliburEventSourcingBuilder(services);
+
+		// Act
+		_ = builder.AddRepository(id => new OrderAggregate(id));
+		var provider = services.BuildServiceProvider();
+		var repo = provider.GetRequiredService<IEventSourcedRepository<OrderAggregate>>();
+
+		// Assert
+		GetPrivateField<bool>(repo, "_enableAutoUpcast").ShouldBeTrue();
 	}
 
 	#endregion

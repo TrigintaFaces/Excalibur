@@ -21,14 +21,10 @@ internal static class BenchmarkDispatchServiceCollectionExtensions
 			_ = builder.WithOptions(options =>
 			{
 				options.UseLightMode = true;
-				options.Features.EnableCacheMiddleware = true;
 				options.Features.EnableCorrelation = false;
 				options.Inbox.Enabled = false;
 				options.Consumer.Dedupe.Enabled = true;
 				options.Consumer.AckAfterHandle = true;
-				options.Outbox.BatchSize = 100;
-				options.Outbox.PublishIntervalMs = 1000;
-				options.Outbox.UseInMemoryStorage = true;
 				// Ambient context flow is always enabled (required for DispatchChildAsync and correlation-aware logging)
 			});
 

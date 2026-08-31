@@ -32,8 +32,6 @@ public sealed class TransportTelemetryConstantsShould
         TransportTelemetryConstants.MetricNames.MessagesAcknowledged.ShouldBe("dispatch.transport.messages.acknowledged");
         TransportTelemetryConstants.MetricNames.MessagesRejected.ShouldBe("dispatch.transport.messages.rejected");
         TransportTelemetryConstants.MetricNames.MessagesDeadLettered.ShouldBe("dispatch.transport.messages.dead_lettered");
-        TransportTelemetryConstants.MetricNames.SendDuration.ShouldBe("dispatch.transport.send.duration");
-        TransportTelemetryConstants.MetricNames.ReceiveDuration.ShouldBe("dispatch.transport.receive.duration");
         TransportTelemetryConstants.MetricNames.BatchSize.ShouldBe("dispatch.transport.batch.size");
         TransportTelemetryConstants.MetricNames.MessagesRequeued.ShouldBe("dispatch.transport.messages.requeued");
         TransportTelemetryConstants.MetricNames.HandlerErrors.ShouldBe("dispatch.transport.handler.errors");

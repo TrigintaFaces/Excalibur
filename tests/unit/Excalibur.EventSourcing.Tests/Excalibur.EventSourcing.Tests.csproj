@@ -61,4 +61,11 @@
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The shipped convergence scripts, linked so the suite reads the file a consumer actually runs.
+         They are packed as content rather than embedded in their own assemblies, so without this
+         nothing in the tree looks at them. -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Scripts\006_ConvergeUntenantedToDefaultTenant.sql" Link="Migrations\006_SqlServer_ConvergeUntenantedToDefaultTenant.sql" />
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Scripts\006_ConvergeUntenantedToDefaultTenant.sql" Link="Migrations\006_Postgres_ConvergeUntenantedToDefaultTenant.sql" />
+  </ItemGroup>
 </Project>

@@ -97,6 +97,10 @@ if violations:
     sys.stderr.write("  Fix: merge into a single <%s> (use <para> for multiple paragraphs).\n" % "remarks")
     sys.exit(1)
 
+# The denominator, in the standard machine-readable form: what was EXAMINED, not only what was
+# FOUND. The zero case already exits 2 above; this states the earned denominator out loud so a
+# reader can tell a clean tree from a matcher that stopped matching.
+print("EXAMINED: %d C# file(s)" % cs_files)
 print("duplicate-xml-doc-tags: clean — %d C# files, no duplicate summary/remarks/value tags." % cs_files)
 sys.exit(0)
 PY

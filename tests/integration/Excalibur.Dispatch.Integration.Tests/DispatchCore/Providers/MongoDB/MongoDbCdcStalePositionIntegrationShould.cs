@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.MongoDB;
 
 /// <summary>
 /// Integration tests for MongoDB CDC stale position detection and recovery.
-/// Tests the <see cref="MongoDbStalePositionDetector"/> and <see cref="MongoDbCdcRecoveryOptions"/>
+/// Tests the <see cref="MongoDbStalePositionDetector"/>
 /// against real MongoDB scenarios.
 /// </summary>
 /// <remarks>
@@ -165,24 +165,12 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 		var callbackInvoked = false;
 		CdcPositionResetEventArgs? receivedEventArgs = null;
 
-		var recoveryOptions = new MongoDbCdcRecoveryOptions
+		CdcPositionResetHandler onPositionReset = (args, ct) =>
 		{
-			RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback,
-			MaxRecoveryAttempts = 3,
-			RecoveryAttemptDelay = TimeSpan.FromMilliseconds(100),
-			AutoRecreateStreamOnInvalidToken = true,
-			UseClusterTimeOnResumeFailure = true,
-			AlwaysInvokeCallbackOnReset = true,
-			OnPositionReset = (args, ct) =>
-			{
-				callbackInvoked = true;
-				receivedEventArgs = args;
-				return Task.CompletedTask;
-			}
+			callbackInvoked = true;
+			receivedEventArgs = args;
+			return Task.CompletedTask;
 		};
-
-		// Validate options configuration - should not throw
-		recoveryOptions.Validate();
 
 		// Verify database connectivity
 		var client = new MongoClient(_mongoFixture.ConnectionString);
@@ -208,7 +196,7 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 			collectionName: "dropped_collection");
 
 		// Act: Invoke the callback (simulating what the processor would do)
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
+		await onPositionReset(eventArgs, TestCancellationToken);
 
 		// Assert: Verify callback was invoked with correct parameters (now using CdcPositionResetEventArgs)
 		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");
@@ -222,28 +210,6 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 		receivedEventArgs.AdditionalContext["CollectionName"].ShouldBe("dropped_collection");
 		receivedEventArgs.ProviderType.ShouldBe("MongoDB");
 		receivedEventArgs.OriginalException.ShouldBe(simulatedException);
-
-		// Verify recovery options are correctly configured
-		recoveryOptions.RecoveryStrategy.ShouldBe(StalePositionRecoveryStrategy.InvokeCallback);
-		recoveryOptions.MaxRecoveryAttempts.ShouldBe(3);
-		recoveryOptions.RecoveryAttemptDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
-		recoveryOptions.AutoRecreateStreamOnInvalidToken.ShouldBeTrue();
-		recoveryOptions.UseClusterTimeOnResumeFailure.ShouldBeTrue();
-		recoveryOptions.AlwaysInvokeCallbackOnReset.ShouldBeTrue();
-
-		// Verify other recovery strategies can be configured
-		var throwOptions = new MongoDbCdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.Throw };
-		throwOptions.Validate(); // Should not throw without callback
-
-		var fallbackEarliestOptions = new MongoDbCdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest };
-		fallbackEarliestOptions.Validate(); // Should not throw
-
-		var fallbackLatestOptions = new MongoDbCdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest };
-		fallbackLatestOptions.Validate(); // Should not throw
-
-		// Verify InvokeCallback without callback throws on validation
-		var invalidOptions = new MongoDbCdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback };
-		_ = Should.Throw<InvalidOperationException>(() => invalidOptions.Validate());
 
 		// Verify reason code from error message patterns
 		// Note: Messages containing "resume token" are matched first as ResumeTokenNotFound

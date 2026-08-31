@@ -25,7 +25,11 @@ namespace Excalibur.A3.Authorization;
 /// <param name="userGrants"> A collection of grants for authorization purposes. </param>
 /// <param name="currentUser"> The current authenticated user token. </param>
 /// <param name="cache"> Distributed cache used for caching authorization data. </param>
-/// <param name="tenantContext"> The ambient tenant context for the current execution flow. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 internal sealed class AuthorizationPolicyProvider(
 	ActivityGroups activityGroups,
 	UserGrants userGrants,

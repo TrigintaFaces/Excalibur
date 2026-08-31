@@ -9,7 +9,7 @@ namespace FullStackAddExcalibur.Audit;
 
 /// <summary>
 /// Demo in-memory store for <see cref="ActivityAudited"/> records emitted by
-/// <see cref="Excalibur.A3.Audit.AuditMiddleware"/>.
+/// the A3 audit middleware.
 /// </summary>
 /// <remarks>
 /// A production deployment routes the published audit events to Kafka, SQL

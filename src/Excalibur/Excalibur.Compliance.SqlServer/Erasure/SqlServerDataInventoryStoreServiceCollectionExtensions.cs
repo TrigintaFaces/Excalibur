@@ -39,7 +39,18 @@ public static class SqlServerDataInventoryStoreServiceCollectionExtensions
 				SqlServerDataInventoryStoreOptionsValidator>());
 
 		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
-		services.TryAddSingleton<SqlServerDataInventoryStore>();
+		// The store's constructor REQUIRES both the ambient context and the tenant-context options, and it is
+		// registered here by type, so both must resolve. AddDefaultTenantContext registers the single-tenant
+		// default context and the TenantContextOptions binding; TryAdd keeps a host's own context, which the
+		// multi-tenancy composition replaces with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+		// Through the tenant-aware seam rather than a bare TryAdd. The store requires an ambient
+		// ITenantContext and binds its term on every statement it builds, and IDataInventoryStore is a
+		// tenant-owned contract -- so registered plainly it attested nothing and a multi-tenant host was
+		// refused for a store that is correct. The seam resolves the context (fail-closed), constructs the
+		// store with it, and emits the tenant-scoping capability in the same act, so the attestation cannot
+		// exist apart from the wiring it describes.
+		_ = services.AddTenantAwareStore<IDataInventoryStore, SqlServerDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());
 
@@ -85,7 +96,18 @@ public static class SqlServerDataInventoryStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerDataInventoryStoreOptions>,
 				SqlServerDataInventoryStoreOptionsValidator>());
 
-		services.TryAddSingleton<SqlServerDataInventoryStore>();
+		// The store's constructor REQUIRES both the ambient context and the tenant-context options, and it is
+		// registered here by type, so both must resolve. AddDefaultTenantContext registers the single-tenant
+		// default context and the TenantContextOptions binding; TryAdd keeps a host's own context, which the
+		// multi-tenancy composition replaces with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+		// Through the tenant-aware seam rather than a bare TryAdd. The store requires an ambient
+		// ITenantContext and binds its term on every statement it builds, and IDataInventoryStore is a
+		// tenant-owned contract -- so registered plainly it attested nothing and a multi-tenant host was
+		// refused for a store that is correct. The seam resolves the context (fail-closed), constructs the
+		// store with it, and emits the tenant-scoping capability in the same act, so the attestation cannot
+		// exist apart from the wiring it describes.
+		_ = services.AddTenantAwareStore<IDataInventoryStore, SqlServerDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());
 

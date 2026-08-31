@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.CloudNative;
@@ -42,6 +43,9 @@ public static class PollyResilienceServiceCollectionExtensions
 		// Core resilience services
 		services.TryAddSingleton<ICircuitBreakerFactory, PollyCircuitBreakerFactory>();
 		services.TryAddTransient<PollyRetryPolicyAdapter>();
+		_ = services.AddOptions<PollyRetryOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PollyRetryOptions>, RetryOptionsValidator>());
 
 		// Register validators
 		services.TryAddEnumerable(
@@ -65,15 +69,19 @@ public static class PollyResilienceServiceCollectionExtensions
 		services.TryAddSingleton<BulkheadManager>();
 
 		// Graceful degradation
-		services.TryAddSingleton<IGracefulDegradationService, GracefulDegradationService>();
+		services.TryAddSingleton<IGracefulDegradationService>(sp => new GracefulDegradationService(
+			sp.GetRequiredService<IOptions<GracefulDegradationOptions>>(),
+			sp.GetRequiredService<ILogger<GracefulDegradationService>>(),
+			sp.GetService<TimeProvider>()));
 		var gracefulDegradationOptions = services.AddOptions<GracefulDegradationOptions>().ValidateOnStart();
 		if (configuration != null)
 		{
 			_ = gracefulDegradationOptions.Bind(configuration.GetSection("Resilience:GracefulDegradation"));
 		}
 
-		// Distributed circuit breaker factory
-		services.TryAddSingleton<DistributedCircuitBreakerFactory>();
+		// Distributed circuit breaker options. The factory itself is NOT registered here: it requires an
+		// IDistributedCache and this path guarantees none, so registering it left a service in the container
+		// that could not be constructed. It is seated by AddDistributedCircuitBreaker, beside the cache.
 		var distributedCircuitBreakerOptions = services.AddOptions<DistributedCircuitBreakerOptions>().ValidateOnStart();
 		if (configuration != null)
 		{
@@ -207,10 +215,26 @@ public static class PollyResilienceServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds distributed circuit breaker to the service collection.
+	/// Adds a named circuit breaker whose open/half-open/closed state is shared with every instance
+	/// configured against the same store and name.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Requires an <see cref="Microsoft.Extensions.Caching.Distributed.IDistributedCache"/> that is
+	/// genuinely shared across instances, registered by the caller — for example
+	/// <c>AddStackExchangeRedisCache(...)</c> or <c>AddDistributedSqlServerCache(...)</c>. This method
+	/// deliberately does not supply one: the in-process default would leave every replica tripping its
+	/// own circuit while the registration claimed otherwise. A host that starts without a shared store,
+	/// or with the in-process one, fails at startup naming the remedy rather than degrading silently.
+	/// For a per-instance breaker, use <see cref="AddPollyCircuitBreaker"/>.
+	/// </para>
+	/// <para>
+	/// Resolve the breaker as a keyed service:
+	/// <c>serviceProvider.GetRequiredKeyedService&lt;IDistributedCircuitBreaker&gt;(name)</c>.
+	/// </para>
+	/// </remarks>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="name"> The name of the circuit breaker. </param>
+	/// <param name="name"> The name of the circuit breaker, and the service key it is resolved by. </param>
 	/// <param name="configureOptions"> Action to configure distributed circuit breaker options. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
@@ -227,10 +251,24 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		// Ensure distributed cache is configured
-		_ = services.AddDistributedMemoryCache(); // Default to in-memory, can be overridden
+		// No cache is registered here on purpose. Seating AddDistributedMemoryCache() as a default handed
+		// a consumer who overrode nothing a per-instance breaker under a distributed name, and nothing
+		// about that failure was observable at runtime. The guard below refuses that composition at boot.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DistributedCircuitBreakerCacheGuardOptions>, DistributedCircuitBreakerCacheGuard>());
+		_ = services.AddOptions<DistributedCircuitBreakerCacheGuardOptions>().ValidateOnStart();
 
-		_ = services.AddOptions<DistributedCircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateOnStart();
+		services.TryAddSingleton<DistributedCircuitBreakerFactory>();
+
+		_ = services.AddOptions<DistributedCircuitBreakerOptions>(name)
+			.Configure(options => configureOptions?.Invoke(options))
+			.ValidateOnStart();
+
+		// Without this the method registered an internal factory a consumer cannot resolve and named
+		// options nothing reads — the breaker it configured was unreachable. The key is the breaker name.
+		services.TryAddKeyedSingleton<IDistributedCircuitBreaker>(
+			name,
+			static (sp, key) => sp.GetRequiredService<DistributedCircuitBreakerFactory>().GetOrCreate((string)key!));
 
 		return services;
 	}

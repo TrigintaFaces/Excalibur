@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Amazon.DynamoDBv2;
@@ -76,6 +76,10 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<DynamoDbCdcPosition?> GetPositionAsync(
 		string processorName,
 		CancellationToken cancellationToken)
@@ -129,6 +133,10 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task SavePositionAsync(
 		string processorName,
 		DynamoDbCdcPosition position,
@@ -168,6 +176,24 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	/// <inheritdoc/>
 	public async Task DeletePositionAsync(
 		string processorName,
+		CancellationToken cancellationToken) =>
+		_ = await DeleteAndReportAsync(processorName, cancellationToken).ConfigureAwait(false);
+
+	/// <summary>
+	/// Deletes the checkpoint and reports whether one was actually there.
+	/// </summary>
+	/// <param name="processorName">The consumer whose checkpoint is being removed.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns><see langword="true"/> if a checkpoint existed and was deleted; otherwise <see langword="false"/>.</returns>
+	/// <remarks>
+	/// The contract defines the return value as an observation -- whether a checkpoint existed -- so it has
+	/// to be obtained rather than assumed. DynamoDB's delete is idempotent and reports nothing by default,
+	/// which is exactly why ALL_OLD must be requested: it returns the attributes of the item as it was
+	/// before the call, and an empty set means there was no item. This costs no extra round-trip; the answer
+	/// comes back from the delete itself.
+	/// </remarks>
+	private async Task<bool> DeleteAndReportAsync(
+		string processorName,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -180,11 +206,14 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 			{
 				[PkAttribute] = new AttributeValue { S = processorName },
 			},
+			ReturnValues = ReturnValue.ALL_OLD,
 		};
+
+		DeleteItemResponse response;
 
 		try
 		{
-			_ = await _dynamoClient.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _dynamoClient.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
 		}
 		catch (AmazonDynamoDBException ex)
 		{
@@ -193,13 +222,23 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 		}
 
 		LogPositionDeleted(processorName);
+
+		return response.Attributes is { Count: > 0 };
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken) =>
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
@@ -213,13 +252,14 @@ public sealed partial class DynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
-	{
-		await DeletePositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
-		return true;
-	}
+	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken) =>
+		await DeleteAndReportAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{

@@ -71,8 +71,15 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	/// <inheritdoc />
 	public Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(options);
+		cancellationToken.ThrowIfCancellationRequested();
+
 		LogInitializing(_logger);
-		IsConnected = true;
+
+		// IsConnected is deliberately NOT set here. It means "connected and ready for
+		// operations", and nothing drains the channel until StartAsync runs the pump --
+		// publishing against an initialized-but-unstarted adapter would fill a bounded
+		// channel that no one reads. StartAsync sets it, because StartAsync earns it.
 		return Task.CompletedTask;
 	}
 
@@ -84,6 +91,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (!IsConnected)
 		{
@@ -131,6 +139,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionName);
 		ArgumentNullException.ThrowIfNull(messageHandler);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (!IsConnected)
 		{
@@ -147,6 +156,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	public async Task UnsubscribeAsync(string subscriptionName, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionName);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (_subscriptions.TryRemove(subscriptionName, out _))
 		{
@@ -159,6 +169,8 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	/// <inheritdoc />
 	public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		if (!IsConnected)
 		{
 			return HealthCheckResult.Unhealthy("In-memory message bus is not connected");
@@ -173,6 +185,8 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	/// <inheritdoc />
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		LogStarting(_logger);
 		IsConnected = true;
 
@@ -189,6 +203,8 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	/// <inheritdoc />
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		LogStopping(_logger);
 		IsConnected = false;
 		await (_processingCts?.CancelAsync() ?? Task.CompletedTask).ConfigureAwait(false);

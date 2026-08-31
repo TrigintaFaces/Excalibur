@@ -39,7 +39,8 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 				ProjectId = null,
 				EmulatorHost = null
 			}),
-			NullLogger<FirestoreEventStore>.Instance);
+			NullLogger<FirestoreEventStore>.Instance,
+			UntenantedContext.Instance);
 
 		await Should.ThrowAsync<InvalidOperationException>(() => sut.InitializeAsync(CancellationToken.None));
 	}
@@ -135,13 +136,40 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 		await sut.DisposeAsync();
 	}
 
+	/// <summary>
+	/// The stream identifier — which is also the document id's prefix — carries the owning tenant, and two
+	/// tenants holding the same aggregate identifier compose to different identifiers.
+	/// </summary>
+	/// <remarks>
+	/// Asserting the exact composed value rather than merely that the two differ: a store that appended a
+	/// constant, or hashed the tenant into an unaddressable form, would satisfy "they differ" while making
+	/// the key unreadable. The leading constant segment is also what keeps the composed document id clear of
+	/// Firestore's reserved <c>__.*__</c> id shape, which the untenanted sentinel sits inside.
+	/// </remarks>
 	[Fact]
-	public void BuildStreamId_CombineAggregateTypeAndId()
+	public void BuildStreamId_ComposeTheTenantIntoTheStreamIdentifier()
 	{
-		var method = typeof(FirestoreEventStore).GetMethod("BuildStreamId", BindingFlags.NonPublic | BindingFlags.Static);
+		var method = typeof(FirestoreEventStore).GetMethod("BuildStreamId", BindingFlags.NonPublic | BindingFlags.Instance);
 		method.ShouldNotBeNull();
 
-		method!.Invoke(null, ["Order", "agg-42"]).ShouldBe("Order:agg-42");
+		var untenanted = CreateInitializedStore(withDatabase: false);
+		method!.Invoke(untenanted, ["Order", "agg-42"])
+			.ShouldBe($"t:{TenantScope.UntenantedSentinel}:Order:agg-42");
+
+		var tenantA = CreateInitializedStore(withDatabase: false);
+		SetPrivateField(tenantA, "_tenantContext", new FixedTenantContext("tenant-a"));
+		method.Invoke(tenantA, ["Order", "agg-42"]).ShouldBe("t:tenant-a:Order:agg-42");
+
+		var tenantB = CreateInitializedStore(withDatabase: false);
+		SetPrivateField(tenantB, "_tenantContext", new FixedTenantContext("tenant-b"));
+		method.Invoke(tenantB, ["Order", "agg-42"]).ShouldBe("t:tenant-b:Order:agg-42");
+	}
+
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId => tenantId;
+
+		public bool HasTenant => true;
 	}
 
 	[Fact]
@@ -213,6 +241,7 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 				MaxBatchSize = 32
 			});
 		SetPrivateField(sut, "_logger", NullLogger<FirestoreEventStore>.Instance);
+		SetPrivateField(sut, "_tenantContext", UntenantedContext.Instance);
 		SetPrivateField(sut, "_initialized", true);
 		SetPrivateField(sut, "_initLock", new SemaphoreSlim(1, 1));
 

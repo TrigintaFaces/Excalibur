@@ -16,6 +16,8 @@ namespace Excalibur.Data.Tests.Firestore.Cdc.Builders;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 {
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "Every test configures the state store by name alone, so no test here proves the state store can live in a project distinct from the change source. Held until one does.")]
 	private const string StateProjectId = "my-state-project";
 
 	// --- WithStateStore(Action<ICdcStateStoreBuilder>) ---

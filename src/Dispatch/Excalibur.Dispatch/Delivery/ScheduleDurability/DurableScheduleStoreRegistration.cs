@@ -48,7 +48,12 @@ public static class DurableScheduleStoreRegistration
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton<IScheduleStore, TScheduleStore>();
+		// Replace rather than TryAdd, deliberately. AddDispatchScheduling seats the volatile in-memory store
+		// into this same contract key, so a TryAdd here is a silent no-op whenever scheduling was composed
+		// first -- and the attestation below would still be emitted. That combination is the precise defect
+		// this seam exists to prevent: a host that asked for a durable store, passed the gate, and is running
+		// on the volatile one. Replacing keeps the store and its attestation inseparable in either order.
+		_ = services.Replace(ServiceDescriptor.Singleton<IScheduleStore, TScheduleStore>());
 		services.TryAddSingleton<IDurableScheduleStoreCapability, DurableScheduleStoreCapabilityMarker>();
 
 		return services;

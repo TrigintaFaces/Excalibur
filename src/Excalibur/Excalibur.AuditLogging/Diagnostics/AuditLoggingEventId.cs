@@ -16,7 +16,7 @@ namespace Excalibur.AuditLogging.Diagnostics;
 /// <item>93400-93499: SIEM Integration</item>
 /// </list>
 /// </remarks>
-public static class AuditLoggingEventId
+internal static class AuditLoggingEventId
 {
 	// ========================================
 	// 93000-93099: Audit Logging Core
@@ -121,6 +121,9 @@ public static class AuditLoggingEventId
 	/// <summary>Audit integrity verification error.</summary>
 	public const int AuditIntegrityVerificationError = 93311;
 
+	/// <summary>Audit integrity verification found no events in the requested window, so nothing was checked.</summary>
+	public const int AuditIntegrityVerificationNotExercised = 93312;
+
 	// ========================================
 	// 93400-93499: SIEM Integration
 	// ========================================
@@ -202,4 +205,7 @@ public static class AuditLoggingEventId
 
 	/// <summary>Failed to resolve audit actor from IAuditActorProvider in middleware.</summary>
 	public const int AuditActorResolutionFailed = 93707;
+
+	/// <summary>A message reached the audit context middleware without a request scope, so no context could be initialized.</summary>
+	public const int AuditContextNoRequestScope = 93708;
 }

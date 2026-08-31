@@ -8,21 +8,26 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using MsOptions = Microsoft.Extensions.Options.Options;
+
 namespace Excalibur.Dispatch.Resilience.Polly;
 
 /// <summary>
 /// Factory for creating distributed circuit breakers.
 /// </summary>
-/// <param name="cache">The distributed cache used for state coordination.</param>
-/// <param name="options">The distributed circuit breaker options.</param>
+/// <param name="cache">The store through which circuit state is shared across instances.</param>
+/// <param name="options">
+/// The named circuit breaker options. Resolved per breaker name so the options an
+/// <c>AddDistributedCircuitBreaker(name, configure)</c> call configures are the ones its breaker uses.
+/// </param>
 /// <param name="loggerFactory">The logger factory used to create circuit breaker loggers.</param>
 internal sealed class DistributedCircuitBreakerFactory(
 	IDistributedCache cache,
-	IOptions<DistributedCircuitBreakerOptions> options,
+	IOptionsMonitor<DistributedCircuitBreakerOptions> options,
 	ILoggerFactory loggerFactory)
 {
 	private readonly IDistributedCache _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-	private readonly IOptions<DistributedCircuitBreakerOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
+	private readonly IOptionsMonitor<DistributedCircuitBreakerOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILoggerFactory _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
 
 	private readonly ConcurrentDictionary<string, IDistributedCircuitBreaker> _breakers =
@@ -42,7 +47,7 @@ internal sealed class DistributedCircuitBreakerFactory(
 			static (key, state) => new DistributedCircuitBreaker(
 				key,
 				state.cache,
-				state.options,
+				MsOptions.Create(state.options.Get(key)),
 				state.loggerFactory.CreateLogger<DistributedCircuitBreaker>()),
 			(cache: _cache, options: _options, loggerFactory: _loggerFactory));
 	}

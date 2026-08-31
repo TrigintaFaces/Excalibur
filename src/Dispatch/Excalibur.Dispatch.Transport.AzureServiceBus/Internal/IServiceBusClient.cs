@@ -16,10 +16,8 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Follows the ADR-142 §D7 canonical template set by
-/// <c>Excalibur.Security.Azure.Internal.ISecretClient</c> (S797,
-/// <c>bd-wy56o5</c>): the seam hides the SDK behind operation-shaped methods
-/// rather than mirroring the SDK's factory/client/sender/receiver topology.
+/// The seam hides the SDK behind operation-shaped methods rather than
+/// mirroring the SDK's factory/client/sender/receiver topology.
 /// </para>
 /// <para>
 /// Data-shaped SDK types (<see cref="ServiceBusMessage"/>,
@@ -28,11 +26,10 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// Client/sender/receiver SDK types never appear on this interface.
 /// </para>
 /// <para>
-/// COMPASS ruling (S798 task-515, msg 1712): Q1 = option (c) flat use-case
-/// methods. Method surface matches actual consumer needs
-/// (<see cref="ServiceBusDeadLetterQueueManager"/>), collapsed from the
-/// initially-sketched 5-method set to 3 — each sketch method maps 1:1 to a
-/// single-caller DLQ operation, so the merged form is the honest surface.
+/// The method surface matches actual consumer needs
+/// (<see cref="ServiceBusDeadLetterQueueManager"/>): each method maps 1:1 to a
+/// single-caller DLQ operation, so three flat use-case methods are the honest
+/// surface.
 /// </para>
 /// </remarks>
 internal interface IServiceBusClient

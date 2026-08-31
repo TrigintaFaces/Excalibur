@@ -51,7 +51,9 @@ public static class AwsCoreServiceCollectionExtensions
 		configure?.Invoke(options);
 		services.TryAddSingleton(options);
 
-		// Configure AWS-specific options
+		// Configure AWS-specific options. These values reach the SDK clients registered below through
+		// AwsClientConfiguration; a value set here that no client read would be a host pointing at an
+		// emulator while talking to real AWS.
 		_ = services.AddOptions<AwsProviderOptions>()
 			.Configure(awsOptions =>
 			{
@@ -92,7 +94,15 @@ public static class AwsCoreServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterSqsServices(IServiceCollection services)
 	{
-		services.TryAddSingleton<IAmazonSQS>(static _ => new AmazonSQSClient());
+		services.TryAddSingleton<IAmazonSQS>(static sp =>
+		{
+			var options = sp.GetRequiredService<IOptions<AwsProviderOptions>>().Value;
+			var config = new AmazonSQSConfig();
+			AwsClientConfiguration.Apply(config, options);
+			return options.Connection.Credentials is { } credentials
+				? new AmazonSQSClient(credentials, config)
+				: new AmazonSQSClient(config);
+		});
 		services.TryAddSingleton<AwsSqsMessageBus>();
 		_ = services.AddRemoteMessageBus("sqs", static sp => sp.GetRequiredService<AwsSqsMessageBus>());
 	}
@@ -102,7 +112,15 @@ public static class AwsCoreServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterSnsServices(IServiceCollection services)
 	{
-		services.TryAddSingleton<IAmazonSimpleNotificationService>(static _ => new AmazonSimpleNotificationServiceClient());
+		services.TryAddSingleton<IAmazonSimpleNotificationService>(static sp =>
+		{
+			var options = sp.GetRequiredService<IOptions<AwsProviderOptions>>().Value;
+			var config = new AmazonSimpleNotificationServiceConfig();
+			AwsClientConfiguration.Apply(config, options);
+			return options.Connection.Credentials is { } credentials
+				? new AmazonSimpleNotificationServiceClient(credentials, config)
+				: new AmazonSimpleNotificationServiceClient(config);
+		});
 		services.TryAddSingleton<AwsSnsMessageBus>();
 		_ = services.AddRemoteMessageBus("sns", static sp => sp.GetRequiredService<AwsSnsMessageBus>());
 	}
@@ -112,7 +130,15 @@ public static class AwsCoreServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterEventBridgeServices(IServiceCollection services)
 	{
-		services.TryAddSingleton<IAmazonEventBridge>(static _ => new AmazonEventBridgeClient());
+		services.TryAddSingleton<IAmazonEventBridge>(static sp =>
+		{
+			var options = sp.GetRequiredService<IOptions<AwsProviderOptions>>().Value;
+			var config = new AmazonEventBridgeConfig();
+			AwsClientConfiguration.Apply(config, options);
+			return options.Connection.Credentials is { } credentials
+				? new AmazonEventBridgeClient(credentials, config)
+				: new AmazonEventBridgeClient(config);
+		});
 		services.TryAddSingleton<AwsEventBridgeMessageBus>();
 		_ = services.AddRemoteMessageBus("eventbridge", static sp => sp.GetRequiredService<AwsEventBridgeMessageBus>());
 	}

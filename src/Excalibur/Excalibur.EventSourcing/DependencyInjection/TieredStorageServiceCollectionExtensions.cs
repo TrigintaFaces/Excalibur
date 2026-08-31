@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.EventSourcing;
@@ -52,11 +53,11 @@ public static class TieredStorageServiceCollectionExtensions
 		return builder;
 	}
 
-	// l31hx7 + jqk80w: wire tiered storage as a keyed decorator so cold read-through actually runs.
+	// +: wire tiered storage as a keyed decorator so cold read-through actually runs.
 	//
 	// The read path: repositories, time-travel, notification, and the non-keyed delegator all resolve the
 	// keyed "default" IEventStore, so the read-through decorator MUST be re-bound onto keyed "default" —
-	// registering it as an orphaned concrete type (the original l31hx7 bug) left every reader on the bare
+	// registering it as an orphaned concrete type (the original bug) left every reader on the bare
 	// hot store, and because EventArchiveService deletes archived events from the hot tier, that returned
 	// INCOMPLETE history (data-loss shaped). We therefore move the RAW hot store to a private key and wrap
 	// keyed "default" with the decorator.
@@ -93,12 +94,14 @@ public static class TieredStorageServiceCollectionExtensions
 		// Re-bind keyed "default" -> the read-through decorator wrapping the raw hot. Single choke point:
 		// every reader that resolves keyed "default" (and the non-keyed delegator that forwards to it) now
 		// transparently reads through to cold storage on a hot-tier miss.
+		_ = services.AddDefaultTenantContext();
 		_ = services.AddKeyedSingleton<IEventStore>(
 			"default",
 			(sp, _) => new TieredEventStoreDecorator(
 				sp.GetRequiredKeyedService<IEventStore>(EventArchiveService.RawHotEventStoreKey),
 				sp.GetRequiredService<IColdEventStore>(),
 				sp.GetRequiredService<Logging.ILogger<TieredEventStoreDecorator>>(),
+				sp.GetRequiredService<ITenantContext>(),
 				sp.GetService<ISnapshotStore>()));
 
 		// Default IEventStoreArchive = the RAW hot store ("tiered-hot"), never the decorated "default".

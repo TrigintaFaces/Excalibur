@@ -21,12 +21,12 @@ public sealed class TelemetryInboxDecoratorLeaseClaimTelemetryShould
 	private const string LeaseClaimOperation = "try_claim_lease";
 
 	[Fact]
-	public async Task EmitTryClaimLeaseTelemetry_OnTheLeaseClaimOverload()
+	public async Task EmitTryClaimLeaseTelemetry_OnTheLeaseAcquisition()
 	{
-		var inner = A.Fake<IInboxStore>(b => b.Implements<IClaimableInboxStore>());
-		A.CallTo(() => ((IClaimableInboxStore)inner).TryClaimAsync(
+		var inner = A.Fake<IInboxStore>(b => b.Implements<ILeasedInboxStore>());
+		A.CallTo(() => ((ILeasedInboxStore)inner).TryAcquireLeaseAsync(
 				"msg-1", "TestHandler", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(true));
+			.Returns(new ValueTask<LeaseToken?>(new LeaseToken("test-lease")));
 
 		var recordedOperations = new List<string>();
 
@@ -55,12 +55,12 @@ public sealed class TelemetryInboxDecoratorLeaseClaimTelemetryShould
 		});
 		listener.Start();
 
-		var decorator = (IClaimableInboxStore)new TelemetryInboxStoreDecorator(inner);
+		var decorator = (ILeasedInboxStore)new TelemetryInboxStoreDecorator(inner);
 
-		_ = await decorator.TryClaimAsync("msg-1", "TestHandler", TimeSpan.FromMinutes(5), CancellationToken.None);
+		_ = await decorator.TryAcquireLeaseAsync("msg-1", "TestHandler", TimeSpan.FromMinutes(5), CancellationToken.None);
 
 		recordedOperations.ShouldContain(
 			LeaseClaimOperation,
-			"the lease-claim overload must record its 'try_claim_lease' operation telemetry");
+			"the lease acquisition must record its 'try_claim_lease' operation telemetry");
 	}
 }

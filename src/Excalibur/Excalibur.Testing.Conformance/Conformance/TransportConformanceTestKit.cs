@@ -36,7 +36,7 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class TransportConformanceTestKit<TSender, TReceiver>
+public abstract class TransportConformanceTestKit<TSender, TReceiver> : ConformanceTestKit
 	where TSender : IChannelSender
 	where TReceiver : IChannelReceiver
 {

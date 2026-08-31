@@ -175,7 +175,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString))
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString(connectionString)))
         .AddSagas();
 });
 ```
@@ -205,6 +205,8 @@ In practice this means:
 - Provider registration paths fail fast on invalid options. For example, every serverless-hosting registration overload (`AddServerlessHosting(...)`) wires `ValidateOnStart()`, so misconfiguration surfaces at startup regardless of which overload you call.
 - A capability that a given store does not implement (for example, retry-backoff scheduling on a store that lacks it) falls back to the documented default behavior rather than throwing — fail-open for optional cross-cutting features, fail-loud for advertised configuration.
 - **Store durability is verified, not assumed.** Wiring a production host with a volatile (in-memory) audit, grant, key, or schedule store is rejected at startup — a volatile store would report every write as saved and then lose it on restart, which is exactly the failure a fail-fast gate exists to prevent. Each subsystem exposes an explicit opt-out for development and test hosts (`AuditLoggingOptions.AllowVolatileAuditStore`, `GrantDurabilityOptions.AllowVolatileGrantStore`, `KeyDurabilityOptions.AllowVolatileKeyProvider`, `ScheduleDurabilityOptions.AllowVolatileScheduleStore`); the default is the protective value you get by saying nothing. These gates run from host startup — a [host-less container](dependency-injection.md#host-less-containers-must-trigger-the-gates-explicitly) must call `ValidateStartupGates()` to trigger them.
+
+  **Where the schedule-store gate applies.** It is installed by the compositions that start the scheduler runtime — `AddTimeAwareScheduling`, `AddAdaptiveTimeAwareScheduling`, `AddLightweightTimeAwareScheduling` and `AddThroughputTimeAwareScheduling` — and not by `AddDispatchScheduling` on its own. That split is deliberate. Running the scheduler is what turns a schedule from a request into a promise: the host accepts a delivery now and owes it later, and a volatile store breaks that promise on restart *after* having reported the schedule accepted, so the failure appears only as an absence. A host that composes scheduling without ever starting the runtime — a development host, or one replacing an in-process mediator — is not made to justify a store it never schedules against. Register a durable store with `AddDurableScheduleStore<T>()`, which replaces the in-memory registration in either composition order.
 
 ### Built-In Validators
 
@@ -250,7 +252,7 @@ The following packages register `ValidateOnStart()` + `ValidateDataAnnotations()
 | `Excalibur.Compliance` | `ErasureOptions` | Yes |
 | `Excalibur.Dispatch.Patterns` | `ClaimCheckOptions` | Yes |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | `RabbitMqTransportOptions` | Yes |
-| `Excalibur.Dispatch.Transport.GooglePubSub` | `StreamingPullOptions`, `OrderingKeyOptions` | Yes |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | `OrderingKeyOptions` | Yes |
 | `Excalibur.Dispatch.LeaderElection` | `LeaderElectionOptions` | Yes |
 | `Excalibur.EventSourcing` | `MaterializedViewOptions`, `SnapshotUpgradingOptions` | Yes |
 | `Excalibur.Saga` | `SagaOptions` | Yes |

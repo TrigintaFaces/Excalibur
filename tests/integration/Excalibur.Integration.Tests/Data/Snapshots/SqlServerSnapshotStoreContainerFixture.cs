@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - table/schema names are constants in test fixture
 
@@ -23,7 +24,7 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 public sealed class SqlServerSnapshotStoreContainerFixture : ContainerFixtureBase
 {
 	private MsSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Gets the schema name for snapshots.
@@ -47,6 +48,7 @@ public sealed class SqlServerSnapshotStoreContainerFixture : ContainerFixtureBas
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-snapshotstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
@@ -59,55 +61,29 @@ public sealed class SqlServerSnapshotStoreContainerFixture : ContainerFixtureBas
 	/// <summary>
 	/// Ensures the snapshot store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var createTableSql = $"""
-			IF NOT EXISTS (SELECT * FROM sys.tables t
-				JOIN sys.schemas s ON t.schema_id = s.schema_id
-				WHERE s.name = '{SchemaName}' AND t.name = '{TableName}')
-			BEGIN
-				-- Mirrors the shipped 002_CreateSnapshotSchema.sql, which is the source of truth for this
-				-- table. It is restated rather than executed only because that script hardcodes
-				-- dbo.EventStoreSnapshots while this fixture parameterises schema and table; every column,
-				-- type, collation and key below is otherwise identical, and it had drifted on four of them:
-				--
-				--   PRIMARY KEY   omitted AggregateType, so two aggregate TYPES sharing an id collided on
-				--                 one row. That is the defect Should_Isolate_Snapshots_By_Aggregate_Type
-				--                 exists to catch, and the fixture made it unreproducible -- the arm failed
-				--                 with a primary-key violation instead.
-				--   TenantId      lacked the binary collation. SQL Server's default is case-INSENSITIVE,
-				--                 under which 'Acme' and 'acme' are one tenant, so the tenant-isolation arms
-				--                 were running against a column that cannot express the boundary they
-				--                 assert. The shipped script calls this out as load-bearing.
-				--   CreatedAt     DATETIME2 rather than DATETIMEOFFSET: the offset is dropped on write, so
-				--                 no round-trip here could have caught an offset-handling defect.
-				--   AggregateType NVARCHAR(500) rather than 255.
-				CREATE TABLE [{SchemaName}].[{TableName}] (
-					SnapshotId NVARCHAR(255) NOT NULL,
-					AggregateId NVARCHAR(255) NOT NULL,
-					AggregateType NVARCHAR(255) NOT NULL,
-					Version BIGINT NOT NULL,
-					Data VARBINARY(MAX) NOT NULL,
-					Metadata VARBINARY(MAX) NULL,
-					CreatedAt DATETIMEOFFSET NOT NULL,
-					TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL,
-					CONSTRAINT PK_{TableName} PRIMARY KEY CLUSTERED (AggregateId, AggregateType, TenantId)
-				);
-			END
-			""";
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
+		// The schema is the one the package SHIPS (002_CreateSnapshotSchema.sql), executed rather than
+		// restated. A restated copy previously drifted on four columns at once (a PRIMARY KEY missing
+		// AggregateType, an un-collated TenantId, DATETIME2 instead of DATETIMEOFFSET, a narrower
+		// AggregateType) -- each one silently able to hide the exact defect the arm running against it
+		// was written to catch. A fixture that holds no schema cannot drift from one.
+		foreach (var script in ShippedSchemaScript.ReadSqlCmdBatches(
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/002_CreateSnapshotSchema.sql"))
+		{
+			await using var command = new SqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

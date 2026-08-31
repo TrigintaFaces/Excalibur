@@ -537,9 +537,10 @@ public sealed class RetryMiddlewareShould
 	}
 
 	[Fact]
-	public async Task ReturnExhaustedErrorAfterAllRetriesFail()
+	public async Task PropagateTheOriginalFaultRatherThanRestatingIt()
 	{
-		// Arrange
+		// Arrange — InvalidOperationException is in the default non-retryable floor, so this is declined
+		// after one attempt rather than exhausted. Either way the fault reaches the caller as itself.
 		var options = new RetryOptions
 		{
 			MaxAttempts = 2,
@@ -555,12 +556,11 @@ public sealed class RetryMiddlewareShould
 		}
 
 		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+		var thrown = await Should.ThrowAsync<InvalidOperationException>(
+			() => middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask()).ConfigureAwait(false);
 
-		// Assert
-		result.IsSuccess.ShouldBeFalse();
-		_ = result.ProblemDetails.ShouldNotBeNull();
-		result.ProblemDetails.Type.ShouldContain("Retry");
+		// Assert — the consumer's own exception, not a retry-shaped substitute their mapper cannot match.
+		thrown.Message.ShouldBe("Test exception");
 	}
 
 	[Fact]
@@ -649,11 +649,11 @@ public sealed class RetryMiddlewareShould
 			throw new IOException("Test IO exception");
 		}
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+		// Act — declining to retry propagates the original fault rather than restating it as a result.
+		_ = await Should.ThrowAsync<IOException>(
+			() => middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask()).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
 		attemptCount.ShouldBe(1);
 	}
 
@@ -719,11 +719,11 @@ public sealed class RetryMiddlewareShould
 			throw new ArgumentException("Test argument exception");
 		}
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+		// Act — declining to retry propagates the original fault rather than restating it as a result.
+		_ = await Should.ThrowAsync<ArgumentException>(
+			() => middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask()).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
 		attemptCount.ShouldBe(1);
 	}
 
@@ -747,11 +747,11 @@ public sealed class RetryMiddlewareShould
 			throw new ArgumentNullException("param", "Test null exception");
 		}
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+		// Act — declining to retry propagates the original fault rather than restating it as a result.
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			() => middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask()).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
 		attemptCount.ShouldBe(1);
 	}
 
@@ -776,11 +776,11 @@ public sealed class RetryMiddlewareShould
 			throw new NotSupportedException("Test not supported");
 		}
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+		// Act — declining to retry propagates the original fault rather than restating it as a result.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask()).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
 		attemptCount.ShouldBe(1);
 	}
 
@@ -937,11 +937,11 @@ public sealed class RetryMiddlewareShould
 			throw new InvalidOperationException("Test invalid operation");
 		}
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+		// Act — declining to retry propagates the original fault rather than restating it as a result.
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask()).ConfigureAwait(false);
 
 		// Assert
-		result.IsSuccess.ShouldBeFalse();
 		attemptCount.ShouldBe(1);
 	}
 

@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Grpc.Core;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.Firestore;
+using Excalibur.Data.Persistence;
 
 using Google.Cloud.Firestore;
 
@@ -104,7 +106,16 @@ public static class FirestoreServiceCollectionExtensions
 			var projectId = firestoreBuilder.ProjectIdValue ?? "emulator-project";
 			var emulatorHost = firestoreBuilder.EmulatorHostValue;
 			services.TryAddSingleton(_ =>
-				new FirestoreDbBuilder { ProjectId = projectId, EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly, Endpoint = emulatorHost }.Build());
+				new FirestoreDbBuilder
+				{
+					ProjectId = projectId,
+
+					// Endpoint and EmulatorDetection.EmulatorOnly are mutually exclusive: setting both
+					// throws "Endpoint is set, contrary to use of EmulatorDetection.EmulatorOnly", so this
+					// registration could not resolve a client at all when an emulator host was configured.
+					Endpoint = emulatorHost,
+					ChannelCredentials = ChannelCredentials.Insecure,
+				}.Build());
 		}
 		else if (firestoreBuilder.ProjectIdValue is not null)
 		{
@@ -145,6 +156,16 @@ public static class FirestoreServiceCollectionExtensions
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<FirestorePersistenceProvider>();
+
+		// Keyed by provider, matching the relational and search providers. An unkeyed TryAdd alone is a
+		// no-op once any other cloud package has registered the same service type, so a host that adds two
+		// of them silently resolves the first one's provider for both.
+		services.AddKeyedSingleton<ICloudNativePersistenceProvider>("firestore",
+			(sp, _) => sp.GetRequiredService<FirestorePersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("firestore",
+			(sp, _) => sp.GetRequiredService<FirestorePersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("firestore"));
 		services.TryAddSingleton<ICloudNativePersistenceProvider>(sp =>
 			sp.GetRequiredService<FirestorePersistenceProvider>());
 

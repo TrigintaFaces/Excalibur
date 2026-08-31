@@ -57,15 +57,24 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 		ClientAddress = context.ClientAddress();
 		CorrelationId = context.CorrelationId() ?? Guid.Empty;
 		Exception = null;
-		Login = accessToken?.Login ?? "System";
+		Login = OrSystem(accessToken?.Login);
 		Request = request;
 		Response = default;
 		StatusCode = 0;
 		TenantId = context.TenantId();
 		Timestamp = DateTimeOffset.UtcNow;
-		UserId = accessToken?.UserId ?? "System";
-		UserName = accessToken?.FullName ?? "System";
+		UserId = OrSystem(accessToken?.UserId);
+		UserName = OrSystem(accessToken?.FullName);
 	}
+
+	/// <summary>
+	/// Names an action with no caller. An anonymous token reports an empty user id and full name rather
+	/// than null, so testing for null alone would record the actor as the empty string — an identity a
+	/// reader of the audit trail cannot distinguish from a missing field.
+	/// </summary>
+	/// <param name="value"> The identity value read from the caller's token. </param>
+	/// <returns> The value, or "System" when the caller is absent or anonymous. </returns>
+	private static string OrSystem(string? value) => string.IsNullOrWhiteSpace(value) ? "System" : value;
 
 	/// <summary>
 	/// Gets the unique identifier for this audit record as a GUID.
@@ -143,6 +152,10 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 	/// <inheritdoc />
 	string IAuditResult.Request
 	{
+		[UnconditionalSuppressMessage("Trimming", "IL2046",
+			Justification = "The requirement is declared on this getter and reaches the consumer at AuditExcaliburBuilderExtensions.AddAudit, which registers the middleware that reads it. IAuditResult itself stays bare because ActivityAudited implements Request as a plain stored string with no reflection, so annotating the interface would mislabel it.")]
+		[UnconditionalSuppressMessage("AOT", "IL3051",
+			Justification = "The requirement is declared on this getter and reaches the consumer at AuditExcaliburBuilderExtensions.AddAudit, which registers the middleware that reads it. IAuditResult itself stays bare because ActivityAudited implements Request as a plain stored string with no reflection, so annotating the interface would mislabel it.")]
 		[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		get => JsonSerializer.Serialize(Request, s_auditSerializerOptions);

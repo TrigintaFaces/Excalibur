@@ -20,10 +20,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// services.AddAwsSqsTransport("orders", sqs =>
 /// {
 ///     sqs.UseRegion("us-east-1")
-///        .UseSchemaRegistry(registry => registry.RegistryName = "my-registry")
 ///        .ConfigureQueue(queue => queue.VisibilityTimeout(TimeSpan.FromMinutes(5)))
 ///        .ConfigureFifo(fifo => fifo.ContentBasedDeduplication(true))
-///        .ConfigureBatch(batch => batch.SendBatchSize(10))
 ///        .MapQueue&lt;OrderCreated&gt;("https://sqs.us-east-1.amazonaws.com/123/orders");
 /// });
 /// </code>
@@ -111,32 +109,6 @@ public interface IAwsSqsTransportBuilder
 	/// </code>
 	/// </example>
 	IAwsSqsTransportBuilder ConfigureFifo(Action<IAwsSqsFifoBuilder> configure);
-
-	/// <summary>
-	/// Configures the batch operation settings using a fluent builder.
-	/// </summary>
-	/// <param name="configure">The batch configuration action.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Batch operations improve throughput and reduce costs by sending or receiving
-	/// multiple messages in a single API call. AWS SQS limits batch sizes to 10 messages.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// sqs.ConfigureBatch(batch =>
-	/// {
-	///     batch.SendBatchSize(10)
-	///          .SendBatchWindow(TimeSpan.FromMilliseconds(100))
-	///          .ReceiveMaxMessages(10);
-	/// });
-	/// </code>
-	/// </example>
-	IAwsSqsTransportBuilder ConfigureBatch(Action<IAwsSqsBatchBuilder> configure);
 
 	/// <summary>
 	/// Configures SNS topic integration using a fluent builder.
@@ -329,6 +301,15 @@ internal sealed class AwsSqsTransportBuilder : IAwsSqsTransportBuilder
 	private readonly AwsSqsTransportAdapterOptions _options;
 
 	/// <summary>
+	/// The consumer's CloudEvents delegate, handed to the CloudEvents options registration.
+	/// </summary>
+	/// <remarks>
+	/// The adapter binds <c>IOptions&lt;AwsSqsCloudEventOptions&gt;</c> from DI, so a value written onto the transport
+	/// options object is never read. The delegate is carried to that registration instead.
+	/// </remarks>
+	internal Action<AwsSqsCloudEventOptions>? CloudEventsConfigure { get; private set; }
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="AwsSqsTransportBuilder"/> class.
 	/// </summary>
 	/// <param name="options">The transport adapter options to configure.</param>
@@ -370,18 +351,6 @@ internal sealed class AwsSqsTransportBuilder : IAwsSqsTransportBuilder
 	}
 
 	/// <inheritdoc/>
-	public IAwsSqsTransportBuilder ConfigureBatch(Action<IAwsSqsBatchBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_options.BatchOptions = new AwsSqsBatchOptions();
-		var builder = new AwsSqsBatchBuilder(_options.BatchOptions);
-		configure(builder);
-
-		return this;
-	}
-
-	/// <inheritdoc/>
 	public IAwsSqsTransportBuilder ConfigureSns(Action<IAwsSqsSnsBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
@@ -414,8 +383,7 @@ internal sealed class AwsSqsTransportBuilder : IAwsSqsTransportBuilder
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_options.CloudEventOptions ??= new AwsSqsCloudEventOptions();
-		configure(_options.CloudEventOptions);
+		CloudEventsConfigure = configure;
 
 		return this;
 	}

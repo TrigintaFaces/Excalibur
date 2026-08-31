@@ -10,16 +10,11 @@ namespace Excalibur.Data.CosmosDb.Authorization;
 /// Cosmos DB document representation of an activity group grant.
 /// </summary>
 /// <remarks>
-/// Uses tenant_id as the partition key with "__null__" for null tenant values
+/// Uses tenant_id as the partition key
 /// to support efficient partition-based queries while maintaining consistency.
 /// </remarks>
 internal sealed class ActivityGroupDocument
 {
-	/// <summary>
-	/// The value used for null tenant IDs in the partition key.
-	/// </summary>
-	internal const string NullTenantPartitionKey = "__null__";
-
 	/// <summary>
 	/// Gets or sets the composite document ID (userId:tenantId:grantType:qualifier).
 	/// </summary>
@@ -34,10 +29,10 @@ internal sealed class ActivityGroupDocument
 	/// Gets or sets the tenant ID used as partition key.
 	/// </summary>
 	/// <remarks>
-	/// Uses "__null__" for null tenant values to enable partition key-based queries.
+	/// This is the tenant identifier verbatim; a grant always carries one.
 	/// </remarks>
 	[JsonPropertyName("tenant_id")]
-	public string TenantId { get; set; } = NullTenantPartitionKey;
+	public string TenantId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the original tenant ID (null if no tenant).
@@ -104,14 +99,6 @@ internal sealed class ActivityGroupDocument
 	/// <param name="grantType">The grant type.</param>
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The composite ID string.</returns>
-	public static string CreateId(string userId, string? tenantId, string grantType, string qualifier) =>
-		$"{userId}:{tenantId ?? "null"}:{grantType}:{qualifier}";
-
-	/// <summary>
-	/// Gets the partition key value for the given tenant ID.
-	/// </summary>
-	/// <param name="tenantId">The tenant identifier.</param>
-	/// <returns>The partition key value.</returns>
-	public static string GetPartitionKey(string? tenantId) =>
-		tenantId ?? NullTenantPartitionKey;
+	public static string CreateId(string userId, string tenantId, string grantType, string qualifier) =>
+		$"{userId}:{tenantId}:{grantType}:{qualifier}";
 }

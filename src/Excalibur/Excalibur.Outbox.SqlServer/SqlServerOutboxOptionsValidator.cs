@@ -84,16 +84,6 @@ internal sealed class SqlServerOutboxOptionsValidator(
 			return ValidateOptionsResult.Fail("TransportsTableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
 		}
 
-		if (string.IsNullOrWhiteSpace(options.Tables.DeadLetterTableName))
-		{
-			return ValidateOptionsResult.Fail("DeadLetterTableName is required.");
-		}
-
-		if (!SqlIdentifierValidator.IsValid(options.Tables.DeadLetterTableName))
-		{
-			return ValidateOptionsResult.Fail("DeadLetterTableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
-		}
-
 		var pollingIntervalSeconds = _processingOptions.Value.PollingInterval.TotalSeconds;
 		var partition = _partitionOptions.Value;
 		var partitionActive = partition.Strategy != OutboxPartitionStrategy.None;

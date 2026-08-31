@@ -10,6 +10,8 @@ internal sealed class LeaderElectionConsulBuilder : ILeaderElectionConsulBuilder
 	internal string? DatacenterValue { get; private set; }
 	internal TimeSpan? SessionTtlValue { get; private set; }
 	internal string? LockKeyValue { get; private set; }
+
+	internal string? ResourceNameValue { get; private set; }
 	internal string? BindConfigurationPath { get; private set; }
 
 	public ILeaderElectionConsulBuilder Address(string address)
@@ -42,6 +44,13 @@ internal sealed class LeaderElectionConsulBuilder : ILeaderElectionConsulBuilder
 		}
 
 		SessionTtlValue = ttl;
+		return this;
+	}
+
+	public ILeaderElectionConsulBuilder ResourceName(string resourceName)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
+		ResourceNameValue = resourceName;
 		return this;
 	}
 

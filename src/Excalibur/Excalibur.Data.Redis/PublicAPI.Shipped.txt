@@ -1,5 +1,4 @@
 #nullable enable
-Excalibur.Data.Redis.Diagnostics.DataRedisEventId
 Excalibur.Data.Redis.IRedisDataBuilder
 Excalibur.Data.Redis.IRedisDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Redis.IRedisDataBuilder!
 Excalibur.Data.Redis.IRedisDataBuilder.ConnectionMultiplexer(StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> Excalibur.Data.Redis.IRedisDataBuilder!
@@ -23,12 +22,8 @@ Excalibur.Data.Redis.RedisConnectionPoolOptions.SyncTimeout.get -> int
 Excalibur.Data.Redis.RedisConnectionPoolOptions.SyncTimeout.set -> void
 Excalibur.Data.Redis.RedisPersistenceProvider
 Excalibur.Data.Redis.RedisPersistenceProvider.ConnectionString.get -> string!
-Excalibur.Data.Redis.RedisPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Persistence.ITransactionScope!
 Excalibur.Data.Redis.RedisPersistenceProvider.Dispose() -> void
 Excalibur.Data.Redis.RedisPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Redis.RedisPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetDatabase(int? databaseId = null) -> StackExchange.Redis.IDatabase!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.Redis.RedisPersistenceProvider.GetServer(System.Net.EndPoint? endPoint = null) -> StackExchange.Redis.IServer!
@@ -61,30 +56,5 @@ Excalibur.Data.Redis.RedisProviderOptions.UseSsl.get -> bool
 Excalibur.Data.Redis.RedisProviderOptions.UseSsl.set -> void
 Microsoft.Extensions.DependencyInjection.RedisHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestFailed = 107002 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestSuccessful = 107001 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DisposeError = 107004 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Disposing = 107003 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DocumentRetryWarning = 107201 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequest = 107100 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequestInTransaction = 107102 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutionFailed = 107101 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxCleanedUp = 107405 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryCreated = 107400 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryFailed = 107404 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryProcessed = 107401 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedDuplicate = 107403 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedSuccess = 107402 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Initializing = 107000 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.MetadataRetrievalFailed = 107005 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxCleanedUp = 107304 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageEnqueued = 107301 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageFailed = 107303 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageSent = 107302 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageStaged = 107300 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.PoolStatsFailed = 107006 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ProviderRetryWarning = 107202 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.RetryWarning = 107200 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.TransactionExecutionFailed = 107103 -> int
 static Microsoft.Extensions.DependencyInjection.RedisHealthChecksBuilderExtensions.AddRedisHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "redis", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddExcaliburRedis(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.IRedisDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

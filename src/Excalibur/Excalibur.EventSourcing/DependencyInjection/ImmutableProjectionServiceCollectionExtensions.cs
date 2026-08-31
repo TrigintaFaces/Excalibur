@@ -4,6 +4,8 @@
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -36,6 +38,8 @@ public static class ImmutableProjectionServiceCollectionExtensions
 	/// </code>
 	/// </example>
 #pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder AddImmutableProjection<TProjection>(
 		this IEventSourcingBuilder builder,
 		Action<IImmutableProjectionBuilder<TProjection>> configure)
@@ -80,6 +84,8 @@ public static class ImmutableProjectionServiceCollectionExtensions
 			_builder = builder;
 		}
 
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public void Configure()
 		{
 			if (_configured)

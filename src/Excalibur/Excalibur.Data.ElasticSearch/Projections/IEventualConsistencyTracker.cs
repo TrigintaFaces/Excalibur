@@ -75,7 +75,7 @@ public interface IEventualConsistencyTracker
 /// <summary>
 /// Provides administrative and diagnostic operations for eventual consistency tracking.
 /// This is an ISP sub-interface of <see cref="IEventualConsistencyTracker"/> for consumers
-/// that need metrics collection and alert configuration.
+/// that need metrics collection.
 /// </summary>
 public interface IEventualConsistencyTrackerAdmin
 {
@@ -89,15 +89,5 @@ public interface IEventualConsistencyTrackerAdmin
 	Task<IEnumerable<ConsistencyMetrics>> GetConsistencyMetricsAsync(
 		DateTime fromTime,
 		DateTime toTime,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Sets up monitoring alerts for consistency violations.
-	/// </summary>
-	/// <param name="config"> The alert options. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> A task representing the asynchronous setup operation. </returns>
-	Task ConfigureConsistencyAlertsAsync(
-		ConsistencyAlertOptions config,
 		CancellationToken cancellationToken);
 }

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data;
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -100,10 +101,11 @@ public static class OutboxBuilderOracleExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<OracleOutboxStoreOptions>, OracleOutboxStoreOptionsValidator>());
 
-		// The fail-closed single-tenant default guarantees a non-null ITenantContext so the dep-gated
-		// AddTenantScopedStore seam resolves (GetRequiredService) rather than throwing; the multi-tenancy
-		// composition replaces it with the ambient context. The outbox honors the tenant by stamping +
-		// persisting TENANTID per message and returning it on drain.
+		// The fail-closed single-tenant default so a single-tenant host has a non-null ITenantContext; the
+		// multi-tenancy composition replaces it with the ambient context. It is NOT what makes this outbox
+		// tenant-safe and the store registration below no longer depends on it: the outbox carries the tenant
+		// on the row (stamped on enqueue, returned on drain), which is a different mechanism from reading an
+		// ambient discriminator, and it is attested as that mechanism rather than as ambient scoping.
 		builder.Services.AddDefaultTenantContext();
 
 		// Register services based on connection mode
@@ -111,15 +113,13 @@ public static class OutboxBuilderOracleExtensions
 		{
 			var dbFactory = oracleBuilder.ConfiguredDbFactory;
 
-			// Register Oracle outbox store with IDb factory. AddTenantScopedStore emits the
-			// ITenantScopingCapability<IOutboxStore> marker as part of THIS registration so the marker cannot
-			// exist without the store factory (S886 rw2ull — no lying marker). The outbox honors the ambient
-			// tenant by persisting TENANTID per message and returning it on drain.
-			// The dep-gated seam still resolves ITenantContext (fail-closed) before invoking this factory;
-			// OracleOutboxStore honors the tenant purely by persisting TENANTID per message (its ctor takes no
-			// ITenantContext), so the resolved context is discarded here — the registration is still gated on
-			// the context being resolvable, which keeps the marker inseparable from a gated registration.
-			builder.Services.AddTenantScopedStore<IOutboxStore, OracleOutboxStore>((sp, _) =>
+			// Register Oracle outbox store with IDb factory. AddTenantAwareStore emits the
+			// ITenantPartitionedCapability<IOutboxStore> marker as part of THIS registration, so the marker
+			// cannot exist without the store factory. It is the partitioned seam rather than the scoped one
+			// because OracleOutboxStore reads no ambient tenant on any path: it persists TENANTID per message
+			// and returns it on drain, so the owning tenant is re-established from the row. That seam takes no
+			// ITenantContext, so there is no dependency here to be handed and silently discarded.
+			builder.Services.AddTenantAwareStore<IOutboxStore, OracleOutboxStore>(sp =>
 			{
 				var db = dbFactory(sp);
 				var options = sp.GetRequiredService<IOptions<OracleOutboxStoreOptions>>();
@@ -132,19 +132,23 @@ public static class OutboxBuilderOracleExtensions
 		{
 			var connectionString = oracleBuilder.ConfiguredConnectionString;
 
-			// Register IDb for Oracle - the store depends on this
-			builder.Services.TryAddSingleton(() =>
+			// Registers IDb, which is what the store below resolves. The type argument is explicit and the
+			// factory takes the provider: a no-argument lambda cannot bind the factory overload, so it bound
+			// the INSTANCE overload instead and registered a Func<OracleConnection> under its own type. IDb was then
+			// registered nowhere, and the store threw on resolve the first time a host used this path.
+			builder.Services.TryAddSingleton<IDb>(_ =>
 			{
 				var connection = new OracleConnection(connectionString);
 				connection.Open();
-				return connection;
+				return new OutboxDb(connection);
 			});
 
-			// Register Oracle outbox store (DI-constructed). The dep-gated seam resolves ITenantContext
-			// (fail-closed) before this factory runs; OracleOutboxStore takes no ITenantContext (tenant is
-			// message-carried), so the resolved context is discarded — registration stays gated on it.
-			builder.Services.AddTenantScopedStore<IOutboxStore, OracleOutboxStore>(
-				static (sp, _) => ActivatorUtilities.CreateInstance<OracleOutboxStore>(sp));
+			// Register Oracle outbox store (DI-constructed). AddTenantAwareStore emits the
+			// ITenantPartitionedCapability<IOutboxStore> marker inseparably from this registration. The tenant
+			// is message-carried (TENANTID per row), not ambient, so this is the partitioned seam and there is
+			// no ITenantContext to thread or to drop.
+			builder.Services.AddTenantAwareStore<IOutboxStore, OracleOutboxStore>(
+				static sp => ActivatorUtilities.CreateInstance<OracleOutboxStore>(sp));
 		}
 		else
 		{
@@ -158,10 +162,10 @@ public static class OutboxBuilderOracleExtensions
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("oracle"));
 
-		// The ITenantScopingCapability<IOutboxStore> marker is emitted by AddTenantScopedStore above,
-		// inseparably from the store registration (S886 rw2ull — the marker cannot exist without the store
-		// factory). The outbox honors the ambient tenant by stamping + persisting TENANTID on enqueue and
-		// returning it on drain for the processor's per-message BeginScope.
+		// The ITenantPartitionedCapability<IOutboxStore> marker is emitted by AddTenantAwareStore
+		// above, inseparably from the store registration. It attests the mechanism this store actually
+		// implements: TENANTID stamped and persisted on enqueue and returned on drain for the processor's
+		// per-message BeginScope. The drain itself is deliberately estate-wide.
 		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<OracleOutboxStore>());
 
 		return builder;

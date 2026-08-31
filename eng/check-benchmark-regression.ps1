@@ -1,10 +1,10 @@
 # Copyright (c) 2026 The Excalibur Project
-# R9.9 Performance Regression Detection Script
+# Performance Regression Detection Script
 #
 # This script compares current benchmark results against baseline metrics
 # and enforces regression gates to prevent performance degradation.
 #
-# Regression Thresholds (Per R9.9):
+# Regression Thresholds:
 # - P99 (99th percentile): >10% degradation = FAIL
 # - P95 (95th percentile): >20% degradation = FAIL
 # - Memory (Gen0/Gen1/Gen2 collections): >50% increase = FAIL
@@ -33,7 +33,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Excalibur - Performance Regression Detection (R9.9)" -ForegroundColor Cyan
+Write-Host "  Excalibur - Performance Regression Detection" -ForegroundColor Cyan
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
@@ -246,7 +246,7 @@ $reportContent = @"
 | 🚀 Improvements | $($improvements.Count) |
 | ⚠️ Missing Baselines | $($missingBaselines.Count) |
 
-## Regression Thresholds (R9.9)
+## Regression Thresholds
 
 - **P99 (99th percentile):** >10% degradation = FAIL
 - **P95 (95th percentile):** >20% degradation = FAIL
@@ -260,7 +260,7 @@ if ($regressions.Count -gt 0) {
 
 ## ❌ Regressions Detected
 
-The following benchmarks have performance regressions exceeding R9.9 thresholds:
+The following benchmarks have performance regressions exceeding the configured thresholds:
 
 | Benchmark | P99 Change | P95 Change | Memory Change | Status |
 |-----------|------------|------------|---------------|--------|

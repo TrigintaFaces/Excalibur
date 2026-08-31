@@ -219,34 +219,43 @@ public sealed class SubjectFieldCryptor
     [UnconditionalSuppressMessage(
         "Trimming",
         "IL2072:UnrecognizedReflectionPattern",
-        Justification = "object.GetType() over a consumer record; GetPlan is DAM-rooted and the caller fails closed on an empty plan.")]
+        Justification = "object.GetType() over a consumer record; GetPlan is DAM-rooted and the caller throws "
+            + "rather than persist plaintext when a [DataSubjectId] type resolves no [PersonalData] fields.")]
     private static TypeFieldPlan GetPlanForInstance(object record) => GetPlan(record.GetType());
 
     private static TypeFieldPlan GetPlan(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type) =>
-        Plans.GetOrAdd(type, static t =>
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
+    {
+        if (Plans.TryGetValue(type, out var cached))
         {
-            PropertyInfo? subjectIdProperty = null;
-            var personalData = new List<PropertyInfo>();
+            return cached;
+        }
 
-            foreach (var property in t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        // The plan is built HERE rather than inside a GetOrAdd value factory: the annotation on `type`
+        // does not flow into a static lambda's own parameter, so a factory hides this property walk from
+        // the trimmer and the preservation it needs becomes unprovable. Two threads racing a cold type
+        // both build the same plan and one wins the add, which is the semantics GetOrAdd already had.
+        PropertyInfo? subjectIdProperty = null;
+        var personalData = new List<PropertyInfo>();
+
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (property.GetCustomAttribute<DataSubjectIdAttribute>() is not null)
             {
-                if (property.GetCustomAttribute<DataSubjectIdAttribute>() is not null)
-                {
-                    subjectIdProperty ??= property;
-                }
-
-                if (property.CanRead
-                    && property.CanWrite
-                    && property.GetCustomAttribute<PersonalDataAttribute>() is not null
-                    && (property.PropertyType == typeof(string) || property.PropertyType == typeof(byte[])))
-                {
-                    personalData.Add(property);
-                }
+                subjectIdProperty ??= property;
             }
 
-            return new TypeFieldPlan(subjectIdProperty, [.. personalData]);
-        });
+            if (property.CanRead
+                && property.CanWrite
+                && property.GetCustomAttribute<PersonalDataAttribute>() is not null
+                && (property.PropertyType == typeof(string) || property.PropertyType == typeof(byte[])))
+            {
+                personalData.Add(property);
+            }
+        }
+
+        return Plans.GetOrAdd(type, new TypeFieldPlan(subjectIdProperty, [.. personalData]));
+    }
 
     /// <summary>
     /// Resolves the data subject's identifier to the stable string under which its key is derived.

@@ -50,7 +50,7 @@ public static class GoogleCloudFunctionsServiceCollectionExtensions
 
 		// Parity with the AWS provider + the IConfiguration overload: register options through the
 		// options system with fail-fast ValidateOnStart so a misconfigured Action<ServerlessHostOptions>
-		// fails at startup on every cloud, not silently only on AWS (aiikde divergence #2).
+		// fails at startup on every cloud, not silently only on AWS (divergence #2).
 		_ = services.AddOptions<ServerlessHostOptions>().Configure(configureOptions).ValidateOnStart();
 
 		return services;

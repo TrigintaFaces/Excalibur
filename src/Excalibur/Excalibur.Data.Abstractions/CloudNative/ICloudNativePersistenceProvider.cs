@@ -69,7 +69,7 @@ public enum CloudBatchOperationType
 
 /// <summary>
 /// Provides cloud provider identity metadata for cloud-native persistence providers and event stores.
-/// Obtain via <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// Obtain via <see cref="Excalibur.Data.Persistence.IPersistenceProvider.GetService"/> on an
 /// <see cref="ICloudNativePersistenceProvider"/> instance, or via
 /// <see cref="ICloudNativeEventStore.GetService"/> on an event store instance.
 /// </summary>
@@ -91,7 +91,7 @@ public interface ICloudNativeProviderInfo
 /// </para>
 /// <para>
 /// Advanced features are available as ISP sub-interfaces via
-/// <see cref="IDocumentPersistenceProvider.GetService"/>:
+/// <see cref="Excalibur.Data.Persistence.IPersistenceProvider.GetService"/>:
 /// <list type="bullet">
 /// <item><see cref="ICloudNativeProviderInfo"/> -- cloud provider type metadata</item>
 /// <item><see cref="ICloudNativePersistenceQueryOperations"/> -- partition-scoped queries</item>
@@ -173,7 +173,7 @@ public interface ICloudNativePersistenceProvider : IDocumentPersistenceProvider
 
 /// <summary>
 /// Provides partition-scoped query capabilities for cloud-native document databases.
-/// Obtain via <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// Obtain via <see cref="Excalibur.Data.Persistence.IPersistenceProvider.GetService"/> on an
 /// <see cref="ICloudNativePersistenceProvider"/> instance.
 /// </summary>
 public interface ICloudNativePersistenceQueryOperations
@@ -199,7 +199,7 @@ public interface ICloudNativePersistenceQueryOperations
 
 /// <summary>
 /// Provides transactional batch operation capabilities for cloud-native document databases.
-/// Obtain via <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// Obtain via <see cref="Excalibur.Data.Persistence.IPersistenceProvider.GetService"/> on an
 /// <see cref="ICloudNativePersistenceProvider"/> instance.
 /// </summary>
 public interface ICloudNativePersistenceBatchOperations
@@ -220,7 +220,7 @@ public interface ICloudNativePersistenceBatchOperations
 /// <summary>
 /// Provides change feed subscription capabilities and advanced capability flags
 /// for cloud-native document databases. Obtain via
-/// <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// <see cref="Excalibur.Data.Persistence.IPersistenceProvider.GetService"/> on an
 /// <see cref="ICloudNativePersistenceProvider"/> instance.
 /// </summary>
 public interface ICloudNativePersistenceChangeFeed

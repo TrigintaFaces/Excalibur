@@ -42,7 +42,7 @@ builder.Services.AddDispatch();
 // With configuration (recommended)
 builder.Services.AddDispatch(dispatch =>
 {
-    // Handlers are auto-registered with DI container (Scoped by default)
+    // Handlers are auto-registered with DI container (Transient by default)
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Configure middleware and pipelines
@@ -78,6 +78,16 @@ builder.Services.AddDispatch(dispatch =>
 // builder.Services.AddScoped<CreateOrderHandler>(); // REMOVED
 ```
 
+:::caution The two scanning entry points cover different interfaces
+
+The nine interfaces above are what `dispatch.AddHandlersFromAssembly(...)` — the builder overload — scans.
+The `services.AddDispatch(params Assembly[])` overload shown under **Multiple Assemblies** is a different
+code path and scans only four: `IActionHandler<>`, `IActionHandler<,>`, `IEventHandler<>` and
+`IDocumentHandler<>`. Streaming, stream-transform, stream-consumer and progress handlers are **not**
+registered by that overload. Use the builder form if you rely on those.
+
+:::
+
 ### Customizing Handler Lifetime
 
 Control handler service lifetime with optional parameters:
@@ -85,15 +95,19 @@ Control handler service lifetime with optional parameters:
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
-    // Default: Scoped lifetime
+    // Default: Transient lifetime
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-    // Custom lifetime
+    // Custom lifetime — only needed if you want the handler INSTANCE tied to the scope.
+    // Depending on scoped services does not require this; see Handler Lifetimes below.
     dispatch.AddHandlersFromAssembly(
         typeof(Infrastructure).Assembly,
-        lifetime: ServiceLifetime.Transient);
+        lifetime: ServiceLifetime.Scoped);
 
-    // Skip DI registration (advanced: when you manage registration separately)
+    // Register nothing from this assembly — neither the concrete handler types nor their
+    // handler interfaces. Use this when you register every handler yourself; the call still
+    // tells Dispatch that you own handler registration, so it does not fall back to scanning
+    // the entry assembly for you.
     dispatch.AddHandlersFromAssembly(
         typeof(Legacy).Assembly,
         registerWithContainer: false);
@@ -102,20 +116,27 @@ builder.Services.AddDispatch(dispatch =>
 
 ## Handler Lifetimes
 
-By default, handlers are registered as **scoped** (one instance per request).
+By default, handlers are registered as **transient**.
+
+You do not need to change this to depend on scoped services. Dispatch decides whether a
+dependency-injection scope is required by inspecting the handler's constructor dependency graph, not by
+looking at the lifetime you registered it with — so a transient handler that depends on `IUnitOfWork`
+still gets a scope, in every host. Register a lifetime explicitly only when you want one for a reason of
+your own; the default exists so the framework does not impose the most restrictive option on a consumer
+who expressed no preference.
 
 ### Lifetime Guidelines
 
 | Lifetime | Use When |
 |----------|----------|
-| **Scoped** | Handler depends on scoped services (IUnitOfWork, IDb) |
-| **Transient** | Handler is stateless and lightweight |
-| **Singleton** | Handler is thread-safe with no scoped dependencies |
+| **Transient** *(default)* | You have no specific requirement — this is the right choice for most handlers, including ones with scoped dependencies |
+| **Scoped** | You want the handler instance itself tied to the scope, e.g. it holds per-request state of its own |
+| **Singleton** | Handler is thread-safe, holds no instance state, and has **no scoped dependencies**. A singleton handler that depends on a scoped service is a captive dependency — the scoped service becomes effectively singleton — and Dispatch does not detect it. Use `ValidateScopes` when building your provider if you want the container to catch this. |
 
-:::note Scoped handlers are fully supported
-A scoped handler — or a handler with scoped dependencies — is always resolved from a
-dependency-injection **scope**, never the root container, even when dispatched through the
-context-less `dispatcher.DispatchAsync(message, ct)` overload.
+:::note Handlers with scoped dependencies are fully supported
+A handler whose dependencies reach a **scoped** service is resolved from a dependency-injection
+**scope**, never the root container — whatever lifetime the handler itself is registered with, and
+including the context-less `dispatcher.DispatchAsync(message, ct)` overload.
 
 - **ASP.NET Core:** the handler shares the **active request scope** (the same `IUnitOfWork` / `IDb` /
   `DbContext` as the rest of the request). This is wired automatically by
@@ -125,7 +146,46 @@ context-less `dispatcher.DispatchAsync(message, ct)` overload.
 - **Workers / console / serverless:** each dispatch gets a **fresh scope** that is disposed when the
   handler completes.
 
-See Scope-Correct Handler Resolution for the design and rationale.
+A handler that reaches no scoped dependency does **not** pay for a scope. That determination is made
+once per handler type, not per dispatch.
+:::
+
+:::note Your registered lifetime is honoured
+Dispatch resolves handlers with the lifetime you registered. `Scoped` gives you one instance per scope
+and `Singleton` gives you one for the process, exactly as `Microsoft.Extensions.DependencyInjection`
+defines them.
+
+There is one optimisation, and it applies only to `Transient`. A handler registered `Transient` that has
+no constructor dependencies and no instance state is indistinguishable from a shared instance — nothing
+can observe the difference except reference identity — so Dispatch may reuse one instance rather than
+activating a new one per dispatch. `Transient` is also the default, so a handler that got it by default
+has had no preference overridden. Disable this with:
+
+```csharp
+dispatch.WithOptions(o =>
+    o.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = false);
+```
+
+Dispatch never applies this to `Scoped` or `Singleton`. Those are deliberate departures from the default,
+and `Scoped` in particular is what you choose when per-request isolation matters.
+
+If you register a handler `Scoped` or `Singleton` that has no dependencies and no state, Dispatch logs
+one `Information` message naming it (event ID `40908`), once per handler type, mentioning that
+`Transient` would be cheaper. It is advisory — your registration is still honoured — and exists so a
+lifetime chosen by habit is easy to spot.
+:::
+
+:::note All handlers for one published event share a scope
+When an event is published to several handlers, those handlers observe the **same** scoped instances —
+one scope per published event, not one per handler. Two handlers for the same event see the same
+`IUnitOfWork`, so a single event is handled as a single unit of work. Separate publishes get separate
+scopes.
+
+This is deliberate, and it is not the same property as fault isolation. `PublishAsync` **does** isolate
+faults: every handler is started and awaited, and one handler throwing does not abandon the others. It
+does **not** isolate state. A handler that fails after leaving a shared `DbContext` in a broken state
+hands that state to its siblings, so treat sibling handlers as sharing a transaction, not as independent
+units.
 :::
 
 ## Service Injection
@@ -227,21 +287,27 @@ builder.Services.AddDispatch(dispatch =>
 
 ## Decorator Pattern
 
-Wrap handlers with cross-cutting concerns using decorators. The `Decorate<>()` method requires the [Scrutor](https://github.com/khellang/Scrutor) package:
+Wrap handlers with cross-cutting concerns using decorators. `Decorate<TService, TDecorator>()` is built
+into Excalibur.Dispatch — no additional package is required.
 
-```bash
-dotnet add package Scrutor
-```
+It **throws** if the service type has more than one registration, rather than silently decorating only
+the last one. An ambiguous decoration is therefore a startup error you can see, not a runtime behaviour
+you have to discover.
 
 ```csharp
-// Register the handler
-builder.Services.AddScoped<IActionHandler<CreateOrderAction>, CreateOrderHandler>();
+// Register the handler. CreateOrderHandler returns a Guid, so it implements the
+// two-argument IActionHandler<TAction, TResult> — the decorators must match that shape.
+builder.Services.AddTransient<IActionHandler<CreateOrderAction, Guid>, CreateOrderHandler>();
 
-// Decorate with logging (requires Scrutor)
-builder.Services.Decorate<IActionHandler<CreateOrderAction>, LoggingHandlerDecorator<CreateOrderAction>>();
+// Decorate with logging
+builder.Services.Decorate<
+    IActionHandler<CreateOrderAction, Guid>,
+    LoggingHandlerDecorator<CreateOrderAction, Guid>>();
 
-// Decorate with retry (requires Scrutor)
-builder.Services.Decorate<IActionHandler<CreateOrderAction>, RetryHandlerDecorator<CreateOrderAction>>();
+// Decorate with retry
+builder.Services.Decorate<
+    IActionHandler<CreateOrderAction, Guid>,
+    RetryHandlerDecorator<CreateOrderAction, Guid>>();
 ```
 
 ## Keyed Services
@@ -323,20 +389,51 @@ These validators are AOT-safe (no reflection) and invisible to consumers — the
 
 Prerequisite validators — and the fail-fast durability gates (audit-store, key, grant, schedule, and separation-of-duties checks) registered with `ValidateOnStart()` — run from the host's startup validation, which only fires when the application calls `IHost.StartAsync`. A consumer who builds an `IServiceProvider` manually and resolves services directly, without ever starting a host (a custom serverless runtime, a manual `BuildServiceProvider()`, a unit of work that never builds a host), never triggers them, so those fail-fast guarantees are silently inert.
 
-Such a consumer **must** call `ValidateStartupGates()` once, immediately after building the provider, to run the same checks the host would have run at start:
+Such a consumer **must** call `ValidateStartupGates()` once, immediately after building the provider:
 
 ```csharp
+services.AddLogging();   // required — Dispatch resolves ILogger<T>; a host supplies this for you
 var provider = services.BuildServiceProvider();
-provider.ValidateStartupGates(); // runs every ValidateOnStart() gate now; throws OptionsValidationException on failure
+
+// Throws OptionsValidationException when a ValidateOnStart() gate fails,
+// InvalidOperationException when a prerequisite is missing.
+provider.ValidateStartupGates();
 ```
 
-`ValidateStartupGates()` runs the framework's own startup validator, so it validates *every* registered gate — a gate added later is covered automatically. It no-ops when nothing registered startup validation, returns the same provider for chaining, and is safe to call once after build.
+`AddLogging()` is not optional on this path. `WebApplication.CreateBuilder` and the generic host register
+logging for you, which is why the ASP.NET snippets above omit it; a bare `ServiceCollection` does not, and
+resolving `IDispatcher` without it throws `InvalidOperationException: Unable to resolve service for type
+'ILogger<...>'`.
+
+`ValidateStartupGates()` runs both families of gate. For the `ValidateOnStart()` gates it invokes the framework's own startup validator, so *every* registered gate is covered — one added later is picked up automatically. It then runs every prerequisite validator in the container, which is what surfaces the missing-provider errors shown above. It no-ops when neither family is registered, returns the same provider for chaining, and is safe to call once after build.
+
+It starts no hosted services. Outbox processors, leader election, and other background work stay unstarted — a container you never intended to run as a host does not acquire one by being asked whether it is wired correctly.
+
+**One class of check it cannot run.** A gate that must perform I/O to reach a verdict — probing a remote secret mount, reading a physical table schema — cannot run from a synchronous method without blocking, so those stay host-only. Each carries its own fail-closed check on the path it protects, so a host-less consumer fails on first use of that path rather than proceeding on an unverified assumption:
+
+| Check | Host-less behavior |
+|---|---|
+| Inbox store physical schema | Verified per store on first use |
+| Vault key-suspension mount reachability | Suspension enforcement fails closed when the mount is unreachable |
 
 Hosts that build their provider through the generic host and call `StartAsync` — including Azure Functions and AWS Lambda on the isolated-worker model — already run these gates at start and do not need this call. It is for the genuinely host-less path only.
 
+If you write your own prerequisite check, implement `IStartupPrerequisiteValidator` alongside `IHostedService` and register both, so it fires on the hosted path and the host-less one:
+
+```csharp
+services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, MyPrerequisiteValidator>());
+services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, MyPrerequisiteValidator>());
+```
+
 ## Transport and Cross-Cutting Registration
 
-The `AddDispatch()` builder also supports transport and cross-cutting concern registration through extension methods:
+The `AddDispatch()` builder also supports transport and cross-cutting concern registration through extension methods.
+
+**Each of these lives in its own package** and is not available on a bare `Excalibur.Dispatch` install:
+`UseObservability` needs `Excalibur.Dispatch.Observability`, `UseResilience` needs
+`Excalibur.Dispatch.Resilience.Polly`, `UseCaching` needs `Excalibur.Dispatch.Caching`, `UseSecurity` needs
+`Excalibur.Security`, and each transport needs its own transport package. Install the package for the
+concern you want; the snippets below will not compile without them.
 
 ```csharp
 builder.Services.AddDispatch(dispatch =>
@@ -369,14 +466,14 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString))
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString(connectionString)))
         .AddSagas();
 });
 ```
 
 ### Excalibur with Custom Dispatch Configuration
 
-When you need transports, pipeline profiles, or middleware, call `AddDispatch` with a builder action. Both orderings are safe because all Dispatch registrations use `TryAdd` internally:
+When you need transports, pipeline profiles, or middleware, call `AddDispatch` with a builder action. Either order works, and a handler you register yourself is honored whether you register it before or after `AddDispatch`: assembly scanning yields to a registration you already made, and a registration you make afterwards takes precedence over the scanned one. Handlers you register for an *event* are not subject to that — every handler registered for an event runs, whether it came from scanning, from you, or from both:
 
 ```csharp
 // 1. Configure Dispatch with transports and middleware
@@ -393,7 +490,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString(connectionString)));
 });
 ```
 

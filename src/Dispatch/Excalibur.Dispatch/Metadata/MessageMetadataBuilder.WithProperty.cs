@@ -200,7 +200,7 @@ public sealed partial class MessageMetadataBuilder
 				_eventVersion = value is int ev ? ev : null;
 				break;
 
-			// Removed collections — ACCUMULATE into the single dict-typed store (yhoc4c).
+			// Removed collections — ACCUMULATE into the single dict-typed store.
 			// The public surface for these keys is the "Add*" verbs (AddAttribute/AddAttributes,
 			// AddItem/AddItems), which mean MERGE, never replace. These cases therefore add the supplied
 			// entries to _attributes/_items WITHOUT clearing first, so a chained

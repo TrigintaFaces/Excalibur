@@ -26,6 +26,7 @@
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Aws/Excalibur.Compliance.Aws.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Azure/Excalibur.Compliance.Azure.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Vault/Excalibur.Compliance.Vault.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Pdf/Excalibur.Compliance.Pdf.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance/Excalibur.Compliance.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/Excalibur.Dispatch.Hosting.AspNetCore.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/Excalibur.Dispatch.Hosting.AwsLambda.csproj" />
@@ -64,6 +65,9 @@
     <!-- Complete provider metapackages (Sprint 725) -->
     <ProjectReference Include="../../../src/metapackages/Excalibur.SqlServer/Excalibur.SqlServer.csproj" />
     <ProjectReference Include="../../../src/metapackages/Excalibur.Postgres/Excalibur.Postgres.csproj" />
+    <ProjectReference Include="../../../src/metapackages/Excalibur.Dispatch.AspNetCore/Excalibur.Dispatch.AspNetCore.csproj" />
+    <ProjectReference Include="../../../src/metapackages/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/metapackages/Excalibur.Dispatch.Postgres/Excalibur.Dispatch.Postgres.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj" />
 
     <!-- Excalibur packages -->
@@ -75,6 +79,7 @@
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Cdc.SqlServer/Excalibur.Cdc.SqlServer.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.InMemory/Excalibur.Outbox.InMemory.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Inbox.InMemory/Excalibur.Inbox.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.MongoDb/Excalibur.Compliance.MongoDb.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Excalibur.Compliance.Postgres.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Excalibur.Compliance.SqlServer.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.Abstractions/Excalibur.Data.Abstractions.csproj" />
@@ -108,9 +113,9 @@
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Jobs/Excalibur.Hosting.Jobs.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Logging.Serilog/Excalibur.Hosting.Logging.Serilog.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Observability/Excalibur.Hosting.Observability.csproj" />
-    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Serverless/Excalibur.Hosting.Serverless.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Compliance/Excalibur.Hosting.Compliance.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Abstractions/Excalibur.Jobs.Abstractions.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Aws/Excalibur.Jobs.Aws.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Azure/Excalibur.Jobs.Azure.csproj" />

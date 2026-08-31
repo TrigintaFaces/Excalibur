@@ -11,11 +11,9 @@ services.AddExcalibur(x => x.AddEventSourcing(es =>
     {
         options.MaxAge = TimeSpan.FromDays(90);
     });
-    es.UseAwsS3ColdStore(options =>
-    {
-        options.BucketName = "my-cold-events";
-        options.Region = "us-east-1";
-    });
+    es.UseAwsS3ColdEventStore(s3 => s3
+        .BucketName("my-cold-events")
+        .Region("us-east-1"));
 }));
 ```
 

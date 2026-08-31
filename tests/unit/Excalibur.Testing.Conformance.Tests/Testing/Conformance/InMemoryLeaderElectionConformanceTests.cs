@@ -84,12 +84,16 @@ public sealed class InMemoryLeaderElectionConformanceTests : LeaderElectionConfo
 		MultipleCandidate_OnlyOneBecomesLeader();
 
 	[Fact]
-	public Task MultipleCandidate_AllSeeSameCurrentLeaderId_Test() =>
-		MultipleCandidate_AllSeeSameCurrentLeaderId();
+	public Task MultipleCandidate_ReportedLeaderIdShouldNameTheLeader_Test() =>
+		MultipleCandidate_ReportedLeaderIdShouldNameTheLeader();
 
 	[Fact]
-	public Task MultipleCandidate_FirstToStartBecomesLeader_Test() =>
-		MultipleCandidate_FirstToStartBecomesLeader();
+	public Task MultipleCandidate_IncumbentShouldExcludeLaterCandidate_Test() =>
+		MultipleCandidate_IncumbentShouldExcludeLaterCandidate();
+
+		[Fact]
+		public Task ConcurrentContention_ExactlyOneLeader_Test() =>
+			ConcurrentContention_ExactlyOneLeader();
 
 	#endregion Multi-Candidate Tests
 
@@ -116,8 +120,24 @@ public sealed class InMemoryLeaderElectionConformanceTests : LeaderElectionConfo
 		CandidateId_ShouldBeUniquePerInstance();
 
 	[Fact]
-	public Task CurrentLeaderId_AfterStop_ShouldBeNullOrEmpty_Test() =>
-		CurrentLeaderId_AfterStop_ShouldBeNullOrEmpty();
+	public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() =>
+		CurrentLeadership_AfterStop_ShouldBeNull();
 
 	#endregion Property Tests
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail — in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

@@ -17,12 +17,14 @@ namespace Excalibur.Tests.A3.Authorization;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
-public sealed class AuthorizationMiddlewareDepthShould
+public sealed class AuthorizationMiddlewareDepthShould : IDisposable
 {
 	private readonly IAccessToken _accessToken;
 	private readonly IDispatchAuthorizationService _authorization;
 	private readonly AttributeAuthorizationCache _attributeCache;
 	private readonly A3AuthorizationMiddleware _sut;
+	private readonly ServiceProvider _serviceProvider;
+	private readonly IServiceScope _requestScope;
 
 	public AuthorizationMiddlewareDepthShould()
 	{
@@ -32,8 +34,31 @@ public sealed class AuthorizationMiddlewareDepthShould
 
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(true);
 
-		_sut = new A3AuthorizationMiddleware(_accessToken, _authorization, _attributeCache, new ConditionExpressionEvaluator());
+		_sut = new A3AuthorizationMiddleware(_authorization, _attributeCache, new ConditionExpressionEvaluator());
+
+		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+		_ = services.AddScoped(_ => _accessToken);
+		_serviceProvider = services.BuildServiceProvider();
+		_requestScope = _serviceProvider.CreateScope();
 	}
+	/// <summary>
+	/// Builds a message context carrying a real request scope, which is where the middleware now reads
+	/// the caller's access token from. A fake provider is not enough: the middleware rejects anything
+	/// that is not an <see cref="IServiceScope"/> so a root provider cannot supply an identity.
+	/// </summary>
+	private IMessageContext FakeContext()
+	{
+		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.RequestServices).Returns(_requestScope.ServiceProvider);
+		return context;
+	}
+
+	public void Dispose()
+	{
+		_requestScope.Dispose();
+		_serviceProvider.Dispose();
+	}
+
 
 	[Fact]
 	public void Implement_IDispatchMiddleware()
@@ -50,7 +75,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 	[Fact]
 	public async Task ThrowOnNullMessage()
 	{
-		var context = A.Fake<IMessageContext>();
+		var context = FakeContext();
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -71,7 +96,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 	public async Task ThrowOnNullNextDelegate()
 	{
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = FakeContext();
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			async () => await _sut.InvokeAsync(message, context, null!, CancellationToken.None));
@@ -82,7 +107,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 	{
 		// Arrange — message does NOT implement IRequireAuthorization
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = FakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
 
@@ -103,7 +128,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 	{
 		// Arrange
 		var message = new TestAuthorizableMessage();
-		var context = A.Fake<IMessageContext>();
+		var context = FakeContext();
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
 		A.CallTo(() => _authorization.AuthorizeAsync(
@@ -124,7 +149,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 	{
 		// Arrange
 		var message = new TestAuthorizableMessage();
-		var context = A.Fake<IMessageContext>();
+		var context = FakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
 

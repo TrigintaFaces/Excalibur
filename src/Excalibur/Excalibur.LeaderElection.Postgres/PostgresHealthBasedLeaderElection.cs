@@ -41,7 +41,6 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	private readonly PostgresLeaderElectionOptions _pgOptions;
 	private readonly PostgresHealthBasedLeaderElectionOptions _healthOptions;
 	private readonly ILogger<PostgresHealthBasedLeaderElection> _logger;
-	private readonly TimeProvider _timeProvider;
 	private volatile bool _disposed;
 	private bool _tableCreated;
 
@@ -58,19 +57,13 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	/// <see cref="PostgresLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>
-	/// <param name="timeProvider">
-	/// Optional time provider used for health-record expiration decisions. Defaults to
-	/// <see cref="TimeProvider.System"/>. Inject a controllable provider to make expiration decisions
-	/// deterministic in tests.
-	/// </param>
 	public PostgresHealthBasedLeaderElection(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
 		IOptions<PostgresHealthBasedLeaderElectionOptions> healthOptions,
 		ILogger<PostgresHealthBasedLeaderElection> logger,
 		ILogger<PostgresLeaderElection> innerLogger,
-		IFencingTokenProvider? fencingTokenProvider = null,
-		TimeProvider? timeProvider = null)
+		IFencingTokenProvider? fencingTokenProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(electionOptions);
@@ -81,7 +74,6 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 		_pgOptions = pgOptions.Value;
 		_healthOptions = healthOptions.Value;
 		_logger = logger;
-		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		ValidateIdentifier(_healthOptions.SchemaName, nameof(_healthOptions.SchemaName));
 		ValidateIdentifier(_healthOptions.TableName, nameof(_healthOptions.TableName));
@@ -192,7 +184,12 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 
 		var results = new List<CandidateHealth>();
 		var qualifiedTableName = $"\"{_healthOptions.SchemaName}\".\"{_healthOptions.TableName}\"";
-		var expirationThreshold = _timeProvider.GetUtcNow().AddSeconds(-_healthOptions.HealthExpirationSeconds);
+		// The expiry threshold is computed BY THE DATABASE, from the same clock that writes last_updated
+		// (NOW(), and the column DEFAULT). Computing it here from the application clock compared a
+		// DB-written timestamp against an app-computed one: any skew between the two hosts read a live
+		// candidate as expired or a dead one as healthy. One clock makes that unexpressible rather than
+		// merely tested against. This is why no TimeProvider appears here - the app clock is not the clock
+		// this comparison is about.
 
 		await using var connection = new NpgsqlConnection(_pgOptions.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -200,14 +197,14 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 		// Schema and table names are validated by SafeIdentifierRegex at construction time
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
 		await using var command = new NpgsqlCommand(
-			$"SELECT candidate_id, is_healthy, health_score, last_updated, is_leader, metadata_json FROM {qualifiedTableName} WHERE last_updated >= @ExpirationThreshold",
+			$"SELECT candidate_id, is_healthy, health_score, last_updated, is_leader, metadata_json FROM {qualifiedTableName} WHERE last_updated >= NOW() - make_interval(secs => @ExpirationSeconds)",
 			connection)
 		{
 			CommandTimeout = _healthOptions.CommandTimeoutSeconds
 		};
 #pragma warning restore CA2100
 
-		command.Parameters.AddWithValue("ExpirationThreshold", expirationThreshold);
+		command.Parameters.AddWithValue("ExpirationSeconds", (double)_healthOptions.HealthExpirationSeconds);
 
 		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 

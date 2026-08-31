@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -53,7 +54,7 @@ public sealed class PostgresSagaStoreRetentionConformanceShould : SagaStoreReten
 	}
 
 	/// <inheritdoc/>
-	protected override async Task<ISagaStore> CreateStoreAsync()
+	protected override async Task<ISagaStore> CreateStoreAsync(ITenantContext ambientTenant)
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"Postgres container must be available — a control that is skipped is not a control.");
@@ -71,7 +72,8 @@ public sealed class PostgresSagaStoreRetentionConformanceShould : SagaStoreReten
 		return new PostgresSagaStore(
 			options,
 			NullLogger<PostgresSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			ambientTenant);
 	}
 
 	/// <inheritdoc/>

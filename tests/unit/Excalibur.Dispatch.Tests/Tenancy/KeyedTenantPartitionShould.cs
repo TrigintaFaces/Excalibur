@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
+
 using Excalibur.Dispatch;
 
 using Shouldly;
@@ -67,7 +69,24 @@ public sealed class KeyedTenantPartitionShould
     public void Reject_The_Reserved_Sentinel_As_A_Real_Tenant()
         => Should.Throw<ArgumentException>(() => KeyedTenantPartition.Scoped(UntenantedSentinel));
 
-    // The migration bridge from the column-agnostic family: TenantScope.None (the ONE sanctioned
+    // An identifier longer than every shipped provider's narrowest tenant column (ADR-140, bd-5y8vg2) is
+    // rejected here rather than truncated by a store, where a truncated identifier could collide with
+    // another tenant's. RED against a mutant that removes the length guard.
+    [Fact]
+    public void Reject_An_Identifier_Longer_Than_MaxLength()
+        => Should.Throw<ArgumentException>(() => KeyedTenantPartition.Scoped(new string('t', TenantId.MaxLength + 1)));
+
+    // LIVENESS pair for the arm above (testing-patterns S3): a legal identifier at exactly the boundary
+    // still binds. A guard that rejected everything would satisfy the safety arm alone.
+    [Fact]
+    public void Bind_An_Identifier_At_Exactly_MaxLength()
+    {
+        var value = new string('t', TenantId.MaxLength);
+
+        KeyedTenantPartition.Scoped(value).TenantId.ShouldBe(value);
+    }
+
+    // The migration bridge from the column-agnostic family: TenantScope.Untenanted (the ONE sanctioned
     // empty-term scope) must project to Untenanted (a concrete sentinel term), NEVER carry the empty
     // term across into the keyed family. This is the exact fail-open FR-8 warns of: a keyed store
     // handed None must bind __untenanted__, not emit nothing. RED against a mutant that maps
@@ -75,7 +94,7 @@ public sealed class KeyedTenantPartitionShould
     [Fact]
     public void Project_The_None_Scope_Onto_The_Untenanted_Sentinel_Term()
     {
-        var partition = KeyedTenantPartition.FromScope(TenantScope.None);
+        var partition = KeyedTenantPartition.FromScope(TenantScope.Untenanted);
 
         partition.ShouldBe(KeyedTenantPartition.Untenanted);
         partition.TenantId.ShouldBe(
@@ -84,15 +103,14 @@ public sealed class KeyedTenantPartitionShould
             "concrete untenanted sentinel term");
     }
 
-    // A null ambient context (multi-tenancy not registered) yields the sentinel term, never an empty
-    // predicate. RED against a mutant that maps a null context -> a null/empty-term partition.
+    // A missing ambient context is NOT a tenant fact, and this conversion no longer pretends otherwise.
+    // The compiler is the real enforcement -- a caller holding an ITenantContext? cannot reach this method
+    // at all -- but a nullable-oblivious caller can still hand it null at run time, and it must fail closed
+    // rather than invent the untenanted partition. RED against a mutant that restores the null fold.
     [Fact]
-    public void Derive_The_Untenanted_Sentinel_Term_From_A_Null_Context()
+    public void Reject_A_Null_Context_RatherThanInventingTheUntenantedPartition()
     {
-        var partition = KeyedTenantPartition.FromContext(tenantContext: null);
-
-        partition.ShouldBe(KeyedTenantPartition.Untenanted);
-        partition.TenantId.ShouldBe(UntenantedSentinel);
+        _ = Should.Throw<ArgumentNullException>(() => KeyedTenantPartition.FromContext(null!));
     }
 
     // ---- LIVENESS: a real tenant's term is preserved -------------------------------------------
@@ -206,14 +224,28 @@ public sealed class KeyedTenantPartitionShould
         _ = Should.Throw<TenantRequiredException>(() => KeyedTenantPartition.FromContext(context));
     }
 
-    // LIVENESS for the ambient path -- failing closed must not become failing at everything. A NULL
-    // CONTEXT is not an unresolved tenant: it is no multi-tenancy at all, and converts.
+    // The structural half of the rule above, and the one that actually prevents the defect: there is no
+    // null-accepting conversion on the public surface, so a store holding an optional context fails to
+    // COMPILE instead of silently receiving a well-formed untenanted partition. This test pins the shape;
+    // the compiler enforces it. RED against re-adding an ITenantContext? overload, and RED against merely
+    // relaxing the annotation on the surviving one.
     [Fact]
-    public void ConvertANullContextToUntenanted_WithoutThrowing()
+    public void Expose_No_NullAccepting_FromContext_Conversion()
     {
-        var partition = Should.NotThrow(() => KeyedTenantPartition.FromContext(tenantContext: null));
+        var overloads = typeof(KeyedTenantPartition)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => string.Equals(m.Name, nameof(KeyedTenantPartition.FromContext), StringComparison.Ordinal))
+            .ToList();
 
-        partition.ShouldBe(KeyedTenantPartition.Untenanted);
+        overloads.Count.ShouldBe(
+            1,
+            "a second, null-accepting conversion is exactly what let a store whose context was never wired " +
+            "report a well-formed untenanted partition");
+
+        var parameter = overloads[0].GetParameters().Single();
+        new NullabilityInfoContext().Create(parameter).WriteState.ShouldBe(
+            NullabilityState.NotNull,
+            "the compiler is the enforcement: a caller that hands this a possibly-null context must not build");
     }
 
     // LIVENESS -- the SENTINEL-bearing context converts rather than being rejected as a reserved
@@ -254,7 +286,7 @@ public sealed class KeyedTenantPartitionShould
     [Fact]
     public void ConvertBothUntenantedScopeInhabitantsToTheSameSentinelTerm_WithoutThrowing()
     {
-        var fromNone = Should.NotThrow(() => KeyedTenantPartition.FromScope(TenantScope.None));
+        var fromNone = Should.NotThrow(() => KeyedTenantPartition.FromScope(TenantScope.Untenanted));
         var fromUntenanted = Should.NotThrow(() => KeyedTenantPartition.FromScope(TenantScope.Untenanted));
 
         fromNone.ShouldBe(KeyedTenantPartition.Untenanted);

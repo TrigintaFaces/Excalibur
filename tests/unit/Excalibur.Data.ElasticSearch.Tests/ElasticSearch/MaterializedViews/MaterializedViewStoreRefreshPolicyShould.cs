@@ -8,6 +8,8 @@ using Excalibur.Data.OpenSearch.MaterializedViews;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Data.Tests.ElasticSearch.MaterializedViews;
 
 /// <summary>
@@ -24,7 +26,7 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 	private static Refresh InvokeElasticGetRefresh(string refreshPolicy)
 	{
 		var options = Options.Create(new ElasticSearchMaterializedViewStoreOptions { RefreshPolicy = refreshPolicy });
-		var store = new ElasticSearchMaterializedViewStore(options, NullLogger<ElasticSearchMaterializedViewStore>.Instance);
+		var store = new ElasticSearchMaterializedViewStore(options, NullLogger<ElasticSearchMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
 		var method = typeof(ElasticSearchMaterializedViewStore)
 			.GetMethod("GetRefresh", BindingFlags.Instance | BindingFlags.NonPublic)
 			?? throw new MissingMethodException("ElasticSearchMaterializedViewStore.GetRefresh not found.");
@@ -34,7 +36,7 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 	private static global::OpenSearch.Net.Refresh InvokeOpenSearchGetRefresh(string refreshPolicy)
 	{
 		var options = Options.Create(new OpenSearchMaterializedViewStoreOptions { RefreshPolicy = refreshPolicy });
-		var store = new OpenSearchMaterializedViewStore(options, NullLogger<OpenSearchMaterializedViewStore>.Instance);
+		var store = new OpenSearchMaterializedViewStore(options, NullLogger<OpenSearchMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
 		var method = typeof(OpenSearchMaterializedViewStore)
 			.GetMethod("GetRefresh", BindingFlags.Instance | BindingFlags.NonPublic)
 			?? throw new MissingMethodException("OpenSearchMaterializedViewStore.GetRefresh not found.");
@@ -134,4 +136,19 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 
 		InvokeOpenSearchGetRefresh(policy).ShouldBe(expected);
 	}
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

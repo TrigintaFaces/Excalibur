@@ -41,3 +41,17 @@ services.AddExcalibur(x => x.AddLeaderElection(builder =>
     });
 }));
 ```
+
+## Schema
+
+Advisory-lock leader election needs **no table** — the lock lives in the PostgreSQL lock manager.
+
+The health-based variant records candidate health in a table, which it creates automatically on
+first use. For a deployment that provisions schema separately, or runs without table-creation
+rights, the canonical DDL ships in the package as
+`scripts/001_CreateLeaderElectionHealthSchema.sql`. It is derived from the statement the store
+issues at runtime, so a database provisioned either way has the same shape. Defaults: schema
+`public`, table `leader_election_health` (both configurable via
+`PostgresHealthBasedLeaderElectionOptions`).
+
+The script only ever creates the table if it is missing; it does not alter an existing one.

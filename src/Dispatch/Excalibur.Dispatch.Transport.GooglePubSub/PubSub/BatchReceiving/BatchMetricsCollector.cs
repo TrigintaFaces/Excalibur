@@ -53,61 +53,61 @@ internal sealed class BatchMetricsCollector : IDisposable
 
 		_messagesReceived = _meter.CreateCounter<long>(
 			"pubsub.batch.messages.received",
-			"messages",
+			"{messages}",
 			"Total number of messages received in batches");
 
 		_bytesReceived = _meter.CreateCounter<long>(
 			"pubsub.batch.bytes.received",
-			"bytes",
+			"By",
 			"Total bytes received in batches");
 
 		_batchesReceived = _meter.CreateCounter<long>(
 			"pubsub.batch.count",
-			"batches",
+			"{batches}",
 			"Total number of batches received");
 
 		_messagesAcknowledged = _meter.CreateCounter<long>(
 			"pubsub.batch.messages.acknowledged",
-			"messages",
+			"{messages}",
 			"Total messages acknowledged");
 
 		_batchReceiveDuration = _meter.CreateHistogram<double>(
 			"pubsub.batch.receive.duration",
-			"milliseconds",
+			"ms",
 			"Duration of batch receive operations");
 
 		_batchAckDuration = _meter.CreateHistogram<double>(
 			"pubsub.batch.ack.duration",
-			"milliseconds",
+			"ms",
 			"Duration of batch acknowledgment operations");
 
 		_batchSize = _meter.CreateHistogram<long>(
 			"pubsub.batch.size",
-			"messages",
+			"{messages}",
 			"Size of received batches");
 
 		_activeBatchProcessors = _meter.CreateUpDownCounter<int>(
 			"pubsub.batch.processors.active",
-			"processors",
+			"{processors}",
 			"Number of active batch processors");
 
 		// Create observable gauges for totals
 		_ = _meter.CreateObservableGauge(
 			"pubsub.batch.messages.total",
 			() => _totalMessagesReceived,
-			"messages",
+			"{messages}",
 			"Total messages received since startup");
 
 		_ = _meter.CreateObservableGauge(
 			"pubsub.batch.bytes.total",
 			() => _totalBytesReceived,
-			"bytes",
+			"By",
 			"Total bytes received since startup");
 
 		_ = _meter.CreateObservableGauge(
 			"pubsub.batch.count.total",
 			() => _totalBatchesReceived,
-			"batches",
+			"{batches}",
 			"Total batches received since startup");
 	}
 

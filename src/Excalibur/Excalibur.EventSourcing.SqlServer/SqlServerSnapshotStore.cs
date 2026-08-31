@@ -19,7 +19,8 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// <remarks>
 /// <para>
 /// Provides atomic snapshot operations with upsert (insert-or-update) semantics.
-/// Uses MERGE statement for thread-safe concurrent snapshot saves.
+/// Saves are a guarded UPDATE-then-INSERT, which keeps concurrent saves for different aggregates on row
+/// locks rather than key-range locks.
 /// Stores only the latest snapshot per aggregate (no snapshot history).
 /// </para>
 /// <para>
@@ -39,20 +40,29 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	private readonly ILogger<SqlServerSnapshotStore> _logger;
 	private readonly string _schema;
 	private readonly string _table;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerSnapshotStore"/> class.
 	/// </summary>
 	/// <param name="connectionString">The SQL Server connection string.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The ambient tenant context. Required: this store resolves the tenant partition it reads and writes from here.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerSnapshotStore(Func{SqlConnection}, ILogger{SqlServerSnapshotStore}, string, string, ITenantContext)"/>
+	/// Use <see cref="SqlServerSnapshotStore(Func{SqlConnection}, ILogger{SqlServerSnapshotStore}, ITenantContext, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
-	public SqlServerSnapshotStore(string connectionString, ILogger<SqlServerSnapshotStore> logger)
-		: this(CreateConnectionFactory(connectionString), logger)
+	public SqlServerSnapshotStore(string connectionString, ILogger<SqlServerSnapshotStore> logger, ITenantContext tenantContext)
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext: tenantContext)
 	{
 	}
 
@@ -67,10 +77,9 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	/// <param name="schema">The schema name for the snapshot store table. Default: "dbo".</param>
 	/// <param name="table">The snapshot store table name. Default: "EventStoreSnapshots".</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, every
-	/// read, save, and delete is restricted to the resolved tenant's own rows, and the tenant participates
-	/// in the snapshot's stored identity. This mirrors <see cref="SqlServerEventStore"/> in this package,
-	/// which already scopes its statements the same way.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// <para>
@@ -85,14 +94,15 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	public SqlServerSnapshotStore(
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerSnapshotStore> logger,
+		ITenantContext tenantContext,
 		string schema = "dbo",
-		string table = "EventStoreSnapshots",
-		ITenantContext? tenantContext = null)
+		string table = "EventStoreSnapshots")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_schema = schema;
 		_table = table;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -111,7 +121,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var snapshot = await connection.ResolveAsync(
-					new GetLatestSnapshotRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new GetLatestSnapshotRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (snapshot == null)
@@ -151,7 +161,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new SaveSnapshotRequest(snapshot, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new SaveSnapshotRequest(snapshot, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Saved snapshot for {AggregateType}/{AggregateId} at version {Version}",
@@ -188,7 +198,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new DeleteSnapshotsRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots for {AggregateType}/{AggregateId}",
@@ -226,7 +236,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots older than version {Version} for {AggregateType}/{AggregateId}",

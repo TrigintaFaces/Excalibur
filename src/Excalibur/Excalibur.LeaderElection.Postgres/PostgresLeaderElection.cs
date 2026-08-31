@@ -40,7 +40,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private readonly LeaderElectionOptions _electionOptions;
 	private readonly ILogger<PostgresLeaderElection> _logger;
 	private readonly string _connectionString;
-	// y6tatp/ADR-339: optional fencing-token provider. When supplied, a monotonic fencing token is minted
+	// optional fencing-token provider. When supplied, a monotonic fencing token is minted
 	// (atomically, store-side via a Postgres SEQUENCE) BEFORE leadership is declared at each acquisition, so a
 	// stale leader's token falls below the high-water mark and its protected operations are rejected by
 	// FencingTokenMiddleware. Null when the consumer did not enable fencing (opt-in, backward compatible).
@@ -49,7 +49,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	// "resource" used in the leadership events/logs).
 	private readonly string _fencingResourceId;
 
-	// y6tatp: bounded retry budget for minting the fencing token on acquisition before relinquishing
+	// bounded retry budget for minting the fencing token on acquisition before relinquishing
 	// (fail-closed). Small + fixed: the renewal loop supplies the outer retry cadence; this just rides out a
 	// transient store blip without instantly surrendering a freshly-acquired lock. Mirrors the Redis reference.
 	private const int FencingTokenMintMaxAttempts = 3;
@@ -63,11 +63,11 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private volatile bool _disposed;
-	// Stored as a monotonic TimeProvider timestamp (3g58kl) accessed via Interlocked: the renewal task
+	// Stored as a monotonic TimeProvider timestamp accessed via Interlocked: the renewal task
 	// reads/writes this lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset
 	// would tear. Elapsed-time computations must use TimeProvider.GetElapsedTime, never a wall-clock delta.
 	private long _lastSuccessfulRenewalTicks;
-	// 3g58kl: the fencing token minted for the current leadership tenure (0 when no provider is
+	// the fencing token minted for the current leadership tenure (0 when no provider is
 	// configured) and the instant that tenure began, read together under _lock via CurrentLeadership.
 	private long _currentFencingToken;
 	private DateTimeOffset _leadershipAcquiredAt;
@@ -326,10 +326,10 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 			if (result is true)
 			{
-				// y6tatp/ADR-339 (fail-CLOSED fencing): when a provider is configured, advance the fence BEFORE
+				// (fail-CLOSED fencing): when a provider is configured, advance the fence BEFORE
 				// declaring leadership; on bounded-retry exhaustion RELINQUISH (release the advisory lock, do NOT
 				// become leader). BecomeLeader (and its events) is structurally unreachable unless the mint
-				// succeeded — mirrors the Redis reference (RedisLeaderElection, bd-762uzn).
+				// succeeded — mirrors the Redis reference.
 				if (_fencingTokenProvider is not null)
 				{
 					long token;
@@ -433,18 +433,18 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 				}
 				else
 				{
-					// fro108 (RATIFIED DECISION — grace-only, no rqntzf 3-state acceleration): Postgres
+					// (RATIFIED DECISION — grace-only, no 3-state acceleration): Postgres
 					// deliberately does NOT adopt the Redis/SqlServer DefinitivelyLost accelerate-on-loss seam.
 					// Under the hardened Npgsql lock connection (pooling + transparent resiliency disabled, see
 					// BuildLockConnectionString) the "alive-but-not-owning" state is structurally inexpressible
-					// (bd-zg4zga): a live connection ALWAYS still owns the advisory lock, and a lost backend can
+					// a live connection ALWAYS still owns the advisory lock, and a lost backend can
 					// only surface as State!=Open. So VerifyLockAsync==false is never a definitive loss observed on
 					// a still-queryable session — it is Indeterminate (broken connection / probe threw). There is
 					// therefore NO definitive-loss-while-queryable signal to accelerate on; a 3-state would make the
 					// DefinitivelyLost branch unreachable (a phantom signal). Accelerating on the ambiguous false
 					// would be the very false-relinquish we avoid, so GracePeriod remains the hard — and correct —
-					// split-brain upper bound. (SA-confirmed S854; the paused/stalled-leader split-brain is the
-					// orthogonal concern covered by fencing tokens, umemwa/ptm2bb.)
+					// split-brain upper bound. (SA-confirmed; the paused/stalled-leader split-brain is the
+					// orthogonal concern covered by fencing tokens, /.)
 					var stillLeader = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
 					if (!stillLeader)
 					{

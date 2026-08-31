@@ -75,7 +75,7 @@ public sealed class DynamoDbInboxStoreConformanceShould : InboxStoreConformanceT
 
 		// Injected-client ctor preserves the supplied client; InitializeAsync runs CreateTableIfNotExists,
 		// so the store creates its own table on the real consumer path (no fixture pre-create).
-		var store = new DynamoDbInboxStore(_fixture.Client, options, NullLogger<DynamoDbInboxStore>.Instance);
+		var store = new DynamoDbInboxStore(_fixture.Client, options, NullLogger<DynamoDbInboxStore>.Instance, SingleTenantTestContext.Instance);
 		await store.InitializeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		return store;

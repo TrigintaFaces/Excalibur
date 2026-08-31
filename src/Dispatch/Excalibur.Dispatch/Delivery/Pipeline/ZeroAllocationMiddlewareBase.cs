@@ -22,22 +22,12 @@ internal abstract class ZeroAllocationMiddlewareBase : IZeroAllocationMiddleware
 	DispatchMiddlewareStage? IDispatchMiddleware.Stage => Stage;
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public abstract ValueTask<(MiddlewareResult Result, MiddlewareContext Context)> ProcessAsync(
 			MessageEnvelope<IDispatchMessage> envelope,
 			MiddlewareContext context,
 	CancellationToken cancellationToken);
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-			"Trimming",
-			"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "Zero-allocation middleware uses reflection-based helpers; trimming-safe usage requires explicit type preservation.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Zero-allocation middleware may require dynamic code; AOT users should disable these components.")]
 	async ValueTask<IMessageResult> IDispatchMiddleware.InvokeAsync(
 			IDispatchMessage message,
 			IMessageContext context,

@@ -94,6 +94,22 @@ public sealed class AuditStoreTenantArmsBindShould
 		protected override IAuditStore CreateStore() => store;
 
 		public Task RunGetByIdTenantArmAsync() => GetByIdAsync_ForAnotherTenantsEvent_ShouldNotReturnIt();
+
+		// This probe drives exactly one arm, named above. The tamper hooks are unreachable from it, and are
+		// implemented as refusals rather than no-ops so that wiring a tamper arm to this probe fails loudly
+		// instead of passing against a fixture that cannot be tampered with.
+		protected override Task DeleteRecordOutOfBandAsync(
+			IAuditStore store,
+			string eventId,
+			CancellationToken cancellationToken) =>
+			throw new NotSupportedException("This probe runs only the by-id tenant arm.");
+
+		protected override Task RewriteRecordActionOutOfBandAsync(
+			IAuditStore store,
+			string eventId,
+			string newAction,
+			CancellationToken cancellationToken) =>
+			throw new NotSupportedException("This probe runs only the by-id tenant arm.");
 	}
 
 	/// <summary>
@@ -179,7 +195,13 @@ public sealed class AuditStoreTenantArmsBindShould
 			var verified = _eventsById.Values
 				.Count(e => string.Equals(PartitionOf(e), AmbientPartition, StringComparison.Ordinal));
 
-			return Task.FromResult(AuditIntegrityResult.Valid(verified, startDate, endDate));
+			// An empty partition establishes nothing about chain integrity and must not be reported as a
+			// verified one -- the same distinction the real stores are held to. AuditIntegrityResult.Verified
+			// rejects a zero count outright, so even this fake cannot express the claim.
+			return Task.FromResult(
+				verified == 0
+					? AuditIntegrityResult.NoEventsInScope(startDate, endDate)
+					: AuditIntegrityResult.Verified(verified, startDate, endDate, isHashChained: true));
 		}
 
 		public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)

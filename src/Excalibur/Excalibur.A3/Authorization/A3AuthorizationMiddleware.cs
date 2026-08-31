@@ -7,6 +7,7 @@ using Excalibur.Dispatch;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 using MR = Excalibur.Dispatch.MessageResult;
 
@@ -16,12 +17,17 @@ namespace Excalibur.A3.Authorization;
 /// Dispatch middleware that handles authorization for messages that implement <see cref="IRequireAuthorization" />
 /// or are decorated with <see cref="RequirePermissionAttribute"/>.
 /// </summary>
-/// <param name="accessToken"> The access token containing user authentication and authorization information. </param>
 /// <param name="authorization"> The authorization service to validate permissions. </param>
 /// <param name="attributeCache"> The cache for RequirePermission attribute lookups. </param>
 /// <param name="conditionEvaluator"> The evaluator for When condition expressions. </param>
+/// <remarks>
+/// The caller's <see cref="IAccessToken"/> is resolved from the message's own request scope on every
+/// invocation and never held in a field. A middleware instance is built once, from the root provider,
+/// and lives for the process: a token captured in a constructor would be one caller's identity and
+/// grant set, answering every later message in the process as that first caller. Its registered
+/// service lifetime cannot change this, because the instance is materialised once regardless.
+/// </remarks>
 internal sealed class A3AuthorizationMiddleware(
-	IAccessToken accessToken,
 	IDispatchAuthorizationService authorization,
 	AttributeAuthorizationCache attributeCache,
 	ConditionExpressionEvaluator conditionEvaluator)
@@ -45,8 +51,14 @@ internal sealed class A3AuthorizationMiddleware(
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Authorization middleware may access types that could be trimmed.")]
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 		Justification = "Authorization middleware requires coordination of multiple authorization types by design.")]
-	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
-	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "This implementation reflects; IDispatchMiddleware does not declare that, because a consumer-authored "
+		+ "middleware need not reflect and must not inherit the claim. This type is internal, so the requirement cannot reach a "
+		+ "consumer through it; it is declared on AddExcaliburAuthorization, which is where a consumer opts in.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "This implementation requires runtime code generation; IDispatchMiddleware does not declare that, because "
+		+ "a consumer-authored middleware need not. This type is internal, so the requirement is declared on "
+		+ "AddExcaliburAuthorization, which is where a consumer opts in.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -66,6 +78,20 @@ internal sealed class A3AuthorizationMiddleware(
 		if (!hasInterface && !hasAttributes)
 		{
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
+		// The caller's identity comes from the scope this message is being processed in, never from a
+		// field. A provider returned by BuildServiceProvider() is not an IServiceScope while a real
+		// scope's provider is, so this accepts the request scope an integration supplies (for example
+		// the ASP.NET Core request scope) and rejects the root provider. Resolving a scoped token from
+		// the root would cache one caller's grants for the lifetime of the container, which is the same
+		// cross-request identity leak in a different place.
+		var accessToken = (context.RequestServices as IServiceScope)?.ServiceProvider.GetService<IAccessToken>();
+		if (accessToken is null)
+		{
+			return CreateDeniedResult(
+				"No access token is available for this message. Authorization requires a request scope "
+				+ "carrying the caller's identity.");
 		}
 
 		var principal = BuildPrincipal(accessToken);
@@ -127,7 +153,7 @@ internal sealed class A3AuthorizationMiddleware(
 		// Evaluate When conditions on attribute-based permissions (after grants pass)
 		if (result.IsAuthorized && hasAttributes)
 		{
-			var conditionDenied = EvaluateConditions(attributes, message);
+			var conditionDenied = EvaluateConditions(attributes, message, accessToken);
 			if (conditionDenied is not null)
 			{
 				return conditionDenied;
@@ -158,7 +184,8 @@ internal sealed class A3AuthorizationMiddleware(
 		"Condition evaluation may access properties via reflection.")]
 	private IMessageResult? EvaluateConditions(
 		RequirePermissionAttribute[] attributes,
-		IDispatchMessage message)
+		IDispatchMessage message,
+		IAccessToken accessToken)
 	{
 		// Build subject attributes once (same for all permissions on this message)
 		Dictionary<string, string>? subjectAttrs = null;
@@ -179,7 +206,7 @@ internal sealed class A3AuthorizationMiddleware(
 			}
 
 			// Build subject attributes lazily, once for all When conditions
-			subjectAttrs ??= BuildSubjectAttributes();
+			subjectAttrs ??= BuildSubjectAttributes(accessToken);
 			var actionAttrs = BuildActionAttributes(attr);
 			var resourceAttrs = BuildResourceAttributes(message, attr);
 
@@ -192,7 +219,7 @@ internal sealed class A3AuthorizationMiddleware(
 		return null;
 	}
 
-	private Dictionary<string, string> BuildSubjectAttributes()
+	private static Dictionary<string, string> BuildSubjectAttributes(IAccessToken accessToken)
 	{
 		var attrs = new Dictionary<string, string>(StringComparer.Ordinal);
 

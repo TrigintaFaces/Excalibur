@@ -76,6 +76,37 @@ services.AddSqlServerErasureStore(options =>
 });
 ```
 
+:::info The compliance stores require a tenant context — the registrations supply it
+
+`SqlServerErasureStore`, `SqlServerLegalHoldStore` and their PostgreSQL counterparts take `ITenantContext`
+as a **required** constructor parameter. It used to be optional and default to `null`, and a store built
+without one partitioned by whatever an absent context resolved to — not a decision a compliance store should
+make silently. The in-memory erasure and legal-hold stores changed the same way, but they are internal types
+reachable only through `AddInMemoryErasureStore()` / `AddInMemoryLegalHoldStore()`, so nothing is different
+from where you sit.
+
+**If you register through the extensions shown on this page, nothing changes for you.** Each
+`Add*ErasureStore` / `Add*LegalHoldStore` extension registers a fail-closed single-tenant `ITenantContext`
+default on your behalf, so the store resolves one whether or not your host calls
+[`AddMultiTenancy`](../multi-tenancy.md). You only need to act if you **construct one of these stores
+directly** — pass an `ITenantContext`, or the constructor throws `ArgumentNullException`.
+
+Registering a tenant context does not by itself make a deployment multi-tenant: the store reads the
+deployment mode from `TenantContextOptions.RequireTenant`, which `AddMultiTenancy(...)` sets. A single-tenant
+host resolves the reserved `__untenanted__` partition, exactly as before.
+:::
+
+:::note The in-memory stores now store the untenanted sentinel, matching the SQL providers
+
+The SQL stores fold an absent tenant to the reserved `__untenanted__` sentinel before storing it. The
+in-memory stores assigned the raw value, so a `null` reached storage and the same input produced a different
+stored term depending on which provider you used. Both now fold identically, and the in-memory legal-hold
+read no longer carries a second spelling of *absent*.
+
+If you asserted on an in-memory store returning a `null` tenant — in a test, most likely — it returns
+`__untenanted__` instead. See [Untenanted is a value, not an absence](../multi-tenancy.md#2-untenanted-is-a-value-not-an-absence).
+:::
+
 ### Submit Erasure Request
 
 ```csharp
@@ -314,6 +345,37 @@ Article 17(3) exceptions prevent erasure for:
 - Regulatory investigations
 - Legal obligations
 
+### Register a Legal Hold Store
+
+Holds are persisted through `ILegalHoldStore`, which is a separate registration from the erasure store —
+registering the erasure store alone gives you no hold storage.
+
+```csharp
+// SQL Server — package: Excalibur.Compliance.SqlServer
+services.AddSqlServerLegalHoldStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    // options.SchemaName = "compliance";     // default
+    // options.TableName = "LegalHolds";      // default
+    // options.AutoCreateSchema = true;       // opt in to have the store create its own table
+});
+
+// PostgreSQL — package: Excalibur.Compliance.Postgres
+services.AddPostgresLegalHoldStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    // options.SchemaName = "compliance";     // default
+    // options.TableName = "LegalHolds";      // default
+    // options.AutoCreateSchema = true;       // opt in to have the store create its own table
+});
+```
+
+Both providers also expose an `…FromConfiguration` overload that binds the options from a configuration
+section instead of a lambda.
+
+`AutoCreateSchema` behaves here exactly as it does for the erasure store — see
+[Database Schema](#database-schema).
+
 ### Check for Holds
 
 ```csharp
@@ -335,7 +397,7 @@ public class LegalHoldAwareErasure
 
         if (checkResult.HasActiveHolds)
         {
-            throw new ErasureException(
+            throw new ErasureOperationException(
                 $"Cannot erase: {checkResult.ActiveHolds.Count} active legal hold(s)");
         }
 
@@ -401,12 +463,50 @@ Track where personal data is stored. Register the data inventory service via DI:
 ```csharp
 // Register data inventory services
 services.AddDataInventoryService();
-services.AddInMemoryDataInventoryStore(); // or SQL Server store for production
+
+// Development / tests
+services.AddInMemoryDataInventoryStore();
+
+// SQL Server — package: Excalibur.Compliance.SqlServer
+services.AddSqlServerDataInventoryStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    // options.SchemaName = "compliance";                             // default
+    // options.RegistrationsTableName = "DataInventoryRegistrations"; // default
+    // options.DiscoveredLocationsTableName = "DiscoveredDataLocations";
+    // options.AutoCreateSchema = true;   // opt in to have the store create its own tables
+});
+
+// PostgreSQL — package: Excalibur.Compliance.Postgres
+services.AddPostgresDataInventoryStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    // options.SchemaName = "compliance";                             // default
+    // options.RegistrationsTableName = "DataInventoryRegistrations"; // default
+    // options.DiscoveredLocationsTableName = "DiscoveredDataLocations";
+    // options.AutoCreateSchema = true;   // opt in to have the store create its own tables
+});
 ```
+
+The data inventory store keeps two tables rather than one — the registrations you declare and the
+locations discovery finds — so it has a table-name option for each.
 
 :::note
 
 The `IDataInventoryService` provides registration and discovery of personal data locations across your system, enabling comprehensive erasure and Records of Processing Activities (RoPA) documentation.
+:::
+
+:::caution Known gap: no tenant-capable data inventory provider yet
+`IDataInventoryStore` is a tenant-owned contract, so if your host also calls
+[`AddMultiTenancy`](../multi-tenancy.md#first-class-persistence-isolation-addmultitenancy) with the
+`RowDiscriminator` strategy, registration fails fast at startup — no provider shipped with the framework
+currently attests a tenant capability for this store, including the in-memory store shown above. This is
+a startup refusal, not a silent leak: you will see it immediately in a local run, not in production.
+
+Until a capable provider ships, either register your data inventory store in a container that does not
+also call `AddMultiTenancy(RowDiscriminator)`, or select a different tenant-isolation strategy. See
+[First-class persistence isolation: `AddMultiTenancy`](../multi-tenancy.md#first-class-persistence-isolation-addmultitenancy)
+for the full list of stores in the same position.
 :::
 
 ## Verification
@@ -602,10 +702,15 @@ public interface IEventStoreErasure
 }
 ```
 
-Event store providers that support GDPR erasure implement this interface. Use `GetService(typeof(IEventStoreErasure))` to probe for erasure capability at runtime:
+Event store providers that support GDPR erasure implement this interface. Ask the store for the
+capability with `GetService(typeof(IEventStoreErasure))` — do **not** test its type. A store is
+commonly reached through a decorator, whose own interface list is fixed when it is compiled while the
+capabilities of the store it wraps are known only at run time, so `is IEventStoreErasure` reports the
+decorator rather than the chain beneath it. A decorator answers this probe on behalf of the store it
+wraps, and one that cannot honour erasure over its inner store answers `null` rather than claiming it:
 
 ```csharp
-if (eventStore is IEventStoreErasure erasure)
+if (eventStore.GetService(typeof(IEventStoreErasure)) is IEventStoreErasure erasure)
 {
     var count = await erasure.EraseEventsAsync(
         aggregateId: "user-12345",

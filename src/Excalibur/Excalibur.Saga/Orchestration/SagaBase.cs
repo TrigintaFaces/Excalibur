@@ -65,7 +65,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <value>The current <see cref="Logger"/> value.</value>
 	protected ILogger Logger { get; } = logger;
 
-	// Save-then-dispatch buffer (lc178k): commands/events emitted during HandleAsync are queued here with
+	// Save-then-dispatch buffer: commands/events emitted during HandleAsync are queued here with
 	// their saga-correlated context and dispatched by the coordinator ONLY after SaveAsync succeeds, in emit
 	// (FIFO) order. The saga instance is created fresh per event, so this list is naturally scoped to a single
 	// event and single-threaded -- no synchronization needed.
@@ -97,12 +97,12 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>A unique timeout identifier that can be used to cancel the timeout.</returns>
 	/// <exception cref="InvalidOperationException">Thrown when no timeout store has been configured.</exception>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization may require runtime code generation")]
 	protected Task<string> RequestTimeoutAsync<TTimeout>(TimeSpan delay, CancellationToken cancellationToken)
 		where TTimeout : class, new()
 	{
-		return RequestTimeoutAsync<TTimeout>(delay, null, cancellationToken);
+		// No payload, so no serializer runs on this path: schedule directly rather than through the
+		// data-carrying overload, whose trim/AOT requirement comes solely from serializing the payload.
+		return ScheduleTimeoutAsync<TTimeout>(delay, null, cancellationToken);
 	}
 
 	/// <summary>
@@ -116,9 +116,25 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <exception cref="InvalidOperationException">Thrown when no timeout store has been configured.</exception>
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization may require runtime code generation")]
-	protected async Task<string> RequestTimeoutAsync<TTimeout>(
+	protected Task<string> RequestTimeoutAsync<TTimeout>(
 		TimeSpan delay,
 		TTimeout? timeoutData,
+		CancellationToken cancellationToken)
+		where TTimeout : class
+	{
+		return ScheduleTimeoutAsync<TTimeout>(
+			delay,
+			timeoutData is not null ? SerializeTimeoutData(timeoutData) : null,
+			cancellationToken);
+	}
+
+	/// <summary>
+	/// Schedules a timeout whose payload has already been serialized. Carries no trim or AOT
+	/// requirement: the type name is captured statically and nothing here reflects over it.
+	/// </summary>
+	private async Task<string> ScheduleTimeoutAsync<TTimeout>(
+		TimeSpan delay,
+		byte[]? serializedTimeoutData,
 		CancellationToken cancellationToken)
 		where TTimeout : class
 	{
@@ -136,7 +152,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 			SagaId: Id.ToString(),
 			SagaType: GetType().AssemblyQualifiedName!,
 			TimeoutType: typeof(TTimeout).AssemblyQualifiedName!,
-			TimeoutData: timeoutData is not null ? SerializeTimeoutData(timeoutData) : null,
+			TimeoutData: serializedTimeoutData,
 			DueAt: now.Add(delay),
 			ScheduledAt: now);
 
@@ -250,7 +266,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 		CancellationToken cancellationToken)
 		where TCommand : IDispatchMessage
 	{
-		// Save-then-dispatch (lc178k): buffer the command with its saga-correlated context captured NOW
+		// Save-then-dispatch: buffer the command with its saga-correlated context captured NOW
 		// (correlation reflects the handling moment). The SagaCoordinator flushes the buffer only AFTER the
 		// saga state is persisted, so a SaveAsync failure dispatches nothing and a replay re-buffers without
 		// double-dispatching. Dispatch is unreachable from saga code -> "dispatch-before-save" is inexpressible.
@@ -284,7 +300,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 		CancellationToken cancellationToken)
 		where TEvent : IDispatchMessage
 	{
-		// Save-then-dispatch (lc178k): see SendCommandAsync. Events share the same per-event FIFO buffer and
+		// Save-then-dispatch: see SendCommandAsync. Events share the same per-event FIFO buffer and
 		// are dispatched by the coordinator only after the saga state is persisted.
 		_pendingDispatches.Add((@event, CreateSagaCorrelatedContext()));
 		return Task.CompletedTask;
@@ -349,7 +365,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 			context = new MessageContext();
 		}
 
-		// Add saga correlation metadata using well-known keys (AD-218-7)
+		// Add saga correlation metadata using well-known keys
 		context.SetItem("saga.id", Id.ToString());
 		context.SetItem("saga.type", GetType().Name);
 

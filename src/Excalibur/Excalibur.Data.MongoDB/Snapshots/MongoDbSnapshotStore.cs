@@ -41,7 +41,15 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 {
 	private readonly MongoDbSnapshotStoreOptions _options;
 	private readonly ILogger<MongoDbSnapshotStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
@@ -63,16 +71,18 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 	/// <param name="options">The snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
-	/// tenant becomes part of every snapshot document identifier.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public MongoDbSnapshotStore(
 		IOptions<MongoDbSnapshotStoreOptions> options,
 		ILogger<MongoDbSnapshotStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 
 		_options = options.Value;
@@ -88,15 +98,17 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 	/// <param name="options">The snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
-	/// tenant becomes part of every snapshot document identifier.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public MongoDbSnapshotStore(
 		IMongoClient client,
 		IOptions<MongoDbSnapshotStoreOptions> options,
 		ILogger<MongoDbSnapshotStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -123,7 +135,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext).TenantId);
+		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, CurrentTenantScope.TenantId);
 		var filter = Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId);
 
 		try
@@ -170,7 +182,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = MongoDbSnapshotDocument.FromSnapshot(snapshot, TenantScope.FromContext(_tenantContext).TenantId);
+		var document = MongoDbSnapshotDocument.FromSnapshot(snapshot, CurrentTenantScope.TenantId);
 
 		// Version guard in filter: only replace if current version is less than new version
 		// This prevents older snapshots from overwriting newer ones
@@ -263,7 +275,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext).TenantId);
+		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, CurrentTenantScope.TenantId);
 		var filter = Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId);
 
 		try
@@ -302,7 +314,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext).TenantId);
+		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, CurrentTenantScope.TenantId);
 		var filter = Builders<MongoDbSnapshotDocument>.Filter.And(
 			Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId),
 			Builders<MongoDbSnapshotDocument>.Filter.Lt(d => d.Version, olderThanVersion));

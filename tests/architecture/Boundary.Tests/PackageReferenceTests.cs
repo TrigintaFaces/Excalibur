@@ -254,6 +254,48 @@ public sealed class PackageReferenceTests
         return string.Empty;
     }
 
+    /// <summary>
+    /// Excalibur.Outbox.MongoDB MUST declare a PackageReference for MongoDB.Driver.
+    ///
+    /// Its public API names MongoDB.Driver.IMongoClient -- IMongoDBOutboxBuilder.Client,
+    /// IMongoDBOutboxBuilder.ClientFactory and the MongoDbOutboxStore constructor -- so the driver
+    /// is part of this package's own contract, not an implementation detail of a package it
+    /// references. Relying on the driver arriving transitively through Excalibur.Data.MongoDB makes
+    /// the package's dependency statement false and breaks the day that package marks the driver
+    /// PrivateAssets or the two pins diverge.
+    /// </summary>
+    [Fact]
+    public void OutboxMongoDbCsproj_MustReference_MongoDbDriver()
+    {
+        var projectPath = FindCsproj("Excalibur.Outbox.MongoDB");
+
+        // Fail closed: HasPackageReference returns false for a missing file, so without this the
+        // assertion below could not tell "not declared" from "test looked in the wrong place".
+        File.Exists(projectPath).ShouldBeTrue(
+            $"Excalibur.Outbox.MongoDB.csproj not found at '{projectPath}'.");
+
+        // Liveness arm: the same reader must find a reference that IS declared, otherwise a broken
+        // HasPackageReference would report every package as undeclared.
+        HasPackageReference(projectPath, "MongoDB.Driver").ShouldBeTrue(
+            "Excalibur.Outbox.MongoDB.csproj must declare a PackageReference for MongoDB.Driver: " +
+            "its public API names MongoDB.Driver.IMongoClient.");
+
+        HasPackageReference(projectPath, "Definitely.Not.Referenced").ShouldBeFalse(
+            "Control: the csproj reader must not report an undeclared package as present.");
+    }
+
+    private static string FindCsproj(string projectName)
+    {
+        var currentDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (currentDir != null)
+        {
+            if (File.Exists(Path.Combine(currentDir.FullName, "Excalibur.sln")))
+                return Path.Combine(currentDir.FullName, "src", "Excalibur", projectName, projectName + ".csproj");
+            currentDir = currentDir.Parent;
+        }
+        return string.Empty;
+    }
+
     private static bool HasPackageReference(string csprojPath, string packageName)
     {
         if (!File.Exists(csprojPath)) return false;

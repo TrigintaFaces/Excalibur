@@ -35,7 +35,7 @@ public static class PostgresCdcExtensions
 	/// <code>
 	/// services.AddPostgresCdc(options =>
 	/// {
-	///     options.ConnectionString = "Host=localhost;Database=mydb;Username=repl;Password=secret";
+	///     options.ConnectionString = "Host=localhost;Database=mydb;Username=repl;Password=&lt;your-password&gt;";
 	///     options.PublicationName = "my_publication";
 	///     options.ReplicationSlotName = "my_slot";
 	/// });

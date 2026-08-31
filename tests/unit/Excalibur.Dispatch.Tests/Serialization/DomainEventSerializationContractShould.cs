@@ -21,6 +21,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Serialization)]
+[Collection(Excalibur.Dispatch.Tests.TypeResolution.TypeResolverRegistryCollection.Name)]
 public sealed class DomainEventSerializationContractShould
 {
 	[SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]

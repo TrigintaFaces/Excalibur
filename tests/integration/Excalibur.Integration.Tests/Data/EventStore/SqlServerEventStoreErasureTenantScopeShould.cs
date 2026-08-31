@@ -75,7 +75,7 @@ public sealed class SqlServerEventStoreErasureTenantScopeShould
 			NullLogger<SqlServerEventStore>.Instance,
 			schema: _fixture.SchemaName,
 			table: _fixture.TableName,
-			tenantContext: tenantId is null ? null : new FixedTenant(tenantId));
+			tenantContext: tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
 
 	// Resolves the GUARDED "default" event store through the real DI composition (row-discriminator MT) —
 	// exactly the seam the erasure contributor resolves. TenantScopedEventStore wraps the store, so an

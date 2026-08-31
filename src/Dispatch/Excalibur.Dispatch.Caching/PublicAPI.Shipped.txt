@@ -119,6 +119,12 @@ Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalErrors.init -> void
 Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalRequests.get -> long
 Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalSizeBytes.get -> long
 Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalSizeBytes.init -> void
+Excalibur.Dispatch.Caching.CacheReentrancyException
+Excalibur.Dispatch.Caching.CacheReentrancyException.CacheKey.get -> string?
+Excalibur.Dispatch.Caching.CacheReentrancyException.CacheReentrancyException() -> void
+Excalibur.Dispatch.Caching.CacheReentrancyException.CacheReentrancyException(string! message) -> void
+Excalibur.Dispatch.Caching.CacheReentrancyException.CacheReentrancyException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Caching.CacheReentrancyException.CacheReentrancyException(string! message, string? cacheKey) -> void
 Excalibur.Dispatch.Caching.CacheResilienceOptions
 Excalibur.Dispatch.Caching.CacheResilienceOptions.CacheResilienceOptions() -> void
 Excalibur.Dispatch.Caching.CacheResilienceOptions.CircuitBreaker.get -> Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions!
@@ -221,19 +227,6 @@ Excalibur.Dispatch.Caching.InvalidateCacheAttribute.InvalidateOnFailure.get -> b
 Excalibur.Dispatch.Caching.InvalidateCacheAttribute.InvalidateOnFailure.init -> void
 Excalibur.Dispatch.Caching.InvalidateCacheAttribute.Tags.get -> string![]!
 Excalibur.Dispatch.Caching.InvalidateCacheAttribute.Tags.init -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Capacity.get -> int
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Clear() -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Count.get -> int
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Dispose() -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.GetOrAdd(TKey key, System.Func<TKey, TValue>! valueFactory, System.TimeSpan? ttl = null) -> TValue
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.LruCache(int capacity, System.Diagnostics.Metrics.IMeterFactory? meterFactory, System.TimeSpan? defaultTtl = null, System.TimeSpan? cleanupInterval = null) -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.LruCache(int capacity, System.TimeSpan? defaultTtl = null, System.TimeSpan? cleanupInterval = null) -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Remove(TKey key) -> bool
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.RemoveExpiredItems() -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Set(TKey key, TValue value, System.TimeSpan? ttl = null) -> void
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Statistics.get -> Excalibur.Dispatch.Messaging.CacheStatistics!
-Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.TryGetValue(TKey key, out TValue? value) -> bool
 Microsoft.Extensions.DependencyInjection.CacheHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions
 override Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ToString() -> string!

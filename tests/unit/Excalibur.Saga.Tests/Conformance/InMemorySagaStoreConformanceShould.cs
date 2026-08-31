@@ -50,7 +50,7 @@ public sealed class InMemorySagaStoreConformanceShould : SagaStoreConformanceTes
 	protected override bool SupportsIdempotentReplay => true;
 
 	/// <inheritdoc/>
-	protected override Task<ISagaStore> CreateStoreAsync() => Task.FromResult<ISagaStore>(new InMemorySagaStore());
+	protected override Task<ISagaStore> CreateStoreAsync() => Task.FromResult<ISagaStore>(new InMemorySagaStore(new TestTenantContext()));
 
 	/// <inheritdoc/>
 	protected override Task CleanupAsync() => Task.CompletedTask;

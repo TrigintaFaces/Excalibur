@@ -59,7 +59,7 @@ public sealed class SqlServerEventStoreErasureIntegrationShould
 			NullLogger<SqlServerEventStore>.Instance,
 			schema: _fixture.SchemaName,
 			table: _fixture.TableName,
-			tenantContext: null);
+			tenantContext: UntenantedTestTenantContext.Instance);
 
 	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{

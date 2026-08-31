@@ -18,17 +18,10 @@ dotnet add package Excalibur.Dispatch.Security.Aws
 ## Configuration
 
 ```csharp
-services.AddDispatch(options =>
-{
-    options.UseSecurity(security =>
-    {
-        security.UseAwsSecretsManager(aws =>
-        {
-            aws.Region = "us-east-1";
-            aws.SecretName = "my-application/secrets";
-        });
-    });
-});
+services.AddDispatchSecurityAws(aws => aws.Region("us-east-1"));
+
+// Or bind the region from configuration:
+services.AddDispatchSecurityAws(aws => aws.BindConfiguration("Security:Aws"));
 ```
 
 ## Requirements
@@ -44,4 +37,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

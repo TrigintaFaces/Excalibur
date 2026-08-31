@@ -244,7 +244,7 @@ public sealed record MessageMetadata : IMessageMetadata
 
 		// Add extensible collections. Attributes/Items are read from their canonical bag store via
 		// GetAttributes()/GetItems() (the well-known Properties keys) — the former typed props were
-		// builder-unreachable and always empty (kmrpx4 CUT), so copying them lost the real bag data.
+		// builder-unreachable and always empty (CUT), so copying them lost the real bag data.
 		_ = builder.AddHeaders(Headers);
 		_ = builder.AddAttributes(this.GetAttributes());
 		_ = builder.AddItems(this.GetItems());

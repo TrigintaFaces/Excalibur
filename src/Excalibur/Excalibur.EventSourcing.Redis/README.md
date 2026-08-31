@@ -11,23 +11,16 @@ Redis implementations for Excalibur event sourcing using Redis Streams for event
 ## Quick Start
 
 ```csharp
-// Add both event store and snapshot store
-services.AddRedisEventSourcing("localhost:6379");
+// Registers the Redis event store and snapshot store together.
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseRedis(redis => redis.ConnectionString("localhost:6379"))));
 
-// Or configure separately
-services.AddRedisEventStore(options =>
-{
-    options.ConnectionString = "localhost:6379";
-    options.StreamKeyPrefix = "es";
-    options.DatabaseIndex = 0;
-});
-
-services.AddRedisSnapshotStore(options =>
-{
-    options.ConnectionString = "localhost:6379";
-    options.KeyPrefix = "snap";
-    options.SnapshotTtlSeconds = 86400; // 24 hours
-});
+// With a key prefix and a non-default database index:
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseRedis(redis => redis
+        .ConnectionString("localhost:6379")
+        .KeyPrefix("es")
+        .Database(0))));
 ```
 
 ## Redis Data Model

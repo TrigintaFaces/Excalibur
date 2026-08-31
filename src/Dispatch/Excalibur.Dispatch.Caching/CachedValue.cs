@@ -40,4 +40,25 @@ public sealed class CachedValue
 	/// Gets the assembly-qualified type name for deserialization.
 	/// </summary>
 	public string? TypeName { get; init; }
+
+	/// <summary>
+	/// Gets the identity of the action type that stored this entry, or <see langword="null" /> when it
+	/// could not be determined.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A cache key does not commit to the action that produced it. On the <see cref="ICacheable{T}" />
+	/// path the key is whatever <c>GetCacheKey()</c> returns, so two different action types can return
+	/// the same string and address one entry — <c>$"user:{UserId}"</c> on a name query and an email
+	/// query is ordinary code. Where those actions also share a response type, nothing about the stored
+	/// value distinguishes them, and the second caller would be served the first's data.
+	/// </para>
+	/// <para>
+	/// Recording the storing action here lets a read attribute the entry and decline one that is not
+	/// its own, so the collision costs a cache miss instead of returning another action's value. It is
+	/// deliberately not <see cref="System.Type.AssemblyQualifiedName" />: that carries the assembly
+	/// version, so a package upgrade would invalidate every stored entry.
+	/// </para>
+	/// </remarks>
+	internal string? ActionTypeName { get; init; }
 }

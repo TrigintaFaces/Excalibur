@@ -100,8 +100,8 @@ builder.Services.AddAzureServiceBusTransport("azureservicebus", sb =>
       .MapEntity<OrderPlacedEvent>(queueName)
       .ConfigureProcessor(processor =>
       {
-          processor.MaxConcurrentCalls(10);
-          processor.PrefetchCount(50);
+          processor.MaxConcurrentCalls = 10;
+          processor.PrefetchCount = 50;
       });
 });
 ```

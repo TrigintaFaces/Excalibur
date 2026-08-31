@@ -41,10 +41,17 @@ public sealed partial class OpenSearchPersistenceProvider : IPersistenceProvider
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "opensearch" : _options.Name;
 	}
 
 	/// <inheritdoc />
-	public string Name => "OpenSearch";
+	/// <remarks>
+	/// The consumer-configured instance name, taken from the options and defaulting to
+	/// <c>"opensearch"</c>. This identifies which configured instance answered; the engine
+	/// identity is reported separately under the <c>Provider</c> metrics key.
+	/// </remarks>
+	public string Name { get; }
 
 	/// <inheritdoc />
 	public string ProviderType => "Search";
@@ -53,25 +60,27 @@ public sealed partial class OpenSearchPersistenceProvider : IPersistenceProvider
 	public bool IsAvailable => _initialized && !_disposed;
 
 	/// <inheritdoc />
-	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(
-			"OpenSearch persistence provider does not support IDataRequest<TConnection, TResult>. " +
-			"Use the typed document operations (GetByIdAsync, IndexAsync, DeleteAsync, SearchAsync) instead.");
-	}
-
-	/// <inheritdoc />
-	public Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
+	/// <exception cref="InvalidOperationException">
+	/// The cluster could not be reached. The provider is left unavailable rather than reporting a
+	/// readiness it has not established.
+	/// </exception>
+	/// <remarks>
+	/// Reachability is verified before the provider reports itself available, so <see cref="IsAvailable" />
+	/// reflects a connection this provider actually made rather than merely the fact that it was asked to
+	/// initialize.
+	/// </remarks>
+	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
+		if (!await TestConnectionAsync(cancellationToken).ConfigureAwait(false))
+		{
+			throw new InvalidOperationException(
+				$"Failed to initialize OpenSearch provider '{Name}': Connection test failed");
+		}
+
 		_initialized = true;
 		LogInitialized(_options.IndexPrefix);
-
-		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />
@@ -228,6 +237,12 @@ public sealed partial class OpenSearchPersistenceProvider : IPersistenceProvider
 		try
 		{
 			var response = await _client.PingAsync(p => p, cancellationToken).ConfigureAwait(false);
+
+			// A verified round-trip IS the readiness this provider reports: latch it here so a provider used
+			// the way its own registration builds it -- without an explicit InitializeAsync, which that
+			// registration never performs -- does not report itself unavailable while demonstrably working.
+			_initialized = _initialized || response.IsValid;
+
 			return response.IsValid;
 		}
 		catch (Exception ex)
@@ -242,10 +257,15 @@ public sealed partial class OpenSearchPersistenceProvider : IPersistenceProvider
 	{
 		var metrics = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			["provider"] = Name,
-			["providerType"] = ProviderType,
-			["indexPrefix"] = _options.IndexPrefix,
-			["isAvailable"] = IsAvailable
+			// PascalCase, matching every other persistence provider: this dictionary is compared with an
+			// ordinal comparer, so "provider" and "Provider" are different keys. "Provider" is the stable
+			// engine identity -- a fixed literal -- and "Name" the consumer-configured instance name, which
+			// is what distinguishes two instances of the same engine.
+			["Provider"] = "OpenSearch",
+			["Name"] = Name,
+			["ProviderType"] = ProviderType,
+			["IndexPrefix"] = _options.IndexPrefix,
+			["IsAvailable"] = IsAvailable
 		};
 
 		try
@@ -256,25 +276,17 @@ public sealed partial class OpenSearchPersistenceProvider : IPersistenceProvider
 
 			if (healthResponse.IsValid)
 			{
-				metrics["clusterStatus"] = healthResponse.Status.ToString();
-				metrics["numberOfNodes"] = healthResponse.NumberOfNodes;
-				metrics["activeShards"] = healthResponse.ActiveShards;
+				metrics["ClusterStatus"] = healthResponse.Status.ToString();
+				metrics["NumberOfNodes"] = healthResponse.NumberOfNodes;
+				metrics["ActiveShards"] = healthResponse.ActiveShards;
 			}
 		}
 		catch (Exception ex)
 		{
-			metrics["healthCheckError"] = ex.Message;
+			metrics["HealthCheckError"] = ex.Message;
 		}
 
 		return metrics;
-	}
-
-	/// <inheritdoc />
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		// OpenSearch client manages connection pooling internally;
-		// pool stats are not directly exposed.
-		return Task.FromResult<IDictionary<string, object>?>(null);
 	}
 
 	/// <inheritdoc />

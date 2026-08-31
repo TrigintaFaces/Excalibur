@@ -50,7 +50,7 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 				ControlId = ControlInt001,
 				Name = "Input Validation",
 				Description = "All inputs are validated through the message pipeline before processing",
-				Implementation = "Dispatch message validation pipeline with IMiddleware<TContext>",
+				Implementation = "Dispatch message validation pipeline with IDispatchMiddleware",
 				Type = ControlType.Preventive,
 				Frequency = ControlFrequency.PerTransaction
 			},
@@ -85,7 +85,7 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 
 		evidence.Add(CreateEvidence(
 			EvidenceType.Configuration,
-			"Message validation pipeline available via IMiddleware<TContext>",
+			"Message validation pipeline available via IDispatchMiddleware",
 			nameof(ProcessingIntegrityControlValidator)));
 
 		evidence.Add(CreateEvidence(

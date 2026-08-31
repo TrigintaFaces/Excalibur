@@ -52,28 +52,4 @@ public sealed class AwsSqsCloudEventOptions
 	/// </value>
 	public int DelaySeconds { get; set; }
 
-	/// <summary>
-	/// Gets or sets a value indicating whether to compress large CloudEvent payloads.
-	/// </summary>
-	/// <remarks> SQS has a 256KB message size limit. Compression can help fit larger CloudEvents within this limit. </remarks>
-	/// <value>
-	/// A value indicating whether to compress large CloudEvent payloads.
-	/// </value>
-	public bool EnablePayloadCompression { get; set; }
-
-	/// <summary>
-	/// Gets or sets the threshold (in bytes) for triggering payload compression.
-	/// </summary>
-	/// <value>
-	/// The threshold (in bytes) for triggering payload compression.
-	/// </value>
-	public int CompressionThreshold { get; set; } = 64 * 1024; // 64KB
-
-	/// <summary>
-	/// Gets or sets a value indicating whether DoD validation extensions should be applied.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether DoD validation extensions should be applied.
-	/// </value>
-	public bool EnableDoDCompliance { get; set; }
 }

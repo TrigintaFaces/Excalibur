@@ -11,11 +11,9 @@ services.AddExcalibur(x => x.AddEventSourcing(es =>
     {
         options.MaxAge = TimeSpan.FromDays(90);
     });
-    es.UseGcsColdStore(options =>
-    {
-        options.BucketName = "my-cold-events";
-        options.ProjectId = "my-gcp-project";
-    });
+    es.UseGcsColdEventStore(gcs => gcs
+        .BucketName("my-cold-events")
+        .ProjectId("my-gcp-project"));
 }));
 ```
 

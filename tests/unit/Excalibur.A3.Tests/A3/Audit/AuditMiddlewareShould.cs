@@ -13,11 +13,12 @@ namespace Excalibur.Tests.A3.Audit;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
-public sealed class AuditMiddlewareShould
+public sealed class AuditMiddlewareShould : IDisposable
 {
 	private readonly IActivityContext _activityContext;
 	private readonly IAuditMessagePublisher _auditPublisher;
 	private readonly IOutboxDispatcher _outbox;
+	private readonly ServiceProvider _serviceProvider;
 	private readonly AuditMiddleware _sut;
 
 	public AuditMiddlewareShould()
@@ -27,8 +28,20 @@ public sealed class AuditMiddlewareShould
 		_outbox = A.Fake<IOutboxDispatcher>();
 		var logger = NullLogger<AuditMiddleware>.Instance;
 
-		_sut = new AuditMiddleware(_activityContext, _auditPublisher, logger, _outbox);
+		// The middleware resolves the audit context from a scope rather than holding one, so the
+		// context these tests assert on is supplied through the container.
+		var services = new ServiceCollection();
+		_ = services.AddScoped(_ => _activityContext);
+		_serviceProvider = services.BuildServiceProvider();
+
+		_sut = new AuditMiddleware(
+			_auditPublisher,
+			_outbox,
+			_serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+			logger);
 	}
+
+	public void Dispose() => _serviceProvider.Dispose();
 
 	[Fact]
 	public void Implement_IDispatchMiddleware()

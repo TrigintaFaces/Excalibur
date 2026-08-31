@@ -206,6 +206,7 @@ public sealed partial class FirestoreListenerSubscription<
 
 	[return: MaybeNull]
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static TDocument DeserializeDocument(DocumentSnapshot snapshot)
 	{
 		var dict = snapshot.ToDictionary();
@@ -241,9 +242,9 @@ public sealed partial class FirestoreListenerSubscription<
 			TDocument? document = null;
 			if (change.Document.Exists)
 			{
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 				document = DeserializeDocument(change.Document);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			}
 
 			var documentId = change.Document.Id;

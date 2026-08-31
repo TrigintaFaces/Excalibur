@@ -22,6 +22,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga\Excalibur.Saga.csproj" />
     <!-- From Excalibur.Saga.SqlServer.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+    <!-- o6sw98: OracleSagaTimeoutStore tenant-partition fail-closed lock -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Oracle\Excalibur.Saga.Oracle.csproj" />
     <!-- Sprint 621: Data provider packages for ISagaBuilder Use*() extension tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />

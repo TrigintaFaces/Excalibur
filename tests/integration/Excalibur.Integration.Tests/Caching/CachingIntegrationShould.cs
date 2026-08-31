@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Transport;
@@ -223,6 +224,27 @@ public sealed class InvalidateCacheCommandHandler : IActionHandler<InvalidateCac
 [Trait("Component", "Core")]
 public sealed class CachingIntegrationShould : IntegrationTestBase
 {
+	// The window ExpireEntriesAfterDefaultExpiration measures against. UNCHANGED value (300 ms), merely
+	// hoisted so that test's inconclusive guard can name the exact window it is measuring against.
+	// Lengthening it is deliberately NOT the fix: that would make the arm pass more often without fixing
+	// the case where load exceeds whatever new value is chosen — a rarer flake, not a fixed one.
+	private static readonly TimeSpan DefaultExpirationWindow = TimeSpan.FromMilliseconds(300);
+
+	// The caching middleware JITTERS every entry's TTL by ±JitterRatio, so the configured 300 ms is a
+	// midpoint, NOT a floor — the shortest TTL an entry can actually receive is 270 ms. Pinned here to
+	// the product's own default (0.10) so behaviour is UNCHANGED and the floor below is exact rather
+	// than inherited from a default that could drift. Deliberately not set to 0: that would LENGTHEN
+	// the worst-case window from 270 ms to 300 ms, which is the fix this bead forbids.
+	private const double ExpirationJitterRatio = 0.10;
+
+	// The conservative FLOOR of the jittered window. The guard must compare the (upper-bounded) elapsed
+	// against the SHORTEST life the entry could have been given, not the midpoint — otherwise an entry
+	// handed a 270 ms TTL that legitimately expires at 280 ms slips under a 300 ms threshold and the arm
+	// false-fails exactly as before. Upper-bounded burn vs lower-bounded window is what makes the
+	// inconclusive verdict honest in both directions.
+	private static readonly TimeSpan ShortestPossibleEntryLifetime =
+		DefaultExpirationWindow * (1.0 - ExpirationJitterRatio);
+
 	[Fact]
 	public async Task CacheQueryResultsEndToEnd()
 	{
@@ -470,7 +492,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				{
 					o.Enabled = true;
 					o.UseDistributedCache = false;
-					o.Behavior.DefaultExpiration = TimeSpan.FromMilliseconds(300);
+					o.Behavior.DefaultExpiration = DefaultExpirationWindow;
+					o.Behavior.JitterRatio = ExpirationJitterRatio;
 				});
 		});
 		await using var provider = services.BuildServiceProvider();
@@ -481,14 +504,55 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Act - first call caches the result
 		CachingTestQueryHandler.CallCount = 0;
+
+		// Mark BEFORE the first dispatch. The entry's expiry is stamped when the caching middleware WRITES
+		// the entry *during* that first round trip, i.e. at or after this mark — so elapsed-from-here is a
+		// conservative UPPER bound on how much of the entry's life has burned by the time the cached-hit arm
+		// below is evaluated. Bounding it in that direction is what keeps the inconclusive guard honest: it
+		// can only ever over-estimate the burn, never under-estimate it into a false "the arm discriminated".
+		var sinceEntryCached = Stopwatch.StartNew();
+
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
 			;
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
 			;
+		var elapsedCacheToObservation = sinceEntryCached.Elapsed;
 
-		// Assert cached
-		CachingTestQueryHandler.CallCount.ShouldBe(1);
-		result2.CacheHit.ShouldBeTrue();
+		// Assert cached. This pair is a SAFETY arm: it asserts the entry has NOT yet expired, and it is the
+		// DISCRIMINATOR for the expiry arm below — without it, a cache that never serves a hit at all would
+		// sail through the re-dispatch poll on its first attempt and the whole test would pass vacuously, so
+		// it must stay. But a safety arm is only meaningful if its observation demonstrably landed INSIDE the
+		// window it asserts. Two full dispatcher round trips under CI load can exceed a 300 ms expiration, in
+		// which case the entry legitimately expired, a miss on the second dispatch is CORRECT behaviour, and
+		// this arm would be reporting a defect that does not exist. When the measurement cannot tell those
+		// apart, say so instead of accusing the product.
+		var servedFromCache = CachingTestQueryHandler.CallCount == 1 && result2.CacheHit;
+		if (!servedFromCache && elapsedCacheToObservation >= ShortestPossibleEntryLifetime)
+		{
+			Assert.Fail(
+				$"INCONCLUSIVE — this SAFETY arm could not run, and this is NOT a product-defect report. The "
+				+ $"two back-to-back dispatches took {elapsedCacheToObservation.TotalMilliseconds:F0} ms, "
+				+ $"which already reaches the {ShortestPossibleEntryLifetime.TotalMilliseconds:F0} ms floor "
+				+ $"of the jittered {DefaultExpirationWindow.TotalMilliseconds:F0} ms expiration, so a cache "
+				+ $"MISS here is equally explained by an entry that legitimately expired "
+				+ $"under load and by a cache that never served the entry at all. The arm cannot discriminate; "
+				+ $"re-run on a less loaded host. Deliberately NOT fixed by lengthening the expiration — that "
+				+ $"would only make this rarer, not correct. (handler calls: "
+				+ $"{CachingTestQueryHandler.CallCount}, result2.CacheHit: {result2.CacheHit})");
+		}
+
+		CachingTestQueryHandler.CallCount.ShouldBe(
+			1,
+			$"the second dispatch must be served from cache, so the handler runs exactly once (measured "
+			+ $"cache-write→observation elapsed: {elapsedCacheToObservation.TotalMilliseconds:F0} ms — "
+			+ $"inside the {ShortestPossibleEntryLifetime.TotalMilliseconds:F0} ms floor of the jittered "
+			+ $"{DefaultExpirationWindow.TotalMilliseconds:F0} ms expiration, so this arm DID "
+			+ $"discriminate)");
+		result2.CacheHit.ShouldBeTrue(
+			$"the entry is still inside the {ShortestPossibleEntryLifetime.TotalMilliseconds:F0} ms floor of "
+			+ $"its jittered {DefaultExpirationWindow.TotalMilliseconds:F0} ms window "
+			+ $"(measured elapsed: {elapsedCacheToObservation.TotalMilliseconds:F0} ms), so the second "
+			+ $"dispatch must report a cache hit");
 
 		// Act - after expiration the handler should eventually run again.
 		var result3 = await DispatchUntilHandlerRunsAgainAsync(
@@ -642,7 +706,13 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				{
 					o.Enabled = true;
 					o.UseDistributedCache = false;
-					o.Behavior.DefaultExpiration = TimeSpan.FromSeconds(1);
+
+					// Long enough that expiry cannot participate in the outcome. The subject here is
+					// single-flight COLLAPSE, not lifetime: at 1 second this asserted "collapsed" and
+					// "did not expire" at once, so under load -- where the dispatches below stagger --
+					// the entry could lapse mid-flight and a follower would legitimately re-enter the
+					// handler. That reports as a stampede failure and is not one.
+					o.Behavior.DefaultExpiration = TimeSpan.FromMinutes(5);
 				});
 		});
 		await using var provider = services.BuildServiceProvider();
@@ -653,10 +723,15 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		CachingTestQueryHandler.CallCount = 0;
 
+		// Materialised deliberately: Select is lazy, so without ToList the dispatches are not started
+		// until WhenAll enumerates them, and on a loaded machine they begin far enough apart that the
+		// first can complete before the last begins -- which is not the concurrency this test claims
+		// to exercise.
 		var tasks = Enumerable.Range(0, 5)
 			.Select(_ => dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
 				query,
-				new MessageContext(new TestDispatchAction(), provider), cancellationToken: default));
+				new MessageContext(new TestDispatchAction(), provider), cancellationToken: default))
+			.ToList();
 
 		var results = await Task.WhenAll(tasks);
 

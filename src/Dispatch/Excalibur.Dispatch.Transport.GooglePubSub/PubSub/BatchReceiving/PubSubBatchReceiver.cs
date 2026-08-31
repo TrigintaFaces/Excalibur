@@ -288,7 +288,7 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 		GC.SuppressFinalize(this);
 	}
 
-	// Source-generated logging methods (Sprint 363 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(GooglePubSubEventId.FlowControlPreventedReceive, LogLevel.Warning,
 		"Flow control prevented batch receive")]
 	private partial void LogFlowControlPrevented();

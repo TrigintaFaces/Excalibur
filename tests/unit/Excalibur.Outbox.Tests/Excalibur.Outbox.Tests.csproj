@@ -36,8 +36,19 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.ElasticSearch\Excalibur.Outbox.ElasticSearch.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
+    <!-- Real inbox store for the drain finalize-key regression lock (InboxProcessorFinalizeKeyShould). -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
+    <!-- A real binary IPayloadSerializer, so the inbox round-trip lock writes and drains a payload
+         the JSON reader structurally cannot parse. -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MessagePack\Excalibur.Dispatch.Serialization.MessagePack.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The SQL Server DDL the package ships to consumers. Linked in so a test can read the exact bytes a
+         consumer runs; the integration fixtures hand-write their own CREATE TABLE, so without this nothing
+         in the tree looks at the shipped script at all. -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Scripts\001_CreateOutboxSchema.sql" Link="Schema\001_CreateSqlServerOutboxSchema.sql" />
   </ItemGroup>
 </Project>

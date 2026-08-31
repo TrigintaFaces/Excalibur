@@ -164,7 +164,7 @@ internal sealed partial class DefaultRetryPolicy : IRetryPolicy
 			return _options.RetriableExceptions.Contains(exceptionType);
 		}
 
-		// No explicit filter matched: defer to the shared failure classifier (shu41d / S-A) so the
+		// No explicit filter matched: defer to the shared failure classifier (S-A) so the
 		// retry-vs-dead-letter decision is consistent across the pipeline. Only transient failures are
 		// retried; permanent and poison failures are abandoned immediately rather than retried to the
 		// attempt cap (a poison message can never succeed, so retrying it just delays the dead-letter).

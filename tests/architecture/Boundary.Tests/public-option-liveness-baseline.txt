@@ -1,0 +1,556 @@
+#
+# Public option liveness baseline.
+#
+# One non-comment line per entry, in the form  Namespace.OptionsType::PropertyName
+# Lines starting with # and blank lines are ignored. Inline comments are NOT supported: the whole
+# trimmed line is the identity, so rationale lives on the # lines above each entry.
+#
+# An entry is a public, consumer-settable option property whose getter is called from NOWHERE in the
+# shipped assemblies. A consumer can set it, and the framework provably cannot observe the value.
+# PublicOptionLivenessGuardTests fails if a NEW one appears that is not listed here, and fails if a
+# listed one becomes read (remove it). The list is a one-directional ratchet.
+#
+# ---------------------------------------------------------------------------------------------
+# READ THIS BEFORE ADDING A LINE.
+#
+# The block below is NOT an allowlist of accepted cases. It is the MEASURED DEFECT POPULATION at the
+# moment the guard landed - the work queue, enumerated by exact identity so that it can only shrink.
+# Every line in it is a candidate defect: an option to wire to the component it claims to configure,
+# or to delete. None of them is justified, and none should be read as blessed.
+#
+# A line added AFTER the seed is a different thing and carries a different bar. It must sit under the
+# ACCEPTED section at the bottom with its own # rationale naming why the value cannot be read from
+# shipped IL. The only legitimate shape is a value consumed by something the census cannot see - and
+# "a test reads it", "a sample reads it" and "it is documented" are NOT that: none of them is the
+# framework observing the value. Adding to the seed block instead is how this guard becomes
+# decorative.
+#
+# Burn-down tracked by bd-it1ib6 (gate) / bd-d4zujn (the SEED block below).
+# pragma: allowlist secret  (this file lists type and property names only - no secrets)
+# ---------------------------------------------------------------------------------------------
+#
+# --- SEED: measured defect population, unjustified, burn-down ---
+Excalibur.A3.Authorization.RoleOptions::EnforceUniqueNames
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions::AutoStartOnCreation
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions::DefaultExpiryPolicy
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions::RequireRiskAssessment
+Excalibur.AuditLogging.Alerting.AuditAlertOptions::EvaluationMode
+Excalibur.AuditLogging.Postgres.PostgresAuditOptions::RetentionPeriod
+Excalibur.AuditLogging.Splunk.SplunkConnectionOptions::EnableCompression
+Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions::PartitionKeyValues
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions::MaxWaitTime
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions::StreamViewType
+Excalibur.Cdc.Firestore.FirestoreCdcOptions::MaxWaitTime
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::ConnectTimeout
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::MaxPoolSize
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::ServerSelectionTimeout
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions::UseSsl
+Excalibur.Cdc.SqlServer.CdcRecoveryOptions::EnableStructuredLogging
+Excalibur.Cdc.SqlServer.DatabaseOptions::Tables
+Excalibur.Compliance.AuditAnnotationOptions::EmitMetaAuditEvents
+Excalibur.Compliance.AuditContextOptions::DefaultEventType
+Excalibur.Compliance.Aws.AwsKmsCacheOptions::DataKeyCacheDurationSeconds
+Excalibur.Compliance.Aws.AwsKmsCacheOptions::DataKeyCacheMaxSize
+Excalibur.Compliance.Aws.AwsKmsCacheOptions::EnableDataKeyCache
+Excalibur.Compliance.Aws.AwsKmsHistoricalKeyOptions::Region
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions::DefaultDeletionRetentionDays
+Excalibur.Compliance.Aws.AwsKmsKeyPolicyOptions::ReplicaRegions
+Excalibur.Compliance.Azure.AzureKeyVaultOptions::DefaultKeySizeBits
+Excalibur.Compliance.Azure.AzureKeyVaultOptions::Retry
+Excalibur.Compliance.Azure.AzureKeyVaultRetryOptions::EnableRetry
+Excalibur.Compliance.Azure.AzureKeyVaultRetryOptions::MaxRetryAttempts
+Excalibur.Compliance.BackupShareOptions::Reason
+Excalibur.Compliance.BatchMigrationOptions::BatchSize
+Excalibur.Compliance.BatchMigrationOptions::TotalTimeout
+Excalibur.Compliance.BulkDecryptionExportOptions::IncludeMetadata
+Excalibur.Compliance.Configuration.EncryptionOptions::EncryptionAgeWarningThreshold
+Excalibur.Compliance.Configuration.EncryptionOptions::IncludeTimingMetadata
+Excalibur.Compliance.Configuration.EncryptionOptions::LazyMigrationEnabled
+Excalibur.Compliance.Configuration.EncryptionOptions::LazyMigrationMode
+Excalibur.Compliance.DecryptionOptions::IncludeUnencryptedFields
+Excalibur.Compliance.EscrowOptions::Algorithm
+Excalibur.Compliance.KeyCacheOptions::AutoRefreshThreshold
+Excalibur.Compliance.KeyCacheOptions::EnableAutoRefresh
+Excalibur.Compliance.MasterKeyExportOptions::Reason
+Excalibur.Compliance.MasterKeyExportOptions::WrappingKeyId
+Excalibur.Compliance.MasterKeyImportOptions::ActivateImmediately
+Excalibur.Compliance.MasterKeyImportOptions::Reason
+Excalibur.Compliance.MultiRegionOptions::EnableAuditEvents
+Excalibur.Compliance.MultiRegionOptions::EnableMetrics
+Excalibur.Compliance.ReEncryptionOptions::MaxDegreeOfParallelism
+Excalibur.Compliance.Rectification.RectificationOptions::RequireApproval
+Excalibur.Compliance.Restriction.ProcessingRestrictionOptions::NotifyOnRestriction
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions::AutoExpireTokens
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions::DefaultCustodianCount
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions::DefaultThreshold
+Excalibur.Compliance.Vault.VaultKeyOptions::DefaultKeyType
+Excalibur.Compliance.Vault.VaultKeyOptions::MinDecryptionVersion
+Excalibur.Compliance.Vault.VaultKeyOptions::MinEncryptionVersion
+Excalibur.Compliance.Vault.VaultOptions::HttpTimeout
+Excalibur.Compliance.Vault.VaultOptions::Retry
+Excalibur.Compliance.Vault.VaultRetryOptions::EnableRetry
+Excalibur.Compliance.Vault.VaultRetryOptions::MaxRetryAttempts
+Excalibur.Data.CloudNative.ChangeFeedOptions::PartitionKeyFilter
+Excalibur.Data.CosmosDb.CosmosDbOptions::BulkExecutionMaxDegreeOfParallelism
+Excalibur.Data.CosmosDb.CosmosDbOptions::DefaultPartitionKeyPath
+Excalibur.Data.CosmosDb.CosmosDbOptions::IdleConnectionTimeoutInSeconds
+Excalibur.Data.CosmosDb.CosmosDbOptions::MaxConnectionsPerEndpoint
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions::CreateTableIfNotExists
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions::ConnectionTimeout
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions::ReadConsistency
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions::RequestTimeout
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions::ReadCapacityUnits
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions::WriteCapacityUnits
+Excalibur.Data.DynamoDb.DynamoDbOptions::EnableStreams
+Excalibur.Data.DynamoDb.DynamoDbOptions::StreamViewType
+Excalibur.Data.ElasticSearch.ConsistencyTrackingOptions::EnableAlerting
+Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions::Monitoring
+Excalibur.Data.ElasticSearch.ElasticsearchDeadLetterOptions::RetentionPeriod
+Excalibur.Data.ElasticSearch.IndexManagement.DefaultTemplateOptions::Environment
+Excalibur.Data.ElasticSearch.IndexManagement.EnvironmentOptions::RefreshInterval
+Excalibur.Data.ElasticSearch.IndexManagement.EnvironmentOptions::ReplicaCount
+Excalibur.Data.ElasticSearch.IndexManagement.EnvironmentOptions::UseDevelopmentSettings
+Excalibur.Data.ElasticSearch.IndexManagement.IndexOptimizationOptions::OptimizeRefreshInterval
+Excalibur.Data.ElasticSearch.IndexManagement.IndexOptimizationOptions::OptimizeReplicaCount
+Excalibur.Data.ElasticSearch.IndexManagement.LifecycleManagementOptions::DeleteAfterColdPhase
+Excalibur.Data.ElasticSearch.IndexManagement.OptimizationOptions::AutoOptimize
+Excalibur.Data.ElasticSearch.IndexManagement.OptimizationOptions::ForceMergeOnRollover
+Excalibur.Data.ElasticSearch.IndexManagement.TemplateMigrationOptions::MigrationTimeout
+Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::Enabled
+Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeCircuitBreakerState
+Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeDocumentCounts
+Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeDuration
+Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeRetryAttempts
+Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeSuccessFailureRates
+Excalibur.Data.ElasticSearch.Monitoring.TracingOptions::RecordOperationDetails
+Excalibur.Data.ElasticSearch.ProjectionRetryOptions::JitterFactor
+Excalibur.Data.ElasticSearch.ProjectionRetryOptions::UseExponentialBackoff
+Excalibur.Data.ElasticSearch.Projections.ProjectionErrorHandlingOptions::RetentionPeriod
+Excalibur.Data.ElasticSearch.RebuildManagerOptions::OperationTimeout
+Excalibur.Data.ElasticSearch.SchemaEvolutionOptions::AutoBackup
+Excalibur.Data.ElasticSearch.SchemaEvolutionOptions::DefaultMigrationStrategy
+Excalibur.Data.ElasticSearch.SchemaEvolutionOptions::Enabled
+Excalibur.Data.ElasticSearch.SchemaEvolutionOptions::ValidateBackwardsCompatibility
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions::TimeoutInSeconds
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions::UseCollectionGroups
+Excalibur.Data.Firestore.FirestoreOptions::MaxRetryAttempts
+Excalibur.Data.Firestore.FirestoreOptions::TimeoutInSeconds
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions::ProjectId
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions::DefaultTtlSeconds
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions::MaxBatchSize
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions::TimeoutInSeconds
+Excalibur.Data.InMemory.InMemoryProviderOptions::CommandTimeout
+Excalibur.Data.InMemory.InMemoryProviderOptions::ConnectionString
+Excalibur.Data.InMemory.InMemoryProviderOptions::ConnectionTimeout
+Excalibur.Data.InMemory.InMemoryProviderOptions::Pool
+Excalibur.Data.InMemory.InMemoryProviderOptions::ProviderSpecificOptions
+Excalibur.Data.InMemory.InMemoryProviderOptions::Storage
+Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions::OptimizeRefreshInterval
+Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions::OptimizeReplicaCount
+Excalibur.Data.OpenSearch.IndexManagement.TemplateMigrationOptions::MigrationTimeout
+Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchAuthOptions::ApiKey
+Excalibur.Data.OpenSearch.OpenSearchDeadLetterOptions::RetentionPeriod
+Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions::EnableDebugMode
+Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions::RefreshInterval
+Excalibur.Data.Persistence.IPersistenceOptions::CommandTimeout
+Excalibur.Data.Persistence.IPersistenceOptions::ConnectionString
+Excalibur.Data.Persistence.IPersistenceOptions::ConnectionTimeout
+Excalibur.Data.SqlServer.Persistence.SqlServerConnectionOptions::DefaultDatabase
+Excalibur.Data.SqlServer.Persistence.SqlServerConnectionOptions::EnableTransparentNetworkIPResolution
+Excalibur.Data.SqlServer.Persistence.SqlServerConnectionOptions::PoolBlockingPeriod
+Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions::ProviderSpecificOptions
+Excalibur.Data.SqlServer.Persistence.SqlServerResiliencyOptions::EnableStatisticsCollection
+Excalibur.Data.SqlServer.Persistence.SqlServerSecurityOptions::AttestationProtocol
+Excalibur.Data.SqlServer.Persistence.SqlServerSecurityOptions::Authentication
+Excalibur.Data.SqlServer.Persistence.SqlServerSecurityOptions::EnclaveAttestationUrl
+Excalibur.Data.SqlServer.SqlServerProviderOptions::CommandTimeout
+Excalibur.Data.SqlServer.SqlServerProviderOptions::EnableMars
+Excalibur.Data.SqlServer.SqlServerProviderOptions::OpenConnectionImmediately
+Excalibur.Dispatch.Caching.CacheBehaviorOptions::EnableStatistics
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions::FailureThreshold
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions::FailureWindow
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions::HalfOpenSuccessThreshold
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions::HalfOpenTestLimit
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions::OpenDuration
+Excalibur.Dispatch.Caching.CacheOptions::Distributed
+Excalibur.Dispatch.Caching.CacheOptions::UseDistributedCache
+Excalibur.Dispatch.Caching.CacheResilienceOptions::LogMetricsOnDisposal
+Excalibur.Dispatch.Caching.CacheResilienceOptions::TypeNameCache
+Excalibur.Dispatch.Caching.CacheTypeNameOptions::CacheTtl
+Excalibur.Dispatch.Caching.CacheTypeNameOptions::MaxCacheSize
+Excalibur.Dispatch.Caching.DispatchMemoryCacheOptions::CompactionPercentage
+Excalibur.Dispatch.Caching.DispatchMemoryCacheOptions::ExpirationScanFrequency
+Excalibur.Dispatch.Caching.DispatchMemoryCacheOptions::SizeLimit
+Excalibur.Dispatch.Caching.DistributedCacheOptions::KeyPrefix
+Excalibur.Dispatch.Caching.DistributedCacheOptions::MaxRetryAttempts
+Excalibur.Dispatch.Caching.DistributedCacheOptions::UseBinarySerialization
+Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.GcsClaimCheckOptions::ProjectId
+Excalibur.Dispatch.Configuration.TransportOptions::Enabled
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions::EnableStructuredLogging
+Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions::AggressiveSpinning
+Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions::ReaderWaitStrategy
+Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions::SpinCount
+Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions::WriterWaitStrategy
+Excalibur.Dispatch.Options.Channels.ChannelMessagePumpOptions::AllowSynchronousContinuations
+Excalibur.Dispatch.Options.Channels.ChannelMessagePumpOptions::BatchSize
+Excalibur.Dispatch.Options.Channels.ChannelMessagePumpOptions::BatchTimeoutMs
+Excalibur.Dispatch.Options.Channels.ChannelMessagePumpOptions::ConcurrentConsumers
+Excalibur.Dispatch.Options.Channels.ChannelMessagePumpOptions::EnableMetrics
+Excalibur.Dispatch.Options.Channels.ChannelMessagePumpOptions::PrefetchCount
+Excalibur.Dispatch.Options.Channels.SpinWaitOptions::AggressiveSpin
+Excalibur.Dispatch.Options.Channels.SpinWaitOptions::MaxSpinCycles
+Excalibur.Dispatch.Options.Channels.SpinWaitOptions::SpinIterations
+Excalibur.Dispatch.Options.CloudEvents.CloudEventCompressionOptions::UseCompression
+Excalibur.Dispatch.Options.Configuration.DispatchFeatureOptions::EnableStructuredLogging
+Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions::CleanupIntervalSeconds
+Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions::RetentionDays
+Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions::CleanupInterval
+Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions::CleanupIntervalSeconds
+Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions::MaxRetention
+Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions::RetentionDays
+Excalibur.Dispatch.Options.Configuration.PerformanceOptions::EnableTypeMetadataCaching
+Excalibur.Dispatch.Options.Configuration.PerformanceOptions::MessagePoolSize
+Excalibur.Dispatch.Options.Configuration.PerformanceOptions::UseAllocationFreeExecution
+Excalibur.Dispatch.Options.Core.CompressionOptions::Enabled
+Excalibur.Dispatch.Options.Core.HealthCheckOptions::Enabled
+Excalibur.Dispatch.Options.Core.HealthCheckOptions::Interval
+Excalibur.Dispatch.Options.Core.HealthCheckOptions::Timeout
+Excalibur.Dispatch.Options.Core.InMemoryBusOptions::PreserveOrder
+Excalibur.Dispatch.Options.Core.MessageBusHealthCheckOptions::Enabled
+Excalibur.Dispatch.Options.Core.MessageBusHealthCheckOptions::FailureThreshold
+Excalibur.Dispatch.Options.Core.MessageBusHealthCheckOptions::Interval
+Excalibur.Dispatch.Options.Core.MessageBusHealthCheckOptions::Timeout
+Excalibur.Dispatch.Options.Core.MetricsOptions::Enabled
+Excalibur.Dispatch.Options.Core.MetricsOptions::ExportInterval
+Excalibur.Dispatch.Options.Core.TracingOptions::Enabled
+Excalibur.Dispatch.Options.Core.TracingOptions::IncludeSensitiveData
+Excalibur.Dispatch.Options.Core.TracingOptions::SamplingRatio
+Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions::EnableIdempotencyTracking
+Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions::Guarantee
+Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions::IdempotencyKeyRetention
+Excalibur.Dispatch.Options.Delivery.InMemoryDeduplicatorOptions::DefaultExpiry
+Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::CleanupBatchSize
+Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::CleanupInterval
+Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::EnableAutomaticCleanup
+Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::MaxEntries
+Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::RetentionPeriod
+Excalibur.Dispatch.Options.Delivery.MessageEnvelopeOptions::PoolContexts
+Excalibur.Dispatch.Options.Middleware.AuthenticationOptions::DefaultScheme
+Excalibur.Dispatch.Options.Middleware.AuthenticationOptions::MaxCacheSize
+Excalibur.Dispatch.Options.Middleware.AuthenticationOptions::TokenHeader
+Excalibur.Dispatch.Options.Middleware.AuthorizationOptions::DefaultPolicyName
+Excalibur.Dispatch.Options.Middleware.ContractVersionCheckOptions::BypassVersionCheckForTypes
+Excalibur.Dispatch.Options.Middleware.MetricsLoggingOptions::SlowOperationThreshold
+Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::BypassOutboxForTypes
+Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::CompressMessageData
+Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::MaxOutboundMessagesPerOperation
+Excalibur.Dispatch.Options.Middleware.ValidationOptions::BypassValidationForTypes
+Excalibur.Dispatch.Options.Resilience.RetryCircuitBreakerOptions::EnableCircuitBreaker
+Excalibur.Dispatch.Options.Resilience.RetryOptions::UseJitter
+Excalibur.Dispatch.Options.Resilience.RetryPolicyOptions::RetryStrategy
+Excalibur.Dispatch.Options.TransportBindingOptions::Enabled
+Excalibur.Dispatch.Options.TransportBindingOptions::MaxConcurrency
+Excalibur.Dispatch.Options.TransportBindingOptions::ProcessingTimeout
+Excalibur.Dispatch.Options.TransportBindingOptions::Properties
+Excalibur.Dispatch.Options.TransportBindingOptions::UseDeadLetterQueue
+Excalibur.Dispatch.Options.Validation.ContextValidationOptions::CustomValidatorTypes
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOperationOptions::BufferPoolSize
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOperationOptions::MaxConcurrency
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOperationOptions::MaxRetries
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOperationOptions::OperationTimeout
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions::RetentionPeriod
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions::Operations
+Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions::SerializerContext
+Excalibur.Dispatch.Pooling.ContextPoolingOptions::Enabled
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions::AllowQueueing
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions::PrioritySelector
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions::Levels
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions::MinimumLevelDuration
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions::EnableDetailedLogging
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions::EnableTelemetry
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::DefaultRetryCount
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::DefaultTimeoutSeconds
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::EnableCircuitBreaker
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::Enabled
+Excalibur.Dispatch.Resilience.Polly.RetryOptions::EnableDetailedLogging
+Excalibur.Dispatch.Routing.LoadBalancing.RouteHealthMonitorOptions::HealthyThreshold
+Excalibur.Dispatch.Routing.LoadBalancing.RouteHealthMonitorOptions::UnhealthyThreshold
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions::MinWaitTimeSeconds
+Excalibur.Dispatch.Transport.BatchCollectionOptions::CollectionTimeout
+Excalibur.Dispatch.Transport.BatchCollectionOptions::MaxBatchSize
+Excalibur.Dispatch.Transport.BatchCollectionOptions::MinBatchSize
+Excalibur.Dispatch.Transport.BatchProcessingOptions::BatchTimeout
+Excalibur.Dispatch.Transport.BatchProcessingOptions::ContinueOnError
+Excalibur.Dispatch.Transport.BatchProcessingOptions::DefaultPriority
+Excalibur.Dispatch.Transport.BatchProcessingOptions::EnableDeadLetter
+Excalibur.Dispatch.Transport.BatchProcessingOptions::EnableMetrics
+Excalibur.Dispatch.Transport.BatchProcessingOptions::MaxDegreeOfParallelism
+Excalibur.Dispatch.Transport.BatchProcessingOptions::PreserveOrder
+Excalibur.Dispatch.Transport.BatchProcessingOptions::ProcessInParallel
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions::ReplyToQueue
+Excalibur.Dispatch.Transport.Kafka.CachingSchemaRegistryOptions::MaxCacheSize
+Excalibur.Dispatch.Transport.Kafka.JsonSchemaOptions::AllowAdditionalProperties
+Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions::OperationTimeout
+Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions::ConsumerGroupId
+Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions::OffsetReset
+Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventProducerOptions::CompressionThreshold
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions::MaxBatchSize
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions::MaxBatchWaitMs
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions::MaxConcurrentCommits
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::AutoCreateTopics
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::MessageRetentionPeriod
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::ProduceTimeout
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::TopicPartitions
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::TopicReplicationFactor
+Excalibur.Dispatch.Transport.Kafka.KafkaProducerOptions::BatchSize
+Excalibur.Dispatch.Transport.Kafka.KafkaProducerOptions::LingerMs
+Excalibur.Dispatch.Transport.Kafka.SchemaRegistrySchemaOptions::AutoRegisterSchemas
+Excalibur.Dispatch.Transport.Kafka.SchemaRegistrySchemaOptions::DefaultCompatibility
+Excalibur.Dispatch.Transport.Kafka.SchemaRegistrySchemaOptions::ValidateBeforeRegister
+Excalibur.Dispatch.Transport.MessageBusOptions::EnableTelemetry
+Excalibur.Dispatch.Transport.MessageBusOptions::JitterFactor
+Excalibur.Dispatch.Transport.MessageBusOptions::MaxRetryAttempts
+Excalibur.Dispatch.Transport.MessageBusOptions::RetryStrategy
+Excalibur.Dispatch.Transport.MessageBusOptions::TargetUri
+Excalibur.Dispatch.Transport.ProviderOptions::ConnectionString
+Excalibur.Dispatch.Transport.ProviderOptions::EnableDetailedLogging
+Excalibur.Dispatch.Transport.ProviderOptions::Provider
+Excalibur.Dispatch.Transport.ProviderOptions::Region
+Excalibur.Dispatch.Transport.ReprocessOptions::MaxDegreeOfParallelism
+Excalibur.Dispatch.Transport.ReprocessOptions::ProcessInParallel
+Excalibur.Dispatch.Transport.ReprocessOptions::RemoveFromDlq
+Excalibur.Dispatch.Transport.ReprocessOptions::TimeToLive
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions::MaxRetryAttempts
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions::UseExponentialBackoff
+Excalibur.Domain.ApplicationContextOptions::ApplicationDisplayName
+Excalibur.Domain.ApplicationContextOptions::AuthenticationServiceAudience
+Excalibur.Domain.ApplicationContextOptions::AuthenticationServiceEndpoint
+Excalibur.Domain.ApplicationContextOptions::AuthenticationServicePublicKeyPath
+Excalibur.Domain.ApplicationContextOptions::AuthorizationServiceEndpoint
+Excalibur.Domain.ApplicationContextOptions::ServiceAccountName
+Excalibur.Domain.ApplicationContextOptions::ServiceAccountPrivateKeyPasswordSecure
+Excalibur.Domain.ApplicationContextOptions::ServiceAccountPrivateKeyPath
+Excalibur.Domain.BoundedContext.BoundedContextOptions::ValidateOnStartup
+Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions::CreateCollectionIfNotExists
+Excalibur.EventSourcing.Migration.MigrationRunnerOptions::MigrationAssembly
+Excalibur.EventSourcing.Projections.ProjectionOptions::WarningThreshold
+Excalibur.EventSourcing.Projections.ProjectionRebuildOptions::MaxParallelism
+Excalibur.EventSourcing.Projections.ProjectionRebuildOptions::RebuildOnStartup
+Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions::BufferSize
+Excalibur.EventSourcing.Views.MaterializedViewOptions::CatchUpOnStartup
+Excalibur.Inbox.Firestore.FirestoreInboxOptions::DefaultTtlSeconds
+Excalibur.Inbox.Firestore.FirestoreInboxOptions::TimeoutInSeconds
+Excalibur.Jobs.IJobOptions::CronSchedule
+Excalibur.Jobs.IJobOptions::DegradedThreshold
+Excalibur.Jobs.IJobOptions::UnhealthyThreshold
+Excalibur.Jobs.Quartz.QuartzJobOptions::Description
+Excalibur.Jobs.Quartz.QuartzJobOptions::JobData
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions::TimeoutInSeconds
+Excalibur.Outbox.Firestore.FirestoreOutboxOptions::CreateCollectionIfNotExists
+Excalibur.Outbox.Firestore.FirestoreOutboxOptions::MaxRetryAttempts
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions::FenceTableName
+Excalibur.Outbox.Outbox.OutboxProcessingOptions::DrainTimeoutSeconds
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions::FenceTableName
+Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions::DefaultRetentionPeriod
+Excalibur.Outbox.SqlServer.SqlServerOutboxTableOptions::FenceTableName
+Excalibur.Saga.Firestore.FirestoreSagaOptions::TimeoutInSeconds
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions::EnableMetrics
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions::EnableTracing
+#
+# =============================================================================================
+# SURFACED BY CLOSING THE VALIDATOR-ONLY-READ BLIND SPOT.
+#
+# These entries did not become inert. They always were. The census used to count a read by the
+# option's OWN IValidateOptions implementation as proof of liveness, because the validator is a
+# different type from the options type - so an option the framework checks and then never looks at
+# again passed as wired. Excluding that read is what put these on the list.
+#
+# The rationale is identical for every line below, and it is mechanically checkable rather than
+# asserted: re-run the census with OptionLivenessScanner.Scan(paths, excludeOwnPlumbing: false) and
+# this exact set moves back to "live". That is a stronger per-entry justification than prose,
+# because prose cannot be re-derived and this can.
+#
+# They are candidate defects on the same terms as every line above: an option to wire to the
+# component it claims to configure, or to delete. Being validated is not being observed. None of
+# them is blessed.
+# =============================================================================================
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions::DefaultCampaignDuration
+Excalibur.A3.Governance.Provisioning.JitAccessOptions::DefaultJitDuration
+Excalibur.A3.Governance.Provisioning.JitAccessOptions::MaxJitDuration
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions::DefaultApprovalTimeout
+Excalibur.AuditLogging.Postgres.PostgresAuditOptions::BatchSize
+Excalibur.AuditLogging.Postgres.PostgresAuditOptions::RetentionCleanupBatchSize
+Excalibur.Cdc.Processing.CdcProcessingOptions::DrainTimeoutSeconds
+Excalibur.Cdc.SqlServer.SqlServerCdcIdempotencyFilterOptions::SchemaName
+Excalibur.Compliance.AuditAnnotationOptions::MaxNoteLength
+Excalibur.Compliance.AuditAnnotationOptions::MaxNotesPerEvent
+Excalibur.Compliance.AuditAnnotationOptions::MaxTagLength
+Excalibur.Compliance.AuditAnnotationOptions::MaxTagsPerEvent
+Excalibur.Data.CloudNative.CdcHealthCheckOptions::DegradedLagThreshold
+Excalibur.Data.CloudNative.CdcHealthCheckOptions::UnhealthyLagThreshold
+Excalibur.Data.DataProcessing.DataProcessingOptions::DispatcherTimeoutMilliseconds
+Excalibur.Data.DataProcessing.DataProcessingOptions::SchemaName
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions::DrainTimeoutSeconds
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions::ClusterEndpoint
+Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::DefaultTemplate
+Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::Enabled
+Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::Lifecycle
+Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::Optimization
+Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions::NumberOfReplicas
+Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions::NumberOfShards
+Excalibur.Data.ElasticSearch.ProjectionOptions::RetryPolicy
+Excalibur.Data.IdentityMap.IdentityMapOptions::DefaultExternalSystem
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions::MaxSnapshotsPerAggregate
+Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions::NumberOfReplicas
+Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions::NumberOfShards
+Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions::NodeUris
+Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions::RequestTimeoutSeconds
+Excalibur.Data.Spanner.SpannerOptions::DatabaseId
+Excalibur.Data.Spanner.SpannerOptions::InstanceId
+Excalibur.Data.Spanner.SpannerOptions::ProjectId
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions::MaxObjectSize
+Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.GcsClaimCheckOptions::MaxObjectSize
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions::MemoryLimitMB
+Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions::Compression
+Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions::Mode
+Excalibur.Dispatch.Options.Core.CompressionOptions::CompressionLevel
+Excalibur.Dispatch.Options.Core.CompressionOptions::CompressionType
+Excalibur.Dispatch.Options.Core.CompressionOptions::MinimumSizeThreshold
+Excalibur.Dispatch.Options.Core.InMemoryBusOptions::MaxQueueLength
+Excalibur.Dispatch.Options.Core.InMemoryBusOptions::ProcessingDelay
+Excalibur.Dispatch.Options.Middleware.LoggingMiddlewareOptions::FailureLevel
+Excalibur.Dispatch.Options.Middleware.LoggingMiddlewareOptions::SuccessLevel
+Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::ConsistencyMode
+Excalibur.Dispatch.TenantContextOptions::DefaultTenantId
+Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions::BootstrapServers
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::MaxDeliveryAttempts
+Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::TopicSuffix
+Excalibur.Dispatch.Transport.ProviderOptions::DefaultTimeoutMs
+Excalibur.Dispatch.Transport.ProviderOptions::RetryPolicy
+Excalibur.Domain.BoundedContext.BoundedContextOptions::EnforcementMode
+Excalibur.EventSourcing.EventNotificationOptions::InlineProjectionWarningThreshold
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions::DefaultBatchSize
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions::ConnectionString
+Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions::BatchSize
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions::ValidationTimeout
+Excalibur.Inbox.Oracle.OracleInboxOptions::MaxRetryCount
+Excalibur.Inbox.Oracle.OracleInboxOptions::SchemaName
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions::DefaultRetentionPeriod
+Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions::SchemaName
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions::SchemaName
+Excalibur.Saga.SagaTimeoutOptions::ShutdownTimeout
+Excalibur.Saga.SqlServer.SqlServerSagaTimeoutStoreOptions::SchemaName
+Excalibur.Security.RateLimitingOptions::InactivityTimeoutMinutes
+Excalibur.Security.SigningOptions::KeyRotationIntervalDays
+#
+# --- ACCEPTED: genuinely un-observable-from-IL cases. Each carries its own rationale above it. ---
+#
+# There are TWO legitimate shapes here, not one. The preamble at the top of this file names only the
+# first, because the second was not known when it was written:
+#
+#   (1) The value is read by something the census cannot SEE -- a configuration binder or reflection,
+#       which leaves no getter call site at all. Blind spot (2) on OptionLivenessScanner.ScanResult.
+#
+#   (2) The value is read by something the census deliberately EXCLUDES -- the option's own
+#       IValidateOptions -- and for this option that read IS the behaviour. The exclusion exists
+#       because validating a value the framework then never observes is the lie this census hunts.
+#       That reasoning holds for a value the framework was supposed to USE (range-checking a batch
+#       size does not make anything batch). It does NOT hold for an escape-hatch flag whose entire
+#       contract is to gate a startup refusal: there is no downstream consumer BY DESIGN, and the
+#       refusal is externally observable -- the host does not start. IL cannot tell the two apart,
+#       because both compile to a getter read inside a validator, so the split is made here and each
+#       entry names the test that proves the refusal still fires.
+#
+#   (3) The value is read by an implementation the CONSUMER supplies of a framework interface the
+#       framework does not implement. The registration exists to configure that class, and the
+#       reader is in the consumer's assembly, so no shipped IL can contain the getter call. This is
+#       distinguishable from a defect the same way (1) and (2) are: the interface has ZERO shipped
+#       implementations, so there is no framework component that was supposed to read the value and
+#       failed to. Each entry names the test that resolves a stand-in implementation through the
+#       real registration and asserts it observes the configured values, and that the startup
+#       refusal still fires.
+#
+# Excalibur.Data.ElasticSearch.Security.KeyManagementOptions::Provider
+#   The key provider is selected during service registration, before any options instance exists, by
+#   reading the configuration value directly:
+#   src/Excalibur/Excalibur.Data.ElasticSearch/Security/SecurityServiceCollectionExtensions.cs:161-162
+#   takes both the typed value and the raw string, because an ABSENT key binds to the zero-valued enum
+#   member and must be distinguishable from a consumer deliberately naming it. That read is against the
+#   IConfiguration section, not the bound property, so it leaves no getter call site for the census --
+#   blind spot (2) on OptionLivenessScanner.ScanResult. The value IS observed and it DOES change
+#   behaviour: it selects the arm of the provider switch, and a value with no arm is refused at
+#   registration. Locked by KeyManagementConfigurationBindingShould.
+Excalibur.Data.ElasticSearch.Security.KeyManagementOptions::Provider
+
+#
+# Excalibur.A3.Authorization.GrantDurabilityOptions::AllowVolatileGrantStore
+# Excalibur.AuditLogging.AuditLoggingOptions::AllowVolatileAuditStore
+# Excalibur.Compliance.KeyDurabilityOptions::AllowVolatileKeyProvider
+# Excalibur.Dispatch.Delivery.ScheduleDurabilityOptions::AllowVolatileScheduleStore
+#   Shape (2). Each of these is the escape hatch on a durability gate: left at its default the host
+#   refuses to start when the registered store cannot survive a restart, and setting it to true is how
+#   a development host accepts the volatile store. The read is in the gate's own
+#   IValidateOptions<T>.Validate, which is where the decision has to be made -- there is nothing
+#   downstream to hand the value to, because the value's only job is to choose between refusing and
+#   not refusing. Deleting them would remove the only way to run the in-memory store; wiring them
+#   somewhere else would move the decision away from the only place that knows the answer.
+#   Each is locked on both arms -- refusal without the flag, startup with it:
+#     GrantDurabilityGateShould, AuditStoreDurabilityGateShould, KeyDurabilityGateShould,
+#     ScheduleDurabilityGateShould.
+Excalibur.A3.Authorization.GrantDurabilityOptions::AllowVolatileGrantStore
+Excalibur.AuditLogging.AuditLoggingOptions::AllowVolatileAuditStore
+Excalibur.Compliance.KeyDurabilityOptions::AllowVolatileKeyProvider
+Excalibur.Dispatch.Delivery.ScheduleDurabilityOptions::AllowVolatileScheduleStore
+#
+# Excalibur.Dispatch.Options.Delivery.ExactlyOnceOptions::RequireTransactionalExactlyOnce
+#   Shape (2), pointing the other way: left at its default the host starts and accepts the documented
+#   at-least-once-with-deduplication boundary, and setting it to true is how a host demands a store
+#   that can claim and handle in one transaction -- refusing to start if the registered inbox cannot.
+#   The read is in TransactionalExactlyOnceCapabilityValidator, which is the component that can see
+#   the registered store's capability; the value has no other consumer by design.
+#   Locked by ExactlyOnceMessagingCompositionE2EShould.
+Excalibur.Dispatch.Options.Delivery.ExactlyOnceOptions::RequireTransactionalExactlyOnce
+#
+# Excalibur.Security.EncryptionOptions::AzureKeyVaultUrl
+# Excalibur.Security.EncryptionOptions::AwsKmsKeyArn
+#   Shape (2). Message encryption protects its keys with the host's Data Protection key ring, and this
+#   package attaches no external key provider to it, so neither value can select where keys live. They
+#   are not ignored: EncryptionOptionsValidator refuses startup when either is set, because a host that
+#   named a vault or a KMS key would otherwise run with keys held locally while its configuration read
+#   as though a managed service held them. As with the durability hatches above, the read is in the
+#   option's own IValidateOptions and there is nothing downstream to hand the value to - the value's
+#   only job is to be refused. Locked on all three arms, including the discriminating one that both
+#   values absent still starts: EncryptionKeyLocationIsRefusedShould.
+Excalibur.Security.EncryptionOptions::AzureKeyVaultUrl
+Excalibur.Security.EncryptionOptions::AwsKmsKeyArn
+#
+#
+# Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::BaseUrl
+# Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::Password
+# Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::RequestTimeout
+# Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::Username
+#   Shape (3). AddRabbitMqManagement<TImplementation>() registers these options, the validator and the
+#   consumer's IRabbitMqManagementClient. The framework ships no implementation of that interface -- it
+#   is the RabbitMQ HTTP management API, which this package deliberately does not speak -- so the only
+#   reader is the consumer's client. Locked by ManagementOptionsReachTheClientShould: a stand-in client
+#   resolved through the real registration observes all four values, and an invalid configuration is
+#   refused at options resolution.
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::BaseUrl
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::Password
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::RequestTimeout
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqManagementOptions::Username
+#
+# Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::MaxConcurrentRequests
+# Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::ReplyQueueName
+# Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::ReplyTimeout
+# Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::RequestTimeToLive
+#   Shape (3). AddAzureServiceBusRequestReply<TImplementation>() (and its factory and IConfiguration
+#   overloads) register these options, the validator and the consumer's IRequestReplyClient. The
+#   framework ships no implementation of that interface, so the only reader is the consumer's client.
+#   Locked by RequestReplyOptionsReachTheClientShould: a stand-in client resolved through the real
+#   registration observes all four values, and a missing reply queue or an out-of-range concurrency
+#   limit is refused at options resolution.
+Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::MaxConcurrentRequests
+Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::ReplyQueueName
+Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::ReplyTimeout
+Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::RequestTimeToLive

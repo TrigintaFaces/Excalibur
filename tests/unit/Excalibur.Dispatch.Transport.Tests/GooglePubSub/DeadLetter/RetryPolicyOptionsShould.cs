@@ -82,17 +82,6 @@ public sealed class RetryPolicyOptionsShould
 	}
 
 	[Fact]
-	public void HaveEmptyCustomStrategiesByDefault()
-	{
-		// Arrange & Act
-		var options = new PubSubRetryPolicyOptions();
-
-		// Assert
-		options.CustomStrategies.ShouldBeEmpty();
-		options.EnableAdaptiveRetries.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void AllowAddingCustomStrategies()
 	{
 		// Arrange

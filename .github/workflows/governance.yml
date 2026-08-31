@@ -297,7 +297,7 @@ jobs:
           if [ -n "$violations" ]; then
             echo "Found specs outside management/specs:" >> "$report"
             echo "$violations" | sed 's/^/- /' >> "$report"
-            echo "::error::Specs must be under management/specs (see docs/requirements.md R0.10)"
+            echo "::error::Specs must be under management/specs (the repository requires all specs to live under management/specs)"
             exit 1
           else
             echo "No violations detected." >> "$report"

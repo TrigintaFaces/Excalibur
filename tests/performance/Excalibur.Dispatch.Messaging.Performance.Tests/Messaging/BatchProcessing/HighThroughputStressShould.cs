@@ -245,7 +245,7 @@ public sealed class HighThroughputStressShould : IDisposable
 
 		var store = new InMemoryInboxStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance);
+			Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 
 		_disposables.Add(store);
 
@@ -297,7 +297,7 @@ public sealed class HighThroughputStressShould : IDisposable
 		stopwatch.Stop();
 
 		// Assert
-		var statistics = await store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var statistics = await store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		var throughput = (successCount + errorCount) / stopwatch.Elapsed.TotalSeconds;
 
 		((double)successCount).ShouldBeGreaterThan(messageCount * 0.95); // Most should succeed

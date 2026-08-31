@@ -13,6 +13,7 @@
     <PackageReference Include="Elastic.Transport" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Security.KeyVault.Keys" />
@@ -52,4 +53,12 @@
       <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <!-- DataElasticsearchEventId is internal: its constants are logging plumbing, not consumer
+         contract. These sibling packages emit the same event ids. -->
+    <InternalsVisibleTo Include="Excalibur.Data.ElasticSearch.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.ElasticSearch" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.ElasticSearch" />
+  </ItemGroup>
+
 </Project>

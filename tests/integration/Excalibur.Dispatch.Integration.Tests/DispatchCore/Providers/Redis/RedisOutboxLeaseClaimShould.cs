@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
@@ -44,6 +45,16 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 [Trait("Feature", "Outbox")]
 public sealed class RedisOutboxLeaseClaimShould : IntegrationTestBase
 {
+	/// <summary>
+	/// How long the reclaim arm keeps asking before it calls the in-flight message lost. Generous on purpose:
+	/// it absorbs the container-clock stalls documented at the assertion below, and is not a tolerance on the
+	/// store's behaviour — an implementation that never reclaims still fails when it expires.
+	/// </summary>
+	private static readonly TimeSpan ReclaimWindow = TimeSpan.FromSeconds(30);
+
+	/// <summary>How often the reclaim arm re-asks while the window is open.</summary>
+	private static readonly TimeSpan ReclaimPollInterval = TimeSpan.FromMilliseconds(250);
+
 	private readonly RedisContainerFixture _redisFixture;
 
 	public RedisOutboxLeaseClaimShould(RedisContainerFixture redisFixture)
@@ -119,11 +130,36 @@ public sealed class RedisOutboxLeaseClaimShould : IntegrationTestBase
 		await Task.Delay(TimeSpan.FromSeconds(2.5), TestCancellationToken);
 
 		// A fresh processor reclaims the now-expired lease — the in-flight message is recovered, never lost.
+		//
+		// Asked repeatedly rather than sampled once. The lease is stamped and judged on the REDIS SERVER's
+		// clock (redis.call('TIME')); the wait above is measured on the TEST HOST's. Those are two different
+		// clocks, and on a loaded machine a container's clock does not advance in step with the host's — it
+		// stalls and then catches up. Measured on the machine this suite runs on, sampling a container's clock
+		// across fifty host-side 2.5 second waits: six of the fifty advanced the container clock by only 345
+		// to 541 ms — far short of the one second this lease needs, and well inside the 1.5 seconds of slack
+		// a 2.5 second wait appears to leave. A failing run of this very test was caught in the act: the
+		// reclaim's own ZRANGEBYSCORE ran at a server instant EARLIER than the lease it was meant to expire,
+		// so on Redis's clock the lease was still live.
+		//
+		// A single sample therefore asserts that the SERVER has seen the lease expire when only the HOST has,
+		// and reports a store that is behaving correctly — refusing to reclaim a lease its own clock still
+		// considers live — as a lost message. Refusing is the safe direction, so the store is right and the
+		// sample is wrong. Polling asserts the same property the single sample was written to assert, without
+		// assuming the two clocks agree: a no-lease/no-reclaim implementation still fails here, because it
+		// never returns the message no matter how long it is asked.
 		await using var processorB = CreateStore(prefix, processorId: "proc-b", leaseTimeoutSeconds: 1);
-		var reclaimed = (await processorB.GetUnsentMessagesAsync(10, TestCancellationToken)).Select(m => m.Id).ToList();
-		reclaimed.ShouldContain(message.Id,
+		var reclaimed = await WaitHelpers.WaitUntilAsync(
+			async () => (await processorB.GetUnsentMessagesAsync(10, TestCancellationToken))
+				.Any(m => string.Equals(m.Id, message.Id, StringComparison.Ordinal)),
+			ReclaimWindow,
+			ReclaimPollInterval,
+			TestCancellationToken);
+
+		reclaimed.ShouldBeTrue(
 			"FR-J1.2/J1.5: an expired lease must be reclaimed so a claimed-but-unsent message is never lost "
-			+ "(a no-lease/no-reclaim impl would never return it again).");
+			+ "(a no-lease/no-reclaim impl would never return it again). This arm kept asking for "
+			+ $"{ReclaimWindow.TotalSeconds:0} seconds, which is far longer than any clock stall observed on "
+			+ "this host, so the message was never handed back.");
 	}
 
 	[Fact]
@@ -144,7 +180,7 @@ public sealed class RedisOutboxLeaseClaimShould : IntegrationTestBase
 		// Terminal transition clears the lease (ZREM the leased index).
 		await store.MarkSentAsync(message.Id, TestCancellationToken);
 
-		var stats = await store.GetStatisticsAsync(TestCancellationToken);
+		var stats = await store.GetAllTenantsStatisticsAsync(TestCancellationToken);
 		stats.SentMessageCount.ShouldBe(1, "the message must be counted sent");
 		stats.SendingMessageCount.ShouldBe(0, "FR-J1.3: a sent message must leave the leased (in-flight) index");
 

@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// <item>40900-40999: Cron Timer Transport</item>
 /// </list>
 /// </remarks>
-public static class DeliveryEventId
+internal static class DeliveryEventId
 {
 	// ========================================
 	// 40000-40099: Outbox Background Service
@@ -378,6 +378,9 @@ public static class DeliveryEventId
 	/// <summary>Unknown dispatch type for scheduled message.</summary>
 	public const int ScheduledUnknownDispatchType = 40520;
 
+	/// <summary>A schedule row that failed was disabled because its next execution could not be advanced.</summary>
+	public const int ScheduledDisabledAfterFailure = 40521;
+
 	// ========================================
 	// 40600-40699: Cron Scheduling
 	// ========================================
@@ -513,4 +516,17 @@ public static class DeliveryEventId
 
 	/// <summary>Cron timer catch-up firing missed occurrences.</summary>
 	public const int CronTimerCatchUp = 40907;
+
+	/// <summary>
+	/// A handler is registered with a lifetime more expensive than its shape requires. Advisory only —
+	/// the registration is honoured exactly as written; this names a cheaper option in case the lifetime
+	/// was chosen by habit rather than intent. Emitted once per handler type, never per dispatch.
+	/// </summary>
+	public const int HandlerLifetimeMoreExpensiveThanNeeded = 40908;
+
+	/// <summary>
+	/// A typed dispatch invoker could not be built for a handler, so dispatch uses the reflection-based
+	/// fallback path. Correct but slower, and previously invisible.
+	/// </summary>
+	public const int TypedInvokerBuildFailed = 40909;
 }

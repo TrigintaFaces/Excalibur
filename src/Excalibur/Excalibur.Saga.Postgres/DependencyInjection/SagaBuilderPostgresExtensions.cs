@@ -3,11 +3,15 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.DependencyInjection;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Npgsql;
@@ -119,6 +123,35 @@ public static class SagaBuilderPostgresExtensions
 				return () => new NpgsqlConnection(resolved);
 			});
 		}
-		// else: ConnectionString or BindConfiguration — store handles via IOptions<PostgresSagaOptions>
+		else
+		{
+			// ConnectionString or BindConfiguration: read the resolved options rather than the builder's
+			// snapshot, so a value bound from configuration after this call still reaches the connection.
+			// Registered here rather than left to the store's IOptions constructor so the store is built
+			// through one connection seam on every branch.
+			builder.Services.TryAddSingleton<Func<NpgsqlConnection>>(sp =>
+			{
+				var opts = sp.GetRequiredService<IOptions<PostgresSagaOptions>>();
+				return () => new NpgsqlConnection(opts.Value.ConnectionString);
+			});
+		}
+
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the
+		// store through THIS path, while the sibling entry point in the same package looks done.
+		_ = builder.Services.AddDefaultTenantContext();
+		_ = builder.Services.AddTenantAwareStore<ISagaStore, PostgresSagaStore>(sp =>
+			new PostgresSagaStore(
+				sp.GetRequiredService<Func<NpgsqlConnection>>(),
+				sp.GetRequiredService<IOptions<PostgresSagaOptions>>().Value,
+				sp.GetRequiredService<ILogger<PostgresSagaStore>>(),
+				sp.GetRequiredService<DispatchJsonSerializer>(),
+				sp.GetRequiredService<ITenantContext>()));
+		builder.Services.AddKeyedSingleton<ISagaStore>(
+			"postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
+		builder.Services.TryAddKeyedSingleton<ISagaStore>(
+			"default", (sp, _) => sp.GetRequiredKeyedService<ISagaStore>("postgres"));
 	}
 }

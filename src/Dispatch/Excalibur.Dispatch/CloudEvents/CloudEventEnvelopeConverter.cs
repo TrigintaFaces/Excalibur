@@ -61,7 +61,6 @@ public sealed class CloudEventEnvelopeConverter(CloudEventOptions options) : ICl
 		{
 			MessageId = cloudEvent.Id,
 			MessageType = cloudEvent.Type,
-			Source = cloudEvent.Source?.ToString(),
 			ContentType = cloudEvent.DataContentType ?? "application/json",
 			ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			SentTimestampUtc = cloudEvent.Time,

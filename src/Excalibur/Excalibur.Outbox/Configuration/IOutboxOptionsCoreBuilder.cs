@@ -12,7 +12,7 @@ namespace Excalibur.Outbox;
 /// background processing toggle, batch size, polling interval, and parallelism.
 /// </para>
 /// </remarks>
-public interface IOutboxOptionsCoreBuilder
+internal interface IOutboxOptionsCoreBuilder
 {
 	/// <summary>
 	/// Sets the unique identifier for this processor instance.

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// <item>50150-50199: Lambda Cold Start Optimization</item>
 /// </list>
 /// </remarks>
-public static class AwsLambdaEventId
+internal static class AwsLambdaEventId
 {
 	// ========================================
 	// 50100-50149: Lambda Host Provider

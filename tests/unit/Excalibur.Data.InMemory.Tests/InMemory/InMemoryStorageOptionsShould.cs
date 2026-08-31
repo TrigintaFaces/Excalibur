@@ -20,8 +20,6 @@ public sealed class InMemoryStorageOptionsShould : UnitTestBase
 		var options = new InMemoryStorageOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(0);
-		options.RetryDelayMilliseconds.ShouldBe(1000);
 		options.EnableMetrics.ShouldBeFalse();
 		options.PersistToDisk.ShouldBeFalse();
 		options.PersistenceFilePath.ShouldBeNull();
@@ -81,21 +79,6 @@ public sealed class InMemoryStorageOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AllowCustomRetrySettings()
-	{
-		// Arrange & Act
-		var options = new InMemoryStorageOptions
-		{
-			MaxRetryAttempts = 5,
-			RetryDelayMilliseconds = 2000
-		};
-
-		// Assert
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.RetryDelayMilliseconds.ShouldBe(2000);
-	}
-
-	[Fact]
 	public void AllowEnablingMetrics()
 	{
 		// Arrange & Act
@@ -105,19 +88,4 @@ public sealed class InMemoryStorageOptionsShould : UnitTestBase
 		options.EnableMetrics.ShouldBeTrue();
 	}
 
-	[Fact]
-	public void HaveRangeAttributeOnMaxRetryAttempts()
-	{
-		var prop = typeof(InMemoryStorageOptions).GetProperty(nameof(InMemoryStorageOptions.MaxRetryAttempts))!;
-		var attr = prop.GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.RangeAttribute), false);
-		attr.ShouldNotBeEmpty();
-	}
-
-	[Fact]
-	public void HaveRangeAttributeOnRetryDelayMilliseconds()
-	{
-		var prop = typeof(InMemoryStorageOptions).GetProperty(nameof(InMemoryStorageOptions.RetryDelayMilliseconds))!;
-		var attr = prop.GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.RangeAttribute), false);
-		attr.ShouldNotBeEmpty();
-	}
 }

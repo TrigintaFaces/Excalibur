@@ -24,7 +24,7 @@ public sealed class GrantShould : UnitTestBase
 		var grant = new Grant(
 			UserId: "user-123",
 			FullName: null,
-			TenantId: null,
+			TenantId: "tenant-1",
 			GrantType: "role",
 			Qualifier: "admin",
 			ExpiresOn: null,
@@ -34,7 +34,7 @@ public sealed class GrantShould : UnitTestBase
 		// Assert
 		grant.UserId.ShouldBe("user-123");
 		grant.FullName.ShouldBeNull();
-		grant.TenantId.ShouldBeNull();
+		grant.TenantId.ShouldBe("tenant-1");
 		grant.GrantType.ShouldBe("role");
 		grant.Qualifier.ShouldBe("admin");
 		grant.ExpiresOn.ShouldBeNull();
@@ -75,8 +75,8 @@ public sealed class GrantShould : UnitTestBase
 	public void Equality_SameValues_AreEqual()
 	{
 		// Arrange
-		var grant1 = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
-		var grant2 = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
+		var grant1 = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
+		var grant2 = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
 
 		// Act & Assert
 		grant1.ShouldBe(grant2);
@@ -86,8 +86,8 @@ public sealed class GrantShould : UnitTestBase
 	public void Equality_DifferentUserId_AreNotEqual()
 	{
 		// Arrange
-		var grant1 = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
-		var grant2 = new Grant("user-456", null, null, "role", "admin", null, "system", _grantedOn);
+		var grant1 = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
+		var grant2 = new Grant("user-456", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
 
 		// Act & Assert
 		grant1.ShouldNotBe(grant2);
@@ -97,8 +97,8 @@ public sealed class GrantShould : UnitTestBase
 	public void Equality_DifferentGrantType_AreNotEqual()
 	{
 		// Arrange
-		var grant1 = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
-		var grant2 = new Grant("user-123", null, null, "permission", "admin", null, "system", _grantedOn);
+		var grant1 = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
+		var grant2 = new Grant("user-123", null, "tenant-1", "permission", "admin", null, "system", _grantedOn);
 
 		// Act & Assert
 		grant1.ShouldNotBe(grant2);
@@ -108,8 +108,8 @@ public sealed class GrantShould : UnitTestBase
 	public void Equality_DifferentQualifier_AreNotEqual()
 	{
 		// Arrange
-		var grant1 = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
-		var grant2 = new Grant("user-123", null, null, "role", "viewer", null, "system", _grantedOn);
+		var grant1 = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
+		var grant2 = new Grant("user-123", null, "tenant-1", "role", "viewer", null, "system", _grantedOn);
 
 		// Act & Assert
 		grant1.ShouldNotBe(grant2);
@@ -119,8 +119,8 @@ public sealed class GrantShould : UnitTestBase
 	public void Equality_DifferentExpiresOn_AreNotEqual()
 	{
 		// Arrange
-		var grant1 = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
-		var grant2 = new Grant("user-123", null, null, "role", "admin", _expiresOn, "system", _grantedOn);
+		var grant1 = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
+		var grant2 = new Grant("user-123", null, "tenant-1", "role", "admin", _expiresOn, "system", _grantedOn);
 
 		// Act & Assert
 		grant1.ShouldNotBe(grant2);
@@ -134,7 +134,7 @@ public sealed class GrantShould : UnitTestBase
 	public void With_CreatesModifiedCopy_UserId()
 	{
 		// Arrange
-		var original = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
+		var original = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
 
 		// Act
 		var modified = original with { UserId = "user-456" };
@@ -148,7 +148,7 @@ public sealed class GrantShould : UnitTestBase
 	public void With_CreatesModifiedCopy_ExpiresOn()
 	{
 		// Arrange
-		var original = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
+		var original = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
 
 		// Act
 		var modified = original with { ExpiresOn = _expiresOn };
@@ -162,7 +162,7 @@ public sealed class GrantShould : UnitTestBase
 	public void With_CreatesModifiedCopy_FullName()
 	{
 		// Arrange
-		var original = new Grant("user-123", null, null, "role", "admin", null, "system", _grantedOn);
+		var original = new Grant("user-123", null, "tenant-1", "role", "admin", null, "system", _grantedOn);
 
 		// Act
 		var modified = original with { FullName = "Jane Smith" };
@@ -184,7 +184,7 @@ public sealed class GrantShould : UnitTestBase
 	public void Create_WithCommonGrantTypes_Succeeds(string grantType)
 	{
 		// Act
-		var grant = new Grant("user-123", null, null, grantType, "qualifier", null, "system", _grantedOn);
+		var grant = new Grant("user-123", null, "tenant-1", grantType, "qualifier", null, "system", _grantedOn);
 
 		// Assert
 		grant.GrantType.ShouldBe(grantType);

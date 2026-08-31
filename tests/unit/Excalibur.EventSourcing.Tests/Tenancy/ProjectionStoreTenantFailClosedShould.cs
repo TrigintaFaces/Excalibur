@@ -32,6 +32,11 @@ namespace Excalibur.EventSourcing.Tests.Tenancy;
 // store that throws for EVERY tenant (and never serves anyone). Each safety arm is paired with a liveness arm
 // proving a RESOLVED tenant is admitted past the guard, so the fix cannot be "resolved" by always-throwing.
 //
+// UPDATE: ITenantContext is now a REQUIRED constructor dependency, so "no tenant context registered" is no longer a
+// reachable state — the two WhenTenantContextIsNull arms therefore bind the refusal at construction. The
+// missing-ambient-tenant arms are unchanged: a context that RESOLVES null/blank is still reachable and must still
+// throw TenantRequiredException at the tenant-id line, which is where this lock does its real work.
+//
 // NON-VACUITY: the pre-fix store threw ArgumentException (not TenantRequiredException) for a missing tenant, so the
 // SAFETY arms are RED on committed HEAD before the fix; reverting to FromContext (null => None => no throw) makes
 // the null-context safety arm RED (fail-open). The liveness arms are RED against an always-throwing guard.
@@ -63,16 +68,16 @@ public sealed class ProjectionStoreTenantFailClosedShould
 	}
 
 	[Fact]
-	public async Task SqlServer_FailClosed_WhenTenantContextIsNull()
+	public void SqlServer_FailClosed_WhenTenantContextIsNull()
 	{
-		// SAFETY (null context => Scoped(null) => throw). The store uses Scoped(_tenantContext?.TenantId), NOT
-		// FromContext, so a null context fails closed rather than degrading to an unscoped (None) query. Reverting to
-		// FromContext(null)=None makes this RED (fail-open).
-		var store = NewSqlStore(tenantContext: null);
-		await AssertAllOpsThrow<TenantRequiredException>(
-			store.GetByIdAsync, store.UpsertAsync, store.DeleteAsync, store.QueryAsync, store.CountAsync,
-			"SqlServer projection store must fail closed even when NO tenant context is registered — an " +
-			"always-tenant-scoped store has no legitimate unscoped mode.");
+		// SAFETY, same property, now enforced one step EARLIER. This arm used to build the store with no tenant
+		// context and assert the guard threw at the first operation. The tenant context is now a required
+		// constructor dependency, so that state is refused at construction and never reaches an operation at all —
+		// an always-tenant-scoped store still has no legitimate unscoped mode, and now it cannot be brought into
+		// existence in one. The op-level guard remains bound by the sibling arm above, which drives a context that
+		// RESOLVES nothing; that route is still reachable and is where TenantRequiredException must still fire.
+		Should.Throw<ArgumentNullException>(() => NewSqlStore(tenantContext: null!))
+			.ParamName.ShouldBe("tenantContext");
 	}
 
 	[Fact]
@@ -108,13 +113,11 @@ public sealed class ProjectionStoreTenantFailClosedShould
 	}
 
 	[Fact]
-	public async Task Postgres_FailClosed_WhenTenantContextIsNull()
+	public void Postgres_FailClosed_WhenTenantContextIsNull()
 	{
-		// SAFETY (null context).
-		var store = NewPgStore(tenantContext: null);
-		await AssertAllOpsThrow<TenantRequiredException>(
-			store.GetByIdAsync, store.UpsertAsync, store.DeleteAsync, store.QueryAsync, store.CountAsync,
-			"Postgres projection store must fail closed even when NO tenant context is registered.");
+		// SAFETY (no tenant context) — refused at construction, as above.
+		Should.Throw<ArgumentNullException>(() => NewPgStore(tenantContext: null!))
+			.ParamName.ShouldBe("tenantContext");
 	}
 
 	[Fact]

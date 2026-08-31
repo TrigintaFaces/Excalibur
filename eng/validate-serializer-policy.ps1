@@ -1,6 +1,6 @@
 # Copyright (c) 2026 The Excalibur Project
 #
-# Validates Dispatch/Excalibur serialization policy compliance (R0.14, R0.5, R21.4)
+# Validates Dispatch/Excalibur serialization policy compliance
 #
 # Policy (JSON-First Serialization):
 # - Excalibur.Dispatch uses System.Text.Json as the default serializer (JSON-first)
@@ -37,12 +37,12 @@ foreach ($projectRule in $coreProjects) {
         # Allow System.Text.Json.JsonElement usage for interop, but not as primary serializer
         if ($content -match 'PackageReference\s+Include="System\.Text\.Json"' -and
             $content -notmatch '<!-- Allowed for JsonElement interop only -->') {
-            $violations += "  ❌ $project references System.Text.Json without interop justification (R0.14 violation)"
+            $violations += "  ❌ $project references System.Text.Json without interop justification (serialization-policy violation)"
         }
 
         if ($content -match 'PackageReference\s+Include="MessagePack"' -and
             $content -notmatch 'MemoryPack') {
-            $violations += "  ❌ $project references MessagePack instead of MemoryPack (R0.14 violation)"
+            $violations += "  ❌ $project references MessagePack instead of MemoryPack (serialization-policy violation)"
         }
 
         if ($content -match 'PackageReference\s+Include="Google\.Protobuf"') {
@@ -113,7 +113,7 @@ Write-Host ""
 Write-Host "[Rule 4] Validating Protobuf usage scope..." -ForegroundColor Yellow
 
 $allowedProtobufProjects = @(
-    "Excalibur.Dispatch.Serialization.Protobuf",  # Opt-in Protobuf package (R0.14, R9.46)
+    "Excalibur.Dispatch.Serialization.Protobuf",  # Opt-in Protobuf package (pay-for-play, not referenced by the core)
     "Tests.Shared.Extra"  # Test infrastructure
 )
 
@@ -184,7 +184,7 @@ if ($violations.Count -eq 0) {
     Write-Host "  - Delete obsolete [Obsolete] serializer implementations" -ForegroundColor Gray
     Write-Host "  - Isolate Protobuf to Excalibur.Dispatch.Transport.* packages only" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "See: management/architecture/adr-295-json-first-serialization.md" -ForegroundColor Cyan
+    Write-Host "See: the serialization guide in the published documentation." -ForegroundColor Cyan
     Write-Host ""
     exit 1
 }

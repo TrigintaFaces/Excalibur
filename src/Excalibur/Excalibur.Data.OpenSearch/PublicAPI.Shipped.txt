@@ -1,18 +1,4 @@
 #nullable enable
-Excalibur.Data.OpenSearch.CircuitBreakerOptions
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.BreakDuration.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.BreakDuration.init -> void
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.CircuitBreakerOptions() -> void
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.Enabled.get -> bool
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.Enabled.init -> void
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.FailureRateThreshold.get -> double
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.FailureRateThreshold.init -> void
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.FailureThreshold.get -> int
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.FailureThreshold.init -> void
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.MinimumThroughput.get -> int
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.MinimumThroughput.init -> void
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.SamplingDuration.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.CircuitBreakerOptions.SamplingDuration.init -> void
 Excalibur.Data.OpenSearch.DeadLetterDocument<T>
 Excalibur.Data.OpenSearch.DeadLetterDocument<T>.DeadLetterDocument() -> void
 Excalibur.Data.OpenSearch.DeadLetterDocument<T>.ErrorMessage.get -> string!
@@ -88,32 +74,10 @@ Excalibur.Data.OpenSearch.IndexManagement.DataStreamTimestampField
 Excalibur.Data.OpenSearch.IndexManagement.DataStreamTimestampField.DataStreamTimestampField() -> void
 Excalibur.Data.OpenSearch.IndexManagement.DataStreamTimestampField.Name.get -> string!
 Excalibur.Data.OpenSearch.IndexManagement.DataStreamTimestampField.Name.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultPriority.get -> int
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultPriority.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultRefreshInterval.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultRefreshInterval.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultReplicas.get -> int
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultReplicas.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultShards.get -> int
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultShards.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.DefaultTemplateOptions() -> void
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.Environment.get -> Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions!
-Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions.Environment.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.DeletePhaseConfiguration
 Excalibur.Data.OpenSearch.IndexManagement.DeletePhaseConfiguration.DeletePhaseConfiguration() -> void
 Excalibur.Data.OpenSearch.IndexManagement.DeletePhaseConfiguration.WaitForSnapshotPolicy.get -> string?
 Excalibur.Data.OpenSearch.IndexManagement.DeletePhaseConfiguration.WaitForSnapshotPolicy.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.EnvironmentOptions() -> void
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.Name.get -> string!
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.Name.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.RefreshInterval.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.RefreshInterval.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.ReplicaCount.get -> int
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.ReplicaCount.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.UseDevelopmentSettings.get -> bool
-Excalibur.Data.OpenSearch.IndexManagement.EnvironmentOptions.UseDevelopmentSettings.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.HotPhaseConfiguration
 Excalibur.Data.OpenSearch.IndexManagement.HotPhaseConfiguration.HotPhaseConfiguration() -> void
 Excalibur.Data.OpenSearch.IndexManagement.HotPhaseConfiguration.Priority.get -> int?
@@ -185,16 +149,6 @@ Excalibur.Data.OpenSearch.IndexManagement.IndexLifecycleStatus.Phase.get -> stri
 Excalibur.Data.OpenSearch.IndexManagement.IndexLifecycleStatus.Phase.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexLifecycleStatus.PolicyName.get -> string?
 Excalibur.Data.OpenSearch.IndexManagement.IndexLifecycleStatus.PolicyName.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.DefaultTemplate.get -> Excalibur.Data.OpenSearch.IndexManagement.DefaultTemplateOptions!
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.DefaultTemplate.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Enabled.get -> bool
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Enabled.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.IndexManagementOptions() -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Lifecycle.get -> Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions!
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Lifecycle.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Optimization.get -> Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions!
-Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Optimization.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexOperationsManagerExtensions
 Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions
 Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions.ForceMerge.get -> bool
@@ -249,30 +203,6 @@ Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.SettingsJso
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Version.get -> long?
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Version.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateManagerExtensions
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.ColdPhaseDuration.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.ColdPhaseDuration.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.DeleteAfterColdPhase.get -> bool
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.DeleteAfterColdPhase.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.Enabled.get -> bool
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.Enabled.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.HotPhaseDuration.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.HotPhaseDuration.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.LifecycleManagementOptions() -> void
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.WarmPhaseDuration.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.WarmPhaseDuration.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.AutoOptimize.get -> bool
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.AutoOptimize.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.CompressionLevel.get -> string!
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.CompressionLevel.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.ForceMergeOnRollover.get -> bool
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.ForceMergeOnRollover.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.MaxSegmentsPerTier.get -> int
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.MaxSegmentsPerTier.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.MergePolicy.get -> string!
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.MergePolicy.init -> void
-Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions.OptimizationOptions() -> void
 Excalibur.Data.OpenSearch.IndexManagement.PhaseConfiguration
 Excalibur.Data.OpenSearch.IndexManagement.PhaseConfiguration.MinAge.get -> System.TimeSpan?
 Excalibur.Data.OpenSearch.IndexManagement.PhaseConfiguration.MinAge.init -> void
@@ -331,8 +261,8 @@ Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.Dele
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.GetAsync<TView>(string! viewName, string! viewId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TView?>
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.GetPositionAsync(string! viewName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long?>
-Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.OpenSearchMaterializedViewStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore!>! logger, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
-Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.OpenSearchMaterializedViewStore(OpenSearch.Client.OpenSearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore!>! logger, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
+Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.OpenSearchMaterializedViewStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
+Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.OpenSearchMaterializedViewStore(OpenSearch.Client.OpenSearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.SaveAsync<TView>(string! viewName, string! viewId, TView! view, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStore.SavePositionAsync(string! viewName, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions
@@ -362,8 +292,6 @@ Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptio
 Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.ViewsIndexName.set -> void
 Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions
 Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions.OpenSearchConfigurationOptions() -> void
-Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions.Resilience.get -> Excalibur.Data.OpenSearch.OpenSearchResilienceOptions!
-Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions.Resilience.init -> void
 Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions.Url.get -> System.Uri?
 Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions.Url.init -> void
 Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions.Urls.get -> System.Collections.Generic.IEnumerable<System.Uri!>?
@@ -380,45 +308,13 @@ Excalibur.Data.OpenSearch.OpenSearchDeadLetterOptions.MaxRetryCount.set -> void
 Excalibur.Data.OpenSearch.OpenSearchDeadLetterOptions.OpenSearchDeadLetterOptions() -> void
 Excalibur.Data.OpenSearch.OpenSearchDeadLetterOptions.RetentionPeriod.get -> System.TimeSpan
 Excalibur.Data.OpenSearch.OpenSearchDeadLetterOptions.RetentionPeriod.set -> void
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.CircuitBreaker.get -> Excalibur.Data.OpenSearch.CircuitBreakerOptions!
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.CircuitBreaker.init -> void
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.Enabled.get -> bool
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.Enabled.init -> void
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.OpenSearchResilienceOptions() -> void
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.Retry.get -> Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions!
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.Retry.init -> void
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.Timeouts.get -> Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions!
-Excalibur.Data.OpenSearch.OpenSearchResilienceOptions.Timeouts.init -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.BaseDelay.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.BaseDelay.init -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.Enabled.get -> bool
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.Enabled.init -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.JitterFactor.get -> double
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.JitterFactor.init -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.MaxAttempts.get -> int
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.MaxAttempts.init -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.MaxDelay.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.MaxDelay.init -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.OpenSearchRetryPolicyOptions() -> void
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.UseExponentialBackoff.get -> bool
-Excalibur.Data.OpenSearch.OpenSearchRetryPolicyOptions.UseExponentialBackoff.init -> void
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.BulkTimeout.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.BulkTimeout.init -> void
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.DeleteTimeout.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.DeleteTimeout.init -> void
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.IndexTimeout.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.IndexTimeout.init -> void
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.OpenSearchTimeoutOptions() -> void
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.SearchTimeout.get -> System.TimeSpan
-Excalibur.Data.OpenSearch.OpenSearchTimeoutOptions.SearchTimeout.init -> void
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.IndexPrefix.get -> string!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.IndexPrefix.set -> void
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.MaxResultCount.get -> int
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.MaxResultCount.set -> void
+Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.Name.get -> string?
+Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.Name.set -> void
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.NumberOfReplicas.get -> int
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.NumberOfReplicas.set -> void
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions.NumberOfShards.get -> int
@@ -430,9 +326,7 @@ Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.DeleteAsync(string! indexName, string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.Dispose() -> void
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetByIdAsync<TDocument>(string! indexName, string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
-Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.GetService(System.Type! serviceType) -> object?
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceProvider.IndexAsync<TDocument>(string! indexName, string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -478,21 +372,6 @@ Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.RefreshIn
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.RequestTimeoutSeconds.get -> int
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.RequestTimeoutSeconds.set -> void
 Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions.Validate() -> void
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.ConsecutiveFailures.get -> int
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.FailureRate.get -> double
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.IsHalfOpen.get -> bool
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.IsOpen.get -> bool
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.RecordFailureAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.RecordSuccessAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker.State.get -> Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.GetRetryDelay(int attemptNumber) -> System.TimeSpan
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.MaxAttempts.get -> int
-Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.ShouldRetry(System.Exception! exception, int attemptNumber) -> bool
-Excalibur.Data.OpenSearch.Resilience.IResilientOpenSearchClient
-Excalibur.Data.OpenSearch.Resilience.IResilientOpenSearchClient.BulkAsync(System.Func<OpenSearch.Client.BulkDescriptor!, OpenSearch.Client.IBulkRequest!>! selector, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<OpenSearch.Client.BulkResponse!>!
 Microsoft.Extensions.DependencyInjection.OpenSearchHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.OpenSearchPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions
@@ -512,7 +391,7 @@ static Microsoft.Extensions.DependencyInjection.OpenSearchHealthChecksBuilderExt
 static Microsoft.Extensions.DependencyInjection.OpenSearchPersistenceServiceCollectionExtensions.AddOpenSearchPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchPersistenceServiceCollectionExtensions.AddOpenSearchPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, OpenSearch.Client.OpenSearchClient!>! clientFactory, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, OpenSearch.Client.IOpenSearchClient!>! clientFactory, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>! configureShared, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -521,3 +400,5 @@ static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExten
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IEnumerable<System.Uri!>! nodeUris, System.Action<OpenSearch.Client.ConnectionSettings!>? configureSettings = null, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<OpenSearch.Client.ConnectionSettings!>? configureSettings = null, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchTenantShardingExtensions.UseOpenSearchTenantProjectionStore<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+Microsoft.Extensions.DependencyInjection.OpenSearchIndexManagementServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.OpenSearchIndexManagementServiceCollectionExtensions.AddOpenSearchIndexManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -147,4 +147,7 @@ public sealed class EncryptionTelemetryConformanceTests : EncryptionTelemetryCon
 		UpdateActiveKeyCount_ShouldCompleteSuccessfully();
 
 	#endregion UpdateActiveKeyCount Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

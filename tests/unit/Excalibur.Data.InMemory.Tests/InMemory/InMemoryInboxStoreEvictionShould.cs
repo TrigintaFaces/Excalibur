@@ -35,7 +35,7 @@ public sealed class InMemoryInboxStoreEvictionShould
 			MaxEntries = maxEntries,
 			EnableAutomaticCleanup = false
 		});
-		return new InMemoryInboxStore(options, NullLogger<InMemoryInboxStore>.Instance);
+		return new InMemoryInboxStore(options, NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 	}
 
 	// CreateEntryAsync returns the live stored reference; mutate ReceivedAt on it to pin ordering.
@@ -93,7 +93,7 @@ public sealed class InMemoryInboxStoreEvictionShould
 			"msg-new", Handler, "TestMessage", [1], new Dictionary<string, object>(), CancellationToken.None);
 
 		// LIVENESS: bounded memory is still enforced.
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(3, "capacity must remain bounded at MaxEntries — the store still evicts");
 
 		// The evicted victim is the oldest NON-live entry, not the protected marker.
@@ -129,7 +129,7 @@ public sealed class InMemoryInboxStoreEvictionShould
 		// LIVENESS: eviction still happened — the Received entry was the victim, count stayed bounded.
 		(await store.GetEntryAsync("msg-recv", Handler, CancellationToken.None))
 			.ShouldBeNull("the Received (non-live) entry is the correct victim while the claim is protected");
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(2, "capacity must remain bounded at MaxEntries");
 	}
 
@@ -183,7 +183,7 @@ public sealed class InMemoryInboxStoreEvictionShould
 		_ = await store.CreateEntryAsync(
 			"msg-new", Handler, "TestMessage", [1], new Dictionary<string, object>(), CancellationToken.None);
 
-		var stats = await store.GetStatisticsAsync(CancellationToken.None);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None);
 		stats.TotalEntries.ShouldBe(2, "capacity stays bounded — the expired marker was reclaimed");
 
 		// LIVENESS: the expired marker was the victim; the live marker and the admission survive.

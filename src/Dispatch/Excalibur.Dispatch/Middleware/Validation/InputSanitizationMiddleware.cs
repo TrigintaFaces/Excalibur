@@ -195,7 +195,7 @@ public sealed partial class InputSanitizationMiddleware : IDispatchMiddleware
 		}
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.InputSanitizationMiddlewareExecuting, LogLevel.Debug,
 		"Message type {MessageType} bypasses input sanitization")]
 	private partial void LogBypassesSanitization(string messageType);
@@ -222,10 +222,6 @@ public sealed partial class InputSanitizationMiddleware : IDispatchMiddleware
 	[UnconditionalSuppressMessage(
 		"Trimming",
 		"IL2072:'obj' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicProperties' in call to target method",
-		Justification = "Message types are preserved through source generation and DI registration")]
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2075:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicProperties' in call to target method",
 		Justification = "Message types are preserved through source generation and DI registration")]
 	private async Task<int> SanitizeMessagePropertiesAsync(
 		object obj,

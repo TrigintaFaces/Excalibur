@@ -48,6 +48,11 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 	private readonly ConcurrentDictionary<string, string> _shardIterators = new();
 	private readonly ConcurrentDictionary<string, string> _shardPositions = new();
+
+	// True only between a fresh start-from-now initialization and the first record this processor handles.
+	// It is cleared on that first record, so every shard discovered thereafter -- including split children,
+	// which is what an unknown shard nearly always is -- takes the safe TRIM_HORIZON path.
+	private bool _startFromLatest;
 	private readonly SemaphoreSlim _processingLock = new(1, 1);
 
 	private string? _streamArn;
@@ -55,8 +60,8 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	private DateTimeOffset _lastShardDiscovery = DateTimeOffset.MinValue;
 	private volatile bool _disposed;
 
-	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
-	// an infinite silent reconnect loop (ADR-338). _onFatalError receives the in-flight event for a
+	// optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// an infinite silent reconnect loop. _onFatalError receives the in-flight event for a
 	// per-event fatal, or null for a connection/poll-level fatal.
 	private readonly CdcFatalErrorHandler<DynamoDbDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
@@ -134,11 +139,11 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 			{
 				break;
 			}
-			// pxhqri: fatal decision delegated to the single shared guard — CdcFatalGuard.Decide(ex).Stop
+			// fatal decision delegated to the single shared guard — CdcFatalGuard.Decide(ex).Stop
 			// is exactly equivalent to the old inline IsFatal (the same unit the regression lock binds).
 			catch (Exception ex) when (CdcFatalGuard.Decide(ex, _failureClassifier).Stop)
 			{
-				// 14z4ao: a fatal (non-retryable) error — stop loud, never an infinite silent reconnect.
+				// a fatal (non-retryable) error — stop loud, never an infinite silent reconnect.
 				// The shard position (_shardPositions[shardId]) advances ONLY after a record is successfully
 				// handed off; a handler throw is caught inside ProcessBatchInternalAsync, which re-points the
 				// iterator to AFTER the last handled record and durably confirms only that handled prefix
@@ -279,6 +284,17 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 			_currentPosition = _options.StartPosition ?? savedPosition ?? DynamoDbCdcPosition.Beginning(_streamArn);
 
+			// Start-from-now is honoured ONLY here, on a genuinely fresh start, and never again. The two
+			// questions "where does a new deployment begin?" and "where does a resumed consumer pick up an
+			// unfamiliar shard?" have opposite safe answers, and answering them with one branch is what made
+			// this seam lose records: LATEST is right for the first and silently skips history for the
+			// second. Requiring an explicit StartPosition AND no saved position keeps them apart -- once
+			// anything has been checkpointed, a shard we do not recognise is a split child and reads from
+			// TRIM_HORIZON.
+			_startFromLatest = _options.StartPosition is { Timestamp: not null }
+				&& _options.StartPosition.ShardPositions.Count == 0
+				&& savedPosition is null;
+
 			// Initialize shard positions from saved position
 			foreach (var kvp in _currentPosition.ShardPositions)
 			{
@@ -331,19 +347,33 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 	{
 		var iteratorRequest = new GetShardIteratorRequest { StreamArn = _streamArn, ShardId = shard.ShardId, };
 
-		// Check if we have a saved position for this shard
+		// The invariant: for every shard, the iterator opened is at or before the first record on that
+		// shard this consumer has not handled. A shard we have a position for resumes after it; a shard we
+		// have never seen must start at the beginning of what the stream still holds.
 		if (_shardPositions.TryGetValue(shard.ShardId, out var sequenceNumber))
 		{
 			iteratorRequest.ShardIteratorType = ShardIteratorType.AFTER_SEQUENCE_NUMBER;
 			iteratorRequest.SequenceNumber = sequenceNumber;
 		}
-		else if (_currentPosition!.IsBeginning)
-		{
-			iteratorRequest.ShardIteratorType = ShardIteratorType.TRIM_HORIZON;
-		}
 		else
 		{
-			iteratorRequest.ShardIteratorType = ShardIteratorType.LATEST;
+			// TRIM_HORIZON, never LATEST. An unknown shard is overwhelmingly a shard SPLIT: DynamoDB closes
+			// a shard and opens children, and the children carry every write since the split. Opening a
+			// child at LATEST skips everything written between the split and this moment -- silently, with
+			// no exception, no gap counter and no log line, while the processor appears to make healthy
+			// progress past records it never saw.
+			//
+			// Redelivery is the cost, and it is the cost at-least-once was always going to charge; handlers
+			// must be idempotent regardless. Losing records is not a cost this seam is allowed to pay.
+			//
+			// This previously fell back to LATEST for any position that was not IsBeginning -- and
+			// IsBeginning goes false after the first confirmed record, so the safe branch was unreachable
+			// for any processor that had ever made progress. A start-from-now deployment is a deliberate
+			// INITIAL choice, recorded at initialization, not something inferred from a resume path that
+			// cannot tell the two apart.
+			iteratorRequest.ShardIteratorType = _startFromLatest
+				? ShardIteratorType.LATEST
+				: ShardIteratorType.TRIM_HORIZON;
 		}
 
 		var response = await _streamsClient.GetShardIteratorAsync(iteratorRequest, cancellationToken)
@@ -408,6 +438,10 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 						// Position advances ONLY after the record was successfully handed off.
 						_shardPositions[shardId] = record.Dynamodb.SequenceNumber;
+
+						// The fresh start is over: from here on this consumer has history to protect, so an
+						// unfamiliar shard must be read from TRIM_HORIZON rather than skipped to LATEST.
+						_startFromLatest = false;
 						_inFlightEvent = null;
 						totalProcessed++;
 					}
@@ -417,12 +451,12 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 					// A handler threw mid-batch: do NOT advance the iterator past the handled prefix. Re-point
 					// the shard iterator to resume AFTER the last successfully-handled record, so the failed
 					// record (and the rest of the batch) are re-delivered rather than silently skipped
-					// (FR-D1/D2; at-least-once). Durably confirm the handled prefix (FR-D3) before surfacing.
+					// (at-least-once). Durably confirm the handled prefix before surfacing.
 					await RepointShardIteratorAsync(shardId, cancellationToken).ConfigureAwait(false);
 
 					if (autoConfirm)
 					{
-						// bd-8p7qwj: the in-catch durable prefix-confirm MUST NOT mask the original handler
+						// the in-catch durable prefix-confirm MUST NOT mask the original handler
 						// exception (root cause). A confirm/position-read failure here is diagnosability-only:
 						// log it and let the handler exception below propagate. At-least-once is unaffected —
 						// the failed record and the rest of the batch are re-delivered on the repointed iterator.
@@ -432,7 +466,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 								await GetCurrentPositionAsync(cancellationToken).ConfigureAwait(false),
 								cancellationToken).ConfigureAwait(false);
 						}
-#pragma warning disable CA1031 // A confirm failure must never replace the root-cause handler exception (FR-N4.1/N4.2).
+#pragma warning disable CA1031 // A confirm failure must never replace the root-cause handler exception.
 						catch (Exception confirmEx)
 #pragma warning restore CA1031
 						{
@@ -442,16 +476,16 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 					// Capture, do not rethrow here. The structural durability gate below sees
 					// AdvanceCheckpoint=false for any fault and skips the full-batch iterator advance;
-					// the captured handler exception is then re-thrown after the gate (q3w5cv).
+					// the captured handler exception is then re-thrown after the gate.
 					batchFailure = ex;
 				}
 
-				// STRUCTURAL durability gate (q3w5cv Option A / FR-B2 / ADR-338): the full-batch iterator
+				// STRUCTURAL durability gate: the full-batch iterator
 				// advance happens ONLY when the single shared guard permits it. On ANY handler fault
 				// CdcFatalGuard.Decide(batchFailure,…).AdvanceCheckpoint is false, so the iterator is never
 				// advanced past the batch — the in-catch repoint + prefix-confirm above already handled the
 				// at-least-once handled-prefix. Mutating this gate to `if (true)` advances the iterator past
-				// the failed record (overriding the repoint) ⇒ AC-N3.1 RED. Non-vacuous, structural.
+				// the failed record (overriding the repoint) ⇒ the durability arm goes RED. Non-vacuous, structural.
 				var decision = CdcFatalGuard.Decide(batchFailure, _failureClassifier);
 				if (decision.AdvanceCheckpoint)
 				{

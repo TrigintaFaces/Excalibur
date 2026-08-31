@@ -172,14 +172,6 @@ internal sealed partial class SerializationHealthCheck : IHealthCheck
 	/// <summary>
 	/// Verifies a serializer by performing a round-trip serialization test.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Health check verification uses serializers with known types and does not run in trimmed/AOT scenarios.")]
-	[UnconditionalSuppressMessage(
-		"AotAnalysis",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Health check verification uses serializers with known types and does not run in trimmed/AOT scenarios.")]
 	private SerializerVerificationResult VerifySerializer(
 		byte id,
 		string name,

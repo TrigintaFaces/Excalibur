@@ -9,17 +9,10 @@ using Excalibur.Compliance.Encryption;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Compliance.Configuration;
-
-/// <summary>
-/// Marker interface for primary provider setting.
-/// </summary>
-internal interface IEncryptionProviderPrimarySetter
-{
-	string ProviderId { get; }
-}
 
 /// <summary>
 /// Marker interface for legacy provider marking.
@@ -27,13 +20,6 @@ internal interface IEncryptionProviderPrimarySetter
 internal interface IEncryptionProviderLegacyMarker
 {
 	string ProviderId { get; }
-}
-
-/// <summary>
-/// Marker interface for provider initialization.
-/// </summary>
-internal interface IEncryptionProviderInitializer
-{
 }
 
 /// <summary>
@@ -205,10 +191,6 @@ public sealed class EncryptionConfigurationBuilder
 
 		_primaryProviderId = providerId;
 
-		// Register the primary setting to be applied after all providers are registered
-		_ = _services.AddSingleton<IEncryptionProviderPrimarySetter>(sp =>
-			new EncryptionProviderPrimarySetter(providerId));
-
 		return this;
 	}
 
@@ -270,32 +252,17 @@ public sealed class EncryptionConfigurationBuilder
 				Resources.EncryptionConfigurationBuilder_NoProvidersRegistered);
 		}
 
-		// Register the primary provider setup
+		// Register the primary-provider setup as a real IHostedService. .NET's Generic Host resolves and
+		// starts every IHostedService unconditionally on host startup -- unlike the marker interface this
+		// replaced (IEncryptionProviderInitializer), which nothing ever resolved, so its SetPrimary call
+		// never ran in a real host. This is the same pattern InboxEncryptionWiringValidator /
+		// OutboxEncryptionWiringValidator already use in this package for the identical reason.
 		if (_primaryProviderId is not null)
 		{
-			_ = _services.AddSingleton<IEncryptionProviderInitializer>(sp =>
-			{
-				var registry = sp.GetRequiredService<IEncryptionProviderRegistry>();
-				registry.SetPrimary(_primaryProviderId);
-
-				// Apply legacy markers
-				foreach (var legacyMarker in sp.GetServices<IEncryptionProviderLegacyMarker>())
-				{
-					if (registry is EncryptionProviderRegistry concreteRegistry)
-					{
-						concreteRegistry.AddLegacyProvider(legacyMarker.ProviderId);
-					}
-				}
-
-				return new EncryptionProviderInitializer();
-			});
+			_ = _services.AddSingleton<IHostedService>(
+				sp => new EncryptionPrimaryProviderInitializer(sp, _primaryProviderId));
 		}
 	}
-}
-
-internal sealed class EncryptionProviderPrimarySetter(string providerId) : IEncryptionProviderPrimarySetter
-{
-	public string ProviderId { get; } = providerId;
 }
 
 internal sealed class EncryptionProviderLegacyMarker(string providerId) : IEncryptionProviderLegacyMarker
@@ -303,6 +270,37 @@ internal sealed class EncryptionProviderLegacyMarker(string providerId) : IEncry
 	public string ProviderId { get; } = providerId;
 }
 
-internal sealed class EncryptionProviderInitializer : IEncryptionProviderInitializer
+/// <summary>
+/// Sets the primary encryption provider and applies legacy-provider markers at host startup.
+/// </summary>
+/// <remarks>
+/// Runs from <see cref="StartAsync"/>, the async-init seam .NET's Generic Host guarantees to invoke for
+/// every registered <see cref="IHostedService"/> -- never as a constructor or factory side effect, which
+/// only runs if something happens to resolve the service.
+/// </remarks>
+internal sealed class EncryptionPrimaryProviderInitializer(IServiceProvider serviceProvider, string primaryProviderId) : IHostedService
 {
+	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		// Every IEncryptionProvider registration is a lazily-resolved factory that self-Registers into
+		// the registry on first resolution (UseInMemoryKeyManagement, UseKeyManagement<T>, UseProvider).
+		// Nothing else in a real host resolves IEncryptionProvider eagerly, so SetPrimary below would
+		// fail against an empty registry unless this forces that resolution first.
+		_ = serviceProvider.GetServices<IEncryptionProvider>().ToList();
+
+		var registry = serviceProvider.GetRequiredService<IEncryptionProviderRegistry>();
+		registry.SetPrimary(primaryProviderId);
+
+		foreach (var legacyMarker in serviceProvider.GetServices<IEncryptionProviderLegacyMarker>())
+		{
+			if (registry is EncryptionProviderRegistry concreteRegistry)
+			{
+				concreteRegistry.AddLegacyProvider(legacyMarker.ProviderId);
+			}
+		}
+
+		return Task.CompletedTask;
+	}
+
+	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

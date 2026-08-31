@@ -35,7 +35,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerProjectionStore<TestProjection>(
 			connectionString: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -44,7 +45,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerProjectionStore<TestProjection>(
 			connectionString: "Server=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -53,7 +55,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerProjectionStore<TestProjection>(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -69,7 +72,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act - This doesn't throw during construction
 		var store = new SqlServerProjectionStore<TestProjection>(
 			connectionString: string.Empty,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -85,7 +89,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerProjectionStore<TestProjection>(
 			connectionFactory: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -97,7 +102,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerProjectionStore<TestProjection>(
 			factory,
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -109,7 +115,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerProjectionStore<TestProjection>(
 			factory,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -129,7 +136,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerProjectionStore<TestProjection>(
 			factory,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert - Factory should NOT be invoked during construction
 		_ = store.ShouldNotBeNull();
@@ -149,11 +157,13 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act
 		var simpleStore = new SqlServerProjectionStore<TestProjection>(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		var advancedStore = new SqlServerProjectionStore<TestProjection>(
 			() => new SqlConnection(connectionString),
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert - Both should be valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -172,7 +182,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		// Act - Creating instance should not throw
 		var store = new SqlServerProjectionStore<TestProjection>(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -189,7 +200,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=projections;User Id=sa;Password=Pass123!";
 
 		// Act
-		var store = new SqlServerProjectionStore<TestProjection>(connectionString, _logger);
+		var store = new SqlServerProjectionStore<TestProjection>(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -202,7 +213,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=projections;Integrated Security=true";
 
 		// Act
-		var store = new SqlServerProjectionStore<TestProjection>(connectionString, _logger);
+		var store = new SqlServerProjectionStore<TestProjection>(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -215,7 +226,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=projections;Pooling=true;Min Pool Size=1;Max Pool Size=100";
 
 		// Act
-		var store = new SqlServerProjectionStore<TestProjection>(connectionString, _logger);
+		var store = new SqlServerProjectionStore<TestProjection>(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -232,6 +243,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var store = new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: null);
 
 		// Assert
@@ -245,6 +257,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var store = new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: "CustomProjections");
 
 		// Assert
@@ -258,6 +271,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		Should.Throw<ArgumentException>(() => new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: string.Empty));
 	}
 
@@ -277,6 +291,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var ex = Should.Throw<ArgumentException>(() => new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: maliciousName));
 		ex.Message.ShouldContain("invalid characters");
 	}
@@ -291,6 +306,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var store = new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: validName);
 
 		// Assert
@@ -308,6 +324,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var store = new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			jsonOptions: null);
 
 		// Assert
@@ -328,6 +345,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var store = new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			jsonOptions: customOptions);
 
 		// Assert
@@ -342,7 +360,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	public void Store_ImplementsIProjectionStore()
 	{
 		// Arrange
-		var store = new SqlServerProjectionStore<TestProjection>("Server=localhost;Database=TestDb", _logger);
+		var store = new SqlServerProjectionStore<TestProjection>("Server=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IProjectionStore<TestProjection>>();
@@ -361,8 +379,8 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var orderLogger = NullLoggerFactory.CreateLogger<SqlServerProjectionStore<OrderProjection>>();
 
 		// Act
-		var testStore = new SqlServerProjectionStore<TestProjection>(connectionString, testLogger);
-		var orderStore = new SqlServerProjectionStore<OrderProjection>(connectionString, orderLogger);
+		var testStore = new SqlServerProjectionStore<TestProjection>(connectionString, testLogger, TestTenantContext.SingleTenantDefault);
+		var orderStore = new SqlServerProjectionStore<OrderProjection>(connectionString, orderLogger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = testStore.ShouldNotBeNull();
@@ -377,7 +395,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 		var recordLogger = NullLoggerFactory.CreateLogger<SqlServerProjectionStore<CustomerSummary>>();
 
 		// Act
-		var store = new SqlServerProjectionStore<CustomerSummary>(connectionString, recordLogger);
+		var store = new SqlServerProjectionStore<CustomerSummary>(connectionString, recordLogger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -392,7 +410,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	{
 		// Arrange
 		var store = new SqlServerProjectionStore<TestProjection>(
-			() => new SqlConnection("Server=localhost"), _logger);
+			() => new SqlConnection("Server=localhost"), _logger, TestTenantContext.SingleTenantDefault);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
@@ -404,7 +422,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	public async Task QueryPagedAsync_ThrowsWhenPageNumberIsNegative()
 	{
 		var store = new SqlServerProjectionStore<TestProjection>(
-			() => new SqlConnection("Server=localhost"), _logger);
+			() => new SqlConnection("Server=localhost"), _logger, TestTenantContext.SingleTenantDefault);
 
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
 			await store.QueryPagedAsync(null, -1, 10, null, CancellationToken.None)
@@ -415,7 +433,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	public async Task QueryPagedAsync_ThrowsWhenPageSizeIsZero()
 	{
 		var store = new SqlServerProjectionStore<TestProjection>(
-			() => new SqlConnection("Server=localhost"), _logger);
+			() => new SqlConnection("Server=localhost"), _logger, TestTenantContext.SingleTenantDefault);
 
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
 			await store.QueryPagedAsync(null, 1, 0, null, CancellationToken.None)
@@ -426,7 +444,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	public async Task QueryPagedAsync_ThrowsWhenPageSizeIsNegative()
 	{
 		var store = new SqlServerProjectionStore<TestProjection>(
-			() => new SqlConnection("Server=localhost"), _logger);
+			() => new SqlConnection("Server=localhost"), _logger, TestTenantContext.SingleTenantDefault);
 
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
 			await store.QueryPagedAsync(null, 1, -5, null, CancellationToken.None)
@@ -438,7 +456,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	{
 		// Assert — ISP sub-interface is implemented
 		var store = new SqlServerProjectionStore<TestProjection>(
-			() => new SqlConnection("Server=localhost"), _logger);
+			() => new SqlConnection("Server=localhost"), _logger, TestTenantContext.SingleTenantDefault);
 
 		(store is IPageableProjectionStore<TestProjection>).ShouldBeTrue(
 			"SqlServerProjectionStore should implement IPageableProjectionStore<T>");
@@ -449,7 +467,7 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	{
 		// Arrange — ISP pattern: consumers check via 'is' cast
 		IProjectionStore<TestProjection> store = new SqlServerProjectionStore<TestProjection>(
-			() => new SqlConnection("Server=localhost"), _logger);
+			() => new SqlConnection("Server=localhost"), _logger, TestTenantContext.SingleTenantDefault);
 
 		// Act
 		var isPageable = store is IPageableProjectionStore<TestProjection>;

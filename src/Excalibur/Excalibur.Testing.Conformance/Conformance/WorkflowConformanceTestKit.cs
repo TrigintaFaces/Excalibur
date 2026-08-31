@@ -35,7 +35,7 @@ namespace Excalibur.Testing.Conformance;
 /// public sealed class SqlServerWorkflowConformanceTests : WorkflowConformanceTestKit
 /// {
 ///     private readonly SqlServerFixture _fixture;
-///     protected override IEventStore CreateEventStore() =&gt; new SqlServerEventStore(_fixture.ConnectionString, ...);
+///     protected override IEventStore CreateEventStore() =&gt; new SqlServerEventStore(_fixture.ConnectionString, logger, tenantContext);
 ///
 ///     [Fact]
 ///     public override Task CrashMidStep_ResumesFromLastCompletedStep_ExactlyOnce() =&gt;
@@ -45,7 +45,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Conformance scenario method naming convention (matches sibling conformance kits).")]
-public abstract class WorkflowConformanceTestKit
+public abstract class WorkflowConformanceTestKit : ConformanceTestKit
 {
     /// <summary>
     /// Creates a fresh real provider event store to use as the durable workflow journal. The returned store

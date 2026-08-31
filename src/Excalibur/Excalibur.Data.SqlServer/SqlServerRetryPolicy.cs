@@ -18,7 +18,6 @@ namespace Excalibur.Data.SqlServer;
 /// </summary>
 internal sealed partial class SqlServerRetryPolicy : IRelationalDataRequestRetryPolicy
 {
-	private readonly SqlServerProviderOptions _options;
 	private readonly ILogger _logger;
 	private readonly AsyncRetryPolicy _retryPolicy;
 
@@ -28,12 +27,25 @@ internal sealed partial class SqlServerRetryPolicy : IRelationalDataRequestRetry
 	/// <param name="options"> The SQL Server provider options. </param>
 	/// <param name="logger"> The logger instance. </param>
 	public SqlServerRetryPolicy(SqlServerProviderOptions options, ILogger logger)
+		: this(
+			(options ?? throw new ArgumentNullException(nameof(options))).RetryCount,
+			TimeSpan.FromSeconds(1),
+			logger)
 	{
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SqlServerRetryPolicy" /> class from explicit retry settings.
+	/// </summary>
+	/// <param name="maxRetryAttempts"> The maximum number of retry attempts. </param>
+	/// <param name="baseRetryDelay"> The base delay between retry attempts. </param>
+	/// <param name="logger"> The logger instance. </param>
+	public SqlServerRetryPolicy(int maxRetryAttempts, TimeSpan baseRetryDelay, ILogger logger)
+	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		MaxRetryAttempts = _options.RetryCount;
-		BaseRetryDelay = TimeSpan.FromSeconds(1);
+		MaxRetryAttempts = maxRetryAttempts;
+		BaseRetryDelay = baseRetryDelay;
 
 		// Setup retry policy for transient failures
 		_retryPolicy = Policy
@@ -42,16 +54,45 @@ internal sealed partial class SqlServerRetryPolicy : IRelationalDataRequestRetry
 			.Or<InvalidOperationException>(ex => ex.Message.Contains("Timeout expired", StringComparison.OrdinalIgnoreCase))
 			.WaitAndRetryAsync(
 				MaxRetryAttempts,
-				retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+				CalculateDelay,
 				onRetry: (exception, timeSpan, retryCount, context) =>
 					LogSqlServerOperationRetry(retryCount, timeSpan.TotalMilliseconds, exception));
 	}
+
+	/// <summary>
+	/// Gets the ceiling on any single backoff delay.
+	/// </summary>
+	/// <value> The ceiling on any single backoff delay. Thirty seconds, matching the other providers. </value>
+	private static TimeSpan MaxRetryDelay => TimeSpan.FromSeconds(30);
 
 	/// <inheritdoc />
 	public int MaxRetryAttempts { get; }
 
 	/// <inheritdoc />
 	public TimeSpan BaseRetryDelay { get; }
+
+	/// <summary>
+	/// Calculates the backoff delay before a retry attempt, grown exponentially from
+	/// <see cref="BaseRetryDelay" /> and bounded by <see cref="MaxRetryDelay" />.
+	/// </summary>
+	/// <param name="retryAttempt"> The retry attempt number (1-based). </param>
+	/// <returns> The delay to wait before retrying, never exceeding <see cref="MaxRetryDelay" />. </returns>
+	/// <remarks>
+	/// <para>
+	/// The schedule is grown from the base delay this type was constructed with. It previously ignored
+	/// that value entirely and returned two raised to the attempt number, in seconds - so a caller who
+	/// supplied a base delay was given a schedule unrelated to it, and the delay had no ceiling at all.
+	/// </para>
+	/// <para>
+	/// Composed with a minimum, so the ceiling can only ever tighten the wait; relaxing it requires
+	/// turning the minimum into a maximum rather than any ordinary edit.
+	/// </para>
+	/// </remarks>
+	internal TimeSpan CalculateDelay(int retryAttempt)
+	{
+		var exponential = BaseRetryDelay.TotalMilliseconds * Math.Pow(2, retryAttempt - 1);
+		return TimeSpan.FromMilliseconds(Math.Min(exponential, MaxRetryDelay.TotalMilliseconds));
+	}
 
 	/// <inheritdoc />
 	public async Task<TResult> ResolveAsync<TConnection, TResult>(

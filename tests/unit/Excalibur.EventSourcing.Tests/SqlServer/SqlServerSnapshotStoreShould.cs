@@ -31,7 +31,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSnapshotStore(
 			connectionString: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -40,7 +41,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSnapshotStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -49,7 +51,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerSnapshotStore(
 			connectionString: "Server=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -65,7 +68,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act - This doesn't throw during construction
 		var store = new SqlServerSnapshotStore(
 			connectionString: string.Empty,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -81,7 +85,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSnapshotStore(
 			connectionFactory: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -93,7 +98,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new SqlServerSnapshotStore(
 			factory,
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -105,7 +111,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerSnapshotStore(
 			factory,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -125,7 +132,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act
 		var store = new SqlServerSnapshotStore(
 			factory,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert - Factory should NOT be invoked during construction
 		_ = store.ShouldNotBeNull();
@@ -145,11 +153,13 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act
 		var simpleStore = new SqlServerSnapshotStore(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		var advancedStore = new SqlServerSnapshotStore(
 			() => new SqlConnection(connectionString),
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert - Both should be valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -168,7 +178,8 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		// Act - Creating instance should not throw
 		var store = new SqlServerSnapshotStore(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -185,7 +196,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=snapshots;User Id=sa;Password=Pass123!";
 
 		// Act
-		var store = new SqlServerSnapshotStore(connectionString, _logger);
+		var store = new SqlServerSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -198,7 +209,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=snapshots;Integrated Security=true";
 
 		// Act
-		var store = new SqlServerSnapshotStore(connectionString, _logger);
+		var store = new SqlServerSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -211,7 +222,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=snapshots;Trusted_Connection=true";
 
 		// Act
-		var store = new SqlServerSnapshotStore(connectionString, _logger);
+		var store = new SqlServerSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -224,7 +235,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=snapshots;Pooling=true;Min Pool Size=1;Max Pool Size=100";
 
 		// Act
-		var store = new SqlServerSnapshotStore(connectionString, _logger);
+		var store = new SqlServerSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -237,7 +248,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		var connectionString = "Server=localhost;Database=snapshots;Encrypt=true;TrustServerCertificate=true";
 
 		// Act
-		var store = new SqlServerSnapshotStore(connectionString, _logger);
+		var store = new SqlServerSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -250,7 +261,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 		var connectionString = "Server=(localdb)\\MSSQLLocalDB;Database=snapshots;Integrated Security=true";
 
 		// Act
-		var store = new SqlServerSnapshotStore(connectionString, _logger);
+		var store = new SqlServerSnapshotStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -264,7 +275,7 @@ public sealed class SqlServerSnapshotStoreShould : UnitTestBase
 	public void Store_ImplementsISnapshotStore()
 	{
 		// Arrange
-		var store = new SqlServerSnapshotStore("Server=localhost;Database=TestDb", _logger);
+		var store = new SqlServerSnapshotStore("Server=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<ISnapshotStore>();

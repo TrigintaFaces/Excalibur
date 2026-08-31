@@ -282,7 +282,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 			{
 				["kafka.topic"] = consumeResult.Topic,
 				["kafka.partition"] = consumeResult.Partition.Value,
-				["kafka.offset"] = consumeResult.Offset.Value,
+				[TransportOrderingMetadata.KafkaOffsetKey] = consumeResult.Offset.Value,
 				["kafka.receipt_handle"] = receiptHandle,
 			},
 		};

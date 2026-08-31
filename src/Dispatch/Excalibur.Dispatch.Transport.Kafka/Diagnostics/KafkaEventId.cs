@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <item>22500-22599: Partitioning</item>
 /// </list>
 /// </remarks>
-public static class KafkaEventId
+internal static class KafkaEventId
 {
 	// ========================================
 	// 22000-22099: Core (Producer, Consumer)
@@ -265,7 +265,7 @@ public static class KafkaEventId
 	/// <summary>Serialization complete.</summary>
 	public const int SerializationComplete = 22226;
 
-	// 22230-22239: Zero-Copy Serialization (Sprint 478)
+	// 22230-22239: Zero-Copy Serialization
 
 	/// <summary>Zero-copy serialization started.</summary>
 	public const int ZeroCopySerializationStarted = 22230;

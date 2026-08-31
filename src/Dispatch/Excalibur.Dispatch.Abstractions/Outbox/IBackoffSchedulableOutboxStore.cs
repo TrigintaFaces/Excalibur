@@ -22,8 +22,10 @@ namespace Excalibur.Dispatch;
 /// which records the failure but cannot carry the next-attempt time -- so the polling claim re-delivers the
 /// message as soon as its lease expires and the advertised exponential backoff never throttles re-delivery.
 /// The processor computes <c>now + backoffCalculator.CalculateDelay(attempt)</c> and passes the absolute
-/// next-attempt time here; the store only persists it. The claim predicate then excludes the message until
-/// that time has elapsed (<c>WHERE NextAttemptAt IS NULL OR NextAttemptAt &lt;= @now</c>).
+/// next-attempt time here. The store does NOT persist it verbatim: it persists the LATER of that instant and
+/// its own configured failure-backoff floor F (see the method contract below). The claim predicate then
+/// excludes the message until that time has elapsed
+/// (<c>WHERE NextAttemptAt IS NULL OR NextAttemptAt &lt;= @now</c>).
 /// </para>
 /// <para>
 /// Stores that do not implement this capability degrade gracefully: the processor falls back to
@@ -39,16 +41,36 @@ public interface IBackoffSchedulableOutboxStore
 	/// applying the per-message backoff schedule.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// After this call, the message MUST NOT be returned by the claim predicate
 	/// (<see cref="IOutboxStore.GetUnsentMessagesAsync"/>) until <paramref name="nextAttemptAt"/> has
 	/// elapsed, so the computed backoff delay genuinely throttles re-delivery.
+	/// </para>
+	/// <para>
+	/// <b>Implementors: compose, do not substitute.</b> The persisted next-attempt time MUST be the LATER of
+	/// <paramref name="nextAttemptAt"/> and the store's own configured failure-backoff floor F — the same
+	/// floor the plain <see cref="IOutboxStore.MarkFailedAsync(string, string, int, System.Threading.CancellationToken)"/>
+	/// path applies. Binding the caller's instant verbatim is a defect, not a permitted simplification: the
+	/// default backoff calculator yields on the order of a second at the first attempt, so a store that
+	/// substitutes rather than composes makes this capability WEAKEN the guarantee it exists to strengthen —
+	/// the identical failure waits F without the capability and about a second with it.
+	/// </para>
+	/// <para>
+	/// Compose with a maximum rather than a conditional, so relaxing the floor below F is not something
+	/// ordinary use can express. Compute the floor term on whichever clock the store's own claim predicate
+	/// compares against — the database server's where the store has one, the injected
+	/// <see cref="System.TimeProvider"/> where the store is deliberately client-clocked — so the composition
+	/// introduces no clock the provider was not already trusting.
+	/// </para>
 	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message that failed.</param>
 	/// <param name="errorMessage">The error description or exception message.</param>
 	/// <param name="retryCount">The current retry attempt count.</param>
 	/// <param name="nextAttemptAt">
-	/// The absolute (computed) time before which the message must not be re-claimed. Typically
-	/// <c>now + IBackoffCalculator.CalculateDelay(attempt)</c>, computed by the caller.
+	/// The caller-computed earliest next attempt, typically
+	/// <c>now + IBackoffCalculator.CalculateDelay(attempt)</c>. A LOWER bound requested by the caller, not the
+	/// final schedule: the store composes it with its own floor F and persists whichever is later, so this
+	/// value can defer the next attempt beyond F but can never bring it inside F.
 	/// </param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>A task that represents the asynchronous mark-failed-with-backoff operation.</returns>

@@ -70,28 +70,28 @@ public sealed class BatchProcessingMetrics : IDisposable
 		// Initialize counters
 		_messagesProcessedCounter = _meter.CreateCounter<long>(
 			"dispatch.batch.messages.processed",
-			"messages",
+			"{messages}",
 			"Total number of messages processed in batches");
 
 		_batchesProcessedCounter = _meter.CreateCounter<long>(
 			"dispatch.batch.batches.processed",
-			"batches",
+			"{batches}",
 			"Total number of batches processed");
 
 		_failedMessagesCounter = _meter.CreateCounter<long>(
 			"dispatch.batch.messages.failed",
-			"messages",
+			"{messages}",
 			"Total number of messages that failed processing");
 
 		// Initialize histograms
 		_batchSizeHistogram = _meter.CreateHistogram<double>(
 			"dispatch.batch.size",
-			"messages",
+			"{messages}",
 			"Distribution of batch sizes");
 
 		_batchDurationHistogram = _meter.CreateHistogram<double>(
 			"dispatch.batch.processing.duration",
-			"seconds",
+			"s",
 			"Time taken to process batches");
 
 		_throughputHistogram = _meter.CreateHistogram<double>(
@@ -103,13 +103,13 @@ public sealed class BatchProcessingMetrics : IDisposable
 		_currentBatchSizeGauge = _meter.CreateObservableGauge(
 			"dispatch.batch.current_size",
 			() => _currentBatchSize,
-			"messages",
+			"{messages}",
 			"Current batch size being used");
 
 		_successRateGauge = _meter.CreateObservableGauge(
 			"dispatch.batch.success_rate",
 			() => _currentSuccessRate,
-			"ratio",
+			"1",
 			"Current success rate for batch processing");
 	}
 

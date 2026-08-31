@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -23,30 +23,6 @@ using DynamoDbKeyType = Amazon.DynamoDBv2.KeyType;
 namespace Excalibur.Data.DynamoDb;
 
 /// <summary>
-/// Internal interface for create operations with document.
-/// </summary>
-internal interface ICloudBatchCreateOperation
-
-{
-	/// <summary>
-	/// Gets the document to create.
-	/// </summary>
-	object Document { get; }
-}
-
-/// <summary>
-/// Internal interface for replace operations with document.
-/// </summary>
-internal interface ICloudBatchReplaceOperation
-
-{
-	/// <summary>
-	/// Gets the replacement document.
-	/// </summary>
-	object Document { get; }
-}
-
-/// <summary>
 /// AWS DynamoDB implementation of the cloud-native persistence provider.
 /// </summary>
 [SuppressMessage(
@@ -55,13 +31,24 @@ internal interface ICloudBatchReplaceOperation
 	Justification = "Cloud persistence providers inherently couple with many SDK and abstraction types.")]
 public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenceProvider,
 	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
-	IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
+	IPersistenceProviderHealth, IPersistenceProviderConnection, IAsyncDisposable
 {
 	private readonly DynamoDbOptions _options;
 	private readonly ILogger<DynamoDbPersistenceProvider> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
 	private IAmazonDynamoDBStreams? _streamsClient;
+
+	/// <summary>
+	/// Whether this provider constructed its clients itself and must therefore dispose them.
+	/// A client supplied by the consumer is owned by the consumer: disposing it here would terminate
+	/// every other user of that shared instance. Dispose exactly what you created.
+	/// </summary>
+	/// <remarks>
+	/// Covers <see cref="_streamsClient"/> as well, when this provider constructed it. A
+	/// consumer-supplied streams client is likewise left alone.
+	/// </remarks>
+	private readonly bool _ownsClient;
 	private volatile bool _initialized;
 
 	private volatile bool _disposed;
@@ -79,7 +66,10 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options.Validate();
 
-		Name = _options.Name;
+		// No client was supplied, so InitializeAsync constructs both clients below. This provider owns them.
+		_ownsClient = true;
+
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "dynamodb" : _options.Name;
 	}
 
 	/// <summary>
@@ -88,17 +78,46 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	/// <param name="client"> The DynamoDB client. </param>
 	/// <param name="options"> The DynamoDB options. </param>
 	/// <param name="logger"> The logger instance. </param>
+	/// <remarks>
+	/// The provider is ready for document operations immediately; no <see cref="InitializeAsync(CancellationToken)" /> call is
+	/// required. This overload supplies no DynamoDB Streams client, so the change-feed operations are not
+	/// available on the resulting provider and will throw <see cref="InvalidOperationException" />. Use the
+	/// overload that also takes an <see cref="IAmazonDynamoDBStreams" /> to consume the change feed with a
+	/// consumer-supplied client, or the options-only constructor to have the provider build both clients.
+	/// </remarks>
 	public DynamoDbPersistenceProvider(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbOptions> options,
 		ILogger<DynamoDbPersistenceProvider> logger)
 	{
 		_client = client ?? throw new ArgumentNullException(nameof(client));
+		_ownsClient = false;
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_initialized = true;
 
-		Name = _options.Name;
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "dynamodb" : _options.Name;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="DynamoDbPersistenceProvider" /> class with existing
+	/// document and Streams clients.
+	/// </summary>
+	/// <param name="client"> The DynamoDB client. </param>
+	/// <param name="streamsClient"> The DynamoDB Streams client, used by the change-feed operations. </param>
+	/// <param name="options"> The DynamoDB options. </param>
+	/// <param name="logger"> The logger instance. </param>
+	/// <remarks>
+	/// Both clients are owned by the caller and are not disposed by this provider.
+	/// </remarks>
+	public DynamoDbPersistenceProvider(
+		IAmazonDynamoDB client,
+		IAmazonDynamoDBStreams streamsClient,
+		IOptions<DynamoDbOptions> options,
+		ILogger<DynamoDbPersistenceProvider> logger)
+		: this(client, options, logger)
+	{
+		_streamsClient = streamsClient ?? throw new ArgumentNullException(nameof(streamsClient));
 	}
 
 	/// <inheritdoc />
@@ -180,6 +199,10 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<TDocument?> GetByIdAsync<TDocument>(
 		string id,
 		IPartitionKey partitionKey,
@@ -209,9 +232,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				return null;
 			}
 
-#pragma warning disable IL2026
 			return DeserializeDocument<TDocument>(response.Item);
-#pragma warning restore IL2026
 		}
 		catch (Amazon.DynamoDBv2.Model.ResourceNotFoundException)
 		{
@@ -220,6 +241,10 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<CloudOperationResult<TDocument>> CreateAsync<TDocument>(
 		TDocument document,
 		IPartitionKey partitionKey,
@@ -228,9 +253,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		EnsureInitialized();
 
-#pragma warning disable IL2026
 		var item = SerializeDocument(document, partitionKey);
-#pragma warning restore IL2026
 		var request = new PutItemRequest
 		{
 			TableName = _options.DefaultTableName,
@@ -273,6 +296,10 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<CloudOperationResult<TDocument>> UpdateAsync<TDocument>(
 		TDocument document,
 		IPartitionKey partitionKey,
@@ -282,9 +309,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		EnsureInitialized();
 
-#pragma warning disable IL2026
 		var item = SerializeDocument(document, partitionKey);
-#pragma warning restore IL2026
 		var request = new PutItemRequest
 		{
 			TableName = _options.DefaultTableName,
@@ -397,7 +422,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "DynamoDB query requires JSON serialization which is inherently trim-unsafe.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach dynamic code, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<CloudQueryResult<TDocument>> QueryAsync<TDocument>(
 		string queryText,
 		IPartitionKey partitionKey,
@@ -471,6 +498,10 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public async Task<CloudBatchResult> ExecuteBatchAsync(
 		IPartitionKey partitionKey,
 		IEnumerable<ICloudBatchOperation> operations,
@@ -558,7 +589,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		var subscription = new DynamoDbStreamsSubscription<TDocument>(
 			_client!,
-			_streamsClient!,
+			EnsureStreamsClient(),
 			containerName,
 			options ?? ChangeFeedOptions.Default,
 			_logger);
@@ -765,36 +796,6 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	#region IPersistenceProvider Implementation
 
 	/// <inheritdoc />
-	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(
-			"Use cloud-native specific methods for DynamoDB operations.");
-	}
-
-	/// <inheritdoc />
-	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		ITransactionScope transactionScope,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(
-			"Use ExecuteBatchAsync for transactional operations in DynamoDB.");
-	}
-
-	/// <inheritdoc />
-	public ITransactionScope CreateTransactionScope(
-		System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted,
-		TimeSpan? timeout = null)
-	{
-		throw new NotSupportedException(
-			"DynamoDB uses TransactWriteItems/TransactGetItems for transactions. Use ExecuteBatchAsync instead.");
-	}
-
-	/// <inheritdoc />
 	public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken)
 	{
 		try
@@ -820,21 +821,6 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		await InitializeAsync(cancellationToken).ConfigureAwait(false);
 	}
 
-	/// <inheritdoc />
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		// AWS SDK manages HTTP connections internally
-		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
-		{
-			["ServiceUrl"] = _options.Connection.ServiceUrl ?? "AWS",
-			["Region"] = _options.Connection.Region ?? "Not specified",
-			["IsInitialized"] = _initialized,
-			["IsDisposed"] = _disposed
-		};
-
-		return Task.FromResult<IDictionary<string, object>?>(stats);
-	}
-
 	/// <inheritdoc/>
 	public object? GetService(Type serviceType)
 	{
@@ -845,10 +831,17 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			return this;
 		}
 
-		if (serviceType == typeof(IPersistenceProviderTransaction))
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
+
+		// IPersistenceProviderTransaction is deliberately not offered, and is not implemented. That
+		// capability's scope is ambient: created before the provider knows what will enrol in it, then
+		// written through. DynamoDB is atomic only within TransactWriteItems, which requires the whole
+		// item set up front and permits no reads-then-writes, so there is nothing this provider could
+		// return that would honour the contract. Callers needing atomicity use ExecuteBatchAsync, which
+		// states those constraints in its own signature rather than discovering them at commit.
 
 		if (serviceType == typeof(ICloudNativePersistenceQueryOperations))
 		{
@@ -888,8 +881,12 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		// Do not block on _initLock.Wait() in sync Dispose -- use DisposeAsync for graceful cleanup.
 		// Direct disposal is safe because _disposed flag prevents concurrent init.
-		_client?.Dispose();
-		_streamsClient?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+			_streamsClient?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -916,12 +913,17 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			// Proceed with disposal even if lock acquisition times out
 		}
 
-		_client?.Dispose();
-		_streamsClient?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+			_streamsClient?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 	private static TDocument? DeserializeDocument<TDocument>(Dictionary<string, AttributeValue> item)
 		where TDocument : class
 	{
@@ -938,6 +940,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static AttributeValue ToAttributeValue(object value)
 	{
 		return value switch
@@ -1019,6 +1022,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private Dictionary<string, AttributeValue> SerializeDocument<TDocument>(TDocument document, IPartitionKey partitionKey)
 	{
 		var json = JsonSerializer.Serialize(document);
@@ -1037,6 +1041,21 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		return item;
 	}
 
+	/// <summary>
+	/// Returns the document a writing batch operation carries, or throws when the operation declares a write but
+	/// supplies no payload -- a caller mistake that would otherwise be written as an empty item.
+	/// </summary>
+	private static object RequireDocument(ICloudBatchOperation operation) =>
+		operation is ICloudBatchDocumentOperation documentOperation
+			? documentOperation.Document
+			: throw new ArgumentException(
+				$"Batch operation '{operation.OperationType}' for document '{operation.DocumentId}' carries no document. "
+				+ $"Use {nameof(CloudBatchCreateOperation)}, {nameof(CloudBatchReplaceOperation)} or {nameof(CloudBatchUpsertOperation)}, "
+				+ $"or any {nameof(ICloudBatchDocumentOperation)} implementation.",
+				nameof(operation));
+
+	[RequiresUnreferencedCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("Documents cross the DynamoDB attribute map through the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	private TransactWriteItem CreateTransactWriteItem(ICloudBatchOperation operation, IPartitionKey partitionKey)
 	{
 		return operation.OperationType switch
@@ -1046,9 +1065,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				Put = new Put
 				{
 					TableName = _options.DefaultTableName,
-#pragma warning disable IL2026
-					Item = SerializeDocument(((ICloudBatchCreateOperation)operation).Document, partitionKey),
-#pragma warning restore IL2026
+					Item = SerializeDocument(RequireDocument(operation), partitionKey),
 					ConditionExpression = "attribute_not_exists(pk)"
 				}
 			},
@@ -1057,9 +1074,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				Put = new Put
 				{
 					TableName = _options.DefaultTableName,
-#pragma warning disable IL2026
-					Item = SerializeDocument(((ICloudBatchReplaceOperation)operation).Document, partitionKey)
-#pragma warning restore IL2026
+					Item = SerializeDocument(RequireDocument(operation), partitionKey)
 				}
 			},
 			CloudBatchOperationType.Delete => new TransactWriteItem
@@ -1068,6 +1083,22 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			},
 			_ => throw new NotSupportedException($"Operation type {operation.OperationType} is not supported.")
 		};
+	}
+
+	/// <summary>
+	/// Returns the DynamoDB Streams client, or throws when this provider was constructed without one.
+	/// </summary>
+	/// <returns> The Streams client backing the change-feed operations. </returns>
+	/// <exception cref="InvalidOperationException">
+	/// The provider was constructed from a consumer-supplied document client with no accompanying Streams
+	/// client, so the change feed cannot be served.
+	/// </exception>
+	private IAmazonDynamoDBStreams EnsureStreamsClient()
+	{
+		return _streamsClient ?? throw new InvalidOperationException(
+			$"Provider '{Name}' has no DynamoDB Streams client, so the change feed is unavailable. It was " +
+			"constructed from a supplied DynamoDB client only. Use the constructor overload that also takes " +
+			"an IAmazonDynamoDBStreams, or the options-only constructor, which builds both clients.");
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

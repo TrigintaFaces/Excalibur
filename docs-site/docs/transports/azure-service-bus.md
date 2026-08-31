@@ -29,7 +29,8 @@ dotnet add package Excalibur.Dispatch.Azure
 ```csharp
 services.AddDispatchAzure(asb =>
 {
-    asb.ConnectionString(builder.Configuration.GetConnectionString("ServiceBus")!);
+    asb.ConnectionString(builder.Configuration.GetConnectionString("ServiceBus")!)
+       .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue");
 });
 ```
 
@@ -46,62 +47,65 @@ services.AddDispatch(dispatch =>
     dispatch.UseAzureServiceBus(asb =>
     {
         asb.ConnectionString(builder.Configuration.GetConnectionString("ServiceBus")!)
-           .ConfigureProcessor(processor => processor.DefaultEntity("orders-queue"));
+           .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue")
+           .ConfigureProcessor(processor => processor.DefaultEntityName = "orders-queue");
     });
 });
 ```
 
-### Standalone Registration (Message Bus)
-Register the Service Bus message bus and a keyed `IMessageBus`:
+### Standalone Registration (Without the Dispatch Builder)
+Register the transport directly on the service collection. This builds the `ServiceBusClient`,
+the sender and the processor for you, and validates the options at startup:
 
 ```csharp
-services.Configure<AzureServiceBusOptions>(options =>
+services.AddAzureServiceBusTransport(sb =>
 {
-    options.ConnectionString = builder.Configuration
-        .GetConnectionString("ServiceBus");
-    options.QueueName = "orders-queue";
+    sb.ConnectionString(builder.Configuration.GetConnectionString("ServiceBus")!)
+      .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue");
 });
+```
 
-services.AddSingleton(sp =>
+Pass a name as the first argument to register more than one Service Bus namespace side by side.
+Each name gets its own options, client and bus:
+
+```csharp
+services.AddAzureServiceBusTransport("payments", sb =>
 {
-    var options = sp.GetRequiredService<IOptions<AzureServiceBusOptions>>().Value;
-    var client = new ServiceBusClient(options.ConnectionString);
-    return new AzureServiceBusMessageBus(
-        client,
-        sp.GetRequiredService<IPayloadSerializer>(),
-        options,
-        sp.GetRequiredService<ILogger<AzureServiceBusMessageBus>>());
+    sb.ConnectionString(builder.Configuration.GetConnectionString("PaymentsBus")!)
+      .ConfigureSender(sender => sender.DefaultEntityName = "payments-queue")
+      .MapEntity<PaymentReceived>("payments-queue");
 });
-
-services.AddRemoteMessageBus(
-    "servicebus",
-    sp => sp.GetRequiredService<AzureServiceBusMessageBus>());
 ```
 
 ## Managed Identity (Recommended)
+Call `FullyQualifiedNamespace` instead of `ConnectionString`. The transport then authenticates with
+`DefaultAzureCredential`, so no secret is stored in configuration:
+
 ```csharp
-services.Configure<AzureServiceBusOptions>(options =>
+services.AddAzureServiceBusTransport(sb =>
 {
-    options.Namespace = "mynamespace.servicebus.windows.net";
-    options.QueueName = "orders-queue";
+    sb.FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
+      .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue");
 });
-
-services.AddSingleton(sp =>
-{
-    var options = sp.GetRequiredService<IOptions<AzureServiceBusOptions>>().Value;
-    var credential = new DefaultAzureCredential();
-    var client = new ServiceBusClient(options.Namespace, credential);
-    return new AzureServiceBusMessageBus(
-        client,
-        sp.GetRequiredService<IPayloadSerializer>(),
-        options,
-        sp.GetRequiredService<ILogger<AzureServiceBusMessageBus>>());
-});
-
-services.AddRemoteMessageBus(
-    "servicebus",
-    sp => sp.GetRequiredService<AzureServiceBusMessageBus>());
 ```
+
+The same call works on the dispatch builder:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseAzureServiceBus(sb =>
+    {
+        sb.FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
+          .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue")
+          .ConfigureProcessor(processor => processor.DefaultEntityName = "orders-queue");
+    });
+});
+```
+
+Supply exactly one of the two. Options are validated at startup (`ValidateOnStart`), so a
+configuration with neither a connection string nor a fully-qualified namespace -- or one with no
+`Sender.DefaultEntityName` -- fails when the host starts rather than on the first send.
 
 ## CloudEvents Entity Defaults
 CloudEvents options are applied when the Service Bus broker auto-creates
@@ -111,6 +115,7 @@ topics/subscriptions. Configure them via `ConfigureCloudEvents()` on the transpo
 services.AddAzureServiceBusTransport(sb =>
 {
     sb.ConnectionString("Endpoint=sb://...")
+      .ConfigureSender(sender => sender.DefaultEntityName = "orders-topic")
       .ConfigureCloudEvents(ce =>
       {
           // Session support for ordered delivery
@@ -131,6 +136,14 @@ services.AddAzureServiceBusTransport(sb =>
 
 Alternatively, use the standalone extension method:
 
+:::note Trimming and Native AOT
+The CloudEvents mapper bundled with this transport serializes the message payload with
+reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
+call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+backed by a source-generated serializer.
+:::
+
 ```csharp
 services.AddCloudEventsForServiceBus(options =>
 {
@@ -141,7 +154,7 @@ services.AddCloudEventsForServiceBus(options =>
 
 ## Session Support for Ordered CloudEvents
 
-Use `SessionServiceBusConsumer` for FIFO-ordered message processing:
+Turn on session-based ordering for FIFO message processing:
 
 ```csharp
 services.AddCloudEventsForServiceBus(options =>
@@ -149,12 +162,31 @@ services.AddCloudEventsForServiceBus(options =>
     options.UseSessionsForOrdering = true;
     options.DefaultSessionId = "orders";
 });
+```
 
-// The SessionServiceBusConsumer handles session lifecycle automatically:
-// - Acquires session locks
-// - Processes messages in order within each session
-// - Releases sessions on idle timeout
-// - Event IDs 24320-24326 for session-specific logging
+Session lifecycle is handled for you once the option is set:
+
+- Session locks are acquired and renewed
+- Messages are processed in order within each session
+- Sessions are released on idle timeout
+
+Session activity logs under event IDs 24320-24326 (message received, acknowledged, rejected,
+visibility modified, receive error, acknowledge error, lock lost).
+
+Sessions must also be enabled on the queue or subscription itself. Set `RequiresSession` on the
+processor options when the transport is configured against an entity that requires them:
+
+```csharp
+services.AddAzureServiceBusTransport(sb =>
+{
+    sb.FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
+      .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue")
+      .ConfigureProcessor(processor =>
+      {
+          processor.DefaultEntityName = "orders-queue";
+          processor.RequiresSession = true;
+      });
+});
 ```
 
 ### Session Configuration Options
@@ -178,34 +210,34 @@ Register Azure Service Bus using the standard single entry point pattern:
 services.AddAzureServiceBusTransport("orders", sb =>
 {
     sb.FullyQualifiedNamespace("mynamespace.servicebus.windows.net")
-      .ConfigureProcessor(processor => processor.MaxConcurrentCalls(10))
+      .ConfigureSender(sender => sender.DefaultEntityName = "orders-queue")
+      .ConfigureProcessor(processor => processor.MaxConcurrentCalls = 10)
       .MapEntity<OrderCreated>("orders-queue");
 });
 ```
 
 ## Health Checks
-`AzureServiceBusHealthChecker` implements `IHealthCheck` directly. Register it with the health checks builder:
+Register the built-in namespace-connectivity probe on the health checks builder:
 
 ```csharp
 services.AddHealthChecks()
-    .AddCheck<AzureServiceBusHealthChecker>("servicebus");
+    .AddAzureServiceBusHealthCheck();
 ```
 
-For custom health check logic, inject the checker:
+The name defaults to `azure-servicebus`. Override it, the failure status, or the tags to fit an
+existing health-check layout:
 
 ```csharp
-public class MyHealthCheck(AzureServiceBusHealthChecker checker) : IHealthCheck
-{
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken)
-    {
-        var result = await checker.CheckHealthAsync(context, cancellationToken);
-        // Add custom logic as needed
-        return result;
-    }
-}
+services.AddHealthChecks()
+    .AddAzureServiceBusHealthCheck(
+        name: "servicebus",
+        failureStatus: HealthStatus.Degraded,
+        tags: ["messaging", "ready"]);
 ```
+
+For custom health-check logic, write your own `IHealthCheck` and register it alongside this one
+rather than wrapping it -- the probe implementation is an internal detail of the transport and is
+not part of the public surface.
 
 ## Observability
 ```csharp

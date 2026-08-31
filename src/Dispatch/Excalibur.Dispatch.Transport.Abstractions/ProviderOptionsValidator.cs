@@ -29,7 +29,7 @@ public class ProviderOptionsValidator : IValidateOptions<ProviderOptions>
 		{
 			failures.Add(
 				$"{nameof(ProviderOptions)}.{nameof(ProviderOptions.DefaultTimeoutMs)} must be greater than 0 (was {options.DefaultTimeoutMs}). " +
-				$"Configure it via services.Configure<{nameof(ProviderOptions)}>(o => o.DefaultTimeoutMs = 30000).");
+				$"Set it on the transport's own provider options (for example o.DefaultTimeoutMs = 30000).");
 		}
 
 		if (options.RetryPolicy is not null)

@@ -1,6 +1,6 @@
 namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider;
 
-internal sealed class FakeChannel : IChannel<object>
+internal sealed class FakeChannel : IChannelSender, IChannelReceiver
 {
 	private object? _lastMessage;
 

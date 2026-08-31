@@ -158,7 +158,6 @@ public static class FirestoreCdcServiceCollectionExtensions
 	private static void RegisterCdcValidators(IServiceCollection services)
 	{
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcOptions>, FirestoreCdcOptionsValidator>());
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcRecoveryOptions>, FirestoreCdcRecoveryOptionsValidator>());
 	}
 
 	private static void RegisterCdcStateStoreOptions(

@@ -5,6 +5,7 @@
 using System.Text.Json;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Excalibur.Saga.Abstractions;
@@ -41,7 +42,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<SagaTimeoutDeliveryService> _logger;
 	private readonly SagaTimeoutOptions _options;
-	private readonly ISagaTypeRegistry? _typeRegistry;
+	private readonly ISagaTypeRegistry _typeRegistry;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SagaTimeoutDeliveryService"/> class.
@@ -50,20 +51,21 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	/// <param name="serviceProvider">The service provider for creating scoped dispatchers.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="options">The timeout delivery options.</param>
-	/// <param name="typeRegistry">Optional AOT-safe type registry. When provided, type resolution
-	/// uses the registry instead of runtime assembly scanning.</param>
+	/// <param name="typeRegistry">The type registry naming every timeout message type the host
+	/// registered during composition. Required: it is the only resolution path, so a service built
+	/// without one resolves nothing and retires every timeout undelivered.</param>
 	public SagaTimeoutDeliveryService(
 		ISagaTimeoutStore timeoutStore,
 		IServiceProvider serviceProvider,
 		ILogger<SagaTimeoutDeliveryService> logger,
 		IOptions<SagaTimeoutOptions> options,
-		ISagaTypeRegistry? typeRegistry = null)
+		ISagaTypeRegistry typeRegistry)
 	{
 		_timeoutStore = timeoutStore ?? throw new ArgumentNullException(nameof(timeoutStore));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-		_typeRegistry = typeRegistry;
+		_typeRegistry = typeRegistry ?? throw new ArgumentNullException(nameof(typeRegistry));
 	}
 
 	/// <inheritdoc />
@@ -166,17 +168,23 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		// unresolvable-type and invalid-message paths retire the row by (TenantId, TimeoutId) and would otherwise
 		// match nothing, redelivering that timeout forever.
 		//
-		// BeginScope takes null — not the sentinel — for an untenanted timeout: the sentinel is reserved and is
-		// rejected as a tenant name, and a null ambient is what resolves back to the untenanted partition.
+		// BeginScope takes the partition's own term for an untenanted timeout, NOT null. A null ambient does
+		// not "resolve back to the untenanted partition" — it clears the ambient, and the default
+		// ITenantContext then resolves nothing, which TenantScope.FromContext fails closed on
+		// (TenantRequiredException). The reserved untenanted term is rejected only when AUTHORING a tenant
+		// from caller input (Scoped); read back off a stored row it is the legitimate term for the partition,
+		// which is exactly what FromStoredValue returns here.
 		var partition = KeyedTenantPartition.FromStoredValue(timeout.TenantId);
-		using var tenantScope = TenantContextHolder.BeginScope(partition.IsRealTenant ? partition.TenantId : null);
+		using var tenantScope = TenantContextHolder.BeginScope(partition.TenantId);
 		_ = (activity?.SetTag("tenant.id", partition.TenantId));
 
 		try
 		{
-			// Resolve timeout type: prefer AOT-safe registry, fall back to assembly scanning
-			var timeoutType = _typeRegistry?.ResolveType(timeout.TimeoutType)
-				?? ResolveTypeByName(timeout.TimeoutType);
+			// The registry is the ONLY resolution path. TimeoutType is a value read back from the timeout
+			// store, so resolving it by scanning every loaded assembly would let a stored string select any
+			// type in the process and hand it to the deserializer below -- the gadget-chain shape. The
+			// registry answers only for types the host registered during composition.
+			var timeoutType = _typeRegistry.ResolveType(timeout.TimeoutType);
 			if (timeoutType is null)
 			{
 				LogTimeoutTypeResolutionFailed(
@@ -222,6 +230,16 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			context.SetMessageType(timeout.TimeoutType);
 			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
+			// The TenantContextHolder.BeginScope(...) above establishes the timeout's own tenant --
+			// partition.IsRealTenant ? partition.TenantId : null, deliberately null for an estate-wide
+			// timeout -- as the AMBIENT (Channel A) tenant for this delivery, but nothing previously
+			// carried it onto THIS context's identity feature (Channel B), so any message this handler
+			// republishes via the ambient dispatch overload inherited no tenant at all, regardless of
+			// BeginScope. ApplyAmbientTenantFallback reads TenantContextHolder.Current directly (not
+			// ITenantContext), so it reproduces exactly the value BeginScope just established -- real
+			// tenant or deliberately absent -- never converting the untenanted case into a false owner.
+			context.ApplyAmbientTenantFallback();
+
 			_ = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
 
 			// Mark delivered after successful dispatch
@@ -238,37 +256,6 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 			_ = (activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message));
 			// Do NOT mark as delivered - will retry on next poll
 		}
-	}
-
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime type resolution. Register types via ISagaTypeRegistry for AOT-safe resolution.")]
-	private static Type? ResolveTypeByName(string typeName)
-	{
-		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
-			if (resolved != null)
-			{
-				return resolved;
-			}
-		}
-
-		var assemblySeparator = typeName.IndexOf(',', StringComparison.Ordinal);
-		if (assemblySeparator <= 0)
-		{
-			return null;
-		}
-
-		var simpleTypeName = typeName[..assemblySeparator];
-		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			var resolved = assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
-			if (resolved != null)
-			{
-				return resolved;
-			}
-		}
-
-		return null;
 	}
 
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Uses reflection to invoke constructors. Register types via ISagaTypeRegistry for AOT-safe instantiation.")]
@@ -304,7 +291,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	private partial void LogPollCycleFailed(Exception ex);
 
 	[LoggerMessage(SagaEventId.TimeoutTypeResolutionFailed, LogLevel.Warning,
-		"Could not resolve timeout type {TimeoutType} for timeout {TimeoutId}")]
+		"Could not resolve timeout type {TimeoutType} for timeout {TimeoutId}: it is not a registered saga timeout type")]
 	private partial void LogTimeoutTypeResolutionFailed(string timeoutType, string timeoutId);
 
 	[LoggerMessage(SagaEventId.TimeoutMessageCreationFailed, LogLevel.Warning,

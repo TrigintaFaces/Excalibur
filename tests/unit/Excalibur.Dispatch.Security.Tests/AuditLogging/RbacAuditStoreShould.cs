@@ -25,7 +25,7 @@ public sealed class RbacAuditStoreShould
 		_roleProvider = A.Fake<IAuditRoleProvider>();
 		_metaAuditLogger = A.Fake<IAuditLogger>();
 		_logger = new NullLogger<RbacAuditStore>();
-		_sut = new RbacAuditStore(_innerStore, _roleProvider, _metaAuditLogger, _logger, null);
+		_sut = new RbacAuditStore(_innerStore, TestScopeFactory.For(_roleProvider, _metaAuditLogger), _logger);
 	}
 
 	#region Constructor Tests
@@ -35,15 +35,28 @@ public sealed class RbacAuditStoreShould
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(null!, _roleProvider, _metaAuditLogger, _logger, null));
+			new RbacAuditStore(null!, TestScopeFactory.For(_roleProvider, _metaAuditLogger), _logger));
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenRoleProviderIsNull()
+	public void ThrowArgumentNullException_WhenScopeFactoryIsNull()
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(_innerStore, null!, _metaAuditLogger, _logger, null));
+			new RbacAuditStore(_innerStore, null!, _logger));
+	}
+
+	[Fact]
+	public async Task ThrowWhenNoRoleProviderIsRegistered()
+	{
+		// The role provider is an access-control input and is resolved per operation, so its absence is a
+		// resolution failure on the first checked call rather than a constructor argument check. It still
+		// fails closed: a host that registered none is refused, never defaulted to a role.
+		var sut = new RbacAuditStore(
+			_innerStore, TestScopeFactory.For(metaAuditLogger: _metaAuditLogger), _logger);
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => sut.GetByIdAsync("evt-1", CancellationToken.None));
 	}
 
 	[Fact]
@@ -51,16 +64,23 @@ public sealed class RbacAuditStoreShould
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(_innerStore, _roleProvider, _metaAuditLogger, null!, null));
+			new RbacAuditStore(_innerStore, TestScopeFactory.For(_roleProvider, _metaAuditLogger), null!));
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenMetaAuditLoggerIsNull()
+	public async Task ThrowWhenNoMetaAuditLoggerIsRegistered()
 	{
 		// The meta-audit logger records who read the audit trail — a segregation-of-duties control that
-		// must never be silently disabled by being left unconfigured. Its absence fails closed at construction.
-		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(_innerStore, _roleProvider, null!, _logger, null));
+		// must never be silently disabled by being left unconfigured. It is now resolved per operation, so
+		// its absence fails the READ that could not be recorded rather than failing at construction: still
+		// fail-closed, and the caller does not receive audit data that went unlogged.
+		_ = A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
+			.Returns(AuditLogRole.Administrator);
+
+		var sut = new RbacAuditStore(_innerStore, TestScopeFactory.For(_roleProvider), _logger);
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => sut.GetByIdAsync("evt-1", CancellationToken.None));
 	}
 
 	#endregion Constructor Tests
@@ -545,7 +565,7 @@ public sealed class RbacAuditStoreShould
 
 		var startDate = DateTimeOffset.UtcNow.AddDays(-1);
 		var endDate = DateTimeOffset.UtcNow;
-		var expectedResult = AuditIntegrityResult.Valid(100, startDate, endDate);
+		var expectedResult = AuditIntegrityResult.Verified(100, startDate, endDate, isHashChained: true);
 
 		_ = A.CallTo(() => _innerStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -554,7 +574,7 @@ public sealed class RbacAuditStoreShould
 		var result = await _sut.VerifyChainIntegrityAsync(startDate, endDate, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBe(expectedResult.IsValid);
+		result.Outcome.ShouldBe(expectedResult.Outcome);
 		result.EventsVerified.ShouldBe(expectedResult.EventsVerified);
 	}
 
@@ -719,7 +739,7 @@ public sealed class RbacAuditStoreShould
 
 		var startDate = DateTimeOffset.UtcNow.AddDays(-1);
 		var endDate = DateTimeOffset.UtcNow;
-		var expectedResult = AuditIntegrityResult.Valid(100, startDate, endDate);
+		var expectedResult = AuditIntegrityResult.Verified(100, startDate, endDate, isHashChained: true);
 
 		_ = A.CallTo(() => _innerStore.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -762,7 +782,7 @@ public sealed class RbacAuditStoreShould
 		// The meta-audit logger is now a required dependency, so every authorized read records a meta-audit
 		// event. Liveness: a distinct meta logger receives the access record for a permitted read.
 		var metaLogger = A.Fake<IAuditLogger>();
-		var sut = new RbacAuditStore(_innerStore, _roleProvider, metaLogger, _logger, null);
+		var sut = new RbacAuditStore(_innerStore, TestScopeFactory.For(_roleProvider, metaLogger), _logger);
 
 		_ = A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(AuditLogRole.Administrator);
@@ -892,7 +912,7 @@ public sealed class RbacAuditStoreShould
 		var token = cts.Token;
 
 		_ = A.CallTo(() => _innerStore.VerifyChainIntegrityAsync(startDate, endDate, token))
-			.Returns(AuditIntegrityResult.Valid(0, startDate, endDate));
+			.Returns(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
 		// Act
 		_ = await _sut.VerifyChainIntegrityAsync(startDate, endDate, token);

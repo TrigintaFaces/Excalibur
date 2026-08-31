@@ -47,7 +47,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, ITenantPartitionedStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
@@ -55,10 +55,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	private readonly ILogger<SqlServerOutboxStore> _logger;
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly JsonSerializerOptions _jsonOptions;
-
-	// Optional, exactly as SqlServerDeadLetterQueue takes it in this package. Absent in a single-tenant
-	// host, where every read resolves to the reserved untenanted partition rather than to "no predicate".
-	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerOutboxStore" /> class.
@@ -178,10 +174,11 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// <remarks>
 	/// <para> This is the advanced constructor for scenarios that need custom connection management. </para>
 	/// <para>
-	/// Tenant isolation is enforced on the write/stage path (each message carries and persists its own
-	/// <c>TenantId</c>) and on tenant-facing queries; the drain/mark-by-Id path is cross-tenant infrastructure
-	/// and stays global (it addresses the globally-unique outbox <c>Id</c>). The store reads no ambient tenant
-	/// context — fail-closed enforcement is provided by the multi-tenancy composition.
+	/// Tenant isolation is enforced on the write/stage path: each message carries and persists its own
+	/// <c>TenantId</c>, and the drain hands that value back so a handler re-establishes the owning partition
+	/// before the message is handled. This store reads no ambient tenant context and no read consults one.
+	/// The drain and the mark-by-Id path address the globally-unique outbox <c>Id</c>; the statistics read is
+	/// an estate-wide operator report that takes no tenant argument and counts the whole table.
 	/// </para>
 	/// <para>
 	/// Retention is the one remaining unscoped path, and it is global for a different reason than the drain:
@@ -241,18 +238,12 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// </code>
 	/// </para>
 	/// </remarks>
-	/// <param name="tenantContext">
-	/// The ambient tenant, when the host established one. Optional: a single-tenant host supplies none and
-	/// every tenant-facing read resolves to the reserved untenanted partition, which is a real predicate
-	/// rather than an absent one. The drain path does not consult this — it is deliberately cross-tenant.
-	/// </param>
 	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
 		IPayloadSerializer? payloadSerializer,
 		SqlServerInboxOptions? inboxOptions,
-		ILogger<SqlServerOutboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ILogger<SqlServerOutboxStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -263,7 +254,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		_inboxOptions = inboxOptions;
 		_payloadSerializer = payloadSerializer;
 		_logger = logger;
-		_tenantContext = tenantContext;
 		// Canonical event-serialization contract (camelCase + enum-as-string + omit-null), shared with every
 		// store and the default serializer, so persisted payloads/headers/metadata round-trip byte-for-byte.
 		_jsonOptions = EventSerializationDefaults.Canonical;
@@ -342,6 +332,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -350,7 +342,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		// Derive the routing destination from the message context (cys98n) — falling back to the message
+		// Derive the routing destination from the message context — falling back to the message
 		// type name rather than a hardcoded "default", so a consumer's configured destination is persisted
 		// and honored on dispatch (identical fix to the Postgres provider).
 		var messageTypeName = message.GetType().FullName ?? message.GetType().Name;
@@ -376,6 +368,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCoreAsync(batchSize, fencingToken: null, cancellationToken);
 
@@ -386,6 +380,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	/// cleanup has purged the sent, token-bearing rows. The per-message lease independently prevents two
 	/// processors from claiming the same row.
 	/// </remarks>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
 		GetUnsentMessagesCoreAsync(batchSize, fencingToken, cancellationToken);
 
@@ -639,21 +635,36 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			var sql = $"""
-				UPDATE {_options.Tables.QualifiedOutboxTableName}
-				SET Status = 3, RetryCount = RetryCount + 1, LastError = @Reason, LastAttemptAt = @Now,
-					LeasedAt = NULL, LeasedBy = NULL
-				WHERE Id IN @Ids
-				""";
+			// Composed from the same request the single-message path uses, so this path carries the ownership
+			// guard, the not-already-sent guard and the visibility floor it previously lacked. Writing its own
+			// statement is what let the three diverge: a batch could mark failed a message a peer held, revert a
+			// DELIVERED message to Failed and re-deliver it, and free the lease with no lower bound on the next
+			// claim — the retry hot-loop the floor exists to prevent.
+			var affected = await connection.ResolveAsync(
+					new Requests.MarkBatchFailedRequest(
+						_options.Tables.QualifiedOutboxTableName,
+						messageIds,
+						reason,
+						retryCount,
+						_options.ProcessorId,
+						_options.Processing.FailureBackoffFloorSeconds,
+						_options.Processing.CommandTimeoutSeconds,
+						cancellationToken))
+				.ConfigureAwait(false);
 
-			var affected = await connection.ExecuteAsync(
-				new CommandDefinition(
-					sql,
-					new { Ids = messageIds, Reason = reason, Now = DateTimeOffset.UtcNow },
-					commandTimeout: _options.Processing.CommandTimeoutSeconds,
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
-
-			_logger.LogWarning("Batch marked {Count}/{Total} messages as failed: {Reason}", affected, messageIds.Count, reason);
+			// Fewer rows than ids is now an expected outcome rather than an anomaly: the guards deliberately skip
+			// messages this processor no longer owns and messages already delivered.
+			if (affected < messageIds.Count)
+			{
+				_logger.LogWarning(
+					"Batch marked {Count}/{Total} messages as failed: {Reason}. {Skipped} were skipped because they " +
+					"are already delivered or are held by another processor.",
+					affected, messageIds.Count, reason, messageIds.Count - affected);
+			}
+			else
+			{
+				_logger.LogWarning("Batch marked {Count}/{Total} messages as failed: {Reason}", affected, messageIds.Count, reason);
+			}
 		}
 		catch
 		{
@@ -715,7 +726,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		// Use ReadCommitted isolation level per AD-223-3
+		// Use ReadCommitted isolation level
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
 			IsolationLevel.ReadCommitted,
 			cancellationToken).ConfigureAwait(false);
@@ -858,10 +869,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			// operator is trying to explain.
 			if (rowsAffected == 0)
 			{
-				_logger.LogWarning(
-					"MarkFailed for message {MessageId} matched no rows: it was delivered, or a peer holds the "
-					+ "lease. No state change was made and this attempt no longer owns the message.",
-					messageId);
+				await ExplainUnmatchedFailedMarkAsync(connection, messageId, cancellationToken).ConfigureAwait(false);
 			}
 			else
 			{
@@ -907,7 +915,13 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 						_options.ProcessorId,
 						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken,
-						nextAttemptAt))
+						nextAttemptAt,
+						// The floor travels with the computed schedule rather than being displaced by it. The
+						// backoff calculator yields around a second at the first attempt, so binding the caller's
+						// instant alone made this — the path the processor PREFERS whenever the capability is
+						// present — ignore a configured floor entirely, and made the capability weaken the very
+						// guarantee it exists to strengthen.
+						floorSeconds: _options.Processing.FailureBackoffFloorSeconds))
 				.ConfigureAwait(false);
 
 			// A zero-row mark is NOT a success. The statement is guarded on ownership and on the message not
@@ -917,10 +931,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			// a redelivery.
 			if (rowsAffected == 0)
 			{
-				_logger.LogWarning(
-					"MarkFailed for message {MessageId} matched no rows: it was delivered, or a peer holds the "
-					+ "lease. No state change was made and this attempt no longer owns the message.",
-					messageId);
+				await ExplainUnmatchedFailedMarkAsync(connection, messageId, cancellationToken).ConfigureAwait(false);
 			}
 			else
 			{
@@ -954,7 +965,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			_ = await connection.ResolveAsync(
+			var rowsAffected = await connection.ResolveAsync(
 					new Requests.MarkMessageDeadLetteredRequest(
 						_options.Tables.QualifiedOutboxTableName,
 						messageId,
@@ -963,7 +974,21 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 						cancellationToken))
 				.ConfigureAwait(false);
 
-			_logger.LogWarning("Marked message {MessageId} as dead-lettered (terminal): {Reason}", messageId, reason);
+			// The statement addresses the row by its primary key and carries no other guard, so zero rows means
+			// no message with that identifier exists. Logging the terminal transition regardless asserted a state
+			// change that did not happen, on the one path an operator reads to explain a redelivery.
+			if (rowsAffected == 0)
+			{
+				_logger.LogError(
+					"MarkDeadLettered for message {MessageId} matched no rows because no message with that "
+					+ "identifier exists in the outbox. The message was NOT dead-lettered: {Reason}",
+					messageId, reason);
+			}
+			else
+			{
+				_logger.LogWarning(
+					"Marked message {MessageId} as dead-lettered (terminal): {Reason}", messageId, reason);
+			}
 		}
 		catch
 		{
@@ -977,7 +1002,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -1015,7 +1040,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(
+	public async ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(
 		DateTimeOffset scheduledBefore,
 		int batchSize,
 		CancellationToken cancellationToken)
@@ -1107,7 +1132,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
@@ -1490,8 +1515,18 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// This read IS confined to <paramref name="tenantId"/>. The tenant is bound as an explicit SQL
+	/// predicate, evaluated by the server, never inferred from ambient state -- this store reads no ambient
+	/// tenant context, so <paramref name="tenantId"/> is trusted as supplied rather than checked against
+	/// anything: it is a confinement the caller opts into, not an authorization boundary this store
+	/// enforces. A caller supplying another tenant's <paramref name="messageId"/> matches zero rows.
+	/// The estate-wide read the delivery drain needs is a separate, explicitly named operation on
+	/// <see cref="IMultiTransportOutboxStoreAdmin"/>, not reachable through this method.
+	/// </remarks>
 	public async Task<IEnumerable<OutboundMessageTransport>> GetTransportDeliveriesAsync(
 		string messageId,
+		string? tenantId,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -1505,10 +1540,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		try
 		{
 			return await connection.ResolveAsync(
-					new Requests.GetTransportDeliveriesRequest(
+					new Requests.GetTenantScopedTransportDeliveriesRequest(
 						_options.Tables.QualifiedTransportsTableName,
 						messageId,
-						KeyedTenantPartition.FromContext(_tenantContext),
+						KeyedTenantPartition.FromStoredValue(tenantId),
 						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
@@ -1521,6 +1556,43 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 		finally
 		{
 			RecordOperation("get_transports", result, stopwatch.Elapsed);
+		}
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// This read is <strong>not confined to a tenant</strong>. It selects the delivery rows belonging to the
+	/// message named by <paramref name="messageId"/>, whichever tenant owns that message. The delivery drain
+	/// is cross-tenant by design and this read backs its per-transport decisions, so confining it to an
+	/// ambient tenant would return nothing for every tenanted message and stall multi-transport delivery.
+	/// Reserved for the drain and other estate-wide operator paths; a tenant-facing consumer read is
+	/// <see cref="GetTransportDeliveriesAsync(string, string?, CancellationToken)"/>.
+	/// </remarks>
+	public async Task<IEnumerable<OutboundMessageTransport>> GetAllTenantsTransportDeliveriesAsync(
+		string messageId,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			return await GetTransportDeliveriesInternalAsync(connection, messageId, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			throw;
+		}
+		finally
+		{
+			RecordOperation("get_transports_all_tenants", result, stopwatch.Elapsed);
 		}
 	}
 
@@ -1929,6 +2001,56 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			.ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Reports why a mark-failed matched no rows, by reading back the row the statement addressed.
+	/// </summary>
+	/// <param name="connection">The open connection the mark was issued on.</param>
+	/// <param name="messageId">The message the mark addressed.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// The statement is guarded on three independent conditions - the row existing, its status not already
+	/// being sent, and this processor still holding the lease - so a zero-row result has three distinct causes
+	/// and only one of them is routine. Reporting them as one line hid the case that matters: no row with that
+	/// identifier exists at all, which means the failure was recorded nowhere and no retry will be scheduled.
+	/// </remarks>
+	private async Task ExplainUnmatchedFailedMarkAsync(
+		SqlConnection connection,
+		string messageId,
+		CancellationToken cancellationToken)
+	{
+		// Read back after the fact: this reports the state the row is in now, not necessarily the state that
+		// caused the mark to miss. That is enough to separate a missing row - which is a defect - from a lease
+		// hand-off, which is routine, and that is the distinction the single warning could not express.
+		var status = await connection.QuerySingleOrDefaultAsync<int?>(
+			new CommandDefinition(
+				$"SELECT Status FROM {_options.Tables.QualifiedOutboxTableName} WHERE Id = @MessageId",
+				new { MessageId = messageId },
+				commandTimeout: _options.Processing.CommandTimeoutSeconds,
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+		if (status is null)
+		{
+			_logger.LogError(
+				"MarkFailed for message {MessageId} matched no rows because no message with that identifier "
+				+ "exists in the outbox. The failure was not recorded and no retry will be scheduled.",
+				messageId);
+		}
+		else if (status == (int)OutboxStatus.Sent)
+		{
+			_logger.LogInformation(
+				"MarkFailed for message {MessageId} matched no rows because the message is already delivered. "
+				+ "Delivered is terminal and was deliberately left intact; no state change was made.",
+				messageId);
+		}
+		else
+		{
+			_logger.LogWarning(
+				"MarkFailed for message {MessageId} matched no rows because another processor now holds the "
+				+ "lease. This attempt no longer owns the message and made no state change.",
+				messageId);
+		}
+	}
+
 	private async Task<IEnumerable<OutboundMessageTransport>> GetTransportDeliveriesInternalAsync(
 		SqlConnection connection,
 		string messageId,
@@ -1938,7 +2060,6 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 				new Requests.GetTransportDeliveriesRequest(
 					_options.Tables.QualifiedTransportsTableName,
 					messageId,
-					KeyedTenantPartition.FromContext(_tenantContext),
 					_options.Processing.CommandTimeoutSeconds,
 					cancellationToken))
 			.ConfigureAwait(false);

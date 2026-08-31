@@ -49,39 +49,4 @@ public sealed class AwsEventBridgeCloudEventOptionsValidatorShould
 		result.FailureMessage.ShouldContain(nameof(AwsEventBridgeCloudEventOptions.SourcePrefix));
 	}
 
-	[Theory]
-	[InlineData(0)]
-	[InlineData(11)]
-	public void FailWhenMaxBatchSizeOutOfRange(int value)
-	{
-		var result = _validator.Validate(null, new AwsEventBridgeCloudEventOptions { MaxBatchSize = value });
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AwsEventBridgeCloudEventOptions.MaxBatchSize));
-	}
-
-	[Fact]
-	public void FailWhenReplayEnabledWithoutArchiveName()
-	{
-		var result = _validator.Validate(null, new AwsEventBridgeCloudEventOptions
-		{
-			EnableReplay = true,
-			ReplayArchiveName = null,
-		});
-
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(AwsEventBridgeCloudEventOptions.ReplayArchiveName));
-	}
-
-	[Fact]
-	public void SucceedWhenReplayEnabledWithArchiveName()
-	{
-		var result = _validator.Validate(null, new AwsEventBridgeCloudEventOptions
-		{
-			EnableReplay = true,
-			ReplayArchiveName = "archive-1",
-		});
-
-		result.Succeeded.ShouldBeTrue();
-	}
 }

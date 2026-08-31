@@ -163,4 +163,8 @@ public sealed class KeyCacheConformanceTests : KeyCacheConformanceTestKit, IDisp
 		Count_ShouldReflectCacheState();
 
 	#endregion Count Tests
+
+	[Fact]
+	public override Task ConformanceSuite_ShouldWireEveryArm() =>
+		base.ConformanceSuite_ShouldWireEveryArm();
 }

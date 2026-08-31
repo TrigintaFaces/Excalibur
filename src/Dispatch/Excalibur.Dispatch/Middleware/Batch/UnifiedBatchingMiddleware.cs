@@ -44,7 +44,7 @@ public sealed partial class UnifiedBatchingMiddleware(
 	private readonly UnifiedBatchingOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILogger<UnifiedBatchingMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.BatchingMiddlewareExecuting, LogLevel.Debug,
 		"Message {MessageId} of type {MessageType} will not be batched")]
 	private partial void LogMessageNotBatched(string messageId, string messageType);
@@ -65,7 +65,7 @@ public sealed partial class UnifiedBatchingMiddleware(
 		"Error processing batch {BatchKey} with {Count} messages after {Duration}ms")]
 	private partial void LogBatchError(string batchKey, int count, long duration, Exception ex);
 
-	// R0.8: Disposable fields should be disposed - _loggerFactory is injected via DI and owned by the dependency injection container, not by this class
+	// Disposable fields should be disposed - _loggerFactory is injected via DI and owned by the dependency injection container, not by this class
 #pragma warning disable CA2213
 	private readonly ILoggerFactory _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
 #pragma warning restore CA2213

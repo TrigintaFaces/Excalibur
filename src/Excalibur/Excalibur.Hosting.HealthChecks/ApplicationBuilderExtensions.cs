@@ -5,12 +5,11 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Mime;
 using System.Text;
+using System.Text.Json;
 
 using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Hosting.HealthChecks;
-
-using HealthChecks.UI.Configuration;
 
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -21,21 +20,48 @@ namespace Microsoft.AspNetCore.Builder;
 /// </summary>
 public static class ExcaliburHealthChecksApplicationExtensions
 {
-	private static readonly DispatchJsonSerializer Serializer =
-		new DispatchJsonSerializer(static options =>
-		{
-			var healthOptions = HealthCheckJsonSerializerOptions.Default;
-			options.PropertyNamingPolicy = healthOptions.PropertyNamingPolicy;
-			options.DefaultIgnoreCondition = healthOptions.DefaultIgnoreCondition;
-			options.WriteIndented = healthOptions.WriteIndented;
-
-			// Add health check converters
-			options.Converters.Add(new HealthReportEntryJsonConverter());
-			options.Converters.Add(new HealthReportJsonConverter());
-		});
+	private static DispatchJsonSerializer? _serializer;
 
 	/// <summary>
-	/// Configures the application to use Excalibur health checks, including readiness, liveness, and UI endpoints.
+	/// Gets the serializer used to write health-report responses.
+	/// </summary>
+	/// <remarks>
+	/// Built on first access rather than in a field initializer, because it reads options that require
+	/// dynamic code and a class constructor cannot declare that requirement.
+	/// </remarks>
+	private static DispatchJsonSerializer Serializer
+	{
+		[RequiresDynamicCode(
+			"Reads the health-check options, which derive from options built at run time.")]
+		get
+		{
+			var existing = Volatile.Read(ref _serializer);
+			if (existing is not null)
+			{
+				return existing;
+			}
+
+			var created = new DispatchJsonSerializer(ConfigureHealthReportOptions);
+			return Interlocked.CompareExchange(ref _serializer, created, null) ?? created;
+		}
+	}
+
+	[RequiresDynamicCode(
+		"Reads the health-check options, which derive from options built at run time.")]
+	private static void ConfigureHealthReportOptions(JsonSerializerOptions options)
+	{
+		var healthOptions = HealthCheckJsonSerializerOptions.Default;
+		options.PropertyNamingPolicy = healthOptions.PropertyNamingPolicy;
+		options.DefaultIgnoreCondition = healthOptions.DefaultIgnoreCondition;
+		options.WriteIndented = healthOptions.WriteIndented;
+
+		// Add health check converters
+		options.Converters.Add(new HealthReportEntryJsonConverter());
+		options.Converters.Add(new HealthReportJsonConverter());
+	}
+
+	/// <summary>
+	/// Configures the application to use Excalibur health checks, exposing readiness and liveness endpoints.
 	/// </summary>
 	/// <param name="app"> The <see cref="IApplicationBuilder" /> instance. </param>
 	/// <returns> The <see cref="IApplicationBuilder" /> instance for chaining further configurations. </returns>
@@ -70,17 +96,6 @@ public static class ExcaliburHealthChecksApplicationExtensions
 				httpContext.Response.ContentType = MediaTypeNames.Text.Plain;
 				await httpContext.Response.Body.WriteAsync(response).ConfigureAwait(false);
 			},
-		});
-
-		_ = app.UseHealthChecksUI((Options options) =>
-		{
-			options.UIPath = "/health-check-ui";
-
-			var customCssPath = Path.Combine(AppContext.BaseDirectory, "HealthCheck", "Custom.css");
-			if (File.Exists(customCssPath))
-			{
-				_ = options.AddCustomStylesheet(customCssPath);
-			}
 		});
 
 		return app;

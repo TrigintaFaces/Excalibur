@@ -44,22 +44,6 @@ public sealed class SecurityOptions
 	/// The authentication configuration options.
 	/// </value>
 	public SecurityAuthenticationOptions Authentication { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets a value indicating whether security headers should be added to responses.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if security headers should be added to responses; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
-	/// </value>
-	public bool EnableSecurityHeaders { get; set; } = true;
-
-	/// <summary>
-	/// Gets or initializes custom security headers to add to responses.
-	/// </summary>
-	/// <value>
-	/// A dictionary of custom security headers to add to responses, or an empty dictionary if no custom headers are configured.
-	/// </value>
-	public IDictionary<string, string> CustomHeaders { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 }
 
 /// <summary>
@@ -71,9 +55,16 @@ public sealed class SecurityEncryptionOptions
 	/// Gets or sets a value indicating whether message encryption is enabled.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if message encryption is enabled; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
+	/// <see langword="true"/> if message encryption is enabled; otherwise, <see langword="false"/>. The default is <see langword="false"/>.
 	/// </value>
-	public bool EnableEncryption { get; set; } = true;
+	/// <remarks>
+	/// Every component on this type is off until it is named. The configuration delegate decides which
+	/// parts of the security stack a host composes, so a default of <see langword="true"/> made naming
+	/// any one component silently compose the others as well — and a host that asked only for encryption
+	/// received JWT authentication it had no credentials for, leaving the dispatch pipeline unresolvable.
+	/// Set this to <see langword="true"/> to compose message encryption.
+	/// </remarks>
+	public bool EnableEncryption { get; set; }
 
 	/// <summary>
 	/// Gets or sets the encryption algorithm to use for message encryption.
@@ -84,18 +75,22 @@ public sealed class SecurityEncryptionOptions
 	public EncryptionAlgorithm EncryptionAlgorithm { get; set; } = EncryptionAlgorithm.Aes256Gcm;
 
 	/// <summary>
-	/// Gets or sets the Azure Key Vault URL for encryption key management.
+	/// Gets or sets the Azure Key Vault URL naming where encryption keys are held.
 	/// </summary>
 	/// <value>
-	/// The Azure Key Vault URL for encryption key management, or <see langword="null"/> if not configured.
+	/// <see langword="null"/> - the only accepted value. This is forwarded to
+	/// <see cref="EncryptionOptions.AzureKeyVaultUrl"/>, which refuses any other value at startup; see
+	/// that property for why and for the supported way to hold keys in a vault.
 	/// </value>
 	public Uri? AzureKeyVaultUrl { get; set; }
 
 	/// <summary>
-	/// Gets or sets the AWS KMS key ARN for encryption key management.
+	/// Gets or sets the AWS KMS key ARN naming where encryption keys are held.
 	/// </summary>
 	/// <value>
-	/// The AWS KMS key ARN for encryption key management, or <see langword="null"/> if not configured.
+	/// <see langword="null"/> - the only accepted value. This is forwarded to
+	/// <see cref="EncryptionOptions.AwsKmsKeyArn"/>, which refuses any other value at startup; see that
+	/// property for why and for the supported way to hold keys in KMS.
 	/// </value>
 	public string? AwsKmsKeyArn { get; set; }
 }
@@ -109,9 +104,17 @@ public sealed class SecuritySigningOptions
 	/// Gets or sets a value indicating whether message signing is enabled.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if message signing is enabled; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
+	/// <see langword="true"/> if message signing is enabled; otherwise, <see langword="false"/>. The default is <see langword="false"/>.
 	/// </value>
-	public bool EnableSigning { get; set; } = true;
+	/// <remarks>
+	/// Signing is opt-in because it is the one security component that cannot run on the framework's own
+	/// resources: it needs an <see cref="IKeyProvider"/> supplying key material shared by every process
+	/// that signs or verifies, which is a deployment decision only the consumer can make. Turning it on by
+	/// default handed signing — and that infrastructure requirement — to consumers who asked only for
+	/// encryption or rate limiting. Set this to <see langword="true"/> and register a key provider
+	/// together; enabling it without one fails loudly at host startup.
+	/// </remarks>
+	public bool EnableSigning { get; set; }
 
 	/// <summary>
 	/// Gets or sets the signing algorithm to use for message signatures.
@@ -131,9 +134,14 @@ public sealed class SecurityRateLimitOptions
 	/// Gets or sets a value indicating whether rate limiting is enabled.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if rate limiting is enabled; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
+	/// <see langword="true"/> if rate limiting is enabled; otherwise, <see langword="false"/>. The default is <see langword="false"/>.
 	/// </value>
-	public bool EnableRateLimiting { get; set; } = true;
+	/// <remarks>
+	/// Off until named, for the reason given on
+	/// <see cref="SecurityEncryptionOptions.EnableEncryption"/>. Set this to <see langword="true"/> to
+	/// compose rate limiting.
+	/// </remarks>
+	public bool EnableRateLimiting { get; set; }
 
 	/// <summary>
 	/// Gets or sets the rate limiting algorithm to use.
@@ -161,9 +169,16 @@ public sealed class SecurityAuthenticationOptions
 	/// Gets or sets a value indicating whether authentication is enabled.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if authentication is enabled; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
+	/// <see langword="true"/> if authentication is enabled; otherwise, <see langword="false"/>. The default is <see langword="false"/>.
 	/// </value>
-	public bool EnableAuthentication { get; set; } = true;
+	/// <remarks>
+	/// Off until named, for the reason given on
+	/// <see cref="SecurityEncryptionOptions.EnableEncryption"/>. Authentication is the component that
+	/// showed the cost most plainly: composing it requires an issuer, an audience and a signing key, so a
+	/// host that never asked for it could not build its container. Set this to <see langword="true"/>,
+	/// together with the JWT settings below, to compose authentication.
+	/// </remarks>
+	public bool EnableAuthentication { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether authentication is required for all requests.
@@ -171,6 +186,13 @@ public sealed class SecurityAuthenticationOptions
 	/// <value>
 	/// <see langword="true"/> if authentication is required for all requests; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
 	/// </value>
+	/// <remarks>
+	/// This one stays on, and the difference from the <c>Enable</c> flags above is the point. Those decide
+	/// whether a component is composed at all, and composing something nobody named is a surprise in
+	/// either direction. This decides how authentication behaves once a host has asked for it, and a host
+	/// that asks for authentication and then does not enforce it has bought nothing. Set this to
+	/// <see langword="false"/> to authenticate opportunistically and authorize elsewhere.
+	/// </remarks>
 	public bool RequireAuthentication { get; set; } = true;
 
 	/// <summary>

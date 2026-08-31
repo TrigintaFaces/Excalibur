@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -32,7 +33,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 {
 	private MsSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Gets the schema name for the outbox tables (the store's default).
@@ -61,6 +62,7 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-outboxstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
@@ -73,94 +75,27 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the outbox store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
+
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
 	{
-		if (_initialized)
-		{
-			return;
-		}
-
-		const string createOutboxTableSql = """
-			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxMessages' AND xtype='U')
-			CREATE TABLE [dbo].[OutboxMessages] (
-				Id NVARCHAR(255) NOT NULL PRIMARY KEY,
-				MessageType NVARCHAR(500) NOT NULL,
-				Payload VARBINARY(MAX) NOT NULL,
-				Headers NVARCHAR(MAX) NULL,
-				Destination NVARCHAR(255) NOT NULL,
-				CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				ScheduledAt DATETIMEOFFSET NULL,
-				SentAt DATETIMEOFFSET NULL,
-				Status INT NOT NULL DEFAULT 0,
-				RetryCount INT NOT NULL DEFAULT 0,
-				LastError NVARCHAR(MAX) NULL,
-				LastAttemptAt DATETIMEOFFSET NULL,
-				CorrelationId NVARCHAR(255) NULL,
-				CausationId NVARCHAR(255) NULL,
-				TenantId NVARCHAR(255) NULL,
-				Priority INT NOT NULL DEFAULT 0,
-				TargetTransports NVARCHAR(MAX) NULL,
-				IsMultiTransport BIT NOT NULL DEFAULT 0,
-				LeasedAt DATETIMEOFFSET NULL,
-				LeasedBy NVARCHAR(255) NULL,
-				PartitionKey NVARCHAR(256) NULL,
-				GroupKey NVARCHAR(256) NULL,
-				SequenceNumber BIGINT NOT NULL DEFAULT 0,
-				NextAttemptAt DATETIMEOFFSET NULL,
-				FencingToken BIGINT NULL,
-				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
-				INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
-			)
-			""";
-
-		const string createTransportsTableSql = """
-			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxMessageTransports' AND xtype='U')
-			CREATE TABLE [dbo].[OutboxMessageTransports] (
-				Id NVARCHAR(255) NOT NULL PRIMARY KEY,
-				MessageId NVARCHAR(255) NOT NULL,
-				TransportName NVARCHAR(255) NOT NULL,
-				Destination NVARCHAR(255) NULL,
-				Status INT NOT NULL DEFAULT 0,
-				CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				AttemptedAt DATETIMEOFFSET NULL,
-				SentAt DATETIMEOFFSET NULL,
-				RetryCount INT NOT NULL DEFAULT 0,
-				LastError NVARCHAR(MAX) NULL,
-				TransportMetadata NVARCHAR(MAX) NULL,
-				TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
-				FOREIGN KEY (MessageId) REFERENCES [dbo].[OutboxMessages](Id)
-			)
-			""";
-
 		await using var connection = new SqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		await using (var createOutbox = new SqlCommand(createOutboxTableSql, connection))
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. A
+		// hand-written copy left OutboxMessages.TenantId nullable and dropped the DeadLetterQueue table
+		// entirely; a fixture that holds no schema cannot drift from one.
+		foreach (var script in ShippedSchemaScript.ReadSqlCmdBatches(
+			"src/Excalibur/Excalibur.Outbox.SqlServer/Scripts/001_CreateOutboxSchema.sql"))
 		{
-			_ = await createOutbox.ExecuteNonQueryAsync().ConfigureAwait(false);
+			await using var command = new SqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
-
-		await using (var createTransports = new SqlCommand(createTransportsTableSql, connection))
-		{
-			_ = await createTransports.ExecuteNonQueryAsync().ConfigureAwait(false);
-		}
-
-		// Durable leadership-fence control table — the high-water lives here, not on the message rows, so it
-		// survives the cleanup that purges token-bearing rows. Cleanup MUST NOT touch it.
-		const string createFenceTableSql = """
-			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxFence' AND xtype='U')
-			CREATE TABLE [dbo].[OutboxFence] (
-				OutboxTable NVARCHAR(512) NOT NULL PRIMARY KEY,
-				HighWaterToken BIGINT NOT NULL
-			)
-			""";
-
-		await using (var createFence = new SqlCommand(createFenceTableSql, connection))
-		{
-			_ = await createFence.ExecuteNonQueryAsync().ConfigureAwait(false);
-		}
-
-		_initialized = true;
 	}
 
 	/// <summary>

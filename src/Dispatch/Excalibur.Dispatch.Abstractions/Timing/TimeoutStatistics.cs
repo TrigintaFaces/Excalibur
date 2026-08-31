@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Provides timeout statistics for adaptive timeout calculations. R7.4: Statistical tracking for timeout optimization.
+/// Provides timeout statistics for adaptive timeout calculations. Statistical tracking for timeout optimization.
 /// </summary>
 public sealed class TimeoutStatistics
 {

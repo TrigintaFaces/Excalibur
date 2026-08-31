@@ -58,10 +58,6 @@ Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserId.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserId.init -> void
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserName.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserName.init -> void
-Excalibur.A3.Audit.AuditMiddleware
-Excalibur.A3.Audit.AuditMiddleware.AuditMiddleware(Excalibur.Domain.IActivityContext! activityContext, Excalibur.A3.Audit.IAuditMessagePublisher! auditMessagePublisher, Microsoft.Extensions.Logging.ILogger<Excalibur.A3.Audit.AuditMiddleware!>! logger, Excalibur.Dispatch.IOutboxDispatcher! outbox) -> void
-Excalibur.A3.Audit.AuditMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
-Excalibur.A3.Audit.AuditMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.A3.Audit.AuditableResult<TResult>
 Excalibur.A3.Audit.AuditableResult<TResult>.AuditMessage.get -> string?
 Excalibur.A3.Audit.AuditableResult<TResult>.AuditMessage.set -> void
@@ -338,7 +334,6 @@ Excalibur.A3.Authorization.RequirePermissionAttribute.ResourceTypes.get -> strin
 Excalibur.A3.Authorization.RequirePermissionAttribute.ResourceTypes.init -> void
 Excalibur.A3.Authorization.RequirePermissionAttribute.When.get -> string?
 Excalibur.A3.Authorization.RequirePermissionAttribute.When.init -> void
-Excalibur.A3.Diagnostics.A3EventId
 Excalibur.A3.Exceptions.NotAuthenticatedException
 Excalibur.A3.Exceptions.NotAuthenticatedException.NotAuthenticatedException() -> void
 Excalibur.A3.Exceptions.NotAuthenticatedException.NotAuthenticatedException(int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
@@ -359,21 +354,6 @@ Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.GrantAuthorizationServiceCollectionExtensions
-const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsError = 181501 -> int
-const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsRetrieved = 181503 -> int
-const Excalibur.A3.Diagnostics.A3EventId.ActivityGroupsError = 181500 -> int
-const Excalibur.A3.Diagnostics.A3EventId.ActivityGroupsRetrieved = 181502 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuditPublishFailure = 181100 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuthenticationFailed = 180002 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuthenticationStarted = 180000 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuthenticationSucceeded = 180001 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuthorizationCheckStarted = 180500 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuthorizationDenied = 180502 -> int
-const Excalibur.A3.Diagnostics.A3EventId.AuthorizationGranted = 180501 -> int
-const Excalibur.A3.Diagnostics.A3EventId.GrantSaveError = 180600 -> int
-const Excalibur.A3.Diagnostics.A3EventId.PermissionEvaluated = 180503 -> int
-const Excalibur.A3.Diagnostics.A3EventId.TokenExpired = 180004 -> int
-const Excalibur.A3.Diagnostics.A3EventId.TokenValidated = 180003 -> int
 const Excalibur.A3.Exceptions.NotAuthenticatedException.DefaultMessage = "Authentication failed." -> string!
 const Excalibur.A3.Exceptions.NotAuthenticatedException.DefaultStatusCode = 401 -> int
 override Excalibur.A3.Audit.AuditableResult<TResult>.ToString() -> string!

@@ -16,7 +16,7 @@ dotnet add package Excalibur.LeaderElection.Kubernetes
 - Background hosted service for automatic leadership management
 - Graceful leadership transitions
 - Pod identity auto-detection
-- AOT-compatible with full Native AOT support
+- Not Native AOT compatible - the Kubernetes client this provider builds on resolves types by runtime reflection
 
 ## Usage
 
@@ -82,4 +82,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

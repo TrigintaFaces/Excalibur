@@ -19,11 +19,11 @@ Choose MinimizedWindow when:
 ## Configuration
 
 ```csharp
-services.Configure<OutboxOptions>(options =>
+services.Configure<OutboxDeliveryOptions>(options =>
 {
     options.DeliveryGuarantee = OutboxDeliveryGuarantee.MinimizedWindow;
     options.ConsumerBatchSize = 50;
-    options.PollingInterval = TimeSpan.FromSeconds(5);
+    options.PerRunTotal = 1000;
 });
 ```
 

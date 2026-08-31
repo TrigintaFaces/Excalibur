@@ -33,17 +33,6 @@ internal sealed class AwsEventBridgeCloudEventOptionsValidator : IValidateOption
 		}
 
 		// EventBridge PutEvents accepts at most 10 entries per call.
-		if (options.MaxBatchSize is < 1 or > 10)
-		{
-			failures.Add($"{nameof(options.MaxBatchSize)} must be between 1 and 10 (the EventBridge batch limit).");
-		}
-
-		if (options.EnableReplay && string.IsNullOrWhiteSpace(options.ReplayArchiveName))
-		{
-			failures.Add(
-				$"{nameof(options.ReplayArchiveName)} is required when {nameof(options.EnableReplay)} is enabled.");
-		}
-
 		return failures.Count > 0 ? ValidateOptionsResult.Fail(failures) : ValidateOptionsResult.Success;
 	}
 }

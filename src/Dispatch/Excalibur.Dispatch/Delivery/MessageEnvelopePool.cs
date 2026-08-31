@@ -150,7 +150,7 @@ internal sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 
 		// Try to cache empty envelope in thread-local
 		var localPool = _threadLocalPool.Value!;
-		// R0.8: Dispose objects before losing scope - envelope is disposed in try block if not cached, or ownership transferred to cache on success, with disposal in catch block for exceptions
+		// Dispose objects before losing scope - envelope is disposed in try block if not cached, or ownership transferred to cache on success, with disposal in catch block for exceptions
 #pragma warning disable CA2000
 		var emptyEnvelope = new MessageEnvelope<TMessage>(message, default!);
 #pragma warning restore CA2000

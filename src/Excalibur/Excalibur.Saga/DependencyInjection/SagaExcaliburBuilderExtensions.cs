@@ -24,6 +24,8 @@ public static class SagaExcaliburBuilderExtensions
 	/// Optional action to configure saga options. Pass <see langword="null"/> to use defaults.
 	/// </param>
 	/// <returns>The same builder for fluent chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IExcaliburBuilder AddSagas(
 		this IExcaliburBuilder builder,
 		Action<SagaOptions>? configure = null)
@@ -50,6 +52,8 @@ public static class SagaExcaliburBuilderExtensions
 	/// <param name="builder">The Excalibur builder.</param>
 	/// <param name="configure">Action to configure saga sub-features.</param>
 	/// <returns>The same builder for fluent chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IExcaliburBuilder AddSagas(
 		this IExcaliburBuilder builder,
 		Action<ISagaBuilder> configure)

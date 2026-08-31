@@ -38,16 +38,6 @@ public sealed class TimeAwareSchedulerOptionsShould
 	}
 
 	[Fact]
-	public void Default_Timeouts_EnableTimeoutPolicies_IsTrue()
-	{
-		// Arrange & Act
-		var options = new TimeAwareSchedulerOptions();
-
-		// Assert
-		options.Timeouts.EnableTimeoutPolicies.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void Default_Adaptive_EnableAdaptiveTimeouts_IsFalse()
 	{
 		// Arrange & Act

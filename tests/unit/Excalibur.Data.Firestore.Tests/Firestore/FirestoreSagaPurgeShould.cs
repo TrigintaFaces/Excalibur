@@ -72,4 +72,15 @@ public sealed class FirestoreSagaPurgeShould
 		source.Contains("_collection!.GetSnapshotAsync", StringComparison.Ordinal).ShouldBeFalse(
 			"purge must snapshot the completedAt-filtered query, never the whole collection");
 	}
+
+	[Fact]
+	public void Purge_AppliesATenantEqualityPredicate_WhenScopedToATenant()
+	{
+		// The tenant-scoped purge (bead vtklu8) must apply a server-side tenant predicate rather than
+		// refusing or sweeping every tenant's rows. RED against the pre-fix code, which had no such
+		// predicate anywhere in the purge path.
+		var source = ReadStoreSource();
+
+		source.ShouldContain("WhereEqualTo(\"tenantId\", tenantId)");
+	}
 }

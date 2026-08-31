@@ -75,7 +75,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 	{
 		ArgumentNullException.ThrowIfNull(grant);
 
-		var key = BuildKey(grant.UserId, grant.TenantId ?? string.Empty, grant.GrantType, grant.Qualifier);
+		var key = BuildKey(grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier);
 		_grants[key] = grant;
 		return Task.FromResult(1);
 	}
@@ -153,7 +153,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		var results = _grants.Values
 			.Where(g => string.Equals(g.UserId, userId, StringComparison.Ordinal))
 			.ToDictionary(
-				g => BuildScopeKey(g.TenantId ?? string.Empty, g.GrantType, g.Qualifier),
+				g => BuildScopeKey(g.TenantId, g.GrantType, g.Qualifier),
 				g => (object)g,
 				StringComparer.Ordinal);
 
@@ -210,7 +210,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 	public Task<int> InsertActivityGroupGrantAsync(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,
@@ -227,7 +227,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 			grantedBy,
 			DateTimeOffset.UtcNow);
 
-		var key = BuildKey(userId, tenantId ?? string.Empty, grantType, qualifier);
+		var key = BuildKey(userId, tenantId, grantType, qualifier);
 		_grants[key] = grant;
 		return Task.FromResult(1);
 	}

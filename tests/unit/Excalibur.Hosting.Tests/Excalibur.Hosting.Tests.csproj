@@ -41,8 +41,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.AzureFunctions\Excalibur.Hosting.AzureFunctions.csproj" />
     <!-- From Excalibur.Hosting.GoogleCloudFunctions.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.GoogleCloudFunctions\Excalibur.Hosting.GoogleCloudFunctions.csproj" />
-    <!-- From Excalibur.Hosting.Serverless.Tests -->
-    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Serverless\Excalibur.Hosting.Serverless.csproj" />
+    <!-- Serverless host options/validator live in the Dispatch abstractions package -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
     <!-- Dispatch hosting packages (concrete types now live here after S507.3 consolidation) -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.AzureFunctions\Excalibur.Dispatch.Hosting.AzureFunctions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.AwsLambda\Excalibur.Dispatch.Hosting.AwsLambda.csproj" />

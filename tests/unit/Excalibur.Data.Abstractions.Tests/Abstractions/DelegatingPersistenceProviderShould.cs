@@ -66,19 +66,18 @@ public sealed class DelegatingPersistenceProviderShould : UnitTestBase, IAsyncDi
     // ========================================
 
     [Fact]
-    public async Task DelegateExecuteAsync_ToInnerProvider()
+    public void DelegateTheDataRequestExecutorCapability_ToInnerProvider()
     {
-        // Arrange
-        var request = A.Fake<IDataRequest<IDbConnection, int>>();
-        A.CallTo(() => _innerProvider.ExecuteAsync(request, A<CancellationToken>.Ignored))
-            .Returns(42);
+        // Executing a data request is no longer a member of the base, so a decorator reaches it the same
+        // way a consumer does — through GetService. This asserts the decorator does not swallow the
+        // capability: an inner provider that offers it is still reachable through the wrapper.
+        var executor = A.Fake<IDataRequestExecutor>();
+        A.CallTo(() => _innerProvider.GetService(typeof(IDataRequestExecutor))).Returns(executor);
 
-        // Act
-        var result = await _sut.ExecuteAsync(request, CancellationToken.None);
+        var result = _sut.GetService(typeof(IDataRequestExecutor));
 
-        // Assert
-        result.ShouldBe(42);
-        A.CallTo(() => _innerProvider.ExecuteAsync(request, A<CancellationToken>.Ignored))
+        result.ShouldBeSameAs(executor);
+        A.CallTo(() => _innerProvider.GetService(typeof(IDataRequestExecutor)))
             .MustHaveHappenedOnceExactly();
     }
 
@@ -156,20 +155,17 @@ public sealed class DelegatingPersistenceProviderShould : UnitTestBase, IAsyncDi
     // ========================================
 
     [Fact]
-    public async Task PropagateCancellationToken_ToExecuteAsync()
+    public async Task PropagateCancellationToken_ToInitializeAsync()
     {
         // Arrange
         using var cts = new CancellationTokenSource();
-        var request = A.Fake<IDataRequest<IDbConnection, string>>();
-        A.CallTo(() => _innerProvider.ExecuteAsync(request, cts.Token))
-            .Returns("result");
+        var options = A.Fake<IPersistenceOptions>();
 
         // Act
-        var result = await _sut.ExecuteAsync(request, cts.Token);
+        await _sut.InitializeAsync(options, cts.Token);
 
         // Assert
-        result.ShouldBe("result");
-        A.CallTo(() => _innerProvider.ExecuteAsync(request, cts.Token))
+        A.CallTo(() => _innerProvider.InitializeAsync(options, cts.Token))
             .MustHaveHappenedOnceExactly();
     }
 

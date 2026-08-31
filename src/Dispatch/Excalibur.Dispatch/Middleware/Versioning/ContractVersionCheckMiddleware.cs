@@ -151,10 +151,6 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 	/// <summary>
 	/// Gets version from message properties.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2075:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicProperties' in call to target method",
-		Justification = "Message types are preserved through source generation and DI registration")]
 	private static string? GetVersionFromProperty(IDispatchMessage message, PropertyInfo? versionProperty)
 	{
 		if (versionProperty?.CanRead == true)
@@ -174,7 +170,13 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 			return cached;
 		}
 
-		var versionProperty = messageType.GetProperty("Version") ?? messageType.GetProperty("ContractVersion");
+		// A message that implements IVersionedMessage states its version through the interface, which is
+		// read directly and needs no reflection. The name probe is a fallback for foreign message types
+		// that carry a version property without implementing the framework's versioning contract.
+		var versionProperty = typeof(IVersionedMessage).IsAssignableFrom(messageType)
+			? null
+			: messageType.GetProperty("Version") ?? messageType.GetProperty("ContractVersion");
+
 		if (versionProperty is { CanRead: false })
 		{
 			versionProperty = null;
@@ -219,7 +221,7 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 		}
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.ContractVersionMiddlewareExecuting, LogLevel.Debug,
 		"Checking contract version for event {EventType} version {Version}")]
 	private static partial void LogCheckingContractVersion(
@@ -301,6 +303,11 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 		// Extract version from message headers
 		var headerVersion = GetPropertyValue(context, _options.Headers.VersionHeaderName);
 
+		// Read the version straight off the framework's own versioning contract when the message declares it.
+		var interfaceVersion = message is IVersionedMessage versionedMessage
+			? versionedMessage.Version.ToString(CultureInfo.InvariantCulture)
+			: null;
+
 		// Extract version from message attributes
 		var attributeVersion = contractTypeMetadata.AttributeVersion;
 
@@ -308,7 +315,7 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 		var propertyVersion = GetVersionFromProperty(message, contractTypeMetadata.VersionProperty);
 
 		// Use the first available version source based on priority
-		var messageVersion = headerVersion ?? attributeVersion ?? propertyVersion;
+		var messageVersion = headerVersion ?? interfaceVersion ?? attributeVersion ?? propertyVersion;
 
 		// Extract schema identifier
 		var schemaId = GetPropertyValue(context, _options.Headers.SchemaIdHeaderName) ??

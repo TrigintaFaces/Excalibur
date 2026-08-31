@@ -77,12 +77,12 @@ public sealed class TelemetryOutboxStoreCapabilityForwardingShould
 
 		var decorator = new TelemetryOutboxStoreDecorator(inner);
 
-		// SAFETY. MessageBusOutboxPublisher probes exactly this; when it gets null it reports
-		// PublishingResult.Success(0) forever and scheduled messages are never dispatched.
+		// SAFETY. Administrative and health tooling probes exactly this; when it gets null it cannot reach the
+		// store's reporting reads at all, and reports an empty outbox rather than the one that is really there.
 		Discover(decorator, typeof(IOutboxStoreAdmin)).ShouldNotBeNull(
 			"The telemetry decorator wraps the SqlServer store unconditionally. A consumer probing the resolved " +
-			"IOutboxStore cannot discover an admin capability the inner store genuinely has, so " +
-			"PublishScheduledMessagesAsync returns Success(0) without dispatching anything.");
+			"IOutboxStore cannot discover an admin capability the inner store genuinely has, so every " +
+			"administrative read silently reports nothing.");
 	}
 
 	[Fact]
@@ -154,11 +154,11 @@ public sealed class TelemetryOutboxStoreCapabilityForwardingShould
 		admin.ShouldNotBeNull("Capability must be discoverable before it can be forwarded.");
 
 		var asOf = DateTimeOffset.UtcNow;
-		_ = await admin.GetScheduledMessagesAsync(asOf, 100, CancellationToken.None);
+		_ = await admin.GetAllTenantsScheduledMessagesAsync(asOf, 100, CancellationToken.None);
 
 		// Discoverability is not forwarding. A decorator that answers the probe and then answers the CALL from
 		// nowhere is the same silent no-op wearing a different costume. The seam changed; this arm did not.
-		A.CallTo(() => ((IOutboxStoreAdmin)inner).GetScheduledMessagesAsync(asOf, 100, A<CancellationToken>._))
+		A.CallTo(() => ((IOutboxStoreAdmin)inner).GetAllTenantsScheduledMessagesAsync(asOf, 100, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 }

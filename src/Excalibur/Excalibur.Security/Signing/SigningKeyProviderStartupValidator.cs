@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -22,10 +23,16 @@ namespace Excalibur.Security;
 /// </remarks>
 internal sealed class SigningKeyProviderStartupValidator(
 	IOptions<SigningOptions> options,
-	IEnumerable<IKeyProvider> keyProviders) : IHostedService
+	IEnumerable<IKeyProvider> keyProviders) : IHostedService, IStartupPrerequisiteValidator
 {
 	/// <inheritdoc />
 	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
 	{
 		// A disabled signing pipeline needs no key provider.
 		if (options.Value.Enabled && !keyProviders.Any())
@@ -34,8 +41,6 @@ internal sealed class SigningKeyProviderStartupValidator(
 				"No IKeyProvider is registered. Message signing requires a key provider — register one " +
 				"(a configuration/secret-backed provider, Excalibur.Security.Azure, or Excalibur.Security.Aws).");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />

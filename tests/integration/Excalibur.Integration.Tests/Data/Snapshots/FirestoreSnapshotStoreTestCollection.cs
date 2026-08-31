@@ -7,11 +7,10 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 /// xUnit collection definition for Firestore SnapshotStore integration tests.
 /// Collection definitions must be in the same assembly as the tests.
 /// </summary>
-[CollectionDefinition(CollectionName)]
-public class FirestoreSnapshotStoreTestCollection : ICollectionFixture<FirestoreSnapshotStoreContainerFixture>
+public static class FirestoreSnapshotStoreTestCollection
 {
 	/// <summary>
 	/// The collection name used by test classes.
 	/// </summary>
-	public const string CollectionName = "Firestore SnapshotStore Integration Tests";
+	public const string CollectionName = global::Excalibur.Integration.Tests.FirestoreSerialCollection.CollectionName;
 }

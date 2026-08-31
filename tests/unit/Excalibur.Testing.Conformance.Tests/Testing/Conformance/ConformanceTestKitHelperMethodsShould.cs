@@ -1,12 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text.Json.Serialization.Metadata;
+
 using System.Text;
 
 using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch;
 using Excalibur.Testing.Conformance;
+
+using Microsoft.Extensions.DependencyInjection;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -324,7 +328,7 @@ public sealed class ConformanceTestKitHelperMethodsShould
 		{
 			var options = Options.Create(new InMemoryInboxStoreOptions());
 			var logger = NullLogger<InMemoryInboxStore>.Instance;
-			return new InMemoryInboxStore(options, logger);
+			return new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 		}
 
 		public string PublicGenerateMessageId() => GenerateMessageId();
@@ -338,11 +342,11 @@ public sealed class ConformanceTestKitHelperMethodsShould
 	/// </summary>
 	private sealed class TestableOutboxStoreKit : OutboxStoreConformanceTestKit
 	{
-		protected override IOutboxStore CreateStore()
+		protected override Task<IOutboxStore> CreateStoreAsync()
 		{
 			var options = Options.Create(new InMemoryOutboxStoreOptions());
 			var logger = NullLogger<InMemoryOutboxStore>.Instance;
-			return new InMemoryOutboxStore(options, logger);
+			return Task.FromResult<IOutboxStore>(new InMemoryOutboxStore(options, logger));
 		}
 
 		public string PublicGenerateMessageId() => GenerateMessageId();
@@ -357,7 +361,9 @@ public sealed class ConformanceTestKitHelperMethodsShould
 	/// </summary>
 	private sealed class TestableEventStoreKit : EventStoreConformanceTestKit
 	{
-		protected override IEventStore CreateStore() =>
+		protected override void ConfigureProvider(
+			IServiceCollection services,
+			IJsonTypeInfoResolver? eventTypeInfoResolver) =>
 			throw new NotImplementedException("Not needed for helper method tests");
 
 		public IReadOnlyList<IDomainEvent> PublicCreateTestEvents(string aggregateId, int count, long startVersion = 1) =>

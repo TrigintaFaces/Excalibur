@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Amazon.Runtime;
 using System.Diagnostics.CodeAnalysis;
 
 using Amazon.DynamoDBv2;
@@ -113,8 +114,23 @@ public static class SagaBuilderDynamoDbExtensions
 		else if (dynamoBuilder.ServiceUrlValue is not null)
 		{
 			var serviceUrl = dynamoBuilder.ServiceUrlValue;
-			builder.Services.TryAddSingleton<IAmazonDynamoDB>(_ =>
-				new AmazonDynamoDBClient(new AmazonDynamoDBConfig { ServiceURL = serviceUrl }));
+			builder.Services.TryAddSingleton<IAmazonDynamoDB>(sp =>
+			{
+				var config = new AmazonDynamoDBConfig { ServiceURL = serviceUrl };
+
+				// Honour configured credentials on this path too. The store's own client factory already
+				// does (DynamoDbSagaStore builds BasicAWSCredentials from the same two options), so a
+				// consumer who sets Connection.AccessKey/SecretKey had them applied by one client and
+				// silently dropped by the one registered here -- the two disagreed about the same
+				// configuration. Where they are absent the SDK's default credential chain still applies,
+				// which is what an AWS-hosted consumer relies on.
+				var connection = sp.GetService<IOptions<DynamoDbSagaOptions>>()?.Value.Connection;
+				return !string.IsNullOrWhiteSpace(connection?.AccessKey)
+					&& !string.IsNullOrWhiteSpace(connection.SecretKey)
+						? new AmazonDynamoDBClient(
+							new BasicAWSCredentials(connection.AccessKey, connection.SecretKey), config)
+						: new AmazonDynamoDBClient(config);
+			});
 		}
 		else if (dynamoBuilder.RegionValue is not null)
 		{
@@ -124,7 +140,13 @@ public static class SagaBuilderDynamoDbExtensions
 		}
 
 		// Register store services
-		builder.Services.TryAddSingleton<DynamoDbSagaStore>();
+		_ = builder.Services.AddDefaultTenantContext();
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the
+		// store through THIS path, while the sibling entry point in the same package looks done.
+		_ = builder.Services.AddTenantAwareStore<ISagaStore, DynamoDbSagaStore>();
 		builder.Services.AddKeyedSingleton<ISagaStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbSagaStore>());
 		builder.Services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("dynamodb"));

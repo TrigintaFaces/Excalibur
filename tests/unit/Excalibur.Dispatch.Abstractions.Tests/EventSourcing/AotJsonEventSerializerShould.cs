@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Tests.EventSourcing;
 public sealed partial class AotJsonEventSerializerShould
 {
 	private readonly TestTypeRegistry _registry = new();
-	private readonly AotTestJsonContext _jsonContext = new();
+	private readonly JsonSerializerContext _jsonContext = AotTestJsonContext.Default;
 
 	[Fact]
 	public void ThrowForNullTypeRegistry()
@@ -221,6 +221,10 @@ public sealed partial class AotJsonEventSerializerShould
 			_typeToName.GetValueOrDefault(eventType);
 	}
 
+	[JsonSourceGenerationOptions(
+		PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+		UseStringEnumConverter = true,
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 	[JsonSerializable(typeof(TestOrderCreated))]
 	private sealed partial class AotTestJsonContext : JsonSerializerContext;
 }

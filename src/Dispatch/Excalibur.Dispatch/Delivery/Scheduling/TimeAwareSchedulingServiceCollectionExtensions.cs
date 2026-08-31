@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring time-aware scheduling services with integrated TimePolicy support. R7.4: Service registration for
+/// Extension methods for configuring time-aware scheduling services with integrated TimePolicy support. Service registration for
 /// configurable timeout handling in scheduled message processing.
 /// </summary>
 public static class TimeAwareSchedulingServiceCollectionExtensions
@@ -25,13 +25,15 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddTimeAwareScheduling(this IServiceCollection services)
 	{
 		// Add TimePolicy services
 		_ = services.AddTimePolicy();
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = AddScheduledDeliveryRuntime(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -53,19 +55,15 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration instance. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
-	[RequiresDynamicCode(
-		"Configuration binding for time-aware scheduling requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddTimeAwareScheduling(this IServiceCollection services, IConfiguration configuration)
 	{
 		// Add TimePolicy services with configuration
 		_ = services.AddTimePolicy(configuration);
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = AddScheduledDeliveryRuntime(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -85,6 +83,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="configureScheduler"> Action to configure the time-aware scheduler options. </param>
 	/// <param name="configureTimePolicy"> Optional action to configure the time policy options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions> configureScheduler,
@@ -101,7 +101,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		}
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = AddScheduledDeliveryRuntime(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -120,6 +120,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure additional scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddAdaptiveTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -128,7 +130,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddAdaptiveTimeouts();
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = AddScheduledDeliveryRuntime(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -138,7 +140,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 			.Configure(options =>
 			{
 				options.Adaptive.EnableAdaptiveTimeouts = true;
-				options.Timeouts.IncludeTimeoutMetrics = true;
 				options.Timeouts.LogSchedulingTimeouts = true;
 				configureScheduler?.Invoke(options);
 			})
@@ -153,6 +154,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure the scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddLightweightTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -161,7 +164,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddTimePolicyWithoutMonitoring();
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = AddScheduledDeliveryRuntime(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -170,9 +173,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(options =>
 			{
-				options.Timeouts.EnableTimeoutPolicies = true;
 				options.Adaptive.EnableAdaptiveTimeouts = false;
-				options.Timeouts.IncludeTimeoutMetrics = false;
 				options.Timeouts.LogSchedulingTimeouts = false;
 				configureScheduler?.Invoke(options);
 			})
@@ -187,6 +188,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure additional scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddThroughputTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -197,12 +200,11 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 			options.Adaptive.UseAdaptiveTimeouts = true;
 			options.Adaptive.MinimumSampleSize = 25; // Lower sample size for faster adaptation
 			options.Adaptive.AdaptiveTimeoutPercentile = 90; // Slightly lower percentile for better performance
-			options.Observability.IncludeTimeoutMetrics = true;
 			options.Observability.LogTimeoutEvents = true;
 		});
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = AddScheduledDeliveryRuntime(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -215,7 +217,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 				options.Adaptive.EnableTimeoutEscalation = true;
 				options.Adaptive.MinimumSampleSize = 25;
 				options.Adaptive.AdaptiveTimeoutPercentile = 90;
-				options.Timeouts.IncludeTimeoutMetrics = true;
 				options.Timeouts.LogSchedulingTimeouts = true;
 
 				// Optimize timeouts for high performance
@@ -237,6 +238,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection ReplaceWithTimeAwareScheduling(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -287,15 +290,48 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.Configure<TimeAwareSchedulerOptions>(static options =>
 		{
 			options.Timeouts.LogSchedulingTimeouts = true;
-			options.Timeouts.IncludeTimeoutMetrics = true;
 		});
 
 		_ = services.Configure<TimePolicyOptions>(static options =>
 		{
 			options.Observability.LogTimeoutEvents = true;
-			options.Observability.IncludeTimeoutMetrics = true;
 		});
 
 		return services;
 	}
+
+	/// <summary>
+	/// Registers the hosted service that fires scheduled deliveries and, in the same act, the boot-time gate
+	/// that refuses a schedule store which cannot keep them.
+	/// </summary>
+	/// <remarks>
+	/// The two are registered together rather than at separate call sites on purpose. Running this hosted
+	/// service is what turns a schedule from a request into a promise: the host accepts a delivery now and
+	/// owes it later. A volatile store breaks that promise during a restart, having already reported the
+	/// schedule as accepted, and the failure appears only as an absence. Composing the gate here means every
+	/// entry point that starts scheduled delivery carries the refusal with it, so a new entry point cannot be
+	/// added later that runs schedules without one.
+	/// </remarks>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The same <see cref="IServiceCollection" /> for chaining. </returns>
+	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	private static IServiceCollection AddScheduledDeliveryRuntime(IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// ScheduledMessageService dispatches the messages it releases and drives a cron scheduler, so it
+		// resolves IDispatcher and ICronScheduler. Seat both (all TryAdd) rather than leave a hosted service
+		// registered against infrastructure the composition may not contain. Composing AddDispatchScheduling
+		// first does not weaken the durability gate below: AddDurableScheduleStore uses Replace precisely so
+		// a durable store still wins whichever order the two are called in.
+		_ = services.AddDispatchPipeline();
+		_ = services.AddDispatchScheduling();
+
+		_ = services.AddHostedService<ScheduledMessageService>();
+		_ = services.AddScheduleDurabilityGate();
+
+		return services;
+	}
+
 }

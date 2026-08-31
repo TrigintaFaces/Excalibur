@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -233,7 +233,32 @@ public sealed class VaultSuspensionOptions
 	/// markers are stored. The marker for a key is written at <c>{Path}/{keyId}</c>.
 	/// Default is "excalibur-dispatch/suspended-keys".
 	/// </summary>
+	/// <remarks>
+	/// Must not be a prefix of <see cref="PurposePath"/>, nor contain it. The two namespaces are addressed
+	/// by concatenating a key identifier, so nesting one inside the other lets a key identifier that
+	/// contains a path separator address the other namespace.
+	/// </remarks>
 	public string Path { get; set; } = "excalibur-dispatch/suspended-keys";
+
+	/// <summary>
+	/// Gets or sets the path prefix (within <see cref="MountPath"/>) under which per-key purpose sidecars
+	/// are stored. The sidecar for a key is written at <c>{PurposePath}/{keyId}</c>.
+	/// Default is "excalibur-dispatch/key-purpose".
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Deliberately a sibling of <see cref="Path"/> rather than a folder beneath it. Key status treats
+	/// "a suspension document exists at <c>{Path}/{keyId}</c>" as "this key is suspended", so any purpose
+	/// sidecar reachable through the suspension prefix would make the key it describes resolve as
+	/// suspended -- a security-relevant failure reached purely by recording a purpose.
+	/// </para>
+	/// <para>
+	/// Keeping the roots disjoint is what makes that collision inexpressible rather than merely unlikely:
+	/// with the purpose sidecar nested at <c>{Path}/purpose/{keyId}</c>, a key identifier of
+	/// <c>purpose/foo</c> addressed exactly the purpose sidecar of the key <c>foo</c>.
+	/// </para>
+	/// </remarks>
+	public string PurposePath { get; set; } = "excalibur-dispatch/key-purpose";
 }
 
 /// <summary>

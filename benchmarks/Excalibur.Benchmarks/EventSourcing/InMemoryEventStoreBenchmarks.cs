@@ -4,6 +4,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
 
@@ -33,7 +34,7 @@ public class InMemoryEventStoreBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
-		_eventStore = new InMemoryEventStore();
+		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Pre-populate aggregates with different event counts
 		_aggregateWith10Events = CreateAggregateWithEvents(10);

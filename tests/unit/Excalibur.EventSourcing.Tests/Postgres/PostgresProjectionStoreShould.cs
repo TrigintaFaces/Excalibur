@@ -35,7 +35,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresProjectionStore<SampleProjection>(
 			connectionString: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -44,7 +45,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresProjectionStore<SampleProjection>(
 			connectionString: "Host=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -53,7 +55,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act
 		var store = new PostgresProjectionStore<SampleProjection>(
 			connectionString: "Host=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -66,6 +69,7 @@ public sealed class PostgresProjectionStoreShould
 		var store = new PostgresProjectionStore<SampleProjection>(
 			connectionString: "Host=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: "custom_projections");
 
 		// Assert
@@ -86,6 +90,7 @@ public sealed class PostgresProjectionStoreShould
 		var store = new PostgresProjectionStore<SampleProjection>(
 			connectionString: "Host=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			tableName: null,
 			jsonOptions: jsonOptions);
 
@@ -103,7 +108,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresProjectionStore<SampleProjection>(
 			dataSource: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -117,7 +123,8 @@ public sealed class PostgresProjectionStoreShould
 			// Act & Assert
 			_ = Should.Throw<ArgumentNullException>(() => new PostgresProjectionStore<SampleProjection>(
 				dataSource,
-				logger: null!));
+				logger: null!,
+				tenantContext: TestTenantContext.SingleTenantDefault));
 		}
 		finally
 		{
@@ -136,7 +143,8 @@ public sealed class PostgresProjectionStoreShould
 			// Act
 			var store = new PostgresProjectionStore<SampleProjection>(
 				dataSource,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			// Assert
 			_ = store.ShouldNotBeNull();
@@ -159,6 +167,7 @@ public sealed class PostgresProjectionStoreShould
 			var store = new PostgresProjectionStore<SampleProjection>(
 				dataSource,
 				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault,
 				tableName: "custom_projections");
 
 			// Assert
@@ -187,6 +196,7 @@ public sealed class PostgresProjectionStoreShould
 			var store = new PostgresProjectionStore<SampleProjection>(
 				dataSource,
 				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault,
 				tableName: null,
 				jsonOptions: jsonOptions);
 
@@ -215,11 +225,13 @@ public sealed class PostgresProjectionStoreShould
 			// Act
 			var simpleStore = new PostgresProjectionStore<SampleProjection>(
 				connectionString,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			var advancedStore = new PostgresProjectionStore<SampleProjection>(
 				dataSource,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			// Assert - Both should be valid instances
 			_ = simpleStore.ShouldNotBeNull();
@@ -243,7 +255,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act - Creating instance should not throw
 		var store = new PostgresProjectionStore<SampleProjection>(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -261,8 +274,8 @@ public sealed class PostgresProjectionStoreShould
 		var otherLogger = NullLoggerFactory.Instance.CreateLogger<PostgresProjectionStore<AnotherProjection>>();
 
 		// Act
-		var sampleStore = new PostgresProjectionStore<SampleProjection>(connectionString, _logger);
-		var otherStore = new PostgresProjectionStore<AnotherProjection>(connectionString, otherLogger);
+		var sampleStore = new PostgresProjectionStore<SampleProjection>(connectionString, _logger, TestTenantContext.SingleTenantDefault);
+		var otherStore = new PostgresProjectionStore<AnotherProjection>(connectionString, otherLogger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = sampleStore.ShouldNotBeNull();
@@ -280,7 +293,7 @@ public sealed class PostgresProjectionStoreShould
 		var connectionString = "Host=localhost;Port=5432;Database=projections;Username=user;Password=pass";
 
 		// Act
-		var store = new PostgresProjectionStore<SampleProjection>(connectionString, _logger);
+		var store = new PostgresProjectionStore<SampleProjection>(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -293,7 +306,7 @@ public sealed class PostgresProjectionStoreShould
 		var connectionString = "Host=localhost;Database=projections;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=100";
 
 		// Act
-		var store = new PostgresProjectionStore<SampleProjection>(connectionString, _logger);
+		var store = new PostgresProjectionStore<SampleProjection>(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -312,7 +325,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new PostgresProjectionStore<SampleProjection>(
 			connectionString: string.Empty,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -324,7 +338,8 @@ public sealed class PostgresProjectionStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new PostgresProjectionStore<SampleProjection>(
 			connectionString: "   ",
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	#endregion Empty Connection String Tests
@@ -335,7 +350,7 @@ public sealed class PostgresProjectionStoreShould
 	public void Store_ImplementsIProjectionStore()
 	{
 		// Arrange
-		var store = new PostgresProjectionStore<SampleProjection>("Host=localhost;Database=TestDb", _logger);
+		var store = new PostgresProjectionStore<SampleProjection>("Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IProjectionStore<SampleProjection>>();
@@ -355,7 +370,7 @@ public sealed class PostgresProjectionStoreShould
 		try
 		{
 			// Act
-			var store = new PostgresProjectionStore<SampleProjection>(dataSource, _logger);
+			var store = new PostgresProjectionStore<SampleProjection>(dataSource, _logger, TestTenantContext.SingleTenantDefault);
 
 			// Assert
 			_ = store.ShouldNotBeNull();

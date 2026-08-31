@@ -8,16 +8,156 @@
       - Excalibur packages may depend on Excalibur/Dispatch internal packages
       - Internal dependency versions must be explicit and non-floating
       - Expected packable projects produce packages
+      - No shipped package declares a development-only dependency (see the block below)
+.PARAMETER SelfTest
+    Runs the development-only classifier against planted defects and controls, without packing,
+    and exits non-zero if it fails to name a planted defect or flags a legitimate dependency.
 #>
 param(
     [string]$SolutionFilter = "eng/ci/shards/ShippingOnly.slnf",
     [string]$OutDir = "management/reports/PackageDependencyReport",
     [string]$Version = "0.0.0-ci-validation",
-    [switch]$Enforce = $true
+    [switch]$Enforce = $true,
+    [switch]$SelfTest
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# ---------------------------------------------------------------------------------------------
+# Development-only dependency classes.
+#
+# A packed nuspec is the list a consumer's restore acts on: every id named there is downloaded
+# into their application. These classes are never correct on that list. A benchmarking harness, a
+# test framework, an analyzer, the compiler platform and our own build tooling belong to OUR
+# build, not to a consumer's runtime.
+#
+# Nobody has to write the dependency down for it to appear. With central transitive pinning on, a
+# centrally pinned package that reaches ANY point of a project's transitive graph is promoted onto
+# that project's nuspec as a DIRECT dependency -- so a single reference missing PrivateAssets, in
+# one project, is declared by every package downstream of it. Two published releases carried
+# exactly that shape: an object-relational mapper behind a health-checks package, and a
+# benchmarking harness declared by more than half the published set. Neither was visible in a lock
+# file, because a lock file records the restore graph rather than what the package declares.
+#
+# This is deliberately a denylist of categories that can never be right, not an allowlist of every
+# expected dependency. An expected-set baseline over ~200 packages would be edited by whoever broke
+# it, which is how a ratchet loosens. A category that is never correct has a membership rule any
+# reader can check, and no reason to be relaxed.
+#
+# The remedy for a hit is PrivateAssets="all" on the reference. That keeps the version floor for
+# our own restore -- which is why transitive pinning is on in the first place, and how the
+# metapackage directory keeps its security floors while pinning is off there -- without emitting
+# the package onto a consumer's list. An exemption below is the last resort, not the first.
+# ---------------------------------------------------------------------------------------------
+$developmentOnlyDependencyPrefixes = [ordered]@{
+    'BenchmarkDotNet'               = 'benchmarking harness'
+    'Microsoft.CodeAnalysis.'       = 'compiler platform'
+    'StyleCop.Analyzers'            = 'analyzer'
+    'Roslynator.'                   = 'analyzer'
+    'Meziantou.Analyzer'            = 'analyzer'
+    'SonarAnalyzer.'                = 'analyzer'
+    'Microsoft.SourceLink.'         = 'build tooling'
+    'MinVer'                        = 'build tooling'
+    'Nerdbank.GitVersioning'        = 'build tooling'
+    'coverlet.'                     = 'coverage tooling'
+    'Microsoft.NET.Test.Sdk'        = 'test framework'
+    'xunit'                         = 'test framework'
+    'NUnit'                         = 'test framework'
+    'MSTest'                        = 'test framework'
+    'Moq'                           = 'mocking library'
+    'FakeItEasy'                    = 'mocking library'
+    'NSubstitute'                   = 'mocking library'
+    'Shouldly'                      = 'assertion library'
+    'AutoFixture'                   = 'test-data library'
+    'Testcontainers'                = 'test infrastructure'
+    'Microsoft.EntityFrameworkCore' = 'object-relational mapper (this framework accesses data through Dapper and raw ADO.NET, so shipping an ORM to a consumer contradicts its stated data-access constraint)'
+}
+
+# Test-support PRODUCTS, where the dependency IS what the consumer buys. Excalibur.Testing.Containers
+# hands a consumer container-backed fixtures to write xUnit tests against; Excalibur.Dispatch.Testing.Shouldly
+# ships assertion extensions over Shouldly's own types. Making these private would publish a package whose
+# public surface a consumer cannot compile against.
+#
+# Keyed by package id on purpose: an exemption is never global. The same dependency appearing on any
+# other package is still a defect, which is the case that would otherwise slip through.
+$developmentOnlyDependencyExemptions = @{
+    'Excalibur.Testing.Containers'        = @('xunit', 'Testcontainers')
+    'Excalibur.Dispatch.Testing.Shouldly' = @('Shouldly')
+}
+
+# Returns a human-readable issue string when the dependency is development-only and unexempted for
+# this package; returns $null otherwise. Pure -- no I/O -- so the self-test can drive it directly.
+function Get-DevelopmentOnlyDependencyIssue {
+    param(
+        [Parameter(Mandatory)][string]$PackageId,
+        [Parameter(Mandatory)][string]$DependencyId
+    )
+
+    $exempt = @()
+    if ($developmentOnlyDependencyExemptions.ContainsKey($PackageId)) {
+        $exempt = $developmentOnlyDependencyExemptions[$PackageId]
+    }
+
+    foreach ($prefix in $developmentOnlyDependencyPrefixes.Keys) {
+        if (-not $DependencyId.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+
+        if ($exempt -contains $prefix) {
+            return $null
+        }
+
+        $category = $developmentOnlyDependencyPrefixes[$prefix]
+        return "Development-only dependency '$DependencyId' ($category) is declared on the packed manifest, so a consumer restoring this package downloads it. Add PrivateAssets=all to the reference that introduces it."
+    }
+
+    return $null
+}
+
+if ($SelfTest) {
+    # Safety arm: each planted shape must be named. The first two are the shapes that actually shipped;
+    # the last two prove an exemption is scoped to its own package rather than to the dependency id.
+    $planted = @(
+        @{ Pkg = 'Excalibur.Dispatch.Patterns';    Dep = 'BenchmarkDotNet' }
+        @{ Pkg = 'Excalibur.Hosting.HealthChecks'; Dep = 'Microsoft.EntityFrameworkCore.Relational' }
+        @{ Pkg = 'Excalibur.Dispatch';             Dep = 'Microsoft.CodeAnalysis.CSharp' }
+        @{ Pkg = 'Excalibur.Dispatch';             Dep = 'Testcontainers.MsSql' }
+        @{ Pkg = 'Excalibur.Dispatch';             Dep = 'Shouldly' }
+    )
+
+    # Liveness arm: a gate that flags everything is as useless as one that flags nothing. Ordinary
+    # dependencies must pass, and so must the two exemptions on the packages that own them.
+    $controls = @(
+        @{ Pkg = 'Excalibur.Dispatch';                  Dep = 'Microsoft.Extensions.DependencyInjection.Abstractions' }
+        @{ Pkg = 'Excalibur.Dispatch';                  Dep = 'System.Text.Json' }
+        @{ Pkg = 'Excalibur.Dispatch';                  Dep = 'Excalibur.Dispatch.Abstractions' }
+        @{ Pkg = 'Excalibur.Testing.Containers';        Dep = 'Testcontainers.MsSql' }
+        @{ Pkg = 'Excalibur.Testing.Containers';        Dep = 'xunit.v3.extensibility.core' }
+        @{ Pkg = 'Excalibur.Dispatch.Testing.Shouldly'; Dep = 'Shouldly' }
+    )
+
+    $selfTestFailures = @()
+    foreach ($case in $planted) {
+        if (-not (Get-DevelopmentOnlyDependencyIssue -PackageId $case.Pkg -DependencyId $case.Dep)) {
+            $selfTestFailures += "MISSED planted defect: $($case.Pkg) -> $($case.Dep)"
+        }
+    }
+    foreach ($case in $controls) {
+        if (Get-DevelopmentOnlyDependencyIssue -PackageId $case.Pkg -DependencyId $case.Dep) {
+            $selfTestFailures += "FALSE POSITIVE on a legitimate dependency: $($case.Pkg) -> $($case.Dep)"
+        }
+    }
+
+    if ($selfTestFailures.Count -gt 0) {
+        Write-Host "Self-test FAILED:" -ForegroundColor Red
+        foreach ($f in $selfTestFailures) { Write-Host " - $f" }
+        exit 3
+    }
+
+    Write-Host "Self-test passed: $($planted.Count) planted defects named, $($controls.Count) legitimate dependencies not flagged."
+    exit 0
+}
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -194,6 +334,7 @@ foreach ($pkg in $nupkgs) {
         $actualPackageIds[$packageId] = $true
 
         $internalDeps = @()
+        $developmentOnlyIssues = @()
         foreach ($dep in $dependencyNodes) {
             $depId = $dep.id
             $depVersion = $dep.version
@@ -206,10 +347,20 @@ foreach ($pkg in $nupkgs) {
                     Id = $depId
                     Version = $depVersion
                 }
+                continue
+            }
+
+            # Third-party ids used to be discarded at this point, which left the whole
+            # development-only class invisible to a gate that was already reading the one artifact
+            # that shows it.
+            $devIssue = Get-DevelopmentOnlyDependencyIssue -PackageId $packageId -DependencyId $depId
+            if ($devIssue) {
+                $developmentOnlyIssues += $devIssue
             }
         }
 
         $packageIssues = @()
+        $packageIssues += $developmentOnlyIssues
         foreach ($dep in $internalDeps) {
             if ($dep.Id -eq $packageId) {
                 $packageIssues += "Self dependency: $($dep.Id)"
@@ -250,6 +401,7 @@ foreach ($pkg in $nupkgs) {
             PackageFile = $pkg.Name
             InternalDependencyCount = $internalDeps.Count
             InternalDependencies = @($internalDeps | ForEach-Object { "$($_.Id) @ $($_.Version)" })
+            DevelopmentOnlyDependencyCount = $developmentOnlyIssues.Count
             Issues = @($packageIssues)
         }
     }

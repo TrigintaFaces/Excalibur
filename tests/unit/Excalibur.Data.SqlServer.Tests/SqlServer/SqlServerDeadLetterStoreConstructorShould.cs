@@ -1,5 +1,6 @@
 using Excalibur.Data.SqlServer.ErrorHandling;
 
+using Excalibur.Dispatch;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Data.Tests.SqlServer;
@@ -15,7 +16,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentNullException>(() =>
             new SqlServerDeadLetterStore(
                 null!,
-                tenantContext: null,
+                tenantContext: TestTenantContext.SingleTenant,
                 NullLogger<SqlServerDeadLetterStore>.Instance));
     }
 
@@ -26,7 +27,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentNullException>(() =>
             new SqlServerDeadLetterStore(
                 Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "Server=x" }),
-                tenantContext: null,
+                tenantContext: TestTenantContext.SingleTenant,
                 null!));
     }
 
@@ -37,7 +38,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentException>(() =>
             new SqlServerDeadLetterStore(
                 Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "" }),
-                tenantContext: null,
+                tenantContext: TestTenantContext.SingleTenant,
                 NullLogger<SqlServerDeadLetterStore>.Instance));
     }
 
@@ -48,7 +49,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentException>(() =>
             new SqlServerDeadLetterStore(
                 Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "   " }),
-                tenantContext: null,
+                tenantContext: TestTenantContext.SingleTenant,
                 NullLogger<SqlServerDeadLetterStore>.Instance));
     }
 
@@ -58,7 +59,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         // Arrange & Act
         var store = new SqlServerDeadLetterStore(
             Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "Server=localhost;Database=Test" }),
-            tenantContext: null,
+            tenantContext: TestTenantContext.SingleTenant,
             NullLogger<SqlServerDeadLetterStore>.Instance);
 
         // Assert

@@ -13,7 +13,7 @@ namespace Excalibur.Outbox;
 /// from the defaults provided by the presets.
 /// </para>
 /// </remarks>
-public interface IInboxOptionsAdvancedBuilder
+internal interface IInboxOptionsAdvancedBuilder
 {
 	/// <summary>
 	/// Sets the degree of parallelism for batch processing.

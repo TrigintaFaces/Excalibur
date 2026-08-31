@@ -122,9 +122,24 @@ public sealed class CacheBehaviorOptions
 	public TimeSpan DefaultExpiration { get; set; } = TimeSpan.FromMinutes(10);
 
 	/// <summary>
-	/// Gets or sets the maximum time to wait for cache operations before timeout. Default is 200 milliseconds.
+	/// Gets or sets the maximum time to wait for a single distributed (L2) cache backend call before the
+	/// call is abandoned. Default is 200 milliseconds.
 	/// </summary>
-	/// <value>The maximum time to wait for cache operations before timeout.</value>
+	/// <value>The maximum time to wait for one distributed cache backend call.</value>
+	/// <remarks>
+	/// <para>
+	/// This bounds backend I/O only. It does not bound handler execution: a cached operation runs the
+	/// handler, and a handler is expected to take as long as its work takes. A cache whose deadline could
+	/// expire while the handler runs would abandon the shared in-flight operation that collapses
+	/// concurrent callers into one execution, so a slow handler would lose stampede protection precisely
+	/// where it is most valuable.
+	/// </para>
+	/// <para>
+	/// An exceeded deadline is not an error. A read that runs long is reported as a miss and the handler
+	/// executes; a write that runs long is dropped and the next request re-populates the entry. Neither
+	/// fails the operation being cached.
+	/// </para>
+	/// </remarks>
 	public TimeSpan CacheTimeout { get; set; } = TimeSpan.FromMilliseconds(200);
 
 	/// <summary>

@@ -19,7 +19,6 @@
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Condition="'$(OS)' == 'Windows_NT'" />
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MediatR" />
-    <PackageReference Include="NServiceBus" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="WolverineFx" />

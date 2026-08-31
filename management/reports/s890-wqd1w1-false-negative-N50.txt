@@ -1,0 +1,62 @@
+start 2026-07-15T21:52:31Z  ID=Excalibur.Dispatch-ntn7ed  N=50
+i=1 rc=0 truth=present kind=ok
+i=2 rc=0 truth=present kind=ok
+i=3 rc=0 truth=present kind=ok
+i=4 rc=0 truth=present kind=ok
+i=5 rc=0 truth=present kind=ok
+i=6 rc=0 truth=present kind=ok
+i=7 rc=0 truth=present kind=ok
+i=8 rc=0 truth=present kind=ok
+i=9 rc=0 truth=present kind=ok
+i=10 rc=0 truth=present kind=ok
+i=11 rc=0 truth=present kind=ok
+i=12 rc=0 truth=present kind=ok
+i=13 rc=0 truth=present kind=ok
+i=14 rc=0 truth=present kind=ok
+i=15 rc=0 truth=present kind=ok
+i=16 rc=0 truth=present kind=ok
+i=17 rc=0 truth=present kind=ok
+i=18 rc=0 truth=present kind=ok
+i=19 rc=0 truth=present kind=ok
+i=20 rc=0 truth=present kind=ok
+i=21 rc=0 truth=present kind=ok
+i=22 rc=0 truth=present kind=ok
+i=23 rc=0 truth=present kind=ok
+i=24 rc=0 truth=present kind=ok
+i=25 rc=0 truth=present kind=ok
+i=26 rc=0 truth=present kind=ok
+i=27 rc=0 truth=present kind=ok
+i=28 rc=0 truth=present kind=ok
+i=29 rc=0 truth=present kind=ok
+i=30 rc=0 truth=present kind=ok
+i=31 rc=0 truth=present kind=ok
+i=32 rc=0 truth=present kind=ok
+i=33 rc=0 truth=present kind=ok
+i=34 rc=0 truth=present kind=ok
+i=35 rc=0 truth=present kind=ok
+i=36 rc=0 truth=present kind=ok
+i=37 rc=0 truth=present kind=ok
+i=38 rc=0 truth=present kind=ok
+i=39 rc=0 truth=present kind=ok
+i=40 rc=0 truth=present kind=ok
+i=41 rc=0 truth=present kind=ok
+i=42 rc=0 truth=present kind=ok
+i=43 rc=0 truth=present kind=ok
+i=44 rc=0 truth=present kind=ok
+i=45 rc=0 truth=present kind=ok
+i=46 rc=0 truth=present kind=ok
+i=47 rc=0 truth=present kind=ok
+i=48 rc=0 truth=present kind=ok
+i=49 rc=0 truth=present kind=ok
+i=50 rc=0 truth=present kind=ok
+=== RESULT N=50 ===
+verified-landed(TP)=50
+FALSE-NEGATIVE=0
+silent-drop=0
+mutation-failed-honest=0
+cannot-evaluate=0
+false-positive=0
+unclassified=0
+false-negative-rate=0/50=0.00%
+silent-drop-rate=0/50=0.00%
+done 2026-07-15T22:00:35Z

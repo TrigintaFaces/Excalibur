@@ -127,17 +127,19 @@ public static class InboxBuilderPostgresExtensions
 		// under the "postgres" or "default" key. The fail-closed single-tenant default guarantees a
 		// non-null ITenantContext; the multi-tenancy composition replaces it with the ambient context.
 		builder.Services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext, on which PostgresInboxStore
-		// filters every keyed read) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably
-		// (S886 rw2ull — a store wired without the tenant predicate cannot carry a truthful marker).
-		builder.Services.AddTenantScopedStore<IInboxStore, PostgresInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, on which PostgresInboxStore
+		// filters every keyed read, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably (a store wired without the
+		// tenant predicate cannot carry a truthful marker).
+		builder.Services.AddTenantAwareStore<IInboxStore, PostgresInboxStore>(sp =>
 		{
 			var inboxOptions = sp.GetRequiredService<IOptions<PostgresInboxOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresInboxStore>>();
 			var connectionFactory = sp.GetService<Func<NpgsqlConnection>>();
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
 			return connectionFactory is not null
-				? new PostgresInboxStore(connectionFactory, inboxOptions.Value, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>())
-				: new PostgresInboxStore(inboxOptions, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
+				? new PostgresInboxStore(connectionFactory, inboxOptions.Value, logger, tenantContext, sp.GetRequiredService<IOptions<TenantContextOptions>>())
+				: new PostgresInboxStore(inboxOptions, logger, tenantContext, sp.GetRequiredService<IOptions<TenantContextOptions>>());
 		});
 		builder.Services.AddKeyedSingleton<IInboxStore>(
 			"postgres", (sp, _) => sp.GetRequiredService<PostgresInboxStore>());

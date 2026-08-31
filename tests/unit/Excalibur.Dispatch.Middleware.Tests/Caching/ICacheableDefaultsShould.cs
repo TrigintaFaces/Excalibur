@@ -145,6 +145,7 @@ public sealed class ICacheableDefaultsShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(CacheableIntAction)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = 42,

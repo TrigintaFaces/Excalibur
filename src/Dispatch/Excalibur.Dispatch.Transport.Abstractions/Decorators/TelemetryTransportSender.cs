@@ -12,13 +12,12 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// <summary>
 /// Decorates an <see cref="ITransportSender"/> with OpenTelemetry metrics and distributed tracing.
 /// Records <c>dispatch.transport.messages.sent</c>, <c>dispatch.transport.messages.send_failed</c>,
-/// <c>dispatch.transport.send.duration</c>, and <c>dispatch.transport.batch.size</c>.
+/// <c>dispatch.transport.batch.size</c>. Operation duration is recorded by the transport adapter itself, not here.
 /// </summary>
 internal sealed class TelemetryTransportSender : DelegatingTransportSender
 {
 	private readonly Counter<long> _sentCounter;
 	private readonly Counter<long> _failedCounter;
-	private readonly Histogram<double> _durationHistogram;
 	private readonly Histogram<int> _batchSizeHistogram;
 	private readonly ActivitySource _activitySource;
 	private readonly string _transportName;
@@ -46,22 +45,17 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 
 		_sentCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesSent,
-			"messages",
+			"{messages}",
 			"Total messages sent successfully");
 
 		_failedCounter = meter.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesSendFailed,
-			"messages",
+			"{messages}",
 			"Total message send failures");
-
-		_durationHistogram = meter.CreateHistogram<double>(
-			TransportTelemetryConstants.MetricNames.SendDuration,
-			"ms",
-			"Duration of send operations in milliseconds");
 
 		_batchSizeHistogram = meter.CreateHistogram<int>(
 			TransportTelemetryConstants.MetricNames.BatchSize,
-			"messages",
+			"{messages}",
 			"Number of messages in a batch operation");
 	}
 
@@ -75,7 +69,6 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 		activity?.SetTag(TransportTelemetryConstants.Tags.Destination, guardedDestination);
 		activity?.SetTag(TransportTelemetryConstants.Tags.Operation, "send");
 
-		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.SendAsync(message, cancellationToken).ConfigureAwait(false);
@@ -99,14 +92,6 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 				_failedCounter.Add(1, tags);
 				activity?.SetStatus(ActivityStatusCode.Error, result.Error?.Message);
 			}
-
-			var durationTags = new TagList
-			{
-				{ TransportTelemetryConstants.Tags.TransportName, _transportName },
-				{ TransportTelemetryConstants.Tags.Destination, guardedDestination },
-			};
-			_durationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, durationTags);
-
 			return result;
 		}
 		catch (Exception ex)
@@ -118,14 +103,6 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 				{ TransportTelemetryConstants.Tags.ErrorType, _errorTypeGuard.Guard(ex.GetType().Name) },
 			};
 			_failedCounter.Add(1, failTags);
-
-			var durationTags = new TagList
-			{
-				{ TransportTelemetryConstants.Tags.TransportName, _transportName },
-				{ TransportTelemetryConstants.Tags.Destination, guardedDestination },
-			};
-			_durationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, durationTags);
-
 			activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 			throw;
 		}
@@ -148,7 +125,6 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 		};
 		_batchSizeHistogram.Record(messages.Count, batchTags);
 
-		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.SendBatchAsync(messages, cancellationToken).ConfigureAwait(false);
@@ -163,8 +139,6 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 				_failedCounter.Add(result.FailureCount, batchTags);
 			}
 
-			_durationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, batchTags);
-
 			return result;
 		}
 		catch (Exception ex)
@@ -176,8 +150,6 @@ internal sealed class TelemetryTransportSender : DelegatingTransportSender
 				{ TransportTelemetryConstants.Tags.ErrorType, _errorTypeGuard.Guard(ex.GetType().Name) },
 			};
 			_failedCounter.Add(messages.Count, failTags);
-
-			_durationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, batchTags);
 
 			activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 			throw;

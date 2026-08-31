@@ -56,9 +56,7 @@ public sealed class InMemoryClaimCheckProvider : IClaimCheckProvider, IClaimChec
 		// Generate unique ID for this claim check
 		var claimId = $"{_options.IdPrefix}{Guid.NewGuid()}";
 		var now = DateTimeOffset.UtcNow;
-		var expiresAt = _options.DefaultTtl == TimeSpan.Zero
-			? null
-			: (DateTimeOffset?)now.Add(_options.DefaultTtl);
+		var expiresAt = _options.ResolveExpiresAt(now);
 
 		// Apply compression if enabled and payload meets threshold
 		var processedPayload = payload;
@@ -133,12 +131,14 @@ public sealed class InMemoryClaimCheckProvider : IClaimCheckProvider, IClaimChec
 			throw new KeyNotFoundException($"Claim check with ID '{reference.Id}' not found.");
 		}
 
-		// Check expiration (lazy deletion)
+		// Check expiration (lazy deletion). An expired payload is a form of missing payload: the entry is
+		// no longer retrievable, so callers see the same exception they would see had it been deleted or
+		// never stored. Nothing about the object's state is invalid, so this is not InvalidOperationException.
 		if (entry.IsExpired)
 		{
 			// Remove expired entry
 			_ = _storage.TryRemove(reference.Id, out _);
-			throw new InvalidOperationException($"Claim check with ID '{reference.Id}' has expired.");
+			throw new KeyNotFoundException($"Claim check with ID '{reference.Id}' has expired.");
 		}
 
 		// Validate checksum if enabled

@@ -257,10 +257,12 @@ public sealed class CachingServiceCollectionExtensionsShould : UnitTestBase
 		// Act
 		services.AddDispatchDistributedCaching<TestDistributedCache>();
 
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDistributedCache) &&
-			sd.ImplementationType == typeof(TestDistributedCache));
+		// Assert -- the backend is wrapped so its calls are bounded by CacheTimeout, so the registration is
+		// now a factory rather than a bare implementation type. Resolve it and assert the consumer's backend
+		// is still the one doing the work; a decorator that replaced it would satisfy a wrapper-only check.
+		using var provider = services.BuildServiceProvider();
+		var bounded = provider.GetRequiredService<IDistributedCache>().ShouldBeOfType<TimeoutDistributedCache>();
+		bounded.Inner.ShouldBeOfType<TestDistributedCache>();
 		services.ShouldContain(sd => sd.ServiceType == typeof(CachingMiddleware));
 	}
 

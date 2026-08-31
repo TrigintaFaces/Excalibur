@@ -76,12 +76,6 @@ public sealed class SqlServerOutboxTableOptions
 	public string TransportsTableName { get; set; } = "OutboxMessageTransports";
 
 	/// <summary>
-	/// Gets or sets the name of the database table used for storing dead letter messages.
-	/// </summary>
-	/// <value>The table name for dead letter messages. Defaults to "OutboxDeadLetters".</value>
-	public string DeadLetterTableName { get; set; } = "OutboxDeadLetters";
-
-	/// <summary>
 	/// Gets or sets the name of the durable leadership-fence control table.
 	/// </summary>
 	/// <value>
@@ -106,11 +100,6 @@ public sealed class SqlServerOutboxTableOptions
 	/// Gets the fully qualified transports table name.
 	/// </summary>
 	public string QualifiedTransportsTableName => $"[{SchemaName}].[{TransportsTableName}]";
-
-	/// <summary>
-	/// Gets the fully qualified dead letter table name.
-	/// </summary>
-	public string QualifiedDeadLetterTableName => $"[{SchemaName}].[{DeadLetterTableName}]";
 }
 
 /// <summary>

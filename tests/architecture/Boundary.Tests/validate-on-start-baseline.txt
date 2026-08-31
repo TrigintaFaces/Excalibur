@@ -25,8 +25,14 @@ DispatchPatternsJsonOptions
 # EnvironmentOptions had a validator or any in-type check. The values are bound from configuration, so
 # a shard count of zero or a non-positive refresh interval could reach Elasticsearch and fail at
 # index-creation time instead of at startup. IndexManagementOptionsValidator now rejects those.
-# RoutingOptions: two independent optional strings — no pairing/conditional invariant.
-RoutingOptions
+# InMemoryEventStoreOptions: single optional IJsonTypeInfoResolver (EventTypeInfoResolver). Null selects
+#   the reflection serialization path and ANY non-null resolver is structurally valid, so there is no
+#   value a validator could reject -- the same shape as DispatchPatternsJsonOptions above. Whether a
+#   resolver actually DECLARES a given event type is knowable only per-append against the consumer's own
+#   runtime types, never at startup, and the store already fails that closed where it is knowable:
+#   ResolvedEventPayload raises EventTypeNotDeclaredException rather than writing. A startup validator
+#   here could only return Success, which is the faked validator the Step-0 ruling rejects.
+InMemoryEventStoreOptions
 # SagaInstrumentationOptions: two bools (EnableMetrics/EnableTracing) — no invariant.
 SagaInstrumentationOptions
 # UpcastingOptions: single bool (EnableAutoUpcastOnReplay) — a bool cannot be invalid.
@@ -41,3 +47,12 @@ UpcastingOptions
 #   type and its validation; we do not (and must not) add our own validator for it. Intentional exemption
 #   tracked as hcpupz.
 HttpStandardResilienceOptions
+# DeadLetterOptions (GooglePubSub): three surviving properties after the inert ones were removed --
+# two optional nullable resource names and a get-only initialized set. The names are optional until the
+# DLQ is used and are guarded at point of use in PubSubDeadLetterQueueManager; the set cannot be invalid.
+# The former validator checked only properties that no longer exist, so it was deleted rather than
+# refilled with a vacuous body.
+DeadLetterOptions
+# AzureEventHubsCloudEventOptions: two surviving properties after the inert ones were removed. Its former
+# validator checked six properties, all of which are gone. Same disposition as DeadLetterOptions.
+AzureEventHubsCloudEventOptions

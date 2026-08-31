@@ -29,7 +29,7 @@ public sealed class InboxIdempotencyShould : IAsyncDisposable
 	{
 		_store = new InMemoryInboxStore(
 			Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions()),
-			NullLogger<InMemoryInboxStore>.Instance);
+			NullLogger<InMemoryInboxStore>.Instance, UntenantedContext.Instance);
 	}
 
 	public async ValueTask DisposeAsync()

@@ -29,7 +29,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 		var options = new RetryOptions();
 
 		// Act
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Assert
 		_ = adapter.ShouldNotBeNull();
@@ -42,7 +42,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 		var options = new RetryOptions();
 
 		// Act & Assert - should not throw
-		var adapter = new PollyRetryPolicyAdapter(options, null);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options), null);
 		_ = adapter.ShouldNotBeNull();
 	}
 
@@ -54,7 +54,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 		var logger = A.Fake<ILogger<PollyRetryPolicyAdapter>>();
 
 		// Act
-		var adapter = new PollyRetryPolicyAdapter(options, logger);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options), logger);
 
 		// Assert
 		_ = adapter.ShouldNotBeNull();
@@ -69,7 +69,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	{
 		// Arrange
 		var options = new RetryOptions();
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -81,7 +81,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	{
 		// Arrange
 		var options = new RetryOptions();
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Act
 		var result = await adapter.ExecuteAsync(_ => Task.FromResult(42), CancellationToken.None);
@@ -99,7 +99,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 			MaxRetries = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10)
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		var callCount = 0;
 
 		// Act
@@ -127,7 +127,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 			MaxRetries = 2,
 			BaseDelay = TimeSpan.FromMilliseconds(10)
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(
@@ -139,7 +139,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	{
 		// Arrange
 		var options = new RetryOptions();
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		using var cts = new CancellationTokenSource();
 		CancellationToken capturedToken = default;
 
@@ -163,7 +163,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	{
 		// Arrange
 		var options = new RetryOptions();
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -175,7 +175,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	{
 		// Arrange
 		var options = new RetryOptions();
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		var executed = false;
 
 		// Act
@@ -198,7 +198,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 			MaxRetries = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10)
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		var callCount = 0;
 
 		// Act
@@ -230,7 +230,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 			BaseDelay = TimeSpan.FromMilliseconds(10),
 			ShouldRetry = ex => ex is FormatException // Only retry FormatExceptions
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		var callCount = 0;
 
 		// Act
@@ -259,7 +259,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 			BaseDelay = TimeSpan.FromMilliseconds(10),
 			ShouldRetry = ex => ex is FormatException // Only retry FormatExceptions
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		var callCount = 0;
 
 		// Act & Assert
@@ -291,7 +291,7 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 			BaseDelay = TimeSpan.FromMilliseconds(10),
 			BackoffStrategy = strategy
 		};
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 		var callCount = 0;
 
 		// Act
@@ -319,11 +319,14 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	{
 		// Arrange
 		var options = new RetryOptions();
-		var adapter = new PollyRetryPolicyAdapter(options);
+		var adapter = new PollyRetryPolicyAdapter(Opt(options));
 
 		// Assert
 		adapter.ShouldBeAssignableTo<IRetryPolicy>();
 	}
 
 	#endregion
+
+	private static Microsoft.Extensions.Options.IOptions<RetryOptions> Opt(RetryOptions options)
+		=> Microsoft.Extensions.Options.Options.Create(options);
 }

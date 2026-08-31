@@ -36,4 +36,13 @@
       <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <!-- DataDynamoDbEventId is internal: its constants are logging plumbing, not consumer
+         contract. These sibling packages emit the same event ids. -->
+    <InternalsVisibleTo Include="Excalibur.Cdc.DynamoDb" />
+    <InternalsVisibleTo Include="Excalibur.Data.DynamoDb.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.DynamoDb" />
+    <InternalsVisibleTo Include="Excalibur.Saga.DynamoDb" />
+  </ItemGroup>
+
 </Project>

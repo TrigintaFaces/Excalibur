@@ -247,11 +247,24 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void GetService_WithTransactionType_ReturnsSelf()
+	public void GetService_WithTransactionType_ReturnsNull()
 	{
 		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
 
 		var service = provider.GetService(typeof(IPersistenceProviderTransaction));
+
+		service.ShouldBeNull(
+			"Cosmos DB cannot honour an ambient transaction scope, so it declines the capability at "
+			+ "discovery. Advertising it and throwing at the point of use tells the caller only after "
+			+ "they have committed to a design that cannot work.");
+	}
+
+	[Fact]
+	public void GetService_WithConnectionType_ReturnsSelf()
+	{
+		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
+
+		var service = provider.GetService(typeof(IPersistenceProviderConnection));
 
 		service.ShouldBeSameAs(provider);
 	}
@@ -277,18 +290,26 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 
 	#endregion GetService Tests
 
-	#region Uninitialized Guard
+	#region Self-Initialization
 
 	[Fact]
-	public async Task GetByIdAsync_WithoutInitialization_ThrowsInvalidOperationException()
+	public async Task GetByIdAsync_WithoutAnExplicitInitializeCall_InitializesItselfInsteadOfRefusing()
 	{
 		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
 		var partitionKey = A.Fake<Excalibur.Data.CloudNative.IPartitionKey>();
+		using var cancelled = new CancellationTokenSource();
+		await cancelled.CancelAsync().ConfigureAwait(false);
 
-		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await provider.GetByIdAsync<object>("id", partitionKey, null, CancellationToken.None)
+		// This is the constructor the provider's own DI extension resolves, and nothing in the framework
+		// drives InitializeAsync, so an operation has to initialize on its own or it can never run at all.
+		// An already-cancelled token proves it reaches initialization without needing Cosmos: the
+		// first thing initialization awaits is the token, so cancellation is what surfaces. The previous
+		// behaviour refused with InvalidOperationException before ever looking at the token, which is the
+		// signature of an operation that never started.
+		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
+			await provider.GetByIdAsync<object>("id", partitionKey, null, cancelled.Token)
 				.ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
-	#endregion Uninitialized Guard
+	#endregion Self-Initialization
 }

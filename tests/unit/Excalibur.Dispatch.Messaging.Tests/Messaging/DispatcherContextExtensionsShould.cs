@@ -783,6 +783,19 @@ IDispatchAction<Guid> action1 = message1;
 
 	private sealed class DirectLocalTestDispatcher : IDispatcher, IDirectLocalDispatcher
 	{
+		/// <summary>
+		/// Opts this double into the ultra-local path.
+		/// </summary>
+		/// <param name="messageType">The message type about to be dispatched.</param>
+		/// <returns>Always <see langword="true"/>.</returns>
+		/// <remarks>
+		/// The interface defaults to <see langword="false"/> so an implementation that cannot determine
+		/// whether skipping the pipeline is observable gets the pipeline. This double exists to exercise
+		/// the ultra-local path, so it answers for itself -- which is what a real implementation does, and
+		/// is the point of asking through the interface rather than downcasting to a known dispatcher.
+		/// </remarks>
+		public bool CanBypassMiddlewareFor(Type messageType) => true;
+
 		public int LocalActionCalls { get; private set; }
 		public int LocalQueryCalls { get; private set; }
 		public int ContextDispatchCalls { get; private set; }

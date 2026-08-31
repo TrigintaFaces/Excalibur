@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
 
 using Elastic.Clients.Elasticsearch;
@@ -12,9 +11,6 @@ using Excalibur.EventSourcing;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-#pragma warning disable IL2026 // Projection stores use reflection-based serialization as fallback
-#pragma warning disable IL3050 // Generic serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 

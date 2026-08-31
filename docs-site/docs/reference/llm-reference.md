@@ -134,7 +134,7 @@ builder.Services.AddDispatch(dispatch =>
 });
 ```
 
-The `AddDispatch(Action<IDispatchBuilder>?)` overload creates the pipeline, discovers handlers, and builds the configuration. Without a builder parameter, `AddDispatch()` scans the calling assembly.
+The `AddDispatch(Action<IDispatchBuilder>?)` overload creates the pipeline, discovers handlers, and builds the configuration. When no handler assembly is named, both overloads discover handlers from the **entry assembly** — the application's own assembly, not the assembly that made the call. Handlers that live in a separate class library are not found this way; name that assembly explicitly with `AddDispatch(typeof(SomeHandler).Assembly)` or `dispatch.AddHandlersFromAssembly(...)`.
 
 ### Excalibur Event Sourcing
 
@@ -273,8 +273,22 @@ var result = await _dispatcher.DispatchAsync<GetOrder, Order>(
 if (result.IsSuccess)
     return Ok(result.ReturnValue);
 else
-    return BadRequest(result.ErrorMessage);
+    return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 ```
+
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `BadRequest(...)` reports a server-side fault to the
+caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Problem(...)`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+:::
 
 The 2-parameter `DispatchAsync(message, cancellationToken)` extension methods use ambient context (`MessageContextHolder.Current`) or create a new one automatically. These are the recommended dispatch methods for most use cases.
 

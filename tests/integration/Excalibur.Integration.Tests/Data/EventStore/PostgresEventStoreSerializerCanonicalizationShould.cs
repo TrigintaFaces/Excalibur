@@ -52,7 +52,7 @@ public sealed class PostgresEventStoreSerializerCanonicalizationShould : IClassF
 		_fixture.DockerAvailable.ShouldBeTrue(
 			"jyp40l canonical-serializer round-trip runs against real infrastructure and is never skipped.");
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
-		return new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance);
+		return new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	private async Task<StoredEvent> AppendAndReloadAsync(PostgresEventStore store, SerializerLockEvent evt)

@@ -670,7 +670,7 @@ var problemDetails = new MessageProblemDetails
 | `ProblemDetailsTypes.Serialization` | `urn:dispatch:error:serialization` | Serialization/deserialization failed |
 | `ProblemDetailsTypes.Concurrency` | `urn:dispatch:error:concurrency` | Optimistic concurrency check failed |
 | `ProblemDetailsTypes.HandlerNotFound` | `urn:dispatch:error:handler-not-found` | No handler registered for message type |
-| `ProblemDetailsTypes.HandlerError` | `urn:dispatch:error:handler-error` | Message handler threw an exception |
+| `ProblemDetailsTypes.HandlerError` | `urn:dispatch:error:handler-error` | A message bus failed while delivering to a handler. An in-process handler's own exception propagates instead. |
 | `ProblemDetailsTypes.MappingFailed` | `urn:dispatch:error:mapping-failed` | Exception mapping to problem details failed |
 | `ProblemDetailsTypes.BackgroundExecution` | `urn:dispatch:error:background-execution` | Background task execution failed |
 

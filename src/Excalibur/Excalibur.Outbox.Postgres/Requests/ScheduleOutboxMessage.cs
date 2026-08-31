@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
@@ -6,6 +6,7 @@ using System.Data;
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Outbox.Postgres;
 
@@ -14,6 +15,7 @@ namespace Excalibur.Outbox.Postgres;
 /// </summary>
 internal sealed class ScheduleOutboxMessage : DataRequest<int>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ScheduleOutboxMessage"/> class.
 	/// </summary>
@@ -39,6 +41,12 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		// The tenant term is supplied by the caller and stamped into the row below, so the
+		// declaration and the INSERT agree. FromStoredValue (not Scoped) is total: it maps null,
+		// empty and the reserved sentinel alike onto the untenanted partition, which is this
+		// column's contract and keeps an untenanted stage from throwing.
+		var tenantPartition = KeyedTenantPartition.FromStoredValue(tenantId);
+
 		var sql = $"""
 			INSERT INTO {outboxTableName}
 				(message_id, message_type, message_metadata, message_body, tenant_id, destination, occurred_on, attempts, dispatcher_id, dispatcher_timeout, scheduled_at)
@@ -51,7 +59,12 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		parameters.Add("MessageType", messageType, direction: ParameterDirection.Input);
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
 		parameters.Add("MessageBody", messageBody, direction: ParameterDirection.Input);
-		parameters.Add("TenantId", tenantId, direction: ParameterDirection.Input);
+		// Bind the PARTITION's term, never the raw argument. The partition is total -- null, empty and the
+		// reserved sentinel all resolve to the untenanted term -- so an untenanted stage binds a concrete
+		// value rather than NULL, and the column can be NOT NULL. Binding `tenantId` here instead would
+		// reject every untenanted write the moment the column became total, and would let the declared
+		// disposition and the value actually stored disagree. One local feeds both, so they cannot.
+		parameters.Add("TenantId", tenantPartition.TenantId, direction: ParameterDirection.Input);
 		parameters.Add("Destination", destination, direction: ParameterDirection.Input);
 		// Bind scheduled_at with an EXPLICIT timestamptz type. A CLR DateTime (even Kind=Utc) makes Dapper infer
 		// DbType.DateTime → Npgsql timestamp WITHOUT time zone → a session-timezone shift by the host's local UTC

@@ -14,7 +14,7 @@ namespace Excalibur.AuditLogging.Tests;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryAuditStoreChainIntegrityShould : IDisposable
 {
-    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create());
+    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
     public void Dispose() => _sut.Dispose();
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class InMemoryAuditStoreChainIntegrityShould : IDisposable
         var result = await _sut.VerifyChainIntegrityAsync(
             now.AddMinutes(-1), now.AddMinutes(1), CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
         result.EventsVerified.ShouldBe(1);
     }
 
@@ -58,7 +58,7 @@ public sealed class InMemoryAuditStoreChainIntegrityShould : IDisposable
         var result = await _sut.VerifyChainIntegrityAsync(
             now.AddMinutes(-1), now.AddMinutes(1), CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
         result.EventsVerified.ShouldBe(10);
     }
 
@@ -89,7 +89,9 @@ public sealed class InMemoryAuditStoreChainIntegrityShould : IDisposable
         // Sanity: the untampered chain verifies (otherwise this test would pass vacuously).
         var before = await _sut.VerifyChainIntegrityAsync(
             now.AddMinutes(-1), now.AddMinutes(1), CancellationToken.None);
-        before.IsValid.ShouldBeTrue("Pre-tamper chain must be valid or the tamper assertion is vacuous.");
+        before.Outcome.ShouldBe(
+            AuditIntegrityOutcome.Verified,
+            "Pre-tamper chain must verify or the tamper assertion is vacuous.");
 
         // Tamper the SECOND stored event in place: mutate its canonical content (Action) while KEEPING its
         // original keyed-MAC (EventHash). Verification recomputes the MAC over the canonicalized event, so the
@@ -99,13 +101,14 @@ public sealed class InMemoryAuditStoreChainIntegrityShould : IDisposable
         var result = await _sut.VerifyChainIntegrityAsync(
             now.AddMinutes(-1), now.AddMinutes(1), CancellationToken.None);
 
-        result.IsValid.ShouldBeFalse(
+        result.Outcome.ShouldBe(
+            AuditIntegrityOutcome.ViolationsDetected,
             "A stored event whose content was altered after its keyed-MAC was computed MUST fail chain verification.");
         result.EventsVerified.ShouldBe(2);
         result.FirstViolationEventId.ShouldBe(
             "evt-2",
             "The first (and only) tampered event is evt-2; verification reports it as the first violation.");
-        result.ViolationCount.ShouldBe(1);
+        result.CompromisedChainCount.ShouldBe(1);
         result.ViolationDescription.ShouldNotBeNullOrWhiteSpace();
     }
 

@@ -83,7 +83,11 @@ services.AddDispatch(dispatch =>
 	// 7. Transport (RabbitMQ) for integration event publishing
 	_ = dispatch.UseRabbitMQ(rmq =>
 		rmq.HostName("localhost")
-			.Credentials("guest", "guest"));
+			.Credentials("guest", "guest")
+			// Local broker with no certificate, so this opts out of the transport's secure-by-default
+			// posture explicitly. Against a real broker, delete this line and use an 'amqps://'
+			// connection string or UseSsl().
+			.RequireTls(false));
 });
 
 // Register event types so the serializer resolves them without an assembly scan.

@@ -125,11 +125,6 @@ public static class ThreadingDispatchBuilderExtensions
 	/// is called to insert it.
 	/// </para>
 	/// </remarks>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"ThreadingOptions is a simple POCO configuration class with public properties. The Configure<T> method is safe for AOT when T has a parameterless constructor and public properties, which ThreadingOptions satisfies.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
 	public static IDispatchBuilder WithThreadingOptions(this IDispatchBuilder builder, IConfiguration configuration)
 	{

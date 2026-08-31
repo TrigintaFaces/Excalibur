@@ -30,31 +30,6 @@ public sealed class ClaimCheckStorageOptions
 	public string BlobNamePrefix { get; set; } = "claims";
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use hierarchical storage (hot/cold tiers).
-	/// </summary>
-	/// <value>A value indicating whether to use hierarchical storage.</value>
-	public bool UseHierarchicalStorage { get; set; }
-
-	/// <summary>
-	/// Gets or sets the age threshold for moving payloads to cold storage.
-	/// </summary>
-	/// <value>The age threshold for moving payloads to cold storage.</value>
-	public TimeSpan ColdStorageThreshold { get; set; } = TimeSpan.FromDays(30);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable encryption for stored payloads.
-	/// </summary>
-	/// <value>A value indicating whether to enable encryption for stored payloads.</value>
-	public bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets the chunk size in bytes for large payload processing.
-	/// </summary>
-	/// <value>The chunk size in bytes for large payload processing.</value>
-	[Range(1, int.MaxValue)]
-	public int ChunkSize { get; set; } = 1024 * 1024; // 1MB default
-
-	/// <summary>
 	/// Gets or sets the operation and resilience options.
 	/// </summary>
 	/// <value>The operation options including concurrency, buffering, timeouts, and retries.</value>

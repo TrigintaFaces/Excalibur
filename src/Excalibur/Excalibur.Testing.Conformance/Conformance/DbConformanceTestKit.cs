@@ -4,6 +4,7 @@
 #pragma warning disable IDE0007 // Use implicit type (var)
 
 using System.Data;
+using System.Linq;
 
 using Excalibur.Data;
 
@@ -44,7 +45,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class DbConformanceTestKit
+public abstract class DbConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a new instance of the <see cref="IDb"/> implementation under test, together with the
@@ -201,6 +202,74 @@ public abstract class DbConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies <see cref="IDb.OpenAsync"/> opens the connection.
+	/// </summary>
+	/// <returns>A task that represents the asynchronous arm.</returns>
+	/// <remarks>
+	/// The async pair are DEFAULT INTERFACE METHODS delegating to the synchronous <see cref="IDb.Open"/>
+	/// and <see cref="IDb.Close"/>, and the interface tells a connection-backed implementation to OVERRIDE
+	/// them. So an implementor that leaves the defaults alone is correct by construction and needs no arm --
+	/// but one that follows that instruction gets a second, independent code path, and every other arm in
+	/// this kit is synchronous. Overriding wrongly is therefore invisible: the sync arms stay green because
+	/// they never touch the override. These two arms are what makes the async path visible at all.
+	/// </remarks>
+	public virtual async Task OpenAsync_ShouldOpenConnection()
+	{
+		var (db, underlying) = CreateDb();
+
+		try
+		{
+			await db.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+
+			// UNDERLYING, not db.Connection: the latter self-heals by re-opening on access, so reading
+			// it reports Open even when OpenAsync did nothing at all. Measured -- with the async open
+			// emptied out, the db.Connection form of this arm still passed.
+			if (underlying.State != ConnectionState.Open)
+			{
+				throw new TestFixtureAssertionException(
+					$"Expected underlying connection state Open after OpenAsync() but was {underlying.State}. "
+					+ "The synchronous Open arm passing proves nothing here: a provider overriding OpenAsync "
+					+ "has a second path that no other arm in this kit executes.");
+			}
+		}
+		finally
+		{
+			await db.CloseAsync().ConfigureAwait(false);
+			DisposeDb(db);
+		}
+	}
+
+	/// <summary>
+	/// Verifies <see cref="IDb.CloseAsync"/> closes the underlying connection.
+	/// </summary>
+	/// <returns>A task that represents the asynchronous arm.</returns>
+	/// <remarks>
+	/// Observes the UNDERLYING connection rather than <c>db.Connection</c>, which self-heals by re-opening
+	/// on access -- reading it here would report Open for a correctly closed connection and the arm would
+	/// fail against a working provider.
+	/// </remarks>
+	public virtual async Task CloseAsync_ShouldCloseConnection()
+	{
+		var (db, underlying) = CreateDb();
+		await db.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+
+		await db.CloseAsync().ConfigureAwait(false);
+
+		try
+		{
+			if (underlying.State != ConnectionState.Closed)
+			{
+				throw new TestFixtureAssertionException(
+					$"Expected underlying connection state Closed after CloseAsync() but was {underlying.State}.");
+			}
+		}
+		finally
+		{
+			DisposeDb(db);
+		}
+	}
+
+	/// <summary>
 	/// Verifies the connection reports Open after <see cref="IDb.Open"/>.
 	/// </summary>
 	public virtual void Connection_AfterOpen_IsOpen()
@@ -248,4 +317,5 @@ public abstract class DbConformanceTestKit
 			DisposeDb(db);
 		}
 	}
+
 }

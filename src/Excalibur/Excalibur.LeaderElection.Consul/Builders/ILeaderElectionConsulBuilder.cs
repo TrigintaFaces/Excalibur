@@ -34,6 +34,24 @@ public interface ILeaderElectionConsulBuilder
 	/// <summary>Sets the key prefix in the Consul KV store for leader election locks.</summary>
 	ILeaderElectionConsulBuilder LockKey(string lockKey);
 
+	/// <summary>
+	/// Names the resource this application contends for, and makes a single <c>ILeaderElection</c> for it
+	/// resolvable from the container.
+	/// </summary>
+	/// <param name="resourceName">
+	/// The resource name. It is combined with the key prefix to form the Consul KV key, so it must be unique
+	/// to this application across every application pointed at the same Consul cluster.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// Without this, the registration provides an <c>ILeaderElectionFactory</c> only, and a per-resource
+	/// election must be created from it explicitly. With it, the outbox drain is fenced on the named
+	/// election automatically. The name is required rather than defaulted because a Consul key is shared
+	/// across every application on the cluster, so a framework-chosen name would put unrelated applications
+	/// into contention for one lock.
+	/// </remarks>
+	ILeaderElectionConsulBuilder ResourceName(string resourceName);
+
 	/// <summary>Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.</summary>
 	ILeaderElectionConsulBuilder BindConfiguration(string sectionPath);
 }

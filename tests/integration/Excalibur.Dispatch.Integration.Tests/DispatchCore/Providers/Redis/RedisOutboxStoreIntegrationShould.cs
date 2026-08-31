@@ -67,7 +67,7 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		await store.StageMessageAsync(message, TestCancellationToken);
 
 		// Assert
-		var stats = await store.GetStatisticsAsync(TestCancellationToken);
+		var stats = await store.GetAllTenantsStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(1);
 	}
 
@@ -111,7 +111,7 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		await store.MarkSentAsync(message.Id, TestCancellationToken);
 
 		// Assert
-		var stats = await store.GetStatisticsAsync(TestCancellationToken);
+		var stats = await store.GetAllTenantsStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(0);
 		stats.SentMessageCount.ShouldBe(1);
 	}
@@ -133,11 +133,11 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		await store.MarkFailedAsync(message.Id, "Test failure", 1, TestCancellationToken);
 
 		// Assert
-		var stats = await store.GetStatisticsAsync(TestCancellationToken);
+		var stats = await store.GetAllTenantsStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(0);
 		stats.FailedMessageCount.ShouldBe(1);
 
-		var failedMessages = await store.GetFailedMessagesAsync(3, null, 10, TestCancellationToken);
+		var failedMessages = await store.GetAllTenantsFailedMessagesAsync(3, null, 10, TestCancellationToken);
 		failedMessages.Count().ShouldBe(1);
 		failedMessages.First().LastError.ShouldBe("Test failure");
 		failedMessages.First().RetryCount.ShouldBe(1);
@@ -170,7 +170,7 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		await store.MarkFailedAsync(stagedMessages[2].Id, "Test error", 1, TestCancellationToken);
 
 		// Act
-		var stats = await store.GetStatisticsAsync(TestCancellationToken);
+		var stats = await store.GetAllTenantsStatisticsAsync(TestCancellationToken);
 
 		// Assert
 		stats.StagedMessageCount.ShouldBe(2);

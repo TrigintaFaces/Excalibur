@@ -1,0 +1,13 @@
+# no-internal-refs debt register — <count> <path>, one per file.
+# Every line is a public-surface leak we still owe. The gate fails when a
+# count RISES or an unlisted file leaks. It only moves down.
+#
+# THIS FILE IS THE INSTRUMENT, NOT THE WORK. It makes the remaining leaks
+# bounded and visible and forbids new ones; it does not remove a single
+# identifier. Do not read a green gate here as evidence that the
+# strip-the-identifiers work is finished — that work is finished when this
+# register is EMPTY.
+#
+# Regenerate only after FIXING leaks, and only immediately before review:
+# the counts describe the tree at the moment of generation and decay as
+# soon as any listed file is edited.

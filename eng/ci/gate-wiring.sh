@@ -66,6 +66,12 @@ for f in "$GW_ROOT"/eng/ci/*.sh "$GW_ROOT"/eng/ci/*.py "$GW_ROOT"/eng/ci/*.ps1 "
 done
 
 # ── Enumerate caller surfaces (files that RUN gates) ───────────────────────────────────────────────
+# A GATE IS ITSELF A CALLER SURFACE. One gate composing another is a real invocation: the doc
+# phantom gate computes a diff scope once and runs both the type check and the member check over
+# it, so the member gate IS run on every pull request while being invoked by no workflow directly.
+# Omitting gates here reported it as an unwired orphan while it was executing. This does not create
+# a loophole: a gate whose only caller is itself an orphan still fails, because that caller is
+# enumerated and checked on its own.
 callers=()
 for c in "$GW_ROOT"/.github/workflows/*.yml \
          "$GW_ROOT"/.github/actions/*/action.yml \
@@ -73,7 +79,7 @@ for c in "$GW_ROOT"/.github/workflows/*.yml \
          "$GW_ROOT"/eng/hooks/prepare-commit-msg "$GW_ROOT"/eng/hooks/post-checkout \
          "$GW_ROOT"/eng/hooks/post-merge "$GW_ROOT"/eng/ci/harness-gates-ci.sh \
          "$GW_ROOT"/.claude/harness/*.harness-lock.sh \
-         "$GW_ROOT"/.claude/skills/*/SKILL.md ; do
+         "$GW_ROOT"/.claude/skills/*/SKILL.md          "$GW_ROOT"/eng/ci/*-gate.sh ; do
     [ -f "$c" ] && callers+=("$c")
 done
 

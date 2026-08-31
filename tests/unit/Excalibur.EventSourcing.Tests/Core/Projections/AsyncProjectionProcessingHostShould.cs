@@ -148,8 +148,13 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Act — start and let it run; it should log warning and exit
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		// Give generous time for ExecuteAsync to fire-and-forget under CI thread pool load
-		await Task.Delay(2000).ConfigureAwait(false);
+		// Poll for the condition instead of sleeping through it: the host is expected to EXIT, and
+		// ExecuteTask completing is that event. A fixed delay is both slower than it needs to be and
+		// still too short under a loaded runner, which is the shape that flakes.
+		await WaitHelpers.WaitUntilAsync(
+			() => ((BackgroundService)host).ExecuteTask is { IsCompleted: true },
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
+			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -169,8 +174,12 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
-		// Generous delay for CI thread pool scheduling of fire-and-forget ExecuteAsync
-		await Task.Delay(2000).ConfigureAwait(false);
+		// Same condition as above: the host has no async registrations, so it exits, and ExecuteTask
+		// completing is the observable event rather than an assumed duration.
+		await WaitHelpers.WaitUntilAsync(
+			() => ((BackgroundService)host).ExecuteTask is { IsCompleted: true },
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
+			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 

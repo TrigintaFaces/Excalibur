@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using System.Runtime.CompilerServices;
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb.Resources;
@@ -16,28 +15,6 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.CosmosDb;
 
 /// <summary>
-/// Internal interface for create operations with document.
-/// </summary>
-internal interface ICloudBatchCreateOperation
-{
-	/// <summary>
-	/// Gets the document to create.
-	/// </summary>
-	object Document { get; }
-}
-
-/// <summary>
-/// Internal interface for replace operations with document.
-/// </summary>
-internal interface ICloudBatchReplaceOperation
-{
-	/// <summary>
-	/// Gets the replacement document.
-	/// </summary>
-	object Document { get; }
-}
-
-/// <summary>
 /// Azure Cosmos DB implementation of the cloud-native persistence provider.
 /// </summary>
 [SuppressMessage(
@@ -46,13 +23,23 @@ internal interface ICloudBatchReplaceOperation
 	Justification = "Cloud persistence providers inherently couple with many SDK and abstraction types.")]
 public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenceProvider,
 	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
-	IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
+	IPersistenceProviderHealth, IPersistenceProviderConnection, IAsyncDisposable
 {
 	private readonly CosmosDbOptions _options;
 	private readonly ILogger<CosmosDbPersistenceProvider> _logger;
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
+
+	/// <summary>
+	/// Whether this provider created the Cosmos client it holds, and may therefore dispose it.
+	/// </summary>
+	/// <remarks>
+	/// A provider handed the host's shared client must not dispose it: the client is a singleton several
+	/// features share, and disposing it leaves every other feature throwing ObjectDisposedException from a
+	/// call that names this provider's disposal rather than anything the caller did.
+	/// </remarks>
+	private bool _ownsClient;
 	private Database? _database;
 	private volatile bool _initialized;
 	private volatile bool _disposed;
@@ -79,7 +66,31 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		_checkpointStore = checkpointStore;
 		_options.Validate();
 
-		Name = _options.Name;
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "cosmosdb" : _options.Name;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CosmosDbPersistenceProvider"/> class over a client the
+	/// host owns.
+	/// </summary>
+	/// <param name="options">The Cosmos DB options.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="client">The Cosmos client registered by the host. Borrowed, never disposed here.</param>
+	/// <param name="checkpointStore">The durable change-feed checkpoint store, or <see langword="null"/>.</param>
+	/// <remarks>
+	/// Selected by dependency injection whenever a <see cref="CosmosClient"/> is registered, which the
+	/// Cosmos registration does. Borrowing that client is what keeps a host enabling several Cosmos features
+	/// on one connection pool rather than one per feature, and the provider does not dispose it.
+	/// </remarks>
+	public CosmosDbPersistenceProvider(
+		IOptions<CosmosDbOptions> options,
+		ILogger<CosmosDbPersistenceProvider> logger,
+		CosmosClient client,
+		IChangeFeedCheckpointStore? checkpointStore = null)
+		: this(options, logger, checkpointStore)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		_client = client;
 	}
 
 	/// <inheritdoc/>
@@ -134,14 +145,35 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 			LogInitializing(Name);
 
-			var clientOptions = CreateClientOptions();
-			_client = CreateClient(clientOptions);
-			_database = _client.GetDatabase(_options.DatabaseName);
+			// Only when the host supplied none. A provider that borrows the registered client shares its
+			// connection pool with every other Cosmos feature instead of opening a second one.
+			var borrowed = _client is not null;
+			var client = _client ?? CreateClient(CreateClientOptions());
+			try
+			{
+				var database = client.GetDatabase(_options.DatabaseName);
 
-			// Verify connectivity by reading database properties
-			_ = await _database.ReadAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+				// Verify connectivity by reading database properties
+				_ = await database.ReadAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-			_initialized = true;
+				// Publish only once the probe has succeeded, so a failed attempt leaves the provider
+				// uninitialized rather than holding a client that cannot reach its database.
+				_client = client;
+				_ownsClient = !borrowed;
+				_database = database;
+				_initialized = true;
+			}
+			catch
+			{
+				// Only a client this provider just built. Disposing a borrowed one on a failed probe would
+				// take the account away from every other feature sharing it.
+				if (!borrowed)
+				{
+					client.Dispose();
+				}
+
+				throw;
+			}
 		}
 		finally
 		{
@@ -157,7 +189,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
@@ -187,7 +219,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
@@ -232,7 +264,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
@@ -280,7 +312,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		string? etag,
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
@@ -327,7 +359,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
@@ -383,7 +415,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		IEnumerable<ICloudBatchOperation> operations,
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
@@ -440,7 +472,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		CancellationToken cancellationToken)
 		where TDocument : class
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = _database!.GetContainer(containerName);
 		var subscription = new CosmosDbChangeFeedSubscription<TDocument>(
@@ -508,7 +540,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	public async Task<IDictionary<string, object>> GetDocumentStoreStatisticsAsync(
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -538,7 +570,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		string collectionName,
 		CancellationToken cancellationToken)
 	{
-		EnsureInitialized();
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var container = _database!.GetContainer(collectionName);
 		var info = new Dictionary<string, object>(StringComparer.Ordinal) { ["ContainerName"] = collectionName };
@@ -589,33 +621,6 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	public Resilience.IDataRequestRetryPolicy RetryPolicy => CosmosDbRetryPolicy.Instance;
 
 	/// <inheritdoc/>
-	public Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(ErrorMessages.UseCloudNativeMethodsGeneric);
-	}
-
-	/// <inheritdoc/>
-	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		ITransactionScope transactionScope,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		throw new NotSupportedException(ErrorMessages.UseExecuteBatchAsyncForTransactionalOperations);
-	}
-
-	/// <inheritdoc/>
-	public ITransactionScope CreateTransactionScope(
-		System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted,
-		TimeSpan? timeout = null)
-	{
-		throw new NotSupportedException(ErrorMessages.CosmosDbUsesTransactionalBatches);
-	}
-
-	/// <inheritdoc/>
 	public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken)
 	{
 		try
@@ -642,21 +647,6 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc/>
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		// Cosmos DB SDK manages connections internally via Direct mode or Gateway mode.
-		// Connection pool statistics are not directly exposed by the SDK.
-		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
-		{
-			["ConnectionMode"] = _options.Client.UseDirectMode ? "Direct" : "Gateway",
-			["IsInitialized"] = _initialized,
-			["IsDisposed"] = _disposed
-		};
-
-		return Task.FromResult<IDictionary<string, object>?>(stats);
-	}
-
-	/// <inheritdoc/>
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
@@ -666,10 +656,17 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 			return this;
 		}
 
-		if (serviceType == typeof(IPersistenceProviderTransaction))
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
+
+		// IPersistenceProviderTransaction is deliberately not offered, and is not implemented. That
+		// capability's scope is ambient: created before the provider knows what will enrol in it, then
+		// written through. Cosmos DB is atomic only within a transactional batch, which fixes its
+		// partition key and its full operation set at construction, so there is nothing this provider
+		// could return that would honour the contract. Callers needing atomicity use ExecuteBatchAsync,
+		// which states those constraints in its own signature rather than discovering them at commit.
 
 		if (serviceType == typeof(ICloudNativePersistenceQueryOperations))
 		{
@@ -707,7 +704,11 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		_disposed = true;
 		LogDisposing(Name);
 
-		_client?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -722,7 +723,11 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		_disposed = true;
 		LogDisposing(Name);
 
-		_client?.Dispose();
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
@@ -764,49 +769,30 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 			$"Document type {typeof(TDocument).Name} must have an 'id' or 'Id' property.");
 	}
 
-	private static void AddOperationToBatch(TransactionalBatch batch, ICloudBatchOperation operation)
-	{
-		switch (operation.OperationType)
+	private static void AddOperationToBatch(TransactionalBatch batch, ICloudBatchOperation operation) =>
+		_ = operation.OperationType switch
 		{
-			case CloudBatchOperationType.Create:
-				if (operation is ICloudBatchCreateOperation createOp)
-				{
-					_ = batch.CreateItem(createOp.Document);
-				}
+			CloudBatchOperationType.Create => batch.CreateItem(RequireDocument(operation)),
+			CloudBatchOperationType.Replace => batch.ReplaceItem(operation.DocumentId, RequireDocument(operation)),
+			CloudBatchOperationType.Upsert => batch.UpsertItem(RequireDocument(operation)),
+			CloudBatchOperationType.Delete => batch.DeleteItem(operation.DocumentId),
+			CloudBatchOperationType.Read => batch.ReadItem(operation.DocumentId),
+			_ => throw new NotSupportedException(
+				$"A Cosmos DB transactional batch cannot perform a '{operation.OperationType}' operation. Supported operations are Create, Replace, Upsert, Delete and Read.")
+		};
 
-				break;
-
-			case CloudBatchOperationType.Replace:
-				if (operation is ICloudBatchReplaceOperation replaceOp)
-				{
-					_ = batch.ReplaceItem(operation.DocumentId, replaceOp.Document);
-				}
-
-				break;
-
-			case CloudBatchOperationType.Upsert:
-				if (operation is ICloudBatchUpsertOperation upsertOp)
-				{
-					_ = batch.UpsertItem(upsertOp.Document);
-				}
-
-				break;
-
-			case CloudBatchOperationType.Delete:
-				_ = batch.DeleteItem(operation.DocumentId);
-				break;
-
-			case CloudBatchOperationType.Read:
-				_ = batch.ReadItem(operation.DocumentId);
-				break;
-
-			case CloudBatchOperationType.Patch:
-				break;
-
-			default:
-				throw new NotSupportedException($"Operation type {operation.OperationType} is not supported.");
-		}
-	}
+	/// <summary>
+	/// Returns the document a writing batch operation carries, or throws when the operation declares a write but
+	/// supplies no payload -- a caller mistake that would otherwise be committed as an empty batch entry.
+	/// </summary>
+	private static object RequireDocument(ICloudBatchOperation operation) =>
+		operation is ICloudBatchDocumentOperation documentOperation
+			? documentOperation.Document
+			: throw new ArgumentException(
+				$"Batch operation '{operation.OperationType}' for document '{operation.DocumentId}' carries no document. "
+				+ $"Use {nameof(CloudBatchCreateOperation)}, {nameof(CloudBatchReplaceOperation)} or {nameof(CloudBatchUpsertOperation)}, "
+				+ $"or any {nameof(ICloudBatchDocumentOperation)} implementation.",
+				nameof(operation));
 
 	private CosmosClientOptions CreateClientOptions()
 	{
@@ -850,6 +836,15 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 			options.ConnectionMode = ConnectionMode.Gateway;
 		}
 
+		// A consumer-supplied HttpClientFactory must reach the SDK, or the option is advertised and
+		// silently dropped: a custom handler, proxy, or certificate policy configured here would have no
+		// effect on this provider's connection. Every other Cosmos type in this package that builds its
+		// own client already applies it; this one did not.
+		if (_options.Client.HttpClientFactory != null)
+		{
+			options.HttpClientFactory = _options.Client.HttpClientFactory;
+		}
+
 		return options;
 	}
 
@@ -867,125 +862,24 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		_database!.GetContainer(containerName ?? _options.DefaultContainerName
 			?? throw new InvalidOperationException(ErrorMessages.NoContainerNameSpecified));
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void EnsureInitialized()
+	/// <summary>
+	/// Initializes the provider if it is not already initialized, then returns.
+	/// </summary>
+	/// <remarks>
+	/// Every operation drives this, so the provider is usable straight out of the container without the
+	/// consumer calling <see cref="InitializeAsync(CancellationToken)"/> first. A connection failure surfaces the underlying
+	/// Cosmos error naming what is unreachable, and leaves the provider uninitialized so the next
+	/// operation retries.
+	/// </remarks>
+	private async ValueTask EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (!_initialized)
+		if (_initialized)
 		{
-			throw new InvalidOperationException(
-				$"Provider '{Name}' has not been initialized. Call InitializeAsync first.");
+			return;
 		}
+
+		await InitializeAsync(cancellationToken).ConfigureAwait(false);
 	}
-}
-
-/// <summary>
-/// Batch operation for creating a document.
-/// </summary>
-public sealed class CloudBatchCreateOperation : ICloudBatchOperation, ICloudBatchCreateOperation
-{
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CloudBatchCreateOperation"/> class.
-	/// </summary>
-	/// <param name="documentId">The document ID.</param>
-	/// <param name="document">The document to create.</param>
-	public CloudBatchCreateOperation(string documentId, object document)
-	{
-		DocumentId = documentId;
-		Document = document;
-	}
-
-	/// <inheritdoc/>
-	public CloudBatchOperationType OperationType => CloudBatchOperationType.Create;
-
-	/// <inheritdoc/>
-	public string DocumentId { get; }
-
-	/// <inheritdoc/>
-	public object Document { get; }
-}
-
-/// <summary>
-/// Batch operation for replacing a document.
-/// </summary>
-public sealed class CloudBatchReplaceOperation : ICloudBatchOperation, ICloudBatchReplaceOperation
-{
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CloudBatchReplaceOperation"/> class.
-	/// </summary>
-	/// <param name="documentId">The document ID.</param>
-	/// <param name="document">The replacement document.</param>
-	public CloudBatchReplaceOperation(string documentId, object document)
-	{
-		DocumentId = documentId;
-		Document = document;
-	}
-
-	/// <inheritdoc/>
-	public CloudBatchOperationType OperationType => CloudBatchOperationType.Replace;
-
-	/// <inheritdoc/>
-	public string DocumentId { get; }
-
-	/// <inheritdoc/>
-	public object Document { get; }
-}
-
-/// <summary>
-/// Batch operation for upserting a document.
-/// </summary>
-public sealed class CloudBatchUpsertOperation : ICloudBatchOperation, ICloudBatchUpsertOperation
-{
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CloudBatchUpsertOperation"/> class.
-	/// </summary>
-	/// <param name="documentId">The document ID.</param>
-	/// <param name="document">The document to upsert.</param>
-	public CloudBatchUpsertOperation(string documentId, object document)
-	{
-		DocumentId = documentId;
-		Document = document;
-	}
-
-	/// <inheritdoc/>
-	public CloudBatchOperationType OperationType => CloudBatchOperationType.Upsert;
-
-	/// <inheritdoc/>
-	public string DocumentId { get; }
-
-	/// <inheritdoc/>
-	public object Document { get; }
-}
-
-/// <summary>
-/// Batch operation for deleting a document.
-/// </summary>
-public sealed class CloudBatchDeleteOperation : ICloudBatchOperation
-{
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CloudBatchDeleteOperation"/> class.
-	/// </summary>
-	/// <param name="documentId">The document ID.</param>
-	public CloudBatchDeleteOperation(string documentId)
-	{
-		DocumentId = documentId;
-	}
-
-	/// <inheritdoc/>
-	public CloudBatchOperationType OperationType => CloudBatchOperationType.Delete;
-
-	/// <inheritdoc/>
-	public string DocumentId { get; }
-}
-
-/// <summary>
-/// Internal interface for upsert operations with document.
-/// </summary>
-internal interface ICloudBatchUpsertOperation
-{
-	/// <summary>
-	/// Gets the document to upsert.
-	/// </summary>
-	object Document { get; }
 }

@@ -12,8 +12,12 @@ namespace TransactionalHandlers.Requests;
 /// <summary>
 /// Debits an account balance. Uses DataRequest which auto-enlists in ambient TransactionScope.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.NoTenantDimension,
+	"this sample is single-tenant: the Accounts table has no tenant column, so the account identifier alone addresses the row. The balance guard in the WHERE clause protects the account from going negative; it does not protect it from the wrong caller, and the two are independent concerns. In a multi-tenant application the tenant arrives as an explicit parameter, joins the WHERE clause alongside the account identifier and the balance guard, and this request declares Scoped")]
 public sealed class DebitAccount : DataRequest<int>
 {
+
 	public DebitAccount(Guid accountId, decimal amount, int timeoutSeconds = 30, CancellationToken cancellationToken = default)
 	{
 		const string sql = "UPDATE Accounts SET Balance = Balance - @Amount WHERE AccountId = @AccountId AND Balance >= @Amount";

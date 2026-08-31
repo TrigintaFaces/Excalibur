@@ -27,7 +27,6 @@ public sealed class HandlerInvokerAot : IHandlerInvoker, IValueTaskHandlerInvoke
 	/// This method uses source-generated code to avoid reflection and expression compilation. The <see cref="HandlerInvokerRegistry"/>
 	/// is populated at compile time by scanning all handler types and generating optimized invocation code for each handler and message type combination.
 	/// </remarks>
-	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	public Task<object?> InvokeAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(handler);
@@ -42,7 +41,6 @@ public sealed class HandlerInvokerAot : IHandlerInvoker, IValueTaskHandlerInvoke
 	/// <summary>
 	/// Invokes a handler using AOT-compatible source-generated code and returns a <see cref="ValueTask{TResult}"/>.
 	/// </summary>
-	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	public ValueTask<object?> InvokeValueTaskAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken)
 		=> new(InvokeAsync(handler, message, cancellationToken));
 }

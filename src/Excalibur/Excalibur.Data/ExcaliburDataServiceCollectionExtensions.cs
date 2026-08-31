@@ -4,7 +4,7 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
 // AddExcaliburDataServices(...) + both AddExcaliburDataServicesWithPersistence(...) overloads
-// were deleted in S804 (bd-sdhocq A6) per ADR-325 §2. The canonical composition path is
+// were deleted. The canonical composition path is
 // services.AddExcalibur(x => ...) which registers Dispatch primitives (including
 // DispatchJsonSerializer) and exposes persistence via explicit opt-ins (e.g. .AddPersistence(...)
 // on the consumer side, or the per-provider AddExcaliburSqlServices / AddExcaliburPostgres /

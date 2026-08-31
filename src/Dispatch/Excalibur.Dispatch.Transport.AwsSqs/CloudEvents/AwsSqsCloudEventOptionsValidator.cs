@@ -34,11 +34,6 @@ internal sealed class AwsSqsCloudEventOptionsValidator : IValidateOptions<AwsSqs
 			failures.Add($"{nameof(options.DelaySeconds)} must be between 0 and 900 seconds.");
 		}
 
-		if (options.CompressionThreshold < 0)
-		{
-			failures.Add($"{nameof(options.CompressionThreshold)} must be non-negative.");
-		}
-
 		return failures.Count > 0 ? ValidateOptionsResult.Fail(failures) : ValidateOptionsResult.Success;
 	}
 }

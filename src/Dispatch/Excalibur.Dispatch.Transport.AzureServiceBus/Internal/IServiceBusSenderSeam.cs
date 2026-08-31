@@ -16,10 +16,8 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Follows the ADR-142 §D7 canonical template set by
-/// <c>IServiceBusClient</c> (S798, <c>bd-wy56o5</c>) and the COMPASS
-/// ruling (S798 task-515, msg 1712): flat use-case methods, not SDK
-/// factory/client topology mirroring.
+/// The seam exposes flat use-case methods rather than mirroring the SDK's
+/// factory/client topology.
 /// </para>
 /// <para>
 /// Data-shaped SDK types (<see cref="ServiceBusMessage"/>,

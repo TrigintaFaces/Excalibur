@@ -149,7 +149,7 @@ public static class PostgresLeaderElectionBuilderExtensions
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			// y6tatp/ADR-339: optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
+			// optional fencing-token provider (null when WithFencingTokens not enabled → no fencing).
 			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
 			return new PostgresLeaderElection(pgOptions, electionOptions, logger, fencingTokenProvider);
 		});

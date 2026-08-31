@@ -22,8 +22,12 @@ namespace Excalibur.Outbox.Postgres;
 /// table, which only holds messages that exceeded the ceiling. Mirrors the Oracle outbox's
 /// <c>GetFailedOutboxMessages</c>.
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"an operator-facing failure query: it reports messages carrying an error across the whole store, on behalf of whoever is diagnosing delivery rather than on behalf of a tenant. Its reach is bounded by the retry-count, age and batch arguments it is given, never by tenant state")]
 internal sealed class GetFailedOutboxMessages : DataRequest<IEnumerable<DeadLetterRecord>>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetFailedOutboxMessages"/> class.
 	/// </summary>
@@ -45,6 +49,7 @@ internal sealed class GetFailedOutboxMessages : DataRequest<IEnumerable<DeadLett
 	{
 		var sql = $"""
 			SELECT message_id AS MessageId,
+			       tenant_id AS TenantId,
 			       message_type AS MessageType,
 			       message_metadata AS MessageMetadata,
 			       message_body AS MessageBody,

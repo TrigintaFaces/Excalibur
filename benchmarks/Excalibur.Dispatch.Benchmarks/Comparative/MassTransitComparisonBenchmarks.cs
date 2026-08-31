@@ -5,6 +5,7 @@ using BenchmarkDotNet.Attributes;
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -24,7 +25,7 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// <remarks>
 /// Framework Versions:
 /// - Excalibur: 1.0.0 (local build)
-/// - MassTransit: 8.x (latest stable)
+/// - MassTransit: 8.5.9
 ///
 /// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
 /// comparison against MassTransit's in-memory bus.
@@ -40,6 +41,10 @@ public class MassTransitComparisonBenchmarks
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
 	private IMessageContextFactory? _dispatchContextFactory;
+
+	// Excalibur infrastructure — tuned direct-local path (no middleware chain)
+	private IServiceProvider? _dispatchDirectServiceProvider;
+	private IDirectLocalDispatcher? _directLocalDispatcher;
 
 	// MassTransit infrastructure
 	private IServiceProvider? _massTransitServiceProvider;
@@ -65,6 +70,34 @@ public class MassTransitComparisonBenchmarks
 		_dispatchServiceProvider = dispatchServices.BuildServiceProvider();
 		_dispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
 		_dispatchContextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
+
+		// Setup Excalibur — tuned direct-local. Identical to the tuned tier in the MediatR and Wolverine
+		// pairings, so "tuned" means the same configuration in every comparison. These two MassTransit
+		// classes were the only ones lacking it, which left MassTransit measured against Dispatch's
+		// standard path while the other competitors were measured against both.
+		var directDispatchServices = new ServiceCollection();
+		_ = directDispatchServices.AddLogging();
+		_ = directDispatchServices.AddDispatch(builder =>
+		{
+			_ = builder.ConfigurePipeline("DirectLocal", pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Direct));
+			_ = builder.WithOptions(options =>
+			{
+				options.UseLightMode = true;
+				options.EnablePipelineSynthesis = false;
+				options.Features.EnableMetrics = false;
+				options.Features.EnableAuthorization = false;
+				options.Features.ValidateMessageSchemas = false;
+				options.Features.EnableVersioning = false;
+				options.Features.EnableMultiTenancy = false;
+				options.Features.EnableTransactions = false;
+			});
+		});
+		_ = directDispatchServices.AddTransient<IActionHandler<MassTransitTestCommand>, DispatchMassTransitCommandHandler>();
+		_ = directDispatchServices.AddTransient<IEventHandler<MassTransitTestEvent>, DispatchMassTransitEventHandler1>();
+		_ = directDispatchServices.AddTransient<IEventHandler<MassTransitTestEvent>, DispatchMassTransitEventHandler2>();
+
+		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
+		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
 
 		// Setup MassTransit (in-memory bus only for fair comparison)
 		var massTransitServices = new ServiceCollection();
@@ -100,6 +133,11 @@ public class MassTransitComparisonBenchmarks
 			if (_dispatchServiceProvider is IDisposable dispatchDisposable)
 			{
 				dispatchDisposable.Dispose();
+			}
+
+			if (_dispatchDirectServiceProvider is IDisposable directDisposable)
+			{
+				directDisposable.Dispose();
 			}
 		}
 		catch
@@ -144,6 +182,16 @@ public class MassTransitComparisonBenchmarks
 	{
 		var command = new MassTransitTestCommand { Value = 42 };
 		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Dispatch via the tuned direct-local path, matching the tuned tier every other pairing publishes.
+	/// </summary>
+	[Benchmark(Description = "Dispatch (tuned direct-local): Single command")]
+	public async Task Dispatch_SingleCommand_DirectLocal()
+	{
+		var command = new MassTransitTestCommand { Value = 42 };
+		await _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	/// <summary>

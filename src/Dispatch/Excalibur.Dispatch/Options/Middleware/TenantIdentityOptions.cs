@@ -52,15 +52,34 @@ public sealed class TenantIdentityOptions
 	/// Gets or sets the minimum length for tenant identifiers.
 	/// </summary>
 	/// <value> Default is 1. </value>
-	[Range(1, int.MaxValue)]
+	/// <remarks>
+	/// Bounded above by <see cref="Excalibur.Dispatch.TenantId.MaxLength"/> for the same reason
+	/// <see cref="MaxTenantIdLength"/> is: a minimum longer than any storable identifier would reject every
+	/// tenant the framework can persist, so the configuration would be unsatisfiable rather than strict.
+	/// </remarks>
+	[Range(1, Excalibur.Dispatch.TenantId.MaxLength)]
 	public int MinTenantIdLength { get; set; } = 1;
 
 	/// <summary>
 	/// Gets or sets the maximum length for tenant identifiers.
 	/// </summary>
-	/// <value> Default is 100. </value>
-	[Range(1, int.MaxValue)]
-	public int MaxTenantIdLength { get; set; } = 100;
+	/// <value> Default is <see cref="Excalibur.Dispatch.TenantId.MaxLength"/>. </value>
+	/// <remarks>
+	/// <para>
+	/// This bound may be lowered to tighten what a deployment accepts, but it cannot be raised above
+	/// <see cref="Excalibur.Dispatch.TenantId.MaxLength"/> — the narrowest tenant column any shipped
+	/// provider declares. Accepting a longer identifier at the boundary would not make it storable; it
+	/// would defer the failure to the store, where the caller that supplied the value is no longer in
+	/// scope, and where the outcome on a provider that truncates rather than rejects is a tenant
+	/// identifier that silently collides with another tenant's.
+	/// </para>
+	/// <para>
+	/// The same ceiling is enforced without a configuration knob by the tenant identifier and scope types
+	/// themselves, so a value above it would advertise an acceptance this framework does not have.
+	/// </para>
+	/// </remarks>
+	[Range(1, Excalibur.Dispatch.TenantId.MaxLength)]
+	public int MaxTenantIdLength { get; set; } = Excalibur.Dispatch.TenantId.MaxLength;
 
 	/// <summary>
 	/// Gets or sets a regex pattern for validating tenant ID format.

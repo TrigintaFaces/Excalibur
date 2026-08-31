@@ -102,6 +102,7 @@
       ],
       "excaliburPackages": [
         "Excalibur.Compliance.SqlServer",
+        "Excalibur.Compliance.MongoDb",
         "Excalibur.Compliance.Postgres"
       ],
       "rationale": "Dispatch exposes hooks while Excalibur owns concrete compliance providers."
@@ -1112,6 +1113,15 @@
         ],
         "smoke": [
           "tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur provider rollup metapackages",
+      "packagePattern": "^Excalibur\\.(CosmosDb|DynamoDb|ElasticSearch|Firestore|MongoDB|OpenSearch|Oracle|Redis)$",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Metapackages.Tests/Excalibur.Metapackages.Tests.csproj"
         ]
       }
     },

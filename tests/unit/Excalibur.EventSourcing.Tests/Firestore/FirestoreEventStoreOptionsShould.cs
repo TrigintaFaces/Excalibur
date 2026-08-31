@@ -65,16 +65,6 @@ public sealed class FirestoreEventStoreOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveDefaultUseBatchedWritesTrue()
-	{
-		// Arrange & Act
-		var options = new FirestoreEventStoreOptions();
-
-		// Assert
-		options.UseBatchedWrites.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void HaveDefaultMaxBatchSizeOf500()
 	{
 		// Arrange & Act
@@ -161,19 +151,6 @@ public sealed class FirestoreEventStoreOptionsShould : UnitTestBase
 
 		// Assert
 		options.EmulatorHost.ShouldBe("localhost:8080");
-	}
-
-	[Fact]
-	public void AllowCustomUseBatchedWrites()
-	{
-		// Arrange & Act
-		var options = new FirestoreEventStoreOptions
-		{
-			UseBatchedWrites = false
-		};
-
-		// Assert
-		options.UseBatchedWrites.ShouldBeFalse();
 	}
 
 	[Fact]

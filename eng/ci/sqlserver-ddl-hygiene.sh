@@ -140,8 +140,20 @@ is_sqlserver() {
     grep -qiE 'NVARCHAR|\[dbo\]|^\s*GO\s*$|sys\.(objects|columns|indexes)' "$f" 2>/dev/null
 }
 
-# A filtered index is CREATE INDEX ... WHERE, where the WHERE belongs to the index statement.
-# Extracted per-statement so a WHERE in an unrelated IF guard cannot be mistaken for one.
+# A filtered index is an index carrying a WHERE. It appears in TWO forms and this predicate must
+# see both, because SQL Server's QUOTED_IDENTIFIER requirement does not care which one you wrote:
+#
+#   STANDALONE   CREATE [UNIQUE] [NON]CLUSTERED INDEX ix ON t (cols) WHERE pred
+#   INLINE       CREATE TABLE t ( ..., INDEX ix (cols) WHERE pred )
+#
+# The inline form has NO `CREATE` before `INDEX` — it is a table element, not a statement — so a
+# predicate that enters its scan on /CREATE ... INDEX/ is blind to it BY CONSTRUCTION, not by
+# tuning. It cannot be fixed by loosening the WHERE match, because the scan never starts.
+#
+# That blindness shipped: the compliance schema declared an inline filtered index on LegalHolds and
+# set QUOTED_IDENTIFIER nowhere, and this gate reported the file clean while sqlcmd refused to
+# create the table at all. It is the same shape as the unindented-WHERE miss recorded below — a
+# pattern that encoded how the author happened to write the DDL rather than what the DDL does.
 has_filtered_index() {
     local f="$1"
     awk '
@@ -152,6 +164,18 @@ has_filtered_index() {
         # this predicate blind to any script that puts the filter on its own unindented line —
         # the gate would have reported those files clean forever.
         instmt && /(^|[ \t])WHERE([ \t]|$)/ { found = 1 }
+
+        # INLINE form, single line: INDEX ix (cols) WHERE pred. Matched as one complete shape —
+        # name, parenthesised column list, then WHERE — so it cannot bind a WHERE belonging to a
+        # later statement the way a sticky in-scan flag could.
+        /(^|[ \t])INDEX[ \t]+[^(]+\([^)]*\)[ \t]*WHERE([ \t]|$)/ { found = 1 }
+
+        # INLINE form, wrapped: the filter sits on a continuation line. Entered only on a table
+        # element that opens and closes its column list on one line, and released at the end of the
+        # table body or batch, so an unrelated WHERE cannot be captured.
+        /(^|[ \t])INDEX[ \t]+[^(]+\([^)]*\)[ \t]*$/ { inidx = 1; next }
+        inidx && /(^|[ \t])WHERE([ \t]|$)/ { found = 1; inidx = 0 }
+        inidx && /^[ \t]*(GO|\)[ \t]*;?)[ \t]*$/ { inidx = 0 }
         END { exit(found ? 0 : 1) }
     ' "$f" 2>/dev/null
 }
@@ -354,6 +378,51 @@ WHERE [Corr] IS NOT NULL
 GO
 EOF
     arm "SAFETY   filtered index without QUOTED_IDENTIFIER detected" 1 bad2
+
+    # SAFETY 3: the INLINE form — a filtered index declared as a CREATE TABLE element, with no
+    # `CREATE` before `INDEX`. This is the shape the gate was blind to while it shipped.
+    mk bad3/c.sql <<'EOF'
+CREATE TABLE [compliance].[Holds] (
+    [HoldId] [uniqueidentifier] NOT NULL PRIMARY KEY,
+    [TenantId] [nvarchar](255) COLLATE Latin1_General_BIN2 NOT NULL,
+    [IsActive] [bit] NOT NULL,
+    [ExpiresAt] [datetimeoffset] NULL,
+    INDEX IX_Holds_ExpiresAt (IsActive, ExpiresAt) WHERE IsActive = 1 AND ExpiresAt IS NOT NULL
+);
+GO
+EOF
+    arm "SAFETY   INLINE filtered index without QUOTED_IDENTIFIER detected" 1 bad3
+
+    # SAFETY 4: the inline form with the filter on a continuation line.
+    mk bad4/d.sql <<'EOF'
+CREATE TABLE [compliance].[Holds] (
+    [HoldId] [uniqueidentifier] NOT NULL PRIMARY KEY,
+    [TenantId] [nvarchar](255) COLLATE Latin1_General_BIN2 NOT NULL,
+    [IsActive] [bit] NOT NULL,
+    INDEX IX_Holds_Active (IsActive)
+        WHERE IsActive = 1
+);
+GO
+EOF
+    arm "SAFETY   INLINE filtered index, wrapped filter, detected" 1 bad4
+
+    # LIVENESS 3: an inline index with NO filter must NOT be treated as filtered. This is the arm
+    # that stops the new inline rules from crying wolf on every table that declares an index.
+    mk good3/e.sql <<'EOF'
+CREATE TABLE [compliance].[Holds] (
+    [HoldId] [uniqueidentifier] NOT NULL PRIMARY KEY,
+    [TenantId] [nvarchar](255) COLLATE Latin1_General_BIN2 NOT NULL,
+    [IsActive] [bit] NOT NULL,
+    INDEX IX_Holds_Tenant (TenantId, IsActive)
+);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Other')
+BEGIN
+    SELECT 1 WHERE 1 = 0;
+END
+GO
+EOF
+    arm "LIVENESS inline NON-filtered index is not flagged" 0 good3
 
     # LIVENESS 1: a correct file is ALLOWED
     mk good1/c.sql <<'EOF'

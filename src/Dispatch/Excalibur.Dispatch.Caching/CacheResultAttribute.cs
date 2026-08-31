@@ -8,6 +8,21 @@ namespace Excalibur.Dispatch.Caching;
 /// Attribute to mark dispatch actions for result caching with configurable options. Applied at the class level to enable caching for the
 /// entire message handler result.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <strong>The handler must be free of observable side effects.</strong> A cached action's handler is run as
+/// the value factory of <c>HybridCache</c>, and a value factory is not invoked once per dispatch. It runs
+/// only on a miss, it is shared between concurrent callers of the same key so several dispatches produce one
+/// invocation, and it can also run on a background task that no dispatch is awaiting. The number of handler
+/// invocations is therefore unrelated to the number of dispatches in both directions, and no configuration
+/// changes that.
+/// </para>
+/// <para>
+/// Read it as: the handler answers "what is the value for this key", nothing more. Anything that must happen
+/// once per request -- writes, sends, counters, audit entries -- belongs outside a cached handler, because
+/// it will be skipped on a hit and may be repeated on a background refresh.
+/// </para>
+/// </remarks>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class CacheResultAttribute : Attribute
 {

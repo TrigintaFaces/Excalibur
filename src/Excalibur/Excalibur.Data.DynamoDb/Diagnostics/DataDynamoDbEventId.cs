@@ -18,7 +18,7 @@ namespace Excalibur.Data.DynamoDb.Diagnostics;
 /// <item>103600-103699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataDynamoDbEventId
+internal static class DataDynamoDbEventId
 {
 	// ========================================
 	// 103000-103099: Client Management

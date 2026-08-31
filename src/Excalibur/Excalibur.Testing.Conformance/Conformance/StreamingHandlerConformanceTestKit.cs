@@ -29,7 +29,7 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class StreamingHandlerConformanceTestKit
+public abstract class StreamingHandlerConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a stream consumer handler for testing together with an accessor that returns the documents
@@ -261,6 +261,7 @@ public abstract class StreamingHandlerConformanceTestKit
 
 		return chunks;
 	}
+
 }
 
 /// <summary>

@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Npgsql;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.MaterializedViews.Providers;
 
 /// <summary>
@@ -68,7 +70,7 @@ public sealed class PostgresMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new PostgresMaterializedViewStore(connectionString: null!, logger));
+			new PostgresMaterializedViewStore(connectionString: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -79,7 +81,7 @@ public sealed class PostgresMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new PostgresMaterializedViewStore(connectionString: "", logger));
+			new PostgresMaterializedViewStore(connectionString: "", logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -90,7 +92,7 @@ public sealed class PostgresMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new PostgresMaterializedViewStore(connectionString: "   ", logger));
+			new PostgresMaterializedViewStore(connectionString: "   ", logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -101,7 +103,7 @@ public sealed class PostgresMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new PostgresMaterializedViewStore(connectionString, logger: null!));
+			new PostgresMaterializedViewStore(connectionString, logger: null!, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -112,7 +114,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
 
 		// Act
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -130,7 +132,7 @@ public sealed class PostgresMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new PostgresMaterializedViewStore(dataSource: null!, logger));
+			new PostgresMaterializedViewStore(dataSource: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -143,7 +145,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		{
 			// Act & Assert
 			Should.Throw<ArgumentNullException>(() =>
-				new PostgresMaterializedViewStore(dataSource, logger: null!));
+				new PostgresMaterializedViewStore(dataSource, logger: null!, TenantViewFixture.SingleTenant));
 		}
 		finally
 		{
@@ -161,7 +163,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		try
 		{
 			// Act
-			var store = new PostgresMaterializedViewStore(dataSource, logger);
+			var store = new PostgresMaterializedViewStore(dataSource, logger, TenantViewFixture.SingleTenant);
 
 			// Assert
 			store.ShouldNotBeNull();
@@ -184,7 +186,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
 
 		// Act - using defaults (snake_case per ADR-109)
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -201,6 +203,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		var store = new PostgresMaterializedViewStore(
 			connectionString,
 			logger,
+			TenantViewFixture.SingleTenant,
 			viewTableName: "custom_materialized_views");
 
 		// Assert
@@ -218,6 +221,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		var store = new PostgresMaterializedViewStore(
 			connectionString,
 			logger,
+			TenantViewFixture.SingleTenant,
 			positionTableName: "custom_positions");
 
 		// Assert
@@ -240,6 +244,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		var store = new PostgresMaterializedViewStore(
 			connectionString,
 			logger,
+			TenantViewFixture.SingleTenant,
 			jsonOptions: jsonOptions);
 
 		// Assert
@@ -263,6 +268,7 @@ public sealed class PostgresMaterializedViewStoreShould
 			var store = new PostgresMaterializedViewStore(
 				dataSource,
 				logger,
+				TenantViewFixture.SingleTenant,
 				viewTableName: "my_views",
 				positionTableName: "my_positions",
 				jsonOptions: jsonOptions);
@@ -286,7 +292,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -299,7 +305,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -312,7 +318,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -325,7 +331,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -342,7 +348,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 		var view = new TestView { Id = "1" };
 
 		// Act & Assert
@@ -356,7 +362,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 		var view = new TestView { Id = "1" };
 
 		// Act & Assert
@@ -370,7 +376,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 		var view = new TestView { Id = "1" };
 
 		// Act & Assert
@@ -384,7 +390,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -401,7 +407,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -414,7 +420,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -427,7 +433,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -444,7 +450,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -457,7 +463,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -474,7 +480,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -487,7 +493,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		// Arrange
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(async () =>
@@ -507,7 +513,7 @@ public sealed class PostgresMaterializedViewStoreShould
 		var connectionString = "Host=localhost;Database=test;";
 		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
 
-		var store = new PostgresMaterializedViewStore(connectionString, logger);
+		var store = new PostgresMaterializedViewStore(connectionString, logger, TenantViewFixture.SingleTenant);
 
 		store.ShouldNotBeNull();
 	}
@@ -535,4 +541,19 @@ public sealed class PostgresMaterializedViewStoreShould
 	}
 
 	#endregion
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

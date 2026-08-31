@@ -41,7 +41,27 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly string _schema;
 	private readonly string _table;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+
+	// Cached rather than rebuilt per call: JsonSerializerOptions is expensive to construct, and the
+	// host's optional type-info resolver must be attached to ONE instance for the reflection-free path
+	// to be reachable at all.
+	private readonly System.Text.Json.JsonSerializerOptions _jsonOptions =
+		EventSerializationDefaults.CreateCanonicalOptions();
+
+	/// <summary>
+	/// Whether the host supplied an event type-info resolver, selecting the reflection-free serialization
+	/// path. Decided once at construction because the resolver cannot change for a constructed store.
+	/// </summary>
+	private readonly bool _hasEventTypeInfoResolver;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	// Oracle SERIALIZABLE transactions can fail with ORA-08177 ("can't serialize access for this
 	// transaction") when concurrent transactions touch the same table and the database cannot serialize
@@ -62,8 +82,9 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 	/// </summary>
 	/// <param name="connectionString">The Oracle connection string.</param>
 	/// <param name="logger">The logger instance.</param>
-	public OracleEventStore(string connectionString, ILogger<OracleEventStore> logger)
-		: this(CreateConnectionFactory(connectionString), logger, payloadSerializer: null, schema: "EXCALIBUR", table: "EVENTSTOREEVENTS")
+	/// <param name="tenantContext">The ambient tenant context. Required: this store resolves the tenant partition it reads and writes from here.</param>
+	public OracleEventStore(string connectionString, ILogger<OracleEventStore> logger, ITenantContext tenantContext)
+		: this(CreateConnectionFactory(connectionString), logger, payloadSerializer: null, schema: "EXCALIBUR", table: "EVENTSTOREEVENTS", tenantContext: tenantContext)
 	{
 	}
 
@@ -75,26 +96,35 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <param name="schema">The schema name for the event store table. Default: "EXCALIBUR".</param>
 	/// <param name="table">The event store table name. Default: "EVENTSTOREEVENTS".</param>
+	/// <param name="eventTypeInfoResolver">
+	/// An optional source-generated JSON type-info resolver covering the application's domain event types
+	/// and the runtime types of the values it places in
+	/// <see cref="Excalibur.Dispatch.IDomainEvent.Metadata"/>. Supplied, the store serializes without
+	/// reflection, which is what a native-AOT host published with reflection-based serialization disabled
+	/// requires. Omitted, the store serializes through the reflection-based serializer exactly as before, so
+	/// an existing caller is unaffected. The stored wire format is byte-identical either way.
+	/// </param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, every query is scoped to the
-	/// current tenant (row-level <c>TENANTID</c> discriminator) in the same atomic statement. When
-	/// <see langword="null"/> (the default, non-multi-tenant path) no tenant scoping is applied and behavior
-	/// is unchanged. Fail-closed enforcement (throwing when a tenant is required but absent) is provided by
-	/// the tenant-scoping store decorator registered by the multi-tenancy composition, not by this base store.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public OracleEventStore(
 		Func<OracleConnection> connectionFactory,
 		ILogger<OracleEventStore> logger,
+		ITenantContext tenantContext,
 		IPayloadSerializer? payloadSerializer = null,
 		string schema = "EXCALIBUR",
 		string table = "EVENTSTOREEVENTS",
-		ITenantContext? tenantContext = null)
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver = null)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_payloadSerializer = payloadSerializer;
+		_hasEventTypeInfoResolver = Excalibur.Dispatch.EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, eventTypeInfoResolver);
 		_schema = schema;
 		_table = table;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -128,7 +158,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -191,7 +221,16 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 
 			return appendResult;
 		}
-		catch (Exception ex)
+		// NARROW BY DESIGN, and an ALLOW-LIST rather than an exclusion list. These are the two shapes a
+		// store fault reaches this method in: the driver's own exception, and the data-request seam's
+		// wrapper around it -- a closed set, because those are the only two layers between here and the
+		// database. An exclusion list would instead enumerate what must escape, which is wrong by default
+		// the first time something new appears and silently converts the newcomer into an ordinary append
+		// failure. That is how a cancelled append came to be reported as a store fault and retried inside
+		// a cancelled scope. Everything else -- cancellation, an event type the configured resolver does
+		// not declare, a programming error -- propagates, because a returned failure means "this could
+		// succeed if you try again" and none of those can.
+		catch (Exception ex) when (ex is OracleException or OperationFailedException)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			LogAppendFailure(ex, aggregateId, aggregateType);
@@ -280,7 +319,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		try
 		{
 			var currentVersion = await connection.ResolveAsync(
-					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (currentVersion != expectedVersion)
@@ -337,7 +376,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			.ConfigureAwait(false);
 
 		var currentVersion = await connection.ResolveAsync(
-				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 
 		if (currentVersion != expectedVersion)
@@ -429,7 +468,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		{
 			version++;
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-			var eventData = SerializeEvent(@event);
+			var eventData = SerializeEvent(@event, aggregateId, aggregateType);
 			var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
 #pragma warning restore IL2026, IL3050
 			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
@@ -457,7 +496,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			var chunk = rows.GetRange(offset, count);
 
 			var inserted = await connection.ResolveAsync(
-					new InsertEventsBatchRequest(chunk, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new InsertEventsBatchRequest(chunk, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			foreach (var row in inserted)
@@ -522,21 +561,24 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
-	private byte[] SerializeEvent(IDomainEvent @event)
+	private byte[] SerializeEvent(IDomainEvent @event, string? aggregateId, string? aggregateType)
 	{
 		if (_payloadSerializer != null)
 		{
 			return _payloadSerializer.Serialize(@event);
 		}
 
-		return System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-			@event, @event.GetType(), EventSerializationDefaults.CreateCanonicalOptions());
+		return _hasEventTypeInfoResolver
+			? ResolvedEventPayload.Serialize(@event, _jsonOptions, aggregateId, aggregateType)
+			: System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(@event, @event.GetType(), _jsonOptions);
 	}
 
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
-	private static byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
-		System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(metadata, EventSerializationDefaults.CreateCanonicalOptions());
+	private byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
+		_hasEventTypeInfoResolver
+			? Excalibur.Dispatch.EventSerializationDefaults.SerializeMetadataWithResolver(metadata, _jsonOptions)
+			: System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
 
 	/// <inheritdoc/>
 	public async Task<int> EraseEventsAsync(
@@ -549,7 +591,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+			new EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 
@@ -563,7 +605,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new IsErasedRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+			new IsErasedRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 }

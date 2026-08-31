@@ -8,8 +8,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
 /// Default implementation of <see cref="IElasticsearchSecurityProvider"/> that delegates
-/// authentication to the configured <see cref="IElasticsearchAuthenticationProvider"/>
-/// and applies security policies from the <see cref="SecurityPolicyEngine"/>.
+/// authentication to the configured <see cref="IElasticsearchAuthenticationProvider"/>.
 /// </summary>
 internal sealed partial class DefaultElasticsearchSecurityProvider : IElasticsearchSecurityProvider
 {

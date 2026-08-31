@@ -159,16 +159,36 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 	}
 
 	[Fact]
-	public async Task RetrieveAsync_ThrowsInvalidOperationException_WhenBlobMissing()
+	public async Task RetrieveAsync_ThrowsKeyNotFoundException_WhenBlobMissing()
 	{
 		var setup = CreateProvider();
 
 		A.CallTo(() => setup.BlobClient.DownloadContentAsync(A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "missing"));
 
+		// A missing claim is KeyNotFoundException, the same as the in-memory, S3 and GCS providers and the
+		// exception our published example tells a consumer to catch. InvalidOperationException here left a
+		// consumer with an unhandled exception on the one path they had written a handler for.
 		var reference = new ClaimCheckReference { Id = "missing-id" };
-		var ex = await Should.ThrowAsync<InvalidOperationException>(() => setup.Provider.RetrieveAsync(reference, CancellationToken.None));
+		var ex = await Should.ThrowAsync<KeyNotFoundException>(() => setup.Provider.RetrieveAsync(reference, CancellationToken.None));
 		ex.Message.ShouldContain("not found");
+	}
+
+	[Fact]
+	public async Task StoreAsync_PopulatesBlobName_OnTheReturnedReference()
+	{
+		var setup = CreateProvider(new ClaimCheckOptions { EnableCompression = false, IdPrefix = "cc-" });
+
+		A.CallTo(() => setup.BlobClient.UploadAsync(A<BinaryData>._, A<BlobUploadOptions>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<Response<BlobContentInfo>>(null!));
+
+		var reference = await setup.Provider.StoreAsync(
+			Encoding.UTF8.GetBytes("payload"), CancellationToken.None, null);
+
+		// The reference is what a caller persists and resolves the payload with later. Leaving BlobName
+		// empty left them nothing to resolve with. Matches the S3 and GCS stores.
+		reference.BlobName.ShouldNotBeNullOrEmpty();
+		reference.BlobName.ShouldContain(reference.Id);
 	}
 
 	[Fact]

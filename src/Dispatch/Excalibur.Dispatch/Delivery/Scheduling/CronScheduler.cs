@@ -199,7 +199,7 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 				continue;
 			}
 
-			// Exclude the current (==now) occurrence and any future time (FR-D7, axdtve): the upper bound is
+			// Exclude the current (==now) occurrence and any future time: the upper bound is
 			// exclusive of the live-fire boundary. The occurrence exactly at `now` is fired by the live scheduler
 			// on this restart, so replaying it here as "missed" would double-fire it. Enforce the exclusive bound
 			// structurally in this loop rather than relying on the underlying query's inclusivity default.
@@ -259,7 +259,7 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 		return scheduledTime;
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(DeliveryEventId.CronExpressionParsed, LogLevel.Debug,
 		"Parsed cron expression '{Expression}' for timezone '{TimeZone}'")]
 	private partial void LogParsedCronExpression(string expression, string timeZone);

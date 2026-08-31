@@ -12,8 +12,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 #pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
-#pragma warning disable IL2026 // Projection stores use reflection-based JSON serialization as fallback; consumers can provide source-gen context
-#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -40,13 +38,14 @@ public static class SqlServerProjectionStoreExtensions
 		_ = services.Configure(configureOptions);
 
 		// Register validator for ValidateOnStart (P1-3 fix)
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton<IValidateOptions<SqlServerProjectionStoreOptions>, SqlServerProjectionStoreOptionsValidator>();
 		_ = services.AddOptions<SqlServerProjectionStoreOptions>().ValidateOnStart();
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA where a null
 		// context threw on every operation) AND emits the projection-family capability marker inseparably
 		// from the tenant wiring it attests.
-		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqlServerProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
@@ -56,9 +55,9 @@ public static class SqlServerProjectionStoreExtensions
 			return new SqlServerProjectionStore<TProjection>(
 				options.Value.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
 				logger,
-				options.Value.TableName,
-				options.Value.JsonSerializerOptions,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tableName: options.Value.TableName,
+				jsonOptions: options.Value.JsonSerializerOptions);
 		});
 
 		return services;
@@ -92,7 +91,8 @@ public static class SqlServerProjectionStoreExtensions
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
 		// projection-family capability marker inseparably.
-		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
+		_ = services.AddDefaultTenantContext();
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqlServerProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
 			var optionsAccessor = sp.GetService<IOptions<SqlServerProjectionStoreOptions>>();
@@ -101,9 +101,9 @@ public static class SqlServerProjectionStoreExtensions
 			return new SqlServerProjectionStore<TProjection>(
 				connectionFactory,
 				logger,
-				options?.TableName,
-				options?.JsonSerializerOptions,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tableName: options?.TableName,
+				jsonOptions: options?.JsonSerializerOptions);
 		});
 
 		return services;
@@ -139,7 +139,8 @@ public static class SqlServerProjectionStoreExtensions
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
 		// projection-family capability marker inseparably.
-		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
+		_ = services.AddDefaultTenantContext();
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqlServerProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
 			var optionsAccessor = sp.GetService<IOptions<SqlServerProjectionStoreOptions>>();
@@ -148,9 +149,9 @@ public static class SqlServerProjectionStoreExtensions
 			return new SqlServerProjectionStore<TProjection>(
 				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
 				logger,
-				options?.TableName,
-				options?.JsonSerializerOptions,
-				tenantContext);
+				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tableName: options?.TableName,
+				jsonOptions: options?.JsonSerializerOptions);
 		});
 
 		return services;

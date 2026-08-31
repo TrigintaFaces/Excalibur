@@ -34,6 +34,8 @@ public static class CachingDispatchBuilderExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode(CachingServiceCollectionExtensions.CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingServiceCollectionExtensions.CachingDynamicCodeReason)]
 	public static IDispatchBuilder UseCaching(
 		this IDispatchBuilder builder,
 		Action<CacheOptions>? configure = null)
@@ -51,11 +53,28 @@ public static class CachingDispatchBuilderExtensions
 
 		// Register middleware in the builder pipeline (not just DI).
 		// Required because DispatchBuilderSentinel prevents legacy GetServices<IDispatchMiddleware>() discovery.
-		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CachingMiddlewareWrapper>();
-		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CacheInvalidationMiddlewareWrapper>();
+		//
+		// Guarded, because UseMiddleware appends unconditionally and a second caching stage DEADLOCKS the
+		// pipeline: the value factory of the first stage calls the rest of the chain, which reaches the
+		// second stage, which asks the cache for the very key whose creation is in flight and waits on it
+		// forever. The advertised "UseCaching().WithCachingOptions(...)" composition does exactly that,
+		// because WithCachingOptions routes through UseCaching -- so this guard is what makes the
+		// idempotency those methods document actually true.
+		if (!builder.Services.Any(static d => d.ServiceType == typeof(CachingPipelineRegisteredMarker)))
+		{
+			_ = builder.Services.AddSingleton(new CachingPipelineRegisteredMarker());
+			_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CachingMiddlewareWrapper>();
+			_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CacheInvalidationMiddlewareWrapper>();
+		}
 
 		return builder;
 	}
+
+	/// <summary>
+	/// Marks a builder whose caching middleware is already in the pipeline, so a second registration cannot
+	/// add a duplicate caching stage.
+	/// </summary>
+	private sealed class CachingPipelineRegisteredMarker;
 
 	/// <summary>
 	/// Configures caching with a custom options delegate. Configuring caching also enables it: the caching services
@@ -65,6 +84,8 @@ public static class CachingDispatchBuilderExtensions
 	/// <param name="builder"> The <see cref="IDispatchBuilder" /> to configure. </param>
 	/// <param name="configure"> Callback used to set <see cref="CacheOptions" />. </param>
 	/// <returns> The configured <see cref="IDispatchBuilder" />. </returns>
+	[RequiresUnreferencedCode(CachingServiceCollectionExtensions.CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingServiceCollectionExtensions.CachingDynamicCodeReason)]
 	public static IDispatchBuilder WithCachingOptions(
 		this IDispatchBuilder builder,
 		Action<CacheOptions> configure)
@@ -116,10 +137,6 @@ public static class CachingDispatchBuilderExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for CacheOptions requires dynamic code generation for property reflection and value conversion.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IDispatchBuilder WithCachingOptions(this IDispatchBuilder builder, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -186,7 +203,7 @@ public static class CachingDispatchBuilderExtensions
 	}
 
 	// Note: Projection tag resolver registration methods (WithResolvers, WithResolversFromAssembly) have been
-	// moved to Excalibur.Caching.Projections as part of Sprint 330 T1.2 (AD-330).
+	// moved to Excalibur.Caching.Projections as part of T1.2.
 	// Use ExcaliburDispatchBuilderExtensions.WithProjectionResolvers() and WithProjectionResolversFromAssembly() instead.
 
 	private sealed class TypedResultCachePolicy<TMessage>(Func<TMessage, object?, bool> shouldCache) : IResultCachePolicy<TMessage>

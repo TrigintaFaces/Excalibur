@@ -166,29 +166,27 @@ var result = await circuitBreaker.ExecuteAsync(
 
 Diagnostic properties and state-change events are accessed through sub-interfaces using the `GetService()` pattern, keeping the core interface minimal:
 
+Test the policy for the optional interfaces directly. A policy that measures nothing does not
+implement `ICircuitBreakerDiagnostics`, so a failed test means no breaker is installed — which is a
+different thing from a breaker that is installed and closed:
+
 ```csharp
 using Excalibur.Dispatch.Resilience;
 
-// Access diagnostic information
-if (circuitBreaker is IServiceProvider provider)
+if (circuitBreaker is ICircuitBreakerDiagnostics diagnostics)
 {
-    var diagnostics = provider.GetService(typeof(ICircuitBreakerDiagnostics))
-        as ICircuitBreakerDiagnostics;
+    Console.WriteLine($"Consecutive failures: {diagnostics.ConsecutiveFailures}");
+    Console.WriteLine($"Last opened: {diagnostics.LastOpenedAt}");
+}
+else
+{
+    Console.WriteLine("No circuit breaker is installed; nothing is being measured.");
+}
 
-    if (diagnostics is not null)
-    {
-        Console.WriteLine($"Consecutive failures: {diagnostics.ConsecutiveFailures}");
-        Console.WriteLine($"Last opened: {diagnostics.LastOpenedAt}");
-    }
-
-    var events = provider.GetService(typeof(ICircuitBreakerEvents))
-        as ICircuitBreakerEvents;
-
-    if (events is not null)
-    {
-        events.StateChanged += (sender, args) =>
-            Console.WriteLine($"Circuit state changed: {args}");
-    }
+if (circuitBreaker is ICircuitBreakerEvents events)
+{
+    events.StateChanged += (sender, args) =>
+        Console.WriteLine($"Circuit state changed: {args}");
 }
 ```
 
@@ -213,10 +211,27 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddPollyCircuitBreaker("payment-service", options =>
 {
     options.FailureThreshold = 5;
+    options.FailureRatio = 0.5;
+    options.SamplingDuration = TimeSpan.FromSeconds(30);
     options.OpenDuration = TimeSpan.FromSeconds(60);
     options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
 ```
+
+This breaker opens on a **failure proportion measured over a rolling window**, not on a run of
+consecutive failures:
+
+| Setting | Default | Meaning on this breaker |
+| --- | --- | --- |
+| `FailureThreshold` | `5` | Minimum calls that must be observed within `SamplingDuration` before `FailureRatio` is evaluated at all. Must be at least 2 — a proportion needs two calls to exist, and a lower value is rejected at construction. |
+| `FailureRatio` | `0.5` | Proportion of observed calls that must have failed for the circuit to open. |
+| `SamplingDuration` | 30s | The rolling window the proportion is measured over. Minimum 500 ms. |
+
+The practical consequence is worth stating plainly: a run of failures that is diluted by enough
+successes inside the same window keeps the proportion below `FailureRatio`, and the circuit stays
+closed. If you want the circuit to open on a run of consecutive failures regardless of surrounding
+traffic, use the count-based circuit breaker policy rather than this one — it opens on
+`FailureThreshold` consecutive failures and accepts a threshold of 1.
 
 The named circuit breaker admits **one** trial call while half-open and closes if it succeeds. That
 is not configurable, and it is a different type from `DistributedCircuitBreakerOptions` below, which
@@ -227,7 +242,8 @@ is not configurable, and it is a different type from `DistributedCircuitBreakerO
 
 ### Distributed Circuit Breaker
 
-For multi-instance deployments, `IDistributedCircuitBreaker` shares state across instances (5 members):
+For multi-instance deployments, `IDistributedCircuitBreaker` shares circuit state across instances
+(5 members):
 
 ```csharp
 using Excalibur.Dispatch.Resilience.Polly;
@@ -245,6 +261,48 @@ public interface IDistributedCircuitBreaker
     Task ResetAsync(CancellationToken cancellationToken);
 }
 ```
+
+**Registration.** Register a cross-instance cache *before* the breaker, and resolve the breaker by
+name:
+
+```csharp
+builder.Services.AddStackExchangeRedisCache(options =>
+    options.Configuration = builder.Configuration.GetConnectionString("Redis"));
+
+builder.Services.AddDistributedCircuitBreaker("payments", options =>
+{
+    options.ConsecutiveFailureThreshold = 5;
+    options.BreakDuration = TimeSpan.FromSeconds(30);
+});
+
+// ...
+var breaker = serviceProvider.GetRequiredKeyedService<IDistributedCircuitBreaker>("payments");
+```
+
+`AddDistributedCircuitBreaker` does not register a cache of its own. If no `IDistributedCache` is
+registered, or the one registered is the in-process `AddDistributedMemoryCache()`, the host **fails at
+startup** and the message names the remedy. That is deliberate: an in-process cache is not shared
+between instances, so every replica would trip its own circuit and never observe another's — a
+per-instance breaker behind a name that promises coordination, with nothing at runtime to reveal it.
+For a deliberately per-instance breaker, use `AddPollyCircuitBreaker` instead.
+
+:::info What is shared, and what is not
+**Shared:** the circuit state. When any instance trips, it writes `Open` to the store and every other
+instance short-circuits on its next call, so a failing dependency is shed fleet-wide rather than by each
+replica in turn. Recovery is shared the same way — the first instance past `BreakDuration` moves the
+shared state to half-open, and the successes that close it are visible to all.
+
+**Not shared:** the counting that decides *when* to trip. Each instance evaluates `FailureRatio`,
+`MinimumThroughput`, `SamplingDuration` and `ConsecutiveFailureThreshold` over its own traffic, so those
+thresholds are **per-instance, not fleet-wide totals**. Size them against the traffic one replica sees,
+not the traffic all of them see together.
+
+This is a property of the store, not an omission. `IDistributedCache` exposes only Get, Set and Remove —
+no atomic increment and no compare-and-swap — so a shared counter could only be maintained by a
+read-modify-write that loses updates between instances. Under that scheme the breaker under-counts and
+opens late or never, which is the failure it exists to prevent. A per-instance count is exact and its
+meaning is stated; a shared count over this abstraction would be neither.
+:::
 
 **Configuration:**
 

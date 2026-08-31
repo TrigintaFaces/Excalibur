@@ -224,37 +224,6 @@ public sealed class InMemoryPersistenceProviderDepthShould : IDisposable
 	}
 
 	[Fact]
-	public void BeginTransaction()
-	{
-		// Act
-		using var transaction = _provider.BeginTransaction();
-
-		// Assert
-		transaction.ShouldNotBeNull();
-		transaction.IsolationLevel.ShouldBe(IsolationLevel.ReadCommitted);
-	}
-
-	[Fact]
-	public void BeginTransactionWithIsolationLevel()
-	{
-		// Act
-		using var transaction = _provider.BeginTransaction(IsolationLevel.Serializable);
-
-		// Assert
-		transaction.IsolationLevel.ShouldBe(IsolationLevel.Serializable);
-	}
-
-	[Fact]
-	public async Task BeginTransactionAsync()
-	{
-		// Act
-		using var transaction = await _provider.BeginTransactionAsync(IsolationLevel.ReadCommitted, CancellationToken.None);
-
-		// Assert
-		transaction.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public async Task TestConnectionSuccessfully()
 	{
 		// Act
@@ -295,30 +264,10 @@ public sealed class InMemoryPersistenceProviderDepthShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GetConnectionPoolStatsReturnNull()
-	{
-		// Act
-		var stats = await _provider.GetConnectionPoolStatsAsync(CancellationToken.None);
-
-		// Assert
-		stats.ShouldBeNull();
-	}
-
-	[Fact]
 	public void GetServiceReturnHealthInterface()
 	{
 		// Act
 		var service = _provider.GetService(typeof(IPersistenceProviderHealth));
-
-		// Assert
-		service.ShouldBeSameAs(_provider);
-	}
-
-	[Fact]
-	public void GetServiceReturnTransactionInterface()
-	{
-		// Act
-		var service = _provider.GetService(typeof(IPersistenceProviderTransaction));
 
 		// Assert
 		service.ShouldBeSameAs(_provider);
@@ -339,16 +288,6 @@ public sealed class InMemoryPersistenceProviderDepthShould : IDisposable
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => _provider.GetService(null!));
-	}
-
-	[Fact]
-	public void CreateTransactionScope()
-	{
-		// Act
-		using var scope = _provider.CreateTransactionScope();
-
-		// Assert
-		scope.ShouldNotBeNull();
 	}
 
 	[Fact]

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 /// <summary>
-/// Session-aware <see cref="IServiceBusReceiverSeam"/> implementation (ne79ro, FR-A2) that delivers
+/// Session-aware <see cref="IServiceBusReceiverSeam"/> implementation that delivers
 /// messages in <b>per-session FIFO order</b>. It accepts one session at a time via
 /// <see cref="ServiceBusClient.AcceptNextSessionAsync(string, ServiceBusSessionReceiverOptions, CancellationToken)"/>
 /// — a <see cref="ServiceBusSessionReceiver"/> locks a single session and the broker guarantees ordered
@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// <remarks>
 /// This is the session counterpart to <see cref="ServiceBusReceiverAdapter"/>: it is the only place in
 /// the session receive path that touches the live SDK session type, so tests substitute at the
-/// <see cref="IServiceBusReceiverSeam"/> seam (ADR-142 §D7). It is wired by
+/// <see cref="IServiceBusReceiverSeam"/> seam. It is wired by
 /// <c>AddAzureServiceBusTransport</c> when <c>Processor.RequiresSession</c> is enabled; otherwise the
 /// non-session <see cref="ServiceBusReceiverAdapter"/> is used (no behavior change for non-session
 /// consumers).

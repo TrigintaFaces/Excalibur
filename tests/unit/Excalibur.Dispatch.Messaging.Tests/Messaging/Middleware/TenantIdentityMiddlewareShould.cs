@@ -447,6 +447,48 @@ public sealed class TenantIdentityMiddlewareShould
 	}
 
 	[Fact]
+	public async Task Accept_ATenantIdExactlyAsLongAsTheNarrowestShippedColumn()
+	{
+		// Arrange -- the default bound, not an overridden one: the boundary under test is the shipped one.
+		var middleware = CreateMiddleware(new TenantIdentityOptions
+		{
+			Enabled = true,
+			TenantIdHeader = "X-Tenant-ID",
+			ValidateTenantAccess = true,
+		});
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext { MessageId = "test-msg-1" };
+		context.SetItem("X-Tenant-ID", new string('a', Excalibur.Dispatch.TenantId.MaxLength));
+
+		// Act
+		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
+
+		// Assert -- the liveness arm. Without it, a bound of zero would satisfy the rejection test below
+		// while refusing every tenant the framework can actually store.
+		result.IsSuccess.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task Reject_ATenantIdOneCharacterWiderThanTheNarrowestShippedColumn()
+	{
+		// Arrange
+		var middleware = CreateMiddleware(new TenantIdentityOptions
+		{
+			Enabled = true,
+			TenantIdHeader = "X-Tenant-ID",
+			ValidateTenantAccess = true,
+		});
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext { MessageId = "test-msg-1" };
+		context.SetItem("X-Tenant-ID", new string('a', Excalibur.Dispatch.TenantId.MaxLength + 1));
+
+		// Act & Assert -- rejected HERE, at the boundary that accepted it, rather than at a store where the
+		// caller is gone and a truncating provider would collide it with another tenant.
+		_ = await Should.ThrowAsync<UnauthorizedAccessException>(
+			middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None).AsTask());
+	}
+
+	[Fact]
 	public async Task ThrowUnauthorizedAccessException_WhenTenantIdDoesNotMatchPattern()
 	{
 		// Arrange
@@ -623,7 +665,7 @@ public sealed class TenantIdentityMiddlewareShould
 		options.TenantRegionHeader.ShouldBe("X-Tenant-Region");
 		options.DefaultTenantId.ShouldBe(TenantDefaults.DefaultTenantId);
 		options.MinTenantIdLength.ShouldBe(1);
-		options.MaxTenantIdLength.ShouldBe(100);
+		options.MaxTenantIdLength.ShouldBe(Excalibur.Dispatch.TenantId.MaxLength);
 		options.TenantIdPattern.ShouldBeNull();
 	}
 

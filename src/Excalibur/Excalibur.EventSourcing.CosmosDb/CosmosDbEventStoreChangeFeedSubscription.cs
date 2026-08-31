@@ -84,7 +84,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 		}
 
 		// Resume from the durable checkpoint (if configured) instead of always replaying from the
-		// beginning of the feed on every restart (the "continuation lost on restart" bug — bd-egwtku).
+		// beginning of the feed on every restart (the "continuation lost on restart" bug —).
 		if (_checkpointStore is not null)
 		{
 			_continuationToken =
@@ -175,7 +175,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 
 			// Persist the checkpoint AFTER the consumer has processed the drained batch, so durable
 			// continuation reflects CONSUMER progress (at-least-once) — never the producer's channel
-			// read-ahead. No-op when no store is configured (prior in-memory-only behavior). bd-ydln24.
+			// read-ahead. No-op when no store is configured (prior in-memory-only behavior)..
 			if (_checkpointStore is not null && !string.IsNullOrEmpty(lastProcessedToken))
 			{
 				await _checkpointStore.SaveAsync(_checkpointKey, lastProcessedToken, linkedToken)
@@ -253,7 +253,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 					// below). The DURABLE checkpoint is persisted on the CONSUMER side (ReadChangesAsync),
 					// after the consumer has actually processed the events — NOT here, where the events have
 					// only been written to the in-memory channel. Persisting producer read-ahead would lose
-					// channel-buffered events on a crash (at-most-once). bd-ydln24 / SA seam 17195.
+					// channel-buffered events on a crash (at-most-once). / SA seam 17195.
 					_continuationToken = response.ContinuationToken;
 				}
 

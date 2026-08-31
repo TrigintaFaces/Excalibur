@@ -32,7 +32,8 @@ public sealed class PostgresEventStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresEventStore(
 			connectionString: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -41,7 +42,8 @@ public sealed class PostgresEventStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new PostgresEventStore(
 			connectionString: string.Empty,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -50,7 +52,8 @@ public sealed class PostgresEventStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => new PostgresEventStore(
 			connectionString: "   ",
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -59,7 +62,8 @@ public sealed class PostgresEventStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresEventStore(
 			connectionString: "Host=localhost;Database=TestDb",
-			logger: null!));
+			logger: null!,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -68,7 +72,8 @@ public sealed class PostgresEventStoreShould
 		// Act
 		var store = new PostgresEventStore(
 			connectionString: "Host=localhost;Database=TestDb",
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -81,6 +86,7 @@ public sealed class PostgresEventStoreShould
 		var store = new PostgresEventStore(
 			connectionString: "Host=localhost;Database=TestDb",
 			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault,
 			internalSerializer: null,
 			payloadSerializer: null);
 
@@ -98,7 +104,8 @@ public sealed class PostgresEventStoreShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new PostgresEventStore(
 			dataSource: null!,
-			_logger));
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault));
 	}
 
 	[Fact]
@@ -112,7 +119,8 @@ public sealed class PostgresEventStoreShould
 			// Act & Assert
 			_ = Should.Throw<ArgumentNullException>(() => new PostgresEventStore(
 				dataSource,
-				logger: null!));
+				logger: null!,
+				tenantContext: TestTenantContext.SingleTenantDefault));
 		}
 		finally
 		{
@@ -131,7 +139,8 @@ public sealed class PostgresEventStoreShould
 			// Act
 			var store = new PostgresEventStore(
 				dataSource,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			// Assert
 			_ = store.ShouldNotBeNull();
@@ -154,6 +163,7 @@ public sealed class PostgresEventStoreShould
 			var store = new PostgresEventStore(
 				dataSource,
 				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault,
 				internalSerializer: null,
 				payloadSerializer: null);
 
@@ -182,11 +192,13 @@ public sealed class PostgresEventStoreShould
 			// Act
 			var simpleStore = new PostgresEventStore(
 				connectionString,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			var advancedStore = new PostgresEventStore(
 				dataSource,
-				_logger);
+				_logger,
+				tenantContext: TestTenantContext.SingleTenantDefault);
 
 			// Assert - Both should be valid instances
 			_ = simpleStore.ShouldNotBeNull();
@@ -210,7 +222,8 @@ public sealed class PostgresEventStoreShould
 		// Act - Creating instance should not throw
 		var store = new PostgresEventStore(
 			connectionString,
-			_logger);
+			_logger,
+			tenantContext: TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -227,7 +240,7 @@ public sealed class PostgresEventStoreShould
 		var connectionString = "Host=localhost;Port=5432;Database=events;Username=user;Password=pass";
 
 		// Act
-		var store = new PostgresEventStore(connectionString, _logger);
+		var store = new PostgresEventStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -240,7 +253,7 @@ public sealed class PostgresEventStoreShould
 		var connectionString = "Host=localhost;Database=events;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=100";
 
 		// Act
-		var store = new PostgresEventStore(connectionString, _logger);
+		var store = new PostgresEventStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -253,7 +266,7 @@ public sealed class PostgresEventStoreShould
 		var connectionString = "Host=localhost;Database=events;SSL Mode=Prefer;Trust Server Certificate=true";
 
 		// Act
-		var store = new PostgresEventStore(connectionString, _logger);
+		var store = new PostgresEventStore(connectionString, _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -267,7 +280,7 @@ public sealed class PostgresEventStoreShould
 	public void Store_ImplementsIEventStore()
 	{
 		// Arrange
-		var store = new PostgresEventStore("Host=localhost;Database=TestDb", _logger);
+		var store = new PostgresEventStore("Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault);
 
 		// Assert
 		_ = store.ShouldBeAssignableTo<IEventStore>();
@@ -287,7 +300,7 @@ public sealed class PostgresEventStoreShould
 		try
 		{
 			// Act
-			var store = new PostgresEventStore(dataSource, _logger);
+			var store = new PostgresEventStore(dataSource, _logger, TestTenantContext.SingleTenantDefault);
 
 			// Assert
 			_ = store.ShouldNotBeNull();

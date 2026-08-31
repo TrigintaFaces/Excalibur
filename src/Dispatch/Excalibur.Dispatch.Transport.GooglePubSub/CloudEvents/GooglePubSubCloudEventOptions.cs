@@ -19,71 +19,6 @@ public sealed class GooglePubSubCloudEventOptions
 	public bool UseOrderingKeys { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets the maximum message size for Pub/Sub CloudEvents.
-	/// </summary>
-	/// <remarks> Pub/Sub supports up to 10MB messages. This option allows setting a smaller limit if needed. </remarks>
-	/// <value>
-	/// The maximum message size for Pub/Sub CloudEvents.
-	/// </value>
-	public long MaxMessageSizeBytes { get; set; } = 10 * 1024 * 1024; // 10MB
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable message deduplication based on CloudEvent ID.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable message deduplication based on CloudEvent ID.
-	/// </value>
-	public bool EnableDeduplication { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the project ID for Pub/Sub operations.
-	/// </summary>
-	/// <value>
-	/// The project ID for Pub/Sub operations.
-	/// </value>
-	public string? ProjectId { get; set; }
-
-	/// <summary>
-	/// Gets or sets the default topic name for publishing CloudEvents.
-	/// </summary>
-	/// <value>
-	/// The default topic name for publishing CloudEvents.
-	/// </value>
-	public string? DefaultTopic { get; set; }
-
-	/// <summary>
-	/// Gets or sets the default subscription name for consuming CloudEvents.
-	/// </summary>
-	/// <value>
-	/// The default subscription name for consuming CloudEvents.
-	/// </value>
-	public string? DefaultSubscription { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use exactly-once delivery (requires enabling on the subscription).
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to use exactly-once delivery (requires enabling on the subscription).
-	/// </value>
-	public bool UseExactlyOnceDelivery { get; set; }
-
-	/// <summary>
-	/// Gets or sets the acknowledgment deadline for messages.
-	/// </summary>
-	/// <value>
-	/// The acknowledgment deadline for messages.
-	/// </value>
-	public TimeSpan AckDeadline { get; set; } = TimeSpan.FromMinutes(10);
-
-	/// <summary>
-	/// Gets or sets the retry policy for message publishing.
-	/// </summary>
-	/// <value>
-	/// The retry policy for message publishing.
-	/// </value>
-	public GooglePubSubRetryPolicy RetryPolicy { get; set; } = new();
-
-	/// <summary>
 	/// Gets or sets the compression and monitoring configuration for CloudEvents.
 	/// </summary>
 	/// <value>
@@ -113,19 +48,4 @@ public sealed class CloudEventTransportOptions
 	/// </value>
 	public int CompressionThreshold { get; set; } = 1024 * 1024; // 1MB
 
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable Cloud Monitoring integration.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable Cloud Monitoring integration.
-	/// </value>
-	public bool EnableCloudMonitoring { get; set; }
-
-	/// <summary>
-	/// Gets or sets the Cloud Monitoring metric prefix.
-	/// </summary>
-	/// <value>
-	/// The Cloud Monitoring metric prefix.
-	/// </value>
-	public string CloudMonitoringPrefix { get; set; } = "dispatch.cloudevents";
 }

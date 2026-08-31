@@ -45,7 +45,7 @@ public sealed class ElasticsearchInboxStoreReleaseRaceShould : IClassFixture<Ela
 			IndexName = _fixture.IndexName,
 			RefreshPolicy = "wait_for",
 		});
-		return new ElasticsearchInboxStore(_fixture.Client, options, NullLogger<ElasticsearchInboxStore>.Instance);
+		return new ElasticsearchInboxStore(_fixture.Client, options, NullLogger<ElasticsearchInboxStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	[Fact]

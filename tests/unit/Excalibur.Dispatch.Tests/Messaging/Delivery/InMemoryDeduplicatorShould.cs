@@ -313,7 +313,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		var claimed = await dedup.TryClaimAsync("claim-overflow", expiry, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		claimed.ShouldBeFalse();
+		claimed.ShouldBeNull();
 	}
 
 	[Fact]

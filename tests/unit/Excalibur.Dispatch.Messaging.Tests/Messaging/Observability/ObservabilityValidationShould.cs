@@ -49,7 +49,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		// Arrange
 		var logger = _loggerFactory.CreateLogger<InMemoryInboxStore>();
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
-		var store = new InMemoryInboxStore(options, logger);
+		var store = new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var messageId = "observability-test-inbox";
@@ -69,7 +69,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		await store.MarkProcessedAsync(messageId, "TestHandler", CancellationToken.None).ConfigureAwait(false);
 
 		// Act - Get statistics
-		var stats = await store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Verify structured logging
 		var logEntries = _loggerProvider.GetLogEntries();
@@ -228,7 +228,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		var messageId = "correlation-test";
 		var logger = _loggerFactory.CreateLogger<InMemoryInboxStore>();
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
-		var store = new InMemoryInboxStore(options, logger);
+		var store = new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var metadata = new Dictionary<string, object>
@@ -406,7 +406,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		// Arrange
 		var logger = _loggerFactory.CreateLogger<InMemoryInboxStore>();
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
-		var store = new InMemoryInboxStore(options, logger);
+		var store = new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var messageId = "structured-logging-test";

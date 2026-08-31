@@ -362,7 +362,7 @@ public sealed class RabbitMqDeadLetterQueueManager : IDeadLetterQueueManager
 		};
 	}
 
-	public async Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public async Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		var result = await _channel.QueuePurgeAsync(_dlqName, cancellationToken).ConfigureAwait(false);
 		return (int)result;

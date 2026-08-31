@@ -62,7 +62,7 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Conformance scenario method naming convention (matches sibling conformance kits).")]
-public abstract class SchedulerConformanceTestKit
+public abstract class SchedulerConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Gets the job name used by the conformance scenarios.

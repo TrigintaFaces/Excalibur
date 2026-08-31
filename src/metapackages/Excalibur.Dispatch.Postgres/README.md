@@ -5,10 +5,11 @@ Experience metapackage that bundles Excalibur.Dispatch with PostgreSQL event sou
 ## Quick Start
 
 ```csharp
-services.AddDispatchPostgres(options =>
-{
-    options.ConnectionString = "Host=...";
-});
+// The metapackage bundles the dependencies; registration uses each package's own entry point.
+services.AddDispatch();
+services.AddExcalibur(excalibur => excalibur
+    .AddEventSourcing(es => es.UsePostgres(pg => pg.ConnectionString("Host=...")))
+    .AddOutbox(outbox => outbox.UsePostgres(pg => pg.ConnectionString("Host=..."))));
 ```
 
 This registers: Dispatch core, PostgreSQL event store, snapshot store, outbox, and web hosting.

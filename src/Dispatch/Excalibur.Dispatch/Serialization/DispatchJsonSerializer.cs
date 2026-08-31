@@ -267,11 +267,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	[UnconditionalSuppressMessage(
 		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Runtime type deserialization uses MessageTypeRegistry for type resolution in AOT scenarios. Types are registered at startup.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
 		Justification = "The deserializer uses DispatchJsonContext with pre-registered types for AOT compatibility.")]
 	public object? DeserializeFromBytes(ReadOnlySpan<byte> utf8Json, Type type)
@@ -282,7 +277,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 
 		if (utf8Json.IsEmpty)
 		{
-			// ihv7fe: empty input is a poison signal, not a silent null — align with the
+			// empty input is a poison signal, not a silent null — align with the
 			// ISerializer family (PayloadSerializer/SystemTextJsonSerializer) one null/empty policy.
 			throw SerializationException.EmptyPayload();
 		}
@@ -291,14 +286,13 @@ public sealed class DispatchJsonSerializer : IDisposable
 		if (type == typeof(string) && utf8Json.Length > 0 && utf8Json[0] != '"')
 		{
 			var typeNameString = Utf8StringCache.Shared.GetString(utf8Json);
-			var resolvedType = MessageTypeRegistry.GetType(typeNameString);
-			if (resolvedType != null)
+			if (MessageTypeRegistry.TryGetType(typeNameString, out var resolvedType))
 			{
 				type = resolvedType;
 			}
 		}
 
-		// ihv7fe: a null deserialization result throws NullResult (matches the family), not silent null.
+		// a null deserialization result throws NullResult (matches the family), not silent null.
 		return JsonSerializer.Deserialize(utf8Json, type, _options)
 			?? throw SerializationException.NullResultForType(type);
 	}
@@ -328,7 +322,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 			Telemetry.AddBytesRead(utf8Json.Position);
 		}
 
-		// ihv7fe: a null deserialization result throws NullResult (matches the family), not silent null.
+		// a null deserialization result throws NullResult (matches the family), not silent null.
 		return result ?? throw SerializationException.NullResult<T>();
 	}
 
@@ -337,11 +331,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Async runtime type deserialization uses registered types from MessageTypeRegistry or DispatchJsonContext for AOT scenarios.")]
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
@@ -359,7 +348,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 			Telemetry.AddBytesRead(utf8Json.Position);
 		}
 
-		// ihv7fe: a null deserialization result throws NullResult (matches the family), not silent null.
+		// a null deserialization result throws NullResult (matches the family), not silent null.
 		return result ?? throw SerializationException.NullResultForType(type);
 	}
 
@@ -497,10 +486,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:RequiresUnreferencedCode",
-		Justification = "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:RequiresDynamicCode",
 		Justification = "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.")]
 	public T? DeserializeFromUtf8<T>(ReadOnlySpan<byte> utf8Json) => (T?)DeserializeFromBytes(utf8Json, typeof(T));
 

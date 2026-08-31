@@ -21,7 +21,11 @@ namespace Excalibur.Data.InMemory.Snapshots;
 /// <remarks>
 /// <para>
 /// This implementation provides thread-safe snapshot storage using ConcurrentDictionary.
-/// Snapshots are keyed by a composite of (AggregateId, AggregateType).
+/// Snapshots are keyed by a composite of <c>t:{tenant}:{AggregateType}:{AggregateId}</c>. The tenant
+/// segment is always present: a multi-tenant host composes the resolved tenant identifier, and a host with
+/// no resolved tenant composes the framework's reserved untenanted marker, so the key shape is identical in
+/// every deployment and one tenant's snapshot can never be read or overwritten through another tenant's
+/// scope.
 /// </para>
 /// <para>
 /// This store is intended for testing scenarios only. Data is lost on application restart.
@@ -36,7 +40,15 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 	private readonly ConcurrentDictionary<string, ISnapshot> _snapshots = new(StringComparer.Ordinal);
 	private readonly InMemorySnapshotOptions _options;
 	private readonly ILogger<InMemorySnapshotStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -45,20 +57,21 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
-	/// tenant becomes part of every snapshot key, so two tenants holding the same aggregate identifier
-	/// occupy separate entries instead of overwriting one another.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public InMemorySnapshotStore(
 		IOptions<InMemorySnapshotOptions> options,
 		ILogger<InMemorySnapshotStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
 		_logger = logger;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -188,7 +201,9 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 		// In memory store only keeps latest, so remove if version is below threshold
 		if (_snapshots.TryGetValue(key, out var snapshot) && snapshot.Version < olderThanVersion)
 		{
-			if (_snapshots.TryRemove(key, out _))
+			// Compare-and-remove against the instance the version was read from. A value-blind TryRemove
+			// would delete a newer snapshot saved between the read and the removal.
+			if (_snapshots.TryRemove(new KeyValuePair<string, ISnapshot>(key, snapshot)))
 			{
 				LogSnapshotsDeletedOlderThan(aggregateId, aggregateType, olderThanVersion);
 			}
@@ -227,21 +242,20 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 	}
 
 	/// <summary>
-	/// Builds the key identifying a single aggregate's snapshot, including the tenant when the host is
-	/// multi-tenant. Every read, save, and delete path routes through this one method, so the tenant
-	/// cannot be applied to some operations and forgotten on others.
+	/// Builds the key identifying a single aggregate's snapshot, including the tenant. Every read, save, and
+	/// delete path routes through this one method, so the tenant cannot be applied to some operations and
+	/// forgotten on others.
 	/// </summary>
 	/// <remarks>
-	/// The tenant segment is added only when tenancy is active, so a single-tenant host's keys keep their
-	/// existing shape. This mirrors the Redis store, and the tenant-first ordering matches the convention
-	/// the grant stores already use across the document providers.
+	/// The tenant segment is unconditional. <see cref="TenantScope"/> is total, so a host with no resolved
+	/// tenant composes the reserved untenanted sentinel rather than omitting the segment — there is no key
+	/// shape in which the tenant is absent. This mirrors the Redis store, and the tenant-first ordering
+	/// matches the convention the grant stores already use across the document providers.
 	/// </remarks>
 	private string GetKey(string aggregateId, string aggregateType)
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
-		return scope.IsScoped
-			? $"t:{scope.TenantId}:{aggregateType}:{aggregateId}"
-			: $"{aggregateType}:{aggregateId}";
+		var scope = CurrentTenantScope;
+		return $"t:{scope.TenantId}:{aggregateType}:{aggregateId}";
 	}
 
 	/// <summary>

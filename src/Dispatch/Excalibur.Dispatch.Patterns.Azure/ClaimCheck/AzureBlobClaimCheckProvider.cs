@@ -133,13 +133,19 @@ public partial class AzureBlobClaimCheckProvider : IClaimCheckProvider
 			uploadOptions,
 			cancellationToken).ConfigureAwait(false);
 
+		var storedAt = DateTimeOffset.UtcNow;
+
 		var reference = new ClaimCheckReference
 		{
 			Id = id,
+			// The reference exists to be self-describing: a caller persists it and resolves the payload
+			// later. Leaving BlobName empty forces every later lookup to recompute the name, which is why
+			// the name was dropped here and why nothing noticed.
+			BlobName = blobName,
 			Location = blobClient.Uri.ToString(),
 			Size = payloadToStore.Length,
-			StoredAt = DateTimeOffset.UtcNow,
-			ExpiresAt = DateTimeOffset.UtcNow.Add(_options.RetentionPeriod),
+			StoredAt = storedAt,
+			ExpiresAt = _options.ResolveExpiresAt(storedAt),
 			Metadata = metadata,
 		};
 
@@ -157,8 +163,23 @@ public partial class AzureBlobClaimCheckProvider : IClaimCheckProvider
 
 		await EnsureContainerExistsAsync(cancellationToken).ConfigureAwait(false);
 
-		var blobName = GetBlobName(reference.Id);
+		// Resolve from the name the reference RECORDS, not from one recomputed now. GetBlobName derives a
+		// date-partitioned path from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
+		// under the next day's prefix a second later and reported not-found -- while still sitting in the
+		// container. Claim check exists for payloads that outlive the message, so crossing midnight is
+		// ordinary rather than exotic. The recorded name is only recomputed for references written before
+		// this field was populated.
+		var blobName = string.IsNullOrEmpty(reference.BlobName) ? GetBlobName(reference.Id) : reference.BlobName;
 		var blobClient = _containerClient.GetBlobClient(blobName);
+
+		// An expired payload is a form of missing payload, so it surfaces as the same exception a deleted
+		// or never-stored one does. Blob storage has no per-blob time-to-live -- its lifecycle management
+		// policies are account-wide and run on a daily schedule rather than at a per-payload instant -- so
+		// expiry is enforced here, before the blob is downloaded, rather than delegated to the store.
+		if (reference.IsExpired(DateTimeOffset.UtcNow))
+		{
+			throw new KeyNotFoundException($"Claim check {reference.Id} has expired.");
+		}
 
 		try
 		{
@@ -189,7 +210,11 @@ public partial class AzureBlobClaimCheckProvider : IClaimCheckProvider
 		catch (RequestFailedException ex) when (ex.Status == 404)
 		{
 			LogClaimCheckNotFound(reference.Id);
-			throw new InvalidOperationException($"Claim check {reference.Id} not found", ex);
+
+			// KeyNotFoundException, matching the in-memory, S3 and GCS providers and the error handling our
+			// own documentation hands consumers. This provider was the sole outlier, so a consumer who wrote
+			// the documented catch got an unhandled exception on exactly the recovery path they wrote it for.
+			throw new KeyNotFoundException($"Claim check {reference.Id} not found", ex);
 		}
 	}
 
@@ -202,7 +227,13 @@ public partial class AzureBlobClaimCheckProvider : IClaimCheckProvider
 
 		await EnsureContainerExistsAsync(cancellationToken).ConfigureAwait(false);
 
-		var blobName = GetBlobName(reference.Id);
+		// Resolve from the name the reference RECORDS, not from one recomputed now. GetBlobName derives a
+		// date-partitioned path from the CURRENT UTC date, so a payload stored at 23:59:59 was looked for
+		// under the next day's prefix a second later and reported not-found -- while still sitting in the
+		// container. Claim check exists for payloads that outlive the message, so crossing midnight is
+		// ordinary rather than exotic. The recorded name is only recomputed for references written before
+		// this field was populated.
+		var blobName = string.IsNullOrEmpty(reference.BlobName) ? GetBlobName(reference.Id) : reference.BlobName;
 		var blobClient = _containerClient.GetBlobClient(blobName);
 
 		try

@@ -70,43 +70,4 @@ public sealed class GooglePubSubModelsShould
 		schema.Metadata.ShouldBeNull();
 	}
 
-	[Fact]
-	public void CreateSchemaMetadata()
-	{
-		// Arrange
-		var now = DateTimeOffset.UtcNow;
-
-		// Act
-		var metadata = new SchemaMetadata
-		{
-			TypeName = "OrderCreated",
-			Schema = "{\"type\":\"record\"}",
-			Version = 3,
-			Format = SerializationFormat.Json,
-			RegisteredAt = now,
-			Metadata = new Dictionary<string, string> { ["source"] = "api" },
-		};
-
-		// Assert
-		metadata.TypeName.ShouldBe("OrderCreated");
-		metadata.Schema.ShouldBe("{\"type\":\"record\"}");
-		metadata.Version.ShouldBe(3);
-		metadata.Format.ShouldBe(SerializationFormat.Json);
-		metadata.RegisteredAt.ShouldBe(now);
-		metadata.Metadata["source"].ShouldBe("api");
-	}
-
-	[Fact]
-	public void HaveCorrectSchemaMetadataDefaults()
-	{
-		// Arrange & Act
-		var metadata = new SchemaMetadata();
-
-		// Assert
-		metadata.TypeName.ShouldBe(string.Empty);
-		metadata.Schema.ShouldBe(string.Empty);
-		metadata.Version.ShouldBe(0);
-		metadata.Metadata.ShouldBeEmpty();
-	}
-
 }

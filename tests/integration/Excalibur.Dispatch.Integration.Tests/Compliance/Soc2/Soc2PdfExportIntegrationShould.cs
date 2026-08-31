@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 using QuestPDF.Infrastructure;
 
+using Excalibur.Compliance.Pdf;
 using Excalibur.Compliance.Soc2;
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Soc2;
 
@@ -31,7 +32,7 @@ public sealed class Soc2PdfExportIntegrationShould
 	public Soc2PdfExportIntegrationShould()
 	{
 		_logger = A.Fake<ILogger<Soc2ReportExporter>>();
-		_sut = new Soc2ReportExporter(_logger, TimeProvider.System);
+		_sut = new Soc2ReportExporter(_logger, TimeProvider.System, new QuestPdfSoc2PdfRenderer(TimeProvider.System));
 	}
 
 	#region Full PDF Generation Tests

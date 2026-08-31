@@ -36,7 +36,17 @@ public interface IInMemoryInboxBuilder
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// Default is 10000. When the limit is reached, older processed entries are evicted first.
+	/// Default is 10000. When the limit is reached the store reclaims one entry whose removal cannot cause a
+	/// duplicate, in this order: first the oldest entry that is neither a deduplication marker nor an
+	/// in-flight claim; failing that, the oldest processed entry already past
+	/// <see cref="RetentionPeriod(TimeSpan)"/>.
+	/// </para>
+	/// <para>
+	/// If every entry is a live deduplication marker or in-flight claim still inside the retention window,
+	/// the store <b>throws</b> <see cref="InvalidOperationException"/> rather than silently dropping one:
+	/// evicting a live marker would let a redelivery be processed a second time, which is the outcome the
+	/// inbox exists to prevent. Raise <see cref="MaxEntries(int)"/> or shorten
+	/// <see cref="RetentionPeriod(TimeSpan)"/> if a host reaches that state.
 	/// </para>
 	/// </remarks>
 	IInMemoryInboxBuilder MaxEntries(int count);

@@ -35,7 +35,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	private readonly bool _enableAutoUpcast;
 	private readonly ConcurrentDictionary<string, ProjectionRebuildStatus> _statuses = new();
 
-	// Per-projection in-progress claim set (th0wtn): a rebuild atomically claims its projection name here so a
+	// Per-projection in-progress claim set: a rebuild atomically claims its projection name here so a
 	// second concurrent StartRebuild for the same projection is rejected rather than interleaving replays and
 	// racing the final UpsertAsync. Released in a finally so a later rebuild (after this one finishes) proceeds.
 	private readonly ConcurrentDictionary<string, byte> _rebuildsInProgress = new(StringComparer.Ordinal);
@@ -89,7 +89,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	{
 		var projectionName = typeof(TProjection).Name;
 
-		// Reject an overlapping rebuild of the same projection (th0wtn): the atomic TryAdd claim ensures only
+		// Reject an overlapping rebuild of the same projection: the atomic TryAdd claim ensures only
 		// one rebuild per projection runs at a time, so two starts cannot interleave reindex/upsert and leave
 		// the read model partially overwritten. A second concurrent start fails fast instead of racing.
 		if (!_rebuildsInProgress.TryAdd(projectionName, 0))
@@ -167,6 +167,22 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				{
 					cancellationToken.ThrowIfCancellationRequested();
 
+					// GDPR erasure tombstones an aggregate's events in place, overwriting EventType with the
+					// closed, framework-owned ErasedEventMarker.EventType discriminator ("$erased" -- never a
+					// user event type, so ResolveType/DeserializeEvent below cannot resolve it). Recognize the
+					// tombstone STRUCTURALLY, before any deserialization attempt, and skip it -- mirroring
+					// EventSourcedRepository's rehydration path. This is never a "deserialize failed => assume
+					// erased" heuristic (which would mask genuine corruption as erasure); every other
+					// deserialization failure still halts the rebuild via the poison-event path below.
+					// Without this, a rebuild of any projection whose stream contains an erased subject's
+					// aggregate halts permanently at the tombstone -- erasure would make that projection
+					// unrebuildable rather than merely omit the subject.
+					if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+					{
+						totalProcessed++;
+						continue;
+					}
+
 					try
 					{
 						var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
@@ -190,7 +206,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 						// Poison event (deserialize failure, null deserialization, or apply failure): HALT the
 						// rebuild at the failed event rather than skip-and-continue (which would advance past it
 						// and persist a read model silently missing the event). Rethrow so the rebuild is marked
-						// Failed and the partial state is NOT persisted as Completed (ADR-336 Amendment 3a / FR-8).
+						// Failed and the partial state is NOT persisted as Completed.
 						LogEventProcessingError(projectionName, storedEvent.EventId, ex);
 						throw;
 					}

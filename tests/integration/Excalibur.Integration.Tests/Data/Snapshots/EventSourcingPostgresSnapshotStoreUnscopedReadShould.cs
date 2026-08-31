@@ -35,7 +35,7 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 /// in the same state cannot detect a store that ignores the scope entirely, which is how a live
 /// cross-tenant read survived a green suite in a sibling provider. Unscoped is reachable only by
 /// constructing the store WITHOUT a context: from a context-wired store an absent tenant throws
-/// (fail-closed) rather than becoming <c>TenantScope.None</c>. So the two stores here are not a
+/// (fail-closed) rather than becoming <c>TenantScope.Untenanted</c>. So the two stores here are not a
 /// contrivance — one database serving a tenant-scoped host and an unscoped host is a supported
 /// deployment, and it is the exact topology in which a missing predicate does damage.
 /// </para>
@@ -651,12 +651,19 @@ public sealed class EventSourcingPostgresSnapshotStoreUnscopedReadShould
 	private global::Excalibur.EventSourcing.Postgres.PostgresSnapshotStore CreateStore(
 		NpgsqlDataSource dataSource,
 		bool tenantScoped) =>
+		// `tenantScoped: false` is the UNSCOPED store under test and must keep binding the reserved
+		// untenanted term. An absent context never meant "emit no term": it became TenantScope.Untenanted, which
+		// every keyed statement routes through KeyedTenantPartition into the untenanted partition.
+		// Resolving the sentinel reproduces that term exactly; the default tenant identity would bind an
+		// ordinary tenant and stop exercising the branch these arms exist to guard.
 		new(
 			dataSource,
 			NullLogger<global::Excalibur.EventSourcing.Postgres.PostgresSnapshotStore>.Instance,
-			_fixture.SchemaName,
-			TableName,
-			tenantScoped ? new AmbientHolderTenantContext() : null);
+			tenantContext: tenantScoped
+				? new AmbientHolderTenantContext()
+				: UntenantedTestTenantContext.Instance,
+			schema: _fixture.SchemaName,
+			table: TableName);
 
 	private static ISnapshot CreateSnapshot(string aggregateId, long version, string data, string? tenantId) =>
 		new PostgresUnscopedReadSnapshot(

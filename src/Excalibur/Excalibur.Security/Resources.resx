@@ -139,15 +139,6 @@
   <data name="InputValidationException_ValidationFailed" xml:space="preserve">
     <value>Validation failed</value>
   </data>
-  <data name="LazyReEncryptionMiddleware_ReEncryptionFailed" xml:space="preserve">
-    <value>Lazy re-encryption failed</value>
-  </data>
-  <data name="LazyReEncryptionMiddleware_ReEncryptionFailedFormat" xml:space="preserve">
-    <value>Lazy re-encryption failed: {0}</value>
-  </data>
-  <data name="LazyReEncryptionMiddleware_UnknownError" xml:space="preserve">
-    <value>Unknown error</value>
-  </data>
   <data name="MessageEncryptionMiddleware_EncryptedPayloadNotFound" xml:space="preserve">
     <value>Encrypted payload not found in context</value>
   </data>

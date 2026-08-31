@@ -71,49 +71,6 @@ internal sealed partial class SqlServerDiagnosticsProvider
 		return result;
 	}
 
-	internal async Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			const string PoolQuery = """
-			                         SELECT 'SqlServer' as ProviderType,
-			                         	@@SERVERNAME as ServerName,
-			                         	DB_NAME() as DatabaseName,
-			                         	(SELECT COUNT(*) FROM sys.dm_exec_connections) as TotalConnections,
-			                         	(SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE is_user_process = 1) as UserConnections,
-			                         	(SELECT COUNT(*) FROM sys.dm_exec_requests) as ActiveRequests,
-			                         	(SELECT COUNT(*) FROM sys.dm_exec_requests WHERE blocking_session_id > 0) as BlockedRequests,
-			                         	(SELECT COUNT(*) FROM sys.dm_tran_active_transactions) as ActiveTransactions
-			                         """;
-
-			using var connection = await _connectionManager.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-			var poolStats = await connection.QuerySingleAsync<ConnectionPoolStatsDto>(PoolQuery).ConfigureAwait(false);
-
-			var result = new Dictionary<string, object>(StringComparer.Ordinal)
-			{
-				["ProviderType"] = poolStats.ProviderType ?? "N/A",
-				["ServerName"] = poolStats.ServerName ?? "N/A",
-				["DatabaseName"] = poolStats.DatabaseName ?? "N/A",
-				["TotalConnections"] = poolStats.TotalConnections,
-				["UserConnections"] = poolStats.UserConnections,
-				["ActiveRequests"] = poolStats.ActiveRequests,
-				["BlockedRequests"] = poolStats.BlockedRequests,
-				["ActiveTransactions"] = poolStats.ActiveTransactions,
-			};
-
-			result["ConfiguredMaxPoolSize"] = _options.Pooling.MaxPoolSize;
-			result["ConfiguredMinPoolSize"] = _options.Pooling.MinPoolSize;
-			result["ConnectionPoolingEnabled"] = _options.Pooling.EnableConnectionPooling;
-
-			return result;
-		}
-		catch (Exception ex)
-		{
-			LogConnectionPoolStatsError(_logger, ex);
-			return null;
-		}
-	}
-
 	internal async Task<IDictionary<string, object>> GetSchemaInfoAsync(
 		string tableName,
 		string schemaName,

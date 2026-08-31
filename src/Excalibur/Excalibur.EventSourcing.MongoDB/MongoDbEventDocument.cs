@@ -32,8 +32,13 @@ internal sealed class MongoDbEventDocument
 	public string EventId { get; set; } = default!;
 
 	/// <summary>
-	/// Gets or sets the aggregate stream identifier.
+	/// Gets or sets the aggregate stream identifier: the owning tenant followed by the aggregate identifier.
 	/// </summary>
+	/// <remarks>
+	/// The tenant is composed into this value rather than filtered on separately, because the unique index
+	/// is <c>(streamId, aggregateType, version)</c> — so the tenant being here is what gives each tenant its
+	/// own version sequence for the same aggregate identifier.
+	/// </remarks>
 	[BsonElement("streamId")]
 	public string StreamId { get; set; } = default!;
 
@@ -71,6 +76,7 @@ internal sealed class MongoDbEventDocument
 	/// Gets or sets when the event occurred.
 	/// </summary>
 	[BsonElement("occurredAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTimeOffset OccurredAt { get; set; }
 
 	/// <summary>
@@ -82,11 +88,17 @@ internal sealed class MongoDbEventDocument
 	/// <summary>
 	/// Converts the document to a <see cref="StoredEvent"/>.
 	/// </summary>
+	/// <param name="aggregateId">
+	/// The caller-supplied aggregate identifier the read was addressed by. Supplied rather than taken from
+	/// <see cref="StreamId"/> because that field is the STORAGE key — it carries the owning tenant as a
+	/// leading segment so the unique index versions each tenant's stream independently — and returning it
+	/// would hand the caller back a different identifier than the one it asked for.
+	/// </param>
 	/// <returns>The stored event representation.</returns>
-	public StoredEvent ToStoredEvent() =>
+	public StoredEvent ToStoredEvent(string aggregateId) =>
 		new(
 			EventId,
-			StreamId,
+			aggregateId,
 			AggregateType,
 			EventType,
 			Payload,

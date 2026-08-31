@@ -58,6 +58,7 @@ public static class KubernetesLeaderElectionBuilderExtensions
 		configure(k8sBuilder);
 
 		RegisterOptionsAndServices(builder, k8sBuilder);
+		KubernetesElectionRegistration.RegisterSingletonElectionAndGate(builder.Services, k8sBuilder.LeaseNameValue);
 
 		return builder;
 	}

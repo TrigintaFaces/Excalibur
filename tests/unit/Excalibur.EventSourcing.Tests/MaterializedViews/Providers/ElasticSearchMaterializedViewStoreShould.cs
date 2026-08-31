@@ -7,6 +7,8 @@ using Excalibur.EventSourcing;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.MaterializedViews.Providers;
 
 /// <summary>
@@ -72,7 +74,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new ElasticSearchMaterializedViewStore(options: null!, logger));
+			new ElasticSearchMaterializedViewStore(options: null!, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -86,7 +88,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new ElasticSearchMaterializedViewStore(options, logger: null!));
+			new ElasticSearchMaterializedViewStore(options, logger: null!, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -101,7 +103,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() =>
-			new ElasticSearchMaterializedViewStore(options, logger));
+			new ElasticSearchMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -116,7 +118,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() =>
-			new ElasticSearchMaterializedViewStore(options, logger));
+			new ElasticSearchMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
@@ -130,7 +132,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 		var logger = NullLogger<ElasticSearchMaterializedViewStore>.Instance;
 
 		// Act
-		var store = new ElasticSearchMaterializedViewStore(options, logger);
+		var store = new ElasticSearchMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -151,7 +153,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 		};
 
 		// Act
-		var store = new ElasticSearchMaterializedViewStore(options, logger, jsonOptions);
+		var store = new ElasticSearchMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant, jsonOptions);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -573,7 +575,7 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 		});
 		var logger = NullLogger<ElasticSearchMaterializedViewStore>.Instance;
 
-		return new ElasticSearchMaterializedViewStore(options, logger);
+		return new ElasticSearchMaterializedViewStore(options, logger, TenantViewFixture.SingleTenant);
 	}
 
 	#endregion
@@ -587,4 +589,19 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 	}
 
 	#endregion
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

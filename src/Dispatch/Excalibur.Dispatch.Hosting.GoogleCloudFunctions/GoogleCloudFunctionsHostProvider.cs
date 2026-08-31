@@ -10,9 +10,15 @@ namespace Excalibur.Dispatch.Hosting.GoogleCloudFunctions;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="GoogleCloudFunctionsHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleCloudFunctionsHostProvider> logger) : IServerlessHostProvider, IServerlessHostConfigurator
+/// <param name="options"> The serverless host options, when the host supplies them. </param>
+internal sealed partial class GoogleCloudFunctionsHostProvider(
+	ILogger<GoogleCloudFunctionsHostProvider> logger,
+	Microsoft.Extensions.Options.IOptions<ServerlessHostOptions>? options = null) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger<GoogleCloudFunctionsHostProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+	// Null when the host was composed without options; the platform limit then stands alone.
+	private readonly TimeSpan? _configuredTimeout = options?.Value.ExecutionTimeout;
 
 	/// <inheritdoc />
 	public ServerlessPlatform Platform => ServerlessPlatform.GoogleCloudFunctions;
@@ -48,7 +54,7 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 		// (Cloud Trace + Cloud Monitoring), enabled by the operator at the function/platform level —
 		// the provider does not wire in-process exporters for these flags. Log this honestly at
 		// Information (not a misleading "not implemented" warning, and not a silent no-op);
-		// deps-bearing in-process exporters gated by the shared telemetry flags are tracked in bd-wh492p.
+		// deps-bearing in-process exporters gated by the shared telemetry flags are not wired here.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
 			LogTraceConfiguring();
@@ -123,7 +129,7 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 			// Zero, so an invocation already within (or past) the cleanup reserve cancels immediately
 			// instead of running unbounded. Cancellation is ALWAYS scheduled — the fail-open skip is
 			// structurally inexpressible.
-			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime));
+			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime, _configuredTimeout));
 
 			using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts.Token);
@@ -164,7 +170,7 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 		// Create a context from environment variables for Google Cloud Functions
 		new GoogleCloudFunctionsServerlessContext(new { }, _logger);
 
-	// Source-generated logging methods (Sprint 368 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(GoogleCloudFunctionsEventId.ConfiguringServices, LogLevel.Debug, "Configuring services for Google Cloud Functions")]
 	private partial void LogServicesConfiguring();
 

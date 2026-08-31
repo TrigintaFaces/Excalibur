@@ -59,4 +59,14 @@ public sealed class MartenOutboxStoreOptions
 	/// </remarks>
 	/// <value>The table name. Defaults to <c>excalibur_outbox_claims</c>.</value>
 	public string ClaimsTableName { get; set; } = "excalibur_outbox_claims";
+
+	/// <summary>
+	/// Gets or sets the failure-backoff floor F, in seconds: after <see cref="MartenOutboxStore.MarkFailedAsync"/>
+	/// records a plain failure, the message becomes re-claimable only once F has elapsed from the failure
+	/// instant. This bounds the retry cadence of the plain path so it cannot hot-loop the drain against a
+	/// persistently failing destination, while the message stays eventually re-claimable rather than being
+	/// dropped. F must exceed the drain polling interval; the validator enforces that at startup.
+	/// </summary>
+	/// <value>The failure-backoff floor in seconds. Defaults to 30 (uniform across the outbox family).</value>
+	public int FailureBackoffFloorSeconds { get; set; } = 30;
 }

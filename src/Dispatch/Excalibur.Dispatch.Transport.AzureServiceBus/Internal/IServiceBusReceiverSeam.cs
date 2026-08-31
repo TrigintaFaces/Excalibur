@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// minor version. Not a consumer-facing abstraction; do not make this public.
 /// </summary>
 /// <remarks>
-/// Follows the ADR-142 §D7 canonical template. Data-shaped SDK types
+/// Data-shaped SDK types
 /// (<see cref="ServiceBusReceivedMessage"/>) cross the seam — they are
 /// property bags without non-virtual overloads and are safe to construct
 /// via <see cref="ServiceBusModelFactory"/>.

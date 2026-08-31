@@ -8,6 +8,7 @@ using Excalibur.EventSourcing.Sqlite;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 #pragma warning disable CA2100 // SQL strings are safe — table name is a test-controlled unique constant, never user input
 
@@ -84,7 +85,8 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 				Metadata BLOB,
 				Version INTEGER NOT NULL,
 				Timestamp TEXT NOT NULL,
-				UNIQUE(AggregateId, AggregateType, Version)
+				TenantId TEXT NOT NULL,
+				UNIQUE(AggregateId, AggregateType, Version, TenantId)
 			);
 			""";
 		_ = create.ExecuteNonQuery();
@@ -95,7 +97,7 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 	{
 		// w5u4l1: an empty append has no first-event position, so it must report the canonical null
 		// "no position" sentinel (shared with InMemory/SqlServer/Postgres) — never a real position like 0.
-		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, TestTenantContext.SingleTenantDefault, Options.Create(new TenantContextOptions()), _tableName);
 
 		var result = await store.AppendAsync(
 			Guid.NewGuid().ToString(), AggregateType, [], expectedVersion: -1, CancellationToken.None).ConfigureAwait(false);
@@ -108,7 +110,7 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 	public async Task ReturnCommittedMaxVersion_ForSeededAggregate()
 	{
 		// Arrange — seed versions 0, 1, 2 via the store (creates the Events table).
-		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, TestTenantContext.SingleTenantDefault, Options.Create(new TenantContextOptions()), _tableName);
 		var aggregateId = Guid.NewGuid().ToString();
 		await SeedAsync(store, aggregateId, count: 3).ConfigureAwait(false); // -> versions 0,1,2
 
@@ -124,7 +126,7 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 	public async Task ReturnMinusOne_ForAggregateWithNoEvents()
 	{
 		// Arrange — table exists (seeded for a different aggregate), but the queried aggregate has none.
-		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, TestTenantContext.SingleTenantDefault, Options.Create(new TenantContextOptions()), _tableName);
 		await SeedAsync(store, Guid.NewGuid().ToString(), count: 1).ConfigureAwait(false);
 
 		// Act
@@ -143,7 +145,7 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 		// version. The pre-fix same-connection re-read threw InvalidOperationException on the pending
 		// transaction; the fresh-connection method reads the committed value cleanly.
 		// Arrange — seed version 0 (committed).
-		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, TestTenantContext.SingleTenantDefault, Options.Create(new TenantContextOptions()), _tableName);
 		var aggregateId = Guid.NewGuid().ToString();
 		await SeedAsync(store, aggregateId, count: 1).ConfigureAwait(false); // -> version 0 committed
 
@@ -173,7 +175,9 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 		// method's catch to `catch (SqliteException)` would let that escape -> the method would throw -> RED.
 		var store = new SqliteEventStore(
 			"Data Source=:memory:;Cache=NotAValidCacheMode",
-			NullLogger<SqliteEventStore>.Instance);
+			NullLogger<SqliteEventStore>.Instance,
+			TestTenantContext.SingleTenantDefault,
+			Options.Create(new TenantContextOptions()));
 
 		// Act
 		var actual = await store.ReadActualVersionOnFreshConnectionAsync(
@@ -190,7 +194,7 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 		// real version, but none prove it end-to-end — that a stale-expectedVersion AppendAsync surfaces the
 		// REAL committed version on the conflict result (via NextExpectedVersion), never the -1 "no events"
 		// sentinel. NON-VACUITY: if the conflict path reported -1 (the S869 bug), ShouldBe(2L) → RED.
-		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, TestTenantContext.SingleTenantDefault, Options.Create(new TenantContextOptions()), _tableName);
 		var aggregateId = Guid.NewGuid().ToString();
 		await SeedAsync(store, aggregateId, count: 3).ConfigureAwait(false); // -> versions 0,1,2 (current = 2)
 
@@ -249,8 +253,8 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 		await using var insert = connection.CreateCommand();
 		insert.Transaction = transaction;
 		insert.CommandText = $"""
-			INSERT INTO [{tableName}] (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp)
-			VALUES ($eventId, $aggId, $aggType, $eventType, $data, NULL, $version, $ts);
+			INSERT INTO [{tableName}] (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, TenantId)
+			VALUES ($eventId, $aggId, $aggType, $eventType, $data, NULL, $version, $ts, $tenantId);
 			""";
 		_ = insert.Parameters.AddWithValue("$eventId", Guid.NewGuid().ToString());
 		_ = insert.Parameters.AddWithValue("$aggId", aggregateId);
@@ -259,6 +263,11 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 		_ = insert.Parameters.AddWithValue("$data", new byte[] { 0x01 });
 		_ = insert.Parameters.AddWithValue("$version", version);
 		_ = insert.Parameters.AddWithValue("$ts", DateTimeOffset.UtcNow.ToString("O"));
+		// Matches TestTenantContext.SingleTenantDefault, which every store in this file is constructed
+		// with -- the pending row must land in the same tenant partition the store reads from, or the
+		// pending-transaction isolation test would pass for the wrong reason (no row visible under any
+		// tenant) rather than the real one (a committed row visible, an uncommitted row not).
+		_ = insert.Parameters.AddWithValue("$tenantId", TenantDefaults.DefaultTenantId);
 		_ = await insert.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 

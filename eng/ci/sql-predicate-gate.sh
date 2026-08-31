@@ -77,6 +77,9 @@ set -uo pipefail
 
 E_PASS=0; E_FAIL=1; E_REFUSE=2; E_SELFTEST=3
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 REPO_ROOT="${SQLPRED_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}"
 cd "$REPO_ROOT" || exit $E_REFUSE
 
@@ -210,6 +213,9 @@ sweep() {
 
     echo ""
     echo "files-with-fragments=$scanned predicate-fragments-evaluated=$frag_total findings=$findings"
+    # The denominator, in the standard machine-readable form: what was EXAMINED, not only what was
+    # FOUND. A "0 findings" over a zero denominator is a broken matcher wearing a green.
+    gate_denominator "$frag_total" "predicate fragment(s) across $scanned file(s)" || return $E_REFUSE
 
     # Non-vacuity floor: zero fragments found across the scan means the parser missed them or the
     # scope is wrong — refusing here stops a parser-blind run from masquerading as a clean result.

@@ -16,7 +16,6 @@ public sealed class RoutingDecisionShould
 	private static readonly IReadOnlyList<string> SingleEndpoint = ["ep1"];
 	private static readonly IReadOnlyList<string> AnalyticsEndpoint = ["analytics"];
 	private static readonly IReadOnlyList<string> MatchedRulesKafka = ["transport:kafka", "endpoint:analytics"];
-	private static readonly IReadOnlyList<string> SingleRule = ["rule1"];
 
 	#region Success factory method
 

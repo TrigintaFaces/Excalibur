@@ -90,7 +90,7 @@ public sealed class InMemoryOutboxMarkFailedR2GuardShould
 
 		// SAFETY 2 — the failure was NOT recorded: the guard made the whole mark a no-op, so the message is not
 		// transitioned to Failed. RED against a store that records the failure regardless of ownership.
-		(await store.GetFailedMessagesAsync(maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None))
+		(await store.GetAllTenantsFailedMessagesAsync(maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None))
 			.ShouldNotContain(m => m.Id == msg.Id,
 				"a non-owning MarkFailed is a no-op — it must not record the message as failed");
 	}
@@ -109,7 +109,7 @@ public sealed class InMemoryOutboxMarkFailedR2GuardShould
 
 		await store.MarkFailedAsync(msg.Id, "owner-fail", 1, CancellationToken.None);
 
-		(await store.GetFailedMessagesAsync(maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None))
+		(await store.GetAllTenantsFailedMessagesAsync(maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None))
 			.ShouldContain(m => m.Id == msg.Id,
 				"the reservation OWNER must be able to MarkFailed — R2 guards against non-owners, never the owner");
 	}

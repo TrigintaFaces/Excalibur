@@ -25,6 +25,11 @@
     <InternalsVisibleTo Include="Excalibur.Inbox.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Inbox.Postgres" />
     <InternalsVisibleTo Include="Excalibur.Inbox.Oracle" />
+    <!-- Document stores address an entry by a single id and compose it through the internal
+         InboxDocumentKey, so the injective composition has one definition rather than a copy per
+         provider that can drift. -->
+    <InternalsVisibleTo Include="Excalibur.Inbox.Firestore" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.ElasticSearch" />
     <InternalsVisibleTo Include="Excalibur.Inbox.Oracle.Tests" />
     <!-- Real-infrastructure lock for the internal telemetry decorator's scoped-transactional forward: the
          atomic guarantee through a DECORATED store can only be proven against a live provider transaction. -->

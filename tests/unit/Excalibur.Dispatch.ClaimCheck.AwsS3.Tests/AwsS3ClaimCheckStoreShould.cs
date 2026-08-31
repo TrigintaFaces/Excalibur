@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -257,6 +257,74 @@ public sealed class AwsS3ClaimCheckStoreShould : UnitTestBase
 		_ = await Should.ThrowAsync<ArgumentNullException>(() => sut.RetrieveAsync(null!, CancellationToken.None));
 		_ = await Should.ThrowAsync<ArgumentNullException>(() => sut.DeleteAsync(null!, CancellationToken.None));
 		Should.Throw<ArgumentNullException>(() => sut.ShouldUseClaimCheck(null!));
+	}
+
+	[Fact]
+	public async Task StoreAsync_WithZeroRetentionPeriod_ShouldLeaveExpiryUnset()
+	{
+		// A zero retention period means "never expires". Adding it to the current instant would stamp an
+		// expiry equal to the store time, marking every payload expired the moment it is written.
+		var s3Client = A.Fake<IAmazonS3>();
+		A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>._, A<CancellationToken>._))
+			.Returns(new PutObjectResponse());
+
+		var sut = CreateSut(s3Client, claimCheckOptions: new ClaimCheckOptions
+		{
+			IdPrefix = "cc-",
+			PayloadThreshold = 128,
+			RetentionPeriod = TimeSpan.Zero
+		});
+
+		var reference = await sut.StoreAsync([1, 2, 3], CancellationToken.None);
+
+		reference.ExpiresAt.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task RetrieveAsync_WithZeroRetentionPeriod_ShouldReturnPayload()
+	{
+		var s3Client = A.Fake<IAmazonS3>();
+		var expected = new byte[] { 5, 6, 7 };
+		A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>._, A<CancellationToken>._))
+			.Returns(new PutObjectResponse());
+		A.CallTo(() => s3Client.GetObjectAsync("test-bucket", A<string>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new GetObjectResponse { ResponseStream = new MemoryStream(expected) });
+
+		var sut = CreateSut(s3Client, claimCheckOptions: new ClaimCheckOptions
+		{
+			IdPrefix = "cc-",
+			PayloadThreshold = 128,
+			RetentionPeriod = TimeSpan.Zero
+		});
+
+		var reference = await sut.StoreAsync(expected, CancellationToken.None);
+		var result = await sut.RetrieveAsync(reference, CancellationToken.None);
+
+		result.ShouldBe(expected);
+	}
+
+	[Fact]
+	public async Task RetrieveAsync_WithExpiredReference_ShouldThrowKeyNotFoundException()
+	{
+		// An expired payload is a form of missing payload, so it raises the same exception a deleted or
+		// never-stored one does.
+		var s3Client = A.Fake<IAmazonS3>();
+		var sut = CreateSut(s3Client);
+		var reference = new ClaimCheckReference
+		{
+			Id = "cc-expired",
+			BlobName = "claim-check/cc-expired",
+			ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1)
+		};
+
+		var ex = await Should.ThrowAsync<KeyNotFoundException>(
+			() => sut.RetrieveAsync(reference, CancellationToken.None));
+
+		ex.Message.ShouldContain("cc-expired");
+
+		// The object is never fetched: expiry is decided before the request goes out.
+		A.CallTo(() => s3Client.GetObjectAsync(A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	private static AwsS3ClaimCheckStore CreateSut(

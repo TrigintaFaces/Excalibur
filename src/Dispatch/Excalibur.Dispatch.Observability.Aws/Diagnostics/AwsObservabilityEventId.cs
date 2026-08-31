@@ -5,7 +5,7 @@ namespace Excalibur.Dispatch.Observability.Aws;
 /// <summary>
 /// Event IDs for AWS observability integration diagnostics (93550-93569).
 /// </summary>
-public static class AwsObservabilityEventId
+internal static class AwsObservabilityEventId
 {
 	/// <summary>AWS X-Ray integration configured.</summary>
 	public const int XRayConfigured = 93550;

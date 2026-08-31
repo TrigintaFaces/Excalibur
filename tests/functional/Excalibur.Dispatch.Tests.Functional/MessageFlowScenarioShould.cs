@@ -70,8 +70,6 @@ namespace Excalibur.Dispatch.Tests.Functional;
 [Trait("Feature", "MessageFlowE2E")]
 public sealed class MessageFlowScenarioShould : FunctionalTestBase
 {
-    private const string OrderDestination = "orders";
-
     /// <summary>
     ///     AC-T1.1 / AC-T1.4: a dispatched command stages an event in the outbox; processing the outbox
     ///     re-dispatches the event to a handler that updates a projection; the correlation id set on the
@@ -475,12 +473,14 @@ public sealed class PoisonEvent : IDispatchEvent
 internal sealed class PlaceOrderCommandHandler(IOutboxWriter outboxWriter, TestHandlerState state)
     : IActionHandler<PlaceOrderCommand>
 {
+    private const string OrderDestination = "orders";
+
     public async Task HandleAsync(PlaceOrderCommand action, CancellationToken cancellationToken)
     {
         state.RecordCommand(action.OrderId);
 
         var evt = new OrderPlacedEvent { OrderId = action.OrderId, Amount = action.Amount };
-        await outboxWriter.WriteAsync(evt, destination: "orders", cancellationToken).ConfigureAwait(false);
+        await outboxWriter.WriteAsync(evt, destination: OrderDestination, cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -501,7 +501,7 @@ internal sealed class OrderPlacedEventHandler(
     public async Task HandleAsync(OrderPlacedEvent @event, CancellationToken cancellationToken)
     {
         // Inbox dedup seam: the message id flows on the context; the deduplicator is the real
-        // framework component the [Idempotent] middleware uses internally.
+        // framework component the inbox middleware uses internally.
         var messageId = contextAccessor.MessageContext?.MessageId
             ?? throw new InvalidOperationException("MessageId must be set on the dispatch context for dedup.");
 

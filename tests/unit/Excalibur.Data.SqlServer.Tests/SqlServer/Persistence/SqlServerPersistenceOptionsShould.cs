@@ -258,8 +258,8 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 	[Fact]
 	public void HaveRootPropertyCountWithinIspGate()
 	{
-		// After ISP refactoring, the root has 3 settable properties:
-		// ConnectionString, CommandTimeout, ProviderSpecificOptions.
+		// After ISP refactoring, the root has 4 settable properties:
+		// Name, ConnectionString, CommandTimeout, ProviderSpecificOptions.
 		// Plus 5 read-only sub-object navigation properties:
 		// Connection, Security, Resiliency, Pooling, Observability.
 		// Explicit interface implementations (ConnectionTimeout via IPersistenceOptions,
@@ -277,8 +277,13 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 			.Where(p => !p.CanWrite && p.PropertyType.Name.StartsWith("SqlServer", StringComparison.Ordinal))
 			.ToList();
 
-		// Assert — 3 settable properties (ConnectionString, CommandTimeout, ProviderSpecificOptions)
-		settableProperties.Count.ShouldBe(3);
+		// Assert — 4 settable properties (Name, ConnectionString, CommandTimeout, ProviderSpecificOptions)
+		settableProperties.Count.ShouldBe(4);
+
+		// Named explicitly, so that a future addition has to be justified here rather than absorbed by
+		// bumping a number. Name is the configured-instance identity the provider reports.
+		settableProperties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal).ShouldBe(
+			["CommandTimeout", "ConnectionString", "Name", "ProviderSpecificOptions"]);
 		// 5 read-only sub-option navigation properties (Connection, Security, Resiliency, Pooling, Observability)
 		readOnlySubObjects.Count.ShouldBe(5);
 	}
@@ -469,7 +474,6 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		// Assert
 		resiliency.MaxRetryAttempts.ShouldBe(3);
 		resiliency.RetryDelayMilliseconds.ShouldBe(1000);
-		resiliency.EnableConnectionResiliency.ShouldBeTrue();
 		resiliency.ConnectRetryCount.ShouldBe(3);
 		resiliency.ConnectRetryInterval.ShouldBe(10);
 		resiliency.EnableStatisticsCollection.ShouldBeFalse();
@@ -489,7 +493,6 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		// Act
 		resiliency.MaxRetryAttempts = 5;
 		resiliency.RetryDelayMilliseconds = 2000;
-		resiliency.EnableConnectionResiliency = false;
 		resiliency.ConnectRetryCount = 5;
 		resiliency.ConnectRetryInterval = 30;
 		resiliency.EnableStatisticsCollection = true;
@@ -497,7 +500,6 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		// Assert
 		resiliency.MaxRetryAttempts.ShouldBe(5);
 		resiliency.RetryDelayMilliseconds.ShouldBe(2000);
-		resiliency.EnableConnectionResiliency.ShouldBeFalse();
 		resiliency.ConnectRetryCount.ShouldBe(5);
 		resiliency.ConnectRetryInterval.ShouldBe(30);
 		resiliency.EnableStatisticsCollection.ShouldBeTrue();

@@ -67,8 +67,8 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 		_store = new SqlServerProjectionStore<TestOrderProjection>(
 			_fixture.ConnectionString,
 			_logger,
-			TableName,
-			tenantContext: new FixedTenantContext(TestTenantId));
+			tenantContext: new FixedTenantContext(TestTenantId),
+			tableName: TableName);
 	}
 
 	private const string TestTenantId = "projection-store-tests";

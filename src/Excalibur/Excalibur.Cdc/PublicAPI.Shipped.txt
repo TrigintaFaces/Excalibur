@@ -129,7 +129,6 @@ Excalibur.Cdc.Diagnostics.CdcHealthState.RecordCycle(int processedCount, int fai
 Excalibur.Cdc.Diagnostics.CdcHealthState.TotalCycles.get -> long
 Excalibur.Cdc.Diagnostics.CdcHealthState.TotalFailed.get -> long
 Excalibur.Cdc.Diagnostics.CdcHealthState.TotalProcessed.get -> long
-Excalibur.Cdc.Diagnostics.CdcProcessingEventId
 Excalibur.Cdc.Diagnostics.CdcTags
 Excalibur.Cdc.ICdcBuilder
 Excalibur.Cdc.ICdcBuilder.BindProcessingConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcBuilder!
@@ -260,17 +259,6 @@ const Excalibur.Cdc.Diagnostics.CdcActivities.Checkpoint = "cdc.checkpoint" -> s
 const Excalibur.Cdc.Diagnostics.CdcActivities.Poll = "cdc.poll" -> string!
 const Excalibur.Cdc.Diagnostics.CdcActivities.ProcessBatch = "cdc.process_batch" -> string!
 const Excalibur.Cdc.Diagnostics.CdcActivitySource.Name = "Excalibur.Cdc" -> string!
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDisabled = 3100 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDrainTimeout = 3105 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceError = 3102 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceErrorBackoff = 3109 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceNoProcessor = 3110 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceProcessedChanges = 3104 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStarting = 3101 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStopped = 3103 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.InMemoryCdcProcessingBatch = 3106 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.InMemoryCdcProcessingComplete = 3108 -> int
-const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.InMemoryCdcProcessingError = 3107 -> int
 const Excalibur.Cdc.Diagnostics.CdcTags.BatchSize = "excalibur.cdc.batch_size" -> string!
 const Excalibur.Cdc.Diagnostics.CdcTags.CaptureInstance = "excalibur.cdc.capture_instance" -> string!
 const Excalibur.Cdc.Diagnostics.CdcTags.ChangeType = "excalibur.cdc.change_type" -> string!

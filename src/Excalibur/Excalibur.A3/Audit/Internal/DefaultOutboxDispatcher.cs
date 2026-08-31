@@ -3,13 +3,15 @@
 
 using Excalibur.Dispatch;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.A3.Audit.Internal;
 
 /// <summary>
 /// Sentinel <see cref="IOutboxDispatcher"/> registered by
 /// <see cref="Microsoft.Extensions.DependencyInjection.AuditServiceCollectionExtensions.AddExcaliburAudit(Microsoft.Extensions.DependencyInjection.IServiceCollection)"/>
 /// via <c>TryAdd</c> so the Audit composition is wireable without a concrete
-/// Outbox persistence stack (S792 bd-drizep / ADR-322 §Decision-3 Shape-1).
+/// Outbox persistence stack.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -37,6 +39,8 @@ internal sealed class DefaultOutboxDispatcher : IOutboxDispatcher
 		"Register a concrete outbox via services.AddExcaliburOutbox(...) " +
 		"(or a peer AddOutbox builder extension) before dispatching audited commands.";
 
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken)
 		=> throw new InvalidOperationException(RegisterOutboxMessage);
 

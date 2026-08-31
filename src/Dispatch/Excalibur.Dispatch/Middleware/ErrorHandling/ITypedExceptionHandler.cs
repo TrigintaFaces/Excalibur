@@ -11,26 +11,35 @@ namespace Excalibur.Dispatch.Middleware.ErrorHandling;
 /// <remarks>
 /// <para>
 /// Typed exception handlers enable fine-grained exception handling by routing specific
-/// exception types to dedicated handlers. This follows the Microsoft pattern of type-based
-/// dispatch (similar to <c>IExceptionHandler</c> in ASP.NET Core).
+/// exception types to dedicated handlers, in the shape of ASP.NET Core's
+/// <c>IExceptionHandler</c>. The scope differs from that of ASP.NET Core -- see below.
 /// </para>
 /// <para>
-/// Register handlers via DI and they will be automatically resolved by
-/// <see cref="TypedExceptionHandlerMiddleware"/> when a matching exception occurs.
+/// Register handlers in the container and add the middleware to the pipeline with
+/// <see cref="TypedExceptionHandlingPipelineExtensions.UseTypedExceptionHandling"/>.
+/// <see cref="TypedExceptionHandlerMiddleware"/> then resolves the matching handler when an
+/// exception escapes a pipeline component below it. Registration alone does not place the
+/// middleware in the pipeline, and without it no handler is consulted.
+/// </para>
+/// <para>
+/// <b>Scope.</b> Handlers see faults raised by pipeline components. They do not see an exception
+/// thrown by the message handler itself: the terminal dispatch stage converts that into a failed
+/// <see cref="IMessageResult"/> before the pipeline unwinds, so no middleware observes it. Inspect
+/// the returned result for that case.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// public class NotFoundExceptionHandler : ITypedExceptionHandler&lt;NotFoundException&gt;
+/// public class TenantResolutionFailureHandler : ITypedExceptionHandler&lt;TenantResolutionException&gt;
 /// {
 ///     public ValueTask&lt;ExceptionHandlerResult&gt; HandleAsync(
-///         NotFoundException exception,
+///         TenantResolutionException exception,
 ///         IDispatchMessage message,
 ///         IMessageContext context,
 ///         CancellationToken cancellationToken)
 ///     {
 ///         return ValueTask.FromResult(ExceptionHandlerResult.Handled(
-///             MessageResult.Failed("Resource not found")));
+///             MessageResult.Failed("Tenant could not be resolved")));
 ///     }
 /// }
 /// </code>

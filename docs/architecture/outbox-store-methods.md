@@ -14,10 +14,10 @@
 
 | Method | Purpose |
 |--------|---------|
-| `GetFailedMessagesAsync` | Retrieve failed messages for retry |
-| `GetScheduledMessagesAsync` | Retrieve scheduled messages |
+| `GetAllTenantsFailedMessagesAsync` | Retrieve failed messages for retry |
+| `GetAllTenantsScheduledMessagesAsync` | Retrieve scheduled messages |
 | `CleanupAllTenantsSentMessagesAsync` | Purge old sent messages |
-| `GetStatisticsAsync` | Outbox statistics for health/monitoring |
+| `GetAllTenantsStatisticsAsync` | Outbox statistics for health/monitoring, across every tenant |
 
 ## Batch Extensions (default interface methods)
 

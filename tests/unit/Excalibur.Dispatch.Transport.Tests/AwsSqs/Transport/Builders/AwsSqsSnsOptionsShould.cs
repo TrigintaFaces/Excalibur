@@ -47,26 +47,6 @@ public sealed class AwsSqsSnsOptionsShould : UnitTestBase
 	#region Default Values Tests
 
 	[Fact]
-	public void Constructor_HaveNullTopicPrefix()
-	{
-		// Arrange & Act
-		var options = new AwsSqsSnsOptions();
-
-		// Assert
-		options.TopicPrefix.ShouldBeNull();
-	}
-
-	[Fact]
-	public void Constructor_HaveAutoCreateTopicsDisabled()
-	{
-		// Arrange & Act
-		var options = new AwsSqsSnsOptions();
-
-		// Assert
-		options.AutoCreateTopics.ShouldBeFalse();
-	}
-
-	[Fact]
 	public void Constructor_HaveRawMessageDeliveryDisabled()
 	{
 		// Arrange & Act
@@ -102,87 +82,9 @@ public sealed class AwsSqsSnsOptionsShould : UnitTestBase
 
 	#region TopicPrefix Tests
 
-	[Fact]
-	public void TopicPrefix_CanBeSet()
-	{
-		// Arrange
-		var options = new AwsSqsSnsOptions();
-
-		// Act
-		options.TopicPrefix = "myapp-prod-";
-
-		// Assert
-		options.TopicPrefix.ShouldBe("myapp-prod-");
-	}
-
-	[Fact]
-	public void TopicPrefix_CanBeSetToNull()
-	{
-		// Arrange
-		var options = new AwsSqsSnsOptions { TopicPrefix = "test-" };
-
-		// Act
-		options.TopicPrefix = null;
-
-		// Assert
-		options.TopicPrefix.ShouldBeNull();
-	}
-
-	[Fact]
-	public void TopicPrefix_AcceptMaxLength()
-	{
-		// Arrange
-		var options = new AwsSqsSnsOptions();
-		var maxPrefix = new string('a', AwsSqsSnsOptions.MaxTopicPrefixLength);
-
-		// Act
-		options.TopicPrefix = maxPrefix;
-
-		// Assert
-		options.TopicPrefix.ShouldBe(maxPrefix);
-	}
-
-	[Fact]
-	public void TopicPrefix_ThrowWhenExceedsMaxLength()
-	{
-		// Arrange
-		var options = new AwsSqsSnsOptions();
-		var tooLongPrefix = new string('a', AwsSqsSnsOptions.MaxTopicPrefixLength + 1);
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
-			options.TopicPrefix = tooLongPrefix);
-	}
-
 	#endregion
 
 	#region AutoCreateTopics Tests
-
-	[Fact]
-	public void AutoCreateTopics_CanBeEnabled()
-	{
-		// Arrange
-		var options = new AwsSqsSnsOptions();
-
-		// Act
-		options.AutoCreateTopics = true;
-
-		// Assert
-		options.AutoCreateTopics.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AutoCreateTopics_CanBeDisabled()
-	{
-		// Arrange
-		var options = new AwsSqsSnsOptions { AutoCreateTopics = true };
-
-		// Act
-		options.AutoCreateTopics = false;
-
-		// Assert
-		options.AutoCreateTopics.ShouldBeFalse();
-	}
 
 	#endregion
 
@@ -272,32 +174,6 @@ public sealed class AwsSqsSnsOptionsShould : UnitTestBase
 	#endregion
 
 	#region Integration Tests
-
-	[Fact]
-	public void Options_SupportFullConfiguration()
-	{
-		// Arrange & Act
-		var options = new AwsSqsSnsOptions
-		{
-			TopicPrefix = "prod-",
-			AutoCreateTopics = true,
-			RawMessageDelivery = true,
-		};
-		options.TopicMappings[typeof(TestMessage)] = ValidTopicArn;
-		options.Subscriptions.Add(new AwsSqsSubscriptionOptions
-		{
-			TopicArn = ValidTopicArn,
-			QueueUrl = ValidQueueUrl,
-			RawMessageDelivery = false,
-		});
-
-		// Assert
-		options.TopicPrefix.ShouldBe("prod-");
-		options.AutoCreateTopics.ShouldBeTrue();
-		options.RawMessageDelivery.ShouldBeTrue();
-		options.HasTopicMappings.ShouldBeTrue();
-		options.HasSubscriptions.ShouldBeTrue();
-	}
 
 	#endregion
 

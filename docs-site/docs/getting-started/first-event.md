@@ -224,7 +224,7 @@ app.MapPost("/orders", async (
 
     return result.IsSuccess
         ? Results.Created($"/orders/{result.ReturnValue}", new { Id = result.ReturnValue })
-        : Results.BadRequest(result.ErrorMessage);
+        : Results.Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
 });
 
 app.Run();
@@ -301,6 +301,25 @@ public class OrderCreatedMetricsHandler : IEventHandler<OrderCreatedEvent>
 }
 ```
 
+:::caution Do not map a failed result to 400
+
+A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
+the caller sent a bad request. Hard-coding `Results.BadRequest(...)` reports a server-side fault to
+the caller as their own mistake, so they retry a request that can never succeed, or abandon one that
+would have.
+
+`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
+the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
+as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
+arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Results.Problem`
+falls back to 500 — the safe direction, and never the caller's fault by accident.
+
+The `Excalibur.Dispatch.Hosting.AspNetCore` package does the whole mapping in one call:
+`return result.ToHttpResult();` — it honours an authorization failure (403) and a validation failure
+(400) first, then `ProblemDetails.Status`, then falls back to 500. `ToNoContentResult()`,
+`ToCreatedResult(location)` and the `Task`-chaining `ToApiResult()` cover the other success shapes.
+:::
+
 ## Handler Execution Order
 
 By default, event handlers execute in **parallel** for maximum throughput. You can control execution behavior through pipeline profiles:
@@ -327,6 +346,31 @@ builder.Services.AddDispatch(dispatch =>
     });
 });
 ```
+
+:::tip Planning to publish Native AOT or trimmed?
+
+`AddHandlersFromAssembly` finds handlers by scanning the assembly with reflection
+(`Assembly.GetTypes()`, then interface inspection). The trimmer cannot see a type that is only ever
+reached that way, so under `PublishTrimmed=true` or `PublishAot=true` a handler with no other static
+reference can be trimmed out of the app — and the failure is silent: the scan simply finds fewer
+handlers, and the messages they would have handled go unhandled at run time.
+
+This call does **not** raise a build warning. The single-assembly overload carries explicit
+trim-analysis suppressions, so the toolchain stays quiet about a pattern it cannot actually verify.
+Do not read the absence of a warning as a guarantee that trimming is safe here.
+
+The AOT-safe equivalent registers the same handlers explicitly, discovered at compile time by the
+source generator bundled in the `Excalibur.Dispatch` package — no reflection, and nothing for the
+trimmer to remove:
+
+```csharp
+builder.Services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
+```
+
+Assembly scanning stays a fine choice for JIT-compiled apps, and it is the only option when handlers
+live in an assembly the generator does not compile (a third-party or dynamically loaded plugin). See
+[Native AOT](../advanced/native-aot.md).
+:::
 
 ## Error Handling
 
@@ -364,6 +408,36 @@ public class ResilientEventHandler : IEventHandler<OrderCreatedEvent>
     }
 }
 ```
+
+### What the publisher catches when a handler throws
+
+Swallowing the exception, as above, is a choice — not a requirement. Every handler runs whether or not
+its siblings fail, so letting the exception escape is safe, and it is what an exception mapper or a
+typed exception handler needs in order to see the fault at all.
+
+**Which exception the publisher catches does not depend on how many handlers you registered.** When one
+handler fails, that handler's own exception is rethrown with its original stack trace — the same type
+whether one handler is subscribed or ten. Only when **two or more** handlers fail for the same event do
+you get an `AggregateException`, and its `InnerExceptions` carries every fault.
+
+```csharp
+try
+{
+    await bus.PublishAsync(new OrderCreatedEvent(...), context, ct);
+}
+catch (InventoryUnavailableException ex)
+{
+    // Reached whether one handler or several are subscribed, as long as only one failed.
+}
+catch (AggregateException ex)
+{
+    // Two or more handlers failed. ex.InnerExceptions has all of them.
+}
+```
+
+That guarantee is why subscribing a second handler cannot silently break the first one's error handling:
+a `catch`, a mapper, and a typed exception handler all select on the exception's type, so a sole fault
+must not arrive wrapped.
 
 ## Key Concepts
 

@@ -10,6 +10,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.Redis" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.Redis" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">

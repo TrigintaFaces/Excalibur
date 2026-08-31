@@ -66,6 +66,85 @@ The kits carry no `[Fact]`/`[Theory]` attributes themselves, so they work with x
 runner — you add the attributes on the thin overrides. A failing check throws
 `TestFixtureAssertionException` with a message describing the contract violation.
 
+## What a green run actually covered
+
+Some kit arms exercise an **optional** capability of the contract — the outbox and dead-letter kits both
+have arms that need the store's administrative facet, for example. An arm whose capability is unavailable
+has to do something, and the obvious thing — return — is the one thing it must not do silently: every test
+runner reports an arm that returned early exactly as it reports an arm that ran and passed.
+
+The kits now record that distinction instead of erasing it. `ConformanceArmLedger` collects every arm that
+ran its body and every arm that did not, with the capability it needed and why it was unavailable:
+
+```csharp
+using Excalibur.Testing.Conformance;
+
+ConformanceArmLedger.Reset();          // process-wide and additive; reset before a run you intend to read
+
+// ... run your derived kit ...
+
+foreach (var arm in ConformanceArmLedger.Executed)   // "Suite.Arm" keys
+{
+    Console.WriteLine($"verified: {arm}");
+}
+
+foreach (var skip in ConformanceArmLedger.Skipped)   // ConformanceArmSkip records
+{
+    Console.WriteLine($"NOT verified: {skip.Suite}.{skip.Arm} — {skip.Capability?.Name} — {skip.Reason}");
+}
+
+Console.WriteLine(ConformanceArmLedger.Describe());  // both lists, formatted
+```
+
+:::caution A run that was green before may now report skips
+This is not a regression, and it does not mean your provider got worse. An arm that reported a pass while
+never reaching its assertions now reports as unverified. The skip is the kit declining to overstate what it
+checked — the coverage is the same as it always was, and only the reporting has changed. Read the skips and
+decide, per capability, whether an unverified arm is acceptable for your certification.
+:::
+
+The ledger is a **reporting surface, not an assertion**: it records, and you decide what an unverified arm
+means. To surface skips natively in your runner — or to make one a failure — override `OnArmSkipped` on the
+kit. The hook comes from `ConformanceTestKit`, which the capability-gated kits derive from —
+`OutboxStoreConformanceTestKit` and `DeadLetterStoreConformanceTestKit` today:
+
+```csharp
+public sealed class MyOutboxConformanceTests : OutboxStoreConformanceTestKit
+{
+    // Surface the skip in the runner instead of letting the arm complete quietly.
+    protected override void OnArmSkipped(ConformanceArmSkip skip) =>
+        Assert.Skip($"{skip.Arm}: {skip.Reason}");   // xUnit v3; Assert.Ignore under NUnit
+
+    // Or certify that every capability your store provides was actually reached:
+    // protected override void OnArmSkipped(ConformanceArmSkip skip) =>
+    //     throw new InvalidOperationException($"unverified arm {skip.Arm}: {skip.Reason}");
+}
+```
+
+### If your store is decorated
+
+The outbox kit discovers capabilities through `GetService(Type)`, which the contract requires and which a
+well-behaved decorator forwards — so a decorated outbox store is discovered correctly.
+
+**`IDeadLetterStore` has no capability-resolution method**, so its kit can only discover the administrative
+facet from the store's own type. That is sound for a store handed to the kit directly and unsound for a
+decorated one: a wrapper's type does not carry the capabilities of what it wraps, so the facet becomes
+invisible and every arm needing it is skipped. If you certify a decorated dead-letter store, override
+`ResolveAdminFacet` to return the facet the wrapper holds:
+
+```csharp
+public sealed class MyDeadLetterConformanceTests : DeadLetterStoreConformanceTestKit
+{
+    protected override IDeadLetterStoreAdmin? ResolveAdminFacet(IDeadLetterStore store) =>
+        store is MyDeadLetterDecorator decorator
+            ? decorator.Inner as IDeadLetterStoreAdmin
+            : base.ResolveAdminFacet(store);
+}
+```
+
+Without the override the arms still report — as skips, in the ledger, rather than as silent passes — but a
+recorded absence is still an uncertified capability.
+
 ## Testing against a real backend
 
 For providers backed by a database, run the same kit against a real engine with an opt-in fixture:

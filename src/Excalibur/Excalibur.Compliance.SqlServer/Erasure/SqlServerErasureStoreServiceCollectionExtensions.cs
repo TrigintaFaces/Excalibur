@@ -50,20 +50,27 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<IErasureStore> marker in the same act. The marker is not separately
-		// registerable, so a store that was never handed the context cannot carry a truthful-looking
-		// capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<IErasureStore, SqlServerErasureStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<IErasureStore> marker in the same act. The
+		// marker is not separately registerable, so a store that was never handed the context cannot carry
+		// a truthful-looking capability and pass the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<IErasureStore, SqlServerErasureStore>(sp =>
 			new SqlServerErasureStore(
 				sp.GetRequiredService<IOptions<SqlServerErasureStoreOptions>>(),
 				sp.GetRequiredService<IDataSubjectHasher>(),
 				sp.GetRequiredService<ILogger<SqlServerErasureStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
+
+		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
+		// path of every write. The hosted service verifies this store's schema before the host accepts
+		// traffic, so a mis-provisioned deployment fails to start instead of reporting a deployment fault
+		// as the failure of one data subject's erasure request.
+		services.AddSingleton<IErasureSchemaValidator>(sp => sp.GetRequiredService<SqlServerErasureStore>());
+		_ = services.AddErasureSchemaValidation();
 
 		return services;
 	}
@@ -125,20 +132,27 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 		// composition replaces it with the resolver-driven one.
 		_ = services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
-		// ITenantScopingCapability<IErasureStore> marker in the same act. The marker is not separately
-		// registerable, so a store that was never handed the context cannot carry a truthful-looking
-		// capability and pass the multi-tenancy gate.
-		_ = services.AddTenantScopedStore<IErasureStore, SqlServerErasureStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store WITH the ambient tenant context (this store's constructor
+		// declares one) and emits the ITenantScopingCapability<IErasureStore> marker in the same act. The
+		// marker is not separately registerable, so a store that was never handed the context cannot carry
+		// a truthful-looking capability and pass the multi-tenancy gate.
+		_ = services.AddTenantAwareStore<IErasureStore, SqlServerErasureStore>(sp =>
 			new SqlServerErasureStore(
 				sp.GetRequiredService<IOptions<SqlServerErasureStoreOptions>>(),
 				sp.GetRequiredService<IDataSubjectHasher>(),
 				sp.GetRequiredService<ILogger<SqlServerErasureStore>>(),
-				tenantContext,
-				sp.GetService<IOptions<TenantContextOptions>>()));
+				sp.GetRequiredService<ITenantContext>(),
+				sp.GetRequiredService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
+
+		// Provisioning is a configuration concern, so it is settled once at host startup rather than on the
+		// path of every write. The hosted service verifies this store's schema before the host accepts
+		// traffic, so a mis-provisioned deployment fails to start instead of reporting a deployment fault
+		// as the failure of one data subject's erasure request.
+		services.AddSingleton<IErasureSchemaValidator>(sp => sp.GetRequiredService<SqlServerErasureStore>());
+		_ = services.AddErasureSchemaValidation();
 
 		return services;
 	}

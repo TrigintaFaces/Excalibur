@@ -6,6 +6,8 @@ using System.Diagnostics.Metrics;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Outbox.Diagnostics;
 
 /// <summary>
@@ -54,13 +56,13 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	private volatile bool _disposed;
 
 	private Counter<long> Operations => _operationsCounter ??= _meter.CreateCounter<long>(
-		"excalibur.outbox.store.operations", "operations", "Total outbox store operations by type.");
+		"excalibur.outbox.store.operations", "{operations}", "Total outbox store operations by type.");
 
 	private Histogram<double> Duration => _operationDuration ??= _meter.CreateHistogram<double>(
 		"excalibur.outbox.store.operation_duration", "ms", "Duration of outbox store operations in milliseconds.");
 
 	private Counter<long> Messages => _messagesCounter ??= _meter.CreateCounter<long>(
-		"excalibur.outbox.store.messages", "messages", "Total messages processed by outbox store operations.");
+		"excalibur.outbox.store.messages", "{messages}", "Total messages processed by outbox store operations.");
 
 	/// <summary>
 	/// Resolves a capability from the decorated store, wrapped so that its operations are measured.
@@ -108,6 +110,8 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
@@ -116,6 +120,8 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();

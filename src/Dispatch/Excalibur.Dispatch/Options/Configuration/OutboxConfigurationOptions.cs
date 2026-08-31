@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.Dispatch.Options.Configuration;
 
 /// <summary>
-/// Configuration options for the outbox pattern.
+/// Configuration options for the outbox staging middleware.
 /// </summary>
+/// <remarks>
+/// This type controls only whether outbox staging participates in the dispatch pipeline. Processor
+/// behaviour - batch size, polling interval, retry policy, and store selection - belongs to the outbox
+/// processor package and is configured there; this package does not reference it and cannot influence it.
+/// </remarks>
 public sealed class OutboxConfigurationOptions
 {
 	/// <summary>
@@ -16,39 +19,4 @@ public sealed class OutboxConfigurationOptions
 	/// </summary>
 	/// <value>Default is <see langword="false"/> (disabled). Call <c>AddOutbox&lt;T&gt;()</c> to enable with a registered <c>IOutboxStore</c>.</value>
 	public bool Enabled { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum messages to process per batch.
-	/// </summary>
-	/// <value> Default is 100. </value>
-	[Range(1, int.MaxValue)]
-	public int BatchSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the interval in milliseconds between publishing operations.
-	/// </summary>
-	/// <value> Default is 1000ms (1 second). </value>
-	[Range(1, int.MaxValue)]
-	public int PublishIntervalMs { get; set; } = 1000;
-
-	/// <summary>
-	/// Gets or sets the maximum number of retry attempts for failed messages.
-	/// </summary>
-	/// <value> Default is 3. </value>
-	[Range(0, int.MaxValue)]
-	public int MaxRetries { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the maximum retention for sent messages.
-	/// </summary>
-	/// <value>
-	/// The maximum retention for sent messages.
-	/// </value>
-	public TimeSpan SentMessageRetention { get; set; } = TimeSpan.FromDays(1);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use in-memory storage (light mode).
-	/// </summary>
-	/// <value>The current <see cref="UseInMemoryStorage"/> value.</value>
-	public bool UseInMemoryStorage { get; set; }
 }

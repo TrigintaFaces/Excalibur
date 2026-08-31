@@ -77,14 +77,11 @@ if (!healthy)
 var healthService = provider.GetService(typeof(IPersistenceProviderHealth)) as IPersistenceProviderHealth;
 if (healthService is not null)
 {
-    var poolStats = await healthService.GetConnectionPoolStatsAsync(ct).ConfigureAwait(false);
-    Console.WriteLine("   Connection pool stats:");
-    if (poolStats is not null)
+    var healthMetrics = await healthService.GetMetricsAsync(ct).ConfigureAwait(false);
+    Console.WriteLine("   Provider metrics (via the health capability):");
+    foreach (var kvp in healthMetrics)
     {
-        foreach (var kvp in poolStats)
-        {
-            Console.WriteLine($"     {kvp.Key}: {kvp.Value}");
-        }
+        Console.WriteLine($"     {kvp.Key}: {kvp.Value}");
     }
 }
 

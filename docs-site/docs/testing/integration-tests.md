@@ -44,7 +44,7 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         services.AddDispatch();
         services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
-            builder.UseSqlServer(opts => opts.ConnectionString = _container.GetConnectionString());
+            builder.UseSqlServer(opts => opts.ConnectionString(_container.GetConnectionString()));
             builder.AddRepository<Order, OrderId>();
         }));
         services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
@@ -104,8 +104,8 @@ public class PostgresIntegrationTests : IAsyncLifetime
         services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
             builder.AddRepository<Order, OrderId>();
+            builder.UsePostgres(pg => pg.ConnectionString(_container.GetConnectionString()));
         }));
-        services.AddPostgresEventStore(_container.GetConnectionString());
 
         // ... setup
     }
@@ -270,7 +270,7 @@ public class IntegrationTestFixture : IAsyncLifetime
         services.AddDispatch();
         services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         {
-            builder.UseSqlServer(opts => opts.ConnectionString = SqlServer.GetConnectionString());
+            builder.UseSqlServer(opts => opts.ConnectionString(SqlServer.GetConnectionString()));
             builder.AddRepository<Order, OrderId>();
         }));
         services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>

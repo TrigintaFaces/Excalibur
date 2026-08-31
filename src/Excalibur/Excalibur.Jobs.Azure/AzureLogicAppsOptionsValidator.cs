@@ -25,6 +25,11 @@ internal sealed class AzureLogicAppsOptionsValidator : IValidateOptions<AzureLog
 			failures.Add($"{nameof(AzureLogicAppsOptions.SubscriptionId)} is required.");
 		}
 
+		if (string.IsNullOrWhiteSpace(options.Location))
+		{
+			failures.Add($"{nameof(AzureLogicAppsOptions.Location)} is required.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.JobExecutionEndpoint))
 		{
 			failures.Add($"{nameof(AzureLogicAppsOptions.JobExecutionEndpoint)} is required.");

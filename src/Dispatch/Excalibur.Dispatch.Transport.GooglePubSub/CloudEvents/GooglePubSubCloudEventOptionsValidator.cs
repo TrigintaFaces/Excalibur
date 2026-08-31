@@ -20,18 +20,6 @@ internal sealed class GooglePubSubCloudEventOptionsValidator : IValidateOptions<
 			return ValidateOptionsResult.Fail("Google Pub/Sub CloudEvent options cannot be null.");
 		}
 
-		if (options.MaxMessageSizeBytes <= 0)
-		{
-			return ValidateOptionsResult.Fail(
-				"GooglePubSubCloudEventOptions.MaxMessageSizeBytes must be greater than zero.");
-		}
-
-		if (options.AckDeadline <= TimeSpan.Zero)
-		{
-			return ValidateOptionsResult.Fail(
-				"GooglePubSubCloudEventOptions.AckDeadline must be greater than zero.");
-		}
-
 		if (options.Transport is not null && options.Transport.CompressionThreshold <= 0)
 		{
 			return ValidateOptionsResult.Fail(

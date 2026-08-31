@@ -14,19 +14,27 @@ internal sealed partial class RabbitMqTopologyInitializer
 	private const string DeadLetterExchangeKey = "x-dead-letter-exchange";
 	private const string DeadLetterRoutingKey = "x-dead-letter-routing-key";
 	private const string MessageTtlKey = "x-message-ttl";
+	private const string MaxLengthKey = "x-max-length";
+	private const string MaxLengthBytesKey = "x-max-length-bytes";
 
 	private readonly RabbitMqOptions _options;
 	private readonly RabbitMqCloudEventOptions? _cloudEventOptions;
+	private readonly RabbitMQTopologyOptions? _topology;
+	private readonly RabbitMQDeadLetterOptions? _deadLetter;
 	private readonly ILogger<RabbitMqTopologyInitializer>? _logger;
 	private int _initialized;
 
 	public RabbitMqTopologyInitializer(
 		RabbitMqOptions options,
 		RabbitMqCloudEventOptions? cloudEventOptions,
-		ILogger<RabbitMqTopologyInitializer>? logger = null)
+		ILogger<RabbitMqTopologyInitializer>? logger = null,
+		RabbitMQTopologyOptions? topology = null,
+		RabbitMQDeadLetterOptions? deadLetter = null)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_cloudEventOptions = cloudEventOptions;
+		_topology = topology;
+		_deadLetter = deadLetter;
 		_logger = logger;
 	}
 
@@ -38,6 +46,8 @@ internal sealed partial class RabbitMqTopologyInitializer
 		}
 
 		ArgumentNullException.ThrowIfNull(channel);
+
+		await DeclareConfiguredTopologyAsync(channel, cancellationToken).ConfigureAwait(false);
 
 		var exchangeName = ResolveExchangeName();
 		var exchangeType = ResolveExchangeType();
@@ -126,6 +136,127 @@ internal sealed partial class RabbitMqTopologyInitializer
 		string exchangeName,
 		string routingKey);
 
+	/// <summary>
+	/// Declares every exchange, queue and binding configured through the fluent builder. The default
+	/// pair declared afterwards covers the CloudEvents-only host, which configures no explicit topology.
+	/// </summary>
+	private async Task DeclareConfiguredTopologyAsync(IChannel channel, CancellationToken cancellationToken)
+	{
+		if (_topology is null)
+		{
+			return;
+		}
+
+		foreach (var exchange in _topology.Exchanges)
+		{
+			if (string.IsNullOrWhiteSpace(exchange.Name))
+			{
+				continue;
+			}
+
+			var exchangeType = MapExchangeType(exchange.Type);
+
+			await channel
+				.ExchangeDeclareAsync(
+					exchange: exchange.Name,
+					type: exchangeType,
+					durable: exchange.Durable,
+					autoDelete: exchange.AutoDelete,
+					arguments: ToArguments(exchange.Arguments),
+					cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
+
+			if (_logger is not null)
+			{
+				LogExchangeDeclared(_logger, exchange.Name, exchangeType);
+			}
+		}
+
+		foreach (var queue in _topology.Queues)
+		{
+			if (string.IsNullOrWhiteSpace(queue.Name))
+			{
+				continue;
+			}
+
+			_ = await channel
+				.QueueDeclareAsync(
+					queue: queue.Name,
+					durable: queue.Durable,
+					exclusive: queue.Exclusive,
+					autoDelete: queue.AutoDelete,
+					arguments: BuildConfiguredQueueArguments(queue),
+					cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
+
+			if (_logger is not null)
+			{
+				LogQueueDeclared(_logger, queue.Name, queue.Durable, queue.AutoDelete);
+			}
+		}
+
+		foreach (var binding in _topology.Bindings)
+		{
+			if (string.IsNullOrWhiteSpace(binding.Exchange) || string.IsNullOrWhiteSpace(binding.Queue))
+			{
+				continue;
+			}
+
+			await channel
+				.QueueBindAsync(
+					queue: binding.Queue,
+					exchange: binding.Exchange,
+					routingKey: binding.RoutingKey ?? string.Empty,
+					arguments: ToArguments(binding.Arguments),
+					cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
+
+			if (_logger is not null)
+			{
+				LogBindingCreated(_logger, binding.Queue, binding.Exchange, binding.RoutingKey ?? string.Empty);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Maps the queue-level limits onto the AMQP queue-declare argument table, alongside any arguments
+	/// the caller supplied verbatim. A caller-supplied key always wins.
+	/// </summary>
+	private static Dictionary<string, object?> BuildConfiguredQueueArguments(RabbitMQQueueOptions queue)
+	{
+		var arguments = ToArguments(queue.Arguments) ?? new Dictionary<string, object?>(StringComparer.Ordinal);
+
+		if (queue.MessageTtl is { } ttl && ttl > TimeSpan.Zero && !arguments.ContainsKey(MessageTtlKey))
+		{
+			arguments[MessageTtlKey] = (long)ttl.TotalMilliseconds;
+		}
+
+		if (queue.MaxLength is { } maxLength && maxLength > 0 && !arguments.ContainsKey(MaxLengthKey))
+		{
+			arguments[MaxLengthKey] = maxLength;
+		}
+
+		if (queue.MaxLengthBytes is { } maxLengthBytes && maxLengthBytes > 0 && !arguments.ContainsKey(MaxLengthBytesKey))
+		{
+			arguments[MaxLengthBytesKey] = maxLengthBytes;
+		}
+
+		return arguments;
+	}
+
+	private static Dictionary<string, object?>? ToArguments(Dictionary<string, object> source) =>
+		source.Count == 0
+			? null
+			: source.ToDictionary(static pair => pair.Key, static pair => (object?)pair.Value, StringComparer.Ordinal);
+
+	private static string MapExchangeType(RabbitMQExchangeType exchangeType) => exchangeType switch
+	{
+		RabbitMQExchangeType.Direct => ExchangeType.Direct,
+		RabbitMQExchangeType.Fanout => ExchangeType.Fanout,
+		RabbitMQExchangeType.Headers => ExchangeType.Headers,
+		_ => ExchangeType.Topic,
+	};
+
 	private string ResolveExchangeName() =>
 		!string.IsNullOrWhiteSpace(_options.Exchange)
 			? _options.Exchange
@@ -136,17 +267,8 @@ internal sealed partial class RabbitMqTopologyInitializer
 			? _options.Queue.QueueName
 			: _cloudEventOptions?.DefaultQueue ?? string.Empty;
 
-	private string ResolveExchangeType()
-	{
-		var exchangeType = _cloudEventOptions?.Exchange.ExchangeType ?? RabbitMQExchangeType.Topic;
-		return exchangeType switch
-		{
-			RabbitMQExchangeType.Direct => ExchangeType.Direct,
-			RabbitMQExchangeType.Fanout => ExchangeType.Fanout,
-			RabbitMQExchangeType.Headers => ExchangeType.Headers,
-			_ => ExchangeType.Topic,
-		};
-	}
+	private string ResolveExchangeType() =>
+		MapExchangeType(_cloudEventOptions?.Exchange.ExchangeType ?? RabbitMQExchangeType.Topic);
 
 	private Dictionary<string, object?> BuildQueueArguments()
 	{
@@ -218,6 +340,43 @@ internal sealed partial class RabbitMqTopologyInitializer
 		if (_logger is not null)
 		{
 			LogExchangeDeclared(_logger, deadLetterExchange, ExchangeType.Direct);
+		}
+
+		// A dead-letter exchange with no queue bound to it silently discards everything routed to it,
+		// so the configured dead-letter queue is declared and bound in the same pass.
+		var deadLetterQueue = _deadLetter?.Queue;
+		if (string.IsNullOrWhiteSpace(deadLetterQueue))
+		{
+			return;
+		}
+
+		var deadLetterRoutingKey = _options.DeadLetter.DeadLetterRoutingKey
+			?? _deadLetter?.RoutingKey
+			?? string.Empty;
+
+		_ = await channel
+			.QueueDeclareAsync(
+				queue: deadLetterQueue,
+				durable: true,
+				exclusive: false,
+				autoDelete: false,
+				arguments: null,
+				cancellationToken: cancellationToken)
+			.ConfigureAwait(false);
+
+		await channel
+			.QueueBindAsync(
+				queue: deadLetterQueue,
+				exchange: deadLetterExchange,
+				routingKey: deadLetterRoutingKey,
+				arguments: null,
+				cancellationToken: cancellationToken)
+			.ConfigureAwait(false);
+
+		if (_logger is not null)
+		{
+			LogQueueDeclared(_logger, deadLetterQueue, durable: true, autoDelete: false);
+			LogBindingCreated(_logger, deadLetterQueue, deadLetterExchange, deadLetterRoutingKey);
 		}
 	}
 }

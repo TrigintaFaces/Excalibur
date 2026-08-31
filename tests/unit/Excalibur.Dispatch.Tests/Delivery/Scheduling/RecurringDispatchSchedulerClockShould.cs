@@ -80,4 +80,45 @@ public sealed class RecurringDispatchSchedulerClockShould
 		stored.NextExecutionUtc.ShouldBe(
 			FakeNow, "the past schedule is clamped to the INJECTED clock's now, not the wall clock");
 	}
+
+	// DURABILITY: the stored type name must carry no assembly version. An assembly-qualified name embeds
+	// Version=, message types live in the CONSUMER's assembly, and MessageTypeRegistry indexes the qualified
+	// name of the type as currently loaded -- so a persisted row would stop resolving the first time the
+	// consumer shipped a new version, and the schedule would silently never fire again. RED on the pre-fix
+	// AssemblyQualifiedName write. Covers all three write sites.
+	[Theory]
+	[InlineData("once")]
+	[InlineData("interval")]
+	[InlineData("cron")]
+	public async Task StoreAVersionIndependentTypeName_SoARowSurvivesAConsumerRelease(string entryPoint)
+	{
+		var clock = new FakeTimeProvider(FakeNow);
+		var (scheduler, store) = NewScheduler(clock, PastScheduleBehavior.Reject);
+
+		IScheduledMessage? stored = null;
+		A.CallTo(() => store.StoreAsync(A<IScheduledMessage>._, A<CancellationToken>._))
+			.Invokes((IScheduledMessage m, CancellationToken _) => stored = m)
+			.Returns(Task.CompletedTask);
+
+		switch (entryPoint)
+		{
+			case "once":
+				await scheduler.ScheduleOnceAsync(FakeNow.AddDays(1), new TestMessage("m"), CancellationToken.None);
+				break;
+
+			case "interval":
+				await scheduler.ScheduleRecurringAsync(
+					TimeSpan.FromMinutes(5), new TestMessage("m"), CancellationToken.None);
+				break;
+
+			default:
+				await scheduler.ScheduleRecurringAsync(
+					"0 * * * *", TimeZoneInfo.Utc, new TestMessage("m"), CancellationToken.None);
+				break;
+		}
+
+		stored.ShouldNotBeNull();
+		stored.MessageName.ShouldBe(typeof(TestMessage).FullName);
+		stored.MessageName.ShouldNotContain("Version=", Case.Sensitive);
+	}
 }

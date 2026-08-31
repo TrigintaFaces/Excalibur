@@ -309,7 +309,7 @@ public sealed partial class ConnectionStringValidator : ConfigurationValidatorBa
 	}
 
 	// Placeholder for future connection testing implementation
-	// R0.8: Remove unused parameter - this is a stub method
+	// Remove unused parameter - this is a stub method
 #pragma warning disable IDE0060
 	private static async Task TestConnectionAsync(
 		string connectionString,

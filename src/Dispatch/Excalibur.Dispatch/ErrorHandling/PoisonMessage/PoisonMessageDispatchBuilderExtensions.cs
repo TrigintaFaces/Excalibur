@@ -68,7 +68,7 @@ public static class PoisonMessageDispatchBuilderExtensions
 		return builder;
 	}
 
-	// NOTE: SQL dead letter store moved to Excalibur.Data.SqlServer.AddSqlServerDeadLetterStore() (Sprint 306)
+	// NOTE: SQL dead letter store moved to Excalibur.Data.SqlServer.AddSqlServerDeadLetterStore()
 
 	/// <summary>
 	/// Adds a custom poison message detector to the pipeline.
@@ -88,5 +88,5 @@ public static class PoisonMessageDispatchBuilderExtensions
 		return builder;
 	}
 
-	// NOTE: AddProductionPoisonMessageHandling moved to Excalibur.Data.SqlServer (Sprint 306)
+	// NOTE: AddProductionPoisonMessageHandling moved to Excalibur.Data.SqlServer
 }

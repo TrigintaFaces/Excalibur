@@ -162,7 +162,7 @@ public sealed class InboxMiddlewareMetricsShould
 		// the claim SUCCEEDS (true) when the message is new, FAILS (false) when it is a duplicate.
 		var deduplicator = A.Fake<IInMemoryDeduplicator>(o => o.Implements<IClaimableDeduplicator>());
 		_ = A.CallTo(() => ((IClaimableDeduplicator)deduplicator).TryClaimAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(!isDuplicate);
+			.Returns(isDuplicate ? (LeaseToken?)null : new LeaseToken("test-lease"));
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
 		return new InboxMiddleware(options, inboxStore: null, deduplicator, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);

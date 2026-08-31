@@ -30,10 +30,7 @@ public sealed class SqsLongPollingReceiverShould : IDisposable
 		_sqsClient = A.Fake<IAmazonSQS>();
 		_strategy = A.Fake<IAwsLongPollingStrategy>();
 		_metricsCollector = A.Fake<IPollingMetricsCollector>();
-		_config = new LongPollingOptions
-		{
-			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-		};
+		_config = new LongPollingOptions();
 		_config.Polling.MaxMessagesPerReceive = 10;
 
 		A.CallTo(() => _strategy.CalculateOptimalWaitTimeAsync())

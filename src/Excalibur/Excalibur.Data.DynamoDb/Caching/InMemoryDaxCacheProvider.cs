@@ -51,9 +51,9 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 			if (entry.ExpiresAt > DateTimeOffset.UtcNow)
 			{
 				LogCacheHit(tableName, partitionKey);
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 				var item = JsonSerializer.Deserialize<T>(entry.SerializedValue);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 				return Task.FromResult(item);
 			}
 
@@ -88,9 +88,9 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 
 		var entry = new CacheEntry
 		{
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 			SerializedValue = JsonSerializer.Serialize(item),
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			ExpiresAt = DateTimeOffset.UtcNow.Add(_options.CacheItemTtl)
 		};
 

@@ -36,9 +36,10 @@ public static class UpcastingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register options infrastructure
-		_ = services.AddOptions<UpcastingOptions>()
-			.ValidateOnStart();
+		// Register options infrastructure. No ValidateOnStart(): UpcastingOptions has nothing an
+		// IValidateOptions<T> could reject -- EnableAutoUpcastOnReplay is a bool and
+		// RegistrationActions is populated by code, not consumer config.
+		_ = services.AddOptions<UpcastingOptions>().ValidateOnStart();
 
 		// Register the pipeline as singleton with deferred configuration
 		services.TryAddSingleton<IUpcastingPipeline>(sp =>

@@ -20,8 +20,6 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// This implementation uses reflection which may not be fully AOT-compatible. For AOT scenarios, the source generator will provide an
 /// optimized implementation.
 /// </remarks>
-[RequiresUnreferencedCode("Uses reflection to find and set properties on handlers")]
-[RequiresDynamicCode("Uses expression compilation which requires runtime code generation")]
 public sealed class HandlerActivator : IHandlerActivator
 {
 	private static readonly Type[] NoFactoryArgumentTypes = [];
@@ -60,7 +58,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	public object ActivateHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IMessageContext context,
 		IServiceProvider provider)
@@ -71,7 +69,7 @@ public sealed class HandlerActivator : IHandlerActivator
 
 		if (!RuntimeFeature.IsDynamicCodeSupported)
 		{
-			ThrowForAotWithoutSourceGenerator(handlerType);
+			ThrowForAotWithoutDynamicCode(handlerType);
 		}
 
 		// Activation plan captures service resolution path + context setting strategy once per handler type.
@@ -80,22 +78,22 @@ public sealed class HandlerActivator : IHandlerActivator
 	}
 
 	/// <summary>
-	/// Throws <see cref="InvalidOperationException"/> when the reflection-based <see cref="HandlerActivator"/>
-	/// is used in an AOT environment without the source-generated activator available.
+	/// Throws <see cref="InvalidOperationException"/> when this expression-compiling activator is reached in an
+	/// environment that does not support runtime code generation.
 	/// </summary>
 	[DoesNotReturn]
-	private static void ThrowForAotWithoutSourceGenerator(Type handlerType)
+	private static void ThrowForAotWithoutDynamicCode(Type handlerType)
 	{
 		throw new InvalidOperationException(
-			$"HandlerActivator cannot activate handler '{handlerType.Name}' in an AOT environment because it requires " +
-			"runtime code generation (Expression.Compile, ActivatorUtilities.CreateFactory). " +
-			"Reference the Excalibur.Dispatch.SourceGenerators package as an Analyzer to generate an AOT-compatible activator, " +
+			$"HandlerActivator cannot activate handler '{handlerType.Name}' because this application does not support " +
+			"runtime code generation, and this activator compiles expressions. " +
+			$"Register {nameof(AotHandlerActivator)} as IHandlerActivator before calling AddDispatch, " +
 			"or register a custom IHandlerActivator that does not require dynamic code.");
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	internal object ActivateRegisteredHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IMessageContext context,
 		IServiceProvider provider)
@@ -110,7 +108,7 @@ public sealed class HandlerActivator : IHandlerActivator
 
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	internal object ActivateFactoryHandler(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType,
 		IMessageContext context,
 		IServiceProvider provider)
@@ -125,7 +123,7 @@ public sealed class HandlerActivator : IHandlerActivator
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal static bool RequiresContextInjection(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		ArgumentNullException.ThrowIfNull(handlerType);
@@ -138,7 +136,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Func<IServiceProvider, IMessageContext, object> GetOrCreateActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		// Fast path: frozen cache lookup with zero synchronization overhead.
@@ -163,7 +161,7 @@ public sealed class HandlerActivator : IHandlerActivator
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Func<IServiceProvider, IMessageContext, object> GetOrCreateRegisteredActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_frozenRegisteredActivationPlanCache != null)
@@ -186,7 +184,7 @@ public sealed class HandlerActivator : IHandlerActivator
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Func<IServiceProvider, IMessageContext, object> GetOrCreateFactoryActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_frozenFactoryActivationPlanCache != null)
@@ -211,7 +209,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// Creates and caches an activation plan for a handler type.
 	/// </summary>
 	private static Func<IServiceProvider, IMessageContext, object> CreateAndCacheActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var contextApplier = BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
@@ -238,7 +236,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	}
 
 	private static Func<IServiceProvider, IMessageContext, object> CreateAndCacheRegisteredActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var contextApplier = BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
@@ -261,7 +259,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	}
 
 	private static Func<IServiceProvider, IMessageContext, object> CreateAndCacheFactoryActivationPlan(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		var contextApplier = BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
@@ -290,7 +288,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Action<object, IMessageContext>? GetOrCreateContextSetter(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		if (_frozenSetterCache != null)
@@ -315,7 +313,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// Creates a compiled setter delegate and caches it.
 	/// </summary>
 	private static Action<object, IMessageContext>? CreateAndCacheSetter(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
 		PropertyInfo? contextProperty = null;
@@ -386,7 +384,7 @@ public sealed class HandlerActivator : IHandlerActivator
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static object ResolveHandlerInstance(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		IServiceProvider serviceProvider,
 		ObjectFactory factory)
 	{
@@ -422,7 +420,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static object ResolveWithMode(
 		ServiceResolutionMode mode,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		IServiceProvider serviceProvider,
 		ObjectFactory factory)
 	{
@@ -463,6 +461,13 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// Pre-warms the cache with known handler types.
 	/// Call this at startup with all registered handler types for optimal performance.
 	/// </summary>
+	/// <remarks>
+	/// Building an activation plan ahead of first use reflects over the handler's constructors and
+	/// properties, so the types must survive trimming. Skip this call on a trimmed or natively compiled
+	/// application; the plans it warms are only ever used where runtime code generation is available.
+	/// </remarks>
+	[RequiresUnreferencedCode(
+		"Builds activation plans ahead of use, reflecting over each handler's constructors and properties, which trimming may remove.")]
 	public static void PreWarmCache(IEnumerable<Type> handlerTypes)
 	{
 		ArgumentNullException.ThrowIfNull(handlerTypes);
@@ -531,7 +536,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal static void EnsureResolutionMode(
 		IServiceProvider serviceProvider,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 		bool isRegistered)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);

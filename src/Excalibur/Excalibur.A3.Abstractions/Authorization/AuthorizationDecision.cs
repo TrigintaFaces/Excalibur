@@ -7,6 +7,6 @@ namespace Excalibur.A3.Authorization;
 /// <summary>
 /// The decision returned by an <see cref="IAuthorizationEvaluator"/>.
 /// </summary>
-/// <param name="Effect">Permit, Deny, or Indeterminate.</param>
+/// <param name="Effect">Permit or Deny.</param>
 /// <param name="Reason">Optional human-readable reason.</param>
 public sealed record AuthorizationDecision(AuthorizationEffect Effect, string? Reason = null);

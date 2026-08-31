@@ -179,6 +179,7 @@ public static class CdcServiceCollectionExtensions
 			// before CdcProcessingHostedService's StartAsync.
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<Hosting.IHostedService, CdcBackgroundProcessingStartupValidator>());
+			services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, CdcBackgroundProcessingStartupValidator>());
 
 			var optionsBuilder = services.AddOptions<CdcProcessingOptions>();
 

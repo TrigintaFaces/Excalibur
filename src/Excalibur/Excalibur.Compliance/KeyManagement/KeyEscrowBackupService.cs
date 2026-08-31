@@ -77,6 +77,21 @@ public sealed partial class KeyEscrowBackupService : IKeyEscrowService
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(keyId);
 
+		// Empty key material would otherwise "succeed" and hand back a receipt for a backup that holds no
+		// key, leaving an operator believing a key is recoverable when nothing was ever escrowed.
+		if (keyMaterial.IsEmpty)
+		{
+			throw new ArgumentException("Key material must not be empty.", nameof(keyMaterial));
+		}
+
+		// An escrow may not be silently replaced: overwriting drops the existing entry's custodian batch
+		// wraps, destroying the quorum that gates recovery of the key already in escrow. Opt in explicitly.
+		if (!(options?.AllowOverwrite ?? false) && _escrowStore.ContainsKey(keyId))
+		{
+			throw new KeyEscrowException($"An escrow already exists for key '{keyId}'.")
+			{ KeyId = keyId, ErrorCode = KeyEscrowErrorCode.EscrowAlreadyExists };
+		}
+
 		// Transient plaintext copy of the key material required by the encryption
 		// provider. Zeroed in the finally so the secret never outlives this call
 		// (defense-in-depth), regardless of success or failure.
@@ -155,8 +170,14 @@ public sealed partial class KeyEscrowBackupService : IKeyEscrowService
 
 		if (entry.State != EscrowState.Active)
 		{
+			// Report revocation as revocation: collapsing it into EscrowExpired tells an operator the escrow
+			// lapsed on its own when it was in fact deliberately revoked.
+			var stateErrorCode = entry.State == EscrowState.Revoked
+				? KeyEscrowErrorCode.EscrowRevoked
+				: KeyEscrowErrorCode.EscrowExpired;
+
 			throw new KeyEscrowException($"Escrow for key '{keyId}' is in state '{entry.State}' and cannot be recovered.")
-			{ KeyId = keyId, EscrowId = entry.EscrowId, ErrorCode = KeyEscrowErrorCode.EscrowExpired };
+			{ KeyId = keyId, EscrowId = entry.EscrowId, ErrorCode = stateErrorCode };
 		}
 
 		if (entry.ExpiresAt.HasValue && DateTimeOffset.UtcNow > entry.ExpiresAt)

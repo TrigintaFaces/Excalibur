@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Dispatch;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -38,6 +40,11 @@ public static class WorkflowSignalInboxSqlServerExtensions
             .Configure(configure)
             .ValidateOnStart();
 
+        // The inbox resolves its tenant partition from ITenantContext, so the container must be able to
+        // supply one. Idempotent single-tenant default: a multi-tenant host registers its own first and
+        // TryAdd leaves it alone.
+        services.AddDefaultTenantContext();
+
         // AOT-safe manual validation (no data-annotation reflection): connection string present + schema/table
         // are safe SQL identifiers before they are interpolated into the inbox DDL/DML.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<
@@ -45,8 +52,14 @@ public static class WorkflowSignalInboxSqlServerExtensions
 
         // Override the in-memory TryAdd default (a later Add wins single-service resolution) with the durable
         // impl, and register the durability marker in the SAME call so the marker is never present without
-        // the durable inbox actually being wired (S886 rw2ull: marker inseparable from the wiring).
-        services.AddSingleton<IWorkflowSignalInbox, SqlServerWorkflowSignalInbox>();
+        // the durable inbox actually being wired (: marker inseparable from the wiring).
+        // The tenant-aware seam registers the CONCRETE store and emits the tenant-scoping capability for
+        // the contract in the same act; the contract itself is then pointed at that same instance with a
+        // plain Add, which is what overrides the in-process default a prior AddWorkflows TryAdded. Both
+        // markers -- tenancy and durability -- are therefore inseparable from this wiring.
+        _ = services.AddTenantAwareStore<IWorkflowSignalInbox, SqlServerWorkflowSignalInbox>();
+        services.AddSingleton<IWorkflowSignalInbox>(
+            static sp => sp.GetRequiredService<SqlServerWorkflowSignalInbox>());
         services.AddSingleton<IWorkflowSignalDurability, WorkflowSignalDurabilityMarker>();
 
         // Registered in the SAME call as the durable inbox, for the same reason the marker is: the

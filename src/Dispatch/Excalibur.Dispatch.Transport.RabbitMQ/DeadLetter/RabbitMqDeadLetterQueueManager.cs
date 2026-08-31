@@ -320,7 +320,7 @@ internal sealed partial class RabbitMqDeadLetterQueueManager : IDeadLetterQueueM
 	}
 
 	/// <inheritdoc/>
-	public async Task<int> PurgeDeadLetterQueueAsync(
+	public async Task<int> PurgeAllTenantsDeadLetterQueueAsync(
 		CancellationToken cancellationToken)
 	{
 		try

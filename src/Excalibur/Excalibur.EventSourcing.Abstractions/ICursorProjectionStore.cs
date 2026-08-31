@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing;
 
 /// <summary>
@@ -10,14 +12,21 @@ namespace Excalibur.EventSourcing;
 /// <remarks>
 /// <para>
 /// This is an ISP sub-interface following the <c>IBufferDistributedCache</c> precedent.
-/// Consumers check for capability via pattern matching:
+/// Consumers reach it through <see cref="ProjectionStoreExtensions.QueryCursorAsync"/>, which returns
+/// <see langword="null"/> when the store does not support cursor pagination:
 /// <code>
-/// if (store is ICursorProjectionStore&lt;MyProjection&gt; cursorStore)
+/// var result = await store.QueryCursorAsync(filters, null, 20, ct);
+/// if (result is not null)
 /// {
-///     var result = await cursorStore.QueryCursorAsync(filters, null, 20, ct);
 ///     // Use result.NextCursor for subsequent pages
 /// }
 /// </code>
+/// </para>
+/// <para>
+/// Do not test the store's type to detect this capability. A store is commonly reached through a
+/// decorator -- tenant scoping, encryption -- whose own interface list is fixed when it is compiled, so
+/// the test reports the decorator and not the store beneath it. Ask the store for the capability instead
+/// (<see cref="IServiceProvider.GetService(System.Type)"/>), which the extension method above already does.
 /// </para>
 /// <para>
 /// Cursor-based pagination provides stable results under concurrent writes and better
@@ -51,6 +60,8 @@ public interface ICursorProjectionStore<TProjection> : IProjectionStore<TProject
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown when <paramref name="pageSize"/> is less than 1.
 	/// </exception>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<CursorPagedResult<TProjection>> QueryCursorAsync(
 		IDictionary<string, object>? filters,
 		string? cursor,

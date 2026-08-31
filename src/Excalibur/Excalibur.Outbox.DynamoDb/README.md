@@ -19,32 +19,26 @@ dotnet add package Excalibur.Outbox.DynamoDb
 ## Configuration
 
 ```csharp
-services.AddDynamoDbOutboxStore(options =>
-{
-    options.Connection.Region = "us-east-1";
-    options.TableName = "outbox";
-    options.DefaultTimeToLiveSeconds = 604800; // 7 days
-    options.CreateTableIfNotExists = true;
-    options.EnableStreams = true;
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseDynamoDb(dynamo => dynamo
+        .Region(RegionEndpoint.USEast1)
+        .TableName("outbox"))));
 ```
 
 Or via configuration:
 
 ```csharp
-services.AddDynamoDbOutboxStore(configuration.GetSection("DynamoDbOutbox"));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseDynamoDb(dynamo => dynamo.BindConfiguration("DynamoDbOutbox"))));
 ```
 
 ### Local Development (DynamoDB Local)
 
 ```csharp
-services.AddDynamoDbOutboxStore(options =>
-{
-    options.Connection.ServiceUrl = "http://localhost:8000";
-    options.TableName = "outbox";
-    options.Connection.AccessKey = "local";
-    options.Connection.SecretKey = "local";
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseDynamoDb(dynamo => dynamo
+        .ServiceUrl("http://localhost:8000")
+        .TableName("outbox"))));
 ```
 
 ## Usage

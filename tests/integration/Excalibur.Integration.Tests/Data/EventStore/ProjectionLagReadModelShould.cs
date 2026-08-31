@@ -57,7 +57,7 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 		// TRUNCATE resets IDENTITY, so MAX(Position) (the global-stream head) restarts at 0 per test.
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
-		return new SqlServerEventStore(_fixture.ConnectionString, NullLogger<SqlServerEventStore>.Instance);
+		return new SqlServerEventStore(_fixture.ConnectionString, NullLogger<SqlServerEventStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	// Resolves an IProjectionLagReadModel whose head comes from the real SQL Server global stream

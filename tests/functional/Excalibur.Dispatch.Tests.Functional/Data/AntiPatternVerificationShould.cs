@@ -13,8 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using SqlServerProvider = Excalibur.Data.SqlServer.SqlServerPersistenceProvider;
-using SqlServerProviderOptions = Excalibur.Data.SqlServer.SqlServerProviderOptions;
+using SqlServerProvider = Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider;
 
 namespace Excalibur.Dispatch.Tests.Functional.Data;
 
@@ -44,14 +43,14 @@ public sealed class AntiPatternVerificationShould
 		// Arrange - A service that needs automatic retries (e.g., external API integration)
 		var services = new ServiceCollection();
 
-		_ = services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
 		{
-			Connection = { ConnectionString = "Server=test;Database=test;Integrated Security=true;" },
-			Name = "test-provider",
-			RetryCount = 3
-		}));
-		_ = services.AddSingleton<ILogger<SqlServerProvider>>(NullLogger<SqlServerProvider>.Instance);
-		_ = services.AddSingleton<IPersistenceProvider, SqlServerProvider>();
+			options.ConnectionString = "Server=test;Database=test;Integrated Security=true;";
+			options.Resiliency.MaxRetryAttempts = 3;
+		});
+		_ = services.AddSingleton<IPersistenceProvider>(
+			static sp => sp.GetRequiredService<ISqlPersistenceProvider>());
 		_ = services.AddScoped<ResilientOrderProcessingService>();
 
 		var provider = services.BuildServiceProvider();
@@ -69,14 +68,8 @@ public sealed class AntiPatternVerificationShould
 	public void PersistenceProviderServices_ShouldHaveRetryPolicy()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
-		{
-			Connection = { ConnectionString = "Server=test;Database=test;" },
-			Name = "test-provider",
-			RetryCount = 5
-		});
-
-		using var provider = new SqlServerProvider(options, NullLogger<SqlServerProvider>.Instance);
+		using var services = CreateServices(retryCount: 5);
+		var provider = (SqlServerProvider)services.GetRequiredService<ISqlPersistenceProvider>();
 
 		// Assert - Provider should have retry capabilities
 		_ = provider.RetryPolicy.ShouldNotBeNull();
@@ -298,14 +291,8 @@ public sealed class AntiPatternVerificationShould
 	public void ResilienceRequirements_ServiceWithRetry_HasRetryCapability()
 	{
 		// Arrange - Service that needs retry
-		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
-		{
-			Connection = { ConnectionString = "Server=test;Database=test;" },
-			Name = "test-provider",
-			RetryCount = 3
-		});
-
-		using var provider = new SqlServerProvider(options, NullLogger<SqlServerProvider>.Instance);
+		using var services = CreateServices(retryCount: 3);
+		var provider = services.GetRequiredService<ISqlPersistenceProvider>();
 		var service = new ResilientOrderProcessingService(provider);
 
 		// Assert - Service has retry capability
@@ -349,6 +336,27 @@ public sealed class AntiPatternVerificationShould
 	}
 
 	#endregion AC6: No resilience requirements unmet by wrong pattern choice
+
+	/// <summary>
+	/// Builds the provider through the production registration, so these tests observe the retry
+	/// capability a consumer actually receives.
+	/// </summary>
+	private static ServiceProvider CreateServices(int retryCount)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddSqlServerPersistence(options =>
+		{
+			options.ConnectionString = "Server=test;Database=test;";
+			options.Resiliency.MaxRetryAttempts = retryCount;
+		});
+
+		return services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = false,
+			ValidateScopes = true,
+		});
+	}
 }
 
 #region Test Service Classes
@@ -367,8 +375,11 @@ public sealed class ResilientOrderProcessingService
 	}
 
 	public bool HasPersistenceProvider => _provider != null;
+	// The retry policy is part of the connection capability, not the transaction one: this service
+	// needs to know how the provider handles transient failure, which is a question every provider can
+	// answer -- including the document and key-value stores that cannot run a transaction at all.
 	public bool HasRetryCapability =>
-		(_provider.GetService(typeof(IPersistenceProviderTransaction)) as IPersistenceProviderTransaction)?.RetryPolicy.MaxRetryAttempts > 0;
+		(_provider.GetService(typeof(IPersistenceProviderConnection)) as IPersistenceProviderConnection)?.RetryPolicy.MaxRetryAttempts > 0;
 }
 
 /// <summary>

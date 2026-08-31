@@ -16,7 +16,8 @@ This guide explains why duplicate messages happen, how Excalibur protects you at
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Outbox  # for inbox/dedup support
+  dotnet add package Excalibur.Inbox.SqlServer   # consumer-side deduplication
+  dotnet add package Excalibur.Outbox.SqlServer  # producer-side transactional outbox
   ```
 - Familiarity with [outbox pattern](./outbox.md) and [inbox pattern](./inbox.md)
 
@@ -101,17 +102,27 @@ This guarantees that:
 - If the business operation succeeds, the message is guaranteed to be published (eventually)
 - The publisher can safely retry because the outbox processor is idempotent
 
-```csharp
-public class CreateOrderHandler : IActionHandler<CreateOrderAction, IMessageContext>
+```csharp ignore
+using Excalibur.Dispatch.Outbox;
+
+public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
 {
     private readonly IDbConnection _db;
+    private readonly IOutboxWriter _outboxWriter;
 
-    public async Task HandleAsync(
+    public CreateOrderHandler(IDbConnection db, IOutboxWriter outboxWriter)
+    {
+        _db = db;
+        _outboxWriter = outboxWriter;
+    }
+
+    public async Task<IMessageResult> HandleAsync(
         CreateOrderAction action,
         IMessageContext context,
         CancellationToken ct)
     {
         using var transaction = _db.BeginTransaction();
+        context.SetItem("Transaction", transaction);
 
         // Business logic
         var orderId = Guid.NewGuid();
@@ -121,12 +132,14 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, IMessageCont
             transaction);
 
         // Stage message in outbox (same transaction)
-        context.AddOutboundMessage(
+        await _outboxWriter.WriteAsync(
             new OrderCreatedEvent(orderId, action.CustomerId),
-            destination: "orders");
+            destination: "orders",
+            ct);
 
         transaction.Commit();
         // Message published later by background processor
+        return MessageResult.Success();
     }
 }
 ```
@@ -139,23 +152,27 @@ The outbox pattern is the gold standard for producer-side reliability. Most mess
 
 Even with a perfect producer, the consumer must handle redeliveries. The Idempotent Consumer pattern tracks which messages have been processed and skips duplicates.
 
-Excalibur provides this at two levels:
-
-| Level | Component | Scope |
-|-------|-----------|-------|
-| **Per-handler** | `[Idempotent]` attribute + `IdempotentHandlerMiddleware` | Opt-in per handler |
-| **Pipeline-wide** | `InboxMiddleware` | All messages in the pipeline |
-
-The per-handler approach is recommended for most scenarios because it lets you choose exactly which handlers need protection and how they extract message IDs.
+Excalibur provides this as pipeline middleware. `InboxMiddleware` is registered by `AddDispatch` and
+sits at the pre-processing stage, so registering an `IInboxStore` is all that is needed for every
+message flowing through the pipeline to be deduplicated.
 
 ## Implementing the Idempotent Consumer
 
-### The Simple Case: `[Idempotent]` Attribute
-
-Mark any handler that must not process duplicates:
+### Registration
 
 ```csharp
-[Idempotent]
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+});
+
+// Registering a store is what activates deduplication
+services.AddSqlServerInboxStore(options => options.ConnectionString = connectionString);
+```
+
+A handler then runs at most once per message id, without any per-handler annotation:
+
+```csharp
 public class ProcessPaymentHandler : IEventHandler<PaymentRequestedEvent>
 {
     private readonly IPaymentGateway _gateway;
@@ -169,141 +186,133 @@ public class ProcessPaymentHandler : IEventHandler<PaymentRequestedEvent>
 }
 ```
 
-Under the hood, the `IdempotentHandlerMiddleware` uses an atomic **claim-before-execute** protocol on every invocation:
+To place the middleware explicitly in a custom pipeline, call `UseInbox()` (or its alias
+`UseIdempotency()`).
 
-1. Extracts a message ID (configurable strategy).
-2. **Atomically claims** the `(messageId, handlerType)` pair *before* the handler runs. The claim is a single first-writer-wins operation, so exactly one of N concurrent duplicates wins it.
-3. If the claim fails — another caller already holds it — the message is a duplicate: skip and return success.
+### The Claim Protocol
+
+The middleware uses an atomic **claim-before-execute** protocol on every invocation:
+
+1. Resolves a message ID from `IMessageContext.MessageId`, falling back to the context items, the
+   message envelope, and finally a `MessageId` or `CorrelationId` property on the message.
+2. **Atomically claims** the message *before* the handler runs. The claim is a single
+   first-writer-wins operation, so exactly one of N concurrent duplicates wins it.
+3. If the claim fails - another caller already holds it - the message is a duplicate: skip and
+   return success.
 4. If the claim succeeds, invoke the handler while holding the claim.
-5. On success, **finalize** the claim (it becomes terminal — the message is recorded as processed). On handler **failure**, the claim is **released** so a redelivery can re-admit the message — a failed handler never silently drops its message.
+5. On success, **finalize** the claim (it becomes terminal - the message is recorded as processed).
+   On handler **failure**, the claim is **released** so a redelivery can re-admit the message - a
+   failed handler never silently drops its message.
 
-This replaces an earlier check-then-mark sequence, which had a race window between the "has this been processed?" check and the later mark. Because the claim is atomic, two concurrent duplicates can never both pass.
+Because the claim is atomic, two concurrent duplicates can never both pass. Note the resulting
+guarantee: **exactly-once for concurrent redelivery, at-least-once across a process crash.** If the
+process dies between the claim and the finalize, the claim is reclaimed and the handler runs again,
+so handlers must still be idempotent.
 
-The composite key `(messageId, handlerType)` is critical. It means the same message can be processed independently by multiple handlers. An `OrderCreatedEvent` can trigger both `SendConfirmationEmailHandler` and `ReserveInventoryHandler`, each tracked separately.
+### Deduplication Scope
 
-### Choosing a Storage Mode
+Every entry is keyed by a composite of the message id and a scope. The middleware runs before
+handlers are resolved, so it has no single handler to name: it deduplicates **per message type**. A
+message admitted by the inbox reaches every handler registered for it, or none of them. If two
+handlers of the same event must succeed and fail independently, give them separate message types, or
+track completion inside each handler against your own store.
 
-The `[Idempotent]` attribute supports two storage modes:
+### Choosing a Store
+
+Persistent deduplication requires registering an `IInboxStore` implementation. Excalibur provides 8
+ready-made stores:
+
+| Store | Package | Builder call |
+|-------|---------|--------------|
+| SQL Server | `Excalibur.Inbox.SqlServer` | `UseSqlServer(...)` |
+| PostgreSQL | `Excalibur.Inbox.Postgres` | `UsePostgres(...)` |
+| Oracle | `Excalibur.Inbox.Oracle` | *(see note below)* |
+| MongoDB | `Excalibur.Inbox.MongoDB` | `UseMongoDB(...)` |
+| Redis | `Excalibur.Inbox.Redis` | `UseRedis(...)` |
+| Cosmos DB | `Excalibur.Inbox.CosmosDb` | `UseCosmosDb(...)` |
+| DynamoDB | `Excalibur.Inbox.DynamoDb` | `UseDynamoDb(...)` |
+| Firestore | `Excalibur.Inbox.Firestore` | `UseFirestore(...)` |
+| Elasticsearch | `Excalibur.Inbox.ElasticSearch` | `UseElasticSearch(...)` |
+| In-Memory | `Excalibur.Inbox.InMemory` | `UseInMemory()` |
+
+Those providers register through the same entry point:
 
 ```csharp
-// Persistent storage (default) - survives restarts, shared across instances
-[Idempotent]
-public class PaymentHandler : IEventHandler<PaymentEvent> { }
-
-// In-memory storage - fast, but lost on restart
-[Idempotent(UseInMemory = true, RetentionMinutes = 5)]
-public class MetricsHandler : IEventHandler<MetricsCollectedEvent> { }
+services.AddExcaliburInbox(inbox => inbox.UsePostgres(pg => pg.ConnectionString(connectionString)));
 ```
 
-| Aspect | Persistent (`IInboxStore`) | In-Memory |
-|--------|---------------------------|-----------|
-| **Durability** | Survives restarts | Lost on restart |
-| **Distributed** | Shared across instances | Single instance only |
-| **Performance** | Database round-trip | Lock-free in-process |
-| **Best for** | Payments, orders, critical ops | Metrics, telemetry, serverless |
+Oracle is the exception: it ships the service-collection form only, and is registered directly rather
+than through the inbox builder.
 
-Persistent storage requires registering an `IInboxStore` implementation. Excalibur provides 8 ready-made stores:
+```csharp
+services.AddOracleInboxStore(options => options.ConnectionString = connectionString);
+```
 
-| Store | Package |
-|-------|---------|
-| SQL Server | `Excalibur.Data.SqlServer` |
-| PostgreSQL | `Excalibur.Data.Postgres` |
-| MongoDB | `Excalibur.Data.MongoDB` |
-| Redis | `Excalibur.Data.Redis` |
-| CosmosDB | `Excalibur.Data.CosmosDb` |
-| DynamoDB | `Excalibur.Data.DynamoDb` |
-| Firestore | `Excalibur.Data.Firestore` |
-| In-Memory | `Excalibur.Data.InMemory` |
+All implementations use atomic "first writer wins" semantics for the claim-before-execute protocol
+(`IClaimableInboxStore.TryClaimAsync`). The mechanism is native to each database (e.g.,
+`INSERT ... ON CONFLICT DO NOTHING` in PostgreSQL, `MERGE WITH (HOLDLOCK)` in SQL Server, `SETNX` in
+Redis, `attribute_not_exists` in DynamoDB, `CreateItemAsync` with 409 Conflict in CosmosDB).
 
-All implementations use atomic "first writer wins" semantics for the claim-before-execute protocol (`IClaimableInboxStore.TryClaimAsync`). Only one concurrent processor can claim a given `(messageId, handlerType)` pair. The mechanism is native to each database (e.g., `INSERT … ON CONFLICT DO NOTHING` in PostgreSQL, `MERGE WITH (HOLDLOCK)` in SQL Server, `SETNX` in Redis, `attribute_not_exists` in DynamoDB, `CreateItemAsync` with 409 Conflict in CosmosDB).
+Registering a store that cannot claim atomically fails fast at startup rather than degrading to a
+racy check-then-act.
+
+When no store is registered, deduplication falls back to the in-process `IInMemoryDeduplicator` -
+fast and lock-free, but lost on restart and not shared across instances. Use it for single-instance
+or serverless workloads; use a persistent store for payments, orders, and anything else where a
+duplicate is expensive.
+
+#### Two claim protocols
+
+A store offers one of two idempotency protocols, on separate interfaces, and may offer both:
+
+| Interface | Protocol | Ends when |
+| --- | --- | --- |
+| `IClaimableInboxStore` | Claim before execute. You govern the TTL. | You finalize on success, or release on failure. |
+| `ILeasedInboxStore` | Acquire a self-expiring lease. | The lease expires on its own; another processor may then reclaim it. |
+
+They are separate interfaces because they disagree about who ends a claim and about whether a stuck claim
+recovers on its own — so a caller must be able to tell which it holds before it calls. The lease collapses
+admission and expired-lease reclaim into one atomic compare-and-set, which is why a processor that dies
+mid-handler does not strand the message: **SQL Server, PostgreSQL, Oracle, MongoDB, Redis and In-Memory**
+lease. **DynamoDB, Firestore, Elasticsearch and Cosmos DB** offer the claim only; a dead processor's claim
+there is cleared by the stuck-processing timeout rather than by lease expiry.
+
+Writing a custom store? Implement whichever protocol your database can enforce atomically, and implement
+`IInboxStoreCapabilities` if you decorate another store, so the startup guard reads the capability you can
+actually forward rather than the interface you declare.
 
 ### Idempotency Under Load
 
 The claim protocol is correct under concurrent duplicate delivery, but two operational caveats are worth knowing for high-throughput deployments:
 
 :::note In-memory deduplication has a capacity ceiling
-`[Idempotent(UseInMemory = true)]` uses a bounded in-process store (`InMemoryDeduplicatorOptions.MaxEntries`, default 100,000 tracked entries; set `0` for unbounded) so it cannot grow unboundedly. Because deduplication is a correctness guarantee, the store **fails closed** at capacity rather than admitting un-trackable messages: a claim that cannot be tracked is denied, and the record-producing operations throw a transient `DeduplicationCapacityExceededException` so the message is **not acknowledged and is redelivered** (never silently admitted without deduplication) until periodic cleanup reclaims space as entries expire. For workloads where duplicate suppression must hold under sustained load, raise `MaxEntries` or use a **persistent `IInboxStore`** rather than in-memory mode — the database enforces the claim with no in-process capacity ceiling.
+The in-process `IInMemoryDeduplicator` fallback uses a bounded store (`InMemoryDeduplicatorOptions.MaxEntries`, default 100,000 tracked entries; set `0` for unbounded) so it cannot grow unboundedly. Because deduplication is a correctness guarantee, the store **fails closed** at capacity rather than admitting un-trackable messages: a claim that cannot be tracked is denied, and the record-producing operations throw a transient `DeduplicationCapacityExceededException` so the message is **not acknowledged and is redelivered** (never silently admitted without deduplication) until periodic cleanup reclaims space as entries expire. For workloads where duplicate suppression must hold under sustained load, raise `MaxEntries` or use a **persistent `IInboxStore`** rather than in-memory mode — the database enforces the claim with no in-process capacity ceiling.
 :::
 
 :::note Handler failure releases the claim
 When a handler throws, the middleware releases the claim before propagating the exception, so the message stays retryable on redelivery. The released claim is a best-effort cleanup on the failure path; the original handler exception is what your error-handling and dead-letter pipeline acts on. This is why a [dead-letter](./dead-letter.md) policy still matters even with idempotency enabled — idempotency prevents *double* processing, not *failed* processing.
 :::
 
-### Choosing a Message ID Strategy
+### Deduplicating on a Business Key
 
-The `[Idempotent]` attribute lets you control how the message ID is extracted:
-
-```csharp
-// Default: use MessageId from transport header
-[Idempotent(Strategy = MessageIdStrategy.FromHeader)]
-public class OrderHandler : IEventHandler<OrderCreatedEvent> { }
-
-// Use CorrelationId (useful for sagas)
-[Idempotent(Strategy = MessageIdStrategy.FromCorrelationId)]
-public class SagaStepHandler : IEventHandler<SagaStepEvent> { }
-
-// Composite key: {HandlerType}:{CorrelationId}
-[Idempotent(Strategy = MessageIdStrategy.CompositeKey)]
-public class MultiTenantHandler : IEventHandler<TenantEvent> { }
-
-// Custom: implement IMessageIdProvider for business-key extraction
-[Idempotent(Strategy = MessageIdStrategy.Custom)]
-public class PaymentHandler : IEventHandler<PaymentEvent> { }
-```
-
-For the `Custom` strategy, implement `IMessageIdProvider`:
+The middleware deduplicates on the message id. When the same logical operation may be published with
+a fresh transport id on retry, carry the business key on the message id itself:
 
 ```csharp
-public class OrderIdempotencyProvider : IMessageIdProvider
+public record OrderCreatedEvent(Guid OrderId, string CustomerId) : IDispatchEvent
 {
-    public string? GetMessageId(IDispatchMessage message, IMessageContext context)
-    {
-        return message switch
-        {
-            OrderCreatedEvent e => $"order-created-{e.OrderId}",
-            PaymentReceivedEvent e => $"payment-{e.OrderId}-{e.PaymentId}",
-            _ => context.MessageId
-        };
-    }
+    public string MessageId { get; init; } = $"order-created-{OrderId}";
 }
-
-services.AddSingleton<IMessageIdProvider, OrderIdempotencyProvider>();
 ```
 
-Business-key extraction is important when the same logical operation might produce different transport-level `MessageId` values on retry (e.g., if the publisher generates a new GUID each time it publishes).
-
-### Fluent Configuration
-
-For centralized configuration instead of per-handler attributes:
-
-```csharp
-services.AddDispatch(options =>
-{
-    options.ConfigureInbox(inbox =>
-    {
-        // All payment handlers: persistent, 7-day retention
-        inbox.ForNamespace("MyApp.Handlers.Financial",
-            cfg => cfg.WithRetention(TimeSpan.FromDays(7))
-                      .UsePersistent());
-
-        // Specific handler override
-        inbox.ForHandler<MetricsHandler>()
-            .WithRetention(TimeSpan.FromMinutes(5))
-            .UseInMemory();
-    });
-});
-```
-
-Fluent configuration takes precedence over `[Idempotent]` attributes when both are present.
-
-**Reference:** [Inbox Pattern](inbox.md) for the full configuration API, all strategies, and testing patterns.
+A middleware running before the inbox stage can equally write the key into
+`IMessageContext.MessageId`.
 
 ## The Hard Problem: Non-Deterministic Handlers
 
 Everything above works cleanly when your handler's side effects are limited to database writes within a transaction. But what happens when your handler calls an external service?
 
 ```csharp
-[Idempotent]
 public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
@@ -328,7 +337,6 @@ The database write and the inbox record can share a transaction. The email API c
 Many external APIs (payment processors, email platforms, notification services) support idempotency keys. Pass the message ID:
 
 ```csharp
-[Idempotent]
 public class SendWelcomeEmailHandler : IEventHandler<UserRegisteredEvent>
 {
     public async Task HandleAsync(UserRegisteredEvent @event, CancellationToken ct)
@@ -351,11 +359,18 @@ If the external service receives the same idempotency key twice, it ignores the 
 If the external service does not support idempotency keys, do not call it directly from your handler. Instead, store the *intent* to perform the action, and let a background process execute it:
 
 ```csharp
-[Idempotent]
 public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 {
-    public async Task HandleAsync(OrderCreatedEvent @event, IMessageContext context,
-        CancellationToken ct)
+    private readonly IDbConnection _db;
+    private readonly IOutboxWriter _outboxWriter;
+
+    public OrderCreatedHandler(IDbConnection db, IOutboxWriter outboxWriter)
+    {
+        _db = db;
+        _outboxWriter = outboxWriter;
+    }
+
+    public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
     {
         // Store the intent to send an email (in the same DB transaction as inbox)
         await _db.ExecuteAsync(
@@ -363,9 +378,10 @@ public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
             new { @event.OrderId }, ct);
 
         // Or use the outbox to stage a command for a dedicated email-sending service:
-        context.AddOutboundMessage(
+        await _outboxWriter.WriteAsync(
             new SendOrderConfirmationEmail(@event.OrderId),
-            destination: "email-service");
+            destination: "email-service",
+            ct);
     }
 }
 ```
@@ -445,11 +461,11 @@ This is simpler than the full inbox pattern but has a race condition window betw
 
 ```
 Is the handler naturally idempotent (upsert, cache, status flag)?
-  YES --> No [Idempotent] needed
+  YES --> No inbox store needed for this handler's safety
   NO  --> Does duplicate processing cause real harm (financial, data corruption)?
-            YES --> Use [Idempotent] with persistent IInboxStore
-            NO  --> Is the handler high-throughput?
-                      YES --> Consider [Idempotent(UseInMemory = true)]
+            YES --> Register a persistent IInboxStore
+            NO  --> Is the handler high-throughput and single-instance?
+                      YES --> The in-process deduplicator fallback may be enough
                       NO  --> A precondition check may be sufficient
 ```
 
@@ -466,11 +482,14 @@ services.AddDispatch(dispatch =>
 });
 
 // Producer side: transactional outbox
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
-services.AddSqlServerOutboxStore(options =>
-{
-    options.ConnectionString = connectionString;
-});
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(100)
+        .PollingInterval(TimeSpan.FromSeconds(1))
+        .MaxRetryCount(5)
+        .RetryDelay(TimeSpan.FromMinutes(5)))
+    .EnableBackgroundProcessing()));
 
 // Consumer side: persistent inbox
 services.AddSqlServerInboxStore(options =>
@@ -488,16 +507,24 @@ services.AddInboxHostedService();
 // Uses Outbox so OrderCreated cannot be lost if the broker is down.
 // Delivery is at-least-once - the consumer below is what makes reprocessing safe.
 
-public class CreateOrderHandler : IActionHandler<CreateOrderAction, IMessageContext>
+public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
 {
     private readonly IDbConnection _db;
+    private readonly IOutboxWriter _outboxWriter;
 
-    public async Task HandleAsync(
+    public CreateOrderHandler(IDbConnection db, IOutboxWriter outboxWriter)
+    {
+        _db = db;
+        _outboxWriter = outboxWriter;
+    }
+
+    public async Task<IMessageResult> HandleAsync(
         CreateOrderAction action,
         IMessageContext context,
         CancellationToken ct)
     {
         using var transaction = _db.BeginTransaction();
+        context.SetItem("Transaction", transaction);
 
         var orderId = Guid.NewGuid();
         await _db.ExecuteAsync(
@@ -506,20 +533,21 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, IMessageCont
             transaction);
 
         // Staged in outbox within the same transaction
-        context.AddOutboundMessage(
+        await _outboxWriter.WriteAsync(
             new OrderCreatedEvent(orderId, action.CustomerId, action.Total),
-            destination: "orders");
+            destination: "orders",
+            ct);
 
         transaction.Commit();
+        return MessageResult.Success();
     }
 }
 ```
 
 ```csharp
 // --- Consumer: Handlers for OrderCreatedEvent ---
-// Each handler is independently idempotent
+// The inbox claims each event once before any handler runs
 
-[Idempotent(RetentionMinutes = 10080)] // 7 days
 public class ReserveInventoryHandler : IEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
@@ -529,7 +557,6 @@ public class ReserveInventoryHandler : IEventHandler<OrderCreatedEvent>
     }
 }
 
-[Idempotent(Strategy = MessageIdStrategy.Custom)]
 public class ChargePaymentHandler : IEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
@@ -544,7 +571,7 @@ public class ChargePaymentHandler : IEventHandler<OrderCreatedEvent>
     }
 }
 
-// No [Idempotent] needed - upsert is naturally idempotent
+// Naturally idempotent - the upsert is safe to repeat
 public class UpdateOrderProjectionHandler : IEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
@@ -558,7 +585,7 @@ public class UpdateOrderProjectionHandler : IEventHandler<OrderCreatedEvent>
 The result:
 
 - **Producer side**: `CreateOrderHandler` uses the Outbox, so `OrderCreatedEvent` cannot be lost if the handler is retried or the process crashes. It can still be published **more than once** — delivery is at-least-once, which is exactly why the receiver side below exists.
-- **Consumer side**: `ReserveInventoryHandler` and `ChargePaymentHandler` use `[Idempotent]` with persistent storage, so they process each event at most once. `UpdateOrderProjectionHandler` is naturally idempotent and needs no protection.
+- **Consumer side**: with a persistent inbox store registered, every event is claimed before any handler runs, so `ReserveInventoryHandler` and `ChargePaymentHandler` process each event at most once per delivery attempt. `UpdateOrderProjectionHandler` is naturally idempotent and would be safe even without it.
 - **External calls**: `ChargePaymentHandler` passes an idempotency key to the payment gateway as defense-in-depth on top of the inbox check.
 
 ## Summary
@@ -566,11 +593,11 @@ The result:
 | Concern | Mechanism | Excalibur Feature |
 |---------|-----------|---------------------------|
 | Duplicate publishes | Transactional Outbox | `IOutboxStore` + `OutboxMiddleware` |
-| Duplicate consumption | Idempotent Consumer | `[Idempotent]` + `IInboxStore` |
+| Duplicate consumption | Idempotent Consumer | `InboxMiddleware` + `IInboxStore` |
 | Atomic side effects | First-writer-wins claim, release-on-failure | `IClaimableInboxStore.TryClaimAsync` |
-| External API duplicates | Idempotency keys or stored intent | `IMessageIdProvider` + Outbox |
+| External API duplicates | Idempotency keys or stored intent | Business-key message ids + Outbox |
 | Cross-outbox/inbox atomicity | Shared-database transaction | `TryMarkSentAndReceivedAsync` |
-| Cleanup | Configurable retention | `IInboxStoreAdmin.CleanupAsync` + hosted service |
+| Cleanup | Configurable retention | `IInboxStoreAdmin.CleanupAllTenantsProcessedEntriesAsync` + hosted service |
 | Monitoring | Health checks + OpenTelemetry | `InboxHealthCheck` + activity tags |
 
 Build your consumers to tolerate retries, and your distributed system will be that much more reliable.

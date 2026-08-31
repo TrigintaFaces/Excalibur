@@ -297,7 +297,17 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 		}),
 		new PassThroughDataSubjectHasher(),
 		EnabledTestLogger.Create<SqlServerDataInventoryStore>(),
-		ambientTenant is null ? null : new FixedTenantContext(ambientTenant));
+		// A single-tenant host never receives an ABSENT context: the framework registers its own
+		// single-tenant default, so GetRequiredService always resolves one. Passing null here would
+		// assert against a state no deployment reaches, and the store rejects it precisely so that
+		// "deliberately untenanted" cannot be confused with "a context was forgotten". The untenanted
+		// arms therefore stand in the real default; the mode flag below is what distinguishes them.
+		new FixedTenantContext(ambientTenant ?? TenantDefaults.DefaultTenantId),
+		// The mode follows the arm's own parameter rather than being fixed: supplying an ambient tenant IS
+		// the multi-tenant case these arms exercise, and omitting it is the untenanted one. Hard-coding
+		// either value would make half the arms assert against a deployment mode they never intended.
+		Microsoft.Extensions.Options.Options.Create(
+			new TenantContextOptions { RequireTenant = ambientTenant is not null }));
 
 	/// <summary>
 	/// Implements <see cref="ITenantContext"/> DIRECTLY and inherits no first-party base, so these arms

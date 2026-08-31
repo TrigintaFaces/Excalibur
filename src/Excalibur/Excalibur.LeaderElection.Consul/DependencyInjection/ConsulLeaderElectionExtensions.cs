@@ -42,6 +42,7 @@ public static class ConsulLeaderElectionExtensions
 		configure(consulBuilder);
 
 		RegisterOptionsAndServices(services, consulBuilder);
+		ConsulElectionRegistration.RegisterSingletonElectionAndGate(services, consulBuilder.ResourceNameValue);
 
 		return services;
 	}
@@ -64,6 +65,12 @@ public static class ConsulLeaderElectionExtensions
 			return factory.CreateElection(resourceName, candidateId);
 		});
 
+		// Fencing is default-ON for a framework-protected outbox: this overload makes an ILeaderElection
+		// resolvable, which is the multi-instance signal, so the outbox drain is gated automatically rather
+		// than through an easily-forgotten second opt-in. Idempotent via TryAdd, so an explicit
+		// outbox.WithLeaderElection() composes with it; AsSingleWriter() is the single-writer opt-out.
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
+
 		return services;
 	}
 
@@ -84,6 +91,12 @@ public static class ConsulLeaderElectionExtensions
 			var factory = provider.GetRequiredService<ILeaderElectionFactory>();
 			return factory.CreateHealthBasedElection(resourceName, candidateId);
 		});
+
+		// Fencing is default-ON for a framework-protected outbox: this overload makes an ILeaderElection
+		// resolvable, which is the multi-instance signal, so the outbox drain is gated automatically rather
+		// than through an easily-forgotten second opt-in. Idempotent via TryAdd, so an explicit
+		// outbox.WithLeaderElection() composes with it; AsSingleWriter() is the single-writer opt-out.
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(services);
 
 		return services;
 	}

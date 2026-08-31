@@ -13,6 +13,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to get unsent messages from the outbox.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and the row carries TenantId so the handler can re-establish the owning tenant per message. Scoping this read to the ambient tenant would stall delivery for every other tenant")]
 public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IEnumerable<OutboxMessageRow>>
 {
 	/// <summary>
@@ -75,14 +78,29 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 				SELECT TOP (@BatchSize) *
 				FROM {tableName} WITH (READPAST, UPDLOCK, ROWLOCK)
 				WHERE Status IN (0, 3, 4) -- Staged, Failed, PartiallyFailed
-					AND (ScheduledAt IS NULL OR ScheduledAt <= @Now)
-					AND (NextAttemptAt IS NULL OR NextAttemptAt <= @Now)
-					AND (LeasedAt IS NULL OR LeasedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, GETUTCDATE()))
+					-- Visibility is decided on the SERVER clock, like the lease below and like the
+					-- failure floor that writes NextAttemptAt. Comparing a server-stamped column against
+					-- a client-supplied instant mixes two clocks: the floor is anchored on
+					-- SYSUTCDATETIME() so a skewed dispatcher cannot shorten it, but a dispatcher whose
+					-- clock trails the server then cannot see the row until its own clock catches up,
+					-- which delays delivery by the skew instead of shortening the floor by it.
+					AND (ScheduledAt IS NULL OR ScheduledAt <= TODATETIMEOFFSET(SYSUTCDATETIME(), 0))
+					AND (NextAttemptAt IS NULL OR NextAttemptAt <= TODATETIMEOFFSET(SYSUTCDATETIME(), 0))
+					-- The lease is stamped and judged with the SAME clock function as the two predicates
+					-- above. GETUTCDATE() returns a datetime, whose resolution is about 3.33 ms and which
+					-- ROUNDS -- so a lease could be stamped fractionally ahead of the instant it was taken
+					-- at, and one predicate in this WHERE would be reasoning at 3.33 ms while its
+					-- neighbours reason at 100 ns. Nothing here needs the coarser type.
+					AND (LeasedAt IS NULL OR LeasedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, TODATETIMEOFFSET(SYSUTCDATETIME(), 0)))
 					AND (@FencingToken IS NULL OR @FencingToken >= ISNULL((SELECT HighWaterToken FROM {fenceTableName} WHERE OutboxTable = @FenceScope), 0))
-				ORDER BY PartitionKey, SequenceNumber ASC
+				-- CreatedAt is the last tiebreak, matching the Postgres and Oracle claims. Without it two
+				-- messages sharing a partition key AND a sequence number come back in an order SQL Server
+				-- does not define, so the ordering a consumer reads in the guarantee contract would hold
+				-- on two providers and not on the third.
+				ORDER BY PartitionKey, SequenceNumber ASC, CreatedAt ASC
 			)
 			UPDATE Claimable
-			SET LeasedAt = GETUTCDATE(), LeasedBy = @ProcessorId,
+			SET LeasedAt = TODATETIMEOFFSET(SYSUTCDATETIME(), 0), LeasedBy = @ProcessorId,
 				FencingToken = CASE WHEN @FencingToken IS NULL THEN FencingToken ELSE @FencingToken END
 			OUTPUT
 				INSERTED.Id, INSERTED.MessageType, INSERTED.Payload, INSERTED.Headers,
@@ -95,7 +113,6 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@BatchSize", batchSize);
-		parameters.Add("@Now", DateTimeOffset.UtcNow);
 		parameters.Add("@LeaseTimeoutSeconds", leaseTimeoutSeconds);
 		parameters.Add("@ProcessorId", processorId);
 		parameters.Add("@FencingToken", fencingToken);

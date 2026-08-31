@@ -10,11 +10,11 @@ namespace Excalibur.Jobs.Azure.Internal;
 /// Narrow internal seam over <see cref="ArmClient"/> used by
 /// <see cref="AzureLogicAppsJobProvider"/>. Exposes only the use-case
 /// operations needed by the job provider so tests can substitute at this
-/// boundary without faking the concrete SDK client type (ADR-142 §D7).
+/// boundary without faking the concrete SDK client type.
 /// </summary>
 /// <remarks>
-/// Follows the COMPASS S798 msg 1712 ruling: flat use-case methods, not
-/// SDK topology mirroring. Data-shaped SDK types
+/// The seam exposes flat use-case methods rather than mirroring the SDK's
+/// client topology. Data-shaped SDK types
 /// (<see cref="SubscriptionResource"/>) cross the seam — they are
 /// hierarchical resource handles and are safe to pass through.
 /// </remarks>

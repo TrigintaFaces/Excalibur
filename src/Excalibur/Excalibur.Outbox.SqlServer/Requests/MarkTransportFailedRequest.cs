@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -13,6 +13,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to mark a transport delivery as failed.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.ForeignKeyConfined,
+	"the transport rows are reached through MessageId, a foreign key to the globally-unique outbox Id, so every row this statement can match belongs to the one message the cross-tenant claim returned, and therefore to one tenant. Neither filtered column is a key, so the statement is not restricted to a single row; a tenant term still could not exclude another tenant's row, because no other tenant's row can match that MessageId")]
 public sealed class MarkTransportFailedRequest : DataRequestBase<IDbConnection, int>
 {
 	/// <summary>

@@ -38,8 +38,8 @@ public static class EventSourcingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// ADR-078: Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
-		_ = services.AddDispatch();
+		// Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
+		_ = services.AddDispatchPipeline();
 
 		// The startup validators below are IHostedService singletons that take an ILogger<T>. Registering them
 		// without the logging services makes the IHostedService enumerable unresolvable for any consumer who
@@ -50,13 +50,15 @@ public static class EventSourcingServiceCollectionExtensions
 		// Register default snapshot strategy (no snapshots)
 		services.TryAddSingleton<ISnapshotStrategy>(NoSnapshotStrategy.Instance);
 
-		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an event store.
+		// fail loud at host start if the consumer forgot to pick an event store.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventSourcingPrerequisiteValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, EventSourcingPrerequisiteValidator>());
 
 		// Fail host start when GDPR crypto-shredding is configured but the event store is not wired for
 		// at-rest field encryption (consumer configured crypto-shred but omitted AddEventSourcingCryptoShredding()).
 		// Always-on so the silent-inert PII gap fails closed even when the opt-in wiring is forgotten.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, CryptoShreddingWiringValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, CryptoShreddingWiringValidator>());
 
 		// Sibling always-on guards for the inbox and outbox surfaces: fail host start when crypto-shredding is
 		// configured but a registered inbox/outbox store is NOT wired for at-rest field encryption. Registered
@@ -69,14 +71,15 @@ public static class EventSourcingServiceCollectionExtensions
 		// event-type registry — a configuration that bricks every aggregate replay at runtime. Converts a
 		// silent runtime failure into an honest startup failure that names the fix (RegisterEventTypes*).
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventTypeRegistrationValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, EventTypeRegistrationValidator>());
 
-		// us5tfv (ADR-336 clause 2): fail fast at startup when OutboxStagingStrategy.Transactional is explicitly
+		// fail fast at startup when OutboxStagingStrategy.Transactional is explicitly
 		// selected without the transactional infrastructure (ITransactionalOutboxWriter + a transactional event
 		// store), instead of silently degrading to non-atomic eventually-consistent staging.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<EventSourcedRepositoryOptions>, TransactionalStagingCapabilityValidator>());
 
-		// ADR-336 clause 2: fail fast at startup when OutboxStagingStrategy.EventuallyConsistent is explicitly
+		// fail fast at startup when OutboxStagingStrategy.EventuallyConsistent is explicitly
 		// selected without a registered IOutboxStore, instead of silently skipping outbox staging (integration
 		// events would be lost with no diagnostic).
 		services.TryAddEnumerable(
@@ -87,10 +90,20 @@ public static class EventSourcingServiceCollectionExtensions
 		// can inject IEventStore / ISnapshotStore directly without [FromKeyedServices("default")].
 		// All providers register their store as keyed "default" via TryAddKeyedSingleton,
 		// so these single forwarding registrations work for all providers.
-		services.TryAddSingleton<IEventStore>(sp =>
-			sp.GetRequiredKeyedService<IEventStore>("default"));
-		services.TryAddSingleton<ISnapshotStore>(sp =>
-			sp.GetRequiredKeyedService<ISnapshotStore>("default"));
+		//
+		// Unconditional, and it has to be: registering the keyed "default" store AFTER this call is a
+		// supported ordering (a consumer may hand-register one, and every provider extension runs later),
+		// so there is nothing here to condition on yet. What that costs is a descriptor for a contract the
+		// host may never back - most visibly ISnapshotStore, which is optional, so an event-sourced host
+		// with an event store and no snapshot store still carries an ISnapshotStore alias.
+		//
+		// AddKeyedDefaultAlias is what keeps that from misleading a registration-time gate: it marks the
+		// descriptor as a forwarder, so a gate walking the collection can tell "a store is registered" from
+		// "something promises this contract and nothing provides it". Registering these with a bare
+		// TryAddSingleton would make an unbacked alias indistinguishable from a real store, and the
+		// fail-closed multi-tenancy gate would demand a tenant capability of a store nobody registered.
+		_ = services.AddKeyedDefaultAlias<IEventStore>();
+		_ = services.AddKeyedDefaultAlias<ISnapshotStore>();
 
 		return services;
 	}

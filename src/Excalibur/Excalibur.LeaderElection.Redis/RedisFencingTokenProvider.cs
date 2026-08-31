@@ -57,7 +57,7 @@ internal sealed class RedisFencingTokenProvider : IFencingTokenProvider
 		// ("increment or decrement would overflow"); translate that (and any defensive non-positive
 		// result) to the contract's FencingTokenExhaustedException so a consumer's fail-closed
 		// catch(FencingTokenExhaustedException) relinquish path is honored rather than seeing a raw
-		// RedisServerException (nxjn2k — a wrapped/reused fencing token would be a split-brain catastrophe).
+		// RedisServerException (a wrapped/reused fencing token would be a split-brain catastrophe).
 		var db = _redis.GetDatabase();
 		long token;
 		try
@@ -101,7 +101,7 @@ internal sealed class RedisFencingTokenProvider : IFencingTokenProvider
 		cancellationToken.ThrowIfCancellationRequested();
 
 		// null = no token has ever been issued for this resource (no active leader). Never a
-		// fabricated/sentinel value — the idiomatic "no value" signal (ADR-339 Decision 2).
+		// fabricated/sentinel value — the idiomatic "no value" signal (Decision 2).
 		var db = _redis.GetDatabase();
 		var value = await db.StringGetAsync(KeyPrefix + resourceId).ConfigureAwait(false);
 		return value.HasValue ? (long)value : null;

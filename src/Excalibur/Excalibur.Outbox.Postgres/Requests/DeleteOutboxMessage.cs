@@ -13,8 +13,12 @@ namespace Excalibur.Outbox.Postgres;
 /// <summary>
 /// Represents a data request to delete an outbox message from the Postgres database.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the post-claim mutation path: the drain has already claimed this row cross-tenant and removes it by its globally-unique message id. This store holds no tenant context to filter by - an outbox store reads no ambient tenant context and accepts a tenant only as an explicit argument - so the statement carries no tenant term, and a caller that supplies a message id it did not obtain from a claim reaches the row behind it. Isolation on this table is established where the row is written, by stamping tenant_id")]
 public sealed class DeleteOutboxMessage : DataRequest<int>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DeleteOutboxMessage"/> class.
 	/// </summary>

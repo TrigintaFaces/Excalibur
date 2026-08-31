@@ -6,6 +6,7 @@ using Excalibur.Inbox.Postgres;
 using Excalibur.Integration.Tests.Data.EventStore;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Npgsql;
 
@@ -55,7 +56,9 @@ public sealed class PostgresInboxStoreClaimAtomicityShould : IClassFixture<Postg
 		var store = new PostgresInboxStore(
 			() => new NpgsqlConnection(connectionString),
 			options,
-			NullLogger<PostgresInboxStore>.Instance);
+			NullLogger<PostgresInboxStore>.Instance,
+			SingleTenantTestContext.Instance,
+			Options.Create(new TenantContextOptions()));
 
 		const string messageId = "msg-ac6";
 		const string handlerType = "TestHandler";

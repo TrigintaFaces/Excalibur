@@ -91,9 +91,10 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMe
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2046", Justification = "Implementation does not use reflection; interface attributes are for general contract safety")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "CloudEvent JSON serialization is handled by CloudNative.CloudEvents library")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "CloudEvent JSON serialization is handled by CloudNative.CloudEvents library")]
+	[RequiresUnreferencedCode(
+		"Serializes the CloudEvent payload with the reflection-based System.Text.Json serializer: binary mode falls back to it for any payload that is not already bytes or a string, and structured mode encodes through the CloudNative.CloudEvents JSON formatter. Neither payload type graph is statically analyzable. Set CloudEvent.Data to a byte[], ReadOnlyMemory<byte>, ByteString, or string before publishing to stay off the reflective path.")]
+	[RequiresDynamicCode(
+		"Binary-mode payload serialization falls back to the reflection-based System.Text.Json serializer, which generates converter code at run time for the payload type. Set CloudEvent.Data to a byte[], ReadOnlyMemory<byte>, ByteString, or string before publishing to stay off that path.")]
 	public Task<PubsubMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -250,11 +251,9 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMe
 			return string.Empty;
 		}
 
-		return contentType?.ToUpperInvariant() switch
-		{
-			"APPLICATION/JSON" or "APPLICATION/CLOUDEVENTS+JSON" => JsonDocument.Parse(data.ToStringUtf8()).RootElement,
-			_ => data.ToStringUtf8(),
-		};
+		return CloudEventContentType.IsJson(contentType)
+			? JsonDocument.Parse(data.ToStringUtf8()).RootElement
+			: data.ToStringUtf8();
 	}
 
 	private static void ApplyBinaryModeAttributes(IDictionary<string, string> attributes, CloudEvent cloudEvent)
@@ -319,6 +318,7 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMe
 	}
 
 	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventAdapter.ConvertToByteString(Object)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventAdapter.ConvertToByteString(Object)")]
 	private PubsubMessage CreateBinaryMessage(CloudEvent cloudEvent)
 	{
 		var message = new PubsubMessage { Data = ConvertToByteString(cloudEvent.Data) };

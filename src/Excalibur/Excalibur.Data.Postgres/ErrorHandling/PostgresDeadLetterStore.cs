@@ -30,17 +30,29 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 	private readonly ILogger<PostgresDeadLetterStore> _logger;
 	private readonly string _schema;
 	private readonly string _tableName;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresDeadLetterStore" /> class.
 	/// </summary>
 	/// <param name="options"> The Postgres dead letter options. </param>
-	/// <param name="tenantContext"> The ambient tenant, or <see langword="null" /> in a single-tenant host. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="logger"> The logger for diagnostic output. </param>
 	public PostgresDeadLetterStore(
 		IOptions<PostgresDeadLetterOptions> options,
-		ITenantContext? tenantContext,
+		ITenantContext tenantContext,
 		ILogger<PostgresDeadLetterStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -53,9 +65,8 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		_schema = opts.SchemaName;
 		_tableName = opts.TableName;
 
-		// Optional by construction: a single-tenant host registers no ITenantContext, which resolves to the
-		// untenanted partition. That partition still binds a concrete term, so no statement is ever emitted
 		// without a tenant predicate.
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger;
 	}
@@ -70,15 +81,9 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 	/// inhabitant, so the term is always concrete and a tenant-blind statement cannot arise by omission.
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "JSON serialization used for properties storage; Dictionary<string, string> is well-defined and preserved")]
-	[RequiresDynamicCode(
-		"JSON serialization of message properties dictionary requires dynamic code generation for type-specific serialization logic.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	public async Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -124,16 +129,12 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 				message.ReplayedAt,
 				message.SourceSystem,
 				message.CorrelationId,
-				Properties = JsonSerializer.Serialize(message.Properties),
+				Properties = JsonSerializer.Serialize(message.Properties, DeadLetterJsonContext.Default.DictionaryStringString),
 			}).ConfigureAwait(false);
 
 		LogStoredDeadLetterMessage(message.MessageId, message.MessageType, message.Reason);
 	}
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public async Task<DeadLetterMessage?> GetByIdAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -215,22 +216,16 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			parameters.Add("CorrelationId", filter.CorrelationId);
 		}
 
-		sql += """
-			ORDER BY moved_to_dead_letter_at DESC
-			LIMIT @MaxResults
-			OFFSET @Skip
-			""";
+		sql += " ORDER BY moved_to_dead_letter_at DESC LIMIT @MaxResults OFFSET @Skip";
 
 		parameters.Add("Skip", filter.Skip);
 		parameters.Add("MaxResults", filter.MaxResults);
 
 		using var connection = CreateConnection();
 
-#pragma warning disable IL2026, IL3050 // Dapper QueryAsync and ToDeadLetterMessage use reflection
 		var results = await connection.QueryAsync<DeadLetterMessageDto>(sql, parameters).ConfigureAwait(false);
 
 		return results.Select(static dto => dto.ToDeadLetterMessage());
-#pragma warning restore IL2026, IL3050
 	}
 
 	/// <inheritdoc />
@@ -396,9 +391,6 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		public string? properties { get; set; }
 		// ReSharper restore InconsistentNaming
 
-		[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "JSON deserialization used for properties retrieval; Dictionary<string, string> is well-defined and preserved")]
-		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 		public DeadLetterMessage ToDeadLetterMessage() =>
 			new()
 			{
@@ -419,7 +411,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 				CorrelationId = correlation_id,
 				Properties = string.IsNullOrWhiteSpace(properties)
 					? []
-					: JsonSerializer.Deserialize<Dictionary<string, string>>(properties) ?? [],
+					: JsonSerializer.Deserialize(properties, DeadLetterJsonContext.Default.DictionaryStringString) ?? [],
 			};
 	}
 }

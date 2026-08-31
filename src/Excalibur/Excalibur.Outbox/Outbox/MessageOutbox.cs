@@ -50,6 +50,17 @@ public sealed partial class MessageOutbox(
 	private readonly OutboxDeliveryOptions _options = options.Value;
 
 	/// <summary>
+	/// The declared message types indexed by every stored-name form a row may carry.
+	/// </summary>
+	/// <remarks>
+	/// Built once at construction and never mutated, so concurrent resolutions read it without
+	/// synchronisation. Deferring it to first use would need a barrier to be safe under a weak memory
+	/// model, which is more machinery than a dictionary of the host's own declared types is worth.
+	/// </remarks>
+	private readonly Dictionary<string, Type> _declaredMessageTypes =
+		BuildDeclaredMessageTypeLookup(options.Value.MessageTypes);
+
+	/// <summary>
 	/// Runs the outbox dispatch loop, continuously processing and publishing pending messages to message brokers. This method implements
 	/// the core outbox processing logic with configurable polling intervals, error handling, and graceful shutdown support for reliable
 	/// message delivery.
@@ -59,6 +70,8 @@ public sealed partial class MessageOutbox(
 	/// <returns> Task containing the total number of messages processed during the dispatch session. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when dispatcherId is null or empty. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when the outbox processor cannot be initialized. </exception>
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken)
 	{
 		LogOutboxStarted();
@@ -239,7 +252,7 @@ public sealed partial class MessageOutbox(
 			{
 				if (ResolveMessageType(message.MessageType) is { } messageType)
 				{
-					// Deserialize directly from the stored UTF-8 payload bytes (x8387b). Routing through
+					// Deserialize directly from the stored UTF-8 payload bytes. Routing through
 					// Encoding.UTF8.GetString first is a lossy round-trip for any payload byte that is not
 					// valid UTF-8 (invalid sequences become the replacement character), corrupting binary or
 					// non-UTF8 bodies; the byte-native path is the exact inverse of SerializeToUtf8Bytes.
@@ -263,39 +276,92 @@ public sealed partial class MessageOutbox(
 		return dispatchMessages;
 	}
 
-	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime message type resolution.")]
-	private static Type? ResolveMessageType(string typeName)
+	/// <summary>
+	/// Resolves a stored message-type name to a type this host declared it stages.
+	/// </summary>
+	/// <param name="typeName">The <c>MessageType</c> value read back from the outbox row.</param>
+	/// <returns>The declared type, or <see langword="null"/> when the name was not declared.</returns>
+	/// <remarks>
+	/// <para>
+	/// <c>MessageType</c> is data read back out of the outbox table, so whatever this method consults is
+	/// the set an attacker who can write that table gets to choose from. Searching the loaded assemblies
+	/// made that set "every type in the process", and the deserializer runs a type's constructors and
+	/// property setters as it materialises it — so a stored string reached executable code by naming it.
+	/// Filtering the search by <c>IDispatchMessage</c> shrank the set without bounding it, because what
+	/// implements that interface in a given process is not something this host decided.
+	/// </para>
+	/// <para>
+	/// Resolution now consults only <see cref="OutboxDeliveryOptions.MessageTypes"/>, which the host fixes
+	/// at composition. The stored name selects from that list or it does not resolve; it cannot introduce
+	/// a candidate. That is the difference between a narrower search and a bounded one, and only the
+	/// second is a property the deployment can rely on.
+	/// </para>
+	/// <para>
+	/// An undeclared name takes the same path an unresolvable one always took: it is logged and the row is
+	/// left staged, not marked sent, so nothing is dropped. This is also not the delivery path —
+	/// <see cref="GetPendingMessagesAsync"/> is an inspection API, and the drain runs through
+	/// <c>IOutboxProcessor</c> over the stored payload without materialising the message type at all — so
+	/// declaring nothing costs visibility here and not delivery.
+	/// </para>
+	/// </remarks>
+	private Type? ResolveMessageType(string typeName)
 	{
 		if (string.IsNullOrWhiteSpace(typeName))
 		{
 			return null;
 		}
 
-		var lookupName = typeName;
+		if (_declaredMessageTypes.TryGetValue(typeName, out var resolved))
+		{
+			return resolved;
+		}
+
+		// The write path stores Type.FullName, but a row staged by another writer may carry an
+		// assembly-qualified name. Comparing the portion before the assembly lets those match a declared
+		// type without widening the set the comparison draws from.
 		var separatorIndex = typeName.IndexOf(',', StringComparison.Ordinal);
-		if (separatorIndex > 0)
+
+		return separatorIndex > 0
+			&& _declaredMessageTypes.TryGetValue(typeName[..separatorIndex].Trim(), out resolved)
+				? resolved
+				: null;
+	}
+
+	/// <summary>
+	/// Indexes the declared message types by every name form a stored row may carry.
+	/// </summary>
+	/// <param name="messageTypes">The types the host declared.</param>
+	/// <returns>A lookup from stored name to declared type.</returns>
+	/// <remarks>
+	/// Types that are not <see cref="IDispatchMessage"/> are dropped rather than indexed. The list is a
+	/// declaration of intent, and a host that names something it cannot dispatch has made a mistake — one
+	/// that must not become a way to reintroduce an arbitrary type into the resolvable set through
+	/// configuration.
+	/// </remarks>
+	private static Dictionary<string, Type> BuildDeclaredMessageTypeLookup(IList<Type> messageTypes)
+	{
+		var lookup = new Dictionary<string, Type>(StringComparer.Ordinal);
+
+		foreach (var messageType in messageTypes)
 		{
-			lookupName = typeName[..separatorIndex].Trim();
+			if (messageType is null || !typeof(IDispatchMessage).IsAssignableFrom(messageType))
+			{
+				continue;
+			}
+
+			if (messageType.FullName is { } fullName)
+			{
+				lookup[fullName] = messageType;
+				lookup[$"{fullName}, {messageType.Assembly.GetName().Name}"] = messageType;
+			}
+
+			if (messageType.AssemblyQualifiedName is { } qualifiedName)
+			{
+				lookup[qualifiedName] = messageType;
+			}
 		}
 
-		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			try
-			{
-				var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false)
-					?? assembly.GetType(lookupName, throwOnError: false, ignoreCase: false);
-				if (resolved != null)
-				{
-					return resolved;
-				}
-			}
-			catch (ReflectionTypeLoadException)
-			{
-				// Ignore assemblies that cannot be inspected and continue search.
-			}
-		}
-
-		return null;
+		return lookup;
 	}
 
 	/// <summary>

@@ -14,33 +14,35 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class PersistenceHealthChecksBuilderExtensions
 {
 	/// <summary>
-	/// Adds a health check that probes a named persistence provider's connectivity via the
-	/// registered <see cref="IPersistenceProviderFactory"/>.
+	/// Adds a health check that probes a keyed persistence provider's connectivity.
 	/// </summary>
 	/// <param name="builder">The health checks builder.</param>
-	/// <param name="providerName">The persistence provider name to probe.</param>
+	/// <param name="providerKey">
+	/// The keyed-DI key the provider is registered under — the key its package uses (for example
+	/// <c>"sqlserver"</c>, <c>"postgres"</c>, <c>"inmemory"</c>), or <c>"default"</c>.
+	/// </param>
 	/// <param name="name">The health check name. Default is "persistence".</param>
 	/// <param name="failureStatus">The failure status. Default is <see langword="null"/> (context default).</param>
 	/// <param name="tags">Optional tags for filtering health checks.</param>
 	/// <returns>The health checks builder for chaining.</returns>
 	public static IHealthChecksBuilder AddPersistenceHealthCheck(
 		this IHealthChecksBuilder builder,
-		string providerName,
+		string providerKey,
 		string name = "persistence",
 		HealthStatus? failureStatus = null,
 		IEnumerable<string>? tags = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
 
-		// PersistenceHealthCheck takes a non-injectable string providerName, so construct it explicitly
+		// PersistenceHealthCheck takes a non-injectable string providerKey, so construct it explicitly
 		// rather than via ActivatorUtilities.
 		return builder.Add(new HealthCheckRegistration(
 			name,
 			sp => new PersistenceHealthCheck(
-				sp.GetRequiredService<IPersistenceProviderFactory>(),
-				sp.GetRequiredService<ILogger<PersistenceHealthCheck>>(),
-				providerName),
+				sp,
+				providerKey,
+				sp.GetRequiredService<ILogger<PersistenceHealthCheck>>()),
 			failureStatus,
 			tags));
 	}

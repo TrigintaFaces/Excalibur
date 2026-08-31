@@ -117,17 +117,10 @@ services.AddAwsSqsTransport("orders", sqs =>
            fifo.ContentBasedDeduplication(true)
                .MessageGroupIdSelector<OrderCreated>(msg => msg.TenantId);
        })
-       .ConfigureBatch(batch =>
-       {
-           batch.SendBatchSize(10)
-                .SendBatchWindow(TimeSpan.FromMilliseconds(100))
-                .ReceiveMaxMessages(10);
-       })
        .ConfigureCloudEvents(ce =>
        {
            ce.UseFifoFeatures = true;
            ce.DefaultMessageGroupId = "orders";
-           ce.EnablePayloadCompression = true;
        })
        .MapQueue<OrderCreated>("https://sqs.us-east-1.amazonaws.com/123456789012/orders");
 });
@@ -287,7 +280,6 @@ services.AddAwsSqsTransport(sqs =>
            ce.UseFifoFeatures = true;
            ce.DefaultMessageGroupId = "orders";
            ce.EnableContentBasedDeduplication = true;
-           ce.EnablePayloadCompression = true;
            ce.CompressionThreshold = 64 * 1024; // 64KB
            ce.EnableDoDCompliance = true;
        });
@@ -295,12 +287,19 @@ services.AddAwsSqsTransport(sqs =>
 ```
 
 ### Standalone CloudEvents
+:::note Trimming and Native AOT
+The CloudEvents mapper bundled with this transport serializes the message payload with
+reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
+call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+backed by a source-generated serializer.
+:::
+
 ```csharp
 services.AddCloudEventsForSqs(options =>
 {
     options.UseFifoFeatures = true;
     options.DefaultMessageGroupId = "orders";
-    options.EnablePayloadCompression = true;
 });
 ```
 

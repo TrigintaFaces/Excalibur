@@ -1,3 +1,4 @@
+using Excalibur.Dispatch;
 using Excalibur.Compliance.Erasure;
 
 using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
@@ -6,7 +7,7 @@ using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryLegalHoldStoreShould
 {
-    private readonly InMemoryLegalHoldStore _sut = new();
+    private readonly InMemoryLegalHoldStore _sut = new(UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
     private static LegalHold CreateHold(Guid? holdId = null, string? dataSubjectIdHash = null, bool isActive = true) => new()
     {
@@ -47,7 +48,9 @@ public sealed class InMemoryLegalHoldStoreShould
         var holdId = Guid.NewGuid();
         await _sut.SaveHoldAsync(CreateHold(holdId), CancellationToken.None);
 
-        await Should.ThrowAsync<InvalidOperationException>(
+        // Strengthened, not relaxed: the base type is also raised when multi-tenancy is active with no
+        // resolved tenant, and treating that as "already on file" drops a hold that was never written.
+        _ = await Should.ThrowAsync<DuplicateLegalHoldException>(
             () => _sut.SaveHoldAsync(CreateHold(holdId), CancellationToken.None));
     }
 

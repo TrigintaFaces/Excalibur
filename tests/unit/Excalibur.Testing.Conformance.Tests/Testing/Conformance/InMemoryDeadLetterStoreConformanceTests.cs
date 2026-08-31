@@ -38,18 +38,21 @@ public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreCon
 {
 	/// <inheritdoc />
 	/// <remarks>
-	/// The in-memory store scopes by ambient tenant context, so binding it to a partition means supplying
-	/// a context that reports that tenant. Each call builds a fresh store, which is what makes the
-	/// isolation arms meaningful: two partitions produce two independent stores, and an implementation
-	/// that ignored the partition would still pass the safety arm while failing the liveness arms.
+	/// <para>
+	/// A context supplied by the kit is passed straight through, never copied or wrapped. The store
+	/// resolves it on every operation, so the kit can switch the ambient tenant on one store instance —
+	/// which is what makes the isolation arm capable of failing. Substituting a fixed context here would
+	/// give each partition its own instance and the arm would pass by instance separation alone.
+	/// </para>
+	/// <para>
+	/// The kit models a single-tenant host that registers no tenancy as <see langword="null"/>, and the
+	/// store now requires a context, so that host is named here instead of omitted. It resolves the
+	/// reserved untenanted marker, which the store folds onto the same untenanted partition it previously
+	/// folded a missing context onto — so the ambient-less arms address the partition they always did.
+	/// The substitution is confined to the <see langword="null"/> case for that reason.
+	/// </para>
 	/// </remarks>
-	/// <remarks>
-	/// The context is passed straight through. The store resolves it on every operation, so the kit can
-	/// switch the ambient tenant on one store instance — which is what makes the isolation arm capable of
-	/// failing. <see langword="null"/> is a single-tenant host, which the store folds onto the reserved
-	/// untenanted partition itself.
-	/// </remarks>
-	protected override IDeadLetterStore CreateStore(ITenantContext? ambientTenant) =>
+	protected override IDeadLetterStore CreateStore(ITenantContext ambientTenant) =>
 		new InMemoryDeadLetterStore(ambientTenant, NullLogger<InMemoryDeadLetterStore>.Instance);
 
 	#region Store Tests
@@ -57,6 +60,10 @@ public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreCon
 	[Fact]
 	public Task StoreAsync_ShouldPersistMessage_Test() =>
 		StoreAsync_ShouldPersistMessage();
+
+	[Fact]
+	public Task StoreAsync_ShouldRoundTripPropertyBag_Test() =>
+		StoreAsync_ShouldRoundTripPropertyBag();
 
 	[Fact]
 	public Task StoreAsync_WithNullMessage_ShouldThrow_Test() =>
@@ -163,4 +170,28 @@ public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreCon
 		UntenantedPartition_MustRoundTripItsOwnEntry();
 
 	#endregion Tenant Isolation Tests
+
+	#region Concurrency Tests
+
+	[Fact]
+	public Task ConcurrentDeleteAndStore_MustElectExactlyOneDeleter_AndLoseNoStoredMessage_Test() =>
+		ConcurrentDeleteAndStore_MustElectExactlyOneDeleter_AndLoseNoStoredMessage();
+
+	#endregion Concurrency Tests
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail — in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

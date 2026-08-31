@@ -41,6 +41,16 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Pattern", "CACHE")]
 public sealed class InMemoryCacheTagTrackerConformanceTests : CacheTagTrackerConformanceTestKit
 {
+
+	/// <summary>
+	/// Exposes the kit's own wiring check to the runner. The check is an arm like any other, so a
+	/// suite that omits THIS member disables it silently -- the one gap it cannot report itself.
+	/// </summary>
+	/// <returns>A completed task when every arm in the kit is wired.</returns>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() =>
+		ConformanceSuite_ShouldWireEveryArm();
+
 	/// <inheritdoc />
 	protected override ICacheTagTracker CreateTracker()
 	{

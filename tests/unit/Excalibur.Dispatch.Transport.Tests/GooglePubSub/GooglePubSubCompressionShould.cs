@@ -150,48 +150,6 @@ public sealed class GooglePubSubCompressionShould
 	[UnitTest]
 	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
-	public void PubSubCompressionOptions_ShouldCompress_RespectsThreshold()
-	{
-		// Arrange
-		var options = new PubSubCompressionOptions
-		{
-			Enabled = true,
-			Algorithm = CompressionAlgorithm.Snappy,
-			ThresholdBytes = 1000,
-		};
-
-		// Act & Assert
-		options.ShouldCompress(500).ShouldBeFalse(); // Below threshold
-		options.ShouldCompress(1000).ShouldBeTrue(); // At threshold
-		options.ShouldCompress(2000).ShouldBeTrue(); // Above threshold
-	}
-
-	[Fact]
-	[UnitTest]
-	[Trait(TraitNames.Component, TestComponents.Transport)]
-	[Trait("Pattern", "TRANSPORT")]
-	public void PubSubCompressionOptions_ShouldCompress_SkipsCompressedContentTypes()
-	{
-		// Arrange
-		var options = new PubSubCompressionOptions
-		{
-			Enabled = true,
-			Algorithm = CompressionAlgorithm.Gzip,
-			ThresholdBytes = 100,
-			CompressAlreadyCompressedContent = false,
-		};
-
-		// Act & Assert
-		options.ShouldCompress(2000, "image/png").ShouldBeFalse(); // Already compressed
-		options.ShouldCompress(2000, "application/gzip").ShouldBeFalse(); // Already compressed
-		options.ShouldCompress(2000, "application/json").ShouldBeTrue(); // Should compress
-		options.ShouldCompress(2000, "text/plain").ShouldBeTrue(); // Should compress
-	}
-
-	[Fact]
-	[UnitTest]
-	[Trait(TraitNames.Component, TestComponents.Transport)]
-	[Trait("Pattern", "TRANSPORT")]
 	public void Compress_EmptyPayload_ReturnsEmpty()
 	{
 		// Arrange

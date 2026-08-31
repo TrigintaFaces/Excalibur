@@ -184,6 +184,30 @@ services.AddSingleton<ICursorMapStore, SqlServerCursorMapStore>();
 
 The cursor map is saved alongside the checkpoint — positions accumulate between checkpoint saves to minimize I/O.
 
+### Provision the table first
+
+The SQL Server and PostgreSQL cursor map stores issue no DDL at run time. Run the script shipped in the
+provider package before the first checkpoint:
+
+| Package | Script |
+| --- | --- |
+| `Excalibur.EventSourcing.SqlServer` | `scripts/008_CreateCursorMapSchema.sql` |
+| `Excalibur.EventSourcing.Postgres` | `scripts/008_CreateCursorMapSchema.sql` |
+
+Without it the first save fails — `Msg 208, Invalid object name 'ProjectionCursorMaps'` on SQL Server,
+`42P01: relation "projection_cursor_maps" does not exist` on PostgreSQL — and the host halts.
+
+Do not hand-write this table from the column list in the store's API documentation. Both scripts carry
+constraints that the column list does not show and that are load-bearing: on SQL Server the natural key is
+1152 bytes, over the 900-byte clustered-index limit, so a plain `PRIMARY KEY` creates a table that accepts
+the definition and then refuses long rows at run time; and the three key columns take a binary collation so
+the database agrees with the store's ordinal comparison rather than folding two distinct stream ids onto one
+cursor. On PostgreSQL the primary key is also what makes the upsert legal — the save path uses
+`ON CONFLICT (tenant_id, projection_name, stream_id)`, which requires a matching unique constraint.
+
+Cursor positions are partitioned by tenant. Each tenant running the same projection over the same stream
+keeps its own position, so one tenant's progress never advances another's.
+
 ## Observability
 
 When registered in DI, the host integrates with:

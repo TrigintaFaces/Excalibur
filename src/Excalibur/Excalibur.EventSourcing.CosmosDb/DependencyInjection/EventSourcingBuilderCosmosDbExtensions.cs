@@ -78,6 +78,7 @@ public static class EventSourcingBuilderCosmosDbExtensions
 		_ = builder.Services.Configure<CosmosDbEventStoreOptions>(opt =>
 		{
 			opt.EventsContainerName = options.EventsContainerName;
+			opt.DatabaseName = options.DatabaseName;
 		});
 
 		// Register BindConfiguration if set
@@ -114,8 +115,23 @@ public static class EventSourcingBuilderCosmosDbExtensions
 			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 		}
 
-		// Register store services
-		builder.Services.TryAddSingleton<CosmosDbEventStore>();
+		// The store composes the ambient tenant into its partition key, so the default context is registered
+		// before it: a host that never enabled multi-tenancy still resolves the framework single-tenant
+		// default rather than failing to construct the store.
+		_ = builder.Services.AddDefaultTenantContext();
+
+		// Register store services. AddTenantAwareStore, not a bare TryAddSingleton: it registers the store
+		// AND emits the ITenantScopingCapability<IEventStore> marker inseparably, derived from the store's
+		// own constructor shape. A store that stopped taking ITenantContext would silently lose the marker
+		// rather than keep attesting a confinement it no longer provides.
+		_ = builder.Services.AddTenantAwareStore<IEventStore, CosmosDbEventStore>();
+
+		// The store is also registered under ICloudNativeEventStore, which is separately [TenantOwned]. A
+		// capability is required per CONTRACT, so attesting IEventStore alone leaves a multi-tenant host
+		// refused on the document contract and this store's confinement unreachable through the supported
+		// composition. Emitted from the same seam, over the same store, so neither attestation can be
+		// present without the ambient tenant the store was built with.
+		_ = builder.Services.AddTenantAwareStore<ICloudNativeEventStore, CosmosDbEventStore>();
 		builder.Services.AddKeyedSingleton<IEventStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbEventStore>());
 		builder.Services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("cosmosdb"));
@@ -124,7 +140,7 @@ public static class EventSourcingBuilderCosmosDbExtensions
 		// Change-feed durability default + non-durable startup warning, shared with the Cosmos data provider.
 		// Registering here means an event-store-only consumer (no AddExcaliburCosmosDb) still gets the default
 		// checkpoint store and is warned when continuation is non-durable, instead of silently replaying from
-		// the start position on every restart (bd-egwtku / bd-ydln24).
+		// the start position on every restart.
 		_ = builder.Services.AddCosmosDbChangeFeedDurabilityDefaults();
 	}
 

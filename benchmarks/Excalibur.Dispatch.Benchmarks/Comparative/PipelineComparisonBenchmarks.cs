@@ -15,6 +15,7 @@ using MediatR;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Wolverine;
 
@@ -105,6 +106,12 @@ public class PipelineComparisonBenchmarks
 
 		// Setup Wolverine with 3 convention-based middleware
 		_wolverineHost = await Host.CreateDefaultBuilder()
+			// Host.CreateDefaultBuilder installs Console, Debug and EventSource logging providers. The
+			// Dispatch side of every comparison is a bare ServiceCollection with no provider, so leaving
+			// these on measures Wolverine's logging pipeline against our silence — a per-message console
+			// write inside the measured region, biasing the result in our favour. Clear them so both
+			// sides log nothing and the comparison is of dispatch overhead.
+			.ConfigureLogging(logging => logging.ClearProviders())
 			.UseWolverine(opts =>
 			{
 				opts.Discovery.IncludeAssembly(typeof(PipelineComparisonBenchmarks).Assembly);

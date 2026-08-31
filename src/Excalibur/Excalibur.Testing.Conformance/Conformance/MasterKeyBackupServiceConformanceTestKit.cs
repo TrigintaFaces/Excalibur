@@ -45,7 +45,7 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class MasterKeyBackupServiceConformanceTestKit
+public abstract class MasterKeyBackupServiceConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a new instance of the service under test.
@@ -76,7 +76,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ExportMasterKeyAsync throws ArgumentException for null keyId.
 	/// </summary>
-	protected virtual async Task ExportMasterKeyAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task ExportMasterKeyAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -96,7 +96,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ExportMasterKeyAsync throws MasterKeyBackupException for non-existent key.
 	/// </summary>
-	protected virtual async Task ExportMasterKeyAsync_NonExistentKey_ShouldThrowMasterKeyBackupException()
+	public virtual async Task ExportMasterKeyAsync_NonExistentKey_ShouldThrowMasterKeyBackupException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -121,7 +121,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ExportMasterKeyAsync returns a valid backup for an existing key.
 	/// </summary>
-	protected virtual async Task ExportMasterKeyAsync_ValidKey_ShouldReturnBackup()
+	public virtual async Task ExportMasterKeyAsync_ValidKey_ShouldReturnBackup()
 	{
 		// Arrange
 		var service = CreateService();
@@ -166,7 +166,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ImportMasterKeyAsync throws ArgumentNullException for null backup.
 	/// </summary>
-	protected virtual async Task ImportMasterKeyAsync_NullBackup_ShouldThrowArgumentNullException()
+	public virtual async Task ImportMasterKeyAsync_NullBackup_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -186,7 +186,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ImportMasterKeyAsync throws MasterKeyBackupException for expired backup.
 	/// </summary>
-	protected virtual async Task ImportMasterKeyAsync_ExpiredBackup_ShouldThrowMasterKeyBackupException()
+	public virtual async Task ImportMasterKeyAsync_ExpiredBackup_ShouldThrowMasterKeyBackupException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -222,7 +222,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ImportMasterKeyAsync successfully imports a valid backup.
 	/// </summary>
-	protected virtual async Task ImportMasterKeyAsync_ValidBackup_ShouldSucceed()
+	public virtual async Task ImportMasterKeyAsync_ValidBackup_ShouldSucceed()
 	{
 		// Arrange
 		var service = CreateService();
@@ -257,7 +257,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ImportMasterKeyAsync throws MasterKeyBackupException when key exists and AllowOverwrite is false.
 	/// </summary>
-	protected virtual async Task ImportMasterKeyAsync_KeyExists_ShouldThrowMasterKeyBackupException()
+	public virtual async Task ImportMasterKeyAsync_KeyExists_ShouldThrowMasterKeyBackupException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -295,7 +295,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GenerateRecoverySplitAsync throws ArgumentException for null keyId.
 	/// </summary>
-	protected virtual async Task GenerateRecoverySplitAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task GenerateRecoverySplitAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -315,7 +315,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GenerateRecoverySplitAsync throws ArgumentOutOfRangeException for threshold less than 2.
 	/// </summary>
-	protected virtual async Task GenerateRecoverySplitAsync_ThresholdLessThan2_ShouldThrowArgumentOutOfRangeException()
+	public virtual async Task GenerateRecoverySplitAsync_ThresholdLessThan2_ShouldThrowArgumentOutOfRangeException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -340,7 +340,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GenerateRecoverySplitAsync throws ArgumentOutOfRangeException for totalShares less than 2.
 	/// </summary>
-	protected virtual async Task GenerateRecoverySplitAsync_TotalSharesLessThan2_ShouldThrowArgumentOutOfRangeException()
+	public virtual async Task GenerateRecoverySplitAsync_TotalSharesLessThan2_ShouldThrowArgumentOutOfRangeException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -365,7 +365,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GenerateRecoverySplitAsync throws ArgumentOutOfRangeException when threshold exceeds totalShares.
 	/// </summary>
-	protected virtual async Task GenerateRecoverySplitAsync_ThresholdExceedsTotalShares_ShouldThrowArgumentOutOfRangeException()
+	public virtual async Task GenerateRecoverySplitAsync_ThresholdExceedsTotalShares_ShouldThrowArgumentOutOfRangeException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -390,7 +390,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GenerateRecoverySplitAsync generates the correct number of shares.
 	/// </summary>
-	protected virtual async Task GenerateRecoverySplitAsync_ValidParams_ShouldGenerateCorrectCount()
+	public virtual async Task GenerateRecoverySplitAsync_ValidParams_ShouldGenerateCorrectCount()
 	{
 		// Arrange
 		var service = CreateService();
@@ -446,7 +446,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ReconstructFromSharesAsync throws ArgumentNullException for null shares.
 	/// </summary>
-	protected virtual async Task ReconstructFromSharesAsync_NullShares_ShouldThrowArgumentNullException()
+	public virtual async Task ReconstructFromSharesAsync_NullShares_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -466,7 +466,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ReconstructFromSharesAsync throws ArgumentException for empty shares array.
 	/// </summary>
-	protected virtual async Task ReconstructFromSharesAsync_EmptyShares_ShouldThrowArgumentException()
+	public virtual async Task ReconstructFromSharesAsync_EmptyShares_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -486,7 +486,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ReconstructFromSharesAsync throws MasterKeyBackupException for insufficient shares.
 	/// </summary>
-	protected virtual async Task ReconstructFromSharesAsync_InsufficientShares_ShouldThrowMasterKeyBackupException()
+	public virtual async Task ReconstructFromSharesAsync_InsufficientShares_ShouldThrowMasterKeyBackupException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -522,7 +522,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ReconstructFromSharesAsync successfully reconstructs the key with sufficient shares.
 	/// </summary>
-	protected virtual async Task ReconstructFromSharesAsync_ValidShares_ShouldReconstruct()
+	public virtual async Task ReconstructFromSharesAsync_ValidShares_ShouldReconstruct()
 	{
 		// Arrange
 		var service = CreateService();
@@ -560,7 +560,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that ReconstructFromSharesAsync throws MasterKeyBackupException for mismatched shares.
 	/// </summary>
-	protected virtual async Task ReconstructFromSharesAsync_MismatchedShares_ShouldThrowMasterKeyBackupException()
+	public virtual async Task ReconstructFromSharesAsync_MismatchedShares_ShouldThrowMasterKeyBackupException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -606,7 +606,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that VerifyBackupAsync throws ArgumentNullException for null backup.
 	/// </summary>
-	protected virtual async Task VerifyBackupAsync_NullBackup_ShouldThrowArgumentNullException()
+	public virtual async Task VerifyBackupAsync_NullBackup_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -626,7 +626,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that VerifyBackupAsync returns IsValid=false for expired backup.
 	/// </summary>
-	protected virtual async Task VerifyBackupAsync_ExpiredBackup_ShouldReturnInvalid()
+	public virtual async Task VerifyBackupAsync_ExpiredBackup_ShouldReturnInvalid()
 	{
 		// Arrange
 		var service = CreateService();
@@ -661,7 +661,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that VerifyBackupAsync returns IsValid=true for a valid backup.
 	/// </summary>
-	protected virtual async Task VerifyBackupAsync_ValidBackup_ShouldReturnValid()
+	public virtual async Task VerifyBackupAsync_ValidBackup_ShouldReturnValid()
 	{
 		// Arrange
 		var service = CreateService();
@@ -701,7 +701,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GetBackupStatusAsync throws ArgumentException for null keyId.
 	/// </summary>
-	protected virtual async Task GetBackupStatusAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task GetBackupStatusAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var service = CreateService();
@@ -721,7 +721,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GetBackupStatusAsync returns null for a key without backups.
 	/// </summary>
-	protected virtual async Task GetBackupStatusAsync_NonExistentKey_ShouldReturnNull()
+	public virtual async Task GetBackupStatusAsync_NonExistentKey_ShouldReturnNull()
 	{
 		// Arrange
 		var service = CreateService();
@@ -740,7 +740,7 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	/// <summary>
 	/// Tests that GetBackupStatusAsync returns status for a key with backups.
 	/// </summary>
-	protected virtual async Task GetBackupStatusAsync_ExistingBackup_ShouldReturnStatus()
+	public virtual async Task GetBackupStatusAsync_ExistingBackup_ShouldReturnStatus()
 	{
 		// Arrange
 		var service = CreateService();
@@ -770,4 +770,5 @@ public abstract class MasterKeyBackupServiceConformanceTestKit
 	}
 
 	#endregion
+
 }

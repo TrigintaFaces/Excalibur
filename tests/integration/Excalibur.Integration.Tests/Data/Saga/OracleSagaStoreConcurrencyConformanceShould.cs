@@ -64,7 +64,8 @@ public sealed class OracleSagaStoreConcurrencyConformanceShould : SagaStoreConfo
 			_fixture.ConnectionString,
 			options,
 			NullLogger<OracleSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			SingleTenantTestContext.Instance);
 	}
 
 	/// <inheritdoc/>

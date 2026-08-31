@@ -132,19 +132,26 @@ public static class SagaBuilderSqlServerExtensions
 		}
 
 		// Register ValidateOnStart
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddSingleton<IValidateOptions<SqlServerSagaStoreOptions>>(
 			new SqlServerSagaBuilderOptionsValidator { HasBuilderConnection = hasBuilderConnection });
 		builder.Services.AddOptions<SqlServerSagaStoreOptions>().ValidateOnStart();
 
 		// Register saga store with connection factory
-		builder.Services.TryAddSingleton(sp =>
+		// AddTenantAwareStore emits ITenantScopingCapability<ISagaStore> as part of THIS registration, so
+		// the attestation cannot exist without the store it describes. This store's constructor declares an
+		// ITenantContext, so the seam resolves it fail-closed before the factory runs and emits the ambient-
+		// scoped marker. Without it, row-discriminator multi-tenancy refuses every host that reaches the
+		// store through THIS path, while the sibling entry point in the same package looks done.
+		_ = builder.Services.AddTenantAwareStore<ISagaStore, SqlServerSagaStore>(sp =>
 		{
 			var factory = connectionFactory(sp);
 			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
-			return new SqlServerSagaStore(factory, storeOptions, logger, serializer, sp.GetService<ITenantContext>());
+			return new SqlServerSagaStore(factory, storeOptions, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddKeyedSingleton<ISagaStore>(
 			"sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
 		builder.Services.TryAddKeyedSingleton<ISagaStore>(
@@ -155,12 +162,17 @@ public static class SagaBuilderSqlServerExtensions
 		{
 			opt.ConnectionString = options.ConnectionString;
 		});
+		// The timeout store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton(sp =>
 		{
 			var factory = connectionFactory(sp);
 			var timeoutOptions = sp.GetRequiredService<IOptions<SqlServerSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaTimeoutStore>>();
-			return new SqlServerSagaTimeoutStore(factory, timeoutOptions, logger);
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			return new SqlServerSagaTimeoutStore(factory, timeoutOptions, logger, tenantContext);
 		});
 		builder.Services.TryAddSingleton<ISagaTimeoutStore>(
 			sp => sp.GetRequiredService<SqlServerSagaTimeoutStore>());

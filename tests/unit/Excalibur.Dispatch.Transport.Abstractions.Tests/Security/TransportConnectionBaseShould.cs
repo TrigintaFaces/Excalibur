@@ -21,6 +21,8 @@ public sealed class TransportConnectionBaseShould
             return Task.CompletedTask;
         }
 
+        protected override string TransportLabel => "TestTransport";
+
         protected override bool IsConnectionSecure() => true;
 
         protected override async ValueTask DisposeCoreAsync()
@@ -36,6 +38,8 @@ public sealed class TransportConnectionBaseShould
 
         protected override Task EstablishConnectionAsync(CancellationToken cancellationToken)
             => Task.CompletedTask;
+
+        protected override string TransportLabel => "TestTransport";
 
         protected override bool IsConnectionSecure() => false;
     }
@@ -79,6 +83,13 @@ public sealed class TransportConnectionBaseShould
             () => conn.ConnectAsync(CancellationToken.None));
 
         ex.Message.ShouldContain("TLS-secured connection");
+
+        // A caller that branches on the reason must not read Unspecified from a TLS refusal.
+        ex.FailureReason.ShouldBe(TransportSecurityFailureReason.TlsNotEnabled);
+        // The refusal names the transport FAMILY, not the class that threw: a consumer branching on
+        // TransportName must see the same value from a connect-time refusal and a posture refusal.
+        ex.TransportName.ShouldBe("TestTransport");
+        ex.TransportName.ShouldNotBe(nameof(InsecureTestConnection));
     }
 
     [Fact]

@@ -45,7 +45,7 @@ CREATE TABLE INBOX_MESSAGES (
     NextAttemptAt      TIMESTAMP(7) WITH TIME ZONE,
     LeaseExpiresAtUtc  TIMESTAMP(7) WITH TIME ZONE,
     CorrelationId      VARCHAR2(255),
-    TenantId           VARCHAR2(255)                   NOT NULL,
+    TenantId           VARCHAR2(64)                   NOT NULL,
     Source             VARCHAR2(255),
 
     -- Multi-tenant: tenant is part of identity. The dedup/claim key is the triple.

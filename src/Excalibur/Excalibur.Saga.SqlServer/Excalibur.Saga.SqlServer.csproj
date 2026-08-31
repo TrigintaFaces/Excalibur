@@ -29,6 +29,11 @@
     <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <!-- EXDATA001/002 run on this project's own build. The analyzer ships to consumers bundled
+         inside Excalibur.Data.Abstractions, but PrivateAssets="all" stops it flowing here by
+         ProjectReference, so without this line the request types it was written for are the one
+         population it never sees. -->
+    <ProjectReference Include="..\Excalibur.Data.Analyzers\Excalibur.Data.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>

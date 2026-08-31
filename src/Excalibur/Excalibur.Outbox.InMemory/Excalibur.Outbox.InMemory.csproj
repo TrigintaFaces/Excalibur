@@ -17,6 +17,13 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
+  <!-- Enable testing of internal types -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.InMemory.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Benchmarks" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>

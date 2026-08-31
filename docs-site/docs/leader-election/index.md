@@ -62,8 +62,10 @@ candidate that has lost contact may still act as leader.
 :::note Outbox draining is fenced automatically
 Registering an `ILeaderElection` provider makes the [outbox](../patterns/outbox.md#multi-instance-leader-fenced-processing)
 drain **single-active (leader-fenced) by default** — the multi-instance signal is the registration itself,
-so no separate opt-in is needed. A store that cannot enforce a fencing high-water mark fails fast at
-startup; a genuine single-active-writer deployment opts out explicitly with `AsSingleWriter()`. How
+so no separate opt-in is needed. Two conditions fail fast at startup rather than draining unfenced: a
+store that cannot enforce a fencing high-water mark, and an election that is resolvable while nothing
+fences the drain. A genuine single-active-writer deployment opts out of both explicitly with
+`AsSingleWriter()`. How
 durably a superseded leader stays fenced varies by store — see
 [Multi-Instance (Leader-Fenced) Processing](../patterns/outbox.md#multi-instance-leader-fenced-processing)
 before relying on it, particularly on SQL Server. The manual `ILeaderElection` API below is for
@@ -180,10 +182,11 @@ services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
 
 // Consul
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
-    .UseConsul(opts =>
+    .UseConsul(consul =>
     {
-        opts.ConsulAddress = "http://localhost:8500";
-        opts.SessionTTL = TimeSpan.FromSeconds(30);
+        consul.Address("http://localhost:8500")
+              .SessionTtl(TimeSpan.FromSeconds(30))
+              .ResourceName("order-processor");
     })));
 
 // Kubernetes
@@ -264,7 +267,7 @@ The pre-built options overload uses `Options.Create()` directly, which bypasses 
 | `UseSqlServerFactory(conn)` | `Excalibur.LeaderElection.SqlServer` | SQL Server factory for multiple elections |
 | `UsePostgres(Action<IPostgresLeaderElectionBuilder>)` | `Excalibur.LeaderElection.Postgres` | PostgreSQL advisory lock-based leader election |
 | `UsePostgresFactory(opts)` | `Excalibur.LeaderElection.Postgres` | PostgreSQL factory for multiple elections |
-| `UseConsul(opts?)` | `Excalibur.LeaderElection.Consul` | Consul session-based leader election |
+| `UseConsul(Action<ILeaderElectionConsulBuilder>)` | `Excalibur.LeaderElection.Consul` | Consul session-based leader election |
 | `UseKubernetes(opts?)` | `Excalibur.LeaderElection.Kubernetes` | Kubernetes Lease-based leader election |
 | `WithHealthChecks()` | `Excalibur.LeaderElection` | Registers health check integration |
 | `WithFencingTokens()` | `Excalibur.LeaderElection` | Registers fencing token middleware |
@@ -763,18 +766,52 @@ Redis implementation features:
 
 Uses Consul sessions for coordination:
 
-```csharp
-// Installation
+```bash
 dotnet add package Excalibur.LeaderElection.Consul
+```
 
-// Configuration
-builder.Services.AddConsulLeaderElection(options =>
+```csharp
+builder.Services.AddConsulLeaderElection(consul =>
 {
-    options.ConsulAddress = "http://localhost:8500";
-    options.SessionTTL = TimeSpan.FromSeconds(30);
+    consul.Address("http://localhost:8500")
+          .SessionTtl(TimeSpan.FromSeconds(30))
+          .ResourceName("order-processor");
 });
+```
 
-// Register a singleton election for a specific resource
+#### Naming the resource
+
+`ResourceName` names the resource this application contends for, and makes a single `ILeaderElection` for
+it resolvable from the container. **Without it, the registration provides an `ILeaderElectionFactory`
+only** — every election must then be created from that factory explicitly, and the outbox drain is not
+fenced. With it, the outbox drain is fenced on the named election automatically.
+
+The name is combined with the key prefix (`LockKey`) to form the Consul KV key:
+
+```csharp
+builder.Services.AddConsulLeaderElection(consul =>
+{
+    consul.Address("http://consul:8500")
+          .Token("my-acl-token")
+          .LockKey("orders-service/leader")   // key prefix
+          .ResourceName("outbox-drain");      // resource under that prefix
+});
+```
+
+:::caution The name must be unique to your application
+
+A Consul KV key is shared across **every** application pointed at the same Consul cluster. That is why the
+name is required rather than defaulted: a framework-chosen name would put unrelated applications into
+contention for one lock, each stalling the other's work. Choose a name that is unique to this application
+across the cluster.
+:::
+
+If you prefer to name resources at the call site instead — or need several independent leadership scopes —
+leave `ResourceName` off and register each election explicitly:
+
+```csharp
+// Factory-only registration, then a singleton election per resource
+builder.Services.AddConsulLeaderElection(consul => consul.Address("http://localhost:8500"));
 builder.Services.AddConsulLeaderElectionForResource("my-processor");
 ```
 
@@ -1271,7 +1308,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 // Kubernetes leader election with fencing tokens
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
-    .UseKubernetes(opts => opts.Namespace = "default")
+    .UseKubernetes(opts => opts.Namespace("default"))
     .WithFencingTokens()));
 
 services.AddKubernetesFencingTokenProvider();

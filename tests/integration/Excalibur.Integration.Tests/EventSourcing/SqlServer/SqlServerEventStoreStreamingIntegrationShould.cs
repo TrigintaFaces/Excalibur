@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -31,27 +32,26 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			Console.WriteLine(ex.ToString());
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -77,10 +77,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	[Fact]
 	public async Task LoadEventsFromSpecificVersion()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -107,10 +104,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	[Fact]
 	public async Task ReturnEmptyWhenLoadingFromLastVersion()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -138,10 +132,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	[Fact]
 	public async Task SupportCursorBasedPagination()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -186,10 +177,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	[Fact]
 	public async Task MaintainAggregateAssociationInVersionedLoads()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId1 = Guid.NewGuid().ToString();
@@ -224,10 +212,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	[Fact]
 	public async Task LoadOnlyNewEventsAfterIncrementalAppend()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -241,8 +226,10 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 		var result1 = await eventStore.AppendAsync(aggregateId, aggregateType, batch1, -1, CancellationToken.None);
 		result1.Success.ShouldBeTrue();
 
-		// Record the last version
-		var lastVersion = result1.NextExpectedVersion;
+		// Record the last version. A successful append states the version it left the stream at; a failed
+		// one states none, so reading it through ShouldNotBeNull asserts that half of the contract too.
+		var lastVersion = result1.NextExpectedVersion.ShouldNotBeNull(
+			"a successful append must report the version it left the stream at");
 
 		// Second batch: 2 more events
 		var batch2 = Enumerable.Range(3, 2)
@@ -266,10 +253,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	[Fact]
 	public async Task PreserveStoredEventFieldsThroughRoundTrip()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -294,7 +278,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	private IEventStore CreateEventStore()
 	{
 		var logger = NullLogger<SqlServerEventStore>.Instance;
-		return new SqlServerEventStore(_connectionString!, logger);
+		return new SqlServerEventStore(_connectionString!, logger, SingleTenantTestContext.Instance);
 	}
 
 	private async Task ClearAllEventsAsync()
@@ -315,15 +299,27 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 				AggregateId NVARCHAR(255) NOT NULL,
 				AggregateType NVARCHAR(255) NOT NULL,
 				EventType NVARCHAR(500) NOT NULL,
-				EventData VARBINARY(MAX) NOT NULL,
+				-- Nullable, matching shipped 001: erasure tombstones an event by setting EventData
+				-- to NULL. A fixture that restates this column NOT NULL drifts from the schema the
+				-- package ships and would reject any erase exercised against it.
+				EventData VARBINARY(MAX) NULL,
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
-				-- Matches the shipped schema. TenantId is NULLable and the read path is written as
-				-- COALESCE(TenantId, '__untenanted__') = @TenantId, so a row with no tenant is reachable
-				-- rather than invisible; its absence fails every read with "Invalid column name
-				-- 'TenantId'". The binary collation is deliberate in production and is mirrored here so
-				-- the fixture cannot disagree with it about case.
+				-- DELIBERATELY LOOSER THAN THE SHIPPED SCHEMA, which is now NOT NULL DEFAULT
+				-- '__untenanted__'. This fixture keeps the column NULLable so it also covers the
+				-- pre-migration shape a consumer still has before running 004: the read path is
+				-- COALESCE(TenantId, '__untenanted__') = @TenantId, so a row holding NULL stays
+				-- reachable rather than invisible. Its absence entirely fails every read with
+				-- "Invalid column name 'TenantId'".
+				--
+				-- Nullable here is therefore wider, not stale — a row the shipped schema can produce
+				-- is still valid against this table. The totality of the shipped column is locked
+				-- separately by SqlServerEventTenantTotalityShould, which provisions from the shipped
+				-- script rather than from a copy.
+				--
+				-- The binary collation is deliberate in production and is mirrored here so the fixture
+				-- cannot disagree with it about case.
 				TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NULL,
 				-- The unique stream constraint is load-bearing, not decoration: it is what enforces
 				-- append concurrency now that the store runs at READ COMMITTED and translates a unique

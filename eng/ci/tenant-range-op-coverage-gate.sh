@@ -38,6 +38,9 @@
 
 set -uo pipefail
 
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SEARCH_ROOT_DEFAULT="src/Excalibur"
 
@@ -162,14 +165,22 @@ discover() {
 run_gate() {
     local root="$1" status=0 f base
     local -a uncovered=()
+    local discovered=0
     while IFS= read -r f; do
         [ -z "$f" ] && continue
+        discovered=$((discovered + 1))
         base="$(basename "$f")"
         if ! is_curated "$base"; then
             uncovered+=("$f")
             status=1
         fi
     done < <(discover "$root")
+
+    # The DENOMINATOR — what the discovery pass EXAMINED, not only what it flagged. Without it a
+    # discovery pattern that stops matching (a renamed request type, a reformatted signature) makes
+    # this gate return 0 over an empty set, which is indistinguishable from a fully curated tree.
+    # Zero discovered tenant-aware range mutations is a REFUSE, never a pass.
+    gate_denominator "$discovered" "tenant-aware range mutation(s) discovered under $root" || return 2
 
     if [ "${#uncovered[@]}" -gt 0 ]; then
         echo "FAIL: tenant-aware range mutation(s) not in the coverage manifest:" >&2

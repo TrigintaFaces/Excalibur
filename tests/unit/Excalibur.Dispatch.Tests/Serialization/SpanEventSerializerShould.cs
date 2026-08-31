@@ -21,6 +21,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Serialization)]
+[Collection(Excalibur.Dispatch.Tests.TypeResolution.TypeResolverRegistryCollection.Name)]
 public sealed class SpanEventSerializerShould
 {
 	private readonly ISerializer _serializer;

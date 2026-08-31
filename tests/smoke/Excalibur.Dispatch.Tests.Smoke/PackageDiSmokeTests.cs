@@ -5,9 +5,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 using Excalibur.Dispatch.Serialization.MessagePack;
 using Excalibur.Dispatch.Serialization.Protobuf;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.CosmosDb;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Redis;
@@ -16,7 +18,10 @@ using Excalibur.Outbox.SqlServer;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 using Xunit;
@@ -42,8 +47,7 @@ public sealed class PackageDiSmokeTests
 	public void Package_Registers_Without_Exceptions(string packageName)
 	{
 		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
+		var services = CreateHostServices();
 		var register = GetRegistration(packageName);
 
 		// Act
@@ -54,35 +58,203 @@ public sealed class PackageDiSmokeTests
 	}
 
 	/// <summary>
-	/// Verifies that each package's DI registration produces a buildable ServiceProvider.
-	/// This catches deferred resolution failures (missing dependencies, circular refs).
+	/// Verifies that each package's DI registration produces a container that can be built.
 	/// </summary>
+	/// <remarks>
+	/// This checks that building the container does not throw. It does NOT check that the registered
+	/// services can be constructed: <c>BuildServiceProvider()</c> resolves nothing, so a registration
+	/// whose dependency is missing entirely still passes here and fails later, at host start, in the
+	/// consumer's process. Constructing every descriptor is what <c>ValidateOnBuild</c> does, and it
+	/// is now switched on: every descriptor each package registers must be constructible, and every
+	/// scoped service must be resolvable without escaping into the root provider. A package whose
+	/// <c>Add*()</c> registers a component it never supplies a dependency for fails here rather than
+	/// in the consumer's host at start-up.
+	/// </remarks>
 	[Theory]
 	[MemberData(nameof(AllPackageRegistrationsData))]
 	public void Package_Builds_ServiceProvider_Without_Exceptions(string packageName)
 	{
 		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
+		var services = CreateHostServices();
 		var register = GetRegistration(packageName);
 		register(services);
+		AddConsumerSuppliedSeams(services);
 
 		// Act
 		var exception = Record.Exception(() =>
 		{
-			using var provider = services.BuildServiceProvider();
+			using var provider = services.BuildServiceProvider(
+				new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 		});
 
 		// Assert
 		exception.ShouldBeNull($"Package '{packageName}' ServiceProvider build failed");
 	}
 
+	/// <summary>
+	/// Builds the base composition every package case starts from: logging, the services a real .NET host
+	/// always supplies, and a stub for every seam a package legitimately expects the consumer to choose.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Nothing here stands in for a registration a package owns. Each entry is one of three things.
+	/// </para>
+	/// <para>
+	/// <b>Host services.</b> <see cref="IHostEnvironment"/>, <see cref="IConfiguration"/>,
+	/// <see cref="System.Diagnostics.Metrics.IMeterFactory"/> and <see cref="IHostApplicationLifetime"/>
+	/// are present in every real host -- verified by
+	/// enumerating the service descriptors of both <c>Host.CreateApplicationBuilder()</c> and
+	/// <c>WebApplication.CreateBuilder()</c> -- and absent only from a bare
+	/// <see cref="ServiceCollection"/>. Supplying them removes a difference between this composition and a
+	/// host, not a difference between a working package and a broken one.
+	/// </para>
+	/// <para>
+	/// <b>Consumer-chosen seams.</b> A pick-your-provider abstraction -- the outbox publisher, the leader
+	/// election, the compliance stores, the distributed cache -- cannot be satisfied by a bare
+	/// <c>Add*()</c> without the package choosing infrastructure on the consumer's behalf, which is exactly
+	/// what this framework does not do. The stubs are registered through a factory that throws: the factory
+	/// is never invoked, it only makes the service type present so a package's own descriptors can be
+	/// validated. If one is ever resolved, it throws rather than pretending to work.
+	/// </para>
+	/// <para>
+	/// <b>The harness's own fixtures.</b> <c>AddDispatch</c> and <c>AddExcalibur</c> scan the calling
+	/// assembly, which here is the smoke assembly, so its scenario handlers
+	/// (<c>PipelineCreateOrderHandler</c>, <c>ValidatedCreateOrderHandler</c>) are registered alongside the
+	/// package under test and require the aggregate repository a consumer registers in their own
+	/// composition root.
+	/// </para>
+	/// </remarks>
+	private static ServiceCollection CreateHostServices()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		// --- Services a real host supplies (measured present in both host builders) ---
+		_ = services.AddMetrics();
+		services.AddSingleton<IConfiguration>(static _ => new ConfigurationBuilder().Build());
+		services.AddSingleton<IHostEnvironment>(static _ => new SmokeHostEnvironment());
+		services.AddSingleton<IHostApplicationLifetime>(static _ => new SmokeHostApplicationLifetime());
+
+		// --- The harness's own scanned fixtures ---
+		// No package registers this, so ordering is irrelevant and it belongs in the base composition.
+		Stub<IEventSourcedRepository<PipelineOrderAggregate, Guid>>(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Supplies the seams a package legitimately expects the consumer to choose, for any the package under
+	/// test did not register itself.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This runs <b>after</b> the package's own <c>Add*()</c>, and every registration is <c>TryAdd</c>, so a
+	/// package that does register one of these keeps its own. Ordering is the whole point: a stub seated
+	/// first would silently win every <c>TryAdd</c> in the package under test, and the gate would then go
+	/// green for a package that had stopped registering something it owns -- a pass it did not earn.
+	/// </para>
+	/// <para>
+	/// Each entry is a pick-your-provider abstraction -- the outbox publisher, the leader election, the
+	/// compliance and audit stores, the distributed cache, the event serializer -- that a bare
+	/// <c>Add*()</c> cannot satisfy without choosing infrastructure on the consumer's behalf, which is
+	/// exactly what this framework does not do. The stubs are factories that throw: the factory is never
+	/// invoked, it only makes the service type present so the package's own descriptors can be validated,
+	/// and anything that did resolve one gets an exception rather than a silent substitute.
+	/// </para>
+	/// </remarks>
+	private static void AddConsumerSuppliedSeams(IServiceCollection services)
+	{
+		// A distributed cache backend is a consumer choice (Redis, SQL Server, memory); the harness picks
+		// the in-process one. TryAdd inside AddDistributedMemoryCache, so a package's own still wins.
+		_ = services.AddDistributedMemoryCache();
+
+		TryStub<Excalibur.Dispatch.IOutboxPublisher>(services);
+		TryStub<Excalibur.Dispatch.IOutboxStore>(services);
+		TryStub<Excalibur.Dispatch.IInboxStore>(services);
+		TryStub<Excalibur.Dispatch.Delivery.IScheduleStore>(services);
+		TryStub<Excalibur.Dispatch.Messaging.ISagaStore>(services);
+		TryStub<Excalibur.Dispatch.LeaderElection.ILeaderElection>(services);
+		TryStub<Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory>(services);
+		TryStub<Excalibur.EventSourcing.IMaterializedViewStore>(services);
+		TryStub<Excalibur.Compliance.IErasureService>(services);
+		TryStub<Excalibur.Compliance.IErasureStore>(services);
+		TryStub<Excalibur.Compliance.ILegalHoldStore>(services);
+		TryStub<Excalibur.Compliance.IDataInventoryStore>(services);
+		TryStub<Excalibur.Compliance.IEncryptionProvider>(services);
+		TryStub<Excalibur.A3.Authentication.IAuthenticationToken>(services);
+		TryStub<Excalibur.Dispatch.IEventSerializer>(services);
+		TryStub<Excalibur.Compliance.IAuditStore>(services);
+		TryStub<Excalibur.Compliance.ICascadeRelationshipResolver>(services);
+		TryStub<Excalibur.Compliance.IKeyManagementProvider>(services);
+		TryStub<Excalibur.EventSourcing.Queries.IGlobalStreamQuery>(services);
+		TryStub<Excalibur.A3.Audit.IAuditMessagePublisher>(services);
+		TryStub<Excalibur.Data.ElasticSearch.Security.IElasticsearchKeyProvider>(services);
+		TryStub<Elastic.Clients.Elasticsearch.ElasticsearchClient>(services);
+	}
+
+	/// <summary>
+	/// Registers <typeparamref name="T"/> as a service the container knows about but can never produce.
+	/// </summary>
+	/// <remarks>
+	/// A factory descriptor is enough for container validation to construct the package's own types, and it
+	/// is deliberately not a working implementation: nothing in these tests resolves one, and anything that
+	/// did would get an exception rather than a silent substitute for infrastructure the consumer owns.
+	/// </remarks>
+	private static void Stub<T>(IServiceCollection services)
+		where T : class
+		=> services.AddSingleton<T>(StubFactory<T>());
+
+	/// <summary>
+	/// Registers <typeparamref name="T"/> as an unproducible service only if nothing already did.
+	/// </summary>
+	private static void TryStub<T>(IServiceCollection services)
+		where T : class
+		=> services.TryAddSingleton<T>(StubFactory<T>());
+
+	private static Func<IServiceProvider, T> StubFactory<T>()
+		where T : class
+		=> static _ => throw new NotSupportedException(
+			$"'{typeof(T).FullName}' is a consumer-supplied seam stubbed by the package DI smoke harness. " +
+			"It exists so a package's own registrations can be validated and must never be resolved.");
+
+	/// <summary>
+	/// The minimal <see cref="IHostApplicationLifetime"/> a real host would supply.
+	/// </summary>
+	/// <remarks>
+	/// A hosted service that takes a dependency on the host's shutdown signal is not a defect -- Quartz's
+	/// own <c>QuartzHostedService</c> does it, and so does anything that must drain on shutdown. The
+	/// tokens here are never signalled because nothing in these tests starts a host; the type exists so a
+	/// package's own descriptors can be validated against the composition a real host would give them.
+	/// </remarks>
+	private sealed class SmokeHostApplicationLifetime : IHostApplicationLifetime
+	{
+		public CancellationToken ApplicationStarted => CancellationToken.None;
+
+		public CancellationToken ApplicationStopping => CancellationToken.None;
+
+		public CancellationToken ApplicationStopped => CancellationToken.None;
+
+		public void StopApplication()
+		{
+			// Nothing in these tests starts a host, so there is nothing to stop.
+		}
+	}
+
+	/// <summary>
+	/// The minimal <see cref="IHostEnvironment"/> a real host would supply.
+	/// </summary>
+	private sealed class SmokeHostEnvironment : IHostEnvironment
+	{
+		public string EnvironmentName { get; set; } = Environments.Development;
+		public string ApplicationName { get; set; } = "Excalibur.Dispatch.Tests.Smoke";
+		public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+		public IFileProvider ContentRootFileProvider { get; set; } =
+			new PhysicalFileProvider(AppContext.BaseDirectory);
+	}
+
 	// ───────────────────────────────────────────────────────────────────
 	// MemberData: all shipping packages with DI registration methods
 	// ───────────────────────────────────────────────────────────────────
-
-	private static readonly IConfiguration EmptyConfiguration =
-		new ConfigurationBuilder().AddInMemoryCollection().Build();
 
 	private const string MockConnectionString = "Server=smoke-test;Database=smoke;Trusted_Connection=true";
 	private const string MockPostgresConnectionString = "Host=smoke-test;Database=smoke;Username=smoke;Password=smoke";
@@ -211,6 +383,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Compliance [StrictMasking]", s => s.AddStrictDataMasking());
 		yield return Reg("Excalibur.Compliance [DevEncryption]", s => s.AddDevEncryption());
 		yield return Reg("Excalibur.Compliance [FIPS]", s => s.AddFipsValidation());
+		yield return Reg("Excalibur.Compliance.Pdf", s => s.AddSoc2PdfExport());
 		yield return Reg("Excalibur.Compliance.Aws", s =>
 			s.AddAwsKmsKeyManagement(_ => { }));
 		yield return Reg("Excalibur.Compliance.Azure", s =>
@@ -242,6 +415,12 @@ public sealed class PackageDiSmokeTests
 			s.AddKafkaTransport("kafka-smoke", kafka => kafka.BootstrapServers("localhost:9092"));
 		});
 		yield return Reg("Excalibur.Dispatch.Transport.Kafka [OtelMetrics]", s => s.AddKafkaOtelMetrics());
+		yield return Reg("Excalibur.Dispatch.Transport.Kafka [ConfluentFormat]", s =>
+		{
+			s.AddDispatch();
+			s.AddKafkaTransport("kafka-smoke", kafka => kafka.BootstrapServers("localhost:9092"));
+			s.AddConfluentFormat(static registry => registry.Url = "http://localhost:8081");
+		});
 		yield return Reg("Excalibur.Dispatch.Transport.AzureServiceBus", s =>
 		{
 			s.AddDispatch();
@@ -361,6 +540,12 @@ public sealed class PackageDiSmokeTests
 
 		yield return Reg("Excalibur.Outbox", s => s.AddExcalibur(x => x.AddOutbox(_ => { })));
 		yield return Reg("Excalibur.Outbox [HostedService]", s => s.AddOutboxHostedService());
+		// Excalibur.Outbox.InMemory has two public entry points that each register the store, and only
+		// AddInMemoryOutboxStore() was graded. This is the other one -- the provider-selection seam the
+		// package's own example uses -- so a registration defect present in one and not the other is
+		// visible here rather than at a consumer's first resolve.
+		yield return Reg("Excalibur.Outbox.InMemory [Builder]", s =>
+			s.AddExcalibur(x => x.AddOutbox(outbox => outbox.UseInMemory())));
 		yield return Reg("Excalibur.Outbox [InboxHostedService]", s => s.AddInboxHostedService());
 		yield return Reg("Excalibur.Outbox.SqlServer", s =>
 			s.AddSqlServerOutboxStore(opts => opts.ConnectionString = MockConnectionString));
@@ -410,8 +595,20 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.A3", s => s.AddExcaliburA3());
-		yield return Reg("Excalibur.A3 [DispatchServices]", s => s.AddA3DispatchServices());
-		yield return Reg("Excalibur.A3 [Authorization]", s => s.AddExcaliburAuthorization());
+		// AddA3DispatchServices and AddExcaliburAuthorization are composition steps of AddExcaliburA3
+		// (A3ServiceCollectionExtensions.cs calls both), not standalone entry points: they register handlers
+		// and middleware against the grant repository, policy provider and access token that the A3 core
+		// registers. Compose them the way the package does.
+		yield return Reg("Excalibur.A3 [DispatchServices]", s =>
+		{
+			_ = s.AddExcaliburA3();
+			s.AddA3DispatchServices();
+		});
+		yield return Reg("Excalibur.A3 [Authorization]", s =>
+		{
+			_ = s.AddExcaliburA3();
+			s.AddExcaliburAuthorization();
+		});
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR APPLICATION
@@ -425,13 +622,22 @@ public sealed class PackageDiSmokeTests
 		// EXCALIBUR CACHING & CDC
 		// ══════════════════════════════════════════════════════════
 
-		yield return Reg("Excalibur.Caching [Projections]", s => s.AddExcaliburProjectionCaching());
+		// AddExcaliburProjectionCaching is internal and documented as running after AddDispatchCaching,
+		// which supplies the ICacheInvalidationService it decorates
+		// (Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs).
+		yield return Reg("Excalibur.Caching [Projections]", s =>
+		{
+			s.AddDispatchCaching();
+			s.AddExcaliburProjectionCaching();
+		});
 		yield return Reg("Excalibur.Cdc", s => s.AddCdcProcessor());
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR COMPLIANCE
 		// ══════════════════════════════════════════════════════════
 
+		yield return Reg("Excalibur.Compliance.MongoDb", s =>
+			s.AddMongoDbComplianceStore(opts => opts.ConnectionString = "mongodb://localhost:27017"));
 		yield return Reg("Excalibur.Compliance.Postgres", s =>
 			s.AddPostgresErasureStore(MockConnectionString));
 		yield return Reg("Excalibur.Compliance.SqlServer", s =>
@@ -446,6 +652,9 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Hosting [BaseServices]", s =>
 			s.AddExcalibur(b => b.ScanAssemblies(Array.Empty<Assembly>())));
 		yield return Reg("Excalibur.Hosting.HealthChecks", s => s.AddExcaliburHealthChecks());
+		yield return Reg("Excalibur.Hosting.HealthChecks [Memory]", s => _ = s.AddHealthChecks().AddMemoryHealthChecks());
+		yield return Reg("Excalibur.Hosting.Compliance", s => s.AddExcalibur(x => x.AddGdprErasure()));
+		yield return Reg("Excalibur.Hosting.Jobs", s => s.AddExcalibur(x => x.AddJobs()));
 		// S804 bd-sdhocq A9: AddExcaliburWebServices deleted. Web hosting wires via AddExcalibur
 		// + explicit API versioning opt-in (not bundled at composition root).
 		yield return Reg("Excalibur.Hosting.Web", s => s.AddGlobalExceptionHandler());
@@ -479,6 +688,33 @@ public sealed class PackageDiSmokeTests
 			s.AddJobCoordinationRedis("localhost:6379"));
 		yield return Reg("Excalibur.Jobs.SqlServer", s =>
 			s.AddSqlServerJobCoordinator(_ => { }));
+
+		// ══════════════════════════════
+		// METAPACKAGES
+		// ══════════════════════════════
+		// A metapackage's whole value is that one call composes several packages, so it is the
+		// composition most likely to register a component whose dependency another package was
+		// supposed to supply -- and the one a consumer is most likely to call. Each case is the
+		// single call the package's own XML doc gives as its example.
+
+		yield return Reg("Excalibur.Dispatch.AspNetCore [Metapackage]", s => s.AddDispatchAspNetCore());
+		yield return Reg("Excalibur.Dispatch.Aws [Metapackage]", s =>
+			s.AddDispatchAws(aws => aws.UseRegion("us-east-1")));
+		yield return Reg("Excalibur.Dispatch.Azure [Metapackage]", s =>
+			s.AddDispatchAzure(asb =>
+				asb.ConnectionString("Endpoint=sb://smoke.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=test")));
+		yield return Reg("Excalibur.Dispatch.Kafka [Metapackage]", s =>
+			s.AddDispatchKafka(kafka => kafka.BootstrapServers("localhost:9092")));
+		yield return Reg("Excalibur.Dispatch.RabbitMQ [Metapackage]", s =>
+			s.AddDispatchRabbitMQ(rmq => rmq.HostName("localhost")));
+		yield return Reg("Excalibur.Dispatch.SqlServer [Metapackage]", s =>
+			s.AddDispatchWithSqlServer(MockConnectionString));
+		yield return Reg("Excalibur.Dispatch.Postgres [Metapackage]", s =>
+			s.AddDispatchWithPostgres(MockPostgresConnectionString));
+		yield return Reg("Excalibur.SqlServer [Metapackage]", s =>
+			s.AddExcaliburSqlServer(sql => sql.ConnectionString = MockConnectionString));
+		yield return Reg("Excalibur.Postgres [Metapackage]", s =>
+			s.AddExcaliburPostgres(pg => pg.ConnectionString = MockPostgresConnectionString));
 	}
 
 	private static TheoryData<string> CreateAllPackageRegistrationsData()

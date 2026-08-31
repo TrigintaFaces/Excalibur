@@ -6,7 +6,7 @@ namespace Excalibur.Outbox.Marten.Diagnostics;
 /// <summary>
 /// Event IDs for Marten outbox store operations (102400-102499).
 /// </summary>
-public static class OutboxMartenEventId
+internal static class OutboxMartenEventId
 {
 	/// <summary>Staged an outbox message.</summary>
 	public const int OutboxMessageStaged = 102400;

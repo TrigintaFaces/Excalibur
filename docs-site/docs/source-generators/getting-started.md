@@ -45,7 +45,7 @@ Add the `[AutoRegister]` attribute to classes you want automatically registered:
 using Excalibur.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
 
-// Basic usage - registers as Scoped by default
+// Basic usage - registers as Transient by default
 [AutoRegister]
 public class OrderHandler : IDispatchHandler<CreateOrderCommand>
 {

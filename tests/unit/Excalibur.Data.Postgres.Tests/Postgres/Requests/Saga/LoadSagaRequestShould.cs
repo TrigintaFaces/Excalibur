@@ -35,7 +35,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.Untenanted, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -51,7 +51,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.Untenanted, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -71,7 +71,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.Untenanted, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -87,7 +87,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.Untenanted, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -103,7 +103,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.Untenanted, CancellationToken.None);
 
 		// Assert
 		var paramNames = request.Parameters.ParameterNames.ToList();
@@ -120,7 +120,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.Untenanted, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(60);
@@ -131,7 +131,7 @@ public sealed class LoadSagaRequestShould
 	{
 		var serializer = new DispatchJsonSerializer();
 		Should.Throw<ArgumentNullException>(() => new LoadSagaRequest<TestSagaState>(
-			SagaId, null!, serializer, TenantScope.None, CancellationToken.None));
+			SagaId, null!, serializer, TenantScope.Untenanted, CancellationToken.None));
 	}
 
 	[Fact]
@@ -139,7 +139,7 @@ public sealed class LoadSagaRequestShould
 	{
 		var options = CreateOptions();
 		Should.Throw<ArgumentNullException>(() => new LoadSagaRequest<TestSagaState>(
-			SagaId, options, null!, TenantScope.None, CancellationToken.None));
+			SagaId, options, null!, TenantScope.Untenanted, CancellationToken.None));
 	}
 
 	/// <summary>

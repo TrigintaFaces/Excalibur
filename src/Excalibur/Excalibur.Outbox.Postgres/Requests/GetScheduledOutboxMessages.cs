@@ -14,8 +14,12 @@ namespace Excalibur.Outbox.Postgres;
 /// <summary>
 /// Represents a data request to retrieve scheduled outbox messages that are due for delivery.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the scheduled-message sweep feeds the same cross-tenant drain: it selects rows whose scheduled time has arrived across every tenant and returns each row's tenant_id so the processor can re-establish the owning tenant. Its reach is bounded by the schedule and batch arguments, never by tenant state")]
 internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<OutboundMessage>>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetScheduledOutboxMessages"/> class.
 	/// </summary>
@@ -37,7 +41,8 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 	{
 		var sql = $"""
 			SELECT message_id AS MessageId, message_type AS MessageType, message_metadata AS MessageMetadata,
-			       message_body AS MessageBody, tenant_id AS TenantId, destination AS Destination, occurred_on AS OccurredOn, scheduled_at AS ScheduledAt
+			       message_body AS MessageBody, tenant_id AS TenantId, destination AS Destination, occurred_on AS OccurredOn, scheduled_at AS ScheduledAt,
+			       attempts AS Attempts
 			FROM {outboxTableName}
 			WHERE scheduled_at IS NOT NULL
 			  AND scheduled_at <= @Cutoff
@@ -67,6 +72,10 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 				ScheduledAt = row.ScheduledAt,
 				Status = OutboxStatus.Staged,
 
+				// The attempt count must survive a scheduled reload, or a repeatedly failing scheduled
+				// message restarts at zero on every poll and never reaches the dead-letter ceiling.
+				RetryCount = row.Attempts,
+
 				// Rehydrate the persisted metadata into Headers so scheduled-reload preserves headers
 				// (correlation/trace/etc.) rather than dropping them — mirrors the reserved-message path.
 				Headers = string.IsNullOrEmpty(row.MessageMetadata)
@@ -91,6 +100,7 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 		public string? Destination { get; set; }
 		public DateTimeOffset OccurredOn { get; set; }
 		public DateTimeOffset? ScheduledAt { get; set; }
+		public int Attempts { get; set; }
 		// ReSharper restore UnusedAutoPropertyAccessor.Local
 	}
 }

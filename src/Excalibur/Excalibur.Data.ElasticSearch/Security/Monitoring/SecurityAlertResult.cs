@@ -41,27 +41,5 @@ public sealed class SecurityAlertResult
 	/// </value>
 	public int AlertCount { get; set; }
 
-	/// <summary>
-	/// Gets or sets the distribution status.
-	/// </summary>
-	/// <value>
-	/// The distribution status.
-	/// </value>
-	public string DistributionStatus { get; set; } = string.Empty;
 
-	/// <summary>
-	/// Gets or sets the collection of security alerts.
-	/// </summary>
-	/// <value>
-	/// The collection of security alerts.
-	/// </value>
-	public List<SecurityAlert> Alerts { get; set; } = [];
-
-	/// <summary>
-	/// Gets or sets a value indicating whether the alerts have been distributed.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether the alerts have been distributed.
-	/// </value>
-	public bool Distributed { get; set; }
 }

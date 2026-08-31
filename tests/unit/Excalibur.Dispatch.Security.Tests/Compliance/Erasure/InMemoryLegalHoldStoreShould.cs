@@ -1,3 +1,4 @@
+using Excalibur.Dispatch;
 using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
@@ -11,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 [Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemoryLegalHoldStoreShould
 {
-	private readonly InMemoryLegalHoldStore _sut = new();
+	private readonly InMemoryLegalHoldStore _sut = new(UntenantedContext.Instance, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
 	#region SaveHoldAsync Tests
 
@@ -43,7 +44,9 @@ public sealed class InMemoryLegalHoldStoreShould
 		await _sut.SaveHoldAsync(hold, CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(
+		// Strengthened, not relaxed: the base type is also raised when multi-tenancy is active with no
+		// resolved tenant, and treating that as "already on file" drops a hold that was never written.
+		_ = await Should.ThrowAsync<DuplicateLegalHoldException>(
 			() => _sut.SaveHoldAsync(hold, CancellationToken.None)).ConfigureAwait(false);
 	}
 

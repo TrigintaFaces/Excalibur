@@ -38,7 +38,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 
 	private readonly ILogger<BatchProcessor<T>> _logger;
 
-	// AD-251-4: Lock retained for List<Task> operations - List<T> is not thread-safe
+	// Lock retained for List<Task> operations - List<T> is not thread-safe
 	private readonly List<Task> _inFlightTasks = [];
 
 	private readonly Lock _inFlightTasksLock = new();
@@ -204,7 +204,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	/// are logged but disposal completes successfully.
 	/// </para>
 	/// <para>
-	/// Per requirement R1.13, disposal timeouts are classified as Canceled (not Error)
+	/// Disposal timeouts are classified as Canceled (not Error)
 	/// and do not throw exceptions.
 	/// </para>
 	/// </remarks>
@@ -558,10 +558,10 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 			return;
 		}
 
-		// AD-251-4: Use ToArray() instead of ToList() for immutable batch snapshot
+		// Use ToArray() instead of ToList() for immutable batch snapshot
 		var batchCopy = activeBatch.ToArray();
 
-		// Capture parent Activity context for propagation across Task.Run() boundary (Phase 9.1h-2)
+		// Capture parent Activity context for propagation across Task.Run() boundary
 		var parentContext = Activity.Current?.Context ?? default;
 
 		// Fire off batch processing without awaiting

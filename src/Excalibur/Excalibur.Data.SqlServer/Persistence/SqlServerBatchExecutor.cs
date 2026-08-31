@@ -90,7 +90,7 @@ internal sealed partial class SqlServerBatchExecutor
 		_ = activity?.SetTag("transaction.id", transactionScope.TransactionId);
 
 		// Connection lifecycle is managed by the transaction scope - scope owns disposal
-		// R0.8: Dispose objects before losing scope
+		// Dispose objects before losing scope
 #pragma warning disable CA2000
 		var connection = await _connectionManager.GetOrCreateEnlistedConnectionAsync(transactionScope, cancellationToken)
 			.ConfigureAwait(false);

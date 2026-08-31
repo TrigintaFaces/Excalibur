@@ -33,7 +33,6 @@ namespace Excalibur.Dispatch.Middleware.Auth;
 /// </list>
 /// </remarks>
 [AppliesTo(MessageKinds.Action | MessageKinds.Event)]
-[RequiresFeatures(DispatchFeatures.Authorization)]
 public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 {
 	private static readonly ClaimLookup[] CommonClaimLookups =
@@ -315,7 +314,7 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 		}
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.AuthorizationMiddlewareExecuting, LogLevel.Debug,
 		"Message type {MessageType} does not require authorization")]
 	private partial void LogMessageDoesNotRequireAuthorization(string messageType);

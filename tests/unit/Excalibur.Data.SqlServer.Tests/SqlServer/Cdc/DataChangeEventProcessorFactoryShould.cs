@@ -55,7 +55,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 			factory.Create(
 				null!,
 				new CdcRepository(new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")),
-				new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")));
+				() => new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")));
 	}
 
 	[Fact]
@@ -68,7 +68,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 			factory.Create(
 				dbConfig,
 				null!,
-				new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")));
+				() => new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")));
 	}
 
 	[Fact]
@@ -107,7 +107,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 		var result = factory.Create(
 			dbConfig,
 			new CdcRepository(new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true")),
-			new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true"));
+			() => new SqlConnection("Server=localhost;Encrypt=false;TrustServerCertificate=true"));
 
 		result.ShouldNotBeNull();
 		result.ShouldBeAssignableTo<IDataChangeEventProcessor>();

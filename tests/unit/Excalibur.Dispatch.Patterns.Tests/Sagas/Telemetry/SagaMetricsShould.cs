@@ -200,7 +200,7 @@ public sealed class SagaMetricsShould : IDisposable
 		SagaMetrics.RecordSagaDuration(sagaType, 1234.5);
 
 		// Assert
-		var measurements = GetMeasurementsForSaga("dispatch.saga.duration_ms", sagaType);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.duration", sagaType);
 		measurements.ShouldContain(m => (double)m.Value == 1234.5);
 	}
 
@@ -213,7 +213,7 @@ public sealed class SagaMetricsShould : IDisposable
 		SagaMetrics.RecordHandlerDuration(sagaType, 56.7);
 
 		// Assert
-		var measurements = GetMeasurementsForSaga("dispatch.saga.handler_duration_ms", sagaType);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.handler_duration", sagaType);
 		measurements.ShouldContain(m => (double)m.Value == 56.7);
 	}
 
@@ -226,7 +226,7 @@ public sealed class SagaMetricsShould : IDisposable
 		SagaMetrics.RecordSagaDuration(sagaType, 0.0);
 
 		// Assert
-		var measurements = GetMeasurementsForSaga("dispatch.saga.duration_ms", sagaType);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.duration", sagaType);
 		measurements.ShouldContain(m => (double)m.Value == 0.0);
 	}
 
@@ -368,7 +368,7 @@ public sealed class SagaMetricsShould : IDisposable
 		SagaMetrics.RecordSagaDuration(sagaType, 100.0);
 
 		// Assert
-		var measurements = GetMeasurementsForSaga("dispatch.saga.duration_ms", sagaType);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.duration", sagaType);
 		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
@@ -381,7 +381,7 @@ public sealed class SagaMetricsShould : IDisposable
 		SagaMetrics.RecordHandlerDuration(sagaType, 50.0);
 
 		// Assert
-		var measurements = GetMeasurementsForSaga("dispatch.saga.handler_duration_ms", sagaType);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.handler_duration", sagaType);
 		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 

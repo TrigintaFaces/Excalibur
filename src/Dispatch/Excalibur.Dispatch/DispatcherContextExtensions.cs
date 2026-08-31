@@ -53,7 +53,8 @@ public static class DispatcherContextExtensions
 
 		if (MessageContextHolder.Current is null &&
 			message is IDispatchAction localAction &&
-			dispatcher is IDirectLocalDispatcher directLocalDispatcher)
+			dispatcher is IDirectLocalDispatcher directLocalDispatcher &&
+			directLocalDispatcher.CanBypassMiddlewareFor(localAction.GetType()))
 		{
 			return DispatchUltraLocalAsync(directLocalDispatcher, localAction, cancellationToken);
 		}
@@ -96,7 +97,8 @@ public static class DispatcherContextExtensions
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
 		if (MessageContextHolder.Current is null &&
-			dispatcher is IDirectLocalDispatcher directLocalDispatcher)
+			dispatcher is IDirectLocalDispatcher directLocalDispatcher &&
+			directLocalDispatcher.CanBypassMiddlewareFor(typeof(TMessage)))
 		{
 			return DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
 				directLocalDispatcher,
@@ -235,15 +237,10 @@ public static class DispatcherContextExtensions
 		IDispatchAction action,
 		CancellationToken cancellationToken)
 	{
-		try
-		{
-			await directLocalDispatcher.DispatchLocalAsync(action, cancellationToken).ConfigureAwait(false);
-			return MessageResult.Success();
-		}
-		catch (Exception ex) when (ex is not OperationCanceledException)
-		{
-			return CreateLocalFailureResult(ex, "Direct local dispatch failed");
-		}
+		ThrowIfHandlerNotRegistered(directLocalDispatcher, action.GetType());
+
+		await directLocalDispatcher.DispatchLocalAsync(action, cancellationToken).ConfigureAwait(false);
+		return MessageResult.Success();
 	}
 
 	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
@@ -254,53 +251,33 @@ public static class DispatcherContextExtensions
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchAction<TResponse>
 	{
-		try
-		{
-			var value = await directLocalDispatcher.DispatchLocalAsync<TMessage, TResponse>(message, cancellationToken)
-				.ConfigureAwait(false);
-			return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: false);
-		}
-		catch (Exception ex) when (ex is not OperationCanceledException)
-		{
-			return CreateLocalFailureResult<TResponse>(ex, "Direct local dispatch failed");
-		}
+		ThrowIfHandlerNotRegistered(directLocalDispatcher, message.GetType());
+
+		var value = await directLocalDispatcher.DispatchLocalAsync<TMessage, TResponse>(message, cancellationToken)
+			.ConfigureAwait(false);
+		return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: false);
 	}
 
-	private static IMessageResult CreateLocalFailureResult(Exception exception, string title)
+	/// <summary>
+	/// Raises the missing-registration fault as a configuration fault, distinct from a handler that ran and threw.
+	/// </summary>
+	/// <param name="directLocalDispatcher"> The dispatcher about to run the action. </param>
+	/// <param name="messageType"> The message type about to be dispatched. </param>
+	/// <exception cref="InvalidOperationException"> Thrown when no handler is registered for <paramref name="messageType" />. </exception>
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
+	private static void ThrowIfHandlerNotRegistered(IDirectLocalDispatcher directLocalDispatcher, Type messageType)
 	{
-		var problem = new MessageProblemDetails
+		if (directLocalDispatcher is Dispatcher dispatcher && dispatcher.IsMissingLocalHandler(messageType))
 		{
-			Type = "dispatch.handler_error",
-			Title = title,
-			Status = 500,
-			Detail = exception.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MessageResult.Failed(problem);
-	}
-
-	private static SimpleMessageResultOfT<TResponse> CreateLocalFailureResult<TResponse>(Exception exception, string title)
-	{
-		var problem = new MessageProblemDetails
-		{
-			Type = "dispatch.handler_error",
-			Title = title,
-			Status = 500,
-			Detail = exception.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return new SimpleMessageResultOfT<TResponse>(
-			value: default,
-			succeeded: false,
-			errorMessage: exception.Message,
-			cacheHit: false,
-			problemDetails: problem);
+			throw LocalMessageBus.CreateMissingHandlerException(messageType);
+		}
 	}
 
 	private sealed class ContextFactoryHolder(IMessageContextFactory? factory)
 	{
 		public IMessageContextFactory? Factory { get; } = factory;
 	}
+
+
 }

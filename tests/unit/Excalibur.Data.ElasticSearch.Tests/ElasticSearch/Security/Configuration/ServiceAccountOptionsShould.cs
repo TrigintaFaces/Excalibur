@@ -16,9 +16,6 @@ public sealed class ServiceAccountOptionsShould
 
 		sut.Enabled.ShouldBeFalse();
 		sut.AccountId.ShouldBeNull();
-		sut.Namespace.ShouldBeNull();
-		sut.TokenExpiration.ShouldBe(TimeSpan.FromHours(1));
-		sut.RefreshThreshold.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
@@ -28,15 +25,9 @@ public sealed class ServiceAccountOptionsShould
 		{
 			Enabled = true,
 			AccountId = "svc-elastic-reader",
-			Namespace = "production",
-			TokenExpiration = TimeSpan.FromHours(8),
-			RefreshThreshold = TimeSpan.FromMinutes(30),
 		};
 
 		sut.Enabled.ShouldBeTrue();
 		sut.AccountId.ShouldBe("svc-elastic-reader");
-		sut.Namespace.ShouldBe("production");
-		sut.TokenExpiration.ShouldBe(TimeSpan.FromHours(8));
-		sut.RefreshThreshold.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 }

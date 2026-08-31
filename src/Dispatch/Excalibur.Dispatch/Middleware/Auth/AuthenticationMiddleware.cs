@@ -30,7 +30,6 @@ namespace Excalibur.Dispatch.Middleware.Auth;
 /// </list>
 /// </remarks>
 [AppliesTo(MessageKinds.Action | MessageKinds.Event)]
-[RequiresFeatures(DispatchFeatures.Authorization)]
 public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.AuthenticationMiddleware, "1.0.0");
@@ -273,7 +272,7 @@ public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 		}
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.AnonymousAccessAllowed, LogLevel.Debug,
 		"Message type {MessageType} allows anonymous access")]
 	private partial void LogMessageTypeAllowsAnonymousAccess(string messageType);

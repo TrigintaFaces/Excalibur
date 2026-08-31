@@ -67,10 +67,10 @@ The sample uses these tables in the `dbo` schema (default, configurable via `Sql
 ```sql
 CREATE TABLE [dbo].[EventStoreEvents] (
     [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
-    [EventId]        NVARCHAR(256)         NOT NULL,
-    [AggregateId]    NVARCHAR(256)         NOT NULL,
-    [AggregateType]  NVARCHAR(256)         NOT NULL,
-    [EventType]      NVARCHAR(256)         NOT NULL,
+    [EventId]        NVARCHAR(255)         NOT NULL,
+    [AggregateId]    NVARCHAR(255)         NOT NULL,
+    [AggregateType]  NVARCHAR(255)         NOT NULL,
+    [EventType]      NVARCHAR(255)         NOT NULL,
     -- Nullable: GDPR erasure tombstones an event by setting EventData to NULL.
     [EventData]      VARBINARY(MAX)        NULL,
     [Metadata]       VARBINARY(MAX)        NULL,
@@ -82,7 +82,8 @@ CREATE TABLE [dbo].[EventStoreEvents] (
     -- tenant context is established), so an untenanted event is a named partition, never a NULL. Omitting the
     -- value must fail the INSERT, not silently land in a shared partition. The event store's read/erase paths
     -- bind this column unconditionally, so a range operation is never un-tenant-bound.
-    [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2         NOT NULL,
+    [TenantId]       NVARCHAR(64) COLLATE Latin1_General_BIN2         NOT NULL
+        CONSTRAINT [DF_EventStoreEvents_TenantId] DEFAULT '__untenanted__',
 
     CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
     CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
@@ -97,9 +98,9 @@ CREATE TABLE [dbo].[EventStoreEvents] (
 
 ```sql
 CREATE TABLE [dbo].[EventStoreSnapshots] (
-    [SnapshotId]     NVARCHAR(256)         NOT NULL,
-    [AggregateId]    NVARCHAR(256)         NOT NULL,
-    [AggregateType]  NVARCHAR(256)         NOT NULL,
+    [SnapshotId]     NVARCHAR(255)         NOT NULL,
+    [AggregateId]    NVARCHAR(255)         NOT NULL,
+    [AggregateType]  NVARCHAR(255)         NOT NULL,
     [Version]        BIGINT                NOT NULL,
     [Data]           VARBINARY(MAX)        NOT NULL,
     [CreatedAt]      DATETIMEOFFSET        NOT NULL,
@@ -109,7 +110,7 @@ CREATE TABLE [dbo].[EventStoreSnapshots] (
     -- SQL Server forbids a nullable column in a PRIMARY KEY, and the reserved '__untenanted__'
     -- sentinel is the single-tenant value the store writes explicitly — never NULL, never an empty
     -- string — so omitting it must fail the INSERT, not silently land in that partition.
-    [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2         NOT NULL,
+    [TenantId]       NVARCHAR(64) COLLATE Latin1_General_BIN2         NOT NULL,
 
     CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
 );

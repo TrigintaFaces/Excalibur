@@ -45,6 +45,7 @@ public static class KubernetesLeaderElectionExtensions
 		configure(k8sBuilder);
 
 		RegisterOptionsAndServices(services, k8sBuilder);
+		KubernetesElectionRegistration.RegisterSingletonElectionAndGate(services, k8sBuilder.LeaseNameValue);
 
 		return services;
 	}
@@ -67,6 +68,11 @@ public static class KubernetesLeaderElectionExtensions
 	{
 		// Add base Kubernetes leader election
 		_ = services.AddExcaliburKubernetesLeaderElection(configure ?? (_ => { }));
+
+		// This overload names the resource explicitly, so the singleton election can be registered from that
+		// name even when no LeaseName was configured. TryAdd inside, so a LeaseName-derived registration made
+		// by the call above wins.
+		KubernetesElectionRegistration.RegisterSingletonElectionAndGate(services, resourceName);
 
 		// Register the hosted service with specific resource
 		_ = services.AddHostedService(sp =>

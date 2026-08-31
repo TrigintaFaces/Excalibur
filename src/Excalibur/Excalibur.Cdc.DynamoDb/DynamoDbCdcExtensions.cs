@@ -31,6 +31,7 @@ public static class DynamoDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<DynamoDbCdcOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DynamoDbCdcOptions>, DynamoDbCdcOptionsValidator>());
 		services.TryAddSingleton<IDynamoDbCdcProcessor, DynamoDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -60,6 +61,7 @@ public static class DynamoDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<DynamoDbCdcOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DynamoDbCdcOptions>, DynamoDbCdcOptionsValidator>());
 		services.TryAddSingleton<IDynamoDbCdcProcessor, DynamoDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need
@@ -91,6 +93,7 @@ public static class DynamoDbCdcServiceCollectionExtensions
 		_ = services.AddOptions<DynamoDbCdcOptions>()
 			.Bind(configuration.GetSection(sectionName))
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DynamoDbCdcOptions>, DynamoDbCdcOptionsValidator>());
 		services.TryAddSingleton<IDynamoDbCdcProcessor, DynamoDbCdcProcessor>();
 
 		// Forward to base interfaces so consumers can depend on the abstraction level they need

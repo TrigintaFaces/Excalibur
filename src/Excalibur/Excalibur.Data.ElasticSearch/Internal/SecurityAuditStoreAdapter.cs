@@ -17,7 +17,7 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// live Elasticsearch SDK call sites (<c>Indices.ExistsIndexTemplateAsync</c>,
 /// <c>Indices.PutIndexTemplateAsync</c>, <c>BulkAsync</c>) — tests
 /// substitute at the <see cref="ISecurityAuditStore"/> seam, never at the
-/// SDK types directly (ADR-142 §D7, S799 <c>bd-iqlx2p</c>).
+/// SDK types directly.
 /// </summary>
 internal sealed class SecurityAuditStoreAdapter : ISecurityAuditStore
 {
@@ -108,7 +108,7 @@ internal sealed class SecurityAuditStoreAdapter : ISecurityAuditStore
 						["severity"] = new KeywordProperty(),
 						["source"] = new KeywordProperty(),
 						["userId"] = new KeywordProperty(),
-						// keyword, NOT ip: with PII masking on (default, pbnn9g) sourceIpAddress holds a
+						// keyword, NOT ip: with PII masking on (default) sourceIpAddress holds a
 						// non-IP fingerprint (e.g. "sha256:…"); an ip-typed field would 400-reject it and the
 						// whole audit doc would be silently dropped on bulk-index. keyword stores both a masked
 						// fingerprint and a raw IP (opt-out) — and CIDR-range queries are meaningless on a hash.

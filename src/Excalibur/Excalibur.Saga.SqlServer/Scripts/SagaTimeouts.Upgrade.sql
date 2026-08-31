@@ -27,7 +27,7 @@ BEGIN
     -- Added WITH the default so existing rows adopt the untenanted sentinel rather than NULL. These
     -- rows predate tenant-aware timeouts, so the untenanted partition is their correct home.
     ALTER TABLE SagaTimeouts
-        ADD TenantId NVARCHAR(200) COLLATE Latin1_General_BIN2 NOT NULL
+        ADD TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
             CONSTRAINT DF_SagaTimeouts_TenantId DEFAULT '__untenanted__';
 END
 GO

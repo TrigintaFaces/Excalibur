@@ -22,10 +22,6 @@ Bind configuration from your settings file. `DispatchOptions` supports nested op
   "Dispatch": {
     "DefaultTimeout": "00:00:30",
     "EnableMetrics": true,
-    "Security": {
-      "EnableEncryption": false,
-      "EnableValidation": true
-    },
     "Observability": {
       "Enabled": true,
       "EnableTracing": true,

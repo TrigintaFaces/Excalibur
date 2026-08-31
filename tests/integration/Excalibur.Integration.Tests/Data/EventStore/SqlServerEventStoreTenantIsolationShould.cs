@@ -60,7 +60,7 @@ public sealed class SqlServerEventStoreTenantIsolationShould
 			NullLogger<SqlServerEventStore>.Instance,
 			schema: _fixture.SchemaName,
 			table: _fixture.TableName,
-			tenantContext: tenantId is null ? null : new FixedTenant(tenantId));
+			tenantContext: tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
 
 	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{

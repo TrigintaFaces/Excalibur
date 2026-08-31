@@ -51,7 +51,7 @@ public sealed class PostgresWorkflowConformanceTests
         _fixture.DockerAvailable.ShouldBeTrue(
             "Postgres durable-execution conformance runs against real infrastructure and is never skipped");
 
-        return new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance);
+        return new PostgresEventStore(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance, SingleTenantTestContext.Instance);
     }
 
     /// <inheritdoc/>
@@ -71,4 +71,8 @@ public sealed class PostgresWorkflowConformanceTests
     [Fact]
     public override Task DelayedRestart_ResumesAndCompletesExactlyOnce() =>
         base.DelayedRestart_ResumesAndCompletesExactlyOnce();
+
+    [Fact]
+    public override Task ConformanceSuite_ShouldWireEveryArm() =>
+    	base.ConformanceSuite_ShouldWireEveryArm();
 }

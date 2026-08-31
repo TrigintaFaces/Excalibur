@@ -30,6 +30,8 @@ internal sealed class CarrierMessage
 /// </remarks>
 public sealed class ConformingInMemoryTransport : ITransportConformanceCapabilities
 {
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1823:Avoid unused private fields",
+		Justification = "This transport declares the CloudEvents binding capability and never surfaces any of these headers, so the CloudEvents arm of the conformance kit passes here without exercising the behaviour it certifies. Held until the reference-conforming double actually emits them.")]
 	private static readonly string[] CloudEventHeaderKeys =
 	{
 		"ce-id", "ce-source", "ce-type", "ce-specversion", "ce-subject", "ce-time", "ce-datacontenttype"

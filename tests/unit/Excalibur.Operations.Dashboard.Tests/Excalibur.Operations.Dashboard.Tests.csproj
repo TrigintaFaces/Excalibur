@@ -23,6 +23,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Operations.Dashboard\Excalibur.Operations.Dashboard.csproj" />
     <!-- Projection-lag panel lives in a dedicated event-sourcing package; referenced for the /projections/lag endpoint lock (8gj5m3). -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Operations.Dashboard.EventSourcing\Excalibur.Operations.Dashboard.EventSourcing.csproj" />
+    <!-- Embedded-SPA serving path: asset/index responses, security headers, cache policy. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Operations.Dashboard.Spa\Excalibur.Operations.Dashboard.Spa.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />

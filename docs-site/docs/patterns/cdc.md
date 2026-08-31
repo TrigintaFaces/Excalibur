@@ -1213,12 +1213,27 @@ CREATE TABLE [Cdc].[CdcProcessedEvents] (
     TableName   NVARCHAR(256)   NOT NULL,
     Lsn         VARBINARY(10)   NOT NULL,
     SeqVal      VARBINARY(10)   NOT NULL,
-    ConsumerId  NVARCHAR(256)   NOT NULL,
+    ConsumerId  NVARCHAR(128)   NOT NULL,
     ProcessedAt DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_CdcProcessedEvents
         PRIMARY KEY CLUSTERED (TableName, Lsn, SeqVal, ConsumerId)
 );
 ```
+
+:::warning Column widths are load-bearing — do not widen them
+
+SQL Server caps a **clustered** index key at 900 bytes, and every column above is part of the key. The
+widths shown total 788 bytes (`256×2 + 10 + 10 + 128×2`), which leaves headroom while still allowing a
+fully-qualified `schema.table` capture name.
+
+Widening either string column pushes the key past the cap. SQL Server does **not** reject the
+`CREATE TABLE` when that happens — it issues a warning and then fails individual inserts at runtime with
+`Msg 1946, index entry of length N bytes … exceeds the maximum length of 900 bytes`. That error is not a
+duplicate-key violation, so the filter does not absorb it: the change is processed but never recorded as
+processed, and it is redelivered on every subsequent pass. If you need a longer `ConsumerId`, make the
+constraint `PRIMARY KEY NONCLUSTERED` (1700-byte cap) rather than enlarging the column in place.
+
+:::
 
 #### Retention and Cleanup
 

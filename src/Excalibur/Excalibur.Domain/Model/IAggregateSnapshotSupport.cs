@@ -71,7 +71,5 @@ public interface IAggregateSnapshotSupport
 	/// which are not compatible with Native AOT compilation scenarios. Consider using
 	/// source generation for snapshot creation in AOT-compiled applications.
 	/// </remarks>
-	[RequiresUnreferencedCode("Snapshot creation may require types that cannot be statically analyzed. Consider using source generation.")]
-	[RequiresDynamicCode("Snapshot creation may require dynamic code generation which is not compatible with AOT compilation.")]
 	ISnapshot CreateSnapshot();
 }

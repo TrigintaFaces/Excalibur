@@ -34,12 +34,25 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
-/// public class SqlServerCronJobStoreConformanceTests : CronJobStoreConformanceTestKit
+/// // The kit resolves the store from a container built the way the host builds it, so every
+/// // arm runs against the object a consumer actually gets rather than one you assembled.
+/// public class MyCronJobStoreConformanceTests : CronJobStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
+///     private readonly ServiceProvider _provider;
+///     private readonly MyStoreFixture _fixture;
+///
+///     public MyCronJobStoreConformanceTests(MyStoreFixture fixture)
+///     {
+///         _fixture = fixture;
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSingleton(fixture.DataSource)
+///             .AddSingleton&lt;ICronJobStore, MyCronJobStore&gt;()
+///             .BuildServiceProvider();
+///     }
 ///
 ///     protected override ICronJobStore CreateStore() =&gt;
-///         new SqlServerCronJobStore(_fixture.ConnectionString);
+///         _provider.GetRequiredService&lt;ICronJobStore&gt;();
 ///
 ///     protected override async Task CleanupAsync() =&gt;
 ///         await _fixture.CleanupAsync();
@@ -48,7 +61,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class CronJobStoreConformanceTestKit
+public abstract class CronJobStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh cron job store instance for testing.
@@ -61,6 +74,40 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	/// <returns>A task representing the cleanup operation.</returns>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
+
+	/// <summary>
+	/// Clears residual data before an arm runs. Defaults to <see cref="CleanupAsync"/>.
+	/// </summary>
+	/// <returns>A task that completes when the store holds no data from a previous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any suite whose teardown only deletes
+	/// rows, keys or documents. A suite whose <see cref="CleanupAsync"/> <em>also</em> disposes a
+	/// connection or client MUST override this with the data-only half — otherwise it disposes the store
+	/// the arm is about to use, and every arm fails on a disposed handle rather than on the contract.
+	/// </para>
+	/// <para>
+	/// Resetting <em>before</em> an arm is what makes the arm independent; resetting only afterwards makes
+	/// every arm's starting state a function of whether its predecessor finished cleanly.
+	/// </para>
+	/// </remarks>
+	protected virtual Task ResetDataAsync() => CleanupAsync();
+
+	/// <summary>
+	/// Creates the store for a single arm and clears residual data before the arm runs.
+	/// </summary>
+	/// <returns>A store ready for one conformance arm.</returns>
+	/// <remarks>
+	/// Every arm in this kit obtains its store here rather than from <see cref="CreateStore"/> directly.
+	/// That is the only thing that causes <see cref="CleanupAsync"/> to run: a cleanup a deriver overrides
+	/// but the kit never calls is indistinguishable, from the deriver's side, from one that works.
+	/// </remarks>
+	protected async Task<ICronJobStore> CreateStoreForArmAsync()
+	{
+		var store = CreateStore();
+		await ResetDataAsync().ConfigureAwait(false);
+		return store;
+	}
 
 	/// <summary>
 	/// Creates a test recurring cron job with the given parameters.
@@ -102,7 +149,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task AddJobAsync_ShouldPersistJob()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -133,7 +180,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task AddJobAsync_WithNullJob_ShouldThrow()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -152,7 +199,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task AddJobAsync_DuplicateId_ShouldThrowInvalidOperationException()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var id = GenerateJobId();
 		var job1 = CreateRecurringCronJob(id: id);
 		var job2 = CreateRecurringCronJob(id: id);
@@ -180,7 +227,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateJobAsync_ShouldModifyJob()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -216,7 +263,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateJobAsync_ShouldSetLastModifiedUtc()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -253,7 +300,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task UpdateJobAsync_NonExistent_ShouldUpsert()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		// Update without prior Add - should act as upsert
@@ -283,7 +330,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RemoveJobAsync_ShouldReturnTrueAndRemove()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -310,7 +357,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RemoveJobAsync_NonExistent_ShouldReturnFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateJobId();
 
 		var result = await store.RemoveJobAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
@@ -327,7 +374,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RemoveJobAsync_ShouldAlsoRemoveHistory()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -365,7 +412,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetJobAsync_ExistingJob_ShouldReturnJob()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -390,7 +437,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetJobAsync_NonExistent_ShouldReturnNull()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateJobId();
 
 		var retrieved = await store.GetJobAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
@@ -407,7 +454,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetActiveJobsAsync_ShouldReturnOnlyEnabled()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var enabledJob = CreateRecurringCronJob(isEnabled: true, name: "EnabledJob");
 		var disabledJob = CreateRecurringCronJob(isEnabled: false, name: "DisabledJob");
@@ -440,7 +487,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetDueJobsAsync_ShouldReturnDueJobs()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		var dueJob = CreateRecurringCronJob(
@@ -475,7 +522,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetDueJobsAsync_ShouldExcludeDisabled()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		var disabledDueJob = CreateRecurringCronJob(
@@ -499,7 +546,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetDueJobsAsync_ShouldRespectStartEndDates()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var now = DateTimeOffset.UtcNow;
 
 		// Job that hasn't started yet (StartDate in future)
@@ -556,7 +603,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetJobsByTagAsync_ShouldReturnMatchingJobs_CaseInsensitive()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var taggedJob = CreateRecurringCronJob(tags: ["MyTag", "AnotherTag"]);
 		var untaggedJob = CreateRecurringCronJob(tags: ["DifferentTag"]);
@@ -586,7 +633,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetJobsByTagAsync_NoMatches_ShouldReturnEmpty()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var job = CreateRecurringCronJob(tags: ["SomeTag"]);
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -609,7 +656,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SetJobEnabledAsync_ShouldUpdateAndReturnTrue()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob(isEnabled: true);
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -642,7 +689,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task SetJobEnabledAsync_NonExistent_ShouldReturnFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateJobId();
 
 		var result = await store.SetJobEnabledAsync(nonExistentId, true, CancellationToken.None).ConfigureAwait(false);
@@ -663,7 +710,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordExecutionAsync_Success_ShouldUpdateStatsAndAddHistory()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -718,7 +765,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task RecordExecutionAsync_Failure_ShouldIncrementFailureCount()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -779,7 +826,7 @@ public abstract class CronJobStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetJobHistoryAsync_ShouldReturnRecentWithLimit()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var job = CreateRecurringCronJob();
 
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);

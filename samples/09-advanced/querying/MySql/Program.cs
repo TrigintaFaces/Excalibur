@@ -21,7 +21,7 @@ using MySqlConnector;
 //
 // Demonstrates ALL Excalibur.Data.MySql capabilities:
 //   1. DI registration with AddExcaliburMySql(configure) and options binding
-//   2. Dapper integration via IDataRequest<MySqlConnection, T>
+//   2. Dapper integration via IDataRequest<IDbConnection, T>
 //   3. Connection pooling with MySqlPoolingOptions
 //   4. SSL configuration via UseSsl option
 //   5. Retry policy for transient failures (Polly-based exponential backoff)
@@ -58,7 +58,10 @@ builder.Services.AddExcaliburMySql(options =>
     // Application name for connection identification
     options.ApplicationName = "MySqlSample";
 
-    // Provider name for keyed DI resolution (default: "mysql")
+    // Display name for this provider instance, surfaced as IPersistenceProvider.Name and in
+    // logs. This is NOT the keyed-DI key: AddExcaliburMySql always registers the provider
+    // under the fixed key "mysql" (and under "default" if no provider has claimed it yet),
+    // which is what the resolve below uses.
     options.Name = "mysql-primary";
 
     // ========================================================================
@@ -114,7 +117,7 @@ logger.LogInformation("Provider: {Name} (Type: {Type})", provider.Name, provider
 await DemonstrateHealthCheckAsync(provider, logger, CancellationToken.None);
 
 // ============================================================================
-// 2. Dapper Integration -- IDataRequest<MySqlConnection, T>
+// 2. Dapper Integration -- IDataRequest<IDbConnection, T>
 // ============================================================================
 // Execute queries using the DataRequest pattern backed by Dapper.
 await DemonstrateDapperIntegrationAsync(provider, logger, CancellationToken.None);
@@ -126,9 +129,9 @@ await DemonstrateDapperIntegrationAsync(provider, logger, CancellationToken.None
 await DemonstrateTransactionSupportAsync(provider, logger, CancellationToken.None);
 
 // ============================================================================
-// Connection Pool Statistics
+// Provider Metrics
 // ============================================================================
-await DemonstratePoolStatsAsync(provider, logger, CancellationToken.None);
+await DemonstrateProviderMetricsAsync(provider, logger, CancellationToken.None);
 
 logger.LogInformation("MySQL sample completed successfully.");
 
@@ -180,22 +183,28 @@ static async Task DemonstrateDapperIntegrationAsync(
     logger.LogInformation("--- Dapper Integration ---");
 
     // Create a simple data request that uses Dapper under the hood.
-    // IDataRequest<MySqlConnection, TResult> defines:
+    // IDataRequest<IDbConnection, TResult> defines:
     //   - Command: the Dapper CommandDefinition (SQL + params + timeout)
     //   - Parameters: DynamicParameters for parameterized queries
     //   - ResolveAsync: the Dapper execution function (QueryAsync, ExecuteAsync, etc.)
     var versionRequest = new MySqlVersionRequest();
 
+    // Executing a data request is an optional capability, reached through GetService. A provider whose
+    // store is not an IDbConnection -- a document or search store -- declines it, so a consumer holding
+    // IPersistenceProvider asks for it rather than assuming it.
+    var executor = (IDataRequestExecutor?)provider.GetService(typeof(IDataRequestExecutor))
+        ?? throw new InvalidOperationException("The MySQL provider should offer IDataRequestExecutor.");
+
     // ExecuteAsync routes the request through the provider's retry policy,
     // opens a pooled connection, and invokes the Dapper resolver.
-    var version = await provider.ExecuteAsync<MySqlConnection, string>(
+    var version = await executor.ExecuteAsync<string>(
         versionRequest, cancellationToken);
 
     logger.LogInformation("MySQL server version: {Version}", version);
 
     // Demonstrate a parameterized query
     var calcRequest = new MySqlCalculationRequest(42, 58);
-    var result = await provider.ExecuteAsync<MySqlConnection, int>(
+    var result = await executor.ExecuteAsync<int>(
         calcRequest, cancellationToken);
 
     logger.LogInformation("Calculation 42 + 58 = {Result}", result);
@@ -248,14 +257,14 @@ static async Task DemonstrateTransactionSupportAsync(
 }
 
 // ============================================================================
-// Connection Pool Statistics Demonstration
+// Provider Metrics Demonstration
 // ============================================================================
-static async Task DemonstratePoolStatsAsync(
+static async Task DemonstrateProviderMetricsAsync(
     IPersistenceProvider provider,
     ILogger logger,
     CancellationToken cancellationToken)
 {
-    logger.LogInformation("--- Connection Pool Statistics ---");
+    logger.LogInformation("--- Provider Metrics ---");
 
     var health = provider.GetService(typeof(IPersistenceProviderHealth)) as IPersistenceProviderHealth;
     if (health is null)
@@ -263,16 +272,12 @@ static async Task DemonstratePoolStatsAsync(
         return;
     }
 
-    // Retrieve MySQL server-side connection pool statistics
-    // (threads connected, threads running, max used connections)
-    var poolStats = await health.GetConnectionPoolStatsAsync(cancellationToken);
-    if (poolStats is null)
-    {
-        logger.LogWarning("Pool statistics not available.");
-        return;
-    }
+    // Provider metrics carry a documented contract: "Provider" names the engine and "Name" the
+    // configured instance. Server-side connection counts are published by the MySqlConnector driver
+    // as .NET metrics, which report the client's own pool rather than every client of the server.
+    var metrics = await health.GetMetricsAsync(cancellationToken);
 
-    foreach (var (key, value) in poolStats)
+    foreach (var (key, value) in metrics)
     {
         logger.LogInformation("  {Key}: {Value}", key, value);
     }
@@ -286,7 +291,7 @@ static async Task DemonstratePoolStatsAsync(
 /// <summary>
 /// A data request that retrieves the MySQL server version using Dapper.
 /// </summary>
-sealed class MySqlVersionRequest : IDataRequest<MySqlConnection, string>
+sealed class MySqlVersionRequest : IDataRequest<IDbConnection, string>
 {
     public string RequestId { get; } = Guid.NewGuid().ToString();
     public string RequestType => "MySqlVersion";
@@ -299,14 +304,14 @@ sealed class MySqlVersionRequest : IDataRequest<MySqlConnection, string>
 
     // ResolveAsync defines the Dapper execution strategy.
     // Here we use QuerySingleAsync to get a scalar string result.
-    public Func<MySqlConnection, Task<string>> ResolveAsync =>
+    public Func<IDbConnection, Task<string>> ResolveAsync =>
         async connection => await connection.QuerySingleAsync<string>(Command).ConfigureAwait(false);
 }
 
 /// <summary>
 /// A parameterized data request demonstrating Dapper's DynamicParameters.
 /// </summary>
-sealed class MySqlCalculationRequest : IDataRequest<MySqlConnection, int>
+sealed class MySqlCalculationRequest : IDataRequest<IDbConnection, int>
 {
     private readonly int _a;
     private readonly int _b;
@@ -336,14 +341,14 @@ sealed class MySqlCalculationRequest : IDataRequest<MySqlConnection, int>
         }
     }
 
-    public Func<MySqlConnection, Task<int>> ResolveAsync =>
+    public Func<IDbConnection, Task<int>> ResolveAsync =>
         async connection => await connection.QuerySingleAsync<int>(Command).ConfigureAwait(false);
 }
 
 /// <summary>
 /// Creates a temporary table for transaction demonstration.
 /// </summary>
-sealed class MySqlSetupTableRequest : IDataRequest<MySqlConnection, int>
+sealed class MySqlSetupTableRequest : IDataRequest<IDbConnection, int>
 {
     public string RequestId { get; } = Guid.NewGuid().ToString();
     public string RequestType => "MySqlSetupTable";
@@ -362,14 +367,14 @@ sealed class MySqlSetupTableRequest : IDataRequest<MySqlConnection, int>
 
     public DynamicParameters Parameters => new();
 
-    public Func<MySqlConnection, Task<int>> ResolveAsync =>
+    public Func<IDbConnection, Task<int>> ResolveAsync =>
         async connection => await connection.ExecuteAsync(Command).ConfigureAwait(false);
 }
 
 /// <summary>
 /// Inserts a row into the temporary table within a transaction.
 /// </summary>
-sealed class MySqlInsertRequest : IDataRequest<MySqlConnection, int>
+sealed class MySqlInsertRequest : IDataRequest<IDbConnection, int>
 {
     private readonly string _name;
     private readonly decimal _price;
@@ -401,6 +406,6 @@ sealed class MySqlInsertRequest : IDataRequest<MySqlConnection, int>
         }
     }
 
-    public Func<MySqlConnection, Task<int>> ResolveAsync =>
+    public Func<IDbConnection, Task<int>> ResolveAsync =>
         async connection => await connection.ExecuteAsync(Command).ConfigureAwait(false);
 }

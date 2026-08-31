@@ -27,20 +27,27 @@ namespace Excalibur.Testing.Conformance;
 /// </remarks>
 /// <example>
 /// <code>
-/// public class SqlServerScheduleStoreConformanceTests : ScheduleStoreConformanceTestKit
+/// // AddDurableScheduleStore registers the store and its durability attestation inseparably,
+/// // so resolving through the container certifies the object a consumer actually gets --
+/// // including the attestation the boot-time durability gate reads.
+/// public class MyScheduleStoreConformanceTests : ScheduleStoreConformanceTestKit
 /// {
-///     private readonly SqlServerFixture _fixture;
+///     private readonly ServiceProvider _provider;
+///
+///     public MyScheduleStoreConformanceTests(MyStoreFixture fixture) =>
+///         _provider = new ServiceCollection()
+///             .AddLogging()
+///             .AddSingleton(fixture.DataSource)
+///             .AddDurableScheduleStore&lt;MyScheduleStore&gt;()
+///             .BuildServiceProvider();
 ///
 ///     protected override IScheduleStore CreateStore() =>
-///         new SqlServerScheduleStore(_fixture.ConnectionString);
-///
-///     protected override async Task CleanupAsync() =>
-///         await _fixture.CleanupAsync();
+///         _provider.GetRequiredService&lt;IScheduleStore&gt;();
 /// }
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class ScheduleStoreConformanceTestKit
+public abstract class ScheduleStoreConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh schedule store instance for testing.
@@ -53,6 +60,40 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	/// <returns>A task representing the cleanup operation.</returns>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
+
+	/// <summary>
+	/// Clears residual data before an arm runs. Defaults to <see cref="CleanupAsync"/>.
+	/// </summary>
+	/// <returns>A task that completes when the store holds no data from a previous arm.</returns>
+	/// <remarks>
+	/// <para>
+	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any suite whose teardown only deletes
+	/// rows, keys or documents. A suite whose <see cref="CleanupAsync"/> <em>also</em> disposes a
+	/// connection or client MUST override this with the data-only half — otherwise it disposes the store
+	/// the arm is about to use, and every arm fails on a disposed handle rather than on the contract.
+	/// </para>
+	/// <para>
+	/// Resetting <em>before</em> an arm is what makes the arm independent; resetting only afterwards makes
+	/// every arm's starting state a function of whether its predecessor finished cleanly.
+	/// </para>
+	/// </remarks>
+	protected virtual Task ResetDataAsync() => CleanupAsync();
+
+	/// <summary>
+	/// Creates the store for a single arm and clears residual data before the arm runs.
+	/// </summary>
+	/// <returns>A store ready for one conformance arm.</returns>
+	/// <remarks>
+	/// Every arm in this kit obtains its store here rather than from <see cref="CreateStore"/> directly.
+	/// That is the only thing that causes <see cref="CleanupAsync"/> to run: a cleanup a deriver overrides
+	/// but the kit never calls is indistinguishable, from the deriver's side, from one that works.
+	/// </remarks>
+	protected async Task<IScheduleStore> CreateStoreForArmAsync()
+	{
+		var store = CreateStore();
+		await ResetDataAsync().ConfigureAwait(false);
+		return store;
+	}
 
 	/// <summary>
 	/// Creates a test scheduled message with the given ID.
@@ -75,7 +116,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_ShouldPersistMessage()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
@@ -101,7 +142,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_WithNullMessage_ShouldThrow()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		try
 		{
@@ -120,7 +161,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_SameId_ShouldUpsert()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var id = GenerateScheduleId();
 
 		var message1 = CreateScheduledMessage(id);
@@ -155,7 +196,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_MultipleMessages_ShouldPersistAll()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var message1 = CreateScheduledMessage();
 		var message2 = CreateScheduledMessage();
@@ -188,7 +229,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetAllAsync_EmptyStore_ShouldReturnEmpty()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var all = await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -204,7 +245,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetAllAsync_AfterStore_ShouldReturnMessage()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
@@ -230,7 +271,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetAllAsync_ShouldReturnAllMessages()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var message1 = CreateScheduledMessage();
 		var message2 = CreateScheduledMessage();
@@ -269,7 +310,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CompleteAsync_ShouldSetEnabledFalse()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 		((TestScheduledMessage)message).Enabled = true;
 
@@ -298,7 +339,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CompleteAsync_NonExistent_ShouldBeIdempotent()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var nonExistentId = GenerateScheduleId();
 
 		// Should not throw - idempotent operation
@@ -312,7 +353,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task CompleteAsync_AlreadyCompleted_ShouldBeIdempotent()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 		((TestScheduledMessage)message).Enabled = true;
 
@@ -349,7 +390,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task StoreAsync_ThenComplete_MessageRemainsPersisted()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 		((TestScheduledMessage)message).Enabled = true;
 
@@ -381,7 +422,7 @@ public abstract class ScheduleStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task MultipleMessages_CompleteOne_OthersUnaffected()
 	{
-		var store = CreateStore();
+		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
 		var message1 = CreateScheduledMessage();
 		((TestScheduledMessage)message1).Enabled = true;
@@ -473,4 +514,5 @@ public abstract class ScheduleStoreConformanceTestKit
 	}
 
 	#endregion
+
 }

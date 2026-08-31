@@ -11,7 +11,7 @@ This package provides Elasticsearch integration for Excalibur applications, enab
 - **Index Management**: Lifecycle management, templates, and schema evolution
 - **Projections**: Event sourcing projection support with rebuild capabilities
 - **Resilience**: Circuit breaker, retry policies, and dead letter handling
-- **Performance**: Multi-level caching, connection pooling, and query optimization
+- **Performance**: Connection pooling with configurable pool types and node sniffing
 - **Monitoring**: OpenTelemetry integration, metrics, and health checks
 - **Security**: API key, certificate, and basic authentication
 
@@ -254,14 +254,17 @@ if (!comparison.IsBackwardsCompatible)
 ```csharp
 services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
-    options.Resilience.CircuitBreaker = new CircuitBreakerOptions
+    options.Resilience = new ElasticsearchResilienceOptions
     {
-        Enabled = true,
-        FailureThreshold = 5,          // Open after 5 failures
-        MinimumThroughput = 10,        // Minimum requests before evaluation
-        BreakDuration = TimeSpan.FromSeconds(30),
-        SamplingDuration = TimeSpan.FromSeconds(60),
-        FailureRateThreshold = 0.5     // 50% failure rate
+        CircuitBreaker = new CircuitBreakerOptions
+        {
+            Enabled = true,
+            FailureThreshold = 5,          // Open after 5 failures
+            MinimumThroughput = 10,        // Minimum requests before evaluation
+            BreakDuration = TimeSpan.FromSeconds(30),
+            SamplingDuration = TimeSpan.FromSeconds(60),
+            FailureRateThreshold = 0.5     // 50% failure rate
+        }
     };
 });
 ```
@@ -269,15 +272,21 @@ services.Configure<ElasticsearchConfigurationOptions>(options =>
 ### Retry Policy
 
 ```csharp
-options.Resilience.Retry = new RetrySettings
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
-    MaxRetries = 3,
-    InitialDelay = TimeSpan.FromMilliseconds(100),
-    MaxDelay = TimeSpan.FromSeconds(30),
-    UseExponentialBackoff = true,
-    BackoffMultiplier = 2.0,
-    UseJitter = true
-};
+    options.Resilience = new ElasticsearchResilienceOptions
+    {
+        Retry = new ElasticSearchRetryPolicyOptions
+        {
+            Enabled = true,
+            MaxAttempts = 3,
+            BaseDelay = TimeSpan.FromMilliseconds(100),
+            MaxDelay = TimeSpan.FromSeconds(30),
+            UseExponentialBackoff = true,
+            JitterFactor = 0.1
+        }
+    };
+});
 ```
 
 ### Dead Letter Handling
@@ -285,64 +294,10 @@ options.Resilience.Retry = new RetrySettings
 ```csharp
 services.Configure<ElasticsearchDeadLetterOptions>(options =>
 {
-    options.Enabled = true;
-    options.IndexName = "dead-letters";
-    options.RetentionDays = 30;
-    options.MaxRetries = 3;
+    options.DeadLetterIndexPrefix = "dead-letters";
+    options.MaxRetryCount = 3;
+    options.RetentionPeriod = TimeSpan.FromDays(30);
 });
-```
-
-## Performance
-
-### Multi-Level Caching
-
-```csharp
-services.Configure<ElasticsearchConfigurationOptions>(options =>
-{
-    options.Performance.Caching = new CachingSettings
-    {
-        L1 = new L1CacheSettings
-        {
-            Enabled = true,
-            MaxItems = 1000,
-            DefaultTtl = TimeSpan.FromMinutes(5)
-        },
-        L2 = new L2CacheSettings
-        {
-            Enabled = true,
-            MaxSize = 100_000_000,  // 100MB
-            DefaultTtl = TimeSpan.FromMinutes(30)
-        },
-        L3 = new L3CacheSettings
-        {
-            Enabled = false,
-            CacheDirectory = "/tmp/es-cache"
-        }
-    };
-});
-```
-
-### Bulk Operations
-
-```csharp
-services.Configure<ElasticsearchConfigurationOptions>(options =>
-{
-    options.Performance.BulkOperations = new BulkOperationSettings
-    {
-        MaxBatchSize = 1000,
-        MaxBatchBytes = 10_000_000,  // 10MB
-        FlushInterval = TimeSpan.FromSeconds(5),
-        MaxConcurrentBatches = 4
-    };
-});
-```
-
-### Query Optimization
-
-```csharp
-// IQueryOptimizer automatically optimizes queries
-var optimized = await _queryOptimizer.OptimizeAsync(searchRequest);
-var analysis = await _queryOptimizer.AnalyzeAsync(searchRequest);
 ```
 
 ## Monitoring
@@ -369,16 +324,17 @@ services.Configure<ElasticsearchConfigurationOptions>(options =>
     options.Monitoring = new ElasticsearchMonitoringOptions
     {
         Metrics = new MetricsOptions { Enabled = true },
-        RequestLogging = new RequestLoggingSettings
+        RequestLogging = new RequestLoggingOptions
         {
             Enabled = true,
-            LogSlowQueries = true,
-            SlowQueryThreshold = TimeSpan.FromSeconds(1)
+            LogFailuresOnly = true,
+            MaxBodySizeBytes = 1024
         },
-        PerformanceDiagnostics = new PerformanceDiagnosticsSettings
+        Performance = new PerformanceDiagnosticsOptions
         {
             Enabled = true,
-            SampleRate = 0.1  // 10% sampling
+            SlowOperationThreshold = TimeSpan.FromSeconds(1),
+            SamplingRate = 0.1  // 10% sampling
         }
     };
 });

@@ -79,17 +79,6 @@ public sealed class AuditOptionsShould
 		settings.ComplianceFrameworks.ShouldBeEmpty();
 	}
 
-	[Fact]
-	public void HaveSevenYearRetentionPeriod_ByDefault()
-	{
-		// Act
-		var settings = new AuditOptions();
-
-		// Assert
-		// 7 years = 2555 days (as specified in the class)
-		settings.RetentionPeriod.ShouldBe(TimeSpan.FromDays(2555));
-	}
-
 	#endregion
 
 	#region Init Property Tests
@@ -142,16 +131,6 @@ public sealed class AuditOptionsShould
 
 		// Assert
 		settings.EnsureLogIntegrity.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AllowSettingRetentionPeriod_ViaInitializer()
-	{
-		// Act
-		var settings = new AuditOptions { RetentionPeriod = TimeSpan.FromDays(365) };
-
-		// Assert
-		settings.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
 	}
 
 	#endregion
@@ -287,40 +266,6 @@ public sealed class AuditOptionsShould
 
 	#endregion
 
-	#region Retention Period Tests
-
-	[Fact]
-	public void AllowMinimumRetentionPeriod_ForComplianceRequirements()
-	{
-		// Act - One day retention (minimum valid)
-		var settings = new AuditOptions { RetentionPeriod = TimeSpan.FromDays(1) };
-
-		// Assert
-		settings.RetentionPeriod.ShouldBe(TimeSpan.FromDays(1));
-	}
-
-	[Fact]
-	public void AllowTenYearRetentionPeriod_ForLongTermCompliance()
-	{
-		// Act - 10 years retention
-		var settings = new AuditOptions { RetentionPeriod = TimeSpan.FromDays(3650) };
-
-		// Assert
-		settings.RetentionPeriod.ShouldBe(TimeSpan.FromDays(3650));
-	}
-
-	[Fact]
-	public void AllowZeroRetentionPeriod_ForImmediateDeletion()
-	{
-		// Act
-		var settings = new AuditOptions { RetentionPeriod = TimeSpan.Zero };
-
-		// Assert
-		settings.RetentionPeriod.ShouldBe(TimeSpan.Zero);
-	}
-
-	#endregion
-
 	#region Complete Configuration Tests
 
 	[Fact]
@@ -334,7 +279,6 @@ public sealed class AuditOptionsShould
 			AuditDataAccess = true,
 			AuditConfigurationChanges = true,
 			EnsureLogIntegrity = true,
-			RetentionPeriod = TimeSpan.FromDays(365),
 			ComplianceFrameworks = [ComplianceFramework.Gdpr, ComplianceFramework.Hipaa]
 		};
 
@@ -344,7 +288,6 @@ public sealed class AuditOptionsShould
 		settings.AuditDataAccess.ShouldBeTrue();
 		settings.AuditConfigurationChanges.ShouldBeTrue();
 		settings.EnsureLogIntegrity.ShouldBeTrue();
-		settings.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
 		settings.ComplianceFrameworks.Count.ShouldBe(2);
 	}
 

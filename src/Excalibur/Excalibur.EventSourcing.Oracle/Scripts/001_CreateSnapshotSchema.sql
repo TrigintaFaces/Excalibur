@@ -38,7 +38,7 @@ CREATE TABLE EVENTSTORESNAPSHOTS (
     -- conclusion was the wrong one: '' can never be the canonical representation precisely
     -- BECAUSE Oracle folds it to NULL. The reserved sentinel is a real, non-empty value, so
     -- it expresses identically on every provider and needs no per-provider translation.
-    TENANTID       VARCHAR2(255) NOT NULL
+    TENANTID       VARCHAR2(64) NOT NULL
 );
 
 -- One row per aggregate PER TENANT.

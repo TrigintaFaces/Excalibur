@@ -56,7 +56,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		// Arrange
 		var options = new InMemoryInboxOptions { MaxEntries = 1000, EnableAutomaticCleanup = false };
 
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _testLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _testLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		var messageId = "test-message-123";
@@ -87,7 +87,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		}
 
 		// Act - Get statistics
-		var stats = await store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Verify activities were created (activities are now stopped and recorded)
 		var activities = _otelFixture.GetRecordedActivities().Where(a => a.Source.Name == "Test.ActivitySource").ToList();
@@ -237,7 +237,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 	{
 		// Arrange - Setup all components with telemetry
 		var inboxOptions = new InMemoryInboxOptions { MaxEntries = 500, EnableAutomaticCleanup = false };
-		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _testLogger);
+		var inboxStore = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(inboxOptions), _testLogger, UntenantedContext.Instance);
 		_disposables.Add(inboxStore);
 
 		var batchOptions = new MicroBatchOptions { MaxBatchSize = 5, MaxBatchDelay = TimeSpan.FromMilliseconds(25) };
@@ -340,7 +340,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		}
 
 		// Assert - Verify all operations completed successfully
-		var inboxEntries = await inboxStore.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var inboxEntries = await inboxStore.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 		inboxEntries.Count().ShouldBe(50);
 		processedItems.Count.ShouldBeGreaterThanOrEqualTo(50);
 
@@ -390,7 +390,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 		// Arrange
 		var options = new InMemoryInboxOptions { MaxEntries = 1000, EnableAutomaticCleanup = false };
 
-		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _testLogger);
+		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _testLogger, UntenantedContext.Instance);
 		_disposables.Add(store);
 
 		const int operationCount = 100;

@@ -115,10 +115,6 @@ public static class InMemoryTransportServiceCollectionExtensions
 	/// <exception cref="ArgumentException">
 	/// Thrown when <paramref name="name"/> is null, empty, or whitespace.
 	/// </exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInMemoryTransport(
 		this IServiceCollection services,
 		string name,

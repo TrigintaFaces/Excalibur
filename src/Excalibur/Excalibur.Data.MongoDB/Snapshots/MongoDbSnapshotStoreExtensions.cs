@@ -1,7 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch;
 using Excalibur.Data.MongoDB.Snapshots;
 using Excalibur.EventSourcing;
 
@@ -32,6 +33,7 @@ public static class MongoDbSnapshotStoreExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		// Configure options
+		_ = services.AddDefaultTenantContext();
 		_ = services.AddOptions<MongoDbSnapshotStoreOptions>()
 			.Configure(configureOptions)
 			.ValidateOnStart();
@@ -40,13 +42,26 @@ public static class MongoDbSnapshotStoreExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbSnapshotStoreOptions>, MongoDbSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store
-		services.TryAddScoped<ISnapshotStore>(sp =>
-		{
-			var options = sp.GetRequiredService<IOptions<MongoDbSnapshotStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<MongoDbSnapshotStore>>();
+		_ = services.AddDefaultTenantContext();
 
-			return new MongoDbSnapshotStore(options, logger);
-		});
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably. A bare
+		// TryAddScoped here registered a store that honors the ambient tenant while attesting nothing, so
+		// RowDiscriminator rejected a snapshot store that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, MongoDbSnapshotStore>(sp =>
+			new MongoDbSnapshotStore(
+				sp.GetRequiredService<IOptions<MongoDbSnapshotStoreOptions>>(),
+				sp.GetRequiredService<ILogger<MongoDbSnapshotStore>>(),
+				sp.GetRequiredService<ITenantContext>()));
+
+		// The seam registers the store under its own concrete type, so the contract needs an alias to stay
+		// resolvable. It keeps the scoped lifetime this registration always had rather than being promoted.
+		// Singleton, matching the lifetime the tenant-aware seam gives the concrete store and every other
+		// snapshot provider. A scoped alias here would hand back the seam's root-owned singleton from a
+		// child scope, and MS.DI captures a factory-returned IAsyncDisposable in the RESOLVING scope — so
+		// disposing one request scope would dispose the shared store and every later scope would fault.
+		// The store holds no per-scope state: it reads the ambient tenant per call via ITenantContext.
+		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<MongoDbSnapshotStore>());
 
 		return services;
 	}
@@ -98,6 +113,7 @@ public static class MongoDbSnapshotStoreExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		// Configure options
+		_ = services.AddDefaultTenantContext();
 		_ = services.AddOptions<MongoDbSnapshotStoreOptions>()
 			.Configure(configureOptions)
 			.ValidateOnStart();
@@ -106,14 +122,28 @@ public static class MongoDbSnapshotStoreExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbSnapshotStoreOptions>, MongoDbSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store with client factory
-		services.TryAddScoped<ISnapshotStore>(sp =>
-		{
-			var client = clientFactory(sp);
-			var options = sp.GetRequiredService<IOptions<MongoDbSnapshotStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<MongoDbSnapshotStore>>();
+		_ = services.AddDefaultTenantContext();
 
-			return new MongoDbSnapshotStore(client, options, logger);
-		});
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably. The
+		// consumer-supplied client factory is why this is the factory overload rather than the constructing
+		// one. A bare TryAddScoped here registered a store that honors the ambient tenant while attesting
+		// nothing, so RowDiscriminator rejected a snapshot store that was in fact tenant-scoped.
+		_ = services.AddTenantAwareStore<ISnapshotStore, MongoDbSnapshotStore>(sp =>
+			new MongoDbSnapshotStore(
+				clientFactory(sp),
+				sp.GetRequiredService<IOptions<MongoDbSnapshotStoreOptions>>(),
+				sp.GetRequiredService<ILogger<MongoDbSnapshotStore>>(),
+				sp.GetRequiredService<ITenantContext>()));
+
+		// The seam registers the store under its own concrete type, so the contract needs an alias to stay
+		// resolvable. It keeps the scoped lifetime this registration always had rather than being promoted.
+		// Singleton, matching the lifetime the tenant-aware seam gives the concrete store and every other
+		// snapshot provider. A scoped alias here would hand back the seam's root-owned singleton from a
+		// child scope, and MS.DI captures a factory-returned IAsyncDisposable in the RESOLVING scope — so
+		// disposing one request scope would dispose the shared store and every later scope would fault.
+		// The store holds no per-scope state: it reads the ambient tenant per call via ITenantContext.
+		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<MongoDbSnapshotStore>());
 
 		return services;
 	}

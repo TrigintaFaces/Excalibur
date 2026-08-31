@@ -21,10 +21,6 @@ public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 	private readonly IServiceCollection _services = services ?? throw new ArgumentNullException(nameof(services));
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime.")]
 	public IJobConfigurator AddJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
 		string cronExpression, string? jobKey = null)
 		where TJob : class, IBackgroundJob
@@ -57,9 +53,9 @@ public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime. JsonSerializer.Serialize is used for context serialization.")]
+		Justification = "The job context is serialized as JSON without type metadata. AOT consumers must preserve the context type.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime. JsonSerializer.Serialize is used for context serialization.")]
+		Justification = "The job context is serialized as JSON without type metadata. AOT consumers must preserve the context type.")]
 	public IJobConfigurator AddJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob, TContext>(
 		string cronExpression, TContext context, string? jobKey = null)
 		where TJob : class, IBackgroundJob<TContext>
@@ -96,10 +92,6 @@ public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime.")]
 	public IJobConfigurator AddOneTimeJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
 		string? jobKey = null)
 		where TJob : class, IBackgroundJob
@@ -129,10 +121,6 @@ public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Job types are registered at startup via AddQuartz and resolved by Quartz at runtime.")]
 	public IJobConfigurator AddDelayedJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
 		TimeSpan delay, string? jobKey = null)
 		where TJob : class, IBackgroundJob

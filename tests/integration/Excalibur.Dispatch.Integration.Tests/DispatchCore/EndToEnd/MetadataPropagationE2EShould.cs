@@ -319,7 +319,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 	// ── 5. Failure Path Metadata Preservation ─────────────────────────
 
 	[Fact]
-	public async Task FailedCommand_ReturnsFailureResult_WithErrorMessage()
+	public async Task FailedCommand_PropagatesTheHandlersOwnException()
 	{
 		// Arrange
 		var command = new FailingMetadataCommand
@@ -330,12 +330,12 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		context.CorrelationId = "fail-corr-001";
 
 		// Act
-		var result = await _dispatcher.DispatchAsync(command, context, CancellationToken.None);
+		var faulted = await Should.ThrowAsync<InvalidOperationException>(
+			() => _dispatcher.DispatchAsync(command, context, CancellationToken.None));
 
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
-		result.ErrorMessage.ShouldContain("insufficient funds");
+		// Assert - the handler's own exception reaches the caller, so a registered exception mapper or typed
+		// handler can see it; a generic failed result would have hidden both the type and the reason.
+		faulted.Message.ShouldContain("insufficient funds");
 	}
 
 	[Fact]
@@ -348,7 +348,8 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		context.CausationId = "fail-cause-001";
 
 		// Act
-		_ = await _dispatcher.DispatchAsync(command, context, CancellationToken.None);
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => _dispatcher.DispatchAsync(command, context, CancellationToken.None));
 
 		// Assert - handler received the metadata before it threw
 		FailingCommandHandler.LastCapturedCorrelationId.ShouldBe("fail-meta-001");

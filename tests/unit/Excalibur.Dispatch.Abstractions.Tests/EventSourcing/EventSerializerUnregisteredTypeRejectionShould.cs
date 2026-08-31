@@ -90,7 +90,7 @@ public sealed partial class EventSerializerUnregisteredTypeRejectionShould
 	public void AotJsonEventSerializer_RejectScannableUnregisteredType()
 	{
 		// Arrange — empty registry; typeof(string) is loaded/scannable but NOT registered.
-		var sut = new AotJsonEventSerializer(new EmptyEventTypeRegistry(), new RejectionJsonContext());
+		var sut = new AotJsonEventSerializer(new EmptyEventTypeRegistry(), RejectionJsonContext.Default);
 
 		// Act & Assert — resolution is allow-list-bounded; no fallback scan.
 		Should.Throw<UnknownEventTypeException>(
@@ -101,7 +101,7 @@ public sealed partial class EventSerializerUnregisteredTypeRejectionShould
 	public void AotJsonEventSerializer_RejectUnknownType()
 	{
 		// Arrange
-		var sut = new AotJsonEventSerializer(new EmptyEventTypeRegistry(), new RejectionJsonContext());
+		var sut = new AotJsonEventSerializer(new EmptyEventTypeRegistry(), RejectionJsonContext.Default);
 
 		// Act & Assert
 		Should.Throw<UnknownEventTypeException>(() => sut.ResolveType("NonExistent.Event"));
@@ -117,6 +117,10 @@ public sealed partial class EventSerializerUnregisteredTypeRejectionShould
 		public string? GetTypeName(Type eventType) => null;
 	}
 
+	[JsonSourceGenerationOptions(
+		PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+		UseStringEnumConverter = true,
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 	[JsonSerializable(typeof(object))]
 	private sealed partial class RejectionJsonContext : JsonSerializerContext;
 }

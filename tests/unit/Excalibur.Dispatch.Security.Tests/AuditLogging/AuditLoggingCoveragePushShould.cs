@@ -34,7 +34,7 @@ public sealed class AuditLoggingCoveragePushShould
 	{
 		// Arrange - store valid events, then tamper with one via reflection to trigger
 		// the hash mismatch path (lines 193-209 in InMemoryAuditStore.cs)
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -69,17 +69,17 @@ public sealed class AuditLoggingCoveragePushShould
 
 		// Assert - the keyed-MAC verification flags the tampered event (strengthened: pin the violating
 		// event id rather than the exact wording, which is strategy-specific).
-		result.IsValid.ShouldBeFalse();
-		result.ViolationCount.ShouldBeGreaterThan(0);
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.CompromisedChainCount.ShouldBeGreaterThan(0);
 		result.FirstViolationEventId.ShouldBe("tamper-2");
 		result.ViolationDescription.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
-	public async Task InMemoryAuditStore_VerifyChainIntegrity_DetectsMultipleViolations_WhenMultipleEventsTampered()
+	public async Task InMemoryAuditStore_VerifyChainIntegrity_CountsOneCompromisedChain_WhenTwoEventsInOneChainAreTampered()
 	{
 		// Arrange - tamper with multiple events to exercise firstViolationEventId ??= branch
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		for (var i = 1; i <= 3; i++)
@@ -107,9 +107,12 @@ public sealed class AuditLoggingCoveragePushShould
 			timestamp.AddHours(1),
 			CancellationToken.None);
 
-		// Assert - should report 2 violations, first one captured
-		result.IsValid.ShouldBeFalse();
-		result.ViolationCount.ShouldBe(2);
+		// Assert - one compromised partition. AuditChainVerifier.VerifyAsync walks each partition until
+		// its first failure and CompromisedChainCount counts compromised PARTITIONS, not failing records within
+		// one (see its own doc remarks): once the chain breaks at event 2, event 3 is unverifiable rather
+		// than an independently-counted second finding, so this single-partition trail reports 1.
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.CompromisedChainCount.ShouldBe(1);
 		result.FirstViolationEventId.ShouldBe("multi-tamper-2");
 	}
 
@@ -117,7 +120,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrity_DetectsFirstEventTampered()
 	{
 		// Arrange - tamper with the first event specifically
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -150,7 +153,7 @@ public sealed class AuditLoggingCoveragePushShould
 			CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeFalse();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
 		result.FirstViolationEventId.ShouldBe("first-tamper-1");
 		result.ViolationDescription.ShouldContain("first-tamper-1");
 	}
@@ -164,7 +167,7 @@ public sealed class AuditLoggingCoveragePushShould
 	{
 		// Arrange - store an event to create a tenant entry, then clear the tenant list
 		// to trigger the "lastEvent is null" branch in GetPreviousHash (line 263-265)
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -206,12 +209,12 @@ public sealed class AuditLoggingCoveragePushShould
 	}
 
 	[Fact]
-	public async Task InMemoryAuditStore_StoreAsync_AfterClearingDefaultTenantEvents_UsesGenesisHash()
+	public async Task InMemoryAuditStore_StoreAsync_AfterClearingUntenantedEvents_UsesGenesisHash()
 	{
-		// Arrange - same as above but for default tenant (null TenantId)
-		// This exercises the ternary "tenantKey == '_default_' ? null : tenantKey"
+		// Arrange - same as above but for the untenanted partition (null TenantId)
+		// This exercises the ternary "tenantKey == UntenantedPartitionKey ? null : tenantKey"
 		// inside the empty-list genesis hash branch
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -221,12 +224,12 @@ public sealed class AuditLoggingCoveragePushShould
 			Outcome = AuditOutcome.Success,
 			Timestamp = DateTimeOffset.UtcNow,
 			ActorId = "user-1"
-			// No TenantId = default tenant
+			// No TenantId = untenanted partition
 		}, CancellationToken.None);
 
-		// Clear the default tenant's event list
+		// Clear the untenanted partition's event list
 		var eventsByTenant = GetPrivateField<ConcurrentDictionary<string, List<AuditEvent>>>(store, "_eventsByTenant");
-		if (eventsByTenant.TryGetValue("_default_", out var tenantEvents))
+		if (eventsByTenant.TryGetValue(TenantScope.UntenantedSentinel, out var tenantEvents))
 		{
 			lock (tenantEvents)
 			{
@@ -234,7 +237,7 @@ public sealed class AuditLoggingCoveragePushShould
 			}
 		}
 
-		// Act - store another event for default tenant
+		// Act - store another event for the untenanted partition
 		var result = await store.StoreAsync(new AuditEvent
 		{
 			EventId = "default-genesis-2",
@@ -323,7 +326,7 @@ public sealed class AuditLoggingCoveragePushShould
 
 		var startDate = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var endDate = new DateTimeOffset(2025, 6, 30, 0, 0, 0, TimeSpan.Zero);
-		var validResult = AuditIntegrityResult.Valid(42, startDate, endDate);
+		var validResult = AuditIntegrityResult.Verified(42, startDate, endDate, isHashChained: true);
 
 		A.CallTo(() => store.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.Returns(Task.FromResult(validResult));
@@ -332,7 +335,7 @@ public sealed class AuditLoggingCoveragePushShould
 		var result = await sut.VerifyIntegrityAsync(startDate, endDate, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(42);
 	}
 
@@ -349,8 +352,8 @@ public sealed class AuditLoggingCoveragePushShould
 
 		var startDate = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var endDate = new DateTimeOffset(2025, 6, 30, 0, 0, 0, TimeSpan.Zero);
-		var invalidResult = AuditIntegrityResult.Invalid(
-			100, startDate, endDate, "evt-50", "Hash mismatch at event 50", 3);
+		var invalidResult = AuditIntegrityResult.ViolationsDetected(
+			100, startDate, endDate, "evt-50", "Hash mismatch at event 50", 3, isHashChained: true);
 
 		A.CallTo(() => store.VerifyChainIntegrityAsync(startDate, endDate, A<CancellationToken>._))
 			.Returns(Task.FromResult(invalidResult));
@@ -359,8 +362,8 @@ public sealed class AuditLoggingCoveragePushShould
 		var result = await sut.VerifyIntegrityAsync(startDate, endDate, CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeFalse();
-		result.ViolationCount.ShouldBe(3);
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.CompromisedChainCount.ShouldBe(3);
 		result.FirstViolationEventId.ShouldBe("evt-50");
 	}
 
@@ -427,7 +430,7 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// A non-security event that SecurityAnalyst cannot access
 		var dataEvent = new AuditEvent
@@ -463,7 +466,7 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Act & Assert - exercises LogIntegrityVerificationAccessDenied with logging enabled
 		await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -487,7 +490,7 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
-		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, metaLogger), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -520,7 +523,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithAllFiltersOnNoTenant()
 	{
 		// Arrange - exercise the no-tenant branch of CountAsync with all filters
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -613,7 +616,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithActionFilter_NoTenant()
 	{
 		// Arrange - exercise Action filter in CountAsync without tenant
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -646,7 +649,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_GetLastEventAsync_ReturnsLastForDefaultTenant()
 	{
 		// Arrange - exercise GetLastEventAsync with explicit null tenant
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -680,7 +683,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_VerifyChainIntegrity_MultipleEventsSameTimestamp()
 	{
 		// Arrange - events with same timestamp, ordered by EventId
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 		var timestamp = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -708,7 +711,7 @@ public sealed class AuditLoggingCoveragePushShould
 			timestamp.AddHours(-1), timestamp.AddHours(1), CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 		result.EventsVerified.ShouldBe(2);
 	}
 
@@ -799,7 +802,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithOutcomes_NoTenant()
 	{
 		// Arrange - exercise Outcomes filter branch in CountAsync without tenant
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -835,7 +838,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_CountAsync_WithResourceType_NoTenant()
 	{
 		// Arrange
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.Untenanted();
 
 		_ = await store.StoreAsync(new AuditEvent
 		{
@@ -923,7 +926,7 @@ public sealed class AuditLoggingCoveragePushShould
 		// Register with factory AND scoped lifetime via ServiceDescriptor
 		var scopedFactoryDescriptor = new ServiceDescriptor(
 			typeof(IAuditStore),
-			_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()),
+			_ => AuditStoreTenantScope.Untenanted(),
 			ServiceLifetime.Scoped);
 		((ICollection<ServiceDescriptor>)services).Add(scopedFactoryDescriptor);
 
@@ -988,7 +991,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		AuditQuery? capturedQuery = null;
 		A.CallTo(() => innerStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -1017,7 +1020,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		AuditQuery? capturedQuery = null;
 		A.CallTo(() => innerStore.CountAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -1044,7 +1047,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var authzEvent = new AuditEvent
 		{
@@ -1078,7 +1081,7 @@ public sealed class AuditLoggingCoveragePushShould
 
 		using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Warning));
 		var logger = loggerFactory.CreateLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var dataModEvent = new AuditEvent
 		{
@@ -1111,7 +1114,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		AuditQuery? capturedQuery = null;
 		A.CallTo(() => innerStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -1143,13 +1146,12 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var sut = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var originalQuery = new AuditQuery
 		{
 			EventTypes = [AuditEventType.DataAccess],
-			ActorId = "specific-actor",
-			TenantId = "my-tenant"
+			ActorId = "specific-actor"
 		};
 
 		AuditQuery? capturedQuery = null;
@@ -1240,7 +1242,7 @@ public sealed class AuditLoggingCoveragePushShould
 
 		public Task<AuditIntegrityResult> VerifyChainIntegrityAsync(
 			DateTimeOffset startDate, DateTimeOffset endDate, CancellationToken cancellationToken = default)
-			=> Task.FromResult(AuditIntegrityResult.Valid(0, startDate, endDate));
+			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
 		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);

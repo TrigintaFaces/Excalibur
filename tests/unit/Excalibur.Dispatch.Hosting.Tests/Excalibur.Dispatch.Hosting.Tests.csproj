@@ -26,7 +26,7 @@
     <!-- From Excalibur.Dispatch.Hosting.GoogleCloudFunctions.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.GoogleCloudFunctions\Excalibur.Hosting.GoogleCloudFunctions.csproj" />
     <!-- From Excalibur.Dispatch.Hosting.Serverless.Abstractions.Tests -->
-    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Serverless\Excalibur.Hosting.Serverless.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

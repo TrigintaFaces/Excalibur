@@ -11,8 +11,9 @@ dotnet add package Excalibur.Data.MongoDB
 ## Quick Start
 
 ```csharp
-// Add Excalibur.Data.MongoDB to your service configuration
-services.AddDataMongoDB();
+services.AddExcaliburMongoDb(mongo => mongo
+    .ConnectionString("mongodb://localhost:27017")
+    .DatabaseName("myapp"));
 ```
 
 ## Documentation
@@ -21,4 +22,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

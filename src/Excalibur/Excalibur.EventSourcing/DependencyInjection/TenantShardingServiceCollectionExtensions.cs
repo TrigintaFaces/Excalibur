@@ -4,6 +4,8 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Sharding;
@@ -65,16 +67,15 @@ public static class TenantShardingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Calling this method is the opt-in: sharding is always enabled when the
-		// fluent extension is invoked. [bd-51k0mc]
+		// fluent extension is invoked.
 		builder.Services.Configure(configure);
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());
 		builder.Services.AddOptionsWithValidateOnStart<ShardMapOptions>();
 
 		// Register tenant-routing decorator as Scoped (per-request tenant resolution).
-		// Idempotent: if EnableTenantSharding is invoked more than once, the second
-		// call is a no-op rather than double-registering TenantRoutingEventStore.
-		// [S792 bd-a38h4t]
+		// Idempotent: if EnableTenantSharding is invoked more than once, the second call returns
+		// without touching the collection rather than re-registering TenantRoutingEventStore.
 		RegisterTenantRoutingStores(builder.Services);
 
 		return builder;
@@ -129,9 +130,8 @@ public static class TenantShardingServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());
 
 		// Register tenant-routing decorator as Scoped (per-request tenant resolution).
-		// Idempotent: if EnableTenantSharding is invoked more than once, the second
-		// call is a no-op rather than double-registering TenantRoutingEventStore.
-		// [S792 bd-a38h4t]
+		// Idempotent: if EnableTenantSharding is invoked more than once, the second call returns
+		// without touching the collection rather than re-registering TenantRoutingEventStore.
 		RegisterTenantRoutingStores(builder.Services);
 
 		return builder;
@@ -153,14 +153,25 @@ public static class TenantShardingServiceCollectionExtensions
 	/// <param name="services">The service collection to register tenant routing into.</param>
 	internal static void RegisterTenantRoutingStores(IServiceCollection services)
 	{
-		// Idempotence guard — if TenantRoutingEventStore is already the registered
-		// IEventStore, do nothing. This prevents duplicate enumerable resolutions
-		// and matches the spec-§5.2 idempotence pin.
+		// Idempotence guard — if this method has already wired tenant routing, do nothing, so a
+		// repeat call neither double-registers nor churns the wiring it already installed.
+		//
+		// The guard keys on the CONCRETE TenantRoutingEventStore registration, not on the
+		// implementation type of the IEventStore descriptor. The latter is what this guard used to
+		// read, and it could never match: the IEventStore descriptor below is a FACTORY forwarding
+		// to the concrete singleton, and ServiceDescriptor.ImplementationType is null for a factory
+		// registration no matter which generic arguments name it. So the guard never fired, every
+		// repeat call fell through to the removal loop, and the IEventStore and capability
+		// descriptors were torn out and re-appended on each invocation — no duplicates, but not the
+		// no-op this method documents, and a positional idempotence check reads those re-appended
+		// descriptors as fresh additions.
+		//
+		// The concrete service type is registered by this method and nowhere else in the framework,
+		// in the same act as the contract forward below, so its presence is exactly the fact the
+		// guard needs: tenant routing is already wired here.
 		for (var i = 0; i < services.Count; i++)
 		{
-			var descriptor = services[i];
-			if (descriptor.ServiceType == typeof(IEventStore)
-				&& descriptor.GetImplementationType() == typeof(TenantRoutingEventStore))
+			if (services[i].ServiceType == typeof(TenantRoutingEventStore))
 			{
 				return;
 			}
@@ -170,15 +181,69 @@ public static class TenantShardingServiceCollectionExtensions
 		// whole-cloth replacement (routes via ITenantStoreResolver<IEventStore>
 		// rather than wrapping a single inner store), so no prior descriptor
 		// needs to be captured.
+		//
+		// The prior store's tenancy capability markers go with it, and that is not tidiness. A marker is an
+		// assertion about a specific registered store, so leaving one behind after deleting the store it
+		// described leaves an attestation with nothing under it -- and the tenant-capability gates read
+		// exactly these markers. A host that composed multi-tenancy first (which decorates the provider
+		// store and emits its marker) and enabled sharding second would otherwise reach a started host whose
+		// IEventStore is the routing store while the container still swears the deleted decorator's
+		// guarantee. Removing them here makes that state unreachable rather than merely detectable; the
+		// routing store then presents its own, below.
 		for (var i = services.Count - 1; i >= 0; i--)
 		{
-			if (services[i].ServiceType == typeof(IEventStore))
+			var serviceType = services[i].ServiceType;
+			if (serviceType == typeof(IEventStore)
+				|| serviceType == typeof(ITenantScopingCapability<IEventStore>)
+				|| serviceType == typeof(ITenantPartitionedCapability<IEventStore>))
 			{
 				services.RemoveAt(i);
 			}
 		}
 
-		services.Add(ServiceDescriptor.Scoped<IEventStore, TenantRoutingEventStore>());
+		// Registered through the same door every other tenant-aware store uses, rather than by registering
+		// the store here and its capability marker separately. That is the whole point: the seam derives the
+		// mechanism from this store's own constructor -- it takes ITenantContext, reads TenantId, and refuses
+		// when none is established -- and emits the matching marker in the same act. A marker that could be
+		// registered on its own is an attestation nothing structurally ties to the wiring it describes, which
+		// is how a store ends up advertising a guarantee it does not implement. Here that is inexpressible.
+		//
+		// Without an attestation a sharding host would be a multi-tenant host whose IEventStore attests
+		// nothing, and the tenant-capability gate would correctly refuse to start it.
+		_ = services.AddTenantAwareStore<IEventStore, TenantRoutingEventStore>();
+
+		// The seam registers the CONCRETE store (singleton; both of its dependencies are singletons). The
+		// contract is forwarded onto it, keeping IEventStore scoped exactly as before. This is a factory
+		// descriptor, so it carries no readable implementation type — which is why the idempotence guard
+		// at the top of this method keys on the concrete registration the line above emits rather than on
+		// anything read off this descriptor.
+		services.Add(ServiceDescriptor.Scoped<IEventStore, TenantRoutingEventStore>(
+			static sp => sp.GetRequiredService<TenantRoutingEventStore>()));
+
+		// Route ISagaStore the same way -- but only when a saga provider is actually registered.
+		// Unlike IEventStore (always present in an event-sourcing host), sagas are optional: a
+		// sharding host with no saga provider must not be forced to carry saga-routing wiring or an
+		// unsatisfiable ITenantStoreResolver<ISagaStore> requirement. HasStoreRegistrationFor is the
+		// same presence predicate MultiTenancyServiceCollectionExtensions already uses for this exact
+		// purpose under RowDiscriminator.
+		if (services.HasStoreRegistrationFor(typeof(ISagaStore)))
+		{
+			for (var i = services.Count - 1; i >= 0; i--)
+			{
+				var serviceType = services[i].ServiceType;
+				if (serviceType == typeof(ISagaStore)
+					|| serviceType == typeof(ITenantScopingCapability<ISagaStore>)
+					|| serviceType == typeof(ITenantPartitionedCapability<ISagaStore>))
+				{
+					services.RemoveAt(i);
+				}
+			}
+
+			_ = services.AddTenantAwareStore<ISagaStore, TenantRoutingSagaStore>();
+
+			services.Add(ServiceDescriptor.Scoped<ISagaStore, TenantRoutingSagaStore>(
+				static sp => sp.GetRequiredService<TenantRoutingSagaStore>()));
+		}
 
 		// Mark tenant-sharding as active so the event-store erasure startup gate can fail closed on the
 		// (currently unsupported) sharding + erasure composition. Both sharding entry points route through

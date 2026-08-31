@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
+
 using Excalibur.Dispatch;
 using Excalibur.Inbox.SqlServer;
 
@@ -17,7 +19,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// <summary>
 /// kj847e (S868) — independent (author≠impl, TestsDeveloper) NON-SKIPPED real-SQL-Server concurrency lock
 /// for the <b>lease-aware</b> atomic-claim overload
-/// <c>IClaimableInboxStore.TryClaimAsync(messageId, handlerType, leaseDuration, ct)</c>. The CAS is a
+/// <c>IClaimableInboxStore.TryAcquireLeaseAsync(messageId, handlerType, leaseDuration, ct)</c>. The CAS is a
 /// <c>MERGE</c>/<c>UPDATE … WHERE</c> keyed on the nullable <c>LeaseExpiresAtUtc</c> column evaluated against
 /// the <b>SQL Server clock</b> (<c>SYSUTCDATETIME()</c>): claim IFF <c>absent OR Received OR (Processing AND
 /// leaseExpiry &lt; now)</c>, NEVER when terminal <see cref="InboxStatus.Processed"/>.
@@ -62,12 +64,12 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 		const string handlerType = "TestHandler";
 
 		var tasks = Enumerable.Range(0, Concurrency)
-			.Select(_ => Task.Run(() => store.TryClaimAsync(messageId, handlerType, LongLease, CancellationToken.None).AsTask()))
+			.Select(_ => Task.Run(() => store.TryAcquireLeaseAsync(messageId, handlerType, LongLease, CancellationToken.None).AsTask()))
 			.ToArray();
 
 		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		results.Count(claimed => claimed).ShouldBe(
+		results.Count(claimed => claimed is not null).ShouldBe(
 			1,
 			$"the lease CAS must admit exactly one of {Concurrency} concurrent claims; got [{string.Join(",", results)}]");
 	}
@@ -79,10 +81,10 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 		const string messageId = "msg-lease-live";
 		const string handlerType = "TestHandler";
 
-		(await store.TryClaimAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue("first caller acquires the lease");
-		(await store.TryClaimAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeFalse("a live lease must deny a concurrent second claim (no double-processing)");
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("first caller acquires the lease");
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeNull("a live lease must deny a concurrent second claim (no double-processing)");
 	}
 
 	[Fact]
@@ -92,14 +94,50 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 		const string messageId = "msg-lease-expire";
 		const string handlerType = "TestHandler";
 
-		(await store.TryClaimAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue("the dead processor acquires the initial lease");
-		(await store.TryClaimAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeFalse("the lease is still live immediately after it was taken");
+		// Mark BEFORE the acquiring claim. The lease is stamped at the SERVER's SYSUTCDATETIME() *during*
+		// that round trip, i.e. at or after this mark — so elapsed-from-here is a conservative UPPER bound
+		// on how much of the lease has burned by the time the denial below is evaluated. Bounding it in
+		// that direction is what keeps the inconclusive guard honest: it can only ever over-estimate the
+		// burn, never under-estimate it into a false "the arm discriminated".
+		var sinceLeaseAcquired = Stopwatch.StartNew();
+
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("the dead processor acquires the initial lease");
+
+		var secondClaimWhileLeaseShouldBeLive =
+			await store.TryAcquireLeaseAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false);
+		var elapsedAcquireToDenial = sinceLeaseAcquired.Elapsed;
+
+		// This denial is the DISCRIMINATOR for the reclaim arm below: without it, a no-lease-enforcement
+		// impl (every Processing entry claimable) would sail through the reclaim poll on its first attempt
+		// and the whole test would pass vacuously. So it must stay — but it is a SAFETY arm, and a safety
+		// arm is only meaningful if its observation demonstrably landed INSIDE the window it asserts. Two
+		// SQL Server round trips under CI load can exceed a 250 ms lease, in which case the lease had
+		// genuinely expired and a successful second claim is CORRECT behaviour, not the defect this arm
+		// hunts. When the measurement cannot tell those apart, say so instead of accusing the product.
+		if (secondClaimWhileLeaseShouldBeLive is not null && elapsedAcquireToDenial >= ShortLease)
+		{
+			Assert.Fail(
+				$"INCONCLUSIVE — this SAFETY arm could not run, and this is NOT a product-defect report. The "
+				+ $"acquire→re-claim round trip took {elapsedAcquireToDenial.TotalMilliseconds:F0} ms, which "
+				+ $"already reaches the {ShortLease.TotalMilliseconds:F0} ms lease, so a successful second "
+				+ $"claim here is equally explained by a lease that legitimately expired under load and by a "
+				+ $"lease CAS that never enforced expiry at all. The arm cannot discriminate; re-run on a less "
+				+ $"loaded host. Deliberately NOT fixed by lengthening the lease — that would only make this "
+				+ $"rarer, not correct.");
+		}
+
+		secondClaimWhileLeaseShouldBeLive.ShouldBeNull(
+			"the lease is still live immediately after it was taken"
+			+ $" (measured acquire→re-claim elapsed: {elapsedAcquireToDenial.TotalMilliseconds:F0} ms — inside"
+			+ $" the {ShortLease.TotalMilliseconds:F0} ms lease, so this arm DID discriminate: the CAS admitted"
+			+ " a claim against a lease that was still live, which is the no-lease-enforcement defect.)");
 
 		// RED on a no-lease impl: an expired Processing entry never becomes reclaimable ⇒ this times out.
+		// Already polled (bounded, lower-bound only) — the liveness direction only needs a generous budget,
+		// so extra latency costs polls rather than a red. Left as-is deliberately.
 		var reclaimed = await WaitHelpers.WaitUntilAsync(
-			async () => await store.TryClaimAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false),
+			async () => await store.TryAcquireLeaseAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false) is not null,
 			timeout: TimeSpan.FromSeconds(10),
 			pollInterval: TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
@@ -114,14 +152,14 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 		const string messageId = "msg-lease-processed";
 		const string handlerType = "TestHandler";
 
-		(await store.TryClaimAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue("claim the message for processing");
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("claim the message for processing");
 		await store.MarkProcessedAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
 
 		await Task.Delay(ShortLease + TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
 
-		(await store.TryClaimAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeFalse("a completed (Processed) message must never be reclaimed via the lease path");
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, ShortLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeNull("a completed (Processed) message must never be reclaimed via the lease path");
 	}
 
 	// d2afxn: a Failed entry is RE-ADMITTABLE on redelivery (retry) — the lease CAS admission predicate
@@ -134,8 +172,8 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 		const string messageId = "msg-lease-failed-readmit";
 		const string handlerType = "TestHandler";
 
-		(await store.TryClaimAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue("the initial claim acquires the lease");
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("the initial claim acquires the lease");
 		await store.MarkFailedAsync(messageId, handlerType, "handler boom", CancellationToken.None).ConfigureAwait(false);
 
 		var afterFail = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
@@ -143,8 +181,8 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 		afterFail!.Status.ShouldBe(InboxStatus.Failed);
 
 		// The core d2afxn AC: redelivery of a Failed entry must be re-admitted, not dropped as a duplicate.
-		(await store.TryClaimAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
-			.ShouldBeTrue("a Failed entry MUST be re-admittable on redelivery (at-least-once + idempotent-handler contract)");
+		(await store.TryAcquireLeaseAsync(messageId, handlerType, LongLease, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("a Failed entry MUST be re-admittable on redelivery (at-least-once + idempotent-handler contract)");
 
 		var afterReclaim = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
 		afterReclaim.ShouldNotBeNull();
@@ -184,7 +222,7 @@ public sealed class SqlServerInboxStoreLeaseReclaimShould : IClassFixture<SqlSer
 			SchemaName = SchemaName,
 			TableName = TableName,
 		});
-		return new SqlServerInboxStore(options, NullLogger<SqlServerInboxStore>.Instance);
+		return new SqlServerInboxStore(options, NullLogger<SqlServerInboxStore>.Instance, SingleTenantTestContext.Instance, Options.Create(new TenantContextOptions()));
 	}
 
 	private async Task EnsureTableAsync()

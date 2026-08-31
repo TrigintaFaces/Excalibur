@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// <item>60900-60999: Resilience Telemetry</item>
 /// </list>
 /// </remarks>
-public static class ResilienceEventId
+internal static class ResilienceEventId
 {
 	// ========================================
 	// 60000-60099: Circuit Breaker Core

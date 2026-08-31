@@ -9,6 +9,7 @@ using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Sqlite;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Shouldly;
 
@@ -305,7 +306,10 @@ public sealed class SqliteSnapshotStoreUnscopedReadShould : IClassFixture<Sqlite
 		new SqliteSnapshotStore(
 			_fixture.ConnectionString,
 			NullLogger<SqliteSnapshotStore>.Instance,
-			tenantContext: tenantScoped ? new AmbientHolderTenantContext() : null);
+			tenantContext: tenantScoped
+				? new AmbientHolderTenantContext()
+				: UntenantedTestTenantContext.Instance,
+			tenantContextOptions: Options.Create(new TenantContextOptions()));
 
 	private static ISnapshot CreateSnapshot(string aggregateId, long version, string data, string? tenantId) =>
 		new UnscopedReadSnapshot(

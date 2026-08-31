@@ -46,7 +46,7 @@ public interface IActivityGroupGrantStore
 	/// </summary>
 	/// <param name="userId">The user/subject identifier.</param>
 	/// <param name="fullName">Optional display name.</param>
-	/// <param name="tenantId">Optional tenant identifier.</param>
+	/// <param name="tenantId">The tenant identifier. Required; must be non-empty.</param>
 	/// <param name="grantType">The grant type.</param>
 	/// <param name="qualifier">The qualifier/scope.</param>
 	/// <param name="expiresOn">Optional expiration timestamp (UTC).</param>
@@ -54,7 +54,7 @@ public interface IActivityGroupGrantStore
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>Number of rows affected.</returns>
 	Task<int> InsertActivityGroupGrantAsync(string userId, string fullName,
-		string? tenantId, string grantType, string qualifier,
+		string tenantId, string grantType, string qualifier,
 		DateTimeOffset? expiresOn, string grantedBy, CancellationToken cancellationToken);
 
 	/// <summary>

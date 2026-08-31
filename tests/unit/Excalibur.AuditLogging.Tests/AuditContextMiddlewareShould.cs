@@ -31,7 +31,7 @@ public sealed class AuditContextMiddlewareShould
         A.CallTo(() => _fakeActorProvider.GetCurrentActorIdAsync(A<CancellationToken>._))
             .Returns("actor-1");
 
-        _sut = new AuditContextMiddleware(_timeProvider, _fakeActorProvider, _logger);
+        _sut = new AuditContextMiddleware(_logger);
     }
 
     // ========================================
@@ -39,24 +39,9 @@ public sealed class AuditContextMiddlewareShould
     // ========================================
 
     [Fact]
-    public void Throw_when_time_provider_is_null()
-    {
-        Should.Throw<ArgumentNullException>(() =>
-            new AuditContextMiddleware(null!, _fakeActorProvider, _logger));
-    }
-
-    [Fact]
     public void Throw_when_logger_is_null()
     {
-        Should.Throw<ArgumentNullException>(() =>
-            new AuditContextMiddleware(_timeProvider, _fakeActorProvider, null!));
-    }
-
-    [Fact]
-    public void Accept_null_actor_provider()
-    {
-        var middleware = new AuditContextMiddleware(_timeProvider, null, _logger);
-        middleware.ShouldNotBeNull();
+        Should.Throw<ArgumentNullException>(() => new AuditContextMiddleware(null!));
     }
 
     // ========================================
@@ -157,7 +142,7 @@ public sealed class AuditContextMiddlewareShould
             Microsoft.Extensions.Options.Options.Create(new AuditContextOptions()),
             NullLogger<DefaultAuditContext>.Instance);
 
-        var context = CreateFakeContext(auditContext: defaultAuditContext, correlationId: "corr-123");
+        var context = CreateFakeContext(auditContext: defaultAuditContext, actorProvider: _fakeActorProvider, correlationId: "corr-123");
         var expectedResult = A.Fake<IMessageResult>();
 
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(expectedResult);
@@ -190,7 +175,6 @@ public sealed class AuditContextMiddlewareShould
     [Fact]
     public async Task Default_actor_to_system_when_no_actor_provider()
     {
-        var middlewareNoActor = new AuditContextMiddleware(_timeProvider, null, _logger);
         var message = A.Fake<IDispatchMessage>();
         var auditLogger = A.Fake<IAuditLogger>();
         var defaultAuditContext = new DefaultAuditContext(
@@ -202,7 +186,7 @@ public sealed class AuditContextMiddlewareShould
         var context = CreateFakeContext(auditContext: defaultAuditContext);
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
-        await middlewareNoActor.InvokeAsync(message, context, next, CancellationToken.None);
+        await _sut.InvokeAsync(message, context, next, CancellationToken.None);
 
         // Verify actor defaults to "system"
         AuditEvent? captured = null;
@@ -236,7 +220,7 @@ public sealed class AuditContextMiddlewareShould
             Microsoft.Extensions.Options.Options.Create(new AuditContextOptions()),
             NullLogger<DefaultAuditContext>.Instance);
 
-        var context = CreateFakeContext(auditContext: defaultAuditContext);
+        var context = CreateFakeContext(auditContext: defaultAuditContext, actorProvider: _fakeActorProvider);
         DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
         await _sut.InvokeAsync(message, context, next, CancellationToken.None);
@@ -273,7 +257,7 @@ public sealed class AuditContextMiddlewareShould
             Microsoft.Extensions.Options.Options.Create(new AuditContextOptions()),
             NullLogger<DefaultAuditContext>.Instance);
 
-        var context = CreateFakeContext(auditContext: defaultAuditContext);
+        var context = CreateFakeContext(auditContext: defaultAuditContext, actorProvider: _fakeActorProvider);
         var nextCalled = false;
         var expectedResult = A.Fake<IMessageResult>();
 
@@ -293,16 +277,25 @@ public sealed class AuditContextMiddlewareShould
     // Helpers
     // ========================================
 
+    /// <summary>
+    /// Builds a context whose RequestServices is a real request scope. A fake implementing only
+    /// <see cref="IServiceProvider"/> is indistinguishable from the root provider, so a test using one
+    /// would take the pass-through path while appearing to exercise the populate path.
+    /// </summary>
     private static IMessageContext CreateFakeContext(
         IAuditContext? auditContext = null,
+        IAuditActorProvider? actorProvider = null,
         string? correlationId = null)
     {
         var context = A.Fake<IMessageContext>();
-        var serviceProvider = A.Fake<IServiceProvider>();
+        var scope = A.Fake<IServiceProvider>(x => x.Implements<IServiceScope>());
 
-        A.CallTo(() => context.RequestServices).Returns(serviceProvider);
+        A.CallTo(() => ((IServiceScope)scope).ServiceProvider).Returns(scope);
+        A.CallTo(() => scope.GetService(typeof(IAuditContext))).Returns(auditContext);
+        A.CallTo(() => scope.GetService(typeof(IAuditActorProvider))).Returns(actorProvider);
+
+        A.CallTo(() => context.RequestServices).Returns(scope);
         A.CallTo(() => context.CorrelationId).Returns(correlationId);
-        A.CallTo(() => serviceProvider.GetService(typeof(IAuditContext))).Returns(auditContext);
 
         return context;
     }

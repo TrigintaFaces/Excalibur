@@ -11,10 +11,16 @@ namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AzureFunctionsHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProvider> logger)
+/// <param name="options"> The serverless host options, when the host supplies them. </param>
+internal partial class AzureFunctionsHostProvider(
+	ILogger<AzureFunctionsHostProvider> logger,
+	Microsoft.Extensions.Options.IOptions<ServerlessHostOptions>? options = null)
 	: IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger<AzureFunctionsHostProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+	// Null when the host was composed without options; the platform limit then stands alone.
+	private readonly TimeSpan? _configuredTimeout = options?.Value.ExecutionTimeout;
 
 	/// <inheritdoc />
 	public ServerlessPlatform Platform => ServerlessPlatform.AzureFunctions;
@@ -60,7 +66,7 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 		// (Application Insights) or AddExcaliburObservability() — the provider does not wire
 		// in-process exporters gated by these flags. Log this honestly at Information (not a
 		// misleading "not implemented" warning, and not a silent no-op); deps-bearing in-process
-		// exporters gated by the shared telemetry flags are tracked in bd-wh492p.
+		// exporters gated by the shared telemetry flags are not wired here.
 		if (options.Telemetry.EnableDistributedTracing)
 		{
 			LogConfiguringAppInsights();
@@ -144,7 +150,7 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 			// Zero, so an invocation already within (or past) the cleanup reserve cancels immediately
 			// instead of running unbounded. Cancellation is ALWAYS scheduled — the fail-open skip is
 			// structurally inexpressible.
-			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime));
+			timeoutCts.CancelAfter(ServerlessHostOptions.ComputeExecutionTimeout(context.RemainingTime, _configuredTimeout));
 
 			using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
 				cancellationToken, timeoutCts.Token);
@@ -171,7 +177,7 @@ internal partial class AzureFunctionsHostProvider(ILogger<AzureFunctionsHostProv
 		}
 	}
 
-	// Source-generated logging methods (Sprint 368 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(AzureFunctionsEventId.ConfiguringServices, LogLevel.Debug,
 		"Configuring services for Azure Functions")]
 	private partial void LogConfiguringServices();

@@ -24,8 +24,8 @@ public sealed class DeleteSnapshotsOlderThanRequest : DataRequestBase<IDbConnect
 	/// <param name="olderThanVersion">Delete snapshots with version less than this value.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope. When <see cref="TenantScope.None"/> (the non-multi-tenant default), no tenant
-	/// predicate is emitted; when tenant-scoped, the prune is restricted to the tenant's own rows
+	/// The tenant scope. The tenant predicate is emitted unconditionally — an untenanted scope binds the
+	/// reserved sentinel rather than omitting the term — so the prune is restricted to one partition's rows
 	/// (<c>AND TenantId = @TenantId</c>), so one tenant's retention policy cannot prune another tenant's
 	/// snapshots of the same aggregate identifier.
 	/// </param>

@@ -110,7 +110,8 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 			sp => new JobHealthCheck(
 				jobConfig.JobName,
 				jobConfig,
-				sp.GetRequiredService<JobHeartbeatTracker>()),
+				sp.GetRequiredService<JobHeartbeatTracker>(),
+				sp.GetService<TimeProvider>()),
 			failureStatus: null,
 			tags: null));
 	}
@@ -120,6 +121,8 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 	/// </summary>
 	/// <param name="context"> The execution context provided by Quartz. </param>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but Quartz's IJob.Execute is a third-party interface member that cannot carry the annotation. Tracked for a source-generated outbox serialization seam.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but Quartz's IJob.Execute is a third-party interface member that cannot carry the annotation. Tracked for a source-generated outbox serialization seam.")]
 	public async Task Execute(IJobExecutionContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
@@ -130,7 +133,7 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 		// NOTE: _outbox is an injected SINGLETON (IOutboxDispatcher, registered TryAddSingleton). A Quartz job is resolved per fire but
 		// receives the same singleton instance every time, so it MUST NOT own/dispose its lifetime. Disposing it here (a prior
 		// `await using (_outbox)`) bricked the dispatcher after the first fire (ObjectDisposedException on every subsequent fire and for
-		// any other IOutboxDispatcher consumer). The container owns the singleton's lifetime. (bd-gh8ov8)
+		// any other IOutboxDispatcher consumer). The container owns the singleton's lifetime.
 		using (_logger.BeginScope(new Dictionary<string, object>(StringComparer.Ordinal) { ["JobGroup"] = jobGroup, ["JobName"] = jobName }))
 		{
 			try

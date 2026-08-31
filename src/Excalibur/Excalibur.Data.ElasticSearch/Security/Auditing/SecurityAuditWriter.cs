@@ -31,7 +31,7 @@ internal sealed class SecurityAuditWriter
 {
 	private static readonly Counter<long> EventsRecordedCounter = AuditTelemetryConstants.Meter.CreateCounter<long>(
 		AuditTelemetryConstants.MetricNames.EventsRecorded,
-		"events",
+		"{events}",
 		"Total audit events recorded");
 
 	private readonly AuditOptions _configuration;
@@ -537,7 +537,6 @@ internal sealed class SecurityAuditWriter
 		{
 			AuthenticationResult.Success => SecurityEventSeverity.Low,
 			AuthenticationResult.InvalidCredentials => SecurityEventSeverity.Medium,
-			AuthenticationResult.AccountLocked => SecurityEventSeverity.High,
 			_ => SecurityEventSeverity.Medium,
 		};
 

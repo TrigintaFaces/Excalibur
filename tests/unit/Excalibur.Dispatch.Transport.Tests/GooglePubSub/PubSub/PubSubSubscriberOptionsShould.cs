@@ -9,44 +9,4 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.PubSub;
 [Trait("Component", "Platform")]
 public sealed class PubSubSubscriberOptionsShould
 {
-	[Fact]
-	public void HaveCorrectDefaults()
-	{
-		// Arrange & Act
-		var options = new PubSubSubscriberOptions();
-
-		// Assert
-		options.MaxPullMessages.ShouldBe(100);
-		options.AckDeadlineSeconds.ShouldBe(60);
-		options.EnableAutoAckExtension.ShouldBeTrue();
-		options.MaxConcurrentAcks.ShouldBe(10);
-		options.DeadLetter.Enable.ShouldBeFalse();
-		options.DeadLetter.TopicId.ShouldBeNull();
-	}
-
-	[Fact]
-	public void AllowSettingAllProperties()
-	{
-		// Arrange & Act
-		var options = new PubSubSubscriberOptions
-		{
-			MaxPullMessages = 250,
-			AckDeadlineSeconds = 120,
-			EnableAutoAckExtension = false,
-			MaxConcurrentAcks = 50,
-			DeadLetter =
-			{
-				Enable = true,
-				TopicId = "my-dlq-topic",
-			},
-		};
-
-		// Assert
-		options.MaxPullMessages.ShouldBe(250);
-		options.AckDeadlineSeconds.ShouldBe(120);
-		options.EnableAutoAckExtension.ShouldBeFalse();
-		options.MaxConcurrentAcks.ShouldBe(50);
-		options.DeadLetter.Enable.ShouldBeTrue();
-		options.DeadLetter.TopicId.ShouldBe("my-dlq-topic");
-	}
 }

@@ -304,18 +304,18 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 			return value;
 		}
 
-		var normalized = contentType.ToUpperInvariant();
-
-		return normalized switch
+		if (CloudEventContentType.IsJson(contentType))
 		{
-			"APPLICATION/JSON" => JsonDocument.Parse(value).RootElement.Clone(),
-			"APPLICATION/CLOUDEVENTS+JSON" => JsonDocument.Parse(value).RootElement.Clone(),
-			"APPLICATION/OCTET-STREAM" => Convert.FromBase64String(value),
-			"APPLICATION/X-BASE64" => Convert.FromBase64String(value),
-			_ when normalized.Contains("json", StringComparison.OrdinalIgnoreCase) =>
-				JsonDocument.Parse(value).RootElement.Clone(),
-			_ => value,
-		};
+			return JsonDocument.Parse(value).RootElement.Clone();
+		}
+
+		if (CloudEventContentType.Is(contentType, "application/octet-stream") ||
+			CloudEventContentType.Is(contentType, "application/x-base64"))
+		{
+			return Convert.FromBase64String(value);
+		}
+
+		return value;
 	}
 
 	private static bool DetectStructuredMode(Message<string, string> transportMessage)

@@ -94,16 +94,3 @@ public interface ITransportLifecycleManager
 	/// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null or empty.</exception>
 	bool IsRegistered(string name);
 }
-
-/// <summary>
-/// Provides query operations for the transport lifecycle manager.
-/// Implementations should implement this alongside <see cref="ITransportLifecycleManager"/>.
-/// </summary>
-public interface ITransportLifecycleQuery
-{
-	/// <summary>Gets the transport adapter with the specified name.</summary>
-	ITransportAdapter? GetTransport(string name);
-
-	/// <summary>Checks if a transport with the specified name is currently running.</summary>
-	bool IsRunning(string name);
-}

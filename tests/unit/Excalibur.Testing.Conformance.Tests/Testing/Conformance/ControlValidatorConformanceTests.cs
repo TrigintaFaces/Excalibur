@@ -111,4 +111,7 @@ public sealed class ControlValidatorConformanceTests : ControlValidatorConforman
 		GetControlDescription_UnsupportedControl_ShouldReturnNull();
 
 	#endregion GetControlDescription Method Tests
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

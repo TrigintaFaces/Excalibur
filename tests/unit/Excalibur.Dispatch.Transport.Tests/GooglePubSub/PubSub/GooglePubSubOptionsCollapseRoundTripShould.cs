@@ -13,10 +13,15 @@ using Xunit;
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.PubSub;
 
 /// <summary>
-/// Regression lock for the GooglePubSub options collapse: every configuration field must survive the
-/// builder → registered <see cref="GooglePubSubOptions"/> round-trip. Before the collapse a parallel flat
-/// options type mapped only a subset of its fields into the canonical model, silently dropping the rest;
-/// this test asserts the mapping is now lossless.
+/// Liveness lock for the GooglePubSub transport: a value a consumer sets through the public fluent API
+/// must be observable at the runtime seam — the registered <see cref="GooglePubSubOptions"/> that every
+/// resolved component reads.
+///
+/// This began as a checklist over a hand-written field-carry: a parallel flat options type mapped only
+/// some of its fields into the canonical model, and the test enumerated the rest. That carry no longer
+/// exists — the builder is a view over the instance the options system owns — so the test now asserts
+/// the property (the consumer's value arrives) rather than the completeness of a copy list. It is kept
+/// because the property is worth holding, not because the list needs guarding.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport")]
@@ -28,7 +33,7 @@ public sealed class GooglePubSubOptionsCollapseRoundTripShould
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act — configure every field via the fluent builder + ConfigureOptions on the canonical model.
+		// Act — configure via the fluent builder + ConfigureOptions on the canonical model.
 		_ = services.AddGooglePubSubTransport("orders", pubsub => pubsub
 			.ProjectId("proj-1")
 			.TopicId("topic-1")
@@ -37,12 +42,7 @@ public sealed class GooglePubSubOptionsCollapseRoundTripShould
 			.EnableDeadLetter("dlq-topic")
 			.ConfigureOptions(o =>
 			{
-				o.MaxConcurrentMessages = 7;
-				o.EnableEncryption = true;
 				o.Subscriber.MaxPullMessages = 250;
-				o.Subscriber.AckDeadlineSeconds = 123;
-				o.Subscriber.EnableAutoAckExtension = false;
-				o.Subscriber.MaxConcurrentAcks = 42;
 				o.Subscriber.MaxPayloadBytes = 4096;
 				o.Subscriber.EnableMessageOrdering = true;
 				o.Subscriber.EnableExactlyOnceDelivery = true;
@@ -54,21 +54,17 @@ public sealed class GooglePubSubOptionsCollapseRoundTripShould
 			}));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<GooglePubSubOptions>>().Value;
+		// NAMED registration: the unnamed instance is no longer the one the transport configures.
+		var options = provider.GetRequiredService<IOptionsMonitor<GooglePubSubOptions>>().Get("orders");
 
-		// Assert — every former flat field is carried (lossless collapse).
+		// Assert — each configured value is visible at the seam the transport resolves.
 		options.Name.ShouldBe("orders");
 		options.Connection.ProjectId.ShouldBe("proj-1");
 		options.Connection.TopicId.ShouldBe("topic-1");
 		options.Connection.SubscriptionId.ShouldBe("sub-1");
-		options.MaxConcurrentMessages.ShouldBe(7);
-		options.EnableEncryption.ShouldBeTrue();
 		options.TopicMappings.ShouldContainKeyAndValue(typeof(string), "string-topic");
 
 		options.Subscriber.MaxPullMessages.ShouldBe(250);
-		options.Subscriber.AckDeadlineSeconds.ShouldBe(123);
-		options.Subscriber.EnableAutoAckExtension.ShouldBeFalse();
-		options.Subscriber.MaxConcurrentAcks.ShouldBe(42);
 		options.Subscriber.MaxPayloadBytes.ShouldBe(4096);
 		options.Subscriber.EnableMessageOrdering.ShouldBeTrue();
 		options.Subscriber.EnableExactlyOnceDelivery.ShouldBeTrue();

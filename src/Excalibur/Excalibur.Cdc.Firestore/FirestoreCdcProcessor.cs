@@ -47,8 +47,8 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 	private volatile bool _isRunning;
 	private volatile bool _disposed;
 
-	// 14z4ao: optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
-	// silently propagating a raw exception (ADR-338). _onFatalError receives the in-flight event for a
+	// optional fatal-handoff. A fatal (non-retryable) error stops the processor loudly instead of
+	// silently propagating a raw exception. _onFatalError receives the in-flight event for a
 	// per-event fatal, or null for a connection/listener-level fatal.
 	private readonly CdcFatalErrorHandler<FirestoreDataChangeEvent>? _onFatalError;
 	private readonly IMessageFailureClassifier? _failureClassifier;
@@ -483,7 +483,7 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 					}
 					catch (Exception ex) when (CdcFatalGuard.Decide(ex, _failureClassifier).Stop)
 					{
-						// 14z4ao: a fatal (non-retryable) error — stop loud. ConfirmPositionAsync did NOT run for
+						// a fatal (non-retryable) error — stop loud. ConfirmPositionAsync did NOT run for
 						// this event (the throw is before it on the success path), so the durable checkpoint is
 						// never advanced past the failing change.
 						LogProcessingError(_options.ProcessorName, changeEvent.DocumentId, ex);

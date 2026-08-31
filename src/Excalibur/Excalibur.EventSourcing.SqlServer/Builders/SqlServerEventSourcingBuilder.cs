@@ -174,4 +174,14 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 		MaterializedViewPositionTableName = positionTableName;
 		return this;
 	}
+
+	/// <inheritdoc/>
+	public ISqlServerEventSourcingBuilder EventTypeInfoResolver(
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver)
+	{
+		ArgumentNullException.ThrowIfNull(resolver);
+
+		_options.EventTypeInfoResolver = resolver;
+		return this;
+	}
 }

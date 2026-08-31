@@ -11,8 +11,12 @@ namespace Excalibur.Outbox.Oracle;
 /// <summary>
 /// Represents a data request to retrieve outbox statistics from the Oracle database.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"estate-wide counters for operational monitoring: the store method that reaches this request takes no tenant argument, and this store reads no ambient tenant context, so there is no tenant to count by. The figures describe the whole table and are reported to an operator, not to a tenant")]
 internal sealed class GetOutboxStatistics : DataRequest<OutboxStatistics>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetOutboxStatistics"/> class.
 	/// </summary>

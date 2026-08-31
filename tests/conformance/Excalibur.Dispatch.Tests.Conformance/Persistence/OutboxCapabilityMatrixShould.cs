@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Linq;
@@ -66,6 +66,7 @@ public sealed class OutboxCapabilityMatrixShould
 	[
 		typeof(ICloudNativeOutboxStore),
 		typeof(ICloudNativeOutboxStoreBatch),
+		typeof(ICloudNativeOutboxStoreClaim),
 		typeof(IMultiTransportOutboxStore),
 	];
 
@@ -93,11 +94,23 @@ public sealed class OutboxCapabilityMatrixShould
 
 		// -- Cloud-native ICloudNativeOutboxStore family --
 		new("CosmosDb", typeof(global::Excalibur.Outbox.CosmosDb.CosmosDbOutboxStore), OutboxFamily.CloudNative,
-			[typeof(ICloudNativeOutboxStore), typeof(ICloudNativeOutboxStoreBatch)]),
+			[
+				typeof(ICloudNativeOutboxStore),
+				typeof(ICloudNativeOutboxStoreBatch),
+				typeof(ICloudNativeOutboxStoreClaim)
+			]),
 		new("DynamoDb", typeof(global::Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore), OutboxFamily.CloudNative,
-			[typeof(ICloudNativeOutboxStore), typeof(ICloudNativeOutboxStoreBatch)]),
+			[
+				typeof(ICloudNativeOutboxStore),
+				typeof(ICloudNativeOutboxStoreBatch),
+				typeof(ICloudNativeOutboxStoreClaim)
+			]),
 		new("Firestore", typeof(global::Excalibur.Outbox.Firestore.FirestoreOutboxStore), OutboxFamily.CloudNative,
-			[typeof(ICloudNativeOutboxStore), typeof(ICloudNativeOutboxStoreBatch)]),
+			[
+				typeof(ICloudNativeOutboxStore),
+				typeof(ICloudNativeOutboxStoreBatch),
+				typeof(ICloudNativeOutboxStoreClaim)
+			]),
 	];
 
 	public static TheoryData<string> ProviderKeys()

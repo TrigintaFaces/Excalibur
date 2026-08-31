@@ -35,6 +35,7 @@ public static class DispatchBuilderKafkaExtensions
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Kafka transport uses reflection for schema registry and serialization")]
+	[RequiresDynamicCode("Kafka transport uses runtime code generation for schema registry and serialization")]
 	public static IDispatchBuilder UseKafka(
 		this IDispatchBuilder builder,
 		Action<IKafkaTransportBuilder> configure)
@@ -72,6 +73,7 @@ public static class DispatchBuilderKafkaExtensions
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Kafka transport uses reflection for schema registry and serialization")]
+	[RequiresDynamicCode("Kafka transport uses runtime code generation for schema registry and serialization")]
 	public static IDispatchBuilder UseKafka(
 		this IDispatchBuilder builder,
 		string name,

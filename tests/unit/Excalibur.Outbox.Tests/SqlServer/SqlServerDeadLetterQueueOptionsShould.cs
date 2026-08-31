@@ -187,6 +187,38 @@ public sealed class SqlServerDeadLetterQueueOptionsShould : UnitTestBase
 
 	#endregion
 
+	#region Identifier Validation Tests
+
+	// SAFETY. An identifier cannot be parameterized, so the whitelist is the only control: a name
+	// carrying a ] closes the bracket quoting and leaves the remainder to be read as SQL. The liveness
+	// half is the whole QualifiedTableName region above - every legitimate schema/table still composes.
+
+	[Theory]
+	[InlineData("dbo]; DROP TABLE Users; --")]
+	[InlineData("db o")]
+	[InlineData("dbo'")]
+	[InlineData("")]
+	public void RejectASchemaNameThatIsNotAValidIdentifier(string schemaName)
+	{
+		var options = new SqlServerDeadLetterQueueOptions { SchemaName = schemaName };
+
+		_ = Should.Throw<ArgumentException>(() => options.QualifiedTableName);
+	}
+
+	[Theory]
+	[InlineData("DeadLetterQueue]; DROP TABLE Users; --")]
+	[InlineData("Dead Letter Queue")]
+	[InlineData("DeadLetterQueue'")]
+	[InlineData("")]
+	public void RejectATableNameThatIsNotAValidIdentifier(string tableName)
+	{
+		var options = new SqlServerDeadLetterQueueOptions { TableName = tableName };
+
+		_ = Should.Throw<ArgumentException>(() => options.QualifiedTableName);
+	}
+
+	#endregion
+
 	#region Full Configuration Tests
 
 	[Fact]

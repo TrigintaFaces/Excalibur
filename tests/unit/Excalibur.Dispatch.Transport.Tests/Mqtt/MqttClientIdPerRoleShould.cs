@@ -22,7 +22,9 @@ namespace Excalibur.Dispatch.Transport.Tests.Mqtt;
 public sealed class MqttClientIdPerRoleShould
 {
 	private static MqttConnectionProvider Provider() =>
-		new(new MqttOptions { ClientId = "svc", Host = "localhost", Port = 1883 });
+		// RequireTls opted out deliberately: this fixture exercises client-id construction against a
+		// plaintext local broker. The posture itself is locked in TransportTlsPostureShould.
+		new(new MqttOptions { ClientId = "svc", Host = "localhost", Port = 1883, RequireTls = false });
 
 	[Fact]
 	public void BuildDistinctClientIdsForPublisherAndSubscriberRoles()

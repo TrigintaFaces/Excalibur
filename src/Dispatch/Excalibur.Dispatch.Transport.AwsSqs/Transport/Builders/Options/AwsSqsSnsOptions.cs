@@ -43,56 +43,6 @@ public sealed class AwsSqsSnsOptions
 
 	#endregion
 
-	private string? _topicPrefix;
-
-	/// <summary>
-	/// Gets or sets the prefix to apply to automatically generated topic names.
-	/// </summary>
-	/// <value>
-	/// The topic name prefix (e.g., "myapp-", "prod-"). Default is <see langword="null"/> (no prefix).
-	/// </value>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when the prefix exceeds 256 characters.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// The prefix is applied to topic names that are automatically derived from
-	/// message type names, helping to organize topics by application or environment.
-	/// </para>
-	/// </remarks>
-	public string? TopicPrefix
-	{
-		get => _topicPrefix;
-		set
-		{
-			if (value is not null && value.Length > MaxTopicPrefixLength)
-			{
-				throw new ArgumentOutOfRangeException(
-					nameof(value),
-					value.Length,
-					$"Topic prefix cannot exceed {MaxTopicPrefixLength} characters.");
-			}
-
-			_topicPrefix = value;
-		}
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to automatically create topics that don't exist.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> to auto-create missing topics; otherwise, <see langword="false"/>.
-	/// Default is <see langword="false"/>.
-	/// </value>
-	/// <remarks>
-	/// <para>
-	/// When enabled, the transport will call <c>CreateTopic</c> for mapped topics
-	/// that don't exist. This is useful for development but may not be appropriate
-	/// for production environments where topics should be pre-provisioned.
-	/// </para>
-	/// </remarks>
-	public bool AutoCreateTopics { get; set; }
-
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable raw message delivery.
 	/// </summary>

@@ -45,7 +45,7 @@ internal static class LeaderElectionServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 
-		// bd-gmq2j7: enforce the cross-property timing rule (Renew+Grace+skew < Lease) on the
+		// enforce the cross-property timing rule (Renew+Grace+skew < Lease) on the
 		// generic path. Idempotent via TryAddEnumerable.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
@@ -80,7 +80,7 @@ internal static class LeaderElectionServiceCollectionExtensions
 			.Bind(configuration)
 			.ValidateOnStart();
 
-		// bd-gmq2j7: enforce the cross-property timing rule (Renew+Grace+skew < Lease) on the
+		// enforce the cross-property timing rule (Renew+Grace+skew < Lease) on the
 		// generic configuration-bound path. Idempotent via TryAddEnumerable.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
@@ -119,7 +119,7 @@ internal static class LeaderElectionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(options);
 
 		// Route the pre-built instance through the options pipeline so it fails fast at startup like the
-		// Action<>/IConfiguration overloads (892ine: this overload previously skipped ValidateOnStart). The
+		// Action<>/IConfiguration overloads (: this overload previously skipped ValidateOnStart). The
 		// cross-property timing rule (Renew+Grace+skew < Lease) is enforced by LeaderElectionOptionsValidator.
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(o =>

@@ -32,4 +32,21 @@ public static class ErasedEventMarker
 	/// deserialization attempt) and returns a defined erased sentinel rather than failing loud.
 	/// </summary>
 	public const string EventType = "$erased";
+
+	/// <summary>
+	/// Determines whether a stored event's type name is the erasure tombstone marker.
+	/// </summary>
+	/// <param name="eventType"> The stored event's <see cref="StoredEvent.EventType"/> value. </param>
+	/// <returns>
+	/// <see langword="true"/> when the value is exactly <see cref="EventType"/>; otherwise
+	/// <see langword="false"/>.
+	/// </returns>
+	/// <remarks>
+	/// Every reader of a stored event stream calls this <em>before</em> attempting to resolve or deserialize
+	/// the event, so an erased event is recognized by its marker rather than by the failure it would
+	/// otherwise cause. The comparison is ordinal and exact: only the reserved marker matches, so a
+	/// genuinely corrupt or unregistered event type is never mistaken for an erasure.
+	/// </remarks>
+	public static bool IsErased(string? eventType) =>
+		string.Equals(eventType, EventType, StringComparison.Ordinal);
 }

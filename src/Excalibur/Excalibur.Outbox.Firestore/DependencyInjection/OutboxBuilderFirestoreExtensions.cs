@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Grpc.Core;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.CloudNative;
@@ -108,7 +109,17 @@ public static class OutboxBuilderFirestoreExtensions
 			var projectId = firestoreBuilder.ProjectIdValue ?? "emulator-project";
 			var emulatorHost = firestoreBuilder.EmulatorHostValue;
 			builder.Services.TryAddSingleton(_ =>
-				new FirestoreDbBuilder { ProjectId = projectId, EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly, Endpoint = emulatorHost }.Build());
+				new FirestoreDbBuilder
+				{
+					ProjectId = projectId,
+
+					// Endpoint and EmulatorDetection.EmulatorOnly are mutually exclusive: setting both
+					// throws "Endpoint is set, contrary to use of EmulatorDetection.EmulatorOnly". An
+					// explicit endpoint with insecure credentials reaches the emulator per-instance,
+					// without the process-wide FIRESTORE_EMULATOR_HOST variable that is first-write-wins.
+					Endpoint = emulatorHost,
+					ChannelCredentials = ChannelCredentials.Insecure,
+				}.Build());
 		}
 		else if (firestoreBuilder.ProjectIdValue is not null)
 		{
@@ -116,8 +127,20 @@ public static class OutboxBuilderFirestoreExtensions
 			builder.Services.TryAddSingleton(_ => FirestoreDb.Create(projectId));
 		}
 
-		// Register store services
-		builder.Services.TryAddSingleton<FirestoreOutboxStore>();
+		// Register store services. AddTenantAwareStore emits the
+		// ITenantPartitionedCapability<ICloudNativeOutboxStore> marker as part of THIS registration, so the
+		// marker cannot exist without the store it attests. It is the partitioned seam and not the scoped one
+		// because this store reads no ambient tenant on any path: it persists the tenant on the document it
+		// writes and hands that value back when the trigger reads it, so the owning tenant is
+		// re-established from the row. That seam takes no ITenantContext, so there is no dependency here to be
+		// handed to the factory and silently discarded.
+		//
+		// Without this the contract is not merely unattested, it is INVISIBLE: this provider registers no
+		// IOutboxStore at all, so the outbox gate keyed on that contract never fires, and a host selecting
+		// row-discriminator multi-tenancy starts cleanly with an outbox nothing confines. An ungated store is
+		// silent where a refused one is loud.
+		builder.Services.AddTenantAwareStore<ICloudNativeOutboxStore, FirestoreOutboxStore>(
+			static sp => ActivatorUtilities.CreateInstance<FirestoreOutboxStore>(sp));
 		builder.Services.TryAddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<FirestoreOutboxStore>());
 	}
 

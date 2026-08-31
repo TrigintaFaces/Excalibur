@@ -36,12 +36,12 @@ internal sealed partial class CdcChangeApplier
 
 	private static readonly Counter<long> EventsProcessedCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
 		CdcTelemetryConstants.MetricNames.EventsProcessed,
-		"events",
+		"{events}",
 		"Total CDC events processed successfully");
 
 	private static readonly Counter<long> EventsFailedCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
 		CdcTelemetryConstants.MetricNames.EventsFailed,
-		"events",
+		"{events}",
 		"Total CDC event processing failures");
 
 	private static readonly Histogram<double> BatchDurationHistogram = CdcTelemetryConstants.Meter.CreateHistogram<double>(
@@ -51,7 +51,7 @@ internal sealed partial class CdcChangeApplier
 
 	private static readonly Histogram<int> BatchSizeHistogram = CdcTelemetryConstants.Meter.CreateHistogram<int>(
 		CdcTelemetryConstants.MetricNames.BatchSize,
-		"events",
+		"{events}",
 		"Number of events in a processed batch");
 
 	internal CdcChangeApplier(

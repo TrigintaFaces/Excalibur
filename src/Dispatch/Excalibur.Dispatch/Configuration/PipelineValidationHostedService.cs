@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Auth;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -30,13 +31,13 @@ internal sealed partial class PipelineValidationHostedService(
 				"Register middleware via AddDispatch(builder => builder.UseMiddleware<T>()) or enable pipeline synthesis.");
 		}
 
-		// ssn7a3/z5g5lt: if any pipeline profile DECLARES the authorization stage but no
+		// if any pipeline profile DECLARES the authorization stage but no
 		// AuthorizationMiddleware instance is resolvable in the pipeline, authorization is silently
 		// absent for messages routed through that profile — a fail-open security gap. Fail closed at
 		// startup. (The Default profile declares no authorization, so a non-authorizing application is
 		// unaffected; only a profile that explicitly expects authorization is guarded.) This composes
 		// with the registered-but-feature-disabled guard in DispatchBuilder.
-		// ssn7a3/z5g5lt: fire only when the DEFAULT (selected) profile declares authorization but no
+		// fire only when the DEFAULT (selected) profile declares authorization but no
 		// AuthorizationMiddleware is resolvable — i.e. the consumer INTENDS auth (they selected an
 		// auth-declaring profile as the default, e.g. SetDefaultProfile("strict")) yet forgot to wire it.
 		// Keying on the default profile — not "any registered profile" — is essential: the framework
@@ -52,7 +53,7 @@ internal sealed partial class PipelineValidationHostedService(
 		// the check would pass against a list the built pipeline never used.
 		if (defaultProfile is not null
 			&& defaultProfile.MiddlewareEntries.Any(static e => e.MiddlewareType == typeof(AuthorizationMiddleware))
-			&& !middlewares.Exists(static m => m is AuthorizationMiddleware))
+			&& !middlewares.Exists(static m => m.Unwrap() is AuthorizationMiddleware))
 		{
 			throw new InvalidOperationException(
 				"A pipeline profile declares the authorization stage (AuthorizationMiddleware), but no " +
@@ -65,7 +66,7 @@ internal sealed partial class PipelineValidationHostedService(
 		// Check for duplicate middleware types in same stage
 		var grouped = middlewares
 			.Where(static m => m.Stage.HasValue)
-			.GroupBy(static m => (m.Stage, m.GetType()));
+			.GroupBy(static m => (m.Stage, m.UnwrappedType()));
 
 		foreach (var group in grouped)
 		{

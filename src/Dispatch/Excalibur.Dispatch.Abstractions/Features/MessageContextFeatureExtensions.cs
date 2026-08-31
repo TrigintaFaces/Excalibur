@@ -319,7 +319,7 @@ public static class MessageContextFeatureExtensions
 
 		// Propagate the parent's Items baggage (idempotency keys, feature flags, custom propagation headers,
 		// W3C baggage) so a child dispatch keeps the same ambient cross-cutting state as a context-reuse
-		// dispatch (n79zqd). Shallow per-entry copy into the child's own bag.
+		// dispatch. Shallow per-entry copy into the child's own bag.
 		var parentItems = context.Items;
 		if (parentItems.Count > 0)
 		{

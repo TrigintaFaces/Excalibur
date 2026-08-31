@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Data.SqlClient;
@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -24,8 +25,8 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// </remarks>
 public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 {
+	private readonly OneTimeInitializer _initializer = new();
 	private MsSqlContainer? _container;
-	private bool _initialized;
 
 	/// <summary>
 	/// Gets the schema name for events (the store's default).
@@ -49,6 +50,7 @@ public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-eventstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
@@ -61,55 +63,50 @@ public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the event store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Mirrors the columns the SqlServerEventStore Insert/Load/Version/Erase requests reference.
-		// EventData is nullable so the GDPR erasure path (sets EventData = NULL) is exercisable.
-		var createTableSql = $"""
-			IF NOT EXISTS (SELECT * FROM sys.tables t
-				JOIN sys.schemas s ON t.schema_id = s.schema_id
-				WHERE s.name = '{SchemaName}' AND t.name = '{TableName}')
-			BEGIN
-				CREATE TABLE [{SchemaName}].[{TableName}] (
-					Position BIGINT IDENTITY(1,1) NOT NULL,
-					EventId NVARCHAR(255) NOT NULL,
-					AggregateId NVARCHAR(255) NOT NULL,
-					AggregateType NVARCHAR(500) NOT NULL,
-					EventType NVARCHAR(500) NOT NULL,
-					EventData VARBINARY(MAX) NULL,
-					Metadata VARBINARY(MAX) NULL,
-					Version BIGINT NOT NULL,
-					Timestamp DATETIMEOFFSET NOT NULL,
-					TenantId NVARCHAR(255) NULL,
-					CONSTRAINT PK_{TableName} PRIMARY KEY (Position),
-					-- TenantId belongs in this key, and its absence made the fixture diverge from the
-					-- schema the product actually ships (001_CreateEventStoreSchema.sql declares
-					-- UNIQUE (AggregateId, AggregateType, Version, TenantId)).
-					--
-					-- The divergence was STRICTER than production, which is the direction that hides:
-					-- everything kept passing while two different tenants writing the same
-					-- (aggregate, version) collided here and would not collide in production. It matters
-					-- now because this constraint IS the store's concurrency control -- the append runs at
-					-- READ COMMITTED and translates a violation of this key into a concurrency conflict --
-					-- so a test asserting that behaviour against the wrong key is asserting the wrong
-					-- contract.
-					CONSTRAINT UQ_{TableName}_Stream UNIQUE (AggregateId, AggregateType, Version, TenantId)
-				);
-			END
-			""";
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. A
+		// fixture that restated it had TenantId nullable and outside the stream key -- the opposite of
+		// 001_CreateEventStoreSchema.sql, which pins it to a binary collation and includes it in
+		// UNIQUE (AggregateId, AggregateType, Version, TenantId). A fixture that holds no schema cannot
+		// drift from one.
+		foreach (var script in ShippedSchemaScript.ReadSqlCmdBatches(
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/001_CreateEventStoreSchema.sql"))
+		{
+			await using var command = new SqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
+		// 003's pre-flight refuses outright unless BOTH EventStoreEvents and EventStoreSnapshots already
+		// exist under their default names -- this package's migrations assume a consumer applied 001 AND
+		// 002 together, because a real deployment always has both tables from the same package. 002 has
+		// to run here even though this fixture never reads the snapshot table itself.
+		foreach (var scriptPath in new[]
+		{
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/002_CreateSnapshotSchema.sql",
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/003_MigrateToMultiTenant.sql",
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/004_MakeEventTenantTotal.sql",
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/006_ConvergeUntenantedToDefaultTenant.sql",
+			// 007 is a no-op against this fixture -- 001 already ships EventData nullable, so the script
+			// takes its "already nullable" branch. It is applied anyway so that every run parses and
+			// executes the shipped migration on a non-sqlcmd runner, which is the failure mode that
+			// silently kills a migration on its first line, and so that its re-run guard is exercised
+			// rather than asserted. The migration's actual ALTER is covered by
+			// SqlServerEventDataNullableMigrationShould, which builds the pre-migration NOT NULL shape.
+			"src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/007_MakeEventDataNullableForErasure.sql",
+		})
+		{
+			foreach (var script in ShippedSchemaScript.ReadSqlCmdBatches(scriptPath))
+			{
+				await using var command = new SqlCommand(script, connection);
+				_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+			}
+		}
 	}
 
 	/// <summary>

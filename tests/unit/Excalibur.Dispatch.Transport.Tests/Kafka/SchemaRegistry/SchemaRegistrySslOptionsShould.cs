@@ -22,9 +22,8 @@ public sealed class SchemaRegistrySslOptionsShould : UnitTestBase
 		// Assert
 		options.EnableSslCertificateVerification.ShouldBeTrue();
 		options.SslCaLocation.ShouldBeNull();
-		options.SslKeyLocation.ShouldBeNull();
-		options.SslCertificateLocation.ShouldBeNull();
-		options.SslKeyPassword.ShouldBeNull();
+		options.SslKeystoreLocation.ShouldBeNull();
+		options.SslKeystorePassword.ShouldBeNull();
 	}
 
 	[Fact]
@@ -47,15 +46,14 @@ public sealed class SchemaRegistrySslOptionsShould : UnitTestBase
 		var options = new SchemaRegistrySslOptions
 		{
 			SslCaLocation = "/certs/ca.crt",
-			SslKeyLocation = "/certs/client.key",
-			SslCertificateLocation = "/certs/client.crt",
-			SslKeyPassword = "secret"
+			SslKeystoreLocation = "/certs/client.p12",
+			SslKeystorePassword = "secret"
 		};
 
-		// Assert
+		// Assert. NOTE: storing a value is not the load-bearing property -- that it reaches the client
+		// configuration is, and that is asserted in ConfluentSchemaRegistryClientConfigShould.
 		options.SslCaLocation.ShouldBe("/certs/ca.crt");
-		options.SslKeyLocation.ShouldBe("/certs/client.key");
-		options.SslCertificateLocation.ShouldBe("/certs/client.crt");
-		options.SslKeyPassword.ShouldBe("secret");
+		options.SslKeystoreLocation.ShouldBe("/certs/client.p12");
+		options.SslKeystorePassword.ShouldBe("secret");
 	}
 }

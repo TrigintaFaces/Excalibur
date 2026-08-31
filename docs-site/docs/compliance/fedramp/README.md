@@ -6,7 +6,7 @@ description: NIST 800-53 Rev 5 technical controls the Excalibur framework provid
 
 > **Disclaimer:** Excalibur is a software framework that provides **technical controls** to assist with FedRAMP compliance. Using this framework does **not** make your application FedRAMP authorized. FedRAMP authorization requires a complete System Security Plan (SSP), third-party assessment (3PAO), and PMO review specific to your deployment. The control statuses below indicate that the framework provides the **technical capability** — your organization must still implement organizational policies, processes, and infrastructure controls to achieve authorization.
 
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5
 **Epic:** FedRAMP Government Compliance
 **Status:** 14/14 technical controls implemented (framework level)
@@ -37,7 +37,7 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 | **SC-13** | Cryptographic Protection | ✅ SATISFIED | `IEncryptionProvider`, AES-256-GCM |
 | **SC-28** | Protection of Information at Rest | ✅ SATISFIED | Field-level encryption (`[PersonalData]`) |
 | **SI-4** | System Monitoring | ✅ SATISFIED | OpenTelemetry integration, health checks |
-| **SI-7** | Software Integrity | ✅ SATISFIED | SBOM hash verification, dependency vulnerability scanning |
+| **SI-7** | Software Integrity | ⚠️ PARTIAL | SBOM hash verification, dependency vulnerability scanning; packages are published UNSIGNED |
 | **PM-11** | Mission/Business Process Definition | ✅ SATISFIED | Requirements traceability matrix (RTM) |
 | **SA-15** | Development Process | ✅ SATISFIED | CI/CD pipeline, automated quality gates |
 | **CM-8** | Component Inventory | ✅ SATISFIED | SBOM generation (CycloneDX) |
@@ -87,8 +87,8 @@ This directory contains compliance documentation for NIST 800-53 Rev 5 controls 
 - Dependency vulnerability scanning
 
 **Quality Gates:**
-- Serialization policy validation (R0.14)
-- Dead code detection (R1.15, R1.17)
+- Serialization policy validation
+- Dead code detection
 - API compatibility checks
 - Transitive dependency bloat detection
 - Banned APIs scanning
@@ -122,7 +122,7 @@ See [CM-8-SBOM.md](./CM-8-SBOM.md) for detailed implementation.
 
 **Artifact Evidence:**
 - SBOM artifacts (CycloneDX JSON/XML)
-- NuGet packages (hash-verified)
+- NuGet packages (hash-verifiable; published with **no author signature** — do not inherit an author-signing control)
 - Docker images (Trivy-scanned)
 - RTM reports (requirements traceability)
 
@@ -225,7 +225,8 @@ Consumers can **inherit** framework controls:
 - Project Manager: Evidence packages, sprint planning, audit coordination
 
 **Escalation:**
-- Security incidents: See `docs/security/incident-response.md`
+- Security incidents: follow your organisation's incident response plan. The framework records
+  security-relevant events through the audit trail; it does not detect, triage, or escalate incidents.
 - Compliance gaps: Create GitHub issue with `compliance` label
 - Audit requests: Contact Project Manager for evidence package
 

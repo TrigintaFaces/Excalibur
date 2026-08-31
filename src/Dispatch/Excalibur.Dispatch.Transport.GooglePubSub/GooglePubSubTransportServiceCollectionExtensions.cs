@@ -103,16 +103,37 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Create and configure options via builder
+		// This transport branches its REGISTRATION GRAPH on configuration (which clients, hosted
+		// services, and decorators exist at all depends on whether a subscription, ordering, or a
+		// dead-letter policy was configured), so the values are needed eagerly, before the container is
+		// built. That is why the consumer's delegate is applied twice, to two instances:
+		//
+		//   1. here, to a local instance, to decide WHICH registrations to make;
+		//   2. inside Configure below, to the instance the options system owns, which is what every
+		//      resolved component actually reads.
+		//
+		// Applying the same delegate twice is not a copy: there is no field list to fall out of date,
+		// so a property the builder can set but the registration forgets to carry is not expressible.
+		// Options-configuration delegates are already required to be re-runnable — the options system
+		// invokes them per named instance and on reload — so this asks nothing new of the consumer.
 		var transportOptions = new GooglePubSubOptions { Name = name };
-		var builder = new GooglePubSubTransportBuilder(transportOptions);
-		configure(builder);
+		var transportBuilder = new GooglePubSubTransportBuilder(transportOptions);
+		configure(transportBuilder);
+
+		// The adapter binds the UNNAMED GooglePubSubCloudEventOptions, so this registers unnamed too;
+		// a named registration here would configure an instance nothing reads.
+		if (transportBuilder.CloudEventsConfigure is not null)
+		{
+			_ = services.AddOptions<GooglePubSubCloudEventOptions>()
+				.Configure(transportBuilder.CloudEventsConfigure)
+				.ValidateOnStart();
+		}
 
 		// Register core Google Pub/Sub services
 		RegisterGooglePubSubServices(services, transportOptions);
 
 		// Register Google Pub/Sub options
-		RegisterOptions(services, transportOptions);
+		RegisterOptions(services, name, configure);
 
 		// Register the transport adapter
 		RegisterTransportAdapter(services, name);
@@ -121,8 +142,8 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		RegisterSubscriber(services, name, transportOptions);
 
 		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
-		// reachable on the AddGooglePubSubTransport path instead of orphaned (kek7vm shared-seam
-		// wiring). Ordering / exactly-once / flow-control are layered by the abyfxr child on this seam.
+		// reachable on the AddGooglePubSubTransport path instead of orphaned (shared-seam
+		// wiring). Ordering / exactly-once / flow-control are layered by the child on this seam.
 		RegisterTransportSenderReceiver(services, name, transportOptions);
 
 		return services;
@@ -184,13 +205,13 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 					transportOptions.Connection.ProjectId,
 					transportOptions.Connection.SubscriptionId);
 
-				// abyfxr: the subscriber client uses EmulatorOrProduction so it talks to the SAME endpoint
+				// the subscriber client uses EmulatorOrProduction so it talks to the SAME endpoint
 				// the fail-loud validator checks (PUBSUB_EMULATOR_HOST when set → emulator; absent →
 				// production credentials, unchanged from today). A transport that subscribes to production
-				// while the validator checks the emulator (or vice-versa) is a false NFR-3 guarantee (SA 17062).
+				// while the validator checks the emulator (or vice-versa) is a false guarantee.
 				if (transportOptions.Subscriber.FlowControl.MaxOutstandingElementCount > 0 || transportOptions.Subscriber.FlowControl.MaxOutstandingByteCount > 0)
 				{
-					// abyfxr (FR-A3 c): apply flow-control to the streaming SubscriberClient when configured,
+					// Apply flow-control to the streaming SubscriberClient when configured,
 					// bounding outstanding (unacked) messages/bytes. Flow-control is a streaming-SubscriberClient
 					// concept and does not apply to the raw-pull receiver path (SA Q2). Zero = SDK default.
 					var settings = new SubscriberClient.Settings
@@ -215,9 +236,9 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 				}.Build();
 			});
 
-			// abyfxr (FR-A3 a/b): fail-loud startup validation — if ordering/exactly-once is configured,
+			// Fail-loud startup validation — if ordering/exactly-once is configured,
 			// verify (read-only) the deployed subscription actually has it, else throw a clear config error
-			// (NFR-3: no silently-inert advertised guarantee). Read-only; never creates the subscription.
+			// (no silently-inert advertised guarantee). Read-only; never creates the subscription.
 			if (transportOptions.Subscriber.EnableMessageOrdering || transportOptions.Subscriber.EnableExactlyOnceDelivery)
 			{
 				var projectId = transportOptions.Connection.ProjectId ?? string.Empty;
@@ -233,7 +254,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 					sp.GetRequiredService<ILogger<PubSubSubscriptionConfigValidator>>()));
 			}
 
-			// z1p330: opt-in auto-apply of the configured dead letter policy. When enabled (and a dead
+			// opt-in auto-apply of the configured dead letter policy. When enabled (and a dead
 			// letter topic is configured), attach the policy to the subscription at startup so it is
 			// actually honored rather than built but never applied. Default off — provisioning is normally
 			// an IaC concern (see PubSubSubscriptionConfigValidator's read-only default).
@@ -257,11 +278,15 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		}
 
 		// Register GooglePubSubMessageBus
+		//
+		// NAMED resolution, matching the named registration in RegisterOptions. Reading the UNNAMED
+		// IOptions here would hand every named transport whichever configuration was registered last.
+		var transportName = transportOptions.Name ?? Microsoft.Extensions.Options.Options.DefaultName;
 		services.TryAddSingleton(sp =>
 		{
 			var client = sp.GetRequiredService<PublisherClient>();
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
-			var options = sp.GetRequiredService<IOptions<GooglePubSubOptions>>().Value;
+			var options = sp.GetRequiredService<IOptionsMonitor<GooglePubSubOptions>>().Get(transportName);
 			var logger = sp.GetRequiredService<ILogger<GooglePubSubMessageBus>>();
 
 			return new GooglePubSubMessageBus(
@@ -277,36 +302,20 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterOptions(
 		IServiceCollection services,
-		GooglePubSubOptions transportOptions)
+		string name,
+		Action<IGooglePubSubTransportBuilder> configure)
 	{
-		// Bind the canonical GooglePubSubOptions the builder produced. Copied field-by-field into the
-		// options pipeline so ValidateOnStart runs; every field is carried (lossless — no dropped config).
-		_ = services.AddOptions<GooglePubSubOptions>()
+		// The builder is a VIEW over the instance the options system owns. The consumer's own delegate
+		// IS the configure delegate, so there is no field-by-field carry between two instances and
+		// therefore no field that can be left behind. (The previous form enumerated every field into a
+		// second instance of the SAME type — an identity function, guarded by a hand-maintained
+		// round-trip test. ValidateOnStart needs a registered Configure delegate, not a copy list.)
+		// NAMED, so two transports of the same type no longer overwrite one another's configuration.
+		_ = services.AddOptions<GooglePubSubOptions>(name)
 			.Configure(options =>
 			{
-				options.Name = transportOptions.Name;
-				options.Connection.ProjectId = transportOptions.Connection.ProjectId ?? string.Empty;
-				options.Connection.TopicId = transportOptions.Connection.TopicId ?? string.Empty;
-				options.Connection.SubscriptionId = transportOptions.Connection.SubscriptionId ?? string.Empty;
-				options.EnableEncryption = transportOptions.EnableEncryption;
-				options.MaxConcurrentMessages = transportOptions.MaxConcurrentMessages;
-				options.CloudEvents = transportOptions.CloudEvents;
-				foreach (var mapping in transportOptions.TopicMappings)
-				{
-					options.TopicMappings[mapping.Key] = mapping.Value;
-				}
-
-				options.Subscriber.MaxPullMessages = transportOptions.Subscriber.MaxPullMessages;
-				options.Subscriber.AckDeadlineSeconds = transportOptions.Subscriber.AckDeadlineSeconds;
-				options.Subscriber.EnableAutoAckExtension = transportOptions.Subscriber.EnableAutoAckExtension;
-				options.Subscriber.MaxConcurrentAcks = transportOptions.Subscriber.MaxConcurrentAcks;
-				options.Subscriber.MaxPayloadBytes = transportOptions.Subscriber.MaxPayloadBytes;
-				options.Subscriber.EnableMessageOrdering = transportOptions.Subscriber.EnableMessageOrdering;
-				options.Subscriber.EnableExactlyOnceDelivery = transportOptions.Subscriber.EnableExactlyOnceDelivery;
-				options.Subscriber.FlowControl = transportOptions.Subscriber.FlowControl;
-				options.Subscriber.DeadLetter = transportOptions.Subscriber.DeadLetter;
-
-				options.Telemetry = transportOptions.Telemetry;
+				options.Name = name;
+				configure(new GooglePubSubTransportBuilder(options));
 			})
 			.ValidateOnStart();
 
@@ -366,7 +375,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		GooglePubSubOptions transportOptions)
 	{
 		// Only register the sender when a topic is configured, mirroring the receiver's
-		// SubscriptionId guard below (kek7vm "each capability registered iff configured").
+		// SubscriptionId guard below ("each capability registered iff configured").
 		// A subscriber-only config (ProjectId + SubscriptionId, no TopicId) must not build
 		// new TopicName(projectId, null), which throws ArgumentNullException.
 		if (!string.IsNullOrEmpty(transportOptions.Connection.TopicId))
@@ -391,8 +400,12 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 			{
 				var apiClient = SubscriberServiceApiClient.Create();
 				var logger = sp.GetRequiredService<ILogger<PubSubTransportReceiver>>();
+				// The configured pull size is the surface a consumer sets; the pull request is where it
+				// takes effect. Leaving the default here would cap every pull at 10 regardless.
 				return new PubSubTransportReceiver(
-					apiClient, subscriptionName, logger, maxPayloadBytes: transportOptions.Subscriber.MaxPayloadBytes,
+					apiClient, subscriptionName, logger,
+					maxMessages: transportOptions.Subscriber.MaxPullMessages,
+					maxPayloadBytes: transportOptions.Subscriber.MaxPayloadBytes,
 					hasDeadLetterPolicy: !string.IsNullOrWhiteSpace(transportOptions.Subscriber.DeadLetter.TopicId));
 			});
 		}
@@ -522,6 +535,16 @@ internal sealed class GooglePubSubTransportBuilder : IGooglePubSubTransportBuild
 	private readonly GooglePubSubOptions _options;
 
 	/// <summary>
+	/// The consumer's CloudEvents delegate, handed to the CloudEvents options registration.
+	/// </summary>
+	/// <remarks>
+	/// The CloudEvents adapter binds <c>IOptions&lt;GooglePubSubCloudEventOptions&gt;</c> from DI, so a
+	/// value written onto the transport options object is never read. The delegate is carried to that
+	/// registration instead of its values being copied into a nested duplicate.
+	/// </remarks>
+	internal Action<GooglePubSubCloudEventOptions>? CloudEventsConfigure { get; private set; }
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="GooglePubSubTransportBuilder"/> class.
 	/// </summary>
 	/// <param name="options">The transport options to configure.</param>
@@ -584,8 +607,7 @@ internal sealed class GooglePubSubTransportBuilder : IGooglePubSubTransportBuild
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_options.CloudEvents ??= new GooglePubSubCloudEventOptions();
-		configure(_options.CloudEvents);
+		CloudEventsConfigure = configure;
 
 		return this;
 	}

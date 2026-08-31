@@ -20,11 +20,6 @@ internal sealed class RabbitMqCloudEventOptionsValidator : IValidateOptions<Rabb
 
 		var failures = new List<string>();
 
-		if (options.PrefetchCount == 0)
-		{
-			failures.Add($"{nameof(RabbitMqCloudEventOptions.PrefetchCount)} must be greater than zero.");
-		}
-
 		if (options.Exchange.MaxMessageSizeBytes <= 0)
 		{
 			failures.Add(
@@ -44,13 +39,6 @@ internal sealed class RabbitMqCloudEventOptionsValidator : IValidateOptions<Rabb
 			failures.Add(
 				$"{nameof(RabbitMqCloudEventDeadLetterOptions)}.{nameof(RabbitMqCloudEventDeadLetterOptions.RetryDelay)} " +
 				$"must be greater than zero (was {options.DeadLetter.RetryDelay}).");
-		}
-
-		if (options.Recovery.NetworkRecoveryInterval <= TimeSpan.Zero)
-		{
-			failures.Add(
-				$"{nameof(RabbitMqCloudEventRecoveryOptions)}.{nameof(RabbitMqCloudEventRecoveryOptions.NetworkRecoveryInterval)} " +
-				$"must be greater than zero (was {options.Recovery.NetworkRecoveryInterval}).");
 		}
 
 		if (options.Exchange.MessageTtl is { } ttl && ttl <= TimeSpan.Zero)

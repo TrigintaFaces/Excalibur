@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 
@@ -41,7 +42,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override ILegalHoldStore CreateStore() => new InMemoryLegalHoldStore();
+	protected override ILegalHoldStore CreateStore() => new InMemoryLegalHoldStore(UntenantedContext.Instance, Options.Create(new TenantContextOptions()));
 
 	#region Save Lifecycle Tests
 
@@ -98,6 +99,14 @@ public sealed class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly();
 
 	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped_Test() =>
+		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped();
+
+	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() =>
+		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
+
+	[Fact]
 	public Task GetActiveHoldsForDataSubjectAsync_NullDataSubjectIdHash_ShouldThrowArgumentException_Test() =>
 		GetActiveHoldsForDataSubjectAsync_NullDataSubjectIdHash_ShouldThrowArgumentException();
 
@@ -108,6 +117,10 @@ public sealed class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 	[Fact]
 	public Task GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching_Test() =>
 		GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching();
+
+	[Fact]
+	public Task GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() =>
+		GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 
 	[Fact]
 	public Task GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException_Test() =>
@@ -150,4 +163,20 @@ public sealed class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConfo
 		GetExpiredHoldsAsync_ShouldExcludeReleasedHolds();
 
 	#endregion Expired Holds Tests
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail - in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

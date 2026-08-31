@@ -257,7 +257,7 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 			ProviderData = new Dictionary<string, object>
 			{
 				["azure.lock_token"] = sbMessage.LockToken,
-				["azure.sequence_number"] = sbMessage.SequenceNumber,
+				[TransportOrderingMetadata.AzureServiceBusSequenceKey] = sbMessage.SequenceNumber,
 			},
 		};
 	}

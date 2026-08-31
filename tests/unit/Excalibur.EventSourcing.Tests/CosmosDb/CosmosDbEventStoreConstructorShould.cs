@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.CosmosDb;
 
 using Microsoft.Azure.Cosmos;
@@ -39,7 +40,7 @@ public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new CosmosDbEventStore(cosmosClient: null!, _validOptions, _logger));
+			new CosmosDbEventStore(cosmosClient: null!, _validOptions, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("cosmosClient");
 	}
 
@@ -48,7 +49,7 @@ public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new CosmosDbEventStore(_cosmosClient, options: null!, _logger));
+			new CosmosDbEventStore(_cosmosClient, options: null!, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -57,7 +58,7 @@ public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new CosmosDbEventStore(_cosmosClient, _validOptions, logger: null!));
+			new CosmosDbEventStore(_cosmosClient, _validOptions, logger: null!, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -69,7 +70,7 @@ public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 	public void CloudProviderType_ReturnCosmosDb()
 	{
 		// Arrange
-		var sut = new CosmosDbEventStore(_cosmosClient, _validOptions, _logger);
+		var sut = new CosmosDbEventStore(_cosmosClient, _validOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		sut.CloudProvider.ShouldBe(Excalibur.Data.CloudNative.CloudPersistenceProviderType.CosmosDb);

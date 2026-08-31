@@ -45,7 +45,7 @@ internal sealed class BindingConfigurationBuilder(ITransportRegistry transportRe
 		// When only a factory is present, the binding defers adapter resolution to
 		// startup (via LazyTransportBinding) — this keeps AddEventBindings order-
 		// independent from AddXTransport and lets ValidateOnStart surface any
-		// truly-missing-transport references at host start. [bd-20ft0e FIX 4]
+		// truly-missing-transport references at host start.
 		var adapter = _transportRegistry.GetTransportAdapter(transportName);
 		if (adapter is null)
 		{

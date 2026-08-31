@@ -18,16 +18,35 @@ public static class TenantShardMapExtensions
 	/// <param name="context">The ambient tenant context.</param>
 	/// <returns>The shard routing information for the ambient tenant.</returns>
 	/// <remarks>
-	/// Fail-fast versus default-shard routing is the underlying <see cref="ITenantShardMap"/>'s
-	/// behavior (governed by <c>ShardMapOptions.DefaultShardId</c>): when no ambient tenant is set,
-	/// the empty tenant is routed like any other unknown tenant — the default shard when configured,
-	/// otherwise a <see cref="TenantShardNotFoundException"/>.
+	/// <para>
+	/// The tenant term is read through <see cref="TenantScope.FromContext(ITenantContext)"/>, so a
+	/// context that has resolved no tenant <b>fails closed</b> here. It is not routed as an unknown
+	/// tenant: an unknown tenant is a real tenant the map has no entry for, which the map may answer
+	/// with the configured default shard, whereas an unresolved context has no tenant to route at all.
+	/// Routing it anyway silently returns whichever shard the map answers with, and the caller then
+	/// reads and writes another tenant's data with nothing raised.
+	/// </para>
+	/// <para>
+	/// A caller that genuinely belongs to no tenant supplies <see cref="UntenantedContext"/>, whose
+	/// tenant term is the reserved untenanted partition and routes like any other key.
+	/// </para>
+	/// <para>
+	/// Once a tenant term exists, fail-fast versus default-shard routing remains the underlying
+	/// <see cref="ITenantShardMap"/>'s behavior (governed by <c>ShardMapOptions.DefaultShardId</c>):
+	/// the default shard when configured, otherwise a <see cref="TenantShardNotFoundException"/>.
+	/// </para>
 	/// </remarks>
+	/// <exception cref="TenantRequiredException">
+	/// <paramref name="context"/> has resolved no tenant.
+	/// </exception>
+	/// <exception cref="TenantShardNotFoundException">
+	/// The tenant cannot be routed to a shard and no default shard is configured.
+	/// </exception>
 	public static ShardInfo CurrentShard(this ITenantShardMap map, ITenantContext context)
 	{
 		ArgumentNullException.ThrowIfNull(map);
 		ArgumentNullException.ThrowIfNull(context);
 
-		return map.GetShardInfo(context.TenantId ?? string.Empty);
+		return map.GetShardInfo(TenantScope.FromContext(context).TenantId);
 	}
 }

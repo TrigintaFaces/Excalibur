@@ -25,7 +25,7 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// <para>
 /// <b>The defect (one shape, two directions):</b> both <c>EraseEventsRequest</c> and
 /// <c>IsErasedRequest</c> compute <c>scope.IsScoped ? " AND tenant_id = @TenantId" : string.Empty</c>. The
-/// EMPTY (unscoped / <see cref="TenantScope.None"/>) branch drops the tenant boundary entirely, so an
+/// EMPTY (unscoped / <see cref="TenantScope.Untenanted"/>) branch drops the tenant boundary entirely, so an
 /// unscoped operation matches rows across every partition rather than only its own (the untenanted one).
 /// This is reachable in production, not contrived: erasure runs from a background service with no ambient
 /// tenant (<c>scope.IsScoped == false</c>).
@@ -91,7 +91,7 @@ public sealed class PostgresEventStoreErasureTenantScopeShould
 			NullLogger<PostgresEventStore>.Instance,
 			schema: "public",
 			table: _fixture.TableName,
-			tenantContext: tenantId is null ? null : new FixedTenant(tenantId));
+			tenantContext: tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
 
 	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{

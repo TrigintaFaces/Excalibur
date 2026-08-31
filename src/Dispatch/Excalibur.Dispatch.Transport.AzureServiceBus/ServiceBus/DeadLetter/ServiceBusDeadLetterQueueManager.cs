@@ -284,7 +284,7 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 	}
 
 	/// <inheritdoc/>
-	public async Task<int> PurgeDeadLetterQueueAsync(
+	public async Task<int> PurgeAllTenantsDeadLetterQueueAsync(
 		CancellationToken cancellationToken)
 	{
 		try

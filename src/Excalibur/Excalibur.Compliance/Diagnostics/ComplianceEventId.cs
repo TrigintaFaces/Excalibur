@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Diagnostics;
 /// <item>92800-92899: Compliance Monitoring &amp; Alerts</item>
 /// </list>
 /// </remarks>
-public static class ComplianceEventId
+internal static class ComplianceEventId
 {
 	// ========================================
 	// 92000-92099: Data Retention
@@ -621,8 +621,6 @@ public static class ComplianceEventId
 	/// <summary>Breach notification reported.</summary>
 	public const int BreachNotificationReported = 92950;
 
-	/// <summary>Breach notification sent to subjects.</summary>
-	public const int BreachNotificationSent = 92951;
 
 	/// <summary>Breach notification failed.</summary>
 	public const int BreachNotificationFailed = 92952;

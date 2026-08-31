@@ -5,7 +5,7 @@ namespace Excalibur.AuditLogging.Sentinel;
 /// <summary>
 /// Event IDs for Azure Sentinel audit exporter diagnostics (93440-93459).
 /// </summary>
-public static class SentinelAuditLoggingEventId
+internal static class SentinelAuditLoggingEventId
 {
 	/// <summary>Azure Sentinel event forwarded.</summary>
 	public const int EventForwarded = 93440;

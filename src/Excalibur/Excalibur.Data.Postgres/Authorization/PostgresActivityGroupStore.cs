@@ -85,7 +85,7 @@ public sealed class PostgresActivityGroupStore : IActivityGroupStore
 	}
 
 	/// <inheritdoc />
-	public async Task<int> CreateActivityGroupAsync(string? tenantId, string name,
+	public async Task<int> CreateActivityGroupAsync(string tenantId, string name,
 		string activityName, CancellationToken cancellationToken)
 	{
 		const string sql = """

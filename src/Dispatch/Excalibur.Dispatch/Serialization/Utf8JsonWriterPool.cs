@@ -521,7 +521,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		for (var i = 0; i < count && i < _threadLocalCacheSize; i++)
 		{
 			var dummyBuffer = new ArrayBufferWriter<byte>();
-			// R0.8: Dispose objects before losing scope - Writer is managed by the cache
+			// Dispose objects before losing scope - Writer is managed by the cache
 #pragma warning disable CA2000
 			var writer = new Utf8JsonWriter(dummyBuffer, _defaultOptions);
 			_ = cache.TryReturn(writer);
@@ -536,7 +536,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		for (var i = 0; i < toCreate; i++)
 		{
 			var dummyBuffer = new ArrayBufferWriter<byte>();
-			// R0.8: Dispose objects before losing scope - Writer ownership is transferred to pool
+			// Dispose objects before losing scope - Writer ownership is transferred to pool
 #pragma warning disable CA2000
 			var writer = new Utf8JsonWriter(dummyBuffer, _defaultOptions);
 

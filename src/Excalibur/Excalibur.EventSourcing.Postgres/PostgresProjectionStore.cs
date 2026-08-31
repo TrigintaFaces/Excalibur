@@ -15,9 +15,6 @@ using Microsoft.Extensions.Logging;
 
 using Npgsql;
 
-#pragma warning disable IL2026 // Dapper and JSON serialization use reflection; consumers can provide source-gen JsonSerializerOptions for AOT-safe JSON
-#pragma warning disable IL3050 // Generic JSON serialization may require dynamic code generation
-
 namespace Excalibur.EventSourcing.Postgres;
 
 /// <summary>
@@ -45,7 +42,7 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 	private readonly string _tableName;
 	private readonly ILogger<PostgresProjectionStore<TProjection>> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
 
 	// Row-level tenant discriminator predicate, single-sourced so the Postgres column name and
 	// parameter (tenant_id = @TenantId) are not repeated across the read/delete/query builders.
@@ -59,12 +56,9 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 	/// <param name="tableName">Optional table name. Defaults to projection type name in snake_case.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context. Every query is scoped to the resolved tenant (row-level <c>tenant_id</c>
-	/// discriminator) in the same atomic statement, and fails closed: if no tenant resolves — because the
-	/// context is <see langword="null"/> or its ambient tenant is null/whitespace — the operation throws
-	/// <see cref="System.ArgumentException"/> rather than returning every tenant's rows. Dependency injection
-	/// always registers a non-null default context, so single-tenant applications resolve the built-in
-	/// default tenant automatically.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
@@ -72,10 +66,10 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 	public PostgresProjectionStore(
 		string connectionString,
 		ILogger<PostgresProjectionStore<TProjection>> logger,
+		ITenantContext tenantContext,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null,
-		ITenantContext? tenantContext = null)
-		: this(CreateDataSource(connectionString), logger, tableName, jsonOptions, tenantContext)
+		JsonSerializerOptions? jsonOptions = null)
+		: this(CreateDataSource(connectionString), logger, tenantContext, tableName, jsonOptions)
 	{
 	}
 
@@ -90,7 +84,9 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 	/// <param name="tableName">Optional table name. Defaults to projection type name in snake_case.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context for row-level tenant scoping (see the simple constructor's remarks).
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// This is the advanced constructor for scenarios requiring custom connection management.
@@ -98,12 +94,13 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 	public PostgresProjectionStore(
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresProjectionStore<TProjection>> logger,
+		ITenantContext tenantContext,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null,
-		ITenantContext? tenantContext = null)
+		JsonSerializerOptions? jsonOptions = null)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_tableName = tableName ?? ToSnakeCase(typeof(TProjection).Name);
 		// Read-model serialization — intentionally NOT the event canonical contract (a view is not an event;
@@ -114,9 +111,6 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		_jsonOptions = jsonOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<TProjection?> GetByIdAsync(
@@ -128,8 +122,8 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
 		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
 		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
-		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
-		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
+		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 		var tenantPredicate = " AND " + TenantColumnPredicate;
 		var sql = $"SELECT data FROM \"{_tableName}\" WHERE id = @Id{tenantPredicate}";
 
@@ -151,9 +145,6 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
 	}
 	/// <inheritdoc/>
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task UpsertAsync(
@@ -167,8 +158,8 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
 		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
 		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
-		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
-		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
+		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 
 		// Tenant scoping rides the upsert atomically: the tenant discriminator is stamped on INSERT and is
 		// part of the ON CONFLICT target, so a tenant-A upsert can never conflict with (and overwrite) a
@@ -217,8 +208,8 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
 		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
 		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
-		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
-		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
+		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 		var tenantPredicate = " AND " + TenantColumnPredicate;
 		var sql = $"DELETE FROM \"{_tableName}\" WHERE id = @Id{tenantPredicate}";
 
@@ -236,6 +227,8 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -322,12 +315,12 @@ public sealed partial class PostgresProjectionStore<TProjection> : IProjectionSt
 
 		// Fail closed: a projection query is a tenant-facing consumer read, so a null ambient tenant under
 		// multi-tenancy must throw rather than silently return every tenant's rows (symmetric with the
-		// keyed ops and the event-store fdepwq fix). The single-tenant default context is non-null.
+		// keyed ops and the event-store fix). The single-tenant default context is non-null.
 		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
 		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
 		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
-		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
-		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
+		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 
 		parameters.Add("@TenantId", tenantId);
 		whereClause = string.IsNullOrEmpty(whereClause)

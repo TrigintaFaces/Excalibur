@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Domain.Model;
 
@@ -31,27 +32,26 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			Console.WriteLine(ex.ToString());
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -77,10 +77,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task SaveAndLoadSnapshot()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -106,10 +103,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReturnNullForNonExistentAggregate()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -125,10 +119,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task UpdateExistingSnapshotWithNewerVersion()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -155,10 +146,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task IsolateSnapshotsAcrossAggregates()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId1 = Guid.NewGuid().ToString();
@@ -190,10 +178,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task DeleteAllSnapshotsForAggregate()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -215,10 +200,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task IsolateSnapshotsAcrossAggregateTypes()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -248,10 +230,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task NotAffectOtherAggregatesWhenDeleting()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId1 = Guid.NewGuid().ToString();
@@ -279,10 +258,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task PreserveSnapshotIdThroughSaveAndLoad()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -303,7 +279,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 	private ISnapshotStore CreateSnapshotStore()
 	{
 		var logger = NullLogger<SqlServerSnapshotStore>.Instance;
-		return new SqlServerSnapshotStore(_connectionString!, logger);
+		return new SqlServerSnapshotStore(_connectionString!, logger, SingleTenantTestContext.Instance);
 	}
 
 	private async Task InitializeDatabaseAsync()

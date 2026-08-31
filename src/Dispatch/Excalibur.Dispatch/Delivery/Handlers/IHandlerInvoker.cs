@@ -42,6 +42,5 @@ public interface IHandlerInvoker
 	/// Implementations should provide efficient method resolution and invocation, potentially using compiled expressions, source
 	/// generation, or other high-performance techniques to minimize reflection overhead during message processing.
 	/// </remarks>
-	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	Task<object?> InvokeAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken);
 }

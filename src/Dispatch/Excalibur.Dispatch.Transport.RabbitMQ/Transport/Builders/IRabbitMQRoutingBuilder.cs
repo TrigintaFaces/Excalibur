@@ -52,4 +52,31 @@ public interface IRabbitMQRoutingBuilder
 	/// <param name="configure">Optional action to configure SSL options.</param>
 	/// <returns>The builder for chaining.</returns>
 	IRabbitMQTransportBuilder UseSsl(Action<RabbitMQSslOptions>? configure = null);
+
+	/// <summary>
+	/// Sets whether an unencrypted broker connection is refused.
+	/// </summary>
+	/// <param name="required">
+	/// <see langword="true"/> to refuse to build a connection factory that would connect in the clear;
+	/// <see langword="false"/> to permit one. Defaults to refusing.
+	/// </param>
+	/// <returns>The builder for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// The refusal happens when the connection factory is built, so a plaintext registration fails where
+	/// it is wired rather than at the first message. A connection carries TLS when its connection string
+	/// uses the <c>amqps</c> scheme or when <see cref="UseSsl"/> has been called.
+	/// </para>
+	/// <para>
+	/// <strong>Passing <see langword="false"/> permits credentials and message payloads to travel in the
+	/// clear.</strong> It exists for local brokers and test fixtures, not for anything holding real data.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // A development broker with no certificate:
+	/// rabbit.ConnectionString("amqp://guest:guest@localhost:5672").RequireTls(false);
+	/// </code>
+	/// </example>
+	IRabbitMQTransportBuilder RequireTls(bool required);
 }

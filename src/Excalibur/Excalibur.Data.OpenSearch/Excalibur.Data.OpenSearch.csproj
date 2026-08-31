@@ -7,7 +7,7 @@
     <PackageTags>excalibur;data;opensearch;projections;event-sourcing;search;document-database</PackageTags>
     <!-- AOT: NOT compatible. OpenSearch.Client uses reflection for query DSL and document serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
-    <!-- PublicAPI baseline populated in Sprint 739 (A.10) -->
+    <!-- PublicAPI baseline populated (A.10) -->
     <!-- NoWarn RS0016/RS0017 removed: baseline being populated -->
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>

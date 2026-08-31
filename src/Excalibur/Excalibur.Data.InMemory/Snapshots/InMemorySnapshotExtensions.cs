@@ -35,7 +35,15 @@ public static class InMemorySnapshotExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<InMemorySnapshotOptions>, InMemorySnapshotOptionsValidator>());
 
-		services.TryAddSingleton<InMemorySnapshotStore>();
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably, at the
+		// same singleton lifetime the bare TryAddSingleton used. That bare registration produced a store
+		// that honors the ambient tenant while attesting nothing, so RowDiscriminator rejected a snapshot
+		// store that was in fact tenant-scoped. The keyed aliases below already resolve the concrete type
+		// the seam registers, so they are unchanged.
+		_ = services.AddTenantAwareStore<ISnapshotStore, InMemorySnapshotStore>();
 		services.AddKeyedSingleton<ISnapshotStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemorySnapshotStore>());
 		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("inmemory"));

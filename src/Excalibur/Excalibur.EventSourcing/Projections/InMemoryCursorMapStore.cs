@@ -21,16 +21,25 @@ namespace Excalibur.EventSourcing.Projections;
 internal sealed class InMemoryCursorMapStore : ICursorMapStore
 {
 	private readonly ConcurrentDictionary<string, ReadOnlyDictionary<string, long>> _cursors = new(StringComparer.Ordinal);
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryCursorMapStore"/> class.
 	/// </summary>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Cursor
-	/// maps are partitioned by the tenant this resolves — never by a tenant named by the caller.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
-	public InMemoryCursorMapStore(ITenantContext? tenantContext = null) => _tenantContext = tenantContext;
+	public InMemoryCursorMapStore(ITenantContext tenantContext) => _tenantContext = tenantContext;
 
 	/// <summary>
 	/// Resolves the partition every cursor map is confined to.
@@ -51,7 +60,7 @@ internal sealed class InMemoryCursorMapStore : ICursorMapStore
 	/// </remarks>
 	/// <returns>The reserved partition key for the ambient tenant.</returns>
 	private string ResolveTenantKey() =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <summary>
 	/// The tenant/projection key separator: ASCII UNIT SEPARATOR (U+001F).

@@ -44,7 +44,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	// This host is a singleton BackgroundService, but IGlobalStreamQuery / IGlobalStreamProjection /
 	// ISubscriptionCheckpointStore / ICursorMapStore are typically scoped (provider-specific SQL impls).
 	// Capturing them directly would be a captive dependency (scope-validation throw, or a connection
-	// pinned for the process lifetime), so they are resolved from a fresh scope per polling cycle (l55sbl)
+	// pinned for the process lifetime), so they are resolved from a fresh scope per polling cycle
 	// — the same pattern the sibling AsyncProjectionProcessingHost documents and uses.
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IEventSerializer _eventSerializer;
@@ -148,7 +148,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			try
 			{
 				// Resolve the (scoped) query/projection/stores from a fresh scope per polling cycle so this
-				// singleton host never captures a scoped dependency (l55sbl). Host-level accumulators
+				// singleton host never captures a scoped dependency. Host-level accumulators
 				// (_currentPosition, _checkpointedPosition, _eventsSinceCheckpoint, _pendingCursorUpdates,
 				// state) stay on the host; only the DI-resolved collaborators are per-cycle.
 				await using var scope = _scopeFactory.CreateAsyncScope();
@@ -181,6 +181,34 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				foreach (var storedEvent in events)
 				{
 					stoppingToken.ThrowIfCancellationRequested();
+
+					// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a
+					// nulled payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any
+					// deserialization attempt, and advance the checkpoint past it: it is a permanent, legitimate
+					// part of the stream, not a poison event. Treating it as poison would halt this host at the
+					// first tombstone forever, so honouring an erasure request would stop the projection. It is
+					// never handed to a projection handler, so it cannot populate state. Only the reserved marker
+					// is skipped: any other unresolvable event is still poison and still halts below.
+					if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+					{
+						LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
+
+						// Advance the per-stream cursor alongside the checkpoint. Erasure preserves the event's
+						// stream identity and version, and advancing the checkpoint while leaving the cursor map
+						// behind is the one direction this host treats as unsafe (see the ordering note below):
+						// a multi-stream resume from a checkpoint that is ahead of the cursor map can skip events.
+						if (cursorMapStore is not null)
+						{
+							var erasedStreamKey = $"{storedEvent.AggregateType}:{storedEvent.AggregateId}";
+							_pendingCursorUpdates[erasedStreamKey] = storedEvent.Version;
+						}
+
+						lastGoodPosition = new GlobalStreamPosition(
+							storedEvent.GlobalPosition + 1,
+							storedEvent.Timestamp);
+						_eventsSinceCheckpoint++;
+						continue;
+					}
 
 					try
 					{
@@ -221,7 +249,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 						break;
 					}
 
-					// Event applied successfully — track per-stream cursor (R27.55) and the last good
+					// Event applied successfully — track per-stream cursor and the last good
 					// global checkpoint position (the GLOBAL ordinal, not the per-aggregate Version).
 					if (cursorMapStore is not null)
 					{
@@ -307,7 +335,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				// leave the in-memory position or the pending buffer ahead of what is durable: the host
 				// re-reads from the checkpoint and reprocesses (idempotent), so no cursor entry is lost, the
 				// checkpoint never advances past its cursor map, and _pendingCursorUpdates stays bounded
-				// across repeated failures (FR-P3.4 / AC-P3.2 / AC-P3.3).
+				// across repeated failures.
 				_currentPosition = _checkpointedPosition;
 				_eventsSinceCheckpoint = 0;
 				_pendingCursorUpdates.Clear();
@@ -376,6 +404,10 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	[LoggerMessage(EventSourcingEventId.ProjectionError, LogLevel.Error,
 		"Error processing event {EventId} in projection {ProjectionName}")]
 	private partial void LogEventProcessingError(string projectionName, string eventId, Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.ErasedEventSkipped, LogLevel.Debug,
+		"Skipping erased (tombstoned) event {EventId} at global position {GlobalPosition}; advancing past it")]
+	private partial void LogErasedEventSkipped(string eventId, long globalPosition);
 
 	[LoggerMessage(EventSourcingEventId.ProjectionBehind, LogLevel.Error,
 		"Global stream projection host error for {ProjectionName}")]

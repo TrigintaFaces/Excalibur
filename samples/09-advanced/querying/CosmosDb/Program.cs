@@ -25,9 +25,10 @@ using Microsoft.Extensions.Hosting;
 //
 // Prerequisites:
 //   - Azure Cosmos DB Emulator running on https://localhost:8081
-//   - Or Docker:
-//       docker run -d --name cosmosdb -p 8081:8081 -p 10250-10255:10250-10255 \
-//         mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+//   - Or Docker (--protocol https is required; this emulator defaults to HTTP and the .NET SDK
+//     does not support HTTP mode against it):
+//       docker run -d --name cosmosdb -p 8081:8081 -p 1234:1234 -p 8080:8080 \
+//         mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706 --protocol https
 //
 // ============================================================================
 
@@ -93,8 +94,11 @@ if (!connected)
 {
     Console.WriteLine();
     Console.WriteLine("   Could not connect to Cosmos DB. Ensure the emulator is running:");
-    Console.WriteLine("     docker run -d --name cosmosdb -p 8081:8081 -p 10250-10255:10250-10255 \\");
-    Console.WriteLine("       mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest");
+    Console.WriteLine("     docker run -d --name cosmosdb -p 8081:8081 -p 1234:1234 -p 8080:8080 \\");
+    Console.WriteLine("       mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706 --protocol https");
+    Console.WriteLine();
+    Console.WriteLine("   --protocol https is required: the emulator defaults to HTTP and the .NET SDK");
+    Console.WriteLine("   does not support HTTP mode against it.");
     return;
 }
 
@@ -229,14 +233,11 @@ Console.WriteLine($"    Document store type: {provider.DocumentStoreType}");
 Console.WriteLine($"    Cloud provider: {provider.CloudProvider}");
 Console.WriteLine($"    Provider type: {provider.ProviderType}");
 
-var poolStats = await provider.GetConnectionPoolStatsAsync(ct).ConfigureAwait(false);
-if (poolStats != null)
+var metrics = await provider.GetMetricsAsync(ct).ConfigureAwait(false);
+Console.WriteLine("    Provider metrics:");
+foreach (var kvp in metrics)
 {
-    Console.WriteLine("    Connection pool:");
-    foreach (var kvp in poolStats)
-    {
-        Console.WriteLine($"      {kvp.Key}: {kvp.Value}");
-    }
+    Console.WriteLine($"      {kvp.Key}: {kvp.Value}");
 }
 
 Console.WriteLine();

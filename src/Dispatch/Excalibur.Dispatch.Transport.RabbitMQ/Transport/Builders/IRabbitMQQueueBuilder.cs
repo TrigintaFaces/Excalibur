@@ -20,7 +20,6 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 ///          .Exclusive(false)
 ///          .AutoDelete(false)
 ///          .PrefetchCount(10)
-///          .AutoAck(false);
 /// });
 /// </code>
 /// </example>
@@ -77,13 +76,6 @@ internal sealed class RabbitMQQueueBuilder : IRabbitMQQueueBuilder
 	public IRabbitMQQueueBuilder PrefetchCount(ushort count)
 	{
 		_options.PrefetchCount = count;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IRabbitMQQueueBuilder AutoAck(bool autoAck = false)
-	{
-		_options.AutoAck = autoAck;
 		return this;
 	}
 

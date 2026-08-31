@@ -17,8 +17,6 @@ internal sealed class ZeroAllocationValidationMiddleware : ZeroAllocationMiddlew
 	public override DispatchMiddlewareStage Stage => DispatchMiddlewareStage.Validation;
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public override ValueTask<(MiddlewareResult Result, MiddlewareContext Context)> ProcessAsync(
 			MessageEnvelope<IDispatchMessage> envelope,
 			MiddlewareContext context,

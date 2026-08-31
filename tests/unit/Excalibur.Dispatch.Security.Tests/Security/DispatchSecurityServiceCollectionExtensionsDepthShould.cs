@@ -271,14 +271,37 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 	[Fact]
 	public void UseSecurityMiddleware_ReturnsBuilderForChaining()
 	{
-		// Arrange
+		// Arrange -- a security feature must be composed, otherwise the call would add nothing
+		// to the pipeline and now fails loud instead of returning a silently empty builder.
+		var services = new ServiceCollection();
+		_ = services.AddRateLimiting(static o => o.Enabled = true);
+
 		var builder = A.Fake<IDispatchBuilder>();
+		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
 		var result = builder.UseSecurityMiddleware();
 
 		// Assert
 		result.ShouldBe(builder);
+	}
+
+	/// <summary>
+	/// <c>Use*</c> means "add to the pipeline". When there is nothing to add, the call must fail
+	/// loud rather than return the builder untouched -- a silently inert <c>Use*</c> is how six
+	/// security middlewares shipped unwired.
+	/// </summary>
+	[Fact]
+	public void UseSecurityMiddleware_ThrowsWhenNoSecurityFeatureIsComposed()
+	{
+		// Arrange -- no security feature composed
+		var builder = A.Fake<IDispatchBuilder>();
+		A.CallTo(() => builder.Services).Returns(new ServiceCollection());
+
+		// Act / Assert
+		var exception = Should.Throw<InvalidOperationException>(() => builder.UseSecurityMiddleware());
+
+		exception.Message.ShouldContain("no security feature has been composed");
 	}
 }
 

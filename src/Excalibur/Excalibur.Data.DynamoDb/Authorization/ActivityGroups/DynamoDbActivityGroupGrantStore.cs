@@ -19,7 +19,7 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// <remarks>
 /// <para>
 /// Uses tenant_id as the partition key for optimal query patterns where activity group grants
-/// are typically queried by tenant scope. Null tenants use "__null__" as the partition key.
+/// are typically queried by tenant scope.
 /// </para>
 /// <para>
 /// Uses PutItemAsync for upsert operations and BatchWriteItemAsync for bulk deletes.
@@ -33,6 +33,14 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 	private readonly ILogger<DynamoDbActivityGroupGrantStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
+
+	/// <summary>
+	/// Whether this store constructed <see cref="_client"/> itself and must therefore dispose it.
+	/// A client supplied by the consumer is owned by the consumer: disposing it here would terminate
+	/// every other user of that shared instance. Dispose exactly what you created.
+	/// </summary>
+	private readonly bool _ownsClient;
+
 	private volatile bool _initialized;
 	private volatile bool _disposed;
 
@@ -51,6 +59,9 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+
+		// No client was supplied, so InitializeAsync constructs one below. This store owns it.
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -69,6 +80,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
+		_ownsClient = false;
 		_options = options.Value;
 		_logger = logger;
 		_initialized = true;
@@ -163,7 +175,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 	public async Task<int> InsertActivityGroupGrantAsync(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,
@@ -273,7 +285,12 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 	}
 
@@ -286,7 +303,12 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);

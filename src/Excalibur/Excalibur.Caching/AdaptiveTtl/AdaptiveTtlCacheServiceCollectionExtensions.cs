@@ -53,6 +53,8 @@ public static class AdaptiveTtlCacheServiceCollectionExtensions
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<RuleBasedTtlOptions>, RuleBasedTtlOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RuleBasedTtlOptions>, AdaptiveTtlOptionsValidator<RuleBasedTtlOptions>>());
 
 		// The strategy consumes the RuleBasedTtlOptions value object directly (not IOptions<T>).
 		services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<RuleBasedTtlOptions>>().Value);

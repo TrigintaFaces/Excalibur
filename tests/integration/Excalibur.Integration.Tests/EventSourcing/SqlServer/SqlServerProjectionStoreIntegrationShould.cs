@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using Tests.Shared.Fixtures;
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
@@ -28,27 +29,26 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 {
 	private MsSqlContainer? _container;
 	private string? _connectionString;
-	private bool _dockerAvailable;
+	private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
 			_container = new MsSqlBuilder()
+				.WithBoundedMemory()
 				.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);
 			_connectionString = _container.GetConnectionString();
-			_dockerAvailable = true;
+			_requiredContainer.MarkStarted();
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			Console.WriteLine(ex.ToString());
-			_dockerAvailable = false;
+			throw _requiredContainer.Failed(ex);
 		}
 	}
 
@@ -74,10 +74,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task UpsertAndGetProjectionById()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var store = CreateProjectionStore();
 		var id = Guid.NewGuid().ToString();
@@ -100,10 +97,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReturnNullForNonExistentProjection()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var store = CreateProjectionStore();
 
@@ -118,10 +112,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task UpdateExistingProjectionOnUpsert()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var store = CreateProjectionStore();
 		var id = Guid.NewGuid().ToString();
@@ -145,10 +136,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task DeleteProjectionById()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var store = CreateProjectionStore();
 		var id = Guid.NewGuid().ToString();
@@ -167,10 +155,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task NotThrowWhenDeletingNonExistentProjection()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		var store = CreateProjectionStore();
 
@@ -184,10 +169,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task QueryAllProjectionsWithNoFilter()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllProjectionsAsync();
 
@@ -210,10 +192,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task CountProjectionsCorrectly()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllProjectionsAsync();
 
@@ -236,10 +215,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task SupportPaginationWithSkipAndTake()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllProjectionsAsync();
 
@@ -265,10 +241,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task QueryWithEqualityFilter()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllProjectionsAsync();
 
@@ -299,10 +272,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task CountWithFilter()
 	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
+		_requiredContainer.Require();
 
 		await ClearAllProjectionsAsync();
 
@@ -332,7 +302,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		// The store has no unscoped mode: it throws TenantRequiredException rather than degrading to an
 		// unscoped query. Constructing it without a tenant context is what failed every test here.
 		return new SqlServerProjectionStore<OrderSummary>(
-			_connectionString!, logger, "OrderSummary", tenantContext: new FixedTenantContext(TestTenantId));
+			_connectionString!, logger, new FixedTenantContext(TestTenantId), tableName: "OrderSummary");
 	}
 
 	private const string TestTenantId = "projection-integration-tests";

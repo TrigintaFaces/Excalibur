@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema/table names are constants in test fixture
 
@@ -44,7 +45,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 public sealed class SqlServerSagaStoreContainerFixture : ContainerFixtureBase
 {
 	private MsSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Gets the schema name for sagas (the store's default).
@@ -68,6 +69,7 @@ public sealed class SqlServerSagaStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-sagastore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
@@ -80,13 +82,15 @@ public sealed class SqlServerSagaStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the saga store schema and table are initialized, by executing the shipped DDL script.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
@@ -96,7 +100,6 @@ public sealed class SqlServerSagaStoreContainerFixture : ContainerFixtureBase
 			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
-		_initialized = true;
 	}
 
 	/// <summary>

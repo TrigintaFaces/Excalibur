@@ -151,6 +151,12 @@ internal sealed class LocalKeyProvider : IElasticsearchKeyProvider
 
 		var newVersion = StoreNewVersion(keyName, newKeyData);
 
+		// The audit record for the rotation. SecretAccessed carries every operation that touches secret material,
+		// so a consumer auditing key access sees the rotation here rather than seeing nothing at all.
+		SecretAccessed?.Invoke(this, new SecretAccessedEventArgs(keyName, SecretOperation.Rotate, DateTimeOffset.UtcNow));
+
+		// The lifecycle notification, carrying the new version for cache invalidation and re-wrapping. It is a
+		// separate channel with a separate audience and is not a duplicate of the audit record above.
 		KeyRotated?.Invoke(this, new KeyRotatedEventArgs(keyName, newVersion, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(90)));
 
 		return Task.FromResult(KeyRotationResult.CreateSuccess(keyName, newVersion, previousVersion, DateTimeOffset.UtcNow.AddDays(90)));

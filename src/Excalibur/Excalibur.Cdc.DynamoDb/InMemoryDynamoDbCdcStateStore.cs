@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch;
@@ -22,6 +23,10 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	private volatile bool _disposed;
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public Task<DynamoDbCdcPosition?> GetPositionAsync(
 		string processorName,
 		CancellationToken cancellationToken)
@@ -34,17 +39,19 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 			return Task.FromResult<DynamoDbCdcPosition?>(null);
 		}
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (!DynamoDbCdcPosition.TryFromBase64(entry.PositionData, out var position))
 		{
 			return Task.FromResult<DynamoDbCdcPosition?>(null);
 		}
-#pragma warning restore IL2026
 
 		return Task.FromResult(position);
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	public Task SavePositionAsync(
 		string processorName,
 		DynamoDbCdcPosition position,
@@ -54,7 +61,6 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorName);
 		ArgumentNullException.ThrowIfNull(position);
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		var entry = new DynamoDbCdcStateEntry
 		{
 			ProcessorName = processorName,
@@ -62,7 +68,6 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 			UpdatedAt = DateTimeOffset.UtcNow,
 			EventCount = position.ShardPositions.Count,
 		};
-#pragma warning restore IL2026
 
 		_positions[processorName] = entry;
 		return Task.CompletedTask;
@@ -98,20 +103,26 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken) =>
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		if (position is not DynamoDbCdcPosition dynamoPosition)
 		{
 			dynamoPosition = DynamoDbCdcPosition.FromBase64(position.ToToken());
 		}
-#pragma warning restore IL2026
 
 		return SavePositionAsync(consumerId, dynamoPosition, cancellationToken);
 	}
@@ -124,6 +135,10 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, whose type graph is not statically analyzable.")]
+	[RequiresDynamicCode("CDC position tokens are serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "The CDC state-store contracts are implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the contract without binding those too. It is declared on this DynamoDB implementation instead.")]
 	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{
@@ -131,12 +146,10 @@ internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 
 		foreach (var kvp in _positions)
 		{
-#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 			if (DynamoDbCdcPosition.TryFromBase64(kvp.Value.PositionData, out var position) && position is not null)
 			{
 				yield return (kvp.Key, position);
 			}
-#pragma warning restore IL2026
 		}
 	}
 

@@ -6,12 +6,14 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 
 using Azure;
+using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Logic;
 
 using Excalibur.Jobs.Azure.Internal;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Jobs.Azure;
 
@@ -41,7 +43,7 @@ public sealed partial class AzureLogicAppsJobProvider : IJobSchedulerProvider
 		Justification = "Adapter is stored in _armClient field and lives for the provider's lifetime.")]
 	public AzureLogicAppsJobProvider(
 		ArmClient armClient,
-		AzureLogicAppsOptions options,
+		IOptions<AzureLogicAppsOptions> options,
 		ILogger<AzureLogicAppsJobProvider> logger)
 		: this(CreateAdapter(armClient), options, logger)
 	{
@@ -54,11 +56,11 @@ public sealed partial class AzureLogicAppsJobProvider : IJobSchedulerProvider
 	/// </summary>
 	internal AzureLogicAppsJobProvider(
 		IArmClientSeam armClient,
-		AzureLogicAppsOptions options,
+		IOptions<AzureLogicAppsOptions> options,
 		ILogger<AzureLogicAppsJobProvider> logger)
 	{
 		_armClient = armClient ?? throw new ArgumentNullException(nameof(armClient));
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -96,7 +98,7 @@ public sealed partial class AzureLogicAppsJobProvider : IJobSchedulerProvider
 
 			var workflowDefinition = CreateWorkflowDefinition<TJob>(jobName, recurrence);
 
-			var workflow = new LogicWorkflowData(_options.Location) { Definition = workflowDefinition };
+			var workflow = new LogicWorkflowData(new AzureLocation(_options.Location)) { Definition = workflowDefinition };
 
 			var workflowName = $"EXCALIBUR-JOB-{jobName.ToUpperInvariant()}";
 			_ = await resourceGroup.Value.GetLogicWorkflows().CreateOrUpdateAsync(

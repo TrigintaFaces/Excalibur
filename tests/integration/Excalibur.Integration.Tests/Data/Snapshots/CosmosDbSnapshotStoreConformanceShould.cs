@@ -79,7 +79,7 @@ public sealed class CosmosDbSnapshotStoreConformanceShould : SnapshotConformance
 		// The tenant context is REQUIRED, not optional decoration. The conformance kit deliberately uses one
 		// store and varies the AMBIENT scope (TenantContextHolder.BeginScope), mirroring production, where the
 		// store is a singleton that resolves the tenant per call. Constructing it without a context left
-		// TenantScope.FromContext(null) == None on every call, so both tenants collapsed onto ONE document id
+		// CurrentTenantScope == None on every call, so both tenants collapsed onto ONE document id
 		// and tenant B read tenant A's snapshot. This mirrors the production AmbientTenantContext.
 		var store = new CosmosDbSnapshotStore(
 			options,

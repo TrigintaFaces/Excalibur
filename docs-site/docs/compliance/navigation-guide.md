@@ -1,6 +1,6 @@
 # Compliance Documentation Navigation Guide
 
-**Framework:** Excalibur.Dispatch
+**Framework:** Excalibur
 **Purpose:** Visual navigation for compliance documentation
 **Last Updated:** 2026-01-01
 
@@ -89,7 +89,7 @@ graph TD
     Scripts --> Audit[export-audit-samples.sh<br/>Audit logs]
     Scripts --> RoPA[generate-ropa-template.sh<br/>GDPR RoPA]
 
-    FedRAMPDocs --> FedREADME[index.md<br/>14/14 Controls]
+    FedRAMPDocs --> FedREADME[README.md<br/>14/14 Controls]
     FedRAMPDocs --> SBOM[CM-8-SBOM.md<br/>Component Inventory]
 
     FedRAMP -.->|References| FedREADME
@@ -135,7 +135,7 @@ flowchart LR
         GDPRImpl --> Tests
         SOC2Impl --> Tests
         HIPAAImpl --> Tests
-        Tests[Run Conformance Tests<br/>80 tests] --> ManualTest[Manual Verification<br/>Database inspection]
+        Tests[Wrap and Run Conformance Arms] --> ManualTest[Manual Verification<br/>Database inspection]
     end
 
     subgraph Phase5[Phase 5: Certification]
@@ -183,7 +183,7 @@ flowchart TD
 
     subgraph Output[Evidence Package]
         Organize --> Manifest[MANIFEST.json<br/>metadata]
-        Manifest --> README2[index.md<br/>instructions]
+        Manifest --> README2[README.md<br/>instructions]
         README2 --> Package[ZIP Archive<br/>compliance-evidence-vX.zip]
     end
 
@@ -338,7 +338,7 @@ gantt
 
 **Auditors:**
 1. Evidence: `eng/compliance/collect-evidence.*`
-2. Conformance: 80 tests (Audit, Erasure, LegalHold, DataInventory)
+2. Conformance: the arms you wrapped and ran (Audit, Erasure, LegalHold, DataInventory)
 3. Reports: Type I/II generation (SOC 2), SBOM artifacts (FedRAMP)
 
 **Management:**

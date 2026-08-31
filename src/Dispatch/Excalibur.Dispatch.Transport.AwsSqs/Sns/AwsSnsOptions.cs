@@ -20,36 +20,12 @@ public sealed class AwsSnsOptions : AwsProviderOptions
 	public string TopicArn { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable content-based deduplication.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable content-based deduplication.
-	/// </value>
-	public bool ContentBasedDeduplication { get; set; }
-
-	/// <summary>
 	/// Gets the message attributes to include.
 	/// </summary>
 	/// <value>
 	/// The message attributes to include.
 	/// </value>
 	public Dictionary<string, string> DefaultAttributes { get; } = [];
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable raw message delivery.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable raw message delivery.
-	/// </value>
-	public bool RawMessageDelivery { get; set; }
-
-	/// <summary>
-	/// Gets or sets the display name for the topic.
-	/// </summary>
-	/// <value>
-	/// The display name for the topic.
-	/// </value>
-	public string DisplayName { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the KMS master key ID for encryption.
@@ -97,14 +73,6 @@ public sealed class AwsSnsConnectionOptions
 	/// The request timeout.
 	/// </value>
 	public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Gets or sets the read/write timeout.
-	/// </summary>
-	/// <value>
-	/// The read/write timeout.
-	/// </value>
-	public TimeSpan ReadWriteTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to use HTTP instead of HTTPS.

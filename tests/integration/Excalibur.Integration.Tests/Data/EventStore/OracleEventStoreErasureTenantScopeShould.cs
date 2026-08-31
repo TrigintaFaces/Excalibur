@@ -27,7 +27,7 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// <para>
 /// <b>The defect:</b> both <c>EraseEventsRequest</c> and <c>IsErasedRequest</c> compute
 /// <c>scope.IsScoped ? " AND TENANTID = :TenantId" : string.Empty</c>. The EMPTY (unscoped /
-/// <see cref="TenantScope.None"/>) branch drops the tenant boundary, so an unscoped operation matches rows
+/// <see cref="TenantScope.Untenanted"/>) branch drops the tenant boundary, so an unscoped operation matches rows
 /// across every partition rather than only its own. Reachable in production: erasure runs from a background
 /// service with no ambient tenant.
 /// </para>
@@ -83,7 +83,7 @@ public sealed class OracleEventStoreErasureTenantScopeShould
 			NullLogger<OracleEventStore>.Instance,
 			schema: _fixture.Schema,
 			table: _fixture.TableName,
-			tenantContext: tenantId is null ? null : new FixedTenant(tenantId));
+			tenantContext: tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
 
 	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{

@@ -80,7 +80,7 @@ internal static class ErasureCoverageEvaluator
 			}
 
 			// (c) a declared exemption — non-blocking, but enumerated on the certificate with its legal basis
-			// (FR-4a: explicit, never silent). ErasureException.Basis is required, so a basis-less exemption
+			// (explicit, never silent). ErasureException.Basis is required, so a basis-less exemption
 			// is structurally inexpressible.
 			if (!location.StoreKind.IsUnknown
 				&& DefaultExemptions.TryGetValue(location.StoreKind, out var policy))
@@ -97,7 +97,7 @@ internal static class ErasureCoverageEvaluator
 			_ = uncovered.Add(location.StoreKind.Value);
 		}
 
-		// vxp56x — annotated-but-undiscovered detection. A [PersonalData] category that no discovered/
+		// annotated-but-undiscovered detection. A [PersonalData] category that no discovered/
 		// registered location represents means annotated personal data the inventory never located. Feed it
 		// into the SAME coverage gate so a "Completed" certificate over silently-skipped annotated data is
 		// structurally inexpressible (enforce-invariants-structurally). Conservative category-name match.

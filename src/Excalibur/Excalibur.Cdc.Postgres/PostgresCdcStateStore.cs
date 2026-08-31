@@ -16,8 +16,62 @@ namespace Excalibur.Cdc.Postgres;
 /// <summary>
 /// Postgres implementation of <see cref="IPostgresCdcStateStore"/> using a state table.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>This store is global infrastructure, not tenant-partitioned, and that is deliberate.</b> A row here
+/// records how far a replication slot has been consumed. A replication slot and its LSN are properties of
+/// the <em>database</em>, not of any tenant, so partitioning a checkpoint per tenant would not isolate
+/// anything - it would break the mechanism, because a slot advanced by one partition is advanced for every
+/// other reader of that slot. The consequences of that election are named here rather than left implicit:
+/// </para>
+/// <list type="number">
+/// <item><description>
+/// <see cref="ICdcStateStore.GetAllPositionsAsync"/> enumerates <em>every</em> consumer's checkpoint - that
+/// is the method's documented purpose (operational visibility into consumer progress), so it is scoped to
+/// the store, not to the caller. Any component holding this store therefore observes the existence,
+/// identity and replication progress of every other consumer sharing the table. In a shared deployment,
+/// hand this store only to components entitled to that view, or give each tenant its own state table via
+/// <see cref="PostgresCdcStateStoreOptions.TableName"/>.
+/// </description></item>
+/// <item><description>
+/// A consumer's identity on the <see cref="ICdcStateStore"/> path is its <c>consumerId</c> alone. Two
+/// consumers configured with the same id share one checkpoint and each will advance past changes the other
+/// has not read. Distinct consumers require distinct ids; the store cannot detect a collision because both
+/// callers are, by construction, indistinguishable to it.
+/// </description></item>
+/// <item><description>
+/// <see cref="ClearStateAsync"/> removes every row for a processor - all slots and all per-table state -
+/// which is its documented contract ("clears all state for a processor"), not an oversight. It is not a
+/// per-slot reset; to reset one generic checkpoint use <see cref="ICdcStateStore.DeletePositionAsync"/>.
+/// </description></item>
+/// </list>
+/// <para>
+/// The generic <see cref="ICdcStateStore"/> checkpoint and the typed per-slot positions share one table and
+/// are separated by a reserved discriminator, described on the discriminator constant itself.
+/// </para>
+/// </remarks>
 public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 {
+	/// <summary>
+	/// The <c>slot_name</c> value reserved for the provider-neutral <see cref="ICdcStateStore"/> checkpoint,
+	/// mirroring the sentinel-row pattern the SQL Server store uses for its own discriminator columns.
+	/// </summary>
+	/// <remarks>
+	/// The empty string is unforgeable through the typed API: every typed entry point rejects a null, empty
+	/// or whitespace <c>slotName</c>, so a caller cannot create a row that aliases the generic checkpoint.
+	/// That is why the separation is a property of the key rather than of a naming convention. A named slot
+	/// could not serve here - any value legal as a slot name is also a value a typed caller may legitimately
+	/// pass, which is precisely how the generic checkpoint previously collided with real slots.
+	/// </remarks>
+	private const string GenericSlotDiscriminator = "";
+
+	/// <summary>
+	/// The <c>slot_name</c> the generic checkpoint used before it moved to the reserved discriminator. Read
+	/// and deleted alongside the reserved row so an existing deployment keeps its checkpoint across the
+	/// upgrade instead of silently rewinding to the beginning of the stream and reprocessing.
+	/// </summary>
+	private const string LegacyGenericSlotName = "default";
+
 	private readonly string _connectionString;
 	private readonly string _schemaName;
 	private readonly string _tableName;
@@ -181,14 +235,22 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// slot_name is part of the predicate, not decoration. Without it this read matches every row the
+		// processor owns with an empty table_name -- including the TYPED per-slot checkpoints -- and
+		// ORDER BY updated_at DESC then returns whichever slot advanced most recently. The generic consumer
+		// would resume from a position it never reached and skip every change in between: silent loss, in
+		// the same losing direction as a suppressed duplicate. Ordering by (slot_name <> reserved) prefers
+		// the reserved row and falls back to the legacy one only when no reserved row exists yet.
 		var sql = $@"
 			SELECT position FROM {_fullTableName}
 			WHERE processor_id = @ProcessorId AND table_name = ''
-			ORDER BY updated_at DESC LIMIT 1";
+			      AND slot_name IN (@GenericSlot, @LegacySlot)
+			ORDER BY (slot_name <> @GenericSlot), updated_at DESC LIMIT 1";
 
 		var position = await connection
 			.QuerySingleOrDefaultAsync<string>(new CommandDefinition(sql,
-				new { ProcessorId = consumerId }, cancellationToken: cancellationToken))
+				new { ProcessorId = consumerId, GenericSlot = GenericSlotDiscriminator, LegacySlot = LegacyGenericSlotName },
+				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
 		if (PostgresCdcPosition.TryParse(position, out var result) && result.IsValid)
@@ -219,7 +281,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 
 		_ = await connection
 			.ExecuteAsync(new CommandDefinition(sql,
-				new { ProcessorId = consumerId, SlotName = "default", Position = pgPosition.LsnString, UpdatedAt = DateTimeOffset.UtcNow },
+				new { ProcessorId = consumerId, SlotName = GenericSlotDiscriminator, Position = pgPosition.LsnString, UpdatedAt = DateTimeOffset.UtcNow },
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 	}
@@ -234,11 +296,18 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		// Scope to the generic checkpoint row (table_name = '') and report whether a row actually existed,
-		// per the ICdcStateStore contract: deleting a non-existent checkpoint returns false.
-		var sql = $"DELETE FROM {_fullTableName} WHERE processor_id = @ProcessorId AND table_name = ''";
+		// Scope to the generic checkpoint rows and report whether one actually existed, per the
+		// ICdcStateStore contract: deleting a non-existent checkpoint returns false. The slot_name term is
+		// what keeps this from being a wildcard -- without it the delete also destroys every TYPED per-slot
+		// checkpoint the processor owns, resetting replication progress the caller never asked to touch.
+		var sql = $@"
+			DELETE FROM {_fullTableName}
+			WHERE processor_id = @ProcessorId AND table_name = ''
+			      AND slot_name IN (@GenericSlot, @LegacySlot)";
 		var affected = await connection
-			.ExecuteAsync(new CommandDefinition(sql, new { ProcessorId = consumerId }, cancellationToken: cancellationToken))
+			.ExecuteAsync(new CommandDefinition(sql,
+				new { ProcessorId = consumerId, GenericSlot = GenericSlotDiscriminator, LegacySlot = LegacyGenericSlotName },
+				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 		return affected > 0;
 	}
@@ -253,12 +322,20 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		await using var connection = new NpgsqlConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// The contract yields one (ConsumerId, Position) pair per consumer. Selecting every empty-table_name
+		// row breaks that: a processor with several typed slots emits several tuples under one consumer id,
+		// each claiming to be that consumer's position. DISTINCT ON collapses to a single generic checkpoint
+		// per processor, preferring the reserved row over the legacy one.
 		var sql = $@"
-			SELECT DISTINCT processor_id AS ProcessorId, position AS Position
-			FROM {_fullTableName} WHERE table_name = '' ORDER BY processor_id";
+			SELECT DISTINCT ON (processor_id) processor_id AS ProcessorId, position AS Position
+			FROM {_fullTableName}
+			WHERE table_name = '' AND slot_name IN (@GenericSlot, @LegacySlot)
+			ORDER BY processor_id, (slot_name <> @GenericSlot)";
 
 		var rows = await connection
-			.QueryAsync<(string ProcessorId, string Position)>(new CommandDefinition(sql, cancellationToken: cancellationToken))
+			.QueryAsync<(string ProcessorId, string Position)>(new CommandDefinition(sql,
+				new { GenericSlot = GenericSlotDiscriminator, LegacySlot = LegacyGenericSlotName },
+				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
 		foreach (var row in rows)

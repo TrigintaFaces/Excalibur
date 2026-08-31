@@ -44,7 +44,7 @@ public sealed class RedisJobCoordinator(IDatabase database, TimeProvider timePro
 		// distinguish this acquisition from a later re-acquisition by the same process,
 		// so a stale lock handle could match — and clobber — the new holder's lock. The
 		// per-acquisition token lets release/extend be guarded by an atomic GET==token
-		// compare-and-act (canonical Redlock ownership check). [bd-jqlqc8]
+		// compare-and-act (canonical Redlock ownership check).
 		var ownerToken = Guid.NewGuid().ToString("N");
 		var now = _timeProvider.GetUtcNow();
 		var expiresAt = now.Add(lockDuration);
@@ -99,7 +99,7 @@ public sealed class RedisJobCoordinator(IDatabase database, TimeProvider timePro
 		}
 
 		// Batch the per-instance reads into a single MGET round-trip instead of N sequential
-		// StringGetAsync calls (ecuazs Redis-batch remainder). StringGetAsync(RedisKey[]) returns values
+		// StringGetAsync calls (Redis-batch remainder). StringGetAsync(RedisKey) returns values
 		// aligned positionally with activeInstanceIds.
 		var instanceKeys = Array.ConvertAll(activeInstanceIds, id => (RedisKey)$"{_keyPrefix}instances:{id}");
 		var instanceValues = await _database.StringGetAsync(instanceKeys).ConfigureAwait(false);

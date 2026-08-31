@@ -49,10 +49,6 @@ public static class ThreadingServiceCollectionExtensions
 	/// <param name="services"> The service collection to add services to. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="ThreadingOptions"/>. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(services);

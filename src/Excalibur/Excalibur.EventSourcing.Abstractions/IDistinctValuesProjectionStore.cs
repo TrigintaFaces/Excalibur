@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing;
 
 /// <summary>
@@ -37,6 +39,8 @@ public interface IDistinctValuesProjectionStore<TProjection> : IProjectionStore<
 	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A read-only list of distinct values for the specified property.</returns>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<IReadOnlyList<object>> DistinctValuesAsync(
 		string propertyName,
 		IDictionary<string, object>? filters,

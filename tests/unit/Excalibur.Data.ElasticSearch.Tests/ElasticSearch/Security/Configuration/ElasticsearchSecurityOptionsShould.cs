@@ -19,9 +19,6 @@ public sealed class ElasticsearchSecurityOptionsShould
 		sut.Authentication.ShouldNotBeNull();
 		sut.Encryption.ShouldNotBeNull();
 		sut.NetworkSecurity.ShouldNotBeNull();
-		sut.Audit.ShouldNotBeNull();
-		sut.Monitoring.ShouldNotBeNull();
-		sut.Transport.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -30,9 +27,6 @@ public sealed class ElasticsearchSecurityOptionsShould
 		var auth = new AuthenticationOptions();
 		var encryption = new EncryptionOptions();
 		var network = new NetworkSecurityOptions();
-		var audit = new AuditOptions();
-		var monitoring = new SecurityMonitoringOptions();
-		var transport = new TransportSecurityOptions();
 
 		var sut = new ElasticsearchSecurityOptions
 		{
@@ -41,9 +35,6 @@ public sealed class ElasticsearchSecurityOptionsShould
 			Authentication = auth,
 			Encryption = encryption,
 			NetworkSecurity = network,
-			Audit = audit,
-			Monitoring = monitoring,
-			Transport = transport,
 		};
 
 		sut.Enabled.ShouldBeFalse();
@@ -51,8 +42,5 @@ public sealed class ElasticsearchSecurityOptionsShould
 		sut.Authentication.ShouldBeSameAs(auth);
 		sut.Encryption.ShouldBeSameAs(encryption);
 		sut.NetworkSecurity.ShouldBeSameAs(network);
-		sut.Audit.ShouldBeSameAs(audit);
-		sut.Monitoring.ShouldBeSameAs(monitoring);
-		sut.Transport.ShouldBeSameAs(transport);
 	}
 }

@@ -16,14 +16,18 @@ namespace Excalibur.Outbox.Oracle;
 /// <summary>
 /// Represents a data request to reserve outbox messages for processing in the Oracle database.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the outbox drain is cross-tenant by design: one dispatcher serves every tenant, and each claimed row carries its own tenant_id so the processor can re-establish the owning tenant per message. Scoping this claim to a single tenant would stall delivery for every other tenant in the store")]
 public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessage>>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ReserveOutboxMessages" /> class.
 	/// </summary>
 	/// <param name="dispatcherId"> The unique identifier of the dispatcher reserving the messages. </param>
 	/// <param name="batchSize"> The maximum number of messages to reserve in this batch. </param>
-	/// <param name="reservationTimeout"> The timeout in milliseconds for the reservation. </param>
+	/// <param name="reservationTimeout"> The reservation window, in SECONDS. A reserved message is not re-claimable by another dispatcher until this many seconds have elapsed. </param>
 	/// <param name="outboxTableName"> The name of the outbox table. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
@@ -41,7 +45,7 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
-		// Oracle claim — PL/SQL cursor with TRUE skip-locked (SA ruling on A0 #4, bead 9wka92).
+		// Oracle claim — PL/SQL cursor with TRUE skip-locked (SA ruling on A0 #4, bead).
 		// ORA-02014 forbids `FETCH FIRST n`/`ROWNUM` in the same statement as `FOR UPDATE SKIP LOCKED`,
 		// so the row cap cannot live in the SELECT. Instead the cap lives on the CURSOR FETCH: Oracle
 		// locks rows as they are fetched, so opening a `... FOR UPDATE SKIP LOCKED` cursor and

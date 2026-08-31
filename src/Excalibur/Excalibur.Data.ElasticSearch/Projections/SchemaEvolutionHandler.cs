@@ -240,7 +240,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 			// ExecuteStepAsync invokes _ops.MigrateAsync(sourceIndex, sourceIndex, mapping, ct).
 			// The adapter short-circuits the reindex call when source == target and applies
 			// the mapping directly, avoiding a self-reindex. Zero interface churn vs. adding
-			// a dedicated seam method. See SENTINEL msg 1956 / OVERWATCH msg 1959 (Path B).
+			// a dedicated seam method.
 			steps.Add(new MigrationStep
 			{
 				StepNumber = stepNumber++,
@@ -545,9 +545,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 
 		try
 		{
-#pragma warning disable IL2026, IL3050 // JSON deserialization of internal dictionary; type-safe shape
-			var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson);
-#pragma warning restore IL2026, IL3050
+			var dict = JsonSerializer.Deserialize(mappingJson, ElasticSearchInternalJsonContext.Default.DictionaryStringString);
 			return dict ?? new Dictionary<string, string>(StringComparer.Ordinal);
 		}
 		catch (JsonException)
@@ -627,9 +625,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		object schema = record.SchemaJson;
 		try
 		{
-#pragma warning disable IL2026, IL3050 // Schema deserialization uses reflection
-			schema = JsonSerializer.Deserialize<JsonElement>(record.SchemaJson)!;
-#pragma warning restore IL2026, IL3050
+			schema = JsonSerializer.Deserialize(record.SchemaJson, ElasticSearchInternalJsonContext.Default.JsonElement)!;
 		}
 		catch (JsonException)
 		{
@@ -858,9 +854,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 				continue;
 			}
 
-#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
-			var result = JsonSerializer.Deserialize<SchemaMigrationResult>(record.ResultJson);
-#pragma warning restore IL2026, IL3050
+			var result = JsonSerializer.Deserialize(record.ResultJson, ElasticSearchInternalJsonContext.Default.SchemaMigrationResult);
 			if (result is not null)
 			{
 				results.Add(result);

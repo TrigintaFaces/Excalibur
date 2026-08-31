@@ -45,10 +45,10 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 	/// </summary>
 	private static readonly Counter<long> CapacityExceededCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
 		CdcTelemetryConstants.MetricNames.IdempotencyCapacityExceeded,
-		"event",
+		"{event}",
 		"Count of times the in-memory CDC idempotency filter reached capacity and deduplication degraded.");
 
-	private readonly ConcurrentDictionary<string, DateTimeOffset> _processedEvents = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<CdcEventKey, DateTimeOffset> _processedEvents = new();
 	private readonly int _capacity;
 	private readonly ILogger _logger;
 
@@ -145,36 +145,33 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 	internal int Count => _processedEvents.Count;
 
 	/// <summary>
-	/// Builds a composite key from the CDC event identity components.
+	/// Builds the composite key identifying one CDC event for one consumer.
 	/// </summary>
 	/// <remarks>
-	/// Uses hex encoding of LSN and seqVal to avoid byte[] equality issues.
-	/// Format: <c>{consumerId}:{tableName}:{hexLsn}:{hexSeqVal}</c>. The consumer leads the key so a
-/// prefix scan is per consumer, and so two consumers of the same table can never collide.
+	/// <para>
+	/// The terms were previously joined as <c>{consumerId}:{tableName}:{hexLsn}:{hexSeqVal}</c>. That join
+	/// is not injective. The LSN and sequence terms are hex and cannot contain a colon, but the consumer id
+	/// and table name are both unvalidated caller strings, so consumer <c>"a:b"</c> on table <c>"c"</c> and
+	/// consumer <c>"a"</c> on table <c>"b:c"</c> rendered the same key and shared one entry. This is a
+	/// deduplication filter, so the collision does not throw: one consumer's processed marker suppresses
+	/// the other consumer's genuinely new event, which is then skipped and never processed.
+	/// </para>
+	/// <para>
+	/// A tuple removes the join, so no term can cross a delimiter and injectivity holds for every string
+	/// input by construction. The LSN and sequence bytes are still hex-encoded, because a <c>byte[]</c>
+	/// compares by reference and two equal LSNs in different arrays would otherwise miss.
+	/// </para>
+	/// <para>
+	/// The key is in-process only and is never persisted, so no stored state is keyed by the old shape.
+	/// </para>
 	/// </remarks>
-	private static string BuildKey(string tableName, byte[] lsn, byte[] seqVal, string consumerId)
-		=> string.Create(
-			consumerId.Length + 1 + tableName.Length + 1 + (lsn.Length * 2) + 1 + (seqVal.Length * 2),
-			(tableName, lsn, seqVal, consumerId),
-			static (span, state) =>
-			{
-				state.consumerId.AsSpan().CopyTo(span);
-				var pos = state.consumerId.Length;
-				span[pos++] = ':';
+	private static CdcEventKey BuildKey(string tableName, byte[] lsn, byte[] seqVal, string consumerId)
+		=> new(consumerId, tableName, Convert.ToHexString(lsn), Convert.ToHexString(seqVal));
 
-				state.tableName.AsSpan().CopyTo(span[pos..]);
-				pos += state.tableName.Length;
-				span[pos++] = ':';
-
-				var lsnHex = Convert.ToHexString(state.lsn);
-				lsnHex.AsSpan().CopyTo(span[pos..]);
-				pos += lsnHex.Length;
-
-				span[pos++] = ':';
-
-				var seqHex = Convert.ToHexString(state.seqVal);
-				seqHex.AsSpan().CopyTo(span[pos..]);
-			});
+	/// <summary>
+	/// The four terms that together identify one CDC event for one consumer.
+	/// </summary>
+	private readonly record struct CdcEventKey(string ConsumerId, string TableName, string LsnHex, string SeqValHex);
 
 	[LoggerMessage(Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyDuplicateSkipped, LogLevel.Debug,
 		"Duplicate CDC event skipped: table={TableName}, LSN={Lsn}, SeqVal={SeqVal}")]

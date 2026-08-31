@@ -31,7 +31,7 @@ public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 
 	public InMemoryEventStoreTelemetryShould()
 	{
-		_eventStore = new InMemoryEventStore();
+		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Set up activity listener for capturing spans
 		_activityListener = new ActivityListener

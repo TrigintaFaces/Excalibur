@@ -299,16 +299,16 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 		public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken = default)
 			=> default;
 
-		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries = 3, DateTimeOffset? olderThan = null, int batchSize = 100, CancellationToken cancellationToken = default)
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries = 3, DateTimeOffset? olderThan = null, int batchSize = 100, CancellationToken cancellationToken = default)
 			=> new(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100, CancellationToken cancellationToken = default)
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100, CancellationToken cancellationToken = default)
 			=> new(Enumerable.Empty<OutboundMessage>());
 
 		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000, CancellationToken cancellationToken = default)
 			=> new(0);
 
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
+		public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken = default)
 			=> new(new OutboxStatistics());
 	}
 
@@ -332,16 +332,16 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 		public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken = default)
 			=> default;
 
-		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries = 3, DateTimeOffset? olderThan = null, int batchSize = 100, CancellationToken cancellationToken = default)
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int maxRetries = 3, DateTimeOffset? olderThan = null, int batchSize = 100, CancellationToken cancellationToken = default)
 			=> new(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100, CancellationToken cancellationToken = default)
+		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100, CancellationToken cancellationToken = default)
 			=> new(Enumerable.Empty<OutboundMessage>());
 
 		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000, CancellationToken cancellationToken = default)
 			=> new(0);
 
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
+		public ValueTask<OutboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken = default)
 			=> new(new OutboxStatistics());
 	}
 

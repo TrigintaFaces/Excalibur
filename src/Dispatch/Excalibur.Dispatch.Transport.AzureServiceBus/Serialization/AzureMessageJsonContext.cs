@@ -104,7 +104,7 @@ internal partial class AzureMessageJsonContext : JsonSerializerContext
 			// an Azure Service Bus transport serializer, not event-payload persistence. MaxDepth = 32 is a
 			// DELIBERATELY STRICTER DoS guard than the framework default (64); the frozen Canonical carries no
 			// MaxDepth (effective 64), so converging would LOOSEN this guard 32 -> 64 — a security regression.
-			// Documented-exempt in the 4o8i86 event-serializer guard.
+			// Documented-exempt in the event-serializer guard.
 			MaxDepth = 32,
 		};
 

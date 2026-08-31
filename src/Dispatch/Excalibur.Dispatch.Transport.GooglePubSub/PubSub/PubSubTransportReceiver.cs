@@ -104,7 +104,16 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 				MaxMessages = maxToPull,
 			};
 
-			var response = await _client.PullAsync(request, cancellationToken)
+			// Bound the pull by the configured request timeout. Without it a pull that never returns hangs
+			// the receive loop for as long as the caller's token stays live. The timeout is linked to that
+			// token so caller cancellation still propagates, and a zero timeout — the default when none is
+			// configured — leaves the pull governed by the caller's token alone, as it was before.
+			using var pullCts = _requestTimeout > TimeSpan.Zero
+				? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+				: null;
+			pullCts?.CancelAfter(_requestTimeout);
+
+			var response = await _client.PullAsync(request, pullCts?.Token ?? cancellationToken)
 				.ConfigureAwait(false);
 
 			if (response.ReceivedMessages.Count == 0)

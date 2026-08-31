@@ -21,7 +21,7 @@ namespace Excalibur.Security.Diagnostics;
 /// <item>70900-70999: Cloud Credential Stores</item>
 /// </list>
 /// </remarks>
-public static class SecurityEventId
+internal static class SecurityEventId
 {
 	// ========================================
 	// 70000-70099: Authentication
@@ -107,8 +107,6 @@ public static class SecurityEventId
 	/// <summary>HMAC signing service created.</summary>
 	public const int HmacSigningServiceCreated = 70204;
 
-	/// <summary>Secure key provider created.</summary>
-	public const int SecureKeyProviderCreated = 70205;
 
 	/// <summary>Signing key rotated.</summary>
 	public const int SigningKeyRotated = 70206;
@@ -297,7 +295,7 @@ public static class SecurityEventId
 	/// <summary>Encryption migration completed.</summary>
 	public const int EncryptionMigrationCompleted = 70402;
 
-	/// <summary>Lazy re-encryption middleware executing.</summary>
+	/// <summary>Retired. Reserved so the number is never reused.</summary>
 	public const int LazyReEncryptionExecuting = 70403;
 
 	/// <summary>Message re-encrypted.</summary>
@@ -321,13 +319,13 @@ public static class SecurityEventId
 	/// <summary>Batch migration cancelled.</summary>
 	public const int BatchMigrationCancelled = 70410;
 
-	/// <summary>Lazy re-encryption succeeded.</summary>
+	/// <summary>Retired. Reserved so the number is never reused.</summary>
 	public const int LazyReEncryptionSucceeded = 70411;
 
-	/// <summary>Lazy re-encryption failed.</summary>
+	/// <summary>Retired. Reserved so the number is never reused.</summary>
 	public const int LazyReEncryptionFailed = 70412;
 
-	/// <summary>Lazy re-encryption error.</summary>
+	/// <summary>Retired. Reserved so the number is never reused.</summary>
 	public const int LazyReEncryptionError = 70413;
 
 	// ========================================

@@ -65,44 +65,44 @@ public sealed class ControlDefinition
 	/// Control identifier.
 	/// </summary>
 	[Required]
-	public required string ControlId { get; init; }
+	public string ControlId { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Mapped criterion.
 	/// </summary>
 	[Required]
-	public required TrustServicesCriterion Criterion { get; init; }
+	public TrustServicesCriterion Criterion { get; set; }
 
 	/// <summary>
 	/// Control name.
 	/// </summary>
 	[Required]
-	public required string Name { get; init; }
+	public string Name { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Control description.
 	/// </summary>
 	[Required]
-	public required string Description { get; init; }
+	public string Description { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Implementation details.
 	/// </summary>
 	[Required]
-	public required string Implementation { get; init; }
+	public string Implementation { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Control type.
 	/// </summary>
-	public ControlType Type { get; init; } = ControlType.Preventive;
+	public ControlType Type { get; set; } = ControlType.Preventive;
 
 	/// <summary>
 	/// Control frequency.
 	/// </summary>
-	public ControlFrequency Frequency { get; init; } = ControlFrequency.Continuous;
+	public ControlFrequency Frequency { get; set; } = ControlFrequency.Continuous;
 
 	/// <summary>
 	/// Validation function type name (must implement IControlValidator).
 	/// </summary>
-	public string? ValidatorTypeName { get; init; }
+	public string? ValidatorTypeName { get; set; }
 }

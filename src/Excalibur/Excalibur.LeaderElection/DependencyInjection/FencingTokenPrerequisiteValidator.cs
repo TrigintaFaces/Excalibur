@@ -26,7 +26,7 @@ namespace Excalibur.LeaderElection.DependencyInjection;
 /// reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class FencingTokenPrerequisiteValidator : IHostedService
+internal sealed class FencingTokenPrerequisiteValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -37,6 +37,12 @@ internal sealed class FencingTokenPrerequisiteValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		if (_services.GetService<IFencingTokenProvider>() is null)
 		{
 			throw new InvalidOperationException(
@@ -45,8 +51,6 @@ internal sealed class FencingTokenPrerequisiteValidator : IHostedService
 				"host startup — for example services.AddRedisFencingTokenProvider() " +
 				"(Excalibur.LeaderElection.Redis), or services.AddFencingTokenSupport<TProvider>().");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

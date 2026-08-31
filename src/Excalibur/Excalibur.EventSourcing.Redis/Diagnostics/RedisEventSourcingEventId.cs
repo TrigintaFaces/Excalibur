@@ -14,7 +14,7 @@ namespace Excalibur.EventSourcing.Redis.Diagnostics;
 /// <item>115200-115299: Concurrency / Lua Scripts</item>
 /// </list>
 /// </remarks>
-public static class RedisEventSourcingEventId
+internal static class RedisEventSourcingEventId
 {
 	// ========================================
 	// 115000-115099: Event Store Operations
@@ -44,6 +44,9 @@ public static class RedisEventSourcingEventId
 
 	/// <summary>Snapshot not found.</summary>
 	public const int SnapshotNotFound = 115103;
+
+	/// <summary>A save was refused because an equal or newer snapshot was already stored.</summary>
+	public const int SnapshotSaveSkippedAsStale = 115104;
 
 	// ========================================
 	// 115200-115299: Concurrency / Lua Scripts

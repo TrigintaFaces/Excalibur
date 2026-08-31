@@ -138,6 +138,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
+
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
@@ -178,7 +179,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 					await lifecycle.StartAsync(cancellationToken).ConfigureAwait(false);
 				}
 
-				// Track the started adapter under the lock; the await above ran outside it (NFR-B1),
+				// Track the started adapter under the lock; the await above ran outside it,
 				// symmetric with the ITransportLifecycleManager path.
 				lock (_lock)
 				{
@@ -248,7 +249,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	private async Task StopStartedAdaptersAsync(CancellationToken cancellationToken)
 	{
 		// Snapshot the started adapters under the lock and clear the shared collection up front;
-		// the stop I/O below runs outside the lock (NFR-B1). A concurrent StartTransportAsync that
+		// the stop I/O below runs outside the lock. A concurrent StartTransportAsync that
 		// adds after this snapshot stays tracked in _startedAdapters and is not stopped here.
 		List<string> adaptersToStop;
 		lock (_lock)
@@ -470,18 +471,37 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 public sealed class TransportAdapterHostedServiceOptions
 {
 	/// <summary>
-	/// The default drain timeout in seconds.
+	/// The default drain timeout in seconds: 80% of the host's default shutdown budget, leaving the
+	/// remaining 20% as margin.
 	/// </summary>
-	public const int DefaultDrainTimeoutSeconds = 30;
+	/// <remarks>
+	/// The host cancels the shutdown token at <c>HostOptions.ShutdownTimeout</c>,
+	/// whose default is 30 seconds. A drain budget equal to it is not inside it: the host can abandon the
+	/// drain at the same instant the drain is still entitled to run, truncating it. This default is
+	/// therefore 24 seconds rather than 30, so the drain always completes or times out on its own terms.
+	/// </remarks>
+	public const int DefaultDrainTimeoutSeconds = 24;
 
 	/// <summary>
 	/// Gets or sets the timeout in seconds to wait for pending messages to drain during shutdown.
 	/// </summary>
-	/// <value> The drain timeout in seconds. Default is 30 seconds. </value>
+	/// <value> The drain timeout in seconds. Default is 24 seconds. </value>
 	/// <remarks>
 	/// <para>
 	/// During graceful shutdown, the service will wait up to this duration for transport adapters
 	/// to complete processing any in-flight messages before forcing a stop.
+	/// </para>
+	/// <para>
+	/// This budget must stay strictly inside the host's shutdown budget. The host cancels the shutdown
+	/// token at <c>HostOptions.ShutdownTimeout</c> (30 seconds by
+	/// default), so a drain of 30 seconds would be abandoned mid-drain rather than running to completion.
+	/// The default of 24 seconds is 80% of the host default, leaving 20% as margin.
+	/// </para>
+	/// <para>
+	/// The two settings are related but not linked: changing
+	/// <c>HostOptions.ShutdownTimeout</c> does NOT move this value.
+	/// If you raise or lower the host shutdown budget, set this to at most 80% of the new value; a drain
+	/// budget at or above the host's cannot be honoured, because the host stops waiting first.
 	/// </para>
 	/// </remarks>
 	public int DrainTimeoutSeconds { get; set; } = DefaultDrainTimeoutSeconds;

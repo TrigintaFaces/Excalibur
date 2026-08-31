@@ -17,25 +17,22 @@ namespace Excalibur.Dispatch.ErrorHandling;
 ///   <item>Purging old or resolved entries</item>
 /// </list>
 /// <para>
-/// <strong>Tenancy — NOT YET ENFORCED. Read this before injecting the interface.</strong> The intended
-/// contract is that this interface is <em>tenant-scoped</em>: its operations address only entries belonging
-/// to the ambient tenant, and an entry stored under a different tenant is not visible through it. That is
-/// the guarantee this interface is meant to carry, because the entries it returns include the failed
-/// message body, so estate-wide results here disclose one tenant's message content to another.
+/// <strong>Tenancy — this interface is tenant-scoped.</strong> Its operations address only entries
+/// belonging to the ambient tenant; an entry stored under a different tenant is not visible through it.
+/// That guarantee matters here more than on most contracts because the entries returned include the failed
+/// message body, so an estate-wide result would disclose one tenant's message content to another.
 /// </para>
 /// <para>
-/// <strong>No implementation currently provides that scoping.</strong> The shipped provider addresses
-/// entries across every tenant on every operation below except <see cref="EnqueueAsync{T}"/>, and the same
-/// object serves both this interface and <see cref="IDeadLetterQueueAdmin"/> — so resolving this interface
-/// yields the estate-wide implementation. Injecting it into a tenant-facing application therefore exposes
-/// one tenant's failed-message content to another. Until an implementation states that it enforces the
-/// scoping, treat every operation here as estate-wide and restrict this interface to trusted callers.
+/// A host that establishes no tenant operates on the untenanted partition, which is a real partition
+/// holding the entries that carry no tenant — not a wildcard. Forgetting to establish a tenant therefore
+/// narrows what a caller can see rather than widening it.
 /// </para>
 /// <para>
 /// Estate-wide inspection, replay, and purge are the operator capability and live on
-/// <see cref="IDeadLetterQueueAdmin"/>. Note that a separate <em>interface</em> is not by itself a
-/// separate <em>capability</em>: the shipped provider registers both interfaces against one instance, so
-/// resolving either yields the same estate-wide object.
+/// <see cref="IDeadLetterQueueAdmin"/>, where each one says so in its name. Note that a separate
+/// <em>interface</em> is not by itself a separate <em>capability</em>: the shipped provider registers both
+/// interfaces against one instance, so a host that resolves the admin interface has granted estate-wide
+/// reach to whatever holds it.
 /// </para>
 /// <para>
 /// The originating tenant is retained in storage and used to scope these operations and to restore the
@@ -54,6 +51,7 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// </para>
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "DeadLetterQueue is a standard industry term in messaging systems")]
+[TenantOwned]
 public interface IDeadLetterQueue
 {
 	/// <summary>
@@ -85,9 +83,10 @@ public interface IDeadLetterQueue
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A read-only list of dead letter entries matching the criteria.</returns>
 	/// <remarks>
-	/// Tenant-scoped: returns only entries stored under the ambient tenant. The tenant term is taken from the
-	/// registered tenant context, never from <paramref name="filter"/>, so a caller cannot widen this read by
-	/// omitting a tenant nor redirect it by naming another one.
+	/// Tenant-scoped: returns none of another tenant's entries, and every one of the caller's own that
+	/// matches <paramref name="filter"/>. The tenant term is taken from the registered tenant context,
+	/// never from <paramref name="filter"/>, so a caller cannot widen this read by omitting a tenant nor
+	/// redirect it by naming another one.
 	/// <para>
 	/// Fails closed: when multi-tenancy is registered but resolves no tenant, this raises
 	/// <see cref="TenantRequiredException"/> rather than returning entries across tenants. With no tenant
@@ -106,7 +105,8 @@ public interface IDeadLetterQueue
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The dead letter entry if found, null otherwise.</returns>
 	/// <remarks>
-	/// Tenant-scoped: an entry stored under another tenant is reported as not found. An identifier alone does
+	/// Tenant-scoped: resolves the caller's own entry for <paramref name="entryId"/> when one exists, and
+	/// an entry stored under another tenant is reported as not found. An identifier alone does
 	/// not address an entry — it is addressed by identifier <em>within</em> the ambient tenant, so holding an
 	/// entry id obtained from a log line, an export, or a correlation trail does not grant access to it.
 	/// <para>
@@ -142,8 +142,9 @@ public interface IDeadLetterQueue
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The number of entries matching the filter criteria.</returns>
 	/// <remarks>
-	/// Tenant-scoped: counts only entries stored under the ambient tenant, so the number does not disclose
-	/// another tenant's failure volume. The tenant term is taken from the registered tenant context, never
+	/// Tenant-scoped: counts none of another tenant's entries, and every one of the caller's own that
+	/// matches <paramref name="filter"/>, so the number does not disclose another tenant's failure volume
+	/// nor undercount the caller's own. The tenant term is taken from the registered tenant context, never
 	/// from <paramref name="filter"/>.
 	/// <para>
 	/// Fails closed: when multi-tenancy is registered but resolves no tenant, this raises
@@ -219,5 +220,82 @@ public interface IDeadLetterQueueAdmin
 	/// alone. There is no tenant term in the selection, so a host that exposes this operation to a
 	/// tenant-facing caller lets one tenant delete another's failed messages.
 	/// </remarks>
-	Task<int> PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken);
+	Task<int> PurgeAllTenantsEntriesOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken);
+
+	/// <summary>Retrieves dead letter entries belonging to <b>every</b> tenant.</summary>
+	/// <param name="filter">
+	/// Selects the entries to return, and carries the page size through <see cref="DeadLetterQueryFilter.Take"/>.
+	/// The selection is not narrowed by the ambient tenant. Pass <see langword="null"/> for the defaults.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The matching entries, drawn from every tenant partition.</returns>
+	/// <remarks>
+	/// <para>
+	/// The operator counterpart to <see cref="IDeadLetterQueue.GetEntriesAsync"/>, which is confined to the
+	/// caller's own partition. Entries carry the failed message body and
+	/// <see cref="DeadLetterEntry"/> exposes no tenant discriminator, so results from different tenants
+	/// cannot be told apart by the caller: treat anything obtained here as privileged and never surface it
+	/// to a tenant-facing view.
+	/// </para>
+	/// <para>
+	/// <b>The name is the safety control.</b> Estate-wide reach is spelled at the call site, never inferred
+	/// from a scope nobody established — the same discipline as
+	/// <see cref="PurgeAllTenantsEntriesOlderThanAsync"/>. A caller cannot arrive here by forgetting to set
+	/// a tenant, which is the shape that fails open.
+	/// </para>
+	/// <para>
+	/// An <b>optional capability</b> whose default implementation throws. A store that supports it
+	/// overrides this method; a decorator must override it to forward to its inner store, or a decorated
+	/// store reports the capability as missing even though the store underneath supports it.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="NotSupportedException">Thrown by stores that do not support estate-wide inspection.</exception>
+	Task<IReadOnlyList<DeadLetterEntry>> GetAllTenantsEntriesAsync(
+		DeadLetterQueryFilter? filter,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"This dead letter queue does not support estate-wide inspection. Store type: '{GetType().FullName}'. " +
+			"Use GetEntriesAsync for the calling tenant's entries.");
+
+	/// <summary>Retrieves a single dead letter entry from whichever tenant holds it.</summary>
+	/// <param name="entryId">The unique identifier of the entry.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The entry, or <see langword="null"/> when no tenant holds one with that identifier.</returns>
+	/// <remarks>
+	/// The operator counterpart to <see cref="IDeadLetterQueue.GetEntryAsync"/>, which resolves the entry
+	/// only within the caller's own partition and reports not-found for another tenant's. Identifiers are
+	/// allocated per entry and are not reused across tenants, so at most one row can match.
+	/// <para>
+	/// The same privilege and naming notes as <see cref="GetAllTenantsEntriesAsync"/> apply, and this is
+	/// likewise an optional capability whose default implementation throws.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="NotSupportedException">Thrown by stores that do not support estate-wide inspection.</exception>
+	Task<DeadLetterEntry?> GetAllTenantsEntryAsync(Guid entryId, CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"This dead letter queue does not support estate-wide inspection. Store type: '{GetType().FullName}'. " +
+			"Use GetEntryAsync for an entry in the calling tenant's partition.");
+
+	/// <summary>Replays a single dead letter entry held by any tenant.</summary>
+	/// <param name="entryId">The unique identifier of the entry to replay.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns><see langword="true"/> when an entry was replayed; <see langword="false"/> when none matched.</returns>
+	/// <remarks>
+	/// The single-entry counterpart to <see cref="ReplayBatchAsync"/>, which is already estate-wide, and the
+	/// operator counterpart to <see cref="IDeadLetterQueue.ReplayAsync"/>.
+	/// <para>
+	/// <b>Scope governs which entry may be addressed; it never governs where the message lands.</b> A
+	/// replayed message re-enters the tenant its entry was <em>stored</em> under, never the operator's own,
+	/// so replaying another tenant's entry cannot inject it into the caller's tenant. An entry stored
+	/// without a tenant re-enters untenanted.
+	/// </para>
+	/// <para>
+	/// Likewise an optional capability whose default implementation throws.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="NotSupportedException">Thrown by stores that do not support estate-wide replay.</exception>
+	Task<bool> ReplayAllTenantsEntryAsync(Guid entryId, CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"This dead letter queue does not support estate-wide replay. Store type: '{GetType().FullName}'. " +
+			"Use ReplayAsync for an entry in the calling tenant's partition, or ReplayBatchAsync for a filtered sweep.");
 }

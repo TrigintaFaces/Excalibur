@@ -42,22 +42,22 @@ internal sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
 
 		_storedCounter = meter.CreateCounter<long>(
 			ClaimCheckTelemetryConstants.MetricNames.PayloadsStored,
-			"payloads",
+			"{payloads}",
 			"Total payloads stored successfully");
 
 		_retrievedCounter = meter.CreateCounter<long>(
 			ClaimCheckTelemetryConstants.MetricNames.PayloadsRetrieved,
-			"payloads",
+			"{payloads}",
 			"Total payloads retrieved successfully");
 
 		_deletedCounter = meter.CreateCounter<long>(
 			ClaimCheckTelemetryConstants.MetricNames.PayloadsDeleted,
-			"payloads",
+			"{payloads}",
 			"Total payloads deleted successfully");
 
 		_failedCounter = meter.CreateCounter<long>(
 			ClaimCheckTelemetryConstants.MetricNames.OperationsFailed,
-			"operations",
+			"{operations}",
 			"Total operation failures");
 
 		_storeDurationHistogram = meter.CreateHistogram<double>(

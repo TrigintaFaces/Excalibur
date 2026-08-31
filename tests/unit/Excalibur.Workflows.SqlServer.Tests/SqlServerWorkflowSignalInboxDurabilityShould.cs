@@ -50,13 +50,13 @@ public sealed class SqlServerWorkflowSignalInboxDurabilityShould
         var options = CreateOptions();
 
         // Inbox instance A admits the signal (newly admitted -> true).
-        var inboxA = new SqlServerWorkflowSignalInbox(() => _fixture.CreateConnection(), options);
+        var inboxA = new SqlServerWorkflowSignalInbox(() => _fixture.CreateConnection(), options, TenantInboxFixture.SingleTenant);
         var firstAdmit = await inboxA.TryEnqueueAsync(instanceId, signalId, "OrderApproved", "{\"n\":1}", ct)
             .ConfigureAwait(false);
         firstAdmit.ShouldBeTrue("The first admission of a fresh (instanceId, signalId) must succeed.");
 
         // A FRESH inbox instance B over the SAME database == a process restart: no in-memory state carries.
-        var inboxB = new SqlServerWorkflowSignalInbox(() => _fixture.CreateConnection(), options);
+        var inboxB = new SqlServerWorkflowSignalInbox(() => _fixture.CreateConnection(), options, TenantInboxFixture.SingleTenant);
 
         // SAFETY: the redelivered (inst, sig) is still refused after the "restart".
         var redeliver = await inboxB.TryEnqueueAsync(instanceId, signalId, "OrderApproved", "{\"n\":1}", ct)
@@ -85,7 +85,7 @@ public sealed class SqlServerWorkflowSignalInboxDurabilityShould
 
         var instanceId = $"inst-{Guid.NewGuid():N}";
         var options = CreateOptions();
-        var inbox = new SqlServerWorkflowSignalInbox(() => _fixture.CreateConnection(), options);
+        var inbox = new SqlServerWorkflowSignalInbox(() => _fixture.CreateConnection(), options, TenantInboxFixture.SingleTenant);
 
         var expected = new[] { "sig-0", "sig-1", "sig-2", "sig-3", "sig-4" };
         foreach (var signalId in expected)
@@ -122,4 +122,19 @@ public sealed class SqlServerWorkflowSignalInboxDurabilityShould
             "SQL Server container must be available - real-infra durability lock is never skipped.");
         await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The ambient tenant these inboxes run under. Every construction in this file binds the SAME tenant, so
+    /// the deduplication these tests assert is deduplication WITHIN one tenant — which is exactly the
+    /// property that must survive the widened key.
+    /// </summary>
+    private sealed class TenantInboxFixture : Excalibur.Dispatch.ITenantContext
+    {
+        public static Excalibur.Dispatch.ITenantContext SingleTenant { get; } = new TenantInboxFixture();
+
+        public string? TenantId => "tenant-a";
+
+        public bool HasTenant => true;
+    }
+
 }

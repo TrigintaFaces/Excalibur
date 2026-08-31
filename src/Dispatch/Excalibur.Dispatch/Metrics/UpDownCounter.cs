@@ -33,7 +33,7 @@ namespace Excalibur.Dispatch.Metrics;
 /// <example>
 /// <code>
 /// var meter = new Meter("MyApp.Messaging");
-/// var connectionCounter = new UpDownCounter&lt;int&gt;(meter, "active_connections", "connections", "Number of active connections");
+/// var connectionCounter = new UpDownCounter&lt;int&gt;(meter, "active_connections", "{connections}", "Number of active connections");
 ///
 /// // Connection established
 /// connectionCounter.Add(1, new TagList { { "endpoint", "queue1" } });

@@ -48,7 +48,6 @@ internal sealed class SchemaEvolutionOperationsAdapter : ISchemaEvolutionOperati
 		// apply the mapping directly to the single index. A self-reindex would
 		// fail on real Elasticsearch; the MigrationStrategy.UpdateInPlace contract
 		// is "apply new mapping to existing index without moving documents."
-		// See SENTINEL msg 1956 / OVERWATCH msg 1959 (Path B, criterion 2).
 		var isInPlace = string.Equals(sourceIndex, targetIndex, StringComparison.Ordinal);
 
 		if (!isInPlace)

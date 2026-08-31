@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Compliance.SqlServer.Erasure;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
@@ -31,14 +32,18 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 		return new SqlServerErasureStore(
 			Microsoft.Extensions.Options.Options.Create(opts),
 			Hasher,
-			NullLogger<SqlServerErasureStore>.Instance);
+			NullLogger<SqlServerErasureStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerErasureStore(null!, Hasher, NullLogger<SqlServerErasureStore>.Instance));
+			new SqlServerErasureStore(null!, Hasher, NullLogger<SqlServerErasureStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions())));
 	}
 
 	[Fact]
@@ -48,7 +53,9 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 			new SqlServerErasureStore(
 				Microsoft.Extensions.Options.Options.Create(ValidOptions),
 				null!,
-				NullLogger<SqlServerErasureStore>.Instance));
+				NullLogger<SqlServerErasureStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions())));
 	}
 
 	[Fact]
@@ -58,7 +65,9 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 			new SqlServerErasureStore(
 				Microsoft.Extensions.Options.Options.Create(ValidOptions),
 				Hasher,
-				null!));
+				null!,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions())));
 	}
 
 	[Fact]
@@ -73,7 +82,9 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 			new SqlServerErasureStore(
 				Microsoft.Extensions.Options.Options.Create(invalidOptions),
 				Hasher,
-				NullLogger<SqlServerErasureStore>.Instance));
+				NullLogger<SqlServerErasureStore>.Instance,
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions())));
 	}
 
 	[Fact]

@@ -22,7 +22,7 @@ namespace Excalibur.Data.Redis;
 /// <summary>
 /// Redis implementation of the persistence provider.
 /// </summary>
-public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction
+public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderConnection
 {
 	private readonly ConnectionMultiplexer _connection;
 	private readonly RedisProviderOptions _options;
@@ -82,7 +82,7 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 		// Initialize data request retry policy
 		RetryPolicy = new RedisRetryPolicy(_options.Pool.RetryCount, _logger);
 
-		Name = _options.Name ?? "redis";
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "redis" : _options.Name;
 	}
 
 	/// <inheritdoc />
@@ -99,59 +99,6 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 
 	/// <inheritdoc />
 	public IDataRequestRetryPolicy RetryPolicy { get; }
-
-	/// <inheritdoc />
-	public async Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		ArgumentNullException.ThrowIfNull(request);
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		LogExecutingRequest(_logger, request.GetType().Name);
-
-		try
-		{
-			// For Redis, we pass the database as the connection
-			var connection = (TConnection)GetDatabase();
-			return await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			LogExecutionFailed(_logger, ex, request.GetType().Name);
-			throw;
-		}
-	}
-
-	/// <inheritdoc />
-	/// <remarks>
-	/// Redis does not support multi-key client transactions through this provider. Atomicity is
-	/// achieved server-side via Lua <c>ScriptEvaluate</c> in the individual stores (e.g. the outbox
-	/// mark-sent script), not a client-side <c>MULTI</c>/<c>EXEC</c> scope. Because the underlying
-	/// request executes immediately, a post-write rollback would be a no-op — so this method fails
-	/// fast rather than advertise a transactional guarantee it cannot honor.
-	/// </remarks>
-	/// <exception cref="NotSupportedException">Always thrown — Redis client transactions are unsupported.</exception>
-	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		ITransactionScope transactionScope,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-		=> throw new NotSupportedException(
-			"Redis does not support client-side transactions; use server-side Lua atomicity in the stores instead.");
-
-	/// <inheritdoc />
-	/// <remarks>
-	/// Redis client transactions are not supported by this provider (see
-	/// <see cref="ExecuteInTransactionAsync"/>); use the stores' server-side Lua atomicity instead.
-	/// </remarks>
-	/// <exception cref="NotSupportedException">Always thrown — Redis client transactions are unsupported.</exception>
-	public ITransactionScope CreateTransactionScope(
-		IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
-		TimeSpan? timeout = null)
-		=> throw new NotSupportedException(
-			"Redis does not support client-side transactions; use server-side Lua atomicity in the stores instead.");
 
 	/// <inheritdoc />
 	public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken)
@@ -234,39 +181,6 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 	}
 
 	/// <inheritdoc />
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			var stats = new Dictionary<string, object>
-				(StringComparer.Ordinal)
-			{
-				["ConnectTimeout"] = _options.Pool.ConnectTimeout,
-				["SyncTimeout"] = _options.Pool.SyncTimeout,
-				["AsyncTimeout"] = _options.Pool.AsyncTimeout,
-				["ConnectRetry"] = _options.Pool.ConnectRetry,
-				["AbortOnConnectFail"] = _options.Pool.AbortOnConnectFail,
-				["IsConnected"] = _connection.IsConnected,
-			};
-
-			// Try to get more detailed connection info
-			var endpoints = _connection.GetEndPoints();
-			if (endpoints.Length > 0)
-			{
-				stats["EndpointCount"] = endpoints.Length;
-				stats["Endpoints"] = string.Join(", ", endpoints.Select(static e => e.ToString()));
-			}
-
-			return Task.FromResult<IDictionary<string, object>?>(stats);
-		}
-		catch (Exception ex)
-		{
-			LogPoolStatsFailed(_logger, ex);
-			return Task.FromResult<IDictionary<string, object>?>(null);
-		}
-	}
-
-	/// <inheritdoc />
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
@@ -276,11 +190,18 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 			return this;
 		}
 
-		if (serviceType == typeof(IPersistenceProviderTransaction))
+		if (serviceType == typeof(IPersistenceProviderConnection))
 		{
 			return this;
 		}
 
+		// IPersistenceProviderTransaction is deliberately not offered, and is not implemented. Redis has
+		// no client-side transaction; the atomicity it does offer is server-side Lua (ScriptEvaluate) in
+		// the individual stores, and because a request executes immediately a post-write rollback would
+		// be a no-op. Declining at discovery lets a caller choose another path while it still can, which
+		// throwing from an advertised capability does not. Connection details and the retry policy are a
+		// separate capability and are offered above -- being unable to run a transaction is no reason to
+		// withhold them.
 		return null;
 	}
 
@@ -379,8 +300,6 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 	[LoggerMessage(DataRedisEventId.Initializing, LogLevel.Information, "Initializing Redis persistence provider '{Name}' for database {DatabaseId}")]
 	private static partial void LogInitializing(ILogger logger, string name, int databaseId);
 
-	[LoggerMessage(DataRedisEventId.PoolStatsFailed, LogLevel.Warning, "Failed to retrieve Redis connection pool statistics")]
-	private static partial void LogPoolStatsFailed(ILogger logger, Exception exception);
 
 	[LoggerMessage(DataRedisEventId.Disposing, LogLevel.Debug, "Disposing Redis provider '{Name}'")]
 	private static partial void LogDisposing(ILogger logger, string name);

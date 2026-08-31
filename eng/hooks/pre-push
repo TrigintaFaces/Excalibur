@@ -88,9 +88,16 @@ ZERO="0000000000000000000000000000000000000000"
 
 # Regexes — bash grep -E compatible
 # Significant paths: changing these requires a CHANGELOG entry
-SIG_RE='^(src/|eng/ci/|\.github/workflows/|Directory\.Packages\.props|Directory\.Build\.(props|targets)|templates/|\.editorconfig|RELEASE\.md|CONTRIBUTING\.md|management/architecture/adr-)'
+# CHANGELOG.md is the CONSUMER surface, so 'significant' means 'a consumer can observe it'.
+# Internal tooling is deliberately absent: eng/**, .claude/** and management/** are gate scripts,
+# agent config and process artifacts. An entry for one of those would have to say something like
+# 'fixed our bead exporter', which no-internal-refs-in-public-surface forbids from reaching a
+# consumer-facing file at all -- so demanding one forces either a lie or a bypass, and a gate whose
+# only escape is a bypass teaches everyone to bypass it. A tooling change that DOES alter shipped
+# behaviour necessarily touches src/ too, and is caught by the src/ term.
+SIG_RE='^(src/|\.github/workflows/|Directory\.Packages\.props|Directory\.Build\.(props|targets)|templates/|\.editorconfig|RELEASE\.md|CONTRIBUTING\.md)'
 # Paths excluded from significance (point-in-time / template-config / governance artifacts)
-EXCL_RE='(/sprints/|management/governance/framework-governance\.json|/reports/|/\.template\.config/|PublicAPI\.Shipped\.txt$|PublicAPI\.Unshipped\.txt$)'
+EXCL_RE='(/sprints/|management/governance/framework-governance\.json|/reports/|/\.template\.config/|\.test\.sh$|PublicAPI\.Shipped\.txt$|PublicAPI\.Unshipped\.txt$)'
 
 violation=0
 

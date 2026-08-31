@@ -98,7 +98,7 @@ services.AddDispatch(dispatch =>
 {
     dispatch.UseRabbitMQ(rmq =>
     {
-        rmq.ConnectionString("amqp://guest:guest@localhost:5672/")
+        rmq.ConnectionString("amqps://guest:guest@localhost:5671/")
            .ConfigureExchange(ex => ex.Name("dispatch.events").Type(RabbitMQExchangeType.Topic));
     });
 });
@@ -126,7 +126,7 @@ services.AddDispatch(dispatch =>
     dispatch.UseAzureServiceBus(asb =>
     {
         asb.ConnectionString(configuration.GetConnectionString("ServiceBus")!)
-           .ConfigureProcessor(p => p.DefaultEntity("orders-queue"));
+           .ConfigureProcessor(p => p.DefaultEntityName = "orders-queue");
     });
 });
 ```

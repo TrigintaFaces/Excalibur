@@ -20,28 +20,18 @@ public sealed class SqlServerPersistenceProviderShould : UnitTestBase
 	private readonly IOptions<SqlServerProviderOptions> _options;
 	private readonly SqlServerPersistenceProvider _provider;
 	private readonly SqlServerProviderOptions _optionsValue;
+	private const string TestConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;";  // pragma: allowlist secret
 
 	public SqlServerPersistenceProviderShould()
 	{
 		_logger = A.Fake<ILogger<SqlServerPersistenceProvider>>();
 		_optionsValue = new SqlServerProviderOptions
 		{
-			Connection =
-			{
-				ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;",
-				ApplicationName = "TestApp",
-			},
-			Pooling =
-			{
-				EnablePooling = true,
-				MinPoolSize = 2,
-				MaxPoolSize = 20,
-			},
 			EnableMars = true,
 			CommandTimeout = 30,
 		};
 		_options = Microsoft.Extensions.Options.Options.Create(_optionsValue);
-		_provider = new SqlServerPersistenceProvider(_options, _logger);
+		_provider = new SqlServerPersistenceProvider(_options, _logger, TestConnectionString);
 	}
 
 	[Fact]
@@ -74,7 +64,7 @@ public sealed class SqlServerPersistenceProviderShould : UnitTestBase
 		// Assert
 		_provider.Name.ShouldBe("SqlServer");
 		_provider.ProviderType.ShouldBe("SQL");
-		_provider.ConnectionString.ShouldBe(_optionsValue.Connection.ConnectionString);
+		_provider.ConnectionString.ShouldBe(TestConnectionString);
 	}
 
 	[Fact]
@@ -103,11 +93,7 @@ public sealed class SqlServerPersistenceProviderShould : UnitTestBase
 	{
 		// Assert
 		_optionsValue.EnableMars.ShouldBeTrue();
-		_optionsValue.Connection.ApplicationName.ShouldBe("TestApp");
 		_optionsValue.CommandTimeout.ShouldBe(30);
-		_optionsValue.Pooling.MinPoolSize.ShouldBe(2);
-		_optionsValue.Pooling.MaxPoolSize.ShouldBe(20);
-		_optionsValue.Pooling.EnablePooling.ShouldBeTrue();
 	}
 
 	/// <inheritdoc/>

@@ -23,8 +23,7 @@ public static class DispatchBuilderOptionsExtensions
 	/// o.Inbox.Enabled = true;                    // false = light mode
 	/// o.Consumer.Dedupe.Enabled = !o.Inbox.Enabled;
 	/// o.Consumer.AckAfterHandle = true;
-	/// o.Outbox.BatchSize = 100;
-	/// o.Outbox.PublishIntervalMs = 1000;
+	/// o.Outbox.Enabled = true;
 	/// });
 	/// </code>
 	/// </example>
@@ -79,8 +78,13 @@ public static class DispatchBuilderOptionsExtensions
 	}
 
 	/// <summary>
-	/// Enables full inbox mode with persistent storage.
+	/// Selects the store-backed inbox in place of in-memory deduplication.
 	/// </summary>
+	/// <remarks>
+	/// The inbox store is a persistence concern owned by a separate package and is not registered here.
+	/// Register one alongside this call; start-up fails with an actionable message if none is present,
+	/// rather than running with deduplication silently absent.
+	/// </remarks>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Optional additional inbox configuration. </param>
 	/// <returns> The builder for fluent configuration. </returns>
@@ -110,7 +114,6 @@ public static class DispatchBuilderOptionsExtensions
 		{
 			options.Inbox.Enabled = false;
 			options.Consumer.Dedupe.Enabled = true; // Enable deduplication when inbox is disabled
-			options.Outbox.UseInMemoryStorage = true;
 			configure?.Invoke(options.Consumer);
 		});
 	}
@@ -127,7 +130,6 @@ public static class DispatchBuilderOptionsExtensions
 
 		return builder.WithOptions(options =>
 		{
-			options.Features.EnableCacheMiddleware = true;
 			options.MaxConcurrency = Environment.ProcessorCount * 4;
 
 			if (enableInbox)
@@ -139,11 +141,8 @@ public static class DispatchBuilderOptionsExtensions
 			{
 				options.Inbox.Enabled = false;
 				options.Consumer.Dedupe.Enabled = true;
-				options.Outbox.UseInMemoryStorage = true;
 			}
 
-			options.Outbox.BatchSize = 500;
-			options.Outbox.PublishIntervalMs = 500;
 			options.Consumer.MaxConcurrentMessages = Environment.ProcessorCount * 2;
 		});
 	}

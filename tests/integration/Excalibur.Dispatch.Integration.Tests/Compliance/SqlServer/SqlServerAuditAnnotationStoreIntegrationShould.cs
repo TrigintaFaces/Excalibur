@@ -575,6 +575,18 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 		// that registers the core package therefore has to supply one, exactly as a host does.
 		services.AddSingleton<IAuditRoleProvider>(new AdministratorRoleProvider());
 
+		// Pinned to the untenanted sentinel, not left to the framework default. Without a registration
+		// here, ITenantContext resolves to SingleTenantContext, whose TenantId is
+		// TenantDefaults.DefaultTenantId ("__default__") -- the identity a single-tenant host operates
+		// as, which names a real (if implicit) tenant. NewEventAsync below seeds its events with a NULL
+		// TenantId column, which the store's join predicate folds onto the DIFFERENT sentinel
+		// TenantScope.UntenantedSentinel ("__untenanted__"). Those two strings never compare equal, so
+		// every read this class performs against its own seeded events matched nothing -- not because an
+		// annotation write reached the wrong partition, but because the ambient context this store
+		// resolved never matched the partition the fixture put its data in. Pinning here is what
+		// SqlServerAuditStoreIntegrationShould's own CreateStore already does for the identical reason.
+		services.AddSingleton<ITenantContext>(new TestTenantContext(TenantScope.UntenantedSentinel));
+
 		services.AddSqlServerAuditAnnotationStore(opts =>
 		{
 			opts.ConnectionString = _fixture.ConnectionString;
@@ -691,6 +703,16 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 			A.CallTo(() => tenantContext.TenantId).Returns(tenantId);
 			A.CallTo(() => tenantContext.HasTenant).Returns(true);
 			services.AddSingleton(tenantContext);
+		}
+		else
+		{
+			// A null tenantId here means "test the untenanted partition", not "let DI fall back to
+			// whatever it defaults to". Leaving no registration resolves the framework's own
+			// SingleTenantContext, whose TenantId is TenantDefaults.DefaultTenantId ("__default__") — a
+			// real, if implicit, tenant identity — not TenantScope.UntenantedSentinel ("__untenanted__"),
+			// which is what NewEventAsync's NULL-TenantId seed folds onto via the store's join predicate.
+			// Pinning explicitly is what makes this the untenanted-partition test its own name promises.
+			services.AddSingleton<ITenantContext>(new TestTenantContext(TenantScope.UntenantedSentinel));
 		}
 
 		services.AddSingleton(TimeProvider.System);

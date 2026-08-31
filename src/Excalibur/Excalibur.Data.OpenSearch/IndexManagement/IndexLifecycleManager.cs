@@ -34,6 +34,7 @@ internal sealed partial class IndexLifecycleManager(IOpenSearchClient client, IL
 	private readonly ILogger<IndexLifecycleManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Pairs the trimming suppression on this member: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this path off both.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "BuildIsmPolicyBody uses anonymous types for dynamic OpenSearch ISM API payloads.")]
 	public async Task<bool> CreateLifecyclePolicyAsync(string policyName, IndexLifecyclePolicy policy,
@@ -318,6 +319,7 @@ internal sealed partial class IndexLifecycleManager(IOpenSearchClient client, IL
 	/// <param name="policy"> The lifecycle policy configuration. </param>
 	/// <returns> The ISM policy JSON string. </returns>
 	[RequiresUnreferencedCode("ISM policy serialization uses anonymous types and List<object> for dynamic OpenSearch API payloads.")]
+	[RequiresDynamicCode("ISM policy serialization uses anonymous types and List<object> for dynamic OpenSearch API payloads.")]
 	private static string BuildIsmPolicyBody(IndexLifecyclePolicy policy)
 	{
 		// OpenSearch ISM uses a state machine model with states, transitions, and actions.

@@ -19,24 +19,17 @@ dotnet add package Excalibur.EventSourcing.DynamoDb
 ## Configuration
 
 ```csharp
-services.AddDynamoDbEventStore(options =>
-{
-    options.EventsTableName = "Events";
-    options.PartitionKeyAttribute = "pk";
-    options.SortKeyAttribute = "sk";
-    options.UseTransactionalWrite = true;
-    options.MaxBatchSize = 100;
-    options.StreamsPollIntervalMs = 1000;
-    options.CreateTableIfNotExists = true;
-    options.UseOnDemandCapacity = true;
-    options.EnableStreams = true;
-});
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseDynamoDb(dynamo => dynamo
+        .Region(RegionEndpoint.USEast1)
+        .TableName("Events"))));
 ```
 
 Or via configuration:
 
 ```csharp
-services.AddDynamoDbEventStore(configuration.GetSection("DynamoDbEventStore"));
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
+    es.UseDynamoDb(dynamo => dynamo.BindConfiguration("DynamoDbEventStore"))));
 ```
 
 ## Usage

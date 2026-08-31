@@ -56,12 +56,12 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 
 		_errorCounter = _meter.CreateCounter<long>(
 			"projection_errors_total",
-			"count",
+			"{errors}",
 			"Total number of projection errors");
 
 		_bulkErrorCounter = _meter.CreateCounter<long>(
 			"projection_bulk_errors_total",
-			"count",
+			"{errors}",
 			"Total number of bulk operation errors");
 
 		_errorHandlingDuration = _meter.CreateHistogram<double>(

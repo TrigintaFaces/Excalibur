@@ -65,7 +65,7 @@ public sealed class RedisSnapshotStoreConformanceShould : SnapshotConformanceTes
 		var logger = NullLogger<RedisSnapshotStore>.Instance;
 
 		// Ambient context, not the default null: the tenant-isolation arms use
-		// TenantContextHolder.BeginScope, and FromContext(null) collapses every tenant to the
+		// TenantContextHolder.BeginScope, and CurrentTenantScope collapses every tenant to the
 		// untenanted sentinel so they overwrite each other's snapshots.
 		return new RedisSnapshotStore(_storeConnection, options, logger, new AmbientTenantContext());
 	}
@@ -80,6 +80,99 @@ public sealed class RedisSnapshotStoreConformanceShould : SnapshotConformanceTes
 		}
 
 		await _fixture.CleanupAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// A save carrying an OLDER version must not replace a newer stored snapshot.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The write was an unconditional <c>HSET</c>, so it was last-writer-wins by arrival: whichever save
+	/// reached Redis last won, regardless of the version it carried. A delayed or concurrent save at an
+	/// older version replaced a newer snapshot, and <c>GetLatestSnapshotAsync</c> then returned a
+	/// snapshot that was not the latest - silently, because nothing about that path reports an error.
+	/// </para>
+	/// <para>
+	/// This arm removes the scheduler from the question rather than racing saves: save 100, then save 80,
+	/// then read. The kit's concurrency arm can only catch the defect when the scheduler happens to land
+	/// the older write last, so it passes on most runs; this one fails on every run against an unguarded
+	/// store.
+	/// </para>
+	/// <para>
+	/// It asserts the payload as well as the version because a fix that guarded the version field while
+	/// still writing the other fields would satisfy a version-only assertion and hand back a snapshot
+	/// whose body and version disagree.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task NeverLetAnOlderSaveReplaceANewerSnapshot()
+	{
+		var aggregateId = Guid.NewGuid().ToString();
+		const string aggregateType = "MonotonicAggregate";
+
+		var newer = CreateTestSnapshot(aggregateId, aggregateType, 100, [100]);
+		await SnapshotStore!.SaveSnapshotAsync(newer, TestContext.Current.CancellationToken);
+
+		var stale = CreateTestSnapshot(aggregateId, aggregateType, 80, [80]);
+		await SnapshotStore.SaveSnapshotAsync(stale, TestContext.Current.CancellationToken);
+
+		var retrieved = await SnapshotStore.GetLatestSnapshotAsync(
+			aggregateId,
+			aggregateType,
+			TestContext.Current.CancellationToken);
+
+		_ = retrieved.ShouldNotBeNull();
+		retrieved.Version.ShouldBe(
+			100,
+			"a stale save must not move the stored snapshot backwards - GetLatestSnapshotAsync would then "
+			+ "return a snapshot that is not the latest, which is the contract this store advertises");
+
+		retrieved.Data.ToArray().ShouldBe(new byte[] { 100 });
+	}
+
+	/// <summary>
+	/// A save carrying a NEWER version must still be accepted, payload and all.
+	/// </summary>
+	/// <remarks>
+	/// The liveness half of the guard above, and it is not redundant: a store that refused every save
+	/// after the first would satisfy the safety arm perfectly while being useless, and a store that
+	/// compared versions the wrong way round would pass it too. This arm pins the direction. It advances
+	/// the version twice so the second save exercises the compare against an already-guarded write
+	/// rather than only against an absent key.
+	/// </remarks>
+	[Fact]
+	public async Task StillAcceptASaveThatCarriesANewerVersion()
+	{
+		var aggregateId = Guid.NewGuid().ToString();
+		const string aggregateType = "MonotonicAggregate";
+
+		await SnapshotStore!.SaveSnapshotAsync(
+			CreateTestSnapshot(aggregateId, aggregateType, 10, [10]),
+			TestContext.Current.CancellationToken);
+
+		await SnapshotStore.SaveSnapshotAsync(
+			CreateTestSnapshot(aggregateId, aggregateType, 20, [20]),
+			TestContext.Current.CancellationToken);
+
+		await SnapshotStore.SaveSnapshotAsync(
+			CreateTestSnapshot(aggregateId, aggregateType, 30, [30]),
+			TestContext.Current.CancellationToken);
+
+		var retrieved = await SnapshotStore.GetLatestSnapshotAsync(
+			aggregateId,
+			aggregateType,
+			TestContext.Current.CancellationToken);
+
+		_ = retrieved.ShouldNotBeNull();
+		retrieved.Version.ShouldBe(
+			30,
+			"the guard must refuse only saves that would move the snapshot backwards - a store that "
+			+ "refused everything would satisfy the stale-save arm while storing nothing");
+
+		// The body must advance with the version. A guard that updated the version field while leaving
+		// the previous payload in place would pass a version-only assertion and return a snapshot whose
+		// body belongs to an earlier version.
+		retrieved.Data.ToArray().ShouldBe(new byte[] { 30 });
 	}
 
 	/// <summary>

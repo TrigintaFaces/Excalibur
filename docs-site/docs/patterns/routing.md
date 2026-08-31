@@ -87,7 +87,7 @@ services.AddKafkaTransport("kafka", kafka =>
 // RabbitMQ: MapExchange / MapQueue maps to exchanges or queues
 services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
-    rmq.ConnectionString("amqp://localhost")
+    rmq.ConnectionString("amqps://localhost")
        .MapExchange<OrderCreatedEvent>("orders-exchange")
        .MapQueue<SendNotificationCommand>("notifications-queue")
        .WithQueuePrefix("app-");  // Optional prefix
@@ -97,8 +97,7 @@ services.AddRabbitMQTransport("rabbitmq", rmq =>
 services.AddAzureServiceBusTransport("azure", asb =>
 {
     asb.ConnectionString(connectionString)
-       .MapEntity<OrderCreatedEvent>("orders-topic")
-       .WithEntityPrefix("prod-");
+       .MapEntity<OrderCreatedEvent>("orders-topic");
 });
 
 // AWS SQS: MapQueue maps to full queue URLs
@@ -131,7 +130,7 @@ services.AddKafkaTransport("kafka", kafka =>
 
 services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
-    rmq.ConnectionString("amqp://localhost")
+    rmq.ConnectionString("amqps://localhost")
        .MapQueue<SendNotificationCommand>("notifications");
 });
 
@@ -395,7 +394,7 @@ This typically surfaces at startup (not at runtime) when the transport registry 
 1. **Always set `.Default()`** on `routing.Transport` to catch unmatched message types
 2. **Ensure every transport name** used in `Route<T>().To("name")` has a matching `AddXxxTransport("name", ...)` registration
 3. **Configure `routing.Fallback`** to catch messages with no matching endpoint rules
-4. **Enable logging** — `RoutingMiddleware` emits `MiddlewareEventId.RoutingFailed` at Warning level
+4. **Enable logging** — `RoutingMiddleware` emits event ID `31604` at Warning level
 
 ## RouteInfo
 
@@ -443,9 +442,9 @@ if (router.CanRouteTo(message, "billing-service"))
 
 | Event ID | Level | Message |
 |----------|-------|---------|
-| `MiddlewareEventId.MessageRouted` | Information | `"Message routed to: {Target}"` |
-| `MiddlewareEventId.UnifiedRoutingComplete` | Debug | `"Routing completed: transport={Transport}, endpoints={EndpointCount}"` |
-| `MiddlewareEventId.RoutingFailed` | Warning | `"Routing failed: {Reason}"` |
+| `31605` | Information | `"Message routed to: {Target}"` |
+| `31628` | Debug | `"Routing completed: transport={Transport}, endpoints={EndpointCount}"` |
+| `31604` | Warning | `"Routing failed: {Reason}"` |
 
 ## Observability
 

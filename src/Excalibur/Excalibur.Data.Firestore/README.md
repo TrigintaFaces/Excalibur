@@ -14,15 +14,12 @@ dotnet add package Excalibur.Data.Firestore
 
 ```csharp
 // In Program.cs or Startup.cs
-services.AddFirestore(options =>
-{
-    options.ProjectId = "your-gcp-project-id";
-    options.DatabaseId = "(default)"; // Optional, defaults to (default)
-    options.DefaultCollection = "your-collection";
-});
+services.AddExcaliburFirestore(firestore => firestore
+    .ProjectId("your-gcp-project-id")
+    .CollectionName("your-collection"));
 
 // Or using configuration
-services.AddFirestore(configuration.GetSection("Firestore"));
+services.AddExcaliburFirestore(firestore => firestore.BindConfiguration("Firestore"));
 ```
 
 ### appsettings.json

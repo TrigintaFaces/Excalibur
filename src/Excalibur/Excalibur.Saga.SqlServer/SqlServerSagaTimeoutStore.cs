@@ -41,6 +41,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerSagaTimeoutStore> _logger;
+	private readonly ITenantContext _tenantContext;
 	private readonly SqlServerSagaTimeoutStoreOptions _options;
 
 	/// <summary>
@@ -48,17 +49,24 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	/// </summary>
 	/// <param name="connectionString">The SQL Server connection string.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The tenant context. Required: this store partitions timeouts by tenant and resolves that partition
+	/// from here, so there is no state in which the partition is undecided. A single-tenant host receives the
+	/// framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerSagaTimeoutStore(Func{SqlConnection}, ILogger{SqlServerSagaTimeoutStore})"/>
+	/// Use <see cref="SqlServerSagaTimeoutStore(Func{SqlConnection}, ILogger{SqlServerSagaTimeoutStore}, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerSagaTimeoutStore(
 		string connectionString,
-		ILogger<SqlServerSagaTimeoutStore> logger)
+		ILogger<SqlServerSagaTimeoutStore> logger,
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString),
 			new SqlServerSagaTimeoutStoreOptions(),
-			logger)
+			logger,
+			tenantContext)
 	{
 	}
 
@@ -68,13 +76,20 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	/// <param name="connectionString">The SQL Server connection string.</param>
 	/// <param name="options">The saga timeout store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The tenant context. Required: this store partitions timeouts by tenant and resolves that partition
+	/// from here, so there is no state in which the partition is undecided. A single-tenant host receives the
+	/// framework default context and operates as the one canonical tenant.
+	/// </param>
 	public SqlServerSagaTimeoutStore(
 		string connectionString,
 		IOptions<SqlServerSagaTimeoutStoreOptions> options,
-		ILogger<SqlServerSagaTimeoutStore> logger)
+		ILogger<SqlServerSagaTimeoutStore> logger,
+		ITenantContext tenantContext)
 		: this(CreateConnectionFactory(connectionString),
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
-			logger)
+			logger,
+			tenantContext)
 	{
 	}
 
@@ -86,6 +101,11 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	/// The caller is responsible for ensuring the factory returns properly configured connections.
 	/// </param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The tenant context. Required: this store partitions timeouts by tenant and resolves that partition
+	/// from here, so there is no state in which the partition is undecided. A single-tenant host receives the
+	/// framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -98,10 +118,12 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	/// </remarks>
 	public SqlServerSagaTimeoutStore(
 		Func<SqlConnection> connectionFactory,
-		ILogger<SqlServerSagaTimeoutStore> logger)
+		ILogger<SqlServerSagaTimeoutStore> logger,
+		ITenantContext tenantContext)
 		: this(connectionFactory,
 			new SqlServerSagaTimeoutStoreOptions(),
-			logger)
+			logger,
+			tenantContext)
 	{
 	}
 
@@ -111,42 +133,59 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 	/// <param name="connectionFactory">The connection factory.</param>
 	/// <param name="options">The saga timeout store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The tenant context. Required: this store partitions timeouts by tenant and resolves that partition
+	/// from here, so there is no state in which the partition is undecided. A single-tenant host receives the
+	/// framework default context and operates as the one canonical tenant.
+	/// </param>
 	public SqlServerSagaTimeoutStore(
 		Func<SqlConnection> connectionFactory,
 		IOptions<SqlServerSagaTimeoutStoreOptions> options,
-		ILogger<SqlServerSagaTimeoutStore> logger)
+		ILogger<SqlServerSagaTimeoutStore> logger,
+		ITenantContext tenantContext)
 		: this(connectionFactory,
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
-			logger)
+			logger,
+			tenantContext)
 	{
 	}
 
 	private SqlServerSagaTimeoutStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerSagaTimeoutStoreOptions options,
-		ILogger<SqlServerSagaTimeoutStore> logger)
+		ILogger<SqlServerSagaTimeoutStore> logger,
+		ITenantContext tenantContext)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_options.Validate();
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 	}
 
 	/// <summary>
-	/// Resolves the ambient tenant as a keyed partition whose term is never <see langword="null"/> — the
-	/// reserved untenanted sentinel when no tenant is established.
+	/// Resolves the tenant partition this store writes under, from its required tenant context.
 	/// </summary>
-	/// <returns>The ambient tenant partition.</returns>
 	/// <remarks>
-	/// Read from the ambient holder rather than an injected <c>ITenantContext</c> deliberately. Both observe the
-	/// same async-local value, so the resolved term is identical — but an injected dependency can be omitted by a
-	/// DI factory, and this store's failure mode when the tenant is missing is silent: a timeout stamped
-	/// untenanted is later dispatched untenanted, so the handler's saga load resolves a different partition than
-	/// the saga was saved under and finds nothing. An ambient read cannot be omitted by a registration. Tests
-	/// establish a tenant with <see cref="TenantContextHolder.BeginScope"/>, so this stays substitutable.
+	/// <para>
+	/// Resolved through the context fold, which fails closed, and never through the fold that rehydrates a
+	/// value read back from storage. Those two folds both take a tenant term and differ in what an absent one
+	/// means, so feeding an ambient read into the storage fold turned <em>"no tenant context was established
+	/// here"</em> into <em>"this row belongs to no tenant"</em>. Nothing in the type could tell them apart.
+	/// </para>
+	/// <para>
+	/// The consequences that substitution had here were both silent. On a single-tenant host the ambient value
+	/// is unset, so the timeout was stamped with the reserved untenanted sentinel while every other store in
+	/// the framework stamps the default tenant identity &#8212; a partition nothing else addresses. On a
+	/// multi-tenant host with no scope established it was the same sentinel, so the timeout fired against a
+	/// partition the saga does not live in and the saga never completed. Resolving from the context instead
+	/// yields the default tenant identity on a single-tenant host, the established tenant on a multi-tenant
+	/// one, and refuses outright when a multi-tenant host has established none.
+	/// </para>
 	/// </remarks>
-	private static KeyedTenantPartition AmbientPartition() =>
-		KeyedTenantPartition.FromStoredValue(TenantContextHolder.Current);
+	/// <returns>The partition named by the current tenant context.</returns>
+	private KeyedTenantPartition CurrentPartition() =>
+		KeyedTenantPartition.FromContext(_tenantContext);
 
 	/// <inheritdoc />
 	public async Task ScheduleTimeoutAsync(SagaTimeout timeout, CancellationToken cancellationToken)
@@ -162,7 +201,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// supply it: a scheduled timeout must not be able to claim a tenant its caller never established, and the
 		// ambient tenant is the isolation authority every other store here uses. timeout.TenantId is an
 		// output-of-read on this type and is deliberately ignored on the write.
-		var partition = AmbientPartition();
+		var partition = CurrentPartition();
 
 		var sql = $@"
             INSERT INTO {_options.QualifiedTableName}
@@ -206,7 +245,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 
 		// Addressed by the full ruled saga identity (TenantId, SagaId), not by SagaId alone. Two tenants' sagas
 		// can share a SagaId, so a tenant-less predicate here deletes another tenant's pending timeout.
-		var partition = AmbientPartition();
+		var partition = CurrentPartition();
 		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND SagaId = @SagaId AND TimeoutId = @TimeoutId";
 
 		await using var connection = _connectionFactory();
@@ -233,7 +272,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 
 		// Cancel-all is the most dangerous of the tenant-less predicates: keyed on SagaId alone it deletes EVERY
 		// tenant's timeouts for a shared SagaId, not just the caller's. Scoped to the ruled (TenantId, SagaId).
-		var partition = AmbientPartition();
+		var partition = CurrentPartition();
 		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND SagaId = @SagaId";
 
 		await using var connection = _connectionFactory();
@@ -396,7 +435,7 @@ public sealed partial class SqlServerSagaTimeoutStore : ISagaTimeoutStore
 		// forever. The delivery service establishes each claimed timeout's tenant around BOTH the dispatch and
 		// this call for exactly that reason. A caller that retires a timeout outside its tenant scope is the
 		// failure mode to watch for.
-		var partition = AmbientPartition();
+		var partition = CurrentPartition();
 		var sql = $"DELETE FROM {_options.QualifiedTableName} WHERE TenantId = @TenantId AND TimeoutId = @TimeoutId";
 
 		await using var connection = _connectionFactory();

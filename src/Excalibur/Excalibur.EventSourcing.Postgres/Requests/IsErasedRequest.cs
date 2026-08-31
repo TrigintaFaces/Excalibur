@@ -30,10 +30,10 @@ internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 		// The events table is a KEYED (tenant-columned) store, so an unscoped IsErased must NEVER emit an
 		// empty tenant predicate: doing so would let one tenant's tombstone answer another tenant's erasure
 		// check, making a required GDPR erasure SKIP (logged as already-erased). Route the scope through the
-		// keyed partition: TenantScope.None (or an absent context) becomes the '__untenanted__' sentinel term,
+		// keyed partition: default(TenantScope) (or an absent context) becomes the '__untenanted__' sentinel term,
 		// so the predicate is UNCONDITIONAL and NULL-safe on the column side (a legacy NULL folds to the
 		// sentinel). A bare `= @TenantId` would miss legacy NULL untenanted rows; an empty predicate reads
-		// across tenants — both are the mutants AC-6 forbids.
+		// across tenants — both are the mutants the tenant-isolation arms forbid.
 		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND COALESCE(tenant_id, @UntenantedSentinel) = @TenantId";
 

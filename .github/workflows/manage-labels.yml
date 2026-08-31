@@ -40,7 +40,7 @@ jobs:
               { name: 'ci:netarchtest', color: '5319e7', description: 'Architecture tests violations' },
               { name: 'ci:api-compat', color: '1d76db', description: 'API compatibility issues' },
               { name: 'ci:trim-aot', color: 'fbca04', description: 'Trim/AOT validation issues' },
-              { name: 'ci:r014-boundary', color: 'd93f0b', description: 'Serialization boundary (R0.14) issues' },
+              { name: 'ci:r014-boundary', color: 'd93f0b', description: 'Serialization boundary issues' },
               { name: 'sec:cve', color: 'b60205', description: 'Security CVE findings' }
             ];
             for (const l of labels) {

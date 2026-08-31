@@ -15,8 +15,9 @@ namespace Excalibur.Dispatch.Resilience;
 /// preventing failures in one transport from affecting others.
 /// </para>
 /// <para>
-/// For diagnostic and admin operations (Count, Remove, ResetAll, GetAllStates, GetTransportNames),
-/// use <c>GetService(typeof(ITransportCircuitBreakerDiagnostics))</c>.
+/// Diagnostic and admin operations (Count, Remove, ResetAll, GetAllStates, GetTransportNames) are
+/// kept off this interface so an implementation is not obliged to carry them. Test the registry
+/// instance for <see cref="ITransportCircuitBreakerDiagnostics"/> to reach them.
 /// </para>
 /// </remarks>
 public interface ITransportCircuitBreakerRegistry
@@ -46,7 +47,7 @@ public interface ITransportCircuitBreakerRegistry
 
 /// <summary>
 /// Provides diagnostic and administrative operations for the transport circuit breaker registry.
-/// Access via <c>GetService(typeof(ITransportCircuitBreakerDiagnostics))</c> on the registry instance.
+/// Test an <see cref="ITransportCircuitBreakerRegistry"/> instance for this interface to reach it.
 /// </summary>
 public interface ITransportCircuitBreakerDiagnostics
 {

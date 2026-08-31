@@ -14,8 +14,8 @@ namespace Excalibur.MultiTenancy.Tests;
 /// Real-DI regression lock for bead rw2ull: the SQL Server saga store, resolved through the production
 /// registration path, MUST have the ambient <see cref="ITenantContext"/> threaded into it — that field is
 /// the sole switch that turns row-level tenant isolation on. The store applies its tenant predicate through
-/// <c>TenantScope.FromContext(_tenantContext)</c> on every load/save: a <see langword="null"/> context
-/// yields <c>TenantScope.None</c> (no predicate, no column, no parameter), so tenant B's scoped read sees
+/// <c>CurrentTenantScope</c> on every load/save: a <see langword="null"/> context
+/// yields <c>TenantScope.Untenanted</c> (no predicate, no column, no parameter), so tenant B's scoped read sees
 /// tenant A's saga — a cross-tenant leak — even though the provider still registers the
 /// <see cref="ITenantScopingCapability{TContract}"/> capability marker attesting it is tenant-aware.
 /// </summary>
@@ -75,12 +75,12 @@ public sealed class SagaStoreRealDiTenantIsolationShould
         var sqlStore = store.ShouldBeOfType<SqlServerSagaStore>();
 
         // (isolation active) The resolved provider store must carry the ambient context. Null here means
-        // TenantScope.FromContext(null) == TenantScope.None on every load/save: no row predicate, so a
+        // CurrentTenantScope == TenantScope.Untenanted on every load/save: no row predicate, so a
         // tenant-B read returns tenant-A's saga. The capability marker attests tenant-awareness the wiring
         // never delivered.
         ReadTenantContext(sqlStore).ShouldNotBeNull(
             "SqlServerSagaStore resolved through the builder path (AddSagas().UseSqlServer()) has no "
-            + "ITenantContext wired: row-level tenant isolation is inert (TenantScope.None) and sagas leak "
+            + "ITenantContext wired: row-level tenant isolation is inert (TenantScope.Untenanted) and sagas leak "
             + "across tenants despite the registered ITenantScopingCapability<ISagaStore> attestation.");
     }
 
@@ -106,7 +106,7 @@ public sealed class SagaStoreRealDiTenantIsolationShould
         ReadTenantContext(sqlStore).ShouldNotBeNull(
             "SqlServerSagaStore resolved through the standalone AddSqlServerSagaStore path has no "
             + "ITenantContext wired: the direct registration factory dropped sp.GetService<ITenantContext>(), "
-            + "so row-level tenant isolation is inert (TenantScope.None) and sagas leak across tenants.");
+            + "so row-level tenant isolation is inert (TenantScope.Untenanted) and sagas leak across tenants.");
     }
 
     private static ITenantContext? ReadTenantContext(SqlServerSagaStore store)

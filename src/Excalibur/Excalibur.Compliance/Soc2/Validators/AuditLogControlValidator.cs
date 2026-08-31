@@ -98,12 +98,60 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 
 			var integrityResult = await _auditLogger.VerifyIntegrityAsync(startDate, endDate, cancellationToken).ConfigureAwait(false);
 
+			// Integrity verification has three outcomes and the evidence record must distinguish all three.
+			// A window that contained no audit events establishes nothing about the log; reporting it as
+			// "Passed" would put an unearned assurance in front of an external auditor.
+			//
+			// The pass and failure lines split again on whether the trail was hash-chained, because the
+			// quantity reported is in a different unit in each case and the auditor cannot see the store
+			// setting that decides it. An unchained trail is reported in its own vocabulary rather than
+			// through the chained one: it establishes each record's own content integrity and says nothing
+			// about deletion, insertion or reordering, and "0 compromised chains" would read as evidence
+			// against exactly the tampering that was never tested.
+			var integrityEvidence = integrityResult.Outcome switch
+			{
+				AuditIntegrityOutcome.Verified when integrityResult.IsHashChained =>
+					$"Audit log integrity verification: Passed ({integrityResult.EventsVerified} events verified; "
+					+ "the trail is hash-chained, so deletion, insertion and reordering were tested)",
+
+				AuditIntegrityOutcome.Verified =>
+					$"Audit log integrity verification: Partially exercised. Each of "
+					+ $"{integrityResult.EventsVerified} records verified against its own stored signature, so "
+					+ "record contents were not altered. The trail is NOT hash-chained, so deletion, insertion "
+					+ "and reordering were not tested and this period provides no evidence against them.",
+
+				AuditIntegrityOutcome.ViolationsDetected when integrityResult.IsHashChained =>
+					$"Audit log integrity verification: Failed. {integrityResult.CompromisedChainCount} audit "
+					+ $"chain(s) compromised across {integrityResult.EventsVerified} records verified. The "
+					+ $"earliest altered record is {integrityResult.FirstViolationEventId} "
+					+ $"({integrityResult.ViolationDescription}). Records following a break within a "
+					+ "compromised chain cannot be independently verified, so the number of chains is not the "
+					+ "number of altered records.",
+
+				AuditIntegrityOutcome.ViolationsDetected =>
+					$"Audit log integrity verification: Failed. {integrityResult.CompromisedChainCount} "
+					+ $"record(s) failed content verification across {integrityResult.EventsVerified} records "
+					+ $"verified. The earliest altered record is {integrityResult.FirstViolationEventId} "
+					+ $"({integrityResult.ViolationDescription}). The trail is NOT hash-chained, so deletion, "
+					+ "insertion and reordering were not tested in addition.",
+
+				AuditIntegrityOutcome.NoEventsInScope =>
+					"Audit log integrity verification: Not exercised. No audit events were recorded in the "
+					+ "verification window, so this period provides no evidence of audit log integrity. An "
+					+ "unexpectedly empty window may indicate that audit events are not reaching the store.",
+
+				_ => "Audit log integrity verification: Not interpretable. The verification returned an "
+					+ "unrecognized outcome and no conclusion about audit log integrity follows from it."
+			};
+
 			evidence.Add(CreateEvidence(
 				EvidenceType.TestResult,
-				$"Audit log integrity verification: {(integrityResult.IsValid ? "Passed" : "Failed")}",
+				integrityEvidence,
 				nameof(AuditLogControlValidator)));
 
-			if (!integrityResult.IsValid)
+			// Only a detected violation is a control failure. An unexercised window is reported honestly
+			// above but is not itself evidence that the control is broken.
+			if (integrityResult.Outcome == AuditIntegrityOutcome.ViolationsDetected)
 			{
 				issues.Add($"Audit log integrity check failed: {integrityResult.ViolationDescription}");
 			}

@@ -139,7 +139,7 @@ public sealed class ValueHistogram : IMetric
 				return 0;
 			}
 
-			// AD-251-4: Avoid ToList() allocation - sort in-place with array copy
+			// Avoid ToList() allocation - sort in-place with array copy
 			var sortedValues = _values.ToArray();
 			Array.Sort(sortedValues);
 			var index = (int)Math.Ceiling(percentile / 100 * sortedValues.Length) - 1;
@@ -168,7 +168,7 @@ public sealed class ValueHistogram : IMetric
 	/// </summary>
 	public HistogramSnapshot GetSnapshot()
 	{
-		// AD-251-4: Single lock acquisition - avoid re-entrant locking from GetPercentile() calls
+		// Single lock acquisition - avoid re-entrant locking from GetPercentile() calls
 		lock (_lock)
 		{
 			return new HistogramSnapshot
@@ -196,7 +196,7 @@ public sealed class ValueHistogram : IMetric
 			return 0;
 		}
 
-		// AD-251-4: Avoid ToList() allocation - sort in-place with array copy
+		// Avoid ToList() allocation - sort in-place with array copy
 		var sortedValues = _values.ToArray();
 		Array.Sort(sortedValues);
 		var index = (int)Math.Ceiling(percentile / 100 * sortedValues.Length) - 1;

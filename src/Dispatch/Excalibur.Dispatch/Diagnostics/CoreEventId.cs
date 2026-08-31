@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// <item>10900-10999: Threading/Background Tasks</item>
 /// </list>
 /// </remarks>
-public static class CoreEventId
+internal static class CoreEventId
 {
 	// ========================================
 	// 10000-10099: Dispatcher Infrastructure

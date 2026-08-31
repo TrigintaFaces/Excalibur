@@ -7,11 +7,19 @@ namespace Excalibur.Dispatch.Resilience;
 /// A no-op implementation of <see cref="ICircuitBreakerPolicy"/> that passes all operations through.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This implementation follows the Null Object pattern to provide a safe default when
 /// circuit breaker functionality is not configured or not needed. The circuit is always
 /// closed and all operations pass through without protection.
+/// </para>
+/// <para>
+/// It deliberately does NOT implement <see cref="ICircuitBreakerDiagnostics"/>. It counts nothing, so
+/// reporting a failure count would hand a dashboard or an operator a fabricated healthy-looking constant
+/// from a component that measures nothing. Absence of the interface is how a caller learns, through the
+/// contract, that no breaker is installed — as distinct from a breaker that is installed and closed.
+/// </para>
 /// </remarks>
-internal sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
+internal sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerEvents
 {
 	private NullCircuitBreakerPolicy()
 	{
@@ -33,16 +41,6 @@ internal sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuit
 
 	/// <inheritdoc />
 	public CircuitState State => CircuitState.Closed;
-
-	/// <summary>
-	/// Gets the number of consecutive failures. Always returns 0.
-	/// </summary>
-	public int ConsecutiveFailures => 0;
-
-	/// <summary>
-	/// Gets the timestamp when the circuit was last opened. Always returns null.
-	/// </summary>
-	public DateTimeOffset? LastOpenedAt => null;
 
 	/// <inheritdoc />
 	public async Task<TResult> ExecuteAsync<TResult>(

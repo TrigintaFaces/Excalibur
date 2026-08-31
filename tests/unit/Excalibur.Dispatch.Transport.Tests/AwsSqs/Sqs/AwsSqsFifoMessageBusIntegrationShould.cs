@@ -210,7 +210,7 @@ public sealed class AwsSqsFifoMessageBusIntegrationShould : IClassFixture<AwsSqs
 		var serializer = A.Fake<IPayloadSerializer>();
 		A.CallTo(() => serializer.SerializeObject(A<object>._, A<Type>._)).Returns([1, 2, 3]);
 
-		var options = new AwsSqsOptions { QueueUrl = new Uri(queueUrl), UseFifoQueue = true };
+		var options = new AwsSqsOptions { QueueUrl = new Uri(queueUrl) };
 
 		var fifoOptions = new AwsSqsFifoOptions
 		{

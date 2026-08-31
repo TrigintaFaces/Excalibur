@@ -18,7 +18,9 @@ namespace Excalibur.Inbox.ElasticSearch;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses ES document ID = {messageId}_{handlerType} for atomic idempotent writes via OpType.Create.
+/// Uses an ES document ID composed from the tenant, message id, and handler type for atomic
+/// idempotent writes via OpType.Create. The composition is injective, so distinct entries can never
+/// share a document and be mistaken for duplicates of each other.
 /// Payloads are stored as Base64-encoded strings.
 /// </para>
 /// </remarks>
@@ -38,7 +40,15 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchInboxOptions _options;
 	private readonly ILogger<ElasticsearchInboxStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticsearchInboxStore"/> class.
@@ -47,18 +57,20 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	/// <param name="options">The inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. An absent context
-	/// resolves to the reserved untenanted term, so the document id has the same shape either way.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public ElasticsearchInboxStore(
 		ElasticsearchClient client,
 		IOptions<ElasticsearchInboxOptions> options,
 		ILogger<ElasticsearchInboxStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -149,6 +161,13 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
 			?? throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+
+		// Processed is absorbing: refuse rather than demote a finalized entry back to Processing, which
+		// would re-admit the message and run the handler again.
+		if (existing.Status == (int)InboxStatus.Processed)
+		{
+			return;
+		}
 
 		existing.Status = (int)InboxStatus.Processing;
 		existing.LastAttemptAt = DateTimeOffset.UtcNow;
@@ -341,6 +360,13 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 			?? throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
+		// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would
+		// make it re-admittable and run the handler again.
+		if (existing.Status == (int)InboxStatus.Processed)
+		{
+			return;
+		}
+
 		existing.Status = (int)InboxStatus.Failed;
 		existing.LastError = errorMessage;
 		existing.RetryCount++;
@@ -364,11 +390,18 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 			?? throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
+		// Processed is absorbing: refuse rather than demote a finalized entry to Failed, which would
+		// make it re-admittable and run the handler again.
+		if (existing.Status == (int)InboxStatus.Processed)
+		{
+			return;
+		}
+
 		existing.Status = (int)InboxStatus.Failed;
 		existing.LastError = errorMessage;
 
 		// Set the retry count EXACTLY (no increment) so a transient short-circuit leaves the entry
-		// re-admittable without consuming a delivery attempt (FR-4).
+		// re-admittable without consuming a delivery attempt.
 		existing.RetryCount = retryCount;
 		existing.LastAttemptAt = DateTimeOffset.UtcNow;
 
@@ -377,7 +410,7 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
@@ -410,7 +443,7 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
 		var response = await _client.SearchAsync<ElasticsearchInboxDocument>(s => s
 			.Index(_options.IndexName)
@@ -427,7 +460,7 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public async ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
 		// Compute statistics with server-side counts rather than materializing up to 10k documents
 		// into memory and aggregating client-side.
@@ -461,13 +494,13 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
 		// Strictly older-than cutoff: only entries PROCESSED before `olderThan` are deleted. An entry
-		// processed exactly at `olderThan` is retained (EC-5). Previously this issued a MatchAll query
-		// that deleted every inbox document regardless of age (FR-4 data-loss bug).
+		// processed exactly at `olderThan` is retained. Previously this issued a MatchAll query
+		// that deleted every inbox document regardless of age, which was a data-loss bug.
 		//
 		// Two further conditions, both load-bearing, both previously absent:
 		//
@@ -516,7 +549,33 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	/// </para>
 	/// </remarks>
 	private string GetDocumentId(string messageId, string handlerType) =>
-		$"{KeyedTenantPartition.FromContext(_tenantContext).TenantId}_{messageId}_{handlerType}";
+		ComposeDocumentId(CurrentTenantPartition.TenantId, messageId, handlerType);
+
+	/// <summary>
+	/// The store's document-id contract, expressed as a pure function of its three terms so it can be
+	/// exercised directly. It delegates to the shared injective composition: putting the tenant term in
+	/// the id is only sound if the composition is unambiguous, and joining on a separator the terms may
+	/// themselves contain is not — distinct entries render one id and the later message is dropped as a
+	/// duplicate that never existed.
+	/// </summary>
+	/// <param name="tenantId">The tenant term the entry belongs to.</param>
+	/// <param name="messageId">The message identifier being deduplicated.</param>
+	/// <param name="handlerType">The handler the message is being deduplicated for.</param>
+	/// <returns>The document id for the entry.</returns>
+	internal static string ComposeDocumentId(string tenantId, string messageId, string handlerType)
+	{
+		var documentId = InboxDocumentKey.Compose(tenantId, messageId, handlerType);
+		InboxDocumentKey.ThrowIfExceedsIdLimit(documentId, MaxDocumentIdUtf8Bytes, "Elasticsearch");
+		return documentId;
+	}
+
+	/// <summary>
+	/// Elasticsearch refuses a document <c>_id</c> longer than 512 bytes. The limit is checked when the id
+	/// is composed rather than left to the server, so the failure names the cause instead of arriving as a
+	/// generic rejection on the write path — and so it surfaces identically on the read path, where a
+	/// server-side limit would not have been consulted at all.
+	/// </summary>
+	private const int MaxDocumentIdUtf8Bytes = 512;
 
 	private Refresh GetRefresh() =>
 		_options.RefreshPolicy == "true" ? Refresh.True

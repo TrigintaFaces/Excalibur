@@ -47,16 +47,31 @@ public static class InboxServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an inbox store.
+		// fail loud at host start if the consumer forgot to pick an inbox store.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, InboxPrerequisiteValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, InboxPrerequisiteValidator>());
 
 		var builder = new InboxBuilder(services);
 		configure(builder);
 
 		// Non-keyed IInboxStore convenience alias: forwards to keyed "default" so consumers
 		// can inject IInboxStore directly without [FromKeyedServices("default")].
-		services.TryAddSingleton<IInboxStore>(sp =>
-			sp.GetRequiredKeyedService<IInboxStore>("default"));
+		//
+		// Registered through AddKeyedDefaultAlias so the descriptor is marked as a forwarder. The builder
+		// above may have registered no store at all, which leaves an IInboxStore descriptor promising a
+		// contract nothing provides; marking it keeps a registration-time gate (the fail-closed
+		// multi-tenancy capability gate) from reading that promise as a registered store and demanding a
+		// tenant capability of it.
+		_ = services.AddKeyedDefaultAlias<IInboxStore>();
+
+		// Non-keyed IInboxStoreAdmin convenience alias. Unlike IInboxStore, no provider keys a store
+		// separately under IInboxStoreAdmin -- every first-party provider implements both interfaces on
+		// the same class -- so AddKeyedDefaultAlias (which forwards to a keyed registration of the SAME
+		// contract) cannot supply this one. Fall back to casting the keyed "default" IInboxStore, the
+		// same pattern Excalibur.Outbox already uses for the non-keyed IOutboxStoreAdmin alias.
+		services.TryAddSingleton<IInboxStoreAdmin>(sp =>
+			sp.GetKeyedService<IInboxStoreAdmin>("default")
+			?? (IInboxStoreAdmin)sp.GetRequiredKeyedService<IInboxStore>("default"));
 
 		return services;
 	}

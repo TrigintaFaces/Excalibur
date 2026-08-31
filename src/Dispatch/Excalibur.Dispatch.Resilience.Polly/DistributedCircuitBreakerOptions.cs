@@ -56,10 +56,4 @@ public sealed class DistributedCircuitBreakerOptions
 	/// </summary>
 	/// <value>The interval at which distributed circuit breaker state is synchronized.</value>
 	public TimeSpan SyncInterval { get; set; } = TimeSpan.FromSeconds(5);
-
-	/// <summary>
-	/// Gets or sets how long to retain metrics in cache.
-	/// </summary>
-	/// <value>The duration for which metrics are retained in the cache.</value>
-	public TimeSpan MetricsRetention { get; set; } = TimeSpan.FromMinutes(10);
 }

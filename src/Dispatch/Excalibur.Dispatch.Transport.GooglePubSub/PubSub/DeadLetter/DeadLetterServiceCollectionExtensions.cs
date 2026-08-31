@@ -36,8 +36,6 @@ public static class DeadLetterServiceCollectionExtensions
 			.Configure(options => configure?.Invoke(options))
 			.ValidateOnStart();
 
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<DeadLetterOptions>, DeadLetterOptionsValidator>());
 
 		// Register core services -- shared Transport.Abstractions interface (keyed by transport name)
 		services.TryAddSingleton<PubSubDeadLetterQueueManager>();

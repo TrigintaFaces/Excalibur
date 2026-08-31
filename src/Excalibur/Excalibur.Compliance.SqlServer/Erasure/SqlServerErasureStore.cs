@@ -28,13 +28,24 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 /// <item>7-year certificate retention for regulatory compliance</item>
 /// </list>
 /// </remarks>
-public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore, IDisposable
+public sealed partial class SqlServerErasureStore
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureSchemaValidator, IDisposable
 {
 	private readonly SqlServerErasureStoreOptions _options;
 	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<SqlServerErasureStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant scope this store runs under, resolved in one place so every statement it builds binds
+	/// the same term. When the deployment is not multi-tenant the store
+	/// deliberately emits no tenant predicate. That decision is stated here
+	/// and nowhere else: a conversion cannot make it on the store's behalf without inventing a tenant
+	/// decision the host never made.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly bool _requireTenant;
 	private volatile bool _disposed;
 	private volatile bool _initialized;
@@ -54,7 +65,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	/// </para>
 	/// <para>
 	/// Deployment mode decides the shape. A deployment that has not opted into multi-tenancy resolves
-	/// <see cref="TenantScope.None"/>: no predicate, no bound parameter, and rows keep whatever tenant
+	/// no predicate and no bound parameter, and rows keep whatever tenant
 	/// value the caller supplied — byte-identical to the single-tenant behaviour, so no stored row becomes
 	/// unreachable. A multi-tenant deployment resolves a scoped term that rides every tenant-facing path.
 	/// Mode is "did the consumer opt in", read from <see cref="TenantContextOptions.RequireTenant"/>, and
@@ -64,7 +75,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	/// <para>
 	/// Multi-tenancy active with no resolved tenant fails closed: it throws rather than reaching a
 	/// predicate-less statement. A missing context is the same failure and is stated as such, because
-	/// degrading it to <see cref="TenantScope.None"/> would emit no predicate at all — the exact
+	/// degrading it to an unscoped read would emit no predicate at all — the exact
 	/// cross-tenant read this property exists to remove.
 	/// </para>
 	/// </remarks>
@@ -77,33 +88,11 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		{
 			if (!_requireTenant)
 			{
-				return TenantScope.None;
+				return TenantScope.Untenanted;
 			}
 
-			return _tenantContext is null
-				? throw new TenantRequiredException()
-				: TenantScope.FromContext(_tenantContext);
+			return CurrentTenantScope;
 		}
-	}
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="SqlServerErasureStore"/> class without an ambient tenant
-	/// context — the single-tenant deployment shape.
-	/// </summary>
-	/// <param name="options">The configuration options.</param>
-	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
-	/// <param name="logger">The logger instance.</param>
-	/// <remarks>
-	/// Equivalent to supplying no tenant context and no tenant options: the store resolves
-	/// <see cref="TenantScope.None"/> and emits no tenant predicate. A multi-tenant host must use the
-	/// tenant-aware overload, which the tenant-scoped registration seam calls on its behalf.
-	/// </remarks>
-	public SqlServerErasureStore(
-		IOptions<SqlServerErasureStoreOptions> options,
-		IDataSubjectHasher dataSubjectHasher,
-		ILogger<SqlServerErasureStore> logger)
-		: this(options, dataSubjectHasher, logger, tenantContext: null, tenantContextOptions: null)
-	{
 	}
 
 	/// <summary>
@@ -121,20 +110,25 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	/// </param>
 	/// <param name="tenantContextOptions">
 	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
-	/// <c>AddMultiTenancy()</c>) selects the deployment mode.
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode. Required: it used to be nullable and fold a
+	/// missing value onto single-tenant, so omitting the registration silently selected the mode that
+	/// applies no tenant predicate - a decision nobody made, taken by default, on the path that decides
+	/// isolation. The registration extensions call <c>AddDefaultTenantContext()</c> first, so the value
+	/// always resolves; a host that reaches this constructor without one is misconfigured and says so.
 	/// </param>
 	public SqlServerErasureStore(
 		IOptions<SqlServerErasureStoreOptions> options,
 		IDataSubjectHasher dataSubjectHasher,
 		ILogger<SqlServerErasureStore> logger,
-		ITenantContext? tenantContext,
-		IOptions<TenantContextOptions>? tenantContextOptions)
+		ITenantContext tenantContext,
+		IOptions<TenantContextOptions> tenantContextOptions)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_tenantContext = tenantContext;
-		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
+		_requireTenant = (tenantContextOptions ?? throw new ArgumentNullException(nameof(tenantContextOptions)))
+			.Value.RequireTenant;
 
 		_options.Validate();
 
@@ -172,12 +166,15 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+		try
+		{
+			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
 		{
 			request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
-			TenantId = tenant.IsScoped ? tenant.TenantId : request.TenantId,
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
 			Scope = (int)request.Scope,
 			LegalBasis = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -193,6 +190,22 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 			CreatedAt = now,
 			UpdatedAt = now
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
+		{
+			// This method inserts; it does not upsert. A caller that re-files an existing request id is
+			// making a mistake, and the raw provider type is the wrong way to tell them: it forces every
+			// consumer to reference the SQL Server client and to know its error numbers just to handle a
+			// condition the abstraction already defines. The filter is narrow on purpose - only a
+			// duplicate-key violation is translated, so a connection failure, a timeout or a constraint we
+			// did not anticipate still surfaces unchanged rather than being reported as a duplicate.
+			//
+			// The type is specific for the same reason the filter is narrow. InvalidOperationException is
+			// also what an unprovisioned schema and an unresolved tenant would surface as, so a caller
+			// branching on the base type would read those as "already on file" and never re-file a request
+			// that was never stored.
+			throw DuplicateErasureRequestException.ForRequestId(request.RequestId, ex);
+		}
 
 		LogSavedRequest(request.RequestId, scheduledExecutionTime);
 	}
@@ -205,7 +218,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasis,
@@ -235,7 +248,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -266,7 +279,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -281,7 +294,12 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql,
+		// The affected count is the whole check, which is why it is no longer discarded. An UPDATE that
+		// matches nothing is a perfectly successful statement, so throwing the result away turned
+		// "there is no such request" into "recorded". This surface produces the evidence a consumer hands
+		// to an auditor: a completion recorded against a request that does not exist attests to erasing
+		// something nobody asked to erase, and nothing anywhere reports it.
+		var affected = await connection.ExecuteAsync(new CommandDefinition(sql,
 			new
 			{
 				RequestId = requestId,
@@ -292,6 +310,12 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 				Now = DateTimeOffset.UtcNow,
 				AmbientTenantId = tenant.TenantId
 			}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			throw new KeyNotFoundException(
+				$"No erasure request with id '{requestId}' exists, so its completion cannot be recorded.");
+		}
 	}
 
 	/// <inheritdoc />
@@ -304,7 +328,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
@@ -395,7 +419,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		// and omitting the argument no longer removes the predicate. Widening is not expressible here — it
 		// would take changing this AND to an OR.
 		var tenant = AmbientScope;
-		if (tenant.IsScoped)
+		if (_requireTenant)
 		{
 			whereClauses.Add("TenantId = @AmbientTenantId");
 			parameters.Add("AmbientTenantId", tenant.TenantId);
@@ -471,7 +495,9 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+		try
+		{
+			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
 		{
 			certificate.CertificateId,
 			certificate.RequestId,
@@ -490,6 +516,14 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 			certificate.RetainUntil,
 			CreatedAt = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
+		{
+			// A certificate is the attestation itself, so silently replacing one would rewrite evidence
+			// that has already been issued. Same narrow filter, and same specific type, as the request
+			// insert.
+			throw DuplicateErasureCertificateException.ForCertificateId(certificate.CertificateId, ex);
+		}
 
 		LogSavedCertificate(certificate.CertificateId, certificate.RequestId);
 	}
@@ -505,7 +539,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		// certifies, so its tenant is that request's. Scoping through the request is what keeps the join and
 		// the row in agreement — adding a second tenant column would let the two disagree.
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped
+		var tenantPredicate = _requireTenant
 			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
 				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
 			: string.Empty;
@@ -535,7 +569,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 
 		// Scoped through the certified request, for the same reason as the by-request lookup above.
 		var tenant = AmbientScope;
-		var tenantPredicate = tenant.IsScoped
+		var tenantPredicate = _requireTenant
 			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
 				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
 			: string.Empty;
@@ -627,6 +661,18 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	[LoggerMessage(LogLevel.Debug, "Ensured SQL Server erasure schema and tables exist")]
 	private partial void LogSchemaEnsured();
 
+	/// <inheritdoc />
+	/// <remarks>
+	/// Provisioning is settled here, once, at host startup — not on the path of every write. A store that
+	/// verified its schema inside <c>SaveRequestAsync</c> reports a deployment fault as a failure of that
+	/// one erasure request, at the moment a data subject's request is being filed. Running it here means a
+	/// mis-provisioned deployment fails to start instead, and by the time any write executes the check is
+	/// already satisfied. The first-use call that remains on each operation is the fail-closed floor for
+	/// consumers that never run the hosted service.
+	/// </remarks>
+	public async ValueTask ValidateSchemaAsync(CancellationToken cancellationToken)
+		=> await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
 	/// <summary>
 	/// Provisions the schema once, however many callers arrive together.
 	/// </summary>
@@ -704,32 +750,106 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
 	/// provider error far from its cause. This method is the verification half of that guarantee.
 	/// </remarks>
-	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	/// <exception cref="ErasureStoreNotProvisionedException">
+	/// A required table is absent, or is present but missing columns this store's statements bind.
+	/// Deliberately outside the <see cref="InvalidOperationException"/> hierarchy: that is the hierarchy a
+	/// duplicate request identifier uses, and a caller cannot be left unable to tell "this request is
+	/// already on file" from "this database was never provisioned".
+	/// </exception>
 	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
 	{
-		const string ExistsSql = "SELECT CASE WHEN OBJECT_ID(@TableName, 'U') IS NULL THEN 0 ELSE 1 END";
+		// Reading the COLUMN catalogue rather than the table catalogue is the whole point of this method.
+		// A probe that asks only whether the table exists reports healthy on precisely the database that is
+		// broken: one provisioned before a column was added, where the table is present and the wrong shape.
+		// The consumer then gets a dead store plus a check that told them it was fine, and the real failure
+		// arrives later as a raw "Invalid column name" far from its cause. Automatic schema creation does not
+		// repair that database either -- it only creates tables that are absent.
+		const string ColumnsSql =
+			"SELECT c.name FROM sys.columns c WHERE c.object_id = OBJECT_ID(@TableName, 'U')";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		foreach (var tableName in new[] { _options.FullRequestsTableName, _options.FullCertificatesTableName })
+		foreach (var (tableName, requiredColumns) in RequiredSchema)
 		{
-			var exists = await connection.ExecuteScalarAsync<bool>(
+			var actualColumns = (await connection.QueryAsync<string>(
 				new CommandDefinition(
-					ExistsSql,
+					ColumnsSql,
 					new { TableName = tableName },
 					cancellationToken: cancellationToken,
-					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false)).ToList();
 
-			if (!exists)
+			// No columns at all means no such table: sys.columns joins on OBJECT_ID, which is NULL for a
+			// table that does not exist, so the same query answers both questions and they stay in step.
+			if (actualColumns.Count == 0)
 			{
-				throw new InvalidOperationException(
+				throw new ErasureStoreNotProvisionedException(
 					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
 					$"Either create the schema out of band, or set {nameof(SqlServerErasureStoreOptions)}."
-					+ $"{nameof(SqlServerErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+					+ $"{nameof(SqlServerErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.")
+				{
+					TableName = tableName,
+				};
+			}
+
+			// Named, not counted. An operator reading this at startup needs to know WHICH columns are absent
+			// to choose the migration; "the schema is stale" sends them to diff it by hand.
+			var missing = requiredColumns
+				.Where(required => !actualColumns.Contains(required, StringComparer.OrdinalIgnoreCase))
+				.ToList();
+
+			if (missing.Count > 0)
+			{
+				throw new ErasureStoreNotProvisionedException(
+					$"Table '{tableName}' exists but is missing {missing.Count} column(s) that this store's "
+					+ $"statements bind: {string.Join(", ", missing)}. This is a schema provisioned before those "
+					+ "columns were introduced. Enabling automatic schema creation will NOT repair it, because "
+					+ "that path only creates tables that are absent. Run the shipped migration scripts against "
+					+ "this database, then restart.")
+				{
+					TableName = tableName,
+				};
 			}
 		}
 	}
+
+	/// <summary>
+	/// Gets the columns every statement this store issues binds, per table.
+	/// </summary>
+	/// <remarks>
+	/// The request columns are the union of the INSERT and the several UPDATE paths, not the INSERT alone.
+	/// A request is created with a subset and then mutated through execution, completion and cancellation,
+	/// so the columns only an UPDATE names -- the outcome and cancellation fields -- are exactly the ones a
+	/// schema predating those features would lack, and the ones whose absence would otherwise surface at the
+	/// end of an erasure rather than at startup.
+	/// </remarks>
+	private IEnumerable<(string TableName, string[] RequiredColumns)> RequiredSchema =>
+	[
+		(_options.FullRequestsTableName,
+		[
+			"RequestId", "DataSubjectIdHash", "IdType", "TenantId", "Scope", "LegalBasis",
+			"ExternalReference", "RequestedBy", "RequestedAt", "ScheduledExecutionAt",
+			"ExecutedAt", "CompletedAt", "CancelledAt", "CancellationReason", "CancelledBy",
+			"Status", "KeysDeleted", "RecordsAffected", "CertificateId", "ErrorMessage",
+			"DataCategories", "CreatedAt", "UpdatedAt",
+		]),
+		(_options.FullCertificatesTableName,
+		[
+			"CertificateId", "RequestId", "DataSubjectReference", "RequestReceivedAt", "CompletedAt",
+			"Method", "Summary", "Verification", "LegalBasis", "Signature", "RetainUntil", "CreatedAt",
+		]),
+	];
+
+	/// <summary>
+	/// Indicates whether a SQL Server error is a primary-key or unique-index violation (2627 / 2601).
+	/// </summary>
+	/// <remarks>
+	/// Used as an exception filter so only this one condition is translated. A broad catch would report
+	/// an unrelated failure - a dropped connection, a timeout, a check constraint - as a duplicate, which
+	/// is worse than not translating at all: the caller would be told the row exists when it does not.
+	/// </remarks>
+	private static bool IsDuplicateKeyViolation(SqlException ex)
+		=> ex.Number is 2627 or 2601;
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
 	{
@@ -748,7 +868,8 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 					RequestId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
 					DataSubjectIdHash NVARCHAR(128) NOT NULL,
 					IdType INT NOT NULL,
-					TenantId NVARCHAR(256) NULL,
+					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+						CONSTRAINT DF_{_options.RequestsTableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
 					Scope INT NOT NULL,
 					LegalBasis INT NOT NULL,
 					ExternalReference NVARCHAR(256) NULL,

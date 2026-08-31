@@ -35,26 +35,15 @@ internal sealed class SchemaRegistrySslBuilder : ISchemaRegistrySslBuilder
 	}
 
 	/// <inheritdoc/>
-	public ISchemaRegistrySslBuilder ClientCertificateLocation(string path)
+	public ISchemaRegistrySslBuilder ClientKeystore(string path, string password)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(path);
-		_options.Ssl.SslCertificateLocation = path;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ISchemaRegistrySslBuilder ClientKeyLocation(string path)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(path);
-		_options.Ssl.SslKeyLocation = path;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ISchemaRegistrySslBuilder ClientKeyPassword(string password)
-	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(password);
-		_options.Ssl.SslKeyPassword = password;
+
+		// Both together, deliberately: a keystore path with no password cannot be opened, so accepting one
+		// without the other would store a credential that can never be presented.
+		_options.Ssl.SslKeystoreLocation = path;
+		_options.Ssl.SslKeystorePassword = password;
 		return this;
 	}
 }

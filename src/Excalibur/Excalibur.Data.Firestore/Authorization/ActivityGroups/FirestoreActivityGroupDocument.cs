@@ -14,17 +14,12 @@ namespace Excalibur.Data.Firestore.Authorization;
 /// {tenantId}_{userId}_{grantType}_{qualifier}
 /// </para>
 /// <para>
-/// Null tenant IDs use "__null__" as a sentinel value to maintain
-/// document ID consistency and enable querying.
+/// A grant always carries a tenant, so the tenant identifier appears verbatim in the
+/// document ID and in the stored field.
 /// </para>
 /// </remarks>
 internal static class FirestoreActivityGroupDocument
 {
-	/// <summary>
-	/// The value used for null tenant IDs in document IDs.
-	/// </summary>
-	internal const string NullTenantSentinel = "__null__";
-
 	// Field names
 	private const string TenantIdField = "tenant_id";
 
@@ -65,11 +60,27 @@ internal static class FirestoreActivityGroupDocument
 	/// <param name="grantType">The grant type.</param>
 	/// <param name="qualifier">The qualifier.</param>
 	/// <returns>The document ID.</returns>
-	public static string CreateDocumentId(string? tenantId, string userId, string grantType, string qualifier)
-	{
-		var tenant = string.IsNullOrEmpty(tenantId) ? NullTenantSentinel : tenantId;
-		return $"{tenant}_{userId}_{grantType}_{qualifier}";
-	}
+	/// <remarks>
+	/// <para>
+	/// Every term is escaped before the join, so two distinct activity-group grants can never address one document. All four
+	/// terms accept "_" as an ordinary character -- tenant slugs, user ids, grant types and qualifiers
+	/// routinely contain it -- so joining them raw made ("a", "b_c") and ("a_b", "c") the same id, and the
+	/// record written second silently replaced a different record written first.
+	/// </para>
+	/// <para>
+	/// The constant "ag" term leads the id because Firestore rejects a document id matching
+	/// <c>__.*__</c>. The reserved untenanted tenant term is <c>__untenanted__</c>, so without a leading
+	/// constant every id in a deployment that does not use multi-tenancy starts with <c>__</c>, and a
+	/// qualifier ending in <c>__</c> completes the pattern and fails the write.
+	/// </para>
+	/// </remarks>
+	public static string CreateDocumentId(string tenantId, string userId, string grantType, string qualifier) =>
+		FirestoreDocumentId.Compose(IdPrefix, tenantId, userId, grantType, qualifier);
+
+	/// <summary>
+	/// The constant leading term of every activity-group grants document id.
+	/// </summary>
+	internal const string IdPrefix = "ag";
 
 	/// <summary>
 	/// Converts activity group data to a Firestore document data dictionary.
@@ -87,7 +98,7 @@ internal static class FirestoreActivityGroupDocument
 	public static Dictionary<string, object> ToDocumentData(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,
@@ -97,7 +108,7 @@ internal static class FirestoreActivityGroupDocument
 	{
 		var data = new Dictionary<string, object>
 		{
-			[TenantIdField] = tenantId ?? NullTenantSentinel,
+			[TenantIdField] = tenantId,
 			[UserIdField] = userId,
 			[FullNameField] = fullName,
 			[GrantTypeField] = grantType,

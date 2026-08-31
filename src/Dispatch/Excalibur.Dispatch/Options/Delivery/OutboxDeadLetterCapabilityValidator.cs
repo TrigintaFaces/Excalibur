@@ -21,8 +21,9 @@ namespace Excalibur.Dispatch.Options.Delivery;
 /// outbox registered with a store that cannot terminalize fails fast at startup.
 /// </para>
 /// <para>
-/// All shipped Excalibur outbox stores implement <see cref="IDeadLetterableOutboxStore"/>, so this guard only
-/// fires for a custom store that omits the capability.
+/// The capability is per-store, not universal. Most shipped polling stores implement
+/// <see cref="IDeadLetterableOutboxStore"/>, but some shipped stores do not, so this guard fires for those as
+/// well as for a custom store that omits it. Check the store's own documentation rather than assuming.
 /// </para>
 /// </remarks>
 internal sealed class OutboxDeadLetterCapabilityValidator : IValidateOptions<OutboxDeliveryOptions>
@@ -51,7 +52,8 @@ internal sealed class OutboxDeadLetterCapabilityValidator : IValidateOptions<Out
 			$"'{nameof(IDeadLetterableOutboxStore)}'. The polling outbox transitions a retry-exhausted message to the " +
 			"terminal DeadLettered status so it is never re-claimed; without the capability the message would stay " +
 			"Failed, be re-claimed after its lease expires, and be re-delivered and re-dead-lettered indefinitely. " +
-			"Register an outbox store that supports terminal dead-lettering (all shipped Excalibur outbox stores do), " +
-			"or implement IDeadLetterableOutboxStore on your custom outbox store.");
+			"Register an outbox store that supports terminal dead-lettering, or implement IDeadLetterableOutboxStore " +
+			"on your custom outbox store. Not every store provides the capability, so this is not necessarily a " +
+			"misconfiguration on your side: check whether the store you chose documents terminal dead-lettering.");
 	}
 }

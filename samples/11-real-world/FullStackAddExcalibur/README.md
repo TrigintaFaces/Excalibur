@@ -239,7 +239,7 @@ FullStackAddExcalibur/
 - `11-real-world/MultiTenantEventSourcing/` -- tenant-scoped ES + sharding
 - `09-advanced/persistence-patterns/CloudStorageSnapshots/` -- S3/Blob/GCS cold store
 
-## Related ADRs
+## Background
 
-- `management/architecture/adr-107-hosting-consolidation.md`
-- `management/architecture/adr-108-net10-multi-targeting.md`
+This sample follows the two-tier hosting composition model and the multi-targeting layout
+used across the framework's hosting packages.

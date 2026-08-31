@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable IL2026, IL3050 // AOT: Configuration binding uses reflection
-
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Jobs.Core;
 using Excalibur.Jobs.Diagnostics;
@@ -142,7 +140,9 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026, IL3050 // GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable
 		var jobConfig = configuration.GetJobConfiguration<CdcJobOptions>(JobConfigSectionName);
+#pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		// A Disabled job is never registered with the scheduler, so no trigger ever fires.
@@ -169,14 +169,17 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026, IL3050 // GetJobConfiguration binds via IConfiguration.Get<T>(); narrowed from a file-wide disable
 		var jobConfig = configuration.GetJobConfiguration<CdcJobOptions>(JobConfigSectionName);
+#pragma warning restore IL2026, IL3050
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",
 			sp => new JobHealthCheck(
 				jobConfig.JobName,
 				jobConfig,
-				sp.GetRequiredService<JobHeartbeatTracker>()),
+				sp.GetRequiredService<JobHeartbeatTracker>(),
+				sp.GetService<TimeProvider>()),
 			failureStatus: null,
 			tags: null));
 	}
@@ -239,12 +242,15 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		}
 
 		var cdcConnection = _connectionFactory(dbConfig.DatabaseConnectionIdentifier);
-		var storeConnection = _connectionFactory(dbConfig.StateConnectionIdentifier);
 
 		// CdcRepository wraps the CDC connection and owns its disposal.
 		// The factory expects a CdcRepository, not a raw SqlConnection.
 		var cdcRepository = new CdcRepository(cdcConnection);
-		var processor = _factory.Create(dbConfig, cdcRepository, storeConnection);
+
+		// The state store opens a connection per operation, so it takes the factory rather than one
+		// connection: overlapping checkpoint writes must not share a single connection.
+		var stateConnectionIdentifier = dbConfig.StateConnectionIdentifier;
+		var processor = _factory.Create(dbConfig, cdcRepository, () => _connectionFactory(stateConnectionIdentifier));
 
 		try
 		{
@@ -262,7 +268,8 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 			await processor.DisposeAsync().ConfigureAwait(false);
 			// CdcRepository.DisposeAsync disposes the underlying cdcConnection
 			await cdcRepository.DisposeAsync().ConfigureAwait(false);
-			await storeConnection.DisposeAsync().ConfigureAwait(false);
+
+			// No state-store connection to dispose: the store opens and disposes one per operation.
 		}
 	}
 

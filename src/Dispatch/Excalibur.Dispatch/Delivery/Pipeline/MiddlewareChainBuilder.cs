@@ -256,10 +256,6 @@ internal sealed class MiddlewareChainBuilder
 	/// <summary>
 	/// Creates a chain executor for a specific message type.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2067:Target method's parameter does not satisfy 'DynamicallyAccessedMembersAttribute'",
-		Justification = "Message type is used only for dictionary key and message kind determination, not for reflection.")]
 	private ChainExecutor CreateChainExecutor(Type messageType)
 	{
 		var applicableMiddleware = GetApplicableMiddleware(messageType);
@@ -269,10 +265,6 @@ internal sealed class MiddlewareChainBuilder
 	/// <summary>
 	/// Creates a chain executor for a specific message type and explicit pipeline signature key.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2067:Target method's parameter does not satisfy 'DynamicallyAccessedMembersAttribute'",
-		Justification = "Message type is used only for dictionary key and message kind determination, not for reflection.")]
 	private ChainExecutor CreateChainExecutor(ChainCacheKey cacheKey)
 	{
 		return CreateChainExecutor(cacheKey.MessageType);

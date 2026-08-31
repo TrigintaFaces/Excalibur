@@ -22,7 +22,7 @@ public sealed class CosmosDbOptions
 	/// Gets or sets the name of the provider instance.
 	/// </summary>
 	[Required]
-	public string Name { get; set; } = "CosmosDb";
+	public string Name { get; set; } = "cosmosdb";
 
 	/// <summary>
 	/// Gets or sets the default database name.

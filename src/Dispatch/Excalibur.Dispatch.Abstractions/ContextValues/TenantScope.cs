@@ -4,41 +4,45 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// The tenant scope applied to a single tenant-owned data request. A scope is either
-/// <see cref="None"/> — the genuine non-multi-tenant path, which emits no tenant predicate, column, or
-/// parameter — or a <see cref="Scoped(string?)"/> value that carries a validated, non-empty tenant
-/// identifier and always emits the tenant predicate/column.
+/// The tenant a single tenant-owned data request is bound to. A scope is either a
+/// <see cref="Scoped(string?)"/> value carrying a validated, non-empty tenant identifier, or
+/// <see cref="Untenanted"/> — the reserved partition for a row that belongs to no tenant. Both bind a
+/// concrete tenant term; there is no third state and no absent one.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This type makes one specific unsafe state <em>unrepresentable</em>: a predicate-less query <em>while a
-/// tenant is active</em> cannot be written, because the only way to obtain a scoped request is through
-/// <see cref="Scoped(string?)"/>, whose precondition rejects a null or whitespace tenant. A non-multi-tenant
-/// read is the distinct, explicit <see cref="None"/> construction — greppable and auditable — rather than an
-/// accidental omission of a nullable string.
+/// <strong>This type has no representation of "absent".</strong> <see cref="TenantId"/> is total: it is
+/// never <see langword="null"/> and never empty, for every inhabitant including <see langword="default"/>.
+/// A scope therefore always yields a tenant term to bind, so a statement that silently carries no tenant
+/// predicate cannot be produced from one.
 /// </para>
 /// <para>
-/// The claim is deliberately scoped to that axis, because a second one is <em>not</em> structurally enforced.
-/// For a <strong>keyed</strong> store — one whose unique key includes the tenant column — the correct
-/// unscoped value is <see cref="Untenanted"/> (which emits the sentinel equality term), not
-/// <see cref="None"/> (which emits no term at all and so cannot satisfy a key that requires one). Nothing in
-/// this type prevents an implementer from choosing <see cref="None"/> there; the guidance below says which
-/// to use, but it is guidance, not a constraint. Treat that choice as a reviewed decision rather than one
-/// the compiler will catch.
+/// That totality is the entire point, and it is why <see langword="default"/> is defined rather than
+/// merely discouraged. A value type always admits a <see langword="default"/> inhabitant, so an
+/// uninitialised scope is constructible whatever the API offers; making the default fold onto
+/// <see cref="Untenanted"/> means it is a legitimate, meaningful value rather than a hole that reads as
+/// "no tenant term" and disappears from an emitted statement. Absence cannot be reintroduced by omission.
 /// </para>
 /// <para>
-/// The empty-tenant predicate lives here in one place (<see cref="string.IsNullOrWhiteSpace(string?)"/>), so
-/// the fail-closed guard has a single definition shared by every provider request and the tenant-scoping
+/// Whether a deployment applies tenant confinement <em>at all</em> is a property of the deployment, not of
+/// a scope. A store that serves both single-tenant and multi-tenant hosts reads that from its own
+/// configuration and decides there whether to emit a predicate; it does not infer it from a missing tenant
+/// term. Keeping the two separate is what allows this type to stay total.
+/// </para>
+/// <para>
+/// The empty-tenant guard lives here in one place (<see cref="string.IsNullOrWhiteSpace(string?)"/>), so
+/// the fail-closed check has a single definition shared by every provider request and the tenant-scoping
 /// decorator, and yields exactly one exception type (<see cref="TenantRequiredException"/>).
 /// </para>
 /// </remarks>
 public readonly struct TenantScope : IEquatable<TenantScope>
 {
-	private TenantScope(string tenantId) => TenantId = tenantId;
+	private readonly string? _tenantId;
+
+	private TenantScope(string tenantId) => _tenantId = tenantId;
 
 	/// <summary>
-	/// The single reserved tenant identifier: the sentinel bound for a genuinely untenanted system row inside
-	/// a multi-tenant keyed store (and the anchor for a single-tenant→multi-tenant migration). A caller can
+	/// The single reserved tenant identifier: the term bound for a genuinely untenanted row. A caller can
 	/// never construct it through <see cref="Scoped(string?)"/>, so it can never collide with a real tenant.
 	/// It is a concrete, non-null value (never <c>''</c>, which Oracle folds to <see langword="null"/>).
 	/// </summary>
@@ -67,64 +71,48 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 	public static readonly string UntenantedSentinel = "__untenanted__";
 
 	/// <summary>
-	/// Gets the unscoped tenant scope — the non-multi-tenant default path. No tenant predicate, column, or
-	/// parameter is emitted for a request built with this scope.
-	/// </summary>
-	/// <remarks>
-	/// This is the correct untenanted scope for the <em>column-agnostic</em> store family (event store /
-	/// append log), where the tenant is a filter rather than a component of identity. Keyed stores whose
-	/// unique key includes the tenant column (inbox, saga, snapshot) must use <see cref="Untenanted"/>
-	/// instead, so the tenant equality term is never omitted.
-	/// </remarks>
-	public static TenantScope None => default;
-
-	/// <summary>
-	/// Gets the reserved system-row scope for a <strong>multi-tenant</strong> keyed store — the explicit,
-	/// opt-in partition for a genuinely untenanted row inside an MT deployment (for example, a system-owned
-	/// record, or a row written before multi-tenancy and anchored during a non-MT→MT migration). It binds the
-	/// reserved <c>__untenanted__</c> sentinel, which <see cref="Scoped(string?)"/> rejects outright, so it
+	/// Gets the reserved scope for a row that belongs to no tenant — a system-owned record, or a row
+	/// written before multi-tenancy and anchored during a migration onto it. It binds the reserved
+	/// <see cref="UntenantedSentinel"/> value, which <see cref="Scoped(string?)"/> rejects outright, so it
 	/// can never be bound as a real tenant and never collide with one.
 	/// </summary>
 	/// <remarks>
-	/// This is <strong>not</strong> the non-multi-tenant path: a non-MT deployment has no tenant column and
-	/// uses <see cref="None"/> (no term emitted). The sentinel exists only within a multi-tenant schema.
+	/// This is the value <see langword="default"/> folds onto, so an uninitialised scope names the
+	/// untenanted partition explicitly rather than carrying no term.
 	/// </remarks>
 	public static TenantScope Untenanted { get; } = new(UntenantedSentinel);
 
 	/// <summary>
-	/// Gets a value indicating whether this scope is bound to a tenant. When <see langword="true"/> the
-	/// request emits the tenant predicate/column and binds <see cref="TenantId"/>; when
-	/// <see langword="false"/> (the <see cref="None"/> path) it emits none of them.
-	/// </summary>
-	public bool IsScoped => TenantId is not null;
-
-	/// <summary>
-	/// Gets the validated tenant identifier when <see cref="IsScoped"/> is <see langword="true"/>; otherwise
-	/// <see langword="null"/>.
+	/// Gets the concrete tenant term to bind: a validated real tenant identifier for a
+	/// <see cref="Scoped(string?)"/> scope, or <see cref="UntenantedSentinel"/> for
+	/// <see cref="Untenanted"/> and for <see langword="default"/>. It is never <see langword="null"/> and
+	/// never empty.
 	/// </summary>
 	/// <remarks>
-	/// A non-null value is not necessarily a real tenant. For the <see cref="Untenanted"/> scope this getter
-	/// returns the framework's reserved untenanted marker, which is observable through this property like any
-	/// other value. Callers that surface a tenant identifier to a user, log it, or compare it against tenant
-	/// data supplied from outside should account for that case rather than assuming every non-null value
-	/// names a real tenant. <see cref="Scoped(string?)"/> rejects the reserved marker, so it can never arrive
-	/// here by that route.
+	/// A non-null value is not necessarily a real tenant: for the untenanted partition this returns the
+	/// framework's reserved marker, which is observable here like any other value. Callers that surface a
+	/// tenant identifier to a user, log it, or compare it against tenant data supplied from outside should
+	/// account for that case rather than assuming every value names a real tenant.
+	/// <see cref="Scoped(string?)"/> rejects the reserved marker, so it can never arrive here by that route.
 	/// </remarks>
-	public string? TenantId { get; }
+	public string TenantId => _tenantId ?? UntenantedSentinel;
 
 	/// <summary>
-	/// Creates a tenant-scoped scope. The tenant identifier is <strong>required</strong>: a
+	/// Creates a scope bound to a real tenant. The tenant identifier is <strong>required</strong>: a
 	/// <see langword="null"/> or whitespace value throws <see cref="TenantRequiredException"/> so a
-	/// tenant-active query can never be constructed without a tenant (fail-closed by construction).
+	/// tenant-active request can never be constructed without a tenant (fail-closed by construction).
 	/// </summary>
 	/// <param name="tenantId">The non-empty tenant identifier to scope the request to.</param>
-	/// <returns>A scoped <see cref="TenantScope"/> bound to <paramref name="tenantId"/>.</returns>
+	/// <returns>A <see cref="TenantScope"/> bound to <paramref name="tenantId"/>.</returns>
 	/// <exception cref="TenantRequiredException">
 	/// <paramref name="tenantId"/> is <see langword="null"/>, empty, or whitespace.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// <paramref name="tenantId"/> is the reserved framework sentinel and therefore cannot name a real tenant,
-	/// so an internal sentinel can never collide with a caller-supplied tenant.
+	/// so an internal sentinel can never collide with a caller-supplied tenant; or is longer than
+	/// <see cref="Excalibur.Dispatch.TenantId.MaxLength"/> characters, which no shipped provider can store whole — rejected here
+	/// rather than truncated later by a store, where a truncated identifier could collide with another
+	/// tenant's.
 	/// </exception>
 	public static TenantScope Scoped(string? tenantId)
 	{
@@ -137,6 +125,13 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 		{
 			throw new ArgumentException(
 				$"The tenant identifier '{UntenantedSentinel}' is reserved for the framework and cannot name a real tenant.",
+				nameof(tenantId));
+		}
+
+		if (tenantId.Length > Excalibur.Dispatch.TenantId.MaxLength)
+		{
+			throw new ArgumentException(
+				$"Tenant identifier exceeds the maximum length of {Excalibur.Dispatch.TenantId.MaxLength} characters supported by every shipped provider.",
 				nameof(tenantId));
 		}
 
@@ -164,8 +159,8 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 	/// <para>
 	/// This function is total for the sentinel and <strong>deliberately partial for null/whitespace</strong>.
 	/// Multi-tenancy active with an unresolved tenant must keep failing closed: yielding a scope there would
-	/// emit a predicate-less query, which is the cross-tenant leak this type exists to prevent. The
-	/// null/whitespace rejection lives in <see cref="Scoped(string?)"/> and is not bypassed here.
+	/// bind a tenant term the caller never established, which is the cross-tenant read this type exists to
+	/// prevent. The null/whitespace rejection lives in <see cref="Scoped(string?)"/> and is not bypassed here.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="TenantRequiredException"><paramref name="tenantId"/> is null or whitespace.</exception>
@@ -175,22 +170,37 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 			: Scoped(tenantId);
 
 	/// <summary>
-	/// Derives the scope from an optional ambient tenant context: a <see langword="null"/> context is the
-	/// non-multi-tenant path (<see cref="None"/>); a non-null context is converted through the single
-	/// sentinel-aware conversion, which fails closed when the context resolves no tenant.
+	/// Derives the scope from an ambient tenant context, which is <strong>required</strong>: the context is
+	/// converted through the single sentinel-aware conversion, which fails closed when the context resolves
+	/// no tenant.
 	/// </summary>
-	/// <param name="tenantContext">The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <returns>
-	/// <see cref="None"/> when <paramref name="tenantContext"/> is <see langword="null"/>;
 	/// <see cref="Untenanted"/> when the context resolves the reserved sentinel; otherwise
 	/// <see cref="Scoped(string?)"/> for the resolved tenant.
 	/// </returns>
+	/// <remarks>
+	/// There is deliberately <strong>no</strong> null-accepting form of this conversion. A conversion that
+	/// accepted a missing context would have to invent a tenant term for it, silently turning
+	/// <em>"multi-tenancy was never registered here"</em> into <em>"this row belongs to no tenant"</em>.
+	/// Those are not synonyms: the first is a question about the deployment, which a store answers from its
+	/// own configuration, and conflating them has produced both an unscoped read and a delete that could
+	/// only ever match nothing.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="tenantContext"/> is <see langword="null"/>.</exception>
 	/// <exception cref="TenantRequiredException">
-	/// <paramref name="tenantContext"/> is non-null but resolves a null/whitespace tenant (multi-tenancy
-	/// active but unresolved) — the store fails closed rather than emitting a predicate-less query.
+	/// <paramref name="tenantContext"/> resolves a null/whitespace tenant (multi-tenancy active but
+	/// unresolved) — the store fails closed rather than binding a tenant the caller never established.
 	/// </exception>
-	public static TenantScope FromContext(ITenantContext? tenantContext)
-		=> tenantContext is null ? None : FromTenantTerm(tenantContext.TenantId);
+	public static TenantScope FromContext(ITenantContext tenantContext)
+	{
+		ArgumentNullException.ThrowIfNull(tenantContext);
+		return FromTenantTerm(tenantContext.TenantId);
+	}
 
 	/// <inheritdoc />
 	public bool Equals(TenantScope other) => string.Equals(TenantId, other.TenantId, StringComparison.Ordinal);
@@ -199,7 +209,7 @@ public readonly struct TenantScope : IEquatable<TenantScope>
 	public override bool Equals(object? obj) => obj is TenantScope other && Equals(other);
 
 	/// <inheritdoc />
-	public override int GetHashCode() => TenantId is null ? 0 : StringComparer.Ordinal.GetHashCode(TenantId);
+	public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(TenantId);
 
 	/// <summary>Determines whether two scopes are equal.</summary>
 	/// <param name="left">The left scope.</param>

@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Diagnostics;
 namespace Excalibur.Dispatch.Timing;
 
 /// <summary>
-/// Implementation of timeout operation token for tracking operation performance. R7.4: High-performance timeout operation tracking.
+/// Implementation of timeout operation token for tracking operation performance. High-performance timeout operation tracking.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="TimeoutOperationToken" /> class. </remarks>
 /// <param name="operationType"> The operation type. </param>

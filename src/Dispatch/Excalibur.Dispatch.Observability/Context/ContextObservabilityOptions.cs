@@ -12,7 +12,6 @@ namespace Excalibur.Dispatch.Observability.Context;
 /// <remarks>
 /// Uses sub-option objects for tracing, limits, fields, and export settings.
 /// Root keeps core enable/disable flags; sub-options group related settings.
-/// Follows the <c>ChannelConsumeOptions</c> composition pattern.
 /// </remarks>
 public sealed class ContextObservabilityOptions
 {

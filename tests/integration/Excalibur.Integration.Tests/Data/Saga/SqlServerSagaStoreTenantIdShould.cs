@@ -111,10 +111,14 @@ public sealed class SqlServerSagaStoreTenantIdShould : IClassFixture<SqlServerSa
 
 		try
 		{
+			// The untenanted partition, named explicitly: it is the same term an absent context used to
+			// resolve to, so this arm still proves the row key comes from the ambient scope and never
+			// from the payload. A real tenant identity here would make the arm's name false.
 			var store = new SqlServerSagaStore(
 				_fixture.ConnectionString,
 				NullLogger<SqlServerSagaStore>.Instance,
-				new DispatchJsonSerializer());
+				new DispatchJsonSerializer(),
+				UntenantedTestTenantContext.Instance);
 
 			var sagaId = Guid.NewGuid();
 			var state = new TestSagaState { SagaId = sagaId, TenantId = TenantId };

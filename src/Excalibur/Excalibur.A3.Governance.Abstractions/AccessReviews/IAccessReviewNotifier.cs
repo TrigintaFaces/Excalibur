@@ -9,31 +9,25 @@ namespace Excalibur.A3.Governance.AccessReviews;
 /// <remarks>
 /// <para>
 /// Consumers implement this interface to integrate with their notification infrastructure
-/// (e.g., email, Slack, Teams). The framework registers a no-op default when no implementation
-/// is provided.
+/// (e.g., email, Slack, Teams). There is no default implementation: the
+/// <see cref="AccessReviewExpiryPolicy.NotifyAndExtend" /> policy requires a registered notifier,
+/// and a campaign configured with that policy is left untouched — and the failure logged — when
+/// none is registered. An access review is an audit surface, so the framework will not record a
+/// notification it did not send.
 /// </para>
 /// </remarks>
 public interface IAccessReviewNotifier
 {
 	/// <summary>
-	/// Notifies stakeholders that a new access review campaign has been created.
+	/// Notifies reviewers that a campaign deadline has been extended because the campaign expired
+	/// with items still unreviewed.
 	/// </summary>
 	/// <param name="campaignId">The campaign identifier.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	Task NotifyCampaignCreatedAsync(string campaignId, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Notifies reviewers that a campaign deadline has been extended due to expiry.
-	/// </summary>
-	/// <param name="campaignId">The campaign identifier.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task that completes when reviewers have been notified.</returns>
+	/// <remarks>
+	/// Called before the deadline is extended. If this throws, the extension does not happen and the
+	/// campaign is left at its existing deadline for the next expiry sweep to retry.
+	/// </remarks>
 	Task NotifyCampaignExtendedAsync(string campaignId, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Notifies a reviewer that a decision is required for a specific access review item.
-	/// </summary>
-	/// <param name="campaignId">The campaign identifier.</param>
-	/// <param name="reviewerId">The reviewer who needs to make a decision.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	Task NotifyDecisionRequiredAsync(string campaignId, string reviewerId, CancellationToken cancellationToken);
 }

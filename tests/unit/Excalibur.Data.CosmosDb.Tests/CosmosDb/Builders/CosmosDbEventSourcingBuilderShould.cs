@@ -84,13 +84,15 @@ public sealed class CosmosDbEventSourcingBuilderShould : UnitTestBase
 	// --- Feature methods (happy path) ---
 
 	[Fact]
-	public void DatabaseName_StoreValueOnBuilder()
+	public void DatabaseName_SetValueOnOptions()
 	{
-		var (builder, _) = CreateBuilder();
+		var (builder, options) = CreateBuilder();
 
 		builder.DatabaseName("my-database");
 
-		builder.DatabaseNameValue.ShouldBe("my-database");
+		// The store reads the database name off the options, so the builder must write it there:
+		// a value parked on the builder alone is a no-op the store never sees.
+		options.DatabaseName.ShouldBe("my-database");
 	}
 
 	[Fact]

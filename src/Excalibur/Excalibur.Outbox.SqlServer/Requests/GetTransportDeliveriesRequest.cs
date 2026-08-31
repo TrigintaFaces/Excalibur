@@ -14,6 +14,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <summary>
 /// Data request to get transport deliveries for a message.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.ForeignKeyConfined,
+	"this read is not tenant-confined, and the argument is authorization rather than exclusion. A tenant term here would not have kept a foreign row out of the result -- every row reachable through MessageId belongs to the one message named -- it would have made the result EMPTY for a caller scoped to a different tenant than the id it supplied. That is a real confinement and it is deliberately given up: the read backs the cross-tenant drain's per-transport decisions, and scoping it to an ambient tenant returned nothing for every tenanted message and stalled multi-transport delivery. A caller is therefore trusted with any message id it can name, and authorizing the caller to name it belongs to the caller")]
 public sealed class GetTransportDeliveriesRequest : DataRequestBase<IDbConnection, IEnumerable<OutboundMessageTransport>>
 {
 	/// <summary>
@@ -21,48 +24,35 @@ public sealed class GetTransportDeliveriesRequest : DataRequestBase<IDbConnectio
 	/// </summary>
 	/// <param name="tableName">The qualified transports table name.</param>
 	/// <param name="messageId">The message ID to get deliveries for.</param>
-	/// <param name="tenant">
-	/// The partition whose rows the caller may see. Supplied by the store from its tenant context rather than
-	/// read here, following the same shape as the dead-letter queue in this package.
-	/// </param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	public GetTransportDeliveriesRequest(
 		string tableName,
 		string messageId,
-		KeyedTenantPartition tenant,
 		int commandTimeout,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
-		ArgumentNullException.ThrowIfNull(tenant);
 
-		// The tenant term is evaluated BY THE DATABASE, not by filtering the returned rows: a caller scoped to
-		// one tenant supplying another tenant's MessageId must receive nothing from the engine, rather than
-		// receive the rows and have them dropped afterwards.
-		//
-		// This predicate lives in the provider store rather than in a decorator, deliberately and per the
-		// tenant-ownership manifest: the outbox drain is intentionally cross-tenant, so a tenant-scoping
-		// decorator would read the ambient tenant as absent and stall it. The inbox resolves the same tension
-		// the same way — the predicate goes inside the provider store.
-		//
-		// COALESCE covers rows written before the transports table carried its own tenant column: those hold
-		// NULL, and NULL = @TenantId is never true, so a bare equality would hide legacy rows from every
-		// tenant instead of showing them to their owner.
-		const string tenantPredicate = " AND COALESCE(TenantId, @UntenantedSentinel) = @TenantId";
-
+		// No tenant term. MessageId is a foreign key to the outbox table's globally-unique Id, so every row this
+		// read can return belongs to that one message and therefore to one tenant. That fact does NOT justify
+		// dropping the term on its own, and the distinction matters more here than on the updates: for a read
+		// the term never kept a foreign row out of the result, it made the result EMPTY for a caller scoped to
+		// a different tenant than the id it supplied. Dropping it gives up that confinement deliberately,
+		// because the drain that consumes this read is cross-tenant by design and holds no ambient tenant, so
+		// scoping the read returned nothing for every tenanted message and stalled multi-transport delivery.
+		// A caller is trusted with any message id it can name. (The pair MessageId/TransportName is not itself
+		// unique, so this returns a set, not a row.)
 		var sql = $"""
 			SELECT Id, MessageId, TransportName, Destination, Status, CreatedAt, AttemptedAt, SentAt,
 				   RetryCount, LastError, TransportMetadata
 			FROM {tableName}
-			WHERE MessageId = @MessageId{tenantPredicate}
+			WHERE MessageId = @MessageId
 			""";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@MessageId", messageId);
-		parameters.Add("@TenantId", tenant.TenantId);
-		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 

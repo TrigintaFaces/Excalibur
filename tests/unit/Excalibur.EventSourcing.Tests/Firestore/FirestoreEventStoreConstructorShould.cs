@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Data.CloudNative;
 using Excalibur.EventSourcing.Firestore;
 
@@ -35,7 +36,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new FirestoreEventStore(_validOptions, _logger);
+		var store = new FirestoreEventStore(_validOptions, _logger, UntenantedContext.Instance);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -46,7 +47,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreEventStore(options: null!, _logger));
+			new FirestoreEventStore(options: null!, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -55,7 +56,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreEventStore(_validOptions, logger: null!));
+			new FirestoreEventStore(_validOptions, logger: null!, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -68,7 +69,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreEventStore(db: null!, _validOptions, _logger));
+			new FirestoreEventStore(db: null!, _validOptions, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("db");
 	}
 
@@ -77,7 +78,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert - This will throw before reaching the options null check
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreEventStore(db: null!, options: null!, _logger));
+			new FirestoreEventStore(db: null!, options: null!, _logger, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("db");
 	}
 
@@ -86,7 +87,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	{
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new FirestoreEventStore(db: null!, _validOptions, logger: null!));
+			new FirestoreEventStore(db: null!, _validOptions, logger: null!, UntenantedContext.Instance));
 		exception.ParamName.ShouldBe("db");
 	}
 
@@ -98,7 +99,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	public void ProviderType_ReturnsFirestore()
 	{
 		// Arrange
-		var store = new FirestoreEventStore(_validOptions, _logger);
+		var store = new FirestoreEventStore(_validOptions, _logger, UntenantedContext.Instance);
 
 		// Act & Assert
 		store.CloudProvider.ShouldBe(CloudPersistenceProviderType.Firestore);
@@ -112,7 +113,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new FirestoreEventStore(_validOptions, _logger);
+		var store = new FirestoreEventStore(_validOptions, _logger, UntenantedContext.Instance);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();

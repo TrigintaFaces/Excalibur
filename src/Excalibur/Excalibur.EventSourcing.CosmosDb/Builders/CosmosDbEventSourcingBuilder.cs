@@ -20,7 +20,6 @@ internal sealed class CosmosDbEventSourcingBuilder : ICosmosDbEventSourcingBuild
 	internal string? AuthKeyValue { get; private set; }
 	internal string? BindConfigurationPath { get; private set; }
 	internal string? ConnectionStringValue { get; private set; }
-	internal string? DatabaseNameValue { get; private set; }
 
 	public ICosmosDbEventSourcingBuilder ConnectionString(string connectionString)
 	{
@@ -86,7 +85,7 @@ internal sealed class CosmosDbEventSourcingBuilder : ICosmosDbEventSourcingBuild
 	public ICosmosDbEventSourcingBuilder DatabaseName(string databaseName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-		DatabaseNameValue = databaseName;
+		_options.DatabaseName = databaseName;
 		return this;
 	}
 

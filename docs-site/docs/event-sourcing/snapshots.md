@@ -372,38 +372,53 @@ public interface ISnapshotStore
 
 ## Database Schema
 
-### SQL Server
+The relational snapshot stores do **not** create their table at runtime. Provision it before the
+first snapshot is saved, by running the script shipped inside the provider package under `scripts/`:
 
-```sql
-CREATE TABLE [dbo].[EventStoreSnapshots] (
-    [SnapshotId] NVARCHAR(256) NULL,
-    [AggregateId] NVARCHAR(256) NOT NULL,
-    [AggregateType] NVARCHAR(256) NOT NULL,
-    [Version] BIGINT NOT NULL,
-    [Data] VARBINARY(MAX) NOT NULL,
-    -- DATETIME2, not DATETIMEOFFSET: the read path maps this to DateTime and
-    -- re-stamps UTC kind, which a DATETIMEOFFSET column does not round-trip through.
-    [CreatedAt] DATETIME2 NOT NULL,
-    [Metadata] VARBINARY(MAX) NULL,
-    -- The reserved '__untenanted__' sentinel in a single-tenant host -- never NULL and never
-    -- an empty string. NOT NULL because SQL Server does not allow a nullable column in a
-    -- primary key.
-    --
-    -- Deliberately NO DEFAULT. The store always supplies this column -- a single-tenant
-    -- save writes the '__untenanted__' sentinel explicitly, not by omission. A DEFAULT here would be
-    -- unreachable in normal operation and harmful in abnormal operation: it would let an
-    -- INSERT that omitted the tenant succeed silently, taking the default and colliding
-    -- every tenant onto one row. Without it, such a statement fails outright.
-    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
+| Package | Script |
+|---|---|
+| `Excalibur.EventSourcing.SqlServer` | `scripts/002_CreateSnapshotSchema.sql` |
+| `Excalibur.EventSourcing.Postgres` | `scripts/001_CreateSnapshotSchema.sql` |
+| `Excalibur.EventSourcing.Oracle` | `scripts/001_CreateSnapshotSchema.sql` |
 
-    -- One row per aggregate PER TENANT. Saves MERGE on these columns and the read path issues
-    -- a single-row query with no TOP 1, so a second matching row makes it throw. Without
-    -- TenantId in the key, two tenants holding the same aggregate id are that second row:
-    -- one tenant's save overwrites the other's. Keying on AggregateId alone also wrongly
-    -- rejects a second aggregate TYPE that happens to share an id.
-    CONSTRAINT [PK_EventStoreSnapshots_Aggregate] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
-);
-```
+Each script is the authoritative definition for its provider and carries the reasoning for every
+column inline — why the primary key includes the tenant, why the tenant column takes no default, and
+which column types are load-bearing. The schema is deliberately not reproduced on this page: a copy
+here would drift from the script you actually run, and the two would disagree without either one
+looking wrong.
+
+The document and blob-backed stores — Cosmos DB, DynamoDB, Firestore, MongoDB, Redis, and the blob
+providers — create their own containers and need no schema step.
+
+:::note SQLite
+`Excalibur.EventSourcing.Sqlite` ships no snapshot script, and does not need one: it creates its own
+table on first use and keeps it current. If you derive the schema by hand for inspection, take it from
+the SQLite provider's own SQL rather than from another provider's script — the column types differ.
+
+**Upgrading an existing SQLite database needs no action from you.** A database created before the
+snapshot table carried a tenant column is reconciled automatically the first time the store opens it:
+the table is rebuilt with the tenant column and every existing snapshot is stamped as untenanted, so
+the snapshots you already have stay readable. A database whose rows store the untenanted partition as
+an empty string has those rows converged onto the reserved untenanted key by the same step. Both are
+idempotent.
+
+The single case that stops rather than guessing is a table holding **both** representations for the same
+aggregate — an empty-string row and a reserved-key row. Those two rows would have to become one, so the
+store refuses at startup, names the table and the aggregate, and leaves every row untouched. Delete or
+re-key whichever snapshot is stale and start the application again.
+:::
+
+### If you provisioned the table by hand
+
+Compare it against the shipped script before upgrading. Two columns are worth checking specifically,
+because both fail at runtime rather than at provisioning time:
+
+- **`CreatedAt` is `DATETIMEOFFSET` on SQL Server**, not `DATETIME2`. The read path materialises a
+  `DateTimeOffset`, so a `DATETIME2` column matches no constructor and *every* snapshot read fails
+  outright — not just reads of rows written after the change.
+- **`TenantId` is part of the primary key**, alongside `AggregateId` and `AggregateType`. Keyed on the
+  aggregate alone, two tenants holding the same aggregate id collide onto one row and one tenant's
+  save overwrites the other's.
 
 ## Custom Snapshot Strategies
 

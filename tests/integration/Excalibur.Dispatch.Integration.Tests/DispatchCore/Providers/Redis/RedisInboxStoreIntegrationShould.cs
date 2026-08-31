@@ -175,7 +175,7 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 		entry.RetryCount.ShouldBe(1);
 
 		// Verify failed entries can be retrieved
-		var failedEntries = await store.GetFailedEntriesAsync(3, null, 10, TestCancellationToken);
+		var failedEntries = await store.GetAllTenantsFailedEntriesAsync(3, null, 10, TestCancellationToken);
 		failedEntries.Count().ShouldBe(1);
 		failedEntries.First().MessageId.ShouldBe(messageId);
 	}
@@ -195,7 +195,7 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 		var logger = NullLogger<RedisInboxStore>.Instance;
 
 		var connection = ConnectionMultiplexer.Connect(_redisFixture.ConnectionString);
-		return new RedisInboxStore(connection, options, logger);
+		return new RedisInboxStore(connection, options, logger, tenantContext: new TestTenantContext());
 	}
 
 	private async Task CleanupRedisAsync()

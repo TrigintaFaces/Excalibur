@@ -34,11 +34,27 @@ public sealed partial class RedisEventStore : IEventStore
 	private readonly ConnectionMultiplexer _connection;
 	private readonly RedisEventStoreOptions _options;
 	private readonly ILogger<RedisEventStore> _logger;
+	private readonly ITenantContext _tenantContext;
 
 	// The single canonical event contract (camelCase + string-enum + null-ignore) shared by every event
 	// store. Using the default serializer here would write PascalCase / enum-as-number bodies that mis-read
-	// when loaded through the canonical read path (the i2eabb cross-path fault).
+	// when loaded through the canonical read path (the cross-path fault).
 	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
+
+	/// <summary>
+	/// Whether the host supplied an event type-info resolver, selecting the reflection-free serialization
+	/// path. Decided once at construction because the resolver cannot change for a constructed store.
+	/// </summary>
+	private readonly bool _hasEventTypeInfoResolver;
+
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every stream key it builds
+	/// binds the same value. The context is a required dependency, so the term is decided identically on
+	/// every path: the store cannot resolve one partition on write and a different one on read. Matches
+	/// <see cref="RedisSnapshotStore"/>'s own shape — its sibling store in this package, which already
+	/// does this.
+	/// </summary>
+	private TenantScope CurrentTenantScope => TenantScope.FromContext(_tenantContext);
 
 	/// <summary>
 	/// Lua script for atomic append with optimistic concurrency control.
@@ -99,14 +115,24 @@ public sealed partial class RedisEventStore : IEventStore
 	/// <param name="connection">The Redis connection multiplexer.</param>
 	/// <param name="options">The event store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions streams by tenant, and it resolves
+	/// that partition from here, so there is no state in which the partition is undecided. A
+	/// single-tenant host receives the framework default context and operates as the one canonical
+	/// tenant.
+	/// </param>
 	public RedisEventStore(
 		ConnectionMultiplexer connection,
 		IOptions<RedisEventStoreOptions> options,
-		ILogger<RedisEventStore> logger)
+		ILogger<RedisEventStore> logger,
+		ITenantContext tenantContext)
 	{
 		_connection = connection ?? throw new ArgumentNullException(nameof(connection));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		ArgumentNullException.ThrowIfNull(tenantContext);
+		_tenantContext = tenantContext;
+		_hasEventTypeInfoResolver = EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, _options.EventTypeInfoResolver);
 	}
 
 	/// <inheritdoc/>
@@ -187,21 +213,30 @@ public sealed partial class RedisEventStore : IEventStore
 		foreach (var evt in eventList)
 		{
 			nextVersion++;
+			// Named arguments, deliberately: this envelope is built positionally by every other store, but
+			// here the metadata term is the one whose type (byte[]?) accepts a bare `null` silently. A
+			// literal null in that position is indistinguishable from a supplied value at a glance, and is
+			// exactly how this store came to drop metadata on the contract surface while every sibling
+			// carried it. Naming the arguments makes the omission unspellable rather than merely unlikely.
 			var storedEvent = new StoredEvent(
-				evt.EventId,
-				aggregateId,
-				aggregateType,
-				evt.EventType,
+				EventId: evt.EventId,
+				AggregateId: aggregateId,
+				AggregateType: aggregateType,
+				EventType: evt.EventType,
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-				JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions),
+				EventData: SerializeEvent(evt, aggregateId, aggregateType),
+				// The event's own metadata, carried on the envelope as every other event store carries it.
+				// It is also inside EventData (the whole event is serialized there), so this was never a
+				// loss at rest — but a consumer reads StoredEvent.Metadata, and this store used to hand
+				// back null, so switching a provider to Redis silently emptied that property.
+				Metadata: evt.Metadata != null
+					? SerializeMetadata(evt.Metadata)
+					: null,
 #pragma warning restore IL2026, IL3050
-				null,
-				nextVersion,
-				evt.OccurredAt);
+				Version: nextVersion,
+				Timestamp: evt.OccurredAt);
 
-#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-			var serialized = JsonSerializer.Serialize(storedEvent, _jsonOptions);
-#pragma warning restore IL2026, IL3050
+			var serialized = JsonSerializer.Serialize(storedEvent, RedisEventStoreJsonContext.Default.StoredEvent);
 			args.Add(evt.EventId);
 			args.Add(serialized);
 		}
@@ -250,12 +285,23 @@ public sealed partial class RedisEventStore : IEventStore
 			? _connection.GetDatabase(_options.DatabaseIndex)
 			: _connection.GetDatabase();
 
-	private string GetStreamKey(string aggregateType, string aggregateId) =>
-		$"{_options.StreamKeyPrefix}:{aggregateType}:{aggregateId}";
+	/// <summary>
+	/// Builds the key identifying a single aggregate's stream, including the tenant term. Every read and
+	/// write path routes through this one method, so the tenant cannot be applied on some operations and
+	/// forgotten on others — the exact gap this store used to have: two tenants
+	/// appending events for the same (aggregateType, aggregateId) shared one stream and one version
+	/// counter, a cross-tenant collision rather than merely a read leak.
+	/// </summary>
+	private string GetStreamKey(string aggregateType, string aggregateId)
+	{
+		var scope = CurrentTenantScope;
+		return $"{_options.StreamKeyPrefix}:t:{scope.TenantId}:{aggregateType}:{aggregateId}";
+	}
 
 	// The authoritative per-stream version counter lives in a companion key. The stream key is wrapped
 	// in a Redis Cluster hash tag so the counter always hashes to the same slot as its stream, keeping
-	// the multi-key append script single-slot (and therefore cluster-safe).
+	// the multi-key append script single-slot (and therefore cluster-safe). The stream key already binds
+	// the tenant (GetStreamKey), so the version key inherits it automatically.
 	private static string GetVersionKey(string streamKey) => $"{{{streamKey}}}:ver";
 
 	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries, JsonSerializerOptions options)
@@ -269,9 +315,7 @@ public sealed partial class RedisEventStore : IEventStore
 			foreach (var nv in entry.Values)
 			{
 				var json = nv.Value.ToString();
-#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-				var storedEvent = JsonSerializer.Deserialize<StoredEvent>(json, options);
-#pragma warning restore IL2026, IL3050
+				var storedEvent = JsonSerializer.Deserialize(json, RedisEventStoreJsonContext.Default.StoredEvent);
 				if (storedEvent != null)
 				{
 					events.Add(storedEvent);
@@ -295,4 +339,32 @@ public sealed partial class RedisEventStore : IEventStore
 	[LoggerMessage(RedisEventSourcingEventId.ConcurrencyConflict, LogLevel.Warning,
 		"Concurrency conflict for aggregate {AggregateId} of type {AggregateType}: expected version {ExpectedVersion}, actual {ActualVersion}")]
 	private partial void LogConcurrencyConflict(string aggregateId, string aggregateType, long expectedVersion, long actualVersion);
+
+	/// <summary>
+	/// Serializes a domain event, resolving its type metadata from the host's source-generated resolver when
+	/// one was supplied and falling back to reflection when none was.
+	/// </summary>
+	/// <param name="evt">The domain event to serialize.</param>
+	/// <param name="aggregateId">The stream the append targets, reported if the type is undeclared.</param>
+	/// <param name="aggregateType">The aggregate type the append targets, reported if undeclared.</param>
+	/// <returns>The UTF-8 encoded event payload.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
+	private byte[] SerializeEvent(IDomainEvent evt, string? aggregateId, string? aggregateType) =>
+		_hasEventTypeInfoResolver
+			? ResolvedEventPayload.Serialize(evt, _jsonOptions, aggregateId, aggregateType)
+			: JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions);
+
+	/// <summary>
+	/// Serializes event metadata, dispatching each value through the host's source-generated resolver when
+	/// one was supplied and falling back to reflection when none was.
+	/// </summary>
+	/// <param name="metadata">The event metadata to serialize.</param>
+	/// <returns>The UTF-8 encoded metadata object.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
+	private byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
+		_hasEventTypeInfoResolver
+			? EventSerializationDefaults.SerializeMetadataWithResolver(metadata, _jsonOptions)
+			: JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
 }

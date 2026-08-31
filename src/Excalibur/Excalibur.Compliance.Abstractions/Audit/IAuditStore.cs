@@ -27,7 +27,18 @@ namespace Excalibur.Compliance;
 /// a volatile one answers <see langword="null"/>. Decorators MUST forward <c>GetService</c> to the
 /// wrapped store so the capability chain stays transparent.
 /// </para>
+/// <para>
+/// <b>Tenant confinement.</b> <see cref="IAuditWriter.StoreAsync"/> and every read on
+/// <see cref="IAuditQuery"/> are confined to the ambient tenant established for this store instance: a
+/// confined query returns none of another tenant's audit events and every one of the caller's own, and a
+/// confined store cannot land under another tenant's partition. Which mechanism a given provider uses to
+/// hold that boundary is declared by its capability marker — <see cref="ITenantScopingCapability{TContract}"/>
+/// for a store that reads an ambient tenant — and the package's own <c>ARCHITECTURE.md</c> states the
+/// falsifiable guarantee and how it is verified. A store presenting no marker is not confined by the
+/// framework.
+/// </para>
 /// </remarks>
+[TenantOwned]
 public interface IAuditStore : IAuditWriter, IAuditQuery, IServiceProvider
 {
 	/// <summary>

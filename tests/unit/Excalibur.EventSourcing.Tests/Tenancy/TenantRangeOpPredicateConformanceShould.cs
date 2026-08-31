@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.Tests.Tenancy;
 /// <summary>
 /// Conformance detector for tenant-partitioned RANGE mutations (DELETE / UPDATE that can touch
 /// more than one keyed row). Each such statement, when built with the unscoped
-/// <see cref="TenantScope.None"/> omission, MUST isolate by tenant — otherwise it reaches another
+/// <see cref="TenantScope.Untenanted"/> omission, MUST isolate by tenant — otherwise it reaches another
 /// tenant's rows, and on a destructive op that DESTROYS or exposes their data.
 /// <para>
 /// The request object is where the caller's declared intent becomes SQL, so asserting the emitted
@@ -69,12 +69,12 @@ public sealed class TenantRangeOpPredicateConformanceShould
 	{
 		var data = new TheoryData<string, string>();
 		// (emitted-None-sql, tenant-column)
-		data.Add(new EsSql.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.None, default).Command.CommandText, "TenantId");
-		data.Add(new EsSql.DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.None, default).Command.CommandText, "TenantId");
-		data.Add(new EsPg.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.None, default).Command.CommandText, "tenant_id");
-		data.Add(new EsPg.DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.None, default).Command.CommandText, "tenant_id");
-		data.Add(new EsOra.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.None, default).Command.CommandText, "TENANTID");
-		data.Add(new EsOra.DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.None, default).Command.CommandText, "TENANTID");
+		data.Add(new EsSql.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, default).Command.CommandText, "TenantId");
+		data.Add(new EsSql.DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.Untenanted, default).Command.CommandText, "TenantId");
+		data.Add(new EsPg.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, default).Command.CommandText, "tenant_id");
+		data.Add(new EsPg.DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.Untenanted, default).Command.CommandText, "tenant_id");
+		data.Add(new EsOra.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, default).Command.CommandText, "TENANTID");
+		data.Add(new EsOra.DeleteSnapshotsOlderThanRequest(AggregateId, AggregateType, 5, TenantScope.Untenanted, default).Command.CommandText, "TENANTID");
 		return data;
 	}
 
@@ -112,6 +112,14 @@ public sealed class TenantRangeOpPredicateConformanceShould
 		var oracle = new EsOra.DeleteSnapshotsRequest(AggregateId, AggregateType, Scoped, default);
 		oracle.Command.CommandText.ShouldContain("TENANTID = :TenantId");
 		BoundTenantTerm(oracle.Command, "TenantId").ShouldBe("tenant-1");
+
+		// Postgres was covered only transitively by the None arm above. It emits the same unconditional
+		// predicate as its siblings and routes the term through KeyedTenantPartition, so it is asserted on
+		// the converged shape (`tenant_id = @TenantId` plus the bound term) — never the pre-convergence
+		// `COALESCE(@TenantId, '')` form, which no longer exists and would red against correct code.
+		var postgres = new EsPg.DeleteSnapshotsRequest(AggregateId, AggregateType, Scoped, default);
+		postgres.Command.CommandText.ShouldContain("tenant_id = @TenantId");
+		BoundTenantTerm(postgres.Command, "@TenantId").ShouldBe("tenant-1");
 	}
 
 	[Fact]
@@ -126,13 +134,16 @@ public sealed class TenantRangeOpPredicateConformanceShould
 		// the unscoped path binds the reserved '__untenanted__' sentinel. Asserting the literal (not the
 		// internal constant) is deliberate — this term is written into and matched against persisted rows, so
 		// it is a wire value, and a change to it must redden a lock rather than pass silently.
-		var sqlServer = new EsSql.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.None, default);
+		var sqlServer = new EsSql.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, default);
 		BoundTenantTerm(sqlServer.Command, "@TenantId").ShouldBe(
 			"__untenanted__",
 			"an unscoped delete must bind the reserved sentinel — never an empty term, which is how a destructive statement ends up matching every tenant's rows.");
 
-		var oracle = new EsOra.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.None, default);
+		var oracle = new EsOra.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, default);
 		BoundTenantTerm(oracle.Command, "TenantId").ShouldBe("__untenanted__");
+
+		var postgres = new EsPg.DeleteSnapshotsRequest(AggregateId, AggregateType, TenantScope.Untenanted, default);
+		BoundTenantTerm(postgres.Command, "@TenantId").ShouldBe("__untenanted__");
 
 		// LIVENESS pair: the two paths must bind DIFFERENT terms. An implementation that bound the sentinel
 		// unconditionally would satisfy the assertion above while isolating nothing.
@@ -217,13 +228,13 @@ public sealed class TenantRangeOpPredicateConformanceShould
 	private static (string erase, string insert, string column) EmittedErasePair(string provider) => provider switch
 	{
 		"SqlServer" => (
-			new EsSql.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, TenantScope.None, default).Command.CommandText,
+			new EsSql.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, TenantScope.Untenanted, default).Command.CommandText,
 			SqlServerInsertNone(), "TenantId"),
 		"Postgres" => (
-			new EsPg.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, TenantScope.None, default).Command.CommandText,
+			new EsPg.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, TenantScope.Untenanted, default).Command.CommandText,
 			PostgresInsertNone(), "tenant_id"),
 		"Oracle" => (
-			new EsOra.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, TenantScope.None, default).Command.CommandText,
+			new EsOra.EraseEventsRequest(AggregateId, AggregateType, ErasureRequestId, TenantScope.Untenanted, default).Command.CommandText,
 			OracleInsertNone(), "TENANTID"),
 		_ => throw new ArgumentOutOfRangeException(nameof(provider)),
 	};
@@ -244,9 +255,9 @@ public sealed class TenantRangeOpPredicateConformanceShould
 		new("e1", AggregateId, AggregateType, "Created", [1], null, 0, DateTimeOffset.UnixEpoch);
 
 	private static string SqlServerInsertNone() =>
-		new EsSql.InsertEventsBatchRequest([SqlRow()], null, TenantScope.None, default).Command.CommandText;
+		new EsSql.InsertEventsBatchRequest([SqlRow()], null, TenantScope.Untenanted, default).Command.CommandText;
 	private static string PostgresInsertNone() =>
-		new EsPg.InsertEventsBatchRequest([PgRow()], null, TenantScope.None, default).Command.CommandText;
+		new EsPg.InsertEventsBatchRequest([PgRow()], null, TenantScope.Untenanted, default).Command.CommandText;
 	private static string OracleInsertNone() =>
-		new EsOra.InsertEventsBatchRequest([OraRow()], null, TenantScope.None, default).Command.CommandText;
+		new EsOra.InsertEventsBatchRequest([OraRow()], null, TenantScope.Untenanted, default).Command.CommandText;
 }

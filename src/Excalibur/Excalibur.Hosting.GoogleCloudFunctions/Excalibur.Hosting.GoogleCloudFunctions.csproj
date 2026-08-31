@@ -21,12 +21,13 @@
   </PropertyGroup>
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>
-    <ProjectReference Include="..\Excalibur.Hosting.Serverless\Excalibur.Hosting.Serverless.csproj" />
+    <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Hosting.GoogleCloudFunctions\Excalibur.Dispatch.Hosting.GoogleCloudFunctions.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -45,6 +46,7 @@
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Hosting.Serverless.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Hosting.GoogleCloudFunctions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

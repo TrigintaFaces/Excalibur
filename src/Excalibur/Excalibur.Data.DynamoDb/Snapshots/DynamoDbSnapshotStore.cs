@@ -14,6 +14,7 @@ using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -39,7 +40,15 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 {
 	private readonly DynamoDbSnapshotStoreOptions _options;
 	private readonly ILogger<DynamoDbSnapshotStore> _logger;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly bool _ownsClient;
 	private IAmazonDynamoDB? _client;
@@ -52,16 +61,22 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
-	/// tenant becomes part of every snapshot partition key.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
+	// Deterministic DI construction: the advanced constructor below also accepts an ITenantContext, so
+	// without this marker ActivatorUtilities' selection depends on which services happen to be
+	// registered, and reports a missing dependency as a constructor ambiguity.
+	[ActivatorUtilitiesConstructor]
 	public DynamoDbSnapshotStore(
 		IOptions<DynamoDbSnapshotStoreOptions> options,
 		ILogger<DynamoDbSnapshotStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 
 		_options = options.Value;
@@ -77,18 +92,20 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
-	/// tenant becomes part of every snapshot partition key.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	public DynamoDbSnapshotStore(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbSnapshotStoreOptions> options,
 		ILogger<DynamoDbSnapshotStore> logger,
-		ITenantContext? tenantContext = null)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 
 		_client = client;
@@ -151,7 +168,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, CurrentTenantScope.TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(aggregateType);
 
 		var request = new GetItemRequest
@@ -175,9 +192,9 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				return null;
 			}
 
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 			var snapshot = DynamoDbSnapshotDocument.ToSnapshot(response.Item);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			LogSnapshotRetrieved(aggregateType, aggregateId, snapshot.Version);
 
 			return snapshot;
@@ -223,7 +240,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(snapshot.AggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(snapshot.AggregateId, CurrentTenantScope.TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(snapshot.AggregateType);
 
 		// First, check if a snapshot already exists to perform version check
@@ -258,9 +275,9 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			}
 
 			// Put with conditional expression - version must still be lower OR not exist
-#pragma warning disable IL2026
-			var document = DynamoDbSnapshotDocument.FromSnapshot(snapshot, _options.DefaultTtlSeconds, TenantScope.FromContext(_tenantContext).TenantId);
-#pragma warning restore IL2026
+#pragma warning disable IL2026, IL3050
+			var document = DynamoDbSnapshotDocument.FromSnapshot(snapshot, CurrentTenantScope.TenantId, _options.DefaultTtlSeconds);
+#pragma warning restore IL2026, IL3050
 
 			var putRequest = new PutItemRequest
 			{
@@ -327,7 +344,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, CurrentTenantScope.TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(aggregateType);
 
 		var request = new DeleteItemRequest
@@ -387,7 +404,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, CurrentTenantScope.TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(aggregateType);
 
 		// First read the snapshot to check its version

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Options.Delivery;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The idempotency middleware admits exactly one of N concurrent duplicate deliveries by atomically claiming the
+/// The inbox middleware admits exactly one of N concurrent duplicate deliveries by atomically claiming the
 /// message <em>before</em> the handler runs and releasing the claim if the handler fails. A store that cannot claim
 /// atomically would force the middleware back onto a non-atomic check-then-act, under which two concurrent duplicates
 /// can both observe "not processed" and both execute the handler. This validator (registered with
@@ -57,7 +57,7 @@ internal sealed class IdempotencyClaimCapabilityValidator : IValidateOptions<Inb
 
 		return ValidateOptionsResult.Fail(
 			$"The registered inbox store '{_inboxStore.GetType().FullName}' does not implement " +
-			$"'{nameof(IClaimableInboxStore)}'. The idempotency middleware admits exactly one of N concurrent " +
+			$"'{nameof(IClaimableInboxStore)}'. The inbox middleware admits exactly one of N concurrent " +
 			"duplicate deliveries by atomically claiming a message before the handler runs and releasing the claim " +
 			"on failure; without the capability it would fall back to a non-atomic check-then-act under which " +
 			"concurrent duplicates can both execute the handler. Register an inbox store that supports atomic " +

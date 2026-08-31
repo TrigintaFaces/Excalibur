@@ -162,7 +162,7 @@ public sealed class ServiceRegistrationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
 		_ = sb.AppendLine();
 
-		// Use Microsoft.Extensions.DependencyInjection namespace per ADR-075 conventions
+		// Use Microsoft.Extensions.DependencyInjection namespace conventions
 		_ = sb.AppendLine("namespace Microsoft.Extensions.DependencyInjection;");
 		_ = sb.AppendLine();
 

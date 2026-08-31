@@ -188,28 +188,6 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void UseSqlServer_ConfiguresDeadLetterTableName()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.UseSqlServer(sql =>
-			{
-				sql.ConnectionString(TestConnectionString)
-				   .DeadLetterTableName("CustomDeadLetters");
-			});
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.Tables.DeadLetterTableName.ShouldBe("CustomDeadLetters");
-	}
-
-	[Fact]
 	public void UseSqlServer_ConfiguresCommandTimeout()
 	{
 		// Arrange
@@ -291,7 +269,6 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 				   .SchemaName("Outbox")
 				   .TableName("Messages")
 				   .TransportsTableName("MessageTransports")
-				   .DeadLetterTableName("DeadLetters")
 				   .CommandTimeout(TimeSpan.FromSeconds(45))
 				   .UseRowLocking(true)
 				   .DefaultBatchSize(200);
@@ -305,7 +282,6 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		options.Value.Tables.SchemaName.ShouldBe("Outbox");
 		options.Value.Tables.OutboxTableName.ShouldBe("Messages");
 		options.Value.Tables.TransportsTableName.ShouldBe("MessageTransports");
-		options.Value.Tables.DeadLetterTableName.ShouldBe("DeadLetters");
 		options.Value.Processing.CommandTimeoutSeconds.ShouldBe(45);
 		options.Value.Processing.UseRowLocking.ShouldBeTrue();
 		options.Value.Processing.DefaultBatchSize.ShouldBe(200);

@@ -177,7 +177,7 @@ public sealed class SqlServerCdcFencingCheckpointShould
 
 	private CdcStateStore NewStore() =>
 		new(
-			new SqlConnection(ConnectionString),
+			() => new SqlConnection(ConnectionString),
 			MsOptions.Create(new SqlServerCdcStateStoreOptions { SchemaName = SchemaName, TableName = _stateTable }));
 
 	private async Task<int> WriteAsync(string connId, byte[] lsn, long fencingToken)

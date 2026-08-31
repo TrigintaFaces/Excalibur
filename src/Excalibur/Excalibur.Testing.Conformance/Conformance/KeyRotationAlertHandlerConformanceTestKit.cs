@@ -47,7 +47,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class KeyRotationAlertHandlerConformanceTestKit
+public abstract class KeyRotationAlertHandlerConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh key rotation alert handler instance for testing.
@@ -136,7 +136,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationFailureAsync throws ArgumentNullException for null alert.
 	/// </summary>
-	protected virtual async Task HandleRotationFailureAsync_NullAlert_ShouldThrowArgumentNullException()
+	public virtual async Task HandleRotationFailureAsync_NullAlert_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -169,7 +169,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationFailureAsync completes successfully with low severity.
 	/// </summary>
-	protected virtual async Task HandleRotationFailureAsync_LowSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleRotationFailureAsync_LowSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -200,7 +200,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationFailureAsync completes successfully with medium severity.
 	/// </summary>
-	protected virtual async Task HandleRotationFailureAsync_MediumSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleRotationFailureAsync_MediumSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -231,7 +231,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationFailureAsync completes successfully with critical severity.
 	/// </summary>
-	protected virtual async Task HandleRotationFailureAsync_CriticalSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleRotationFailureAsync_CriticalSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -266,7 +266,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleExpirationWarningAsync throws ArgumentNullException for null alert.
 	/// </summary>
-	protected virtual async Task HandleExpirationWarningAsync_NullAlert_ShouldThrowArgumentNullException()
+	public virtual async Task HandleExpirationWarningAsync_NullAlert_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -299,7 +299,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleExpirationWarningAsync completes successfully with low severity.
 	/// </summary>
-	protected virtual async Task HandleExpirationWarningAsync_LowSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleExpirationWarningAsync_LowSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -330,7 +330,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleExpirationWarningAsync completes successfully with high severity.
 	/// </summary>
-	protected virtual async Task HandleExpirationWarningAsync_HighSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleExpirationWarningAsync_HighSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -361,7 +361,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleExpirationWarningAsync completes successfully with critical severity.
 	/// </summary>
-	protected virtual async Task HandleExpirationWarningAsync_CriticalSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleExpirationWarningAsync_CriticalSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -396,7 +396,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationSuccessAsync throws ArgumentNullException for null notification.
 	/// </summary>
-	protected virtual async Task HandleRotationSuccessAsync_NullNotification_ShouldThrowArgumentNullException()
+	public virtual async Task HandleRotationSuccessAsync_NullNotification_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -429,7 +429,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationSuccessAsync completes successfully with valid notification.
 	/// </summary>
-	protected virtual async Task HandleRotationSuccessAsync_ValidNotification_ShouldCompleteSuccessfully()
+	public virtual async Task HandleRotationSuccessAsync_ValidNotification_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -452,7 +452,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationSuccessAsync completes successfully with null OldKeyVersion.
 	/// </summary>
-	protected virtual async Task HandleRotationSuccessAsync_NullOldVersion_ShouldCompleteSuccessfully()
+	public virtual async Task HandleRotationSuccessAsync_NullOldVersion_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -476,7 +476,7 @@ public abstract class KeyRotationAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleRotationSuccessAsync completes successfully with both versions null.
 	/// </summary>
-	protected virtual async Task HandleRotationSuccessAsync_NullBothVersions_ShouldCompleteSuccessfully()
+	public virtual async Task HandleRotationSuccessAsync_NullBothVersions_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();

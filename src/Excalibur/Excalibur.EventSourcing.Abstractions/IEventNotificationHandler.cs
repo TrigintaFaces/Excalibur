@@ -20,7 +20,7 @@ namespace Excalibur.EventSourcing;
 /// after inline projections have completed.
 /// </para>
 /// <para>
-/// Notification handlers run sequentially after ALL inline projections have finished (R27.8).
+/// Notification handlers run sequentially after ALL inline projections have finished.
 /// They are resolved from DI and invoked in registration order.
 /// </para>
 /// </remarks>

@@ -74,7 +74,7 @@ public sealed class SqlServerOutboxMarkFailedLeaseClearShould : IClassFixture<Sq
 		afterFail.Status.ShouldBe(StatusFailed);
 
 		// Liveness half of the accounting: statistics report it failed, not lingering in-flight.
-		var stats = await store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await store.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		stats.FailedMessageCount.ShouldBe(1);
 		stats.SendingMessageCount.ShouldBe(0, "a failed message must not be over-reported as in-flight.");
 	}

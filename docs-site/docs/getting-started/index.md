@@ -98,6 +98,27 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 var app = builder.Build();
 ```
 
+:::note A missing handler throws, it is not a failed result
+Dispatching an action with no registered handler is a configuration fault, not a request outcome, so it
+throws a `HandlerNotRegisteredException` naming the action's full type name and both ways to register it —
+the same way `IServiceProvider.GetRequiredService` behaves for an unregistered service. It never arrives
+as a failed `IMessageResult`, so branching on `IsSuccess` cannot mistake your missing registration for a
+bad request from your caller. Let it reach your error handler: unhandled, it surfaces as a 500 in
+development with the fix in the message.
+
+It derives from `InvalidOperationException`, so an existing `catch` for that still catches it. It also
+passes through `UseRetry()`, `UseExceptionMapping()` and `UseCircuitBreaker()` untouched, so adding
+resilience to your pipeline does not turn the fault back into a failed result.
+
+A failed `IMessageResult` therefore always means your handler ran and reported a failure.
+:::
+
+:::note Where handlers are discovered
+`AddDispatch()` discovers handlers from your **entry assembly** — the project that contains `Program.cs`.
+If you keep handlers in a separate class library, name it explicitly:
+`builder.Services.AddDispatch(typeof(CreateOrderHandler).Assembly);`
+:::
+
 ## Step 4: Dispatch Messages
 
 Inject `IDispatcher` and send messages. No explicit context is needed — the framework manages context automatically:
@@ -127,7 +148,9 @@ public class OrderController : ControllerBase
         if (result.IsSuccess)
             return Ok();
 
-        return BadRequest(result.ErrorMessage);
+        // A failed result means the handler ran and reported a failure. Do not map it to 400 by
+        // default: `result.ProblemDetails.Status` carries the status the framework determined.
+        return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
     }
 
     [HttpGet("{orderId}")]
@@ -143,7 +166,7 @@ public class OrderController : ControllerBase
         if (result.IsSuccess)
             return Ok(result.ReturnValue);
 
-        return NotFound(result.ErrorMessage);
+        return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
     }
 }
 ```
@@ -304,10 +327,12 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString))
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString(connectionString)))
         .AddCdc(cdc => cdc.TrackTable<Order>())
-        .AddSagas(opts => opts.EnableTimeouts = true)
-        .AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
+        .AddSagas(saga => saga.WithCoordination().WithTimeouts())
+        .AddLeaderElection(le => le
+            .UseSqlServer(sql => sql.ConnectionString(connectionString))
+            .WithOptions(o => o.LeaseDuration = TimeSpan.FromSeconds(30)));
 });
 ```
 
@@ -326,27 +351,16 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString(connectionString)));
 });
 ```
 
-You can also bind Excalibur options from `appsettings.json`:
-
-```json title="appsettings.json"
-{
-  "Excalibur": {
-    "EventSourcing": { "Enabled": true, "SnapshotFrequency": 100 },
-    "Outbox": { "Enabled": true, "PollingInterval": "00:00:05" },
-    "Saga": { "Enabled": false },
-    "LeaderElection": { "Enabled": false },
-    "Cdc": { "Enabled": false }
-  }
-}
-```
+Each subsystem binds its own options type from configuration, so you bind the section the
+subsystem actually reads rather than a single root object:
 
 ```csharp
-builder.Services.Configure<ExcaliburOptions>(
-    builder.Configuration.GetSection("Excalibur"));
+builder.Services.Configure<OutboxProcessingOptions>(
+    builder.Configuration.GetSection("Excalibur:Outbox"));
 ```
 
 See the **[Package Guide](/docs/package-guide)** for the complete package selection framework with migration paths and code examples.
@@ -363,7 +377,7 @@ dotnet add package Excalibur.Dispatch.Transport.RabbitMQ
 // Register the transport with destination mapping
 services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
-    rmq.ConnectionString("amqp://guest:guest@localhost:5672/")
+    rmq.ConnectionString("amqps://guest:guest@localhost:5671/")
        .MapQueue<CreateOrderAction>("orders-queue");
 });
 
@@ -379,6 +393,31 @@ services.AddDispatch(dispatch =>
     });
 });
 ```
+
+:::tip Planning to publish Native AOT or trimmed?
+
+`AddHandlersFromAssembly` finds handlers by scanning the assembly with reflection
+(`Assembly.GetTypes()`, then interface inspection). The trimmer cannot see a type that is only ever
+reached that way, so under `PublishTrimmed=true` or `PublishAot=true` a handler with no other static
+reference can be trimmed out of the app — and the failure is silent: the scan simply finds fewer
+handlers, and the messages they would have handled go unhandled at run time.
+
+This call does **not** raise a build warning. The single-assembly overload carries explicit
+trim-analysis suppressions, so the toolchain stays quiet about a pattern it cannot actually verify.
+Do not read the absence of a warning as a guarantee that trimming is safe here.
+
+The AOT-safe equivalent registers the same handlers explicitly, discovered at compile time by the
+source generator bundled in the `Excalibur.Dispatch` package — no reflection, and nothing for the
+trimmer to remove:
+
+```csharp
+builder.Services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
+```
+
+Assembly scanning stays a fine choice for JIT-compiled apps, and it is the only option when handlers
+live in an assembly the generator does not compile (a third-party or dynamically loaded plugin). See
+[Native AOT](../advanced/native-aot.md).
+:::
 
 Your handlers don't change — only the registration code changes. See [Choosing a Transport](../transports/choosing-a-transport.md) to pick the right broker and [Message Routing](../patterns/routing.md) for the full routing API.
 

@@ -176,7 +176,7 @@ public sealed class OutboxFailedReclaimableAfterFloorShould
 		await store.StageMessageAsync(msg, CancellationToken.None);
 		await store.MarkFailedAsync(msg.Id, "boom", 2, CancellationToken.None);
 
-		(await store.GetFailedMessagesAsync(maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None))
+		(await store.GetAllTenantsFailedMessagesAsync(maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None))
 			.ShouldContain(m => m.Id == msg.Id);
 	}
 }

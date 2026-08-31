@@ -102,7 +102,7 @@ public partial class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 				sleepDurationProvider: retryAttempt =>
 
 					// Jitter for retry backoff doesn't require cryptographic randomness - it's for load distribution, not security
-					// R0.8: Do not use insecure randomness
+					// Do not use insecure randomness
 #pragma warning disable CA5394
 					TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 100)),
 #pragma warning restore CA5394

@@ -16,7 +16,7 @@ namespace Excalibur.Outbox.Diagnostics;
 /// <item>134000-134999: Outbox Cleanup</item>
 /// </list>
 /// </remarks>
-public static class OutboxEventId
+internal static class OutboxEventId
 {
 	// ========================================
 	// 130000-130099: Outbox Core
@@ -404,6 +404,12 @@ public static class OutboxEventId
 
 	/// <summary>Inbox message discarded because no dead letter queue is configured.</summary>
 	public const int InboxMessageDiscardedNoDlq = 132222;
+
+	/// <summary>Retry drain skipped an entry whose ownership term is held by another processor.</summary>
+	public const int InboxDrainEntryHeldElsewhere = 132223;
+
+	/// <summary>Retry drain could not record an outcome because its ownership term had lapsed.</summary>
+	public const int InboxDrainFinalizeLostTerm = 132224;
 
 	// ========================================
 	// 133200-133299: Cosmos DB Cloud Outbox

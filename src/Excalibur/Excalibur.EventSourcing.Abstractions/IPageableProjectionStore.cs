@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing;
 
 /// <summary>
@@ -10,13 +12,17 @@ namespace Excalibur.EventSourcing;
 /// <remarks>
 /// <para>
 /// This is an ISP sub-interface following the <c>IBufferDistributedCache</c> precedent.
-/// Consumers check for capability via pattern matching:
+/// Consumers reach it through <see cref="ProjectionStoreExtensions.QueryPagedAsync"/>, which uses the
+/// provider's native paging when it is available and pages in memory when it is not:
 /// <code>
-/// if (store is IPageableProjectionStore&lt;MyProjection&gt; paged)
-/// {
-///     var result = await paged.QueryPagedAsync(filters, 1, 20, null, ct);
-/// }
+/// var result = await store.QueryPagedAsync(filters, 1, 20, null, ct);
 /// </code>
+/// </para>
+/// <para>
+/// Do not test the store's type to detect this capability. A store is commonly reached through a
+/// decorator -- tenant scoping, encryption -- whose own interface list is fixed when it is compiled, so
+/// the test reports the decorator and not the store beneath it. Ask the store for the capability instead
+/// (<see cref="IServiceProvider.GetService(System.Type)"/>), which the extension method above already does.
 /// </para>
 /// <para>
 /// The default implementation falls back to <see cref="IProjectionStore{TProjection}.QueryAsync"/>
@@ -42,6 +48,8 @@ public interface IPageableProjectionStore<TProjection> : IProjectionStore<TProje
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown when <paramref name="pageNumber"/> is less than 1 or <paramref name="pageSize"/> is less than 1.
 	/// </exception>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<PagedResult<TProjection>> QueryPagedAsync(
 		IDictionary<string, object>? filters,
 		int pageNumber,

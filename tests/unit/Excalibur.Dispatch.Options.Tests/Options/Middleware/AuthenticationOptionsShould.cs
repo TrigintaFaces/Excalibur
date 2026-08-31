@@ -86,16 +86,6 @@ public sealed class AuthenticationOptionsShould
 	}
 
 	[Fact]
-	public void Default_ValidApiKeys_IsNull()
-	{
-		// Arrange & Act
-		var options = new AuthenticationOptions();
-
-		// Assert
-		options.ValidApiKeys.ShouldBeNull();
-	}
-
-	[Fact]
 	public void Default_AllowAnonymousForTypes_IsNull()
 	{
 		// Arrange & Act

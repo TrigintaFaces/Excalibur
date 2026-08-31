@@ -40,7 +40,7 @@ TDocument>
 	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
 	// Guards _cts so a stop/start cycle can atomically retire the canceled source and install a fresh one
-	// (o9y64z): StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
+	// StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
 	// ReadChangesAsync would link a permanently-canceled token and yield-break immediately.
 	private readonly System.Threading.Lock _ctsLock = new();
 	private CancellationTokenSource _cts = new();
@@ -101,7 +101,7 @@ TDocument>
 			throw new InvalidOperationException($"Table '{_tableName}' does not have streams enabled.");
 		}
 
-		// Recreate the CTS if a prior StopAsync canceled it, so stop→start actually resumes (o9y64z).
+		// Recreate the CTS if a prior StopAsync canceled it, so stop→start actually resumes.
 		lock (_ctsLock)
 		{
 			if (_cts.IsCancellationRequested)
@@ -248,9 +248,9 @@ TDocument>
 					var image = record.Dynamodb?.NewImage ?? record.Dynamodb?.OldImage;
 					if (image != null)
 					{
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 						document = DeserializeDocument(image);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 					}
 
 					var documentId = GetDocumentIdFromRecord(record);
@@ -315,6 +315,7 @@ TDocument>
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 	private static TDocument? DeserializeDocument(
 		Dictionary<string, AttributeValue> item)
 	{

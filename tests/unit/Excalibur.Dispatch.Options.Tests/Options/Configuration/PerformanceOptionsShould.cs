@@ -16,16 +16,6 @@ public sealed class PerformanceOptionsShould
 	#region Default Value Tests
 
 	[Fact]
-	public void Default_EnableCacheMiddleware_IsTrue()
-	{
-		// Arrange & Act
-		var options = new PerformanceOptions();
-
-		// Assert
-		options.EnableCacheMiddleware.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void Default_EnableTypeMetadataCaching_IsTrue()
 	{
 		// Arrange & Act
@@ -68,19 +58,6 @@ public sealed class PerformanceOptionsShould
 	#endregion
 
 	#region Property Setter Tests
-
-	[Fact]
-	public void EnableCacheMiddleware_CanBeSet()
-	{
-		// Arrange
-		var options = new PerformanceOptions();
-
-		// Act
-		options.EnableCacheMiddleware = false;
-
-		// Assert
-		options.EnableCacheMiddleware.ShouldBeFalse();
-	}
 
 	[Fact]
 	public void EnableTypeMetadataCaching_CanBeSet()
@@ -144,7 +121,6 @@ public sealed class PerformanceOptionsShould
 		// Act
 		var options = new PerformanceOptions
 		{
-			EnableCacheMiddleware = false,
 			EnableTypeMetadataCaching = false,
 			MessagePoolSize = 2000,
 			UseAllocationFreeExecution = false,
@@ -152,7 +128,6 @@ public sealed class PerformanceOptionsShould
 		};
 
 		// Assert
-		options.EnableCacheMiddleware.ShouldBeFalse();
 		options.EnableTypeMetadataCaching.ShouldBeFalse();
 		options.MessagePoolSize.ShouldBe(2000);
 		options.UseAllocationFreeExecution.ShouldBeFalse();
@@ -169,14 +144,12 @@ public sealed class PerformanceOptionsShould
 		// Act
 		var options = new PerformanceOptions
 		{
-			EnableCacheMiddleware = true,
 			EnableTypeMetadataCaching = true,
 			UseAllocationFreeExecution = true,
 			AutoFreezeOnStart = true,
 		};
 
 		// Assert
-		options.EnableCacheMiddleware.ShouldBeTrue();
 		options.UseAllocationFreeExecution.ShouldBeTrue();
 		options.AutoFreezeOnStart.ShouldBeTrue();
 	}

@@ -37,7 +37,6 @@ public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 		{
 			DeadLetterTopicName = new TopicName("test-project", "dead-letter-topic"),
 			DeadLetterSubscriptionName = new SubscriptionName("test-project", "dead-letter-sub"),
-			DefaultMaxDeliveryAttempts = 5,
 		};
 
 		var optionsWrapper = Microsoft.Extensions.Options.Options.Create(_options);
@@ -259,10 +258,10 @@ public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 
 	#endregion
 
-	#region PurgeDeadLetterQueueAsync
+	#region PurgeAllTenantsDeadLetterQueueAsync
 
 	[Fact]
-	public async Task PurgeDeadLetterQueueAsync_ReturnsCount()
+	public async Task PurgeAllTenantsDeadLetterQueueAsync_ReturnsCount()
 	{
 		// Arrange — return a batch then empty
 		var firstCall = true;
@@ -286,7 +285,7 @@ public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 			});
 
 		// Act
-		var purged = await _sut.PurgeDeadLetterQueueAsync(CancellationToken.None);
+		var purged = await _sut.PurgeAllTenantsDeadLetterQueueAsync(CancellationToken.None);
 
 		// Assert
 		purged.ShouldBeGreaterThanOrEqualTo(0);

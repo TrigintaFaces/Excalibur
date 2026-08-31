@@ -11,7 +11,7 @@ namespace Excalibur.Data.InMemory;
 /// <summary>
 /// Configuration options for in-memory provider.
 /// </summary>
-public sealed class InMemoryProviderOptions : IPersistenceOptions, IPersistenceResilienceOptions, IPersistencePoolingOptions, IPersistenceObservabilityOptions
+public sealed class InMemoryProviderOptions : IPersistenceOptions
 {
 	/// <summary>
 	/// Gets or sets the provider name.
@@ -100,70 +100,6 @@ public sealed class InMemoryProviderOptions : IPersistenceOptions, IPersistenceR
 	}
 
 	/// <summary>
-	/// Gets or sets the maximum retry attempts.
-	/// </summary>
-	/// <value>
-	/// The maximum retry attempts. Delegates to <see cref="Storage"/>.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int MaxRetryAttempts
-	{
-		get => Storage.MaxRetryAttempts;
-		set => Storage.MaxRetryAttempts = value;
-	}
-
-	/// <summary>
-	/// Gets or sets the retry delay in milliseconds.
-	/// </summary>
-	/// <value>
-	/// The retry delay in milliseconds. Delegates to <see cref="Storage"/>.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int RetryDelayMilliseconds
-	{
-		get => Storage.RetryDelayMilliseconds;
-		set => Storage.RetryDelayMilliseconds = value;
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether connection pooling is enabled.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if connection pooling is enabled; otherwise, <c>false</c>. Delegates to <see cref="Pool"/>.
-	/// </value>
-	public bool EnableConnectionPooling
-	{
-		get => Pool.EnableConnectionPooling;
-		set => Pool.EnableConnectionPooling = value;
-	}
-
-	/// <summary>
-	/// Gets or sets the maximum pool size.
-	/// </summary>
-	/// <value>
-	/// The maximum pool size. Delegates to <see cref="Pool"/>.
-	/// </value>
-	[Range(1, int.MaxValue)]
-	public int MaxPoolSize
-	{
-		get => Pool.MaxPoolSize;
-		set => Pool.MaxPoolSize = value;
-	}
-
-	/// <summary>
-	/// Gets or sets the minimum pool size.
-	/// </summary>
-	/// <value>
-	/// The minimum pool size. Delegates to <see cref="Pool"/>.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int MinPoolSize
-	{
-		get => Pool.MinPoolSize;
-		set => Pool.MinPoolSize = value;
-	}
-
-	/// <summary>
 	/// Gets or sets a value indicating whether metrics are enabled.
 	/// </summary>
 	/// <value>
@@ -176,10 +112,10 @@ public sealed class InMemoryProviderOptions : IPersistenceOptions, IPersistenceR
 	}
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to persist data to disk on dispose.
+	/// Gets or sets a value indicating whether disk persistence is enabled.
 	/// </summary>
 	/// <value>
-	/// <see langword="true"/> if data is persisted to disk on dispose; otherwise, <c>false</c>. Delegates to <see cref="Storage"/>.
+	/// <see langword="true"/> if disk persistence is enabled; otherwise, <c>false</c>. Delegates to <see cref="Storage"/>.
 	/// </value>
 	public bool PersistToDisk
 	{

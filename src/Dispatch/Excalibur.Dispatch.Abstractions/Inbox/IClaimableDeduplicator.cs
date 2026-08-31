@@ -36,21 +36,33 @@ public interface IClaimableDeduplicator
 	/// <param name="expiry">How long to remember the message id once claimed.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>
-	/// <see langword="true"/> if the caller created the claim (first writer, proceed to handle);
-	/// <see langword="false"/> if the message id is already present (duplicate, skip).
+	/// A <see cref="LeaseToken"/> identifying this holder if the caller created the claim (first writer,
+	/// proceed to handle); <see langword="null"/> if the message id is already present (duplicate, skip).
 	/// </returns>
-	Task<bool> TryClaimAsync(string messageId, TimeSpan expiry, CancellationToken cancellationToken);
+	Task<LeaseToken?> TryClaimAsync(string messageId, TimeSpan expiry, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Releases a previously acquired claim by removing the message id, so that a redelivery of the same
 	/// message can be re-admitted.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// Call this when the handler fails after a successful <see cref="TryClaimAsync"/>. Releasing an
 	/// already-removed or never-claimed message id is a no-op.
+	/// </para>
+	/// <para>
+	/// <b>Release names what it releases.</b> The claim carries an expiry, so a caller that outran it may
+	/// find the id already re-claimed by a second caller. Removing by id alone would delete that live
+	/// claim and admit the same message twice; presenting the term makes releasing someone else's claim
+	/// inexpressible.
+	/// </para>
 	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message.</param>
+	/// <param name="claim">The term returned by <see cref="TryClaimAsync"/>.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that represents the asynchronous release operation.</returns>
-	Task ReleaseAsync(string messageId, CancellationToken cancellationToken);
+	/// <returns>
+	/// <see langword="true"/> if the caller still held the claim and it was removed; <see langword="false"/>
+	/// if the claim had already lapsed and been taken by another caller, or was never present.
+	/// </returns>
+	Task<bool> ReleaseAsync(string messageId, LeaseToken claim, CancellationToken cancellationToken);
 }

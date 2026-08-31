@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
@@ -12,6 +12,7 @@ using Dapper;
 
 using Excalibur.Compliance.KeyManagement;
 using Excalibur.Data.Validation;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,12 @@ namespace Excalibur.Compliance.SqlServer;
 /// </remarks>
 public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisposable
 {
+	/// <summary>SQL Server error 2627 — PRIMARY KEY / UNIQUE constraint violation.</summary>
+	private const int DuplicateKeyError = 2627;
+
+	/// <summary>SQL Server error 2601 — duplicate key row in a unique index.</summary>
+	private const int DuplicateUniqueIndexError = 2601;
+
 	private static readonly CompositeFormat NoEscrowFoundFormat =
 		CompositeFormat.Parse(Resources.SqlServerKeyEscrowService_NoEscrowFound);
 
@@ -47,7 +54,7 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 	private static readonly CompositeFormat CannotGenerateTokensForStateFormat =
 		CompositeFormat.Parse(Resources.SqlServerKeyEscrowService_CannotGenerateTokensForState);
 
-	// Multi-recipient envelope (e6batc): the escrowed DEK is wrapped once per token batch under a KEK derived
+	// Multi-recipient envelope: the escrowed DEK is wrapped once per token batch under a KEK derived
 	// from that batch's quorum secret. Recovery requires a reconstructed quorum; the master key alone strips
 	// only the outer layer and can never derive the KEK — closing the lone-holder bypass. v2 is the only wrap
 	// format (greenfield); the version column is retained for future crypto agility.
@@ -111,8 +118,24 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 			? escrowedAt.Add(options.ExpiresIn.Value)
 			: (DateTimeOffset?)null;
 
+		// ONE tenant term feeds BOTH the encryption context and the stored column, and that is the
+		// whole point of the local. This value is not a query predicate anywhere in the escrow path:
+		// it is AEAD associated data, fed back into the decryption context at recovery from what the
+		// row holds (see RecoverKeyAsync). So what is WRITTEN into the column and what is HASHED into
+		// the AAD must be the same bytes, or the key does not come back -- at the one moment escrow
+		// exists to survive.
+		//
+		// Before the column was made total those two came from different places: the AAD came from
+		// the caller's option and the column stored it verbatim, and they agreed only because nothing
+		// normalised either. Deriving both from this single local makes divergence take two edits
+		// instead of being the default, which is the only reason it is safe to normalise here at all.
+		//
+		// FromStoredValue is total: null, empty and the reserved sentinel all resolve to the
+		// untenanted term, so an untenanted escrow binds a concrete value rather than NULL.
+		var tenantTerm = KeyedTenantPartition.FromStoredValue(options.TenantId).TenantId;
+
 		// Encrypt the key material using the master key
-		var context = new EncryptionContext { Purpose = $"key-escrow:{keyId}", TenantId = options.TenantId };
+		var context = new EncryptionContext { Purpose = $"key-escrow:{keyId}", TenantId = tenantTerm };
 
 		var encryptedData = await _encryptionProvider
 			.EncryptAsync(keyMaterial.ToArray(), context, cancellationToken)
@@ -137,7 +160,7 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 		parameters.Add("@State", (int)EscrowState.Active);
 		parameters.Add("@EscrowedAt", escrowedAt);
 		parameters.Add("@ExpiresAt", expiresAt);
-		parameters.Add("@TenantId", options.TenantId);
+		parameters.Add("@TenantId", tenantTerm);
 		parameters.Add("@Purpose", options.Purpose);
 		parameters.Add("@Metadata", options.Metadata is not null
 			? JsonSerializer.Serialize(options.Metadata, SqlServerComplianceJsonContext.Default.DictionaryStringString)
@@ -151,9 +174,7 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 			(@EscrowId, @KeyId, @EncryptedKey, @KeyHash, @Algorithm, @Iv, @AuthTag,
 			 @MasterKeyId, @MasterKeyVersion, @State, @EscrowedAt, @ExpiresAt, @TenantId, @Purpose, @Metadata)";
 
-		_ = await connection.ExecuteAsync(
-				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
-					cancellationToken: cancellationToken))
+		await InsertEscrowRowAsync(connection, sql, parameters, keyId, options.AllowOverwrite, escrowedAt, cancellationToken)
 			.ConfigureAwait(false);
 
 		LogKeyEscrowed(keyId, escrowId);
@@ -195,12 +216,18 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 
 		if (!status.IsRecoverable)
 		{
+			// Report revocation as revocation: collapsing it into EscrowExpired tells an operator the escrow
+			// lapsed on its own when it was in fact deliberately revoked.
+			var stateErrorCode = status.State == EscrowState.Revoked
+				? KeyEscrowErrorCode.EscrowRevoked
+				: KeyEscrowErrorCode.EscrowExpired;
+
 			throw new KeyEscrowException(string.Format(
 				CultureInfo.InvariantCulture,
 				EscrowNotRecoverableFormat,
 				keyId,
 				status.State))
-			{ KeyId = keyId, EscrowId = status.EscrowId, ErrorCode = KeyEscrowErrorCode.EscrowExpired };
+			{ KeyId = keyId, EscrowId = status.EscrowId, ErrorCode = stateErrorCode };
 		}
 
 		if (token.EscrowId != status.EscrowId)
@@ -277,10 +304,20 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 				LastRecoveryAttempt = @Now
 			WHERE KeyId = @KeyId AND State = @State";
 
-		_ = await connection.ExecuteAsync(
+		// An UPDATE that matches no row is a successful statement, so the count is the only thing that
+		// says whether the attempt was recorded. The escrow can leave the Active state between the read
+		// above and this write -- a concurrent revoke -- and the recovery has already handed back the
+		// decrypted key by this point. Discarding the count would let a key recovery that DID happen go
+		// unrecorded on the audit counter with nothing reporting it.
+		var attemptsRecorded = await connection.ExecuteAsync(
 				new CommandDefinition(updateSql, new { KeyId = keyId, State = (int)EscrowState.Active, Now = DateTimeOffset.UtcNow },
 					commandTimeout: _options.CommandTimeoutSeconds, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
+
+		if (attemptsRecorded == 0)
+		{
+			LogRecoveryAttemptNotRecorded(keyId);
+		}
 
 		LogKeyRecovered(keyId);
 
@@ -323,14 +360,19 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 
 		if (!status.IsRecoverable)
 		{
+			// Same distinction as RecoverKeyAsync: a revoked escrow is reported as revoked, not as expired.
+			var stateErrorCode = status.State == EscrowState.Revoked
+				? KeyEscrowErrorCode.EscrowRevoked
+				: KeyEscrowErrorCode.EscrowExpired;
+
 			throw new KeyEscrowException(string.Format(
 				CultureInfo.InvariantCulture,
 				CannotGenerateTokensForStateFormat,
 				status.State))
-			{ KeyId = keyId, EscrowId = status.EscrowId, ErrorCode = KeyEscrowErrorCode.EscrowExpired };
+			{ KeyId = keyId, EscrowId = status.EscrowId, ErrorCode = stateErrorCode };
 		}
 
-		// Multi-recipient envelope (e6batc): generate a fresh quorum secret S for THIS batch and bind the
+		// Multi-recipient envelope: generate a fresh quorum secret S for THIS batch and bind the
 		// escrowed DEK under KEK = HKDF(S). Ownership of S transfers here; it is zeroed immediately after
 		// wrapping (finally). Recovery verifies the reconstructed secret against the SERVER-side commitment.
 		var quorum = QuorumRecoverySeam.GenerateQuorumSharesWithSecret(custodianCount, threshold);
@@ -486,6 +528,88 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 		{
 			_operationLock.Dispose();
 			_disposed = true;
+		}
+	}
+
+	/// <summary>
+	/// Persists the new escrow row, honouring <see cref="EscrowOptions.AllowOverwrite"/> and translating a
+	/// duplicate-key rejection into the documented <see cref="KeyEscrowErrorCode.EscrowAlreadyExists"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A second escrow for a still-active key is refused by the <c>UX_KeyEscrow_ActiveKeyId</c> filtered
+	/// unique index, which is the right place for that invariant to live. What the index cannot do is speak
+	/// the contract: untranslated, the caller sees a raw provider exception naming an index, and
+	/// <see cref="EscrowOptions.AllowOverwrite"/> — public, and documented as throwing when an escrow
+	/// already exists — reaches nothing at all.
+	/// </para>
+	/// <para>
+	/// Overwrite supersedes rather than deletes. The existing active escrow is revoked in the same
+	/// transaction that inserts its replacement, so the unique filter admits the new row while escrow
+	/// history — including the superseded row's custodian batch — is preserved for audit.
+	/// </para>
+	/// </remarks>
+	private async Task InsertEscrowRowAsync(
+		SqlConnection connection,
+		string insertSql,
+		DynamicParameters parameters,
+		string keyId,
+		bool allowOverwrite,
+		DateTimeOffset escrowedAt,
+		CancellationToken cancellationToken)
+	{
+		await using var transaction =
+			(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			if (allowOverwrite)
+			{
+				var supersedeSql = $@"
+					UPDATE {_options.FullyQualifiedTableName}
+					SET State = @NewState,
+						RevokedAt = @RevokedAt,
+						RevocationReason = @Reason
+					WHERE KeyId = @KeyId AND State = @CurrentState";
+
+				_ = await connection.ExecuteAsync(
+						new CommandDefinition(
+							supersedeSql,
+							new
+							{
+								KeyId = keyId,
+								CurrentState = (int)EscrowState.Active,
+								NewState = (int)EscrowState.Revoked,
+								RevokedAt = escrowedAt,
+								Reason = "Superseded by a new escrow for the same key."
+							},
+							transaction,
+							commandTimeout: _options.CommandTimeoutSeconds,
+							cancellationToken: cancellationToken))
+					.ConfigureAwait(false);
+			}
+
+			_ = await connection.ExecuteAsync(
+					new CommandDefinition(insertSql, parameters, transaction,
+						commandTimeout: _options.CommandTimeoutSeconds,
+						cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (ex.Number is DuplicateKeyError or DuplicateUniqueIndexError)
+		{
+			await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+
+			throw new KeyEscrowException(
+				$"An escrow already exists for key '{keyId}'. Pass EscrowOptions.AllowOverwrite to supersede it.",
+				ex)
+			{ KeyId = keyId, ErrorCode = KeyEscrowErrorCode.EscrowAlreadyExists };
+		}
+		catch
+		{
+			await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+			throw;
 		}
 	}
 
@@ -752,6 +876,13 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 
 	[LoggerMessage(LogLevel.Information, "Escrow for key {KeyId} revoked. Reason: {Reason}")]
 	private partial void LogEscrowRevoked(string keyId, string reason);
+
+	[LoggerMessage(
+		LogLevel.Warning,
+		"Key {KeyId} was recovered but the recovery-attempt counter was not incremented: the escrow row "
+		+ "was no longer active when the counter was updated. The recovery is not reflected in the audit "
+		+ "counter for this key.")]
+	private partial void LogRecoveryAttemptNotRecorded(string keyId);
 
 	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Dapper materializes this type.")]
 	private sealed class DekSourceRow

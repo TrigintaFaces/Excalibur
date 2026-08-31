@@ -119,7 +119,7 @@ internal partial class ServerlessHostProviderFactory : IServerlessHostProviderFa
 		LogRegisteredProvider(_logger, provider.Platform);
 	}
 
-	// Source-generated logging methods (Sprint 368 - EventId migration)
+	// Source-generated logging methods
 	[LoggerMessage(ServerlessEventId.PlatformSelected, LogLevel.Information, "Selected {Platform} provider for serverless hosting")]
 	private static partial void LogSelectedPlatform(ILogger logger, ServerlessPlatform platform);
 

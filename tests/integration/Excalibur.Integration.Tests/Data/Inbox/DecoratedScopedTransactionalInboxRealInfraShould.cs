@@ -251,7 +251,8 @@ public sealed class DecoratedScopedTransactionalInboxRealInfraShould
 			DatabaseName = _fixture.DatabaseName,
 			EnableTransactions = true,
 		}),
-		NullLogger<MongoDbInboxStore>.Instance);
+		NullLogger<MongoDbInboxStore>.Instance,
+		SingleTenantTestContext.Instance);
 
 	// Typed as IInboxStore so the casts in the arms above are legal regardless of the decorator's declared
 	// interface set - the pre-fix shape then fails at RUNTIME (a test RED), which is the non-vacuity signal.

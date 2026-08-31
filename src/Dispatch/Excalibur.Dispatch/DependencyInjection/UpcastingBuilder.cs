@@ -7,6 +7,8 @@ using System.Reflection;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Excalibur.Dispatch.Extensions;
+
 namespace Excalibur.Dispatch.Versioning;
 
 /// <summary>
@@ -190,7 +192,7 @@ public sealed class UpcastingBuilder
 	{
 		var upcasterInterface = typeof(IMessageUpcaster<,>);
 
-		foreach (var type in assembly.GetTypes())
+		foreach (var type in assembly.GetLoadableTypes())
 		{
 			// Skip abstract, interface, and generic type definitions
 			if (type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition)

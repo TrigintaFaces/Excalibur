@@ -62,7 +62,7 @@ public sealed class MongoDbInboxStoreConformanceShould : InboxStoreConformanceTe
 		// serializer) from the connection string — the surface most consumers use. The store
 		// self-initializes its collection and indexes on first use.
 		return Task.FromResult<IInboxStore>(
-			new MongoDbInboxStore(options, NullLogger<MongoDbInboxStore>.Instance));
+			new MongoDbInboxStore(options, NullLogger<MongoDbInboxStore>.Instance, SingleTenantTestContext.Instance));
 	}
 
 	/// <inheritdoc/>

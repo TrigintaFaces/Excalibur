@@ -95,11 +95,9 @@ builder.Services.AddPostgresPersistence(connectionString, options =>
     // ========================================================================
     //
     // Npgsql's EnableDynamicJson() maps .NET objects to/from PostgreSQL
-    // JSONB columns automatically. This is configured via the provider's
-    // PostgresProviderOptions.Advanced.EnableJsonb setting.
-    //
-    // When the persistence builder is used, JSONB support is part of the
-    // NpgsqlDataSource configuration in PostgresPersistenceProvider.
+    // JSONB columns automatically. The persistence provider does not expose an
+    // option for this: configure it on your own NpgsqlDataSourceBuilder before
+    // handing the data source or connection factory to the provider.
 
     // ========================================================================
     // 6. Prepared Statements - Auto-Prepare for Statement Caching
@@ -168,43 +166,6 @@ builder.Services.AddPostgresDeadLetterStore(connectionString);
 //     options.SchemaName = "public";
 //     options.TableName = "dead_letter_messages";
 // });
-
-// ============================================================================
-// Provider-Level Configuration (PostgresProviderOptions)
-// ============================================================================
-//
-// The lower-level PostgresProviderOptions controls the PostgresPersistenceProvider
-// directly. It includes NpgsqlDataSource creation, JSONB support, and SSL.
-
-builder.Services.Configure<PostgresProviderOptions>(options =>
-{
-    options.ConnectionString = connectionString;
-    options.CommandTimeout = 30;
-    options.ConnectTimeout = 15;
-    options.UseDataSource = true; // Use NpgsqlDataSource for better connection management
-
-    // Connection pool settings
-    options.Pool.EnablePooling = true;
-    options.Pool.MinPoolSize = 2;
-    options.Pool.MaxPoolSize = 50;
-    options.Pool.ConnectionIdleLifetime = 300;
-    options.Pool.ConnectionPruningInterval = 10;
-
-    // JSONB support via NpgsqlDataSourceBuilder.EnableDynamicJson()
-    options.Advanced.EnableJsonb = true;
-
-    // Prepared statement auto-caching
-    options.Advanced.PrepareStatements = true;
-    options.Advanced.MaxAutoPrepare = 20;
-    options.Advanced.AutoPrepareMinUsages = 2;
-
-    // SSL configuration
-    options.Advanced.UseSsl = false;        // Set to true for production
-    options.Advanced.SslMode = Npgsql.SslMode.Prefer;
-
-    // TCP keepalive for long-lived connections
-    options.Advanced.KeepAlive = 30;
-});
 
 var app = builder.Build();
 
@@ -304,22 +265,6 @@ if (persistenceOptions != null)
 }
 
 Console.WriteLine();
-
-var providerOptions = app.Services.GetService<IOptions<PostgresProviderOptions>>();
-if (providerOptions != null)
-{
-    var opts = providerOptions.Value;
-    Console.WriteLine("  PostgresProviderOptions:");
-    Console.WriteLine($"    UseDataSource:      {opts.UseDataSource}");
-    Console.WriteLine($"    Pool.EnablePooling:  {opts.Pool.EnablePooling}");
-    Console.WriteLine($"    Pool.MinPoolSize:    {opts.Pool.MinPoolSize}");
-    Console.WriteLine($"    Pool.MaxPoolSize:    {opts.Pool.MaxPoolSize}");
-    Console.WriteLine($"    Advanced.EnableJsonb: {opts.Advanced.EnableJsonb}");
-    Console.WriteLine($"    Advanced.Prepare:    {opts.Advanced.PrepareStatements}");
-    Console.WriteLine($"    Advanced.UseSsl:     {opts.Advanced.UseSsl}");
-    Console.WriteLine($"    Advanced.SslMode:    {opts.Advanced.SslMode}");
-    Console.WriteLine($"    Advanced.KeepAlive:  {opts.Advanced.KeepAlive}s");
-}
 
 Console.WriteLine();
 Console.WriteLine("Done! All PostgreSQL capabilities demonstrated.");

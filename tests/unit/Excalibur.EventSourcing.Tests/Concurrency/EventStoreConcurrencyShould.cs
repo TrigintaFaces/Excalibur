@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing.Tests.Concurrency;
 public sealed class EventStoreConcurrencyShould
 {
 	private const string AggregateType = "TestAggregate";
-	private readonly InMemoryEventStore _store = new();
+	private readonly InMemoryEventStore _store = new(UntenantedContext.Instance);
 
 	#region Concurrent Append — Same Aggregate
 
@@ -62,7 +62,8 @@ public sealed class EventStoreConcurrencyShould
 			CancellationToken.None).ConfigureAwait(false);
 
 		initialResult.Success.ShouldBeTrue();
-		var currentVersion = initialResult.NextExpectedVersion;
+		var currentVersion = initialResult.NextExpectedVersion.ShouldNotBeNull(
+			"a successful append must report the version it left the stream at");
 
 		// Act: 5 concurrent appends all targeting the same version
 		var concurrency = 5;
@@ -100,7 +101,7 @@ public sealed class EventStoreConcurrencyShould
 				CancellationToken.None).ConfigureAwait(false);
 
 			result.Success.ShouldBeTrue($"Append {i} should succeed");
-			version = result.NextExpectedVersion;
+			version = result.NextExpectedVersion.ShouldNotBeNull();
 		}
 
 		// Assert
@@ -194,7 +195,7 @@ public sealed class EventStoreConcurrencyShould
 				expectedVersion: version,
 				CancellationToken.None).ConfigureAwait(false);
 
-			version = r.NextExpectedVersion;
+			version = r.NextExpectedVersion.ShouldNotBeNull();
 		}
 
 		// Act: Concurrent loads while appending more events
@@ -211,7 +212,7 @@ public sealed class EventStoreConcurrencyShould
 
 				if (r.Success)
 				{
-					version = r.NextExpectedVersion;
+					version = r.NextExpectedVersion.ShouldNotBeNull();
 				}
 			}
 		});
@@ -254,7 +255,7 @@ public sealed class EventStoreConcurrencyShould
 				expectedVersion: version,
 				CancellationToken.None).ConfigureAwait(false);
 
-			version = r.NextExpectedVersion;
+			version = r.NextExpectedVersion.ShouldNotBeNull();
 		}
 
 		// Act: Concurrent loads from different versions
@@ -304,9 +305,9 @@ public sealed class EventStoreConcurrencyShould
 				CancellationToken.None).ConfigureAwait(false);
 
 			result.Success.ShouldBeTrue();
-			result.NextExpectedVersion.ShouldBeGreaterThan(version,
+			result.NextExpectedVersion.ShouldNotBeNull().ShouldBeGreaterThan(version,
 				"NextExpectedVersion should increase after each append");
-			version = result.NextExpectedVersion;
+			version = result.NextExpectedVersion.ShouldNotBeNull();
 		}
 
 		// Assert: Verify loaded events are in order
@@ -381,7 +382,7 @@ public sealed class EventStoreConcurrencyShould
 						CancellationToken.None).ConfigureAwait(false);
 
 					r.Success.ShouldBeTrue($"Append to aggregate {id} at step {j} should succeed");
-					version = r.NextExpectedVersion;
+					version = r.NextExpectedVersion.ShouldNotBeNull();
 				}
 			})
 			.ToArray();
@@ -456,7 +457,7 @@ public sealed class EventStoreConcurrencyShould
 				expectedVersion: version,
 				CancellationToken.None).ConfigureAwait(false);
 
-			version = r.NextExpectedVersion;
+			version = r.NextExpectedVersion.ShouldNotBeNull();
 		}
 
 		// Current version is now 2

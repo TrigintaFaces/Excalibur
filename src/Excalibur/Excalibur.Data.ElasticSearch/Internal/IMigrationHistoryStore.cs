@@ -12,8 +12,7 @@ namespace Excalibur.Data.ElasticSearch.Internal;
 /// do not make this public.
 /// </summary>
 /// <remarks>
-/// Fifth of the 6 γ seams per COMPASS S798 msg 1746 ruling. Seam 3 of 4 in
-/// the S802 Path 4 multi-seam split per COMPASS msg 1940. Size: 3 methods.
+/// Size: 3 methods.
 /// </remarks>
 internal interface IMigrationHistoryStore
 {

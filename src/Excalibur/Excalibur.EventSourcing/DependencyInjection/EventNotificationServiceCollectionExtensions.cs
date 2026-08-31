@@ -27,7 +27,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// A second call for the same projection type replaces the first (R27.37).
+	/// A second call for the same projection type replaces the first.
 	/// </para>
 	/// <para>
 	/// If <see cref="UseEventNotification"/> has not been called, this method automatically
@@ -45,6 +45,8 @@ public static class EventNotificationServiceCollectionExtensions
 	/// }));
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder AddProjection<TProjection>(
 		this IEventSourcingBuilder builder,
 		Action<IProjectionBuilder<TProjection>> configure)
@@ -90,7 +92,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// DI-injected configuration classes.
 	/// </para>
 	/// <para>
-	/// A second call for the same projection type replaces the first (R27.37).
+	/// A second call for the same projection type replaces the first.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -101,6 +103,8 @@ public static class EventNotificationServiceCollectionExtensions
 	/// }));
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder AddProjection<TProjection, TConfig>(
 		this IEventSourcingBuilder builder)
 		where TProjection : class, new()
@@ -162,10 +166,12 @@ public static class EventNotificationServiceCollectionExtensions
 				// Extract TProjection from IProjectionConfiguration<TProjection>
 				var projectionType = iface.GetGenericArguments()[0];
 
-				// Create an instance of the configuration class.
-				// Activator.CreateInstance(Type) is banned globally but assembly scanning
-				// is inherently reflection-based (already marked [RequiresUnreferencedCode]).
-#pragma warning disable RS0030 // Assembly scanning requires dynamic instantiation
+				// Create an instance of the configuration class. ActivatorUtilities.CreateInstance cannot
+				// substitute here: this runs against an IServiceCollection during composition, so there is no
+				// IServiceProvider to resolve from, and the type is discovered by scanning rather than named
+				// by the caller - which is the untraceable case the ban exists for. The API is annotated
+				// RequiresUnreferencedCode/RequiresDynamicCode so the consumer sees the requirement.
+#pragma warning disable RS0030
 				var config = Activator.CreateInstance(type)
 #pragma warning restore RS0030
 							 ?? throw new InvalidOperationException(
@@ -190,6 +196,8 @@ public static class EventNotificationServiceCollectionExtensions
 	/// Helper to register a discovered <see cref="IProjectionConfiguration{TProjection}"/>
 	/// via the existing <see cref="AddProjection{TProjection}"/> path.
 	/// </summary>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private static void AddProjectionFromConfiguration<TProjection>(
 		IEventSourcingBuilder builder,
 		object config)
@@ -222,6 +230,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IEventNotificationHandler<T> implementations.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder AddEventNotificationHandlersFromAssembly(
 		this IEventSourcingBuilder builder,
 		Assembly assembly)
@@ -276,6 +285,8 @@ public static class EventNotificationServiceCollectionExtensions
 	/// }));
 	/// </code>
 	/// </example>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder UseProjectionRecovery(
 		this IEventSourcingBuilder builder)
 	{
@@ -298,6 +309,8 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder UseEventNotification(
 		this IEventSourcingBuilder builder)
 	{
@@ -306,6 +319,7 @@ public static class EventNotificationServiceCollectionExtensions
 		// Idempotent: only register once
 		builder.Services.TryAddSingleton<IProjectionRegistry, InMemoryProjectionRegistry>();
 		builder.Services.TryAddSingleton<InlineProjectionProcessor>();
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton<IEventNotificationBroker, EventNotificationBroker>();
 		builder.Services.TryAddSingleton<ICursorMapStore, InMemoryCursorMapStore>();
 		builder.Services.TryAddEnumerable(
@@ -376,6 +390,8 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </summary>
 	internal interface IConfigureProjection
 	{
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		void Configure();
 	}
 
@@ -398,6 +414,8 @@ public static class EventNotificationServiceCollectionExtensions
 			_projectionBuilder = projectionBuilder;
 		}
 
+		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public void Configure()
 		{
 			if (_configured)

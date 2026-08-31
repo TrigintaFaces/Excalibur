@@ -17,7 +17,7 @@ namespace Excalibur.Hosting.Diagnostics;
 /// <item>162500-162999: Web Hosting</item>
 /// </list>
 /// </remarks>
-public static class ExcaliburHostingEventId
+internal static class ExcaliburHostingEventId
 {
 	// ========================================
 	// 160000-160099: Hosting Core

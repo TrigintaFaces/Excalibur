@@ -6,7 +6,6 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.ErrorHandling;
-using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 
 using FakeItEasy;
@@ -159,7 +158,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 	{
 		// Arrange
 		var inboxStore = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
-		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetFailedEntriesAsync(
+		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetAllTenantsFailedEntriesAsync(
 				A<int>._,
 				A<DateTimeOffset?>._,
 				A<int>._,

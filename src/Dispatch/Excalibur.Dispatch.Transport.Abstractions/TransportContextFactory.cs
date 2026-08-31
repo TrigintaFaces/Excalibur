@@ -33,6 +33,12 @@ internal static class TransportContextFactory
 		};
 
 		ResolveTenantId(message, context);
+		// ResolveTenantId only inspects IDomainEvent.Metadata -- structurally unreachable for
+		// IDispatchAction (commands), which have no Metadata property at all. Fall back to the ambient
+		// tenant (TenantContextHolder.Current -- never overwrites what ResolveTenantId already set) so a
+		// command received over this transport isn't silently untenanted when a tenant is ambiently
+		// established for the receiving async flow.
+		context.ApplyAmbientTenantFallback();
 		context.SetMessageType(message.GetType().FullName);
 		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
@@ -60,6 +66,7 @@ internal static class TransportContextFactory
 		};
 
 		ResolveTenantId(message, context);
+		context.ApplyAmbientTenantFallback();
 
 		return context;
 	}

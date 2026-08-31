@@ -19,17 +19,13 @@ dotnet add package Excalibur.Dispatch.Security.Azure
 ## Configuration
 
 ```csharp
-services.AddDispatch(options =>
-{
-    options.UseSecurity(security =>
-    {
-        security.UseAzureKeyVault(azure =>
-        {
-            azure.VaultUri = new Uri("https://my-vault.vault.azure.net/");
-            azure.UseManagedIdentity = true;
-        });
-    });
-});
+// Credentials resolve through DefaultAzureCredential, so a managed identity is used
+// automatically when one is available.
+services.AddDispatchSecurityAzure(azure => azure
+    .VaultUri("https://my-vault.vault.azure.net/"));
+
+// Or bind the vault settings from configuration:
+services.AddDispatchSecurityAzure(azure => azure.BindConfiguration("Security:Azure"));
 ```
 
 ## Requirements
@@ -46,4 +42,4 @@ This project is multi-licensed under:
 - [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
-See [LICENSE](..\..\..\LICENSE) for details.
+See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.

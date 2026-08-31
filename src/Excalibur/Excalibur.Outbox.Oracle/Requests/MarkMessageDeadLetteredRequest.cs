@@ -19,8 +19,12 @@ namespace Excalibur.Outbox.Oracle;
 /// <c>error_message</c>, then deletes it from the main outbox table. Because the row is removed from
 /// the main table, it is structurally excluded from every claim predicate and can never be re-claimed.
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the post-claim mutation path: the drain has already claimed this row cross-tenant and terminates it by its globally-unique message id. This store holds no tenant context to filter by - an outbox store reads no ambient tenant context and accepts a tenant only as an explicit argument - so the statement carries no tenant term, and a caller that supplies a message id it did not obtain from a claim reaches the row behind it. Isolation on this table is established where the row is written, by stamping tenant_id")]
 internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
 {
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MarkMessageDeadLetteredRequest"/> class.
     /// </summary>
@@ -30,6 +34,19 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     /// <param name="deadLetterTableName">The fully qualified dead-letter table name.</param>
     /// <param name="commandTimeout">Command timeout in seconds.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// <para>
+    /// The copy-to-DLQ and delete target the globally-unique outbox <c>message_id</c>, which addresses exactly
+    /// one row, so no tenant predicate is applied: the drain is cross-tenant infrastructure and must always be
+    /// able to terminate the row it claimed, regardless of any ambient tenant context.
+    /// </para>
+    /// <para>
+    /// The tenant is nonetheless COPIED, as provenance. The delete leaves the dead-letter row as the only
+    /// remaining record of the message, so a term this statement does not carry across is destroyed rather
+    /// than merely unqueryable: an operator could no longer attribute the entry, and a redrive could no
+    /// longer re-enter the partition the message came from.
+    /// </para>
+    /// </remarks>
     public MarkMessageDeadLetteredRequest(
         string messageId,
         string reason,
@@ -49,8 +66,8 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
         // Oracle: two DML statements must run in a single PL/SQL anonymous block (no client-side ';' batching).
         var sql = $"""
                 BEGIN
-                        INSERT INTO {deadLetterTableName} (message_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-                        SELECT message_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, :Reason
+                        INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+                        SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, :Reason
                         FROM {outboxTableName}
                         WHERE message_id = :MessageIdInsert;
 

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -38,6 +40,19 @@ public sealed class ProjectionRebuildJob(
 	private readonly ILogger<ProjectionRebuildJob> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:RequiresUnreferencedCode",
+		Justification =
+			"This job drives a materialized view rebuild, which serializes view types reflectively. " +
+			"The job is therefore not trim-safe by contract, and IBackgroundJob.ExecuteAsync is kept clean " +
+			"so hosts composing trim-safe jobs are not warned about a condition they cannot act on.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:RequiresDynamicCode",
+		Justification =
+			"This job drives a materialized view rebuild, which serializes view types reflectively. " +
+			"The job is therefore not AOT-safe by contract; the package does not claim AOT compatibility.")]
 	public async Task ExecuteAsync(CancellationToken cancellationToken)
 	{
 		ProjectionRebuildJobLog.JobStarting(_logger);

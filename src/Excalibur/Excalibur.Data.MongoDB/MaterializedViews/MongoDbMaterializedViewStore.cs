@@ -1,10 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-// MongoDB BSON serialization requires dynamic code; interface cannot be annotated per AOT checklist.
-// UnconditionalSuppressMessage does not suppress IL2046/IL3051 at the compiler level.
-#pragma warning disable IL2046, IL2026, IL3050, IL3051
-
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.EventSourcing;
 
@@ -14,6 +10,10 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
+
+using Excalibur.Dispatch;
+
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Data.MongoDB.MaterializedViews;
 
@@ -32,6 +32,18 @@ namespace Excalibur.Data.MongoDB.MaterializedViews;
 /// View documents are written with an upserting replace. Checkpoint positions are never replaced: every
 /// write path advances them with <c>$max</c>, so a delayed or retried write carrying an older position
 /// cannot rewind the checkpoint and replay events the projection has already applied.
+/// </para>
+/// <para>
+/// Views and checkpoints are partitioned by tenant. The tenant term is part of each document's identifier
+/// rather than a filter applied over it, so two tenants projecting the same named view hold distinct
+/// documents and distinct checkpoints.
+/// </para>
+/// <para>
+/// A document written before this partitioning existed carries the un-prefixed identifier, so a scoped read
+/// does not find it. That direction is the safe one and it is chosen deliberately: an unfound checkpoint
+/// reads as unset, and an unset checkpoint replays from the beginning, which re-derives the view. The
+/// alternative failure -- a tenant inheriting a checkpoint written by another -- would skip the events in
+/// between with no error and no way to detect it afterwards. Replay costs time; a skip costs data.
 /// </para>
 /// </remarks>
 public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedViewStore, IAsyncDisposable
@@ -53,18 +65,36 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	// volatile: the fast path reads this outside the lock.
 	private volatile bool _initialized;
 	private volatile bool _disposed;
+	private readonly ITenantContext _tenantContext;
+
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every identifier it builds
+	/// uses the same value. The context is a required dependency, so the term is decided identically on
+	/// every path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MongoDbMaterializedViewStore"/> class.
 	/// </summary>
 	/// <param name="options">The store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions documents by tenant, and it resolves
+	/// that partition from here, so there is no state in which the partition is undecided. A single-tenant
+	/// host receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public MongoDbMaterializedViewStore(
 		IOptions<MongoDbMaterializedViewStoreOptions> options,
-		ILogger<MongoDbMaterializedViewStore> logger)
+		ILogger<MongoDbMaterializedViewStore> logger,
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
+
+		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
@@ -78,14 +108,23 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	/// <param name="client">An existing MongoDB client.</param>
 	/// <param name="options">The store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions documents by tenant, and it resolves
+	/// that partition from here, so there is no state in which the partition is undecided. A single-tenant
+	/// host receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	public MongoDbMaterializedViewStore(
 		IMongoClient client,
 		IOptions<MongoDbMaterializedViewStoreOptions> options,
-		ILogger<MongoDbMaterializedViewStore> logger)
+		ILogger<MongoDbMaterializedViewStore> logger,
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(tenantContext);
+
+		_tenantContext = tenantContext;
 
 		_client = client;
 		_options = options.Value;
@@ -97,6 +136,8 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask<TView?> GetAsync<TView>(
 		string viewName,
 		string viewId,
@@ -109,7 +150,7 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbMaterializedViewDocument.CreateId(viewName, viewId);
+		var documentId = MongoDbMaterializedViewDocument.CreateId(CurrentTenantPartition.TenantId, viewName, viewId);
 		var filter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, documentId);
 
 		var document = await _viewsCollection!
@@ -128,6 +169,8 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	}
 
 	/// <inheritdoc/>
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask SaveAsync<TView>(
 		string viewName,
 		string viewId,
@@ -145,7 +188,8 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 		var now = DateTimeOffset.UtcNow;
 		var document = new MongoDbMaterializedViewDocument
 		{
-			Id = MongoDbMaterializedViewDocument.CreateId(viewName, viewId),
+			Id = MongoDbMaterializedViewDocument.CreateId(CurrentTenantPartition.TenantId, viewName, viewId),
+			TenantId = CurrentTenantPartition.TenantId,
 			ViewName = viewName,
 			ViewId = viewId,
 			Data = view.ToBsonDocument(),
@@ -174,7 +218,7 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbMaterializedViewDocument.CreateId(viewName, viewId);
+		var documentId = MongoDbMaterializedViewDocument.CreateId(CurrentTenantPartition.TenantId, viewName, viewId);
 		var filter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, documentId);
 
 		var result = await _viewsCollection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
@@ -195,7 +239,9 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
+		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(
+			d => d.Id,
+			MongoDbMaterializedViewDocument.CreatePositionId(CurrentTenantPartition.TenantId, viewName));
 
 		var document = await _positionsCollection!
 			.Find(filter)
@@ -228,9 +274,12 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 		// A blind replace would let a delayed or retried write carrying an older position rewind the checkpoint,
 		// replaying events the projection has already applied. $max is evaluated by the server, so concurrent
 		// writers need no read-then-write coordination here.
-		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
+		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(
+			d => d.Id,
+			MongoDbMaterializedViewDocument.CreatePositionId(CurrentTenantPartition.TenantId, viewName));
 		var update = Builders<MongoDbMaterializedViewPositionDocument>.Update
 			.Max(d => d.Position, position)
+			.Set(d => d.TenantId, CurrentTenantPartition.TenantId)
 			.Set(d => d.ViewName, viewName)
 			.Set(d => d.UpdatedAt, now)
 			.SetOnInsert(d => d.CreatedAt, now);
@@ -260,6 +309,9 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	/// advance is monotonic (<c>$max</c>), so a delayed write never rewinds the checkpoint.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException"><c>UseTransactions</c> is disabled.</exception>
+	[SuppressMessage("Maintainability", "CA1506", Justification = "The transactional save-view-and-position path coordinates the driver, session, filter and update builders; the coupling is inherent to the single atomic operation and predates the trimming annotations, which tipped a pre-existing count over the threshold.")]
+	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async ValueTask SaveViewAndPositionAsync<TView>(
 		string viewName,
 		string viewId,
@@ -278,7 +330,8 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 		var now = DateTimeOffset.UtcNow;
 		var viewDocument = new MongoDbMaterializedViewDocument
 		{
-			Id = MongoDbMaterializedViewDocument.CreateId(viewName, viewId),
+			Id = MongoDbMaterializedViewDocument.CreateId(CurrentTenantPartition.TenantId, viewName, viewId),
+			TenantId = CurrentTenantPartition.TenantId,
 			ViewName = viewName,
 			ViewId = viewId,
 			Data = view.ToBsonDocument(),
@@ -289,9 +342,12 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
 		// Monotonic position advance ($max never lowers a higher checkpoint).
-		var positionFilter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
+		var positionFilter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(
+			d => d.Id,
+			MongoDbMaterializedViewDocument.CreatePositionId(CurrentTenantPartition.TenantId, viewName));
 		var positionUpdate = Builders<MongoDbMaterializedViewPositionDocument>.Update
 			.Max(d => d.Position, position)
+			.Set(d => d.TenantId, CurrentTenantPartition.TenantId)
 			.Set(d => d.ViewName, viewName)
 			.Set(d => d.UpdatedAt, now)
 			.SetOnInsert(d => d.CreatedAt, now);
@@ -362,7 +418,6 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 		{
 			return;
 		}
-
 
 		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try

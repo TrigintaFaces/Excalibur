@@ -51,7 +51,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new PostgresSagaStore(_options, _logger, _serializer);
+		var store = new PostgresSagaStore(_options, _logger, _serializer, tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -62,7 +62,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(options: null!, _logger, _serializer));
+			new PostgresSagaStore(options: null!, _logger, _serializer, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -71,7 +71,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(_options, logger: null!, _serializer));
+			new PostgresSagaStore(_options, logger: null!, _serializer, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -80,7 +80,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(_options, _logger, serializer: null!));
+			new PostgresSagaStore(_options, _logger, serializer: null!, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("serializer");
 	}
 
@@ -95,7 +95,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new PostgresSagaStore(invalidOptions, _logger, _serializer));
+			new PostgresSagaStore(invalidOptions, _logger, _serializer, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -110,7 +110,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new PostgresSagaStore(invalidOptions, _logger, _serializer));
+			new PostgresSagaStore(invalidOptions, _logger, _serializer, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -125,7 +125,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new PostgresSagaStore(invalidOptions, _logger, _serializer));
+			new PostgresSagaStore(invalidOptions, _logger, _serializer, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -140,7 +140,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
-			new PostgresSagaStore(invalidOptions, _logger, _serializer));
+			new PostgresSagaStore(invalidOptions, _logger, _serializer, tenantContext: new TestTenantContext()));
 	}
 
 	#endregion Simple Constructor Tests
@@ -160,7 +160,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 		};
 
 		// Act
-		var store = new PostgresSagaStore(factory, factoryOptions, _logger, _serializer);
+		var store = new PostgresSagaStore(factory, factoryOptions, _logger, _serializer, tenantContext: new TestTenantContext());
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -179,7 +179,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(connectionFactory: null!, factoryOptions, _logger, _serializer));
+			new PostgresSagaStore(connectionFactory: null!, factoryOptions, _logger, _serializer, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("connectionFactory");
 	}
 
@@ -191,7 +191,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(factory, options: null!, _logger, _serializer));
+			new PostgresSagaStore(factory, options: null!, _logger, _serializer, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("options");
 	}
 
@@ -209,7 +209,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(factory, factoryOptions, logger: null!, _serializer));
+			new PostgresSagaStore(factory, factoryOptions, logger: null!, _serializer, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -227,7 +227,7 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new PostgresSagaStore(factory, factoryOptions, _logger, serializer: null!));
+			new PostgresSagaStore(factory, factoryOptions, _logger, serializer: null!, tenantContext: new TestTenantContext()));
 		exception.ParamName.ShouldBe("serializer");
 	}
 
@@ -248,8 +248,8 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 		};
 
 		// Act
-		var simpleStore = new PostgresSagaStore(_options, _logger, _serializer);
-		var factoryStore = new PostgresSagaStore(factory, factoryOptions, _logger, _serializer);
+		var simpleStore = new PostgresSagaStore(_options, _logger, _serializer, tenantContext: new TestTenantContext());
+		var factoryStore = new PostgresSagaStore(factory, factoryOptions, _logger, _serializer, tenantContext: new TestTenantContext());
 
 		// Assert - Both create valid instances
 		_ = simpleStore.ShouldNotBeNull();

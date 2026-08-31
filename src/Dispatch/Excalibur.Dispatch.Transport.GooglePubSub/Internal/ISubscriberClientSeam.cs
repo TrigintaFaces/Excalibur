@@ -10,11 +10,11 @@ namespace Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 /// <see cref="Google.PubSubTransportSubscriber"/>. Exposes only the
 /// use-case operations needed for subscribe/unsubscribe so tests can
 /// substitute at this boundary without faking the concrete SDK client
-/// type (ADR-142 §D7).
+/// type.
 /// </summary>
 /// <remarks>
-/// Follows the COMPASS S798 msg 1712 ruling: flat use-case methods, not
-/// SDK topology mirroring. The <see cref="SubscriberClient.Reply"/> enum
+/// The seam exposes flat use-case methods rather than mirroring the SDK's
+/// client topology. The <see cref="SubscriberClient.Reply"/> enum
 /// crosses the seam as a data-shaped type.
 /// </remarks>
 internal interface ISubscriberClientSeam

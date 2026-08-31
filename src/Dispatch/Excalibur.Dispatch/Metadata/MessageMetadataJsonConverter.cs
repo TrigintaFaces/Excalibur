@@ -152,14 +152,14 @@ public sealed class MessageMetadataJsonConverter : JsonConverter<MessageMetadata
 			writer.WriteEndObject();
 		}
 
-		// Typed Attributes/Items bags (az9u1e): the builder stores these in the Properties bag under
+		// Typed Attributes/Items bags: the builder stores these in the Properties bag under
 		// the well-known keys, surfaced by GetAttributes()/GetItems(). Emit them as top-level objects
 		// so they round-trip losslessly (the generic properties loop below skips these keys to avoid a
-		// stringified-dictionary duplicate). SA wire-contract ruling 16887 (FR-C2 / EC-6).
+		// stringified-dictionary duplicate). SA wire-contract ruling 16887.
 		WriteObjectBag(writer, options, "attributes", value.Properties, MetadataPropertyKeys.Attributes);
 		WriteObjectBag(writer, options, "items", value.Properties, MetadataPropertyKeys.Items);
 
-		// Security claims (az9u1e): explicit lossless array of {type,value,valueType?,issuer?}. Optional
+		// Security claims: explicit lossless array of {type,value,valueType?,issuer?}. Optional
 		// fields are omitted when they equal the BCL defaults so empty/default claims stay compact;
 		// Read reconstructs them with the same defaults. No silent drop (the pre-fix converter dropped
 		// claims entirely). SA ruling 16887.
@@ -195,7 +195,7 @@ public sealed class MessageMetadataJsonConverter : JsonConverter<MessageMetadata
 			foreach (var property in properties)
 			{
 				// Attributes/Items/Claims are emitted explicitly above as top-level surfaces; skip their
-				// bag entries here so they are not also written as a stringified duplicate (az9u1e).
+				// bag entries here so they are not also written as a stringified duplicate.
 				if (property.Key is MetadataPropertyKeys.Attributes
 					or MetadataPropertyKeys.Items
 					or MetadataPropertyKeys.Claims)

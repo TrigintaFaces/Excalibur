@@ -293,96 +293,7 @@ public sealed class DocumentationExamplesShould
 
 	#region Inbox Configuration Examples (inbox.md)
 
-	[Fact]
-	public void Compile_IdempotentAttributeExists()
-	{
-		// Documentation: [Idempotent] attribute
-		// Verify the attribute exists and can be applied
-		var attribute = new IdempotentAttribute();
-		_ = attribute.ShouldNotBeNull();
-	}
 
-	[Fact]
-	public void Compile_InboxConfigurationBuilderFluentApi()
-	{
-		// Documentation: ConfigureInbox() fluent API
-		var builder = new InboxConfigurationBuilder();
-
-		// ForHandler<T>
-		_ = builder.ForHandler<TestHandler>()
-			.WithRetention(TimeSpan.FromHours(24));
-
-		// ForHandlersMatching with predicate
-		_ = builder.ForHandlersMatching(
-			t => t.Name.EndsWith("Handler"),
-			cfg => cfg.UseInMemory());
-
-		// ForNamespace
-		_ = builder.ForNamespace("MyApp.Handlers.Financial",
-			cfg => cfg.WithRetention(TimeSpan.FromDays(7)));
-
-		// Build and verify
-		var provider = builder.Build(new[] { typeof(TestHandler) });
-		_ = provider.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void Compile_InboxHandlerConfigurationMethods()
-	{
-		// Documentation: IInboxHandlerConfiguration fluent methods
-		var config = new InboxHandlerConfiguration();
-
-		// WithRetention
-		_ = config.WithRetention(TimeSpan.FromHours(48));
-		var settings = config.Build();
-		settings.Retention.ShouldBe(TimeSpan.FromHours(48));
-
-		// UseInMemory
-		config = new InboxHandlerConfiguration();
-		_ = config.UseInMemory();
-		settings = config.Build();
-		settings.UseInMemory.ShouldBeTrue();
-
-		// UsePersistent
-		config = new InboxHandlerConfiguration();
-		_ = config.UsePersistent();
-		settings = config.Build();
-		settings.UseInMemory.ShouldBeFalse();
-
-		// WithStrategy
-		config = new InboxHandlerConfiguration();
-		_ = config.WithStrategy(MessageIdStrategy.FromCorrelationId);
-		settings = config.Build();
-		settings.Strategy.ShouldBe(MessageIdStrategy.FromCorrelationId);
-
-		// WithHeaderName
-		config = new InboxHandlerConfiguration();
-		_ = config.WithHeaderName("X-Idempotency-Key");
-		settings = config.Build();
-		settings.HeaderName.ShouldBe("X-Idempotency-Key");
-
-		// WithMessageIdProvider<T>
-		config = new InboxHandlerConfiguration();
-		_ = config.WithMessageIdProvider<TestMessageIdProvider>();
-		settings = config.Build();
-		settings.MessageIdProviderType.ShouldBe(typeof(TestMessageIdProvider));
-		settings.Strategy.ShouldBe(MessageIdStrategy.Custom);
-	}
-
-	[Fact]
-	public void Compile_MessageIdStrategyValues()
-	{
-		// Documentation: All MessageIdStrategy values
-		var strategies = new[]
-		{
-			MessageIdStrategy.FromHeader,
-			MessageIdStrategy.FromCorrelationId,
-			MessageIdStrategy.CompositeKey,
-			MessageIdStrategy.Custom
-		};
-
-		strategies.Length.ShouldBe(4);
-	}
 
 	#endregion
 
@@ -444,11 +355,6 @@ public sealed class DocumentationExamplesShould
 
 	private sealed class TestHandler { }
 
-	private sealed class TestMessageIdProvider : IMessageIdProvider
-	{
-		public string? GetMessageId(IDispatchMessage message, IMessageContext context)
-			=> Guid.NewGuid().ToString();
-	}
 
 	// Getting Started action examples
 	private record CreateOrderTestAction(string CustomerId, List<string> Items) : IDispatchAction;

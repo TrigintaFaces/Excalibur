@@ -76,7 +76,7 @@ Update CI runner setup actions (`actions/setup-dotnet` and equivalents) to pin `
 | Google Cloud Functions | `dotnet9` | `dotnet10` |
 | Azure Functions | Worker v1 (`Microsoft.Azure.Functions.Worker` 1.x) | Worker v2 (`2.51.0+`) |
 
-Project templates (`dotnet new dispatch-api`, `dotnet new dispatch-worker`, `dotnet new dispatch-functions`) generate `.csproj` and Dockerfiles against .NET 10 only. The `--Framework` option has been narrowed to `net10.0`.
+Project templates (`dotnet new dispatch-api`, `dotnet new dispatch-worker`, `dotnet new dispatch-serverless`) generate `.csproj` and Dockerfiles against .NET 10 only. The `--Framework` option has been narrowed to `net10.0`.
 
 ### 4. Dependency upgrades (optional but recommended)
 

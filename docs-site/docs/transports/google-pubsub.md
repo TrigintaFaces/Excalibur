@@ -62,7 +62,7 @@ var bus = serviceProvider.GetRequiredKeyedService<IMessageBus>("GooglePubSub:dis
 Configure core transport settings with `GooglePubSubOptions`:
 
 ```csharp
-services.Configure<GooglePubSubOptions>(options =>
+services.Configure<GooglePubSubOptions>("google-pubsub", options =>
 {
     options.Connection.ProjectId = "my-gcp-project";
     options.Connection.TopicId = "dispatch-events";
@@ -72,7 +72,6 @@ services.Configure<GooglePubSubOptions>(options =>
     options.Subscriber.AckDeadlineSeconds = 60;
     options.Subscriber.EnableAutoAckExtension = true;
     options.Subscriber.MaxConcurrentAcks = 10;
-    options.MaxConcurrentMessages = 0; // Uses Environment.ProcessorCount * 2
 });
 ```
 
@@ -87,13 +86,12 @@ services.AddGooglePubSubTransport("events", pubsub =>
     pubsub.ProjectId("my-gcp-project")
           .TopicId("dispatch-events")
           .SubscriptionId("dispatch-events-sub")
+          .ConfigureOptions(options => options.Subscriber.EnableExactlyOnceDelivery = true)
           .ConfigureCloudEvents(ce =>
           {
               ce.UseOrderingKeys = true;
-              ce.UseExactlyOnceDelivery = true;
-              ce.EnableDeduplication = true;
-              ce.EnableCompression = true;
-              ce.CompressionThreshold = 1024 * 1024; // 1MB
+              ce.Transport.EnableCompression = true;
+              ce.Transport.CompressionThreshold = 1024 * 1024; // 1MB
           });
 });
 ```
@@ -101,71 +99,20 @@ services.AddGooglePubSubTransport("events", pubsub =>
 #### Standalone CloudEvents Registration
 Use `AddCloudEventsForPubSub` for standalone CloudEvents configuration:
 
+:::note Trimming and Native AOT
+The CloudEvents mapper bundled with this transport serializes the message payload with
+reflection-based JSON, so these registrations carry `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]`. A host that trims or publishes ahead of time gets a warning at the
+call. To compose without the requirement, register your own `ICloudEventMapper<TTransportMessage>`
+backed by a source-generated serializer.
+:::
+
 ```csharp
-services.AddCloudEventsForPubSub(options =>
-{
-    options.UseOrderingKeys = true;
-    options.UseExactlyOnceDelivery = true;
-    options.DefaultTopic = "dispatch-events";
-    options.DefaultSubscription = "dispatch-events-sub";
-});
+services.AddCloudEventsForPubSub(options => options.UseOrderingKeys = true);
 ```
 
 When `UseOrderingKeys` is enabled, CloudEvents use the partition key as the Pub/Sub
 ordering key to preserve ordering for related messages.
-
-## Message Compression
-
-Configure compression for large messages using `PubSubCompressionOptions`:
-
-```csharp
-services.AddGooglePubSubTransport("events", pubsub =>
-{
-    pubsub.ProjectId("my-gcp-project")
-          .TopicId("dispatch-events")
-          .ConfigureOptions(options =>
-          {
-              // Enable compression
-              options.Compression.Enabled = true;
-
-              // Choose algorithm: Gzip (best ratio) or Snappy (fastest)
-              options.Compression.Algorithm = CompressionAlgorithm.Snappy;
-
-              // Only compress messages larger than threshold
-              options.Compression.ThresholdBytes = 1024; // 1 KB
-
-              // Auto-detect compressed messages on receive
-              options.Compression.EnableAutoDetection = true;
-
-              // Control whether to compress already-compressed content types
-              options.Compression.CompressAlreadyCompressedContent = false;
-
-              // Add custom content types to the compressed list
-              options.Compression.CompressedContentTypes.Add("application/x-custom-compressed");
-          });
-});
-```
-
-### Compression Algorithm Comparison
-
-| Algorithm | Speed | Ratio | Use Case |
-|-----------|-------|-------|----------|
-| `Gzip` | Slower | Better | Large payloads, bandwidth-constrained |
-| `Snappy` | Faster | Good | High throughput, latency-sensitive |
-| `Brotli` | Slowest | Best | Pre-compressed static content |
-| `Deflate` | Moderate | Good | Balance of speed and ratio |
-
-### Compression Requirements
-
-- **Snappy** requires the `Snappier` NuGet package (v1.2.0+)
-- Auto-detection uses magic bytes to identify Gzip/Deflate streams (Snappy/Brotli cannot be auto-detected)
-- Messages below `ThresholdBytes` are sent uncompressed
-- Already-compressed content types (images, videos, archives) are skipped by default
-
-```bash
-# For Snappy compression
-dotnet add package Snappier
-```
 
 ## Dead Letter Topics
 
@@ -230,7 +177,7 @@ services.AddOpenTelemetry()
 
 Configure telemetry options via `GooglePubSubOptions`:
 ```csharp
-services.Configure<GooglePubSubOptions>(options =>
+services.Configure<GooglePubSubOptions>("google-pubsub", options =>
 {
     options.Telemetry.EnableOpenTelemetry = true;
     options.Telemetry.ExportToCloudMonitoring = true;
@@ -241,9 +188,8 @@ services.Configure<GooglePubSubOptions>(options =>
 
 ## Production Checklist
 - [ ] Use Workload Identity or managed credentials
-- [ ] Configure `UseExactlyOnceDelivery` for critical streams
+- [ ] Configure `Subscriber.EnableExactlyOnceDelivery` for critical streams
 - [ ] Enable ordering keys for strict ordering requirements
-- [ ] Set ack deadlines and auto-extend for long handlers
 - [ ] Configure dead letter topics for failed messages
 - [ ] Enable OpenTelemetry and Cloud Monitoring
 

@@ -55,6 +55,9 @@ internal sealed class KafkaTransportConnection : TransportConnectionBase
 		_producerConfig = producerConfig;
 	}
 
+	/// <inheritdoc/>
+	protected override string TransportLabel => KafkaSecurityPosture.TransportLabel;
+
 	/// <summary>
 	/// Gets the underlying Kafka producer configuration.
 	/// </summary>
@@ -133,13 +136,91 @@ internal sealed class KafkaTransportConnection : TransportConnectionBase
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// Kafka has no eager connect -- the producer and consumer establish their connections
+	/// lazily on first use -- so there is no broker round-trip to make here. What this method
+	/// can establish, and does, is that the configuration is capable of producing a working
+	/// client. It throws when it is not, so <see cref="IsConnected"/> is never set over a
+	/// configuration that would only fail later, at the first send.
+	/// </remarks>
+	/// <exception cref="TransportSecurityException">
+	/// Thrown when TLS is required and the configured security protocol is a plaintext one. This is
+	/// checked first, so a security-posture violation is never reported as a configuration gap.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown when the producer configuration is incomplete: no bootstrap servers, or a SASL
+	/// mechanism selected without the credentials it requires.
+	/// </exception>
 	protected override Task EstablishConnectionAsync(CancellationToken cancellationToken)
 	{
-		// Kafka doesn't have a traditional "connect" - the producer/consumer
-		// lazily establishes connections when needed. We mark as connected
-		// to indicate configuration validation is complete.
+		cancellationToken.ThrowIfCancellationRequested();
+
+		VerifySecurityPosture();
+		ValidateConfiguration();
+
 		_connected = true;
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Refuses the connection when TLS is required but the configured security protocol cannot carry it.
+	/// </summary>
+	/// <remarks>
+	/// This runs ahead of <see cref="ValidateConfiguration"/> so that an unrelated configuration gap can
+	/// never mask a security-posture violation. A caller who required TLS and configured a plaintext
+	/// protocol is told about the plaintext protocol -- not about whichever other field also happens to
+	/// be missing -- and no client is built either way.
+	/// </remarks>
+	/// <exception cref="TransportSecurityException">
+	/// Thrown when <see cref="TransportSecurityOptions.RequireTls"/> is set and the configured security
+	/// protocol is neither <see cref="SecurityProtocol.Ssl"/> nor <see cref="SecurityProtocol.SaslSsl"/>.
+	/// </exception>
+	private void VerifySecurityPosture()
+	{
+		if (!SecurityOptions.RequireTls || IsTlsConfigured)
+		{
+			return;
+		}
+
+		throw KafkaSecurityPosture.Refuse(_producerConfig.SecurityProtocol);
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the configured security protocol carries TLS.
+	/// </summary>
+	/// <remarks>
+	/// Defers to the package-wide predicate so this class cannot disagree with the registration path
+	/// about what counts as TLS. Both the pre-connect refusal in <see cref="VerifySecurityPosture"/>
+	/// and the base class's post-connect verification in <see cref="IsConnectionSecure"/> read it.
+	/// An unset protocol is plaintext at the wire, and is treated as such there.
+	/// </remarks>
+	private bool IsTlsConfigured => KafkaSecurityPosture.IsTls(_producerConfig.SecurityProtocol);
+
+	/// <summary>
+	/// Validates that the producer configuration can build a working client.
+	/// </summary>
+	/// <remarks>
+	/// TLS is deliberately not checked here: <see cref="VerifySecurityPosture"/> has already refused
+	/// an insecure posture before this runs, so by this point only the non-security fields are open.
+	/// </remarks>
+	private void ValidateConfiguration()
+	{
+		if (string.IsNullOrWhiteSpace(_producerConfig.BootstrapServers))
+		{
+			throw new InvalidOperationException(
+				"Cannot establish the Kafka connection: BootstrapServers is not configured. " +
+				"Set a comma-separated broker list on the producer configuration.");
+		}
+
+		if (_producerConfig.SaslMechanism is not null
+			&& _producerConfig.SaslMechanism != SaslMechanism.Gssapi
+			&& (string.IsNullOrEmpty(_producerConfig.SaslUsername)
+				|| string.IsNullOrEmpty(_producerConfig.SaslPassword)))
+		{
+			throw new InvalidOperationException(
+				$"Cannot establish the Kafka connection: SASL mechanism '{_producerConfig.SaslMechanism}' " +
+				"requires both SaslUsername and SaslPassword to be configured.");
+		}
 	}
 
 	/// <inheritdoc/>
@@ -167,9 +248,9 @@ internal sealed class KafkaTransportConnection : TransportConnectionBase
 			return false;
 		}
 
-		// Check that the security protocol is configured for TLS
-		// Kafka enforces this at the wire protocol level
-		return _producerConfig.SecurityProtocol is SecurityProtocol.Ssl or SecurityProtocol.SaslSsl;
+		// Check that the security protocol is configured for TLS.
+		// Kafka enforces this at the wire protocol level.
+		return IsTlsConfigured;
 	}
 
 	/// <inheritdoc/>

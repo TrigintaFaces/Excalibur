@@ -11,7 +11,7 @@ namespace Excalibur.Domain.Model;
 public abstract class EntityBase : EntityBase<string>;
 
 // SA1402: Generic and non-generic versions with same name must coexist in one file due to SA1649 file naming requirement
-// R0.8: File may only contain a single type
+// File may only contain a single type
 #pragma warning disable SA1402
 
 /// <summary>

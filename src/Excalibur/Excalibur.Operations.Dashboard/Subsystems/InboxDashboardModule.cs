@@ -62,7 +62,7 @@ internal sealed class InboxDashboardModule : IDashboardEndpointModule
 					InboxJsonContext.Default.InboxView);
 			}
 
-			var stats = await admin.GetStatisticsAsync(ct).ConfigureAwait(false);
+			var stats = await admin.GetAllTenantsStatisticsAsync(ct).ConfigureAwait(false);
 			var view = new InboxView
 			{
 				Configured = true,

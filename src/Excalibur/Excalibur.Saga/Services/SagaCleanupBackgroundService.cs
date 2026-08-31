@@ -85,7 +85,14 @@ internal sealed partial class SagaCleanupBackgroundService : BackgroundService
 					// Resolve the store lazily per cycle so the service constructs even when no store is
 					// registered; a scope keeps scoped-lifetime store providers correct.
 					await using var scope = _serviceProvider.CreateAsyncScope();
+
+					// GetService, not GetRequiredService: this is a timer callback whose job includes
+					// noticing that no store was registered, so absence is an answer to handle rather than
+					// an exception to catch. The non-keyed contract is a forwarding alias to the keyed
+					// "default" store and answers null when nothing backs it, which the branch below turns
+					// into one log and a stop.
 					var sagaStore = scope.ServiceProvider.GetService<ISagaStore>();
+
 					if (sagaStore is null)
 					{
 						// Cleanup was enabled but no saga store is registered — a misconfiguration. Fail

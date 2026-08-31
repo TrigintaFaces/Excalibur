@@ -17,19 +17,6 @@ public abstract class MessageBusOptions
 	/// <value> The logical name of the bus configuration. </value>
 	[Required]
 	public string Name { get; init; } = string.Empty;
-
-	/// <summary>
-	/// Gets a value indicating whether messages sent through this bus should be encrypted.
-	/// </summary>
-	/// <value> <see langword="true" /> when encryption should be applied; otherwise, <see langword="false" />. </value>
-	public bool EnableEncryption { get; init; }
-
-	/// <summary>
-	/// Gets the key identifier used to select the encryption provider.
-	/// </summary>
-	/// <value> The key identifying the encryption provider. </value>
-	public string? EncryptionProviderKey { get; init; }
-
 	/// <summary>
 	/// Gets a value indicating whether messages sent through this bus should be retried.
 	/// </summary>

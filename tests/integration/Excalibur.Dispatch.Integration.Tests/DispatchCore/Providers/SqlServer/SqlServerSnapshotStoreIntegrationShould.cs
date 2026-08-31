@@ -350,7 +350,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	private ISnapshotStore CreateSnapshotStore()
 	{
 		var logger = NullLogger<SqlServerSnapshotStore>.Instance;
-		return new SqlServerSnapshotStore(_sqlFixture.ConnectionString, logger);
+		return new SqlServerSnapshotStore(_sqlFixture.ConnectionString, logger, tenantContext: new TestTenantContext());
 	}
 
 	private async Task InitializeSnapshotTableAsync()

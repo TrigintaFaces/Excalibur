@@ -48,8 +48,9 @@ internal sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITrans
 	private long _totalMessages;
 	private long _successfulMessages;
 	private long _failedMessages;
-	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
-	private TransportHealthStatus _lastStatus = TransportHealthStatus.Healthy;
+	// MinValue means "no health check has completed yet" -- it must not read as a recent check.
+	private DateTimeOffset _lastHealthCheck = DateTimeOffset.MinValue;
+	private TransportHealthStatus _lastStatus = TransportHealthStatus.Unknown;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AwsSqsTransportAdapter"/> class.
@@ -206,8 +207,8 @@ internal sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITrans
 		LogStarting();
 		IsRunning = true;
 
-		_lastStatus = TransportHealthStatus.Healthy;
-
+		// Health is deliberately NOT set here: starting the adapter contacts nothing,
+		// so it establishes no health. It stays Unknown until a health probe completes.
 		return Task.CompletedTask;
 	}
 
@@ -449,22 +450,6 @@ internal sealed class AwsSqsTransportAdapterOptions
 	public bool HasFifoOptions => FifoOptions is not null;
 
 	/// <summary>
-	/// Gets or sets the batch operation configuration options.
-	/// </summary>
-	/// <value>The batch options, or <see langword="null"/> if using defaults.</value>
-	/// <remarks>
-	/// Configure batch settings using the <c>ConfigureBatch</c> extension method
-	/// for a fluent builder experience.
-	/// </remarks>
-	public AwsSqsBatchOptions? BatchOptions { get; set; }
-
-	/// <summary>
-	/// Gets a value indicating whether batch options are configured.
-	/// </summary>
-	/// <value><see langword="true"/> if batch options are configured; otherwise, <see langword="false"/>.</value>
-	public bool HasBatchOptions => BatchOptions is not null;
-
-	/// <summary>
 	/// Gets or sets the SNS topic integration configuration options.
 	/// </summary>
 	/// <value>The SNS options, or <see langword="null"/> if SNS integration is not configured.</value>
@@ -650,49 +635,6 @@ internal static class AwsSqsTransportAdapterOptionsExtensions
 
 		options.FifoOptions = new AwsSqsFifoOptions();
 		var builder = new AwsSqsFifoBuilder(options.FifoOptions);
-		configure(builder);
-
-		return options;
-	}
-
-	/// <summary>
-	/// Configures the batch operation settings using a fluent builder.
-	/// </summary>
-	/// <param name="options">The transport adapter options.</param>
-	/// <param name="configure">The batch configuration action.</param>
-	/// <returns>The options for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="options"/> or <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Batch operations improve throughput and reduce costs by sending or receiving
-	/// multiple messages in a single API call. AWS SQS limits batch sizes to 10 messages.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddAwsSqsTransport("orders", opts =>
-	/// {
-	///     opts.Region = "us-east-1";
-	///     opts.ConfigureBatch(batch =>
-	///     {
-	///         batch.SendBatchSize(10)
-	///              .SendBatchWindow(TimeSpan.FromMilliseconds(100))
-	///              .ReceiveMaxMessages(10);
-	///     });
-	/// });
-	/// </code>
-	/// </example>
-	public static AwsSqsTransportAdapterOptions ConfigureBatch(
-		this AwsSqsTransportAdapterOptions options,
-		Action<IAwsSqsBatchBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(options);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		options.BatchOptions = new AwsSqsBatchOptions();
-		var builder = new AwsSqsBatchBuilder(options.BatchOptions);
 		configure(builder);
 
 		return options;

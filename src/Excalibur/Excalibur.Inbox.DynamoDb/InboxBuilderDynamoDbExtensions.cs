@@ -100,6 +100,7 @@ public static class InboxBuilderDynamoDbExtensions
 		}
 
 		// Register ValidateOnStart
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddOptions<DynamoDbInboxOptions>().ValidateOnStart();
 
 		// Register validator
@@ -124,14 +125,17 @@ public static class InboxBuilderDynamoDbExtensions
 				new AmazonDynamoDBClient(region));
 		}
 
-		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup sort key scopes per
-		// tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably from that wiring —
-		// an unwired provider cannot carry a truthful marker. Registering the store on its own would leave
-		// the capability advertisable while the key stayed (handler_type, message_id).
-		builder.Services.AddTenantScopedStore<IInboxStore, DynamoDbInboxStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store injecting ITenantContext (so the dedup sort key scopes per
+		// tenant, since this store's constructor declares one) AND emits the ITenantScopingCapability<IInboxStore>
+		// marker inseparably from that wiring — an unwired provider cannot carry a truthful marker.
+		// Registering the store on its own would leave the capability advertisable while the key stayed
+		// (handler_type, message_id).
+		_ = builder.Services.AddDefaultTenantContext();
+		builder.Services.AddTenantAwareStore<IInboxStore, DynamoDbInboxStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<DynamoDbInboxOptions>>();
 			var logger = sp.GetRequiredService<ILogger<DynamoDbInboxStore>>();
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
 
 			// A consumer-supplied or builder-registered client must still win: constructing the
 			// options-only overload here would silently discard it and have the store build its own.
@@ -141,6 +145,7 @@ public static class InboxBuilderDynamoDbExtensions
 				? new DynamoDbInboxStore(options, logger, tenantContext)
 				: new DynamoDbInboxStore(client, options, logger, tenantContext);
 		});
+		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.AddKeyedSingleton<IInboxStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("dynamodb"));

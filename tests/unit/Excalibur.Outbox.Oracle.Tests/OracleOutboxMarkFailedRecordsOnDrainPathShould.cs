@@ -100,7 +100,7 @@ public sealed class OracleOutboxMarkFailedRecordsOnDrainPathShould : IClassFixtu
 			await store.MarkFailedAsync(msg.Id, "boom", 1, CancellationToken.None).ConfigureAwait(false);
 
 			var failed = await ((IOutboxStoreAdmin)store)
-				.GetFailedMessagesAsync(100, null, 10, CancellationToken.None).ConfigureAwait(false);
+				.GetAllTenantsFailedMessagesAsync(100, null, 10, CancellationToken.None).ConfigureAwait(false);
 			var reloaded = failed.FirstOrDefault(m => m.Id == msg.Id);
 
 			_ = reloaded.ShouldNotBeNull(
@@ -148,7 +148,7 @@ public sealed class OracleOutboxMarkFailedRecordsOnDrainPathShould : IClassFixtu
 			// that a dead-lettered message is never re-claimed, are covered by the shared conformance
 			// DeadLettered_NeverReclaimed arm. GetFailedMessages(maxRetries) returns failed messages whose
 			// attempts are BETWEEN 1 AND maxRetries (inclusive), so the maxRetries == MaxAttempts view includes it.
-			var atCeiling = await admin.GetFailedMessagesAsync(MaxAttempts, null, 10, CancellationToken.None).ConfigureAwait(false);
+			var atCeiling = await admin.GetAllTenantsFailedMessagesAsync(MaxAttempts, null, 10, CancellationToken.None).ConfigureAwait(false);
 			var reloaded = atCeiling.FirstOrDefault(m => m.Id == msg.Id);
 			_ = reloaded.ShouldNotBeNull(
 				"a poison message's attempts must be persisted so it can reach MaxAttempts and dead-letter — RED on "

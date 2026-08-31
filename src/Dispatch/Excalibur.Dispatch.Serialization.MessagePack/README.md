@@ -36,7 +36,8 @@ services.AddMessagePackSerializer(
 
 ## AOT Compatibility
 
-**Native AOT compatible** with source-generated formatters and resolvers.
+**Not validated under Native AOT.** MessagePack-CSharp resolves formatters through runtime code
+generation (`StandardResolver`), so this package does not declare ahead-of-time compatibility.
 
 ## Performance Characteristics
 
@@ -46,7 +47,7 @@ services.AddMessagePackSerializer(
 
 ## Architecture Compliance
 
-This package follows the Dispatch serialization policy (R0.14):
+This package follows the Dispatch serialization policy:
 
 - **Core** (`Excalibur.Dispatch`) - System.Text.Json (default)
 - **Public Edges** (`Excalibur.Dispatch.Hosting.Web`, etc.) - System.Text.Json with source-gen

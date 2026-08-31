@@ -60,10 +60,7 @@ Serialization Size Comparison:
 Register Protobuf serialization with Dispatch:
 
 ```csharp
-builder.Services.AddProtobufSerialization(options =>
-{
-    options.WireFormat = ProtobufWireFormat.Binary;
-});
+builder.Services.AddProtobufSerializer();
 ```
 
 ## Project Structure

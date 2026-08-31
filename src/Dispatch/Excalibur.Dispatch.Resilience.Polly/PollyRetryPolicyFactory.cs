@@ -153,7 +153,7 @@ public sealed partial class PollyRetryPolicyFactory
 			UseJitter = _options.Backoff.EnableJitter,
 		};
 
-		return new PollyRetryPolicyAdapter(retryOptions, _logger);
+		return new PollyRetryPolicyAdapter(Microsoft.Extensions.Options.Options.Create(retryOptions), _logger);
 	}
 
 	private static bool IsTransientException(Exception exception) =>

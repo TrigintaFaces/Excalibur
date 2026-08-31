@@ -17,6 +17,8 @@ using Excalibur.Data.Tests.MongoDB.Projections;
 
 using MongoDB.Driver;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Data.Tests.MongoDB;
 
 /// <summary>
@@ -60,7 +62,8 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             CollectionName = "inbox"
         });
 
-        var store = new MongoDbInboxStore(client, options, A.Fake<ILogger<MongoDbInboxStore>>());
+        var store = new MongoDbInboxStore(client, options, A.Fake<ILogger<MongoDbInboxStore>>(),
+            tenantContext: TestTenantContext.SingleTenant);
 
         // Act
         await store.DisposeAsync();
@@ -80,7 +83,8 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             CollectionName = "inbox"
         });
 
-        var store = new MongoDbInboxStore(options, A.Fake<ILogger<MongoDbInboxStore>>());
+        var store = new MongoDbInboxStore(options, A.Fake<ILogger<MongoDbInboxStore>>(),
+            tenantContext: TestTenantContext.SingleTenant);
 
         // Act & Assert — idempotent disposal
         await store.DisposeAsync();
@@ -125,7 +129,7 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
         });
 
         var store = new MongoDbSagaStore(client, options, A.Fake<ILogger<MongoDbSagaStore>>(),
-            new DispatchJsonSerializer());
+            new DispatchJsonSerializer(), tenantContext: TestTenantContext.SingleTenant);
 
         // Act
         await store.DisposeAsync();
@@ -148,7 +152,8 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             CollectionName = "snapshots"
         });
 
-        var store = new MongoDbSnapshotStore(client, options, A.Fake<ILogger<MongoDbSnapshotStore>>());
+        var store = new MongoDbSnapshotStore(client, options, A.Fake<ILogger<MongoDbSnapshotStore>>(),
+            tenantContext: TestTenantContext.SingleTenant);
 
         // Act
         await store.DisposeAsync();
@@ -171,7 +176,7 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             CollectionName = "events"
         });
 
-        var store = new MongoDbEventStore(client, options, A.Fake<ILogger<MongoDbEventStore>>());
+        var store = new MongoDbEventStore(client, options, A.Fake<ILogger<MongoDbEventStore>>(), UntenantedContext.Instance);
 
         // Act
         await store.DisposeAsync();
@@ -218,7 +223,8 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
         });
 
         var store = new MongoDbMaterializedViewStore(client, options,
-            A.Fake<ILogger<MongoDbMaterializedViewStore>>());
+            A.Fake<ILogger<MongoDbMaterializedViewStore>>(),
+            TenantViewFixture.SingleTenant);
 
         // Act
         await store.DisposeAsync();
@@ -329,7 +335,7 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             DatabaseName = "test"
         });
 
-        var store = new MongoDbComplianceStore(client, options, tenantContext: null, A.Fake<ILogger<MongoDbComplianceStore>>());
+        var store = new MongoDbComplianceStore(client, options, TenantViewFixture.SingleTenant, A.Fake<ILogger<MongoDbComplianceStore>>());
 
         // Act
         store.Dispose();
@@ -348,10 +354,25 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             DatabaseName = "test"
         });
 
-        var store = new MongoDbComplianceStore(options, tenantContext: null, A.Fake<ILogger<MongoDbComplianceStore>>());
+        var store = new MongoDbComplianceStore(options, TenantViewFixture.SingleTenant, A.Fake<ILogger<MongoDbComplianceStore>>());
 
         // Act & Assert — idempotent disposal
         store.Dispose();
         store.Dispose();
     }
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

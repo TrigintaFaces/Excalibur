@@ -160,13 +160,16 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 
 	#region DynamoDb CDC
 
+	// A CDC source must name the table or the stream it follows: with neither, the processor has nothing to
+	// read and no later call supplies one. AddDynamoDbCdc registers an IValidateOptions with ValidateOnStart,
+	// so the refusal lands at startup rather than at the first poll.
 	[Fact]
-	public void DynamoDbCdc_OptionsResolve()
+	public void DynamoDbCdc_ValidOptionsResolve()
 	{
-		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- no IValidateOptions registered for CDC
 		var services = new ServiceCollection();
 		_ = services.AddDynamoDbCdc(opts =>
 		{
+			opts.TableName = "orders";
 			opts.MaxBatchSize = 50;
 		});
 
@@ -176,18 +179,37 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	}
 
 	[Fact]
-	public void DynamoDbCdc_AcceptsConfiguredValues()
+	public void DynamoDbCdc_WithoutTableOrStream_IsRefused()
 	{
-		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
+		var services = new ServiceCollection();
+		_ = services.AddDynamoDbCdc(opts => opts.MaxBatchSize = 50);
+
+		using var provider = services.BuildServiceProvider();
+
+		var ex = Should.Throw<OptionsValidationException>(
+			() => provider.GetRequiredService<IOptions<DynamoDbCdcOptions>>().Value);
+
+		ex.Message.ShouldContain("TableName");
+	}
+
+	// The companion refusal. A batch size of zero reads nothing per poll, which is a processor that runs
+	// forever and delivers no record -- indistinguishable, from outside, from a stream with no traffic.
+	[Fact]
+	public void DynamoDbCdc_OutOfRangeBatchSize_IsRefused()
+	{
 		var services = new ServiceCollection();
 		_ = services.AddDynamoDbCdc(opts =>
 		{
+			opts.TableName = "orders";
 			opts.MaxBatchSize = 0;
 		});
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DynamoDbCdcOptions>>().Value;
-		options.MaxBatchSize.ShouldBe(0);
+
+		var ex = Should.Throw<OptionsValidationException>(
+			() => provider.GetRequiredService<IOptions<DynamoDbCdcOptions>>().Value);
+
+		ex.Message.ShouldContain(nameof(DynamoDbCdcOptions.MaxBatchSize));
 	}
 
 	#endregion

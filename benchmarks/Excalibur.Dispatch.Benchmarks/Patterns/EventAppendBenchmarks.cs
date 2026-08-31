@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Excalibur.EventSourcing.SqlServer;
@@ -51,7 +52,7 @@ public class EventAppendBenchmarks
 		await CreateEventStoreTableAsync();
 
 		// Initialize event store
-		_eventStore = new SqlServerEventStore(_connectionString, NullLogger<SqlServerEventStore>.Instance);
+		_eventStore = new SqlServerEventStore(_connectionString, NullLogger<SqlServerEventStore>.Instance, BenchmarkTenantContext.SingleTenant);
 
 		// Pre-generate event batches for benchmarks
 		_singleEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), 1));

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Middleware;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -50,7 +52,7 @@ internal sealed class PipelineIntegrityHealthCheck : IHealthCheck
 		// Check for duplicate middleware types in the same stage
 		var grouped = middlewares
 			.Where(static m => m.Stage.HasValue)
-			.GroupBy(static m => (m.Stage, Type: m.GetType()));
+			.GroupBy(static m => (m.Stage, Type: m.UnwrappedType()));
 
 		foreach (var group in grouped)
 		{
@@ -65,11 +67,11 @@ internal sealed class PipelineIntegrityHealthCheck : IHealthCheck
 		var stageConflicts = middlewares
 			.Where(static m => m.Stage.HasValue)
 			.GroupBy(static m => m.Stage)
-			.Where(static g => g.Select(m => m.GetType()).Distinct().Count() > 1);
+			.Where(static g => g.Select(m => m.UnwrappedType()).Distinct().Count() > 1);
 
 		foreach (var conflict in stageConflicts)
 		{
-			var types = string.Join(", ", conflict.Select(m => m.GetType().Name).Distinct());
+			var types = string.Join(", ", conflict.Select(m => m.UnwrappedType().Name).Distinct());
 			warnings.Add(
 				$"Multiple middleware at stage '{conflict.Key}': {types}. Consider using different stages.");
 		}

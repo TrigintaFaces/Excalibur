@@ -79,7 +79,6 @@ Excalibur.Security.DataProtectionMessageEncryptionService.EncryptMessageAsync(by
 Excalibur.Security.DataProtectionMessageEncryptionService.EncryptMessageAsync(string! content, Excalibur.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Security.DataProtectionMessageEncryptionService.RotateKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
 Excalibur.Security.DataProtectionMessageEncryptionService.ValidateConfigurationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Security.Diagnostics.SecurityEventId
 Excalibur.Security.EcdsaSignatureAlgorithmProvider
 Excalibur.Security.EcdsaSignatureAlgorithmProvider.EcdsaSignatureAlgorithmProvider() -> void
 Excalibur.Security.EcdsaSignatureAlgorithmProvider.SignAsync(byte[]! data, byte[]! keyMaterial, Excalibur.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
@@ -195,7 +194,6 @@ Excalibur.Security.InputValidationException.InputValidationException(string! mes
 Excalibur.Security.InputValidationException.InputValidationException(string! message, System.Exception! innerException) -> void
 Excalibur.Security.InputValidationException.ValidationErrors.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Excalibur.Security.InputValidationMiddleware
-Excalibur.Security.InputValidationMiddleware.InputValidationMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Security.InputValidationMiddleware!>! logger, Excalibur.Security.InputValidationOptions! options, System.Collections.Generic.IEnumerable<Excalibur.Security.IInputValidator!>! validators, Excalibur.Security.ISecurityEventLogger! securityEventLogger) -> void
 Excalibur.Security.InputValidationMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Security.InputValidationMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.InputValidationOptions
@@ -291,25 +289,6 @@ Excalibur.Security.JwtTokenValidationOptions.ValidateLifetime.get -> bool
 Excalibur.Security.JwtTokenValidationOptions.ValidateLifetime.set -> void
 Excalibur.Security.JwtTokenValidationOptions.ValidateSigningKey.get -> bool
 Excalibur.Security.JwtTokenValidationOptions.ValidateSigningKey.set -> void
-Excalibur.Security.KeyProviderExtensions
-Excalibur.Security.LazyReEncryptionMiddleware
-Excalibur.Security.LazyReEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
-Excalibur.Security.LazyReEncryptionMiddleware.LazyReEncryptionMiddleware(Excalibur.Compliance.IEncryptionMigrationService! migrationService, Excalibur.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Options.IOptions<Excalibur.Security.LazyReEncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Security.LazyReEncryptionMiddleware!>! logger) -> void
-Excalibur.Security.LazyReEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
-Excalibur.Security.LazyReEncryptionOptions
-Excalibur.Security.LazyReEncryptionOptions.ContinueOnFailure.get -> bool
-Excalibur.Security.LazyReEncryptionOptions.ContinueOnFailure.set -> void
-Excalibur.Security.LazyReEncryptionOptions.Enabled.get -> bool
-Excalibur.Security.LazyReEncryptionOptions.Enabled.set -> void
-Excalibur.Security.LazyReEncryptionOptions.LazyReEncryptionOptions() -> void
-Excalibur.Security.LazyReEncryptionOptions.MigrationPolicy.get -> Excalibur.Compliance.MigrationPolicy!
-Excalibur.Security.LazyReEncryptionOptions.MigrationPolicy.set -> void
-Excalibur.Security.LazyReEncryptionOptions.OnReEncrypted.get -> System.Func<Excalibur.Compliance.EncryptedData!, Excalibur.Compliance.EncryptedData!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
-Excalibur.Security.LazyReEncryptionOptions.OnReEncrypted.set -> void
-Excalibur.Security.LazyReEncryptionOptions.TargetAlgorithm.get -> Excalibur.Compliance.EncryptionAlgorithm?
-Excalibur.Security.LazyReEncryptionOptions.TargetAlgorithm.set -> void
-Excalibur.Security.LazyReEncryptionOptions.TargetKeyId.get -> string?
-Excalibur.Security.LazyReEncryptionOptions.TargetKeyId.set -> void
 Excalibur.Security.MaskingTelemetrySanitizerOptions
 Excalibur.Security.MaskingTelemetrySanitizerOptions.MaskingTelemetrySanitizerOptions() -> void
 Excalibur.Security.MaskingTelemetrySanitizerOptions.Pepper.get -> byte[]?
@@ -489,10 +468,6 @@ Excalibur.Security.SecurityEventType.ValidationFailure = 4 -> Excalibur.Security
 Excalibur.Security.SecurityOptions
 Excalibur.Security.SecurityOptions.Authentication.get -> Excalibur.Security.SecurityAuthenticationOptions!
 Excalibur.Security.SecurityOptions.Authentication.set -> void
-Excalibur.Security.SecurityOptions.CustomHeaders.get -> System.Collections.Generic.IDictionary<string!, string!>!
-Excalibur.Security.SecurityOptions.CustomHeaders.init -> void
-Excalibur.Security.SecurityOptions.EnableSecurityHeaders.get -> bool
-Excalibur.Security.SecurityOptions.EnableSecurityHeaders.set -> void
 Excalibur.Security.SecurityOptions.Encryption.get -> Excalibur.Security.SecurityEncryptionOptions!
 Excalibur.Security.SecurityOptions.Encryption.set -> void
 Excalibur.Security.SecurityOptions.RateLimiting.get -> Excalibur.Security.SecurityRateLimitOptions!
@@ -593,204 +568,6 @@ Microsoft.Extensions.DependencyInjection.SecurityHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions
 Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
 const Excalibur.Security.Argon2Options.SectionName = "Argon2" -> string!
-const Excalibur.Security.Diagnostics.SecurityEventId.AsymmetricKeyNotFound = 70241 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AsymmetricKeyRetrieved = 70240 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuditEntryCreated = 70602 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuthenticationFailed = 70005 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuthenticationNoSigningKey = 70008 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuthenticationSkippedAnonymous = 70006 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuthenticationSucceeded = 70004 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuthenticationTokenMissing = 70007 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AuthenticationValidationDebug = 70009 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerCredentialStoreCreated = 70901 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRequestFailed = 70923 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRetrieveFailed = 70924 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRetrieved = 70922 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRetrieving = 70920 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerSecretNotFound = 70921 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerStored = 70926 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AwsSecretsManagerStoring = 70925 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultCredentialStoreCreated = 70900 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultRequestFailed = 70909 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultRetrieveFailed = 70910 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultRetrieved = 70908 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultRetrieving = 70906 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultSecretNotFound = 70907 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultStored = 70912 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.AzureKeyVaultStoring = 70911 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.BatchMigrationCancelled = 70410 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.BatchMigrationCompleted = 70409 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.BatchMigrationStarted = 70408 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CloudCredentialAccessDenied = 70904 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CloudCredentialRetrieved = 70903 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CloudCredentialStoreError = 70905 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CompositeMessageSigned = 70242 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CompositeSigningFailed = 70243 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CompositeSigningServiceCreated = 70238 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CompositeVerificationError = 70246 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CompositeVerificationFailed = 70245 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CompositeVerificationSuccessful = 70244 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialCached = 70804 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialNotFound = 70803 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderDisposing = 70811 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderNotFoundInAny = 70807 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderRetrievalFailed = 70810 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderRetrievedFromStore = 70806 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderRetrievedSuccess = 70809 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderRetrieving = 70805 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialProviderStoreException = 70808 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.CredentialRetrieved = 70802 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DangerousInputDetected = 70103 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionConfigurationValidated = 70313 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionConfigurationValidationFailed = 70315 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionCryptographicError = 70310 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionDecryptionFailed = 70308 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionEncryptionFailed = 70306 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionKeyRotationFailed = 70312 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionKeysRotated = 70311 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionMessageDecrypted = 70309 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionMessageEncrypted = 70307 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionServiceCreated = 70305 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DataProtectionValidationFailed = 70314 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.DecryptionFailed = 70304 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EcdsaMessageSigned = 70230 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EcdsaSigningFailed = 70231 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EcdsaVerificationFailed = 70233 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EcdsaVerificationSuccessful = 70232 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchClientInitFailed = 70716 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchClientInitialized = 70715 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchEventsStored = 70718 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchQueryExecuted = 70721 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchQueryFailed = 70722 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchQueryingEvents = 70720 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchSecurityEventStoreCreated = 70702 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchStoreFailed = 70719 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ElasticsearchStoringEvents = 70717 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionFailed = 70303 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionKeyVersionUpdated = 70405 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMiddlewareEncryptionFailed = 70316 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMiddlewareMessageDecrypted = 70318 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMiddlewareMessageEncrypted = 70317 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMigrationCompleted = 70402 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMigrationFailed = 70407 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMigrationServiceCreated = 70400 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMigrationStarted = 70401 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EncryptionMigrationSucceeded = 70406 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EnvironmentCredentialStoreCreated = 70801 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EnvironmentVariableFound = 70830 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.EnvironmentVariableNotFound = 70831 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ExpiredKeyRemoved = 70215 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.ExpiredKeysCleanedUp = 70216 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FailedToStoreKeyInKeyVault = 70213 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileSecurityEventStoreCreated = 70701 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreCleanupCompleted = 70744 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreCleanupFailed = 70745 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreDirectoryCreated = 70730 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreEventsLoaded = 70736 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreEventsStored = 70733 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreInitFailed = 70731 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreLoadFailed = 70737 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreLoadingEvents = 70735 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreQueryExecuted = 70739 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreQueryFailed = 70740 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreQueryingEvents = 70738 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreRotationCompleted = 70742 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreRotationFailed = 70743 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreRotationStarted = 70741 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreStoreFailed = 70734 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.FileStoreStoringEvents = 70732 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultCredentialStoreCreated = 70902 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultHttpRetrieveError = 70818 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultHttpStoreError = 70822 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultRetrieveFailed = 70819 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultRetrieved = 70817 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultRetrieving = 70815 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultSecretNotFound = 70816 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultStoreFailed = 70823 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultStored = 70821 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HashiCorpVaultStoring = 70820 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HmacMessageSigned = 70218 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HmacSigningFailed = 70219 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HmacSigningServiceCreated = 70204 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HmacVerificationError = 70222 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HmacVerificationFailed = 70221 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.HmacVerificationSuccessful = 70220 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputSanitized = 70104 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputValidationDisabled = 70105 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputValidationExecuting = 70100 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputValidationFailed = 70102 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputValidationPassed = 70101 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputValidationUnexpectedError = 70107 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InputValidatorFailed = 70106 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.InvalidKeyFormat = 70214 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.JwtAuthenticationExecuting = 70000 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.JwtTokenExpired = 70003 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.JwtTokenValidated = 70001 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.JwtTokenValidationError = 70010 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.JwtTokenValidationFailed = 70002 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.KeyNotFoundGeneratingNew = 70210 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.KeyNotFoundInKeyVault = 70212 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.KeyRetrievedFromCache = 70209 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.KeyVaultInitializationFailed = 70208 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.KeyVaultInitialized = 70207 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.LazyReEncryptionError = 70413 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.LazyReEncryptionExecuting = 70403 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.LazyReEncryptionFailed = 70412 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.LazyReEncryptionSucceeded = 70411 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.MessageDecrypted = 70302 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.MessageEncrypted = 70301 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.MessageEncryptionExecuting = 70300 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.MessageReEncrypted = 70404 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.MessageSigned = 70201 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.MessageSigningExecuting = 70200 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.NewKeyStored = 70211 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitCheckPassed = 70501 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitCleanupCompleted = 70506 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitCleanupError = 70507 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitExceeded = 70502 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitInactiveLimiterRemoved = 70505 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitPermitAcquired = 70504 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.RateLimitWindowReset = 70503 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecureCredentialProviderCreated = 70800 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecureKeyProviderCreated = 70205 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityAlertRaised = 70604 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventIndividualStoreFailed = 70612 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventLogged = 70601 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventLoggedWithDetails = 70614 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventLoggerCreated = 70600 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventLoggerStarted = 70606 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventLoggerStopped = 70608 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventLoggerStopping = 70607 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventProcessingLoopFailed = 70613 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventProcessingTimeout = 70609 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventQueueFailed = 70605 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventRetrieved = 70704 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventStored = 70703 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventsStoreFailed = 70611 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityEventsStored = 70610 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityIncidentDetected = 70603 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SecurityRateLimitingExecuting = 70500 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SignatureExpired = 70223 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SignatureVerificationFailed = 70203 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SignatureVerified = 70202 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningKeyRotated = 70206 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningMiddlewareInvalidSignature = 70224 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningMiddlewareMessageSigned = 70226 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningMiddlewareNoSignatureFound = 70227 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningMiddlewareOperationFailed = 70225 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningMiddlewareSignatureVerificationFailed = 70229 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SigningMiddlewareSignatureVerified = 70228 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreEventsNotPersisted = 70712 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreEventsStored = 70707 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreInvalidEvent = 70706 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreQueryExecuted = 70710 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreQueryFailed = 70711 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreQueryNotSupported = 70713 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreQueryingEvents = 70709 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreStoreFailed = 70708 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.SqlStoreStoringEvents = 70705 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.StoringKeyInMemoryOnly = 70217 -> int
-const Excalibur.Security.Diagnostics.SecurityEventId.UnsupportedAlgorithmRequested = 70239 -> int
 const Excalibur.Security.RateLimitKeyPrefixes.ApiKey = "api:" -> string!
 const Excalibur.Security.RateLimitKeyPrefixes.Global = "global" -> string!
 const Excalibur.Security.RateLimitKeyPrefixes.Ip = "ip:" -> string!
@@ -802,7 +579,6 @@ static Excalibur.Security.CredentialValidationResult.Failure(params string![]! e
 static Excalibur.Security.CredentialValidationResult.Success() -> Excalibur.Security.CredentialValidationResult!
 static Excalibur.Security.InputValidationResult.Failure(params string![]! errors) -> Excalibur.Security.InputValidationResult!
 static Excalibur.Security.InputValidationResult.Success() -> Excalibur.Security.InputValidationResult!
-static Excalibur.Security.KeyProviderExtensions.StoreKeyPairAsync(this Excalibur.Security.IKeyProvider! provider, string! keyId, byte[]! privateKey, byte[]! publicKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.Argon2ServiceCollectionExtensions.AddPasswordHasher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.Argon2Options!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -824,3 +600,5 @@ static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensi
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecureCredentialManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityAuditing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.UseSecurityMiddleware(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+Excalibur.Security.InputValidationMiddleware.InputValidationMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Security.InputValidationMiddleware!>! logger, Excalibur.Security.InputValidationOptions! options, System.Collections.Generic.IEnumerable<Excalibur.Security.IInputValidator!>! validators, Excalibur.Security.ISecurityEventLogger? securityEventLogger = null) -> void
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddEncryptionMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

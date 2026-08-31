@@ -1,17 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-using Excalibur.Data.OpenSearch.Monitoring;
-
 namespace Excalibur.Data.OpenSearch;
 
 /// <summary>
-/// Configures the settings for OpenSearch client connections and operations.
+/// Configures the connection target for the OpenSearch client this package registers.
 /// </summary>
 /// <remarks>
-/// This class provides comprehensive configuration options for connecting to OpenSearch clusters, including endpoint selection,
-/// connection pooling, resilience policies, and monitoring.
+/// Bound by <c>AddExcaliburOpenSearch(os =&gt; os.BindConfiguration(...))</c>. Exactly one of
+/// <see cref="Url" /> or <see cref="Urls" /> must be set; <see cref="Urls" /> selects a
+/// round-robin static connection pool. Retry, timeout, and circuit-breaker behaviour are
+/// configured on the <c>ConnectionSettings</c> you supply to the client, not here.
 /// </remarks>
 public sealed class OpenSearchConfigurationOptions
 {
@@ -31,16 +30,4 @@ public sealed class OpenSearchConfigurationOptions
 	/// connection pooling.
 	/// </value>
 	public IEnumerable<Uri>? Urls { get; init; }
-
-	/// <summary>
-	/// Gets the configuration for resilience policies.
-	/// </summary>
-	/// <value> The resilience settings for retry and circuit breaker handling. </value>
-	public OpenSearchResilienceOptions Resilience { get; init; } = new();
-
-	/// <summary>
-	/// Gets the configuration for monitoring and diagnostics.
-	/// </summary>
-	/// <value> The monitoring settings for metrics, logging, performance diagnostics, and tracing. </value>
-	internal OpenSearchMonitoringOptions Monitoring { get; init; } = new();
 }

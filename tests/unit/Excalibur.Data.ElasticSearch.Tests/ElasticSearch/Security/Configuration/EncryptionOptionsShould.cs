@@ -15,7 +15,6 @@ public sealed class EncryptionOptionsShould
 		var sut = new EncryptionOptions();
 
 		sut.FieldLevelEncryption.ShouldBeFalse();
-		sut.DocumentLevelSecurity.ShouldBeFalse();
 		sut.EncryptionAlgorithm.ShouldBe("AES-256-GCM");
 		sut.KeyManagement.ShouldNotBeNull();
 		sut.ClassificationRules.ShouldNotBeNull();
@@ -34,14 +33,12 @@ public sealed class EncryptionOptionsShould
 		var sut = new EncryptionOptions
 		{
 			FieldLevelEncryption = true,
-			DocumentLevelSecurity = true,
 			EncryptionAlgorithm = "AES-128-CBC",
 			KeyManagement = km,
 			ClassificationRules = rules,
 		};
 
 		sut.FieldLevelEncryption.ShouldBeTrue();
-		sut.DocumentLevelSecurity.ShouldBeTrue();
 		sut.EncryptionAlgorithm.ShouldBe("AES-128-CBC");
 		sut.KeyManagement.ShouldBeSameAs(km);
 		sut.ClassificationRules.ShouldBeSameAs(rules);

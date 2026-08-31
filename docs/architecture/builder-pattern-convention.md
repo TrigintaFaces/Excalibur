@@ -117,7 +117,7 @@ All builder interfaces use **fluent methods** for connection configuration, not 
 inbox.UseSqlServer(sql => sql.ConnectionString("Server=...;Database=...;"));
 
 // INCORRECT — property setter (not used by any builder interface)
-inbox.UseSqlServer(sql => sql.ConnectionString = "Server=...;Database=...");
+inbox.UseSqlServer(sql => sql.ConnectionString("Server=...;Database=..."));
 ```
 
 ### Standard Connection Overloads (Canonical 4)

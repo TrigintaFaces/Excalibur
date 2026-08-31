@@ -4,6 +4,7 @@
 using System.Reflection;
 
 using Excalibur.Data.DynamoDb.Snapshots;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 
@@ -178,63 +179,71 @@ public sealed class DynamoDbSnapshotDocumentShould
 
 	#region CreatePK Tests
 
-	[Fact]
-	public void CreatePK_ReturnsCorrectPartitionKey()
+	// CreatePK takes the tenant partition as a REQUIRED argument. The tenant-less single-argument
+	// overload is gone: the store always resolves the partition from the total tenant term, so it never
+	// produced the tenant-less shape, and a factory that could still emit one only offered a key no read
+	// path composes.
+	private string CreatePK(string aggregateId, string tenantPartition)
 	{
-		// Arrange
-		// CreatePK is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
-		// partition keys (e6t62k) — disambiguate the single-arg overload to avoid AmbiguousMatchException.
 		var method = _documentType.GetMethod(
-			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
+			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null,
+			types: [typeof(string), typeof(string)], modifiers: null);
 
-		// Act
-		var result = (string)method!.Invoke(null, new object[] { "aggregate-123" })!;
+		method.ShouldNotBeNull("CreatePK(aggregateId, tenantPartition) must exist.");
+		return (string)method.Invoke(null, [aggregateId, tenantPartition])!;
+	}
 
-		// Assert
-		result.ShouldBe("SNAPSHOT#aggregate-123");
+	[Fact]
+	public void CreatePK_HasNoTenantLessOverload()
+	{
+		// The invariant this file exists to hold: one key shape per item. A second, tenant-omitting form
+		// is what lets a read and a write disagree about which of two shapes to address.
+		_documentType.GetMethod(
+				"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null,
+				types: [typeof(string)], modifiers: null)
+			.ShouldBeNull("A tenant-less CreatePK would emit a partition key no read path composes.");
+
+		// Positive control: the reflection query itself discriminates, so the null above is a real
+		// absence rather than a lookup that could never have matched.
+		_documentType.GetMethod(
+				"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null,
+				types: [typeof(string), typeof(string)], modifiers: null)
+			.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void CreatePK_CarriesTheTenantSegment_ForEveryPartition()
+	{
+		// LIVENESS: a real tenant and the untenanted partition both yield a well-formed, prefixed key.
+		// Without this arm a builder that returned the empty string for everything would satisfy the
+		// safety arm below perfectly.
+		CreatePK("aggregate-123", "tenant-a").ShouldBe("SNAPSHOT#t:tenant-a:aggregate-123");
+		CreatePK("aggregate-123", TenantScope.UntenantedSentinel)
+			.ShouldBe($"SNAPSHOT#t:{TenantScope.UntenantedSentinel}:aggregate-123");
+	}
+
+	[Fact]
+	public void CreatePK_SeparatesTenants_AndSeparatesUntenantedFromTenanted()
+	{
+		// SAFETY: no two partitions share a key for the same aggregate. The untenanted partition is a
+		// value like any other, so it is separated too - it is not an absence.
+		const string AggregateId = "aggregate-123";
+
+		var tenantA = CreatePK(AggregateId, "tenant-a");
+		var tenantB = CreatePK(AggregateId, "tenant-b");
+		var untenanted = CreatePK(AggregateId, TenantScope.UntenantedSentinel);
+
+		tenantA.ShouldNotBe(tenantB);
+		tenantA.ShouldNotBe(untenanted);
+		tenantB.ShouldNotBe(untenanted);
 	}
 
 	[Fact]
 	public void CreatePK_PreservesSpecialCharacters()
 	{
-		// Arrange
-		// CreatePK is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
-		// partition keys (e6t62k) — disambiguate the single-arg overload to avoid AmbiguousMatchException.
-		var method = _documentType.GetMethod(
-			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
-
-		// Act - DynamoDB allows special characters in keys unlike CosmosDB
-		var result = (string)method!.Invoke(null, new object[] { "aggregate/with/slashes" })!;
-
-		// Assert
-		result.ShouldBe("SNAPSHOT#aggregate/with/slashes");
-	}
-
-	[Fact]
-	public void CreatePK_WithTenant_DiffersFromUnscoped_AndBetweenTenants()
-	{
-		// STRENGTHEN (e6t62k): the tenant is embedded in the PARTITION key so a tenant-scoped snapshot
-		// never collides with an unscoped one, nor with another tenant's snapshot of the same aggregate.
-		var aggregateId = "aggregate-123";
-		var single = _documentType.GetMethod(
-			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
-		var tenanted = _documentType.GetMethod(
-			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string), typeof(string) }, modifiers: null);
-		tenanted.ShouldNotBeNull("CreatePK(aggregateId, tenantId) overload must exist for tenant-inclusive partition keys.");
-
-		var unscoped = (string)single!.Invoke(null, new object[] { aggregateId })!;
-		var tenantA = (string)tenanted!.Invoke(null, new object?[] { aggregateId, "tenant-a" })!;
-		var tenantB = (string)tenanted.Invoke(null, new object?[] { aggregateId, "tenant-b" })!;
-
-		unscoped.ShouldBe("SNAPSHOT#aggregate-123");
-		tenantA.ShouldNotBe(unscoped);
-		tenantB.ShouldNotBe(unscoped);
-		tenantA.ShouldNotBe(tenantB);
-		tenantA.ShouldContain("tenant-a");
-
-		// A null/empty tenant keeps the existing single-tenant partition key shape.
-		var tenantNull = (string)tenanted.Invoke(null, new object?[] { aggregateId, null })!;
-		tenantNull.ShouldBe(unscoped);
+		// DynamoDB allows special characters in keys, unlike CosmosDB.
+		CreatePK("aggregate/with/slashes", "tenant-a")
+			.ShouldBe("SNAPSHOT#t:tenant-a:aggregate/with/slashes");
 	}
 
 	#endregion

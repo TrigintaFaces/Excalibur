@@ -5,9 +5,11 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience;
@@ -21,7 +23,19 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// <summary>
 /// Middleware that implements retry logic for failed message processing.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="RetryMiddleware" /> class. </remarks>
+/// <remarks>
+/// <para>
+/// This middleware decides how many attempts a fault gets, and nothing else about it. A fault it declines
+/// to retry is raised after one attempt, and a transient one after the configured attempts — in both cases
+/// the original exception propagates with its type and message intact, so an exception mapper or typed
+/// exception handler registered above still matches on the exception the handler actually threw.
+/// </para>
+/// <para>
+/// When the downstream returns failed results rather than throwing, exhaustion returns the last of those
+/// results unchanged: there is no exception to raise, and the failure the pipeline below produced is what
+/// the caller should see.
+/// </para>
+/// </remarks>
 /// <param name="options"> The retry options. </param>
 /// <param name="sanitizer"> The telemetry sanitizer for PII protection. </param>
 /// <param name="logger"> The logger. </param>
@@ -34,15 +48,15 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.RetryMiddleware, "1.0.0");
 
-	// l7m7nr / L5: retry metrics. Static library Meter (ADR-142 lifecycle) mirroring the ActivitySource name.
+	// L5: retry metrics. Static library Meter mirroring the ActivitySource name.
 	private static readonly Meter RetryMeter = new(DispatchTelemetryConstants.Meters.RetryMiddleware, "1.0.0");
 	private static readonly Counter<long> RetryAttemptsCounter = RetryMeter.CreateCounter<long>(
 		"dispatch.retry.attempts",
-		unit: "attempts",
+		unit: "{attempts}",
 		description: "Number of retry attempts performed (excludes the initial attempt).");
 	private static readonly Counter<long> RetryExhaustionsCounter = RetryMeter.CreateCounter<long>(
 		"dispatch.retry.exhausted",
-		unit: "exhaustions",
+		unit: "{exhaustions}",
 		description: "Number of times all retry attempts were exhausted, yielding a terminal failure.");
 
 	private const int MaxCachedAttributeOptions = 1024;
@@ -153,8 +167,8 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 					_ = (activity?.SetTag("retry.final_attempt", attempt));
 					_ = (activity?.SetTag("retry.abandoned", value: true));
 
-					// jj9gon/qu3182 (S852): genuine exhaustion via the failed-result path on the final
-					// attempt converges on the SINGLE post-loop RetryExhausted terminal (which emits the
+					// Genuine exhaustion via the failed-result path on the final
+					// attempt converges on the SINGLE post-loop exhaustion terminal (which emits the
 					// exhausted counter once) — no longer returns here.
 					if (attempt >= effectiveOptions.MaxAttempts)
 					{
@@ -169,9 +183,15 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			}
 			catch (OperationCanceledException)
 			{
-				// EC-1: cooperative cancellation is never a retry-exhaustion. Propagate it (mirrors
+				// cooperative cancellation is never a retry-exhaustion. Propagate it (mirrors
 				// DefaultRetryPolicy.IsCancellation) — it must not be retried, and must never increment
-				// dispatch.retry.exhausted nor reach the RetryExhausted terminal.
+				// dispatch.retry.exhausted nor reach the exhaustion terminal.
+				throw;
+			}
+			catch (HandlerNotRegisteredException)
+			{
+				// A missing handler registration is a configuration fault, not a transient one: it fails identically on every
+				// attempt and converting it to a failed result hands the caller a request-shaped error for an operator's omission.
 				throw;
 			}
 			catch (Exception ex) when (IsExceptionRetryable(effectiveOptions, ex))
@@ -189,17 +209,13 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			catch (Exception ex)
 			{
 				// Non-retryable exception → abandon immediately (NOT an exhaustion, no exhausted-count).
+				// It PROPAGATES rather than being converted to a failed result: declining to retry is a
+				// statement about attempts, not about the fault. Converting it here would hide the original
+				// exception type from the mapping and typed-handler middleware above — which match on exactly
+				// that type — and hand them a retry-shaped substitute they cannot map.
 				LogNonRetryableException(context.MessageId ?? string.Empty, attempt, ex);
 				activity?.SetSanitizedErrorStatus(ex, _sanitizer);
-				return MessageResult.Failed(new MessageProblemDetails
-				{
-					Type = RetryProblemTypes.RetryError,
-					Title = "Retry Failed",
-					ErrorCode = 500,
-					Status = 500,
-					Detail = ex.GetSanitizedErrorDescription(_sanitizer),
-					Instance = context.MessageId ?? string.Empty,
-				});
+				throw;
 			}
 
 			// Don't delay after the last attempt
@@ -214,11 +230,20 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			}
 		}
 
-		// ── Single reachable retry-exhaustion terminal (jj9gon make-reachable; qu3182 both paths) ──
+		// The loop body never ran, which is only possible when MaxAttempts is non-positive: the message was
+		// never dispatched. That is a configuration fault, not an exhaustion — no exhausted-count, and raised
+		// rather than reported as a message-level failure the caller cannot distinguish from a real one.
+		if (attempt == 0)
+		{
+			throw new InvalidOperationException(
+				$"RetryOptions.MaxAttempts must be at least 1, but was {effectiveOptions.MaxAttempts}; the message was never dispatched.");
+		}
+
+		// ── Single retry-exhaustion terminal ──
 		// Reached ONLY on genuine attempt-cap exhaustion, via EITHER the failed-result path
 		// (lastFailedResult set) OR the retryable-exception path (lastException set). Both paths converge
-		// here, so dispatch.retry.exhausted is emitted exactly once on EVERY exhaustion code path — no
-		// undercount (qu3182) — and the distinct RetryExhausted terminal is now reachable (jj9gon).
+		// here, so dispatch.retry.exhausted is emitted exactly once on EVERY exhaustion code path, BEFORE
+		// either path leaves — a counter placed after the rethrow below would be unreachable.
 		RetryExhaustionsCounter.Add(1, new KeyValuePair<string, object?>("message.type", message.GetType().Name));
 
 		var errorMessage = lastException is not null
@@ -230,20 +255,25 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		_ = (activity?.SetTag("retry.final_attempt", attempt));
 		_ = (activity?.SetStatus(ActivityStatusCode.Error, errorMessage));
 
-		if (lastException != null)
+		// Record the exhaustion as a fact on the context BEFORE leaving. The two exhaustion sub-paths below
+		// leave by different mechanisms — one throws, one returns — so no returned problem type can carry the
+		// fact on both. An upstream decorator (dead-letter-on-exhaustion) reads it either way.
+		context.MarkRetryExhausted();
+
+		if (lastException is not null)
 		{
 			activity?.RecordSanitizedException(lastException, _sanitizer);
+
+			// Rethrow the ORIGINAL exception, never a wrapper. A consumer's exception mapper and typed
+			// exception handler match on their own exception type and read its message; wrapping it puts
+			// this middleware's type in front of theirs and defeats both.
+			ExceptionDispatchInfo.Capture(lastException).Throw();
 		}
 
-		return MessageResult.Failed(new MessageProblemDetails
-		{
-			Type = RetryProblemTypes.RetryExhausted,
-			Title = "Retry Exhausted",
-			ErrorCode = 500,
-			Status = 500,
-			Detail = $"Retry attempts exhausted after {effectiveOptions.MaxAttempts} attempts: {errorMessage}",
-			Instance = context.MessageId ?? string.Empty,
-		});
+		// Exhausted by repeatedly returned failures: there is no exception to raise, and the downstream's own
+		// failure result is what the caller should see — returning a retry-shaped substitute would replace a
+		// result the pipeline below deliberately produced.
+		return lastFailedResult!;
 	}
 
 	private static double GetSecureRandomDouble()
@@ -315,7 +345,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 
 	// Whether an exception is retryable IN PRINCIPLE (independent of the attempt cap). The cap decision
 	// lives in the catch body so a retryable exception on the FINAL attempt is caught here and converges
-	// on the exhaustion terminal (qu3182/jj9gon) rather than falling through to the non-retryable catch.
+	// on the exhaustion terminal rather than falling through to the non-retryable catch.
 	private bool IsExceptionRetryable(RetryOptions options, Exception exception)
 	{
 		var exceptionType = exception.GetType();
@@ -342,7 +372,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			return options.RetryableExceptions.Contains(exceptionType);
 		}
 
-		// No explicit filter matched: defer to the shared failure classifier (shu41d / S-A) so the
+		// No explicit filter matched: defer to the shared failure classifier (S-A) so the
 		// retry-vs-dead-letter decision is consistent across every component. Only transient failures
 		// are retried; permanent and poison failures (deserialization, validation, argument, auth, …)
 		// are abandoned immediately rather than retried to the attempt cap.
@@ -357,7 +387,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		{
 			BackoffStrategy.Fixed => baseMs,
 			BackoffStrategy.Linear => baseMs * attempt,
-			// 0yum52: use the configured BackoffMultiplier (default 2.0) rather than a hardcoded 2, so the
+			// use the configured BackoffMultiplier (default 2.0) rather than a hardcoded 2, so the
 			// exponential growth matches the documented option and stays consistent with Outbox/Inbox backoff.
 			BackoffStrategy.Exponential => baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1),
 			BackoffStrategy.ExponentialWithJitter => CalculateExponentialWithJitterMs(options, baseMs, attempt),

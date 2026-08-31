@@ -17,7 +17,7 @@ public sealed class RedisInboxStoreShould
 		var logger = NullLogger<RedisInboxStore>.Instance;
 
 		Should.Throw<ArgumentNullException>(
-			() => new RedisInboxStore(null!, logger));
+			() => new RedisInboxStore(null!, logger, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -29,7 +29,7 @@ public sealed class RedisInboxStoreShould
 		});
 
 		Should.Throw<ArgumentNullException>(
-			() => new RedisInboxStore(options, null!));
+			() => new RedisInboxStore(options, null!, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -42,7 +42,7 @@ public sealed class RedisInboxStoreShould
 		var logger = NullLogger<RedisInboxStore>.Instance;
 
 		Should.Throw<ArgumentNullException>(
-			() => new RedisInboxStore(null!, options, logger));
+			() => new RedisInboxStore(null!, options, logger, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class RedisInboxStoreShould
 		// Cannot test the connection overload without a real ConnectionMultiplexer,
 		// but we can verify the options-only constructor validates
 		Should.Throw<ArgumentNullException>(
-			() => new RedisInboxStore(null!, logger));
+			() => new RedisInboxStore(null!, logger, tenantContext: new TestTenantContext()));
 	}
 
 	[Fact]
@@ -64,7 +64,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		await using var store = new RedisInboxStore(options, logger);
+		await using var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.CreateEntryAsync(null!, "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None).AsTask());
@@ -78,7 +78,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		await using var store = new RedisInboxStore(options, logger);
+		await using var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.CreateEntryAsync("msg-1", string.Empty, "type", [], new Dictionary<string, object>(), CancellationToken.None).AsTask());
@@ -92,7 +92,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		await using var store = new RedisInboxStore(options, logger);
+		await using var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.MarkProcessedAsync(null!, "handler", CancellationToken.None).AsTask());
@@ -106,7 +106,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		await using var store = new RedisInboxStore(options, logger);
+		await using var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.IsProcessedAsync(null!, "handler", CancellationToken.None).AsTask());
@@ -120,7 +120,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		await using var store = new RedisInboxStore(options, logger);
+		await using var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.GetEntryAsync(null!, "handler", CancellationToken.None).AsTask());
@@ -134,7 +134,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		await using var store = new RedisInboxStore(options, logger);
+		await using var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.MarkFailedAsync(null!, "handler", "error", CancellationToken.None).AsTask());
@@ -148,7 +148,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		var store = new RedisInboxStore(options, logger);
+		var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await Should.NotThrowAsync(() => store.DisposeAsync().AsTask());
 	}
@@ -161,7 +161,7 @@ public sealed class RedisInboxStoreShould
 			ConnectionString = "localhost:6379"
 		});
 		var logger = NullLogger<RedisInboxStore>.Instance;
-		var store = new RedisInboxStore(options, logger);
+		var store = new RedisInboxStore(options, logger, tenantContext: new TestTenantContext());
 
 		await store.DisposeAsync();
 		await Should.NotThrowAsync(() => store.DisposeAsync().AsTask());

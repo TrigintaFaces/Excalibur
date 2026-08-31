@@ -58,7 +58,6 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		var query = new AuditQuery
 		{
 			ActorId = "actor-a",
-			TenantId = "tenant-1",
 			MaxResults = 10,
 			Skip = 0
 		};
@@ -86,7 +85,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		var end = DateTimeOffset.UtcNow.AddHours(1);
 
 		var validResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
-		validResult.IsValid.ShouldBeTrue();
+		validResult.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
 
 		await using (var connection = new SqlConnection(_fixture.ConnectionString))
 		{
@@ -98,8 +97,8 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 
 		var invalidResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 
-		invalidResult.IsValid.ShouldBeFalse();
-		invalidResult.ViolationCount.ShouldBeGreaterThan(0);
+		invalidResult.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		invalidResult.CompromisedChainCount.ShouldBeGreaterThan(0);
 		invalidResult.FirstViolationEventId.ShouldNotBeNullOrWhiteSpace();
 	}
 
@@ -128,9 +127,259 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 
 		var invalidResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 
-		invalidResult.IsValid.ShouldBeFalse();
-		invalidResult.ViolationCount.ShouldBeGreaterThan(0);
+		invalidResult.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		invalidResult.CompromisedChainCount.ShouldBeGreaterThan(0);
 		invalidResult.FirstViolationEventId.ShouldBe(second.EventId);
+	}
+
+	/// <summary>
+	/// The liveness half of Excalibur_Dispatch-8sbvv4: with hash chaining disabled, StoreAsync signs every
+	/// record independently against a null prior tag. An untouched trail must verify clean — not report the
+	/// tampering the enabled-chaining walk would see if it (wrongly) carried tags forward across records that
+	/// were never chained to each other in the first place.
+	/// </summary>
+	[Fact]
+	public async Task Verify_chain_integrity_with_hash_chaining_disabled_verifies_an_untouched_trail()
+	{
+		await InitializeAuditTableAsync();
+		using var store = CreateStore(configure: o => o.EnableHashChain = false);
+
+		await store.StoreAsync(CreateAuditEvent("evt-unchained-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3)), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-unchained-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2)), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-unchained-3", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-1)), TestCancellationToken);
+
+		var start = DateTimeOffset.UtcNow.AddHours(-1);
+		var end = DateTimeOffset.UtcNow.AddHours(1);
+
+		var result = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
+		result.EventsVerified.ShouldBe(3);
+	}
+
+	/// <summary>
+	/// The safety half, paired with the liveness arm above. Chaining disabled trades away D2 (linkage), not
+	/// D1 (content integrity) — each record still verifies its own MAC against the null prior tag it was
+	/// actually signed with, so a rewritten record must still be caught even though no chain links it to its
+	/// neighbours.
+	/// </summary>
+	[Fact]
+	public async Task Verify_chain_integrity_with_hash_chaining_disabled_still_detects_a_rewritten_record()
+	{
+		await InitializeAuditTableAsync();
+		using var store = CreateStore(configure: o => o.EnableHashChain = false);
+
+		var first = CreateAuditEvent("evt-unchained-tamper-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
+		var second = CreateAuditEvent("evt-unchained-tamper-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-1));
+
+		await store.StoreAsync(first, TestCancellationToken);
+		await store.StoreAsync(second, TestCancellationToken);
+
+		var start = DateTimeOffset.UtcNow.AddHours(-1);
+		var end = DateTimeOffset.UtcNow.AddHours(1);
+
+		await using (var connection = new SqlConnection(_fixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestCancellationToken);
+			_ = await connection.ExecuteAsync(
+				"UPDATE [audit].[AuditEvents] SET EventHash = @BadHash WHERE EventId = @EventId",
+				new { BadHash = new string('F', 64), EventId = second.EventId });
+		}
+
+		var result = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.CompromisedChainCount.ShouldBeGreaterThan(0);
+		result.FirstViolationEventId.ShouldBe(second.EventId);
+	}
+
+	/// <summary>
+	/// The liveness half of the right-edge pin: a range that has a successor, untouched, must still verify.
+	/// </summary>
+	/// <remarks>
+	/// Written first and deliberately. A verifier that reported tampering on every range with a record after
+	/// it would satisfy every deletion arm below and be worse than useless — a check that cries wolf on
+	/// healthy data gets switched off, and takes the real detections with it.
+	/// </remarks>
+	[Fact]
+	public async Task Verify_chain_integrity_verifies_an_untouched_range_that_has_a_successor()
+	{
+		await InitializeAuditTableAsync();
+		using var store = CreateStore();
+
+		var now = DateTimeOffset.UtcNow;
+		_ = await StoreChainAsync(store, "evt-tail-clean", "tenant-1", now, 4);
+
+		// The window ends before the last record, so the chain continues past the verified range and the
+		// right edge has a successor to be pinned against.
+		var result = await store.VerifyChainIntegrityAsync(
+			now.AddMinutes(-45), now.AddMinutes(-15), TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
+		result.EventsVerified.ShouldBe(3);
+	}
+
+	/// <summary>
+	/// Deleting the last record of a verified range is reported, because the record that follows the range
+	/// still carries the tag of what was there.
+	/// </summary>
+	/// <remarks>
+	/// Without the right-edge pin this reports <c>Verified</c>: the survivors chain perfectly to one another
+	/// and to the anchor, the walk holds, and nothing among the records presented mentions the removed one.
+	/// </remarks>
+	[Fact]
+	public async Task Verify_chain_integrity_reports_a_record_deleted_from_the_end_of_the_range()
+	{
+		await InitializeAuditTableAsync();
+		using var store = CreateStore();
+
+		var now = DateTimeOffset.UtcNow;
+		var chain = await StoreChainAsync(store, "evt-tail-cut", "tenant-1", now, 4);
+
+		await DeleteAuditEventsAsync(chain[2].EventId);
+
+		var result = await store.VerifyChainIntegrityAsync(
+			now.AddMinutes(-45), now.AddMinutes(-15), TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.CompromisedChainCount.ShouldBeGreaterThan(0);
+
+		// The successor is the record whose verification actually failed, and the description must say the
+		// range lost records off its end rather than reporting a generic break.
+		result.FirstViolationEventId.ShouldBe(chain[3].EventId);
+		result.ViolationDescription.ShouldContain("end of the range");
+	}
+
+	/// <summary>
+	/// Deleting several records off the end of a range is reported for the same reason as deleting one.
+	/// </summary>
+	[Fact]
+	public async Task Verify_chain_integrity_reports_several_records_deleted_from_the_end_of_the_range()
+	{
+		await InitializeAuditTableAsync();
+		using var store = CreateStore();
+
+		var now = DateTimeOffset.UtcNow;
+		var chain = await StoreChainAsync(store, "evt-tail-cut-many", "tenant-1", now, 5);
+
+		// Records 2 and 3 of a four-record window removed, leaving a suffix-truncated but internally
+		// consistent range behind.
+		await DeleteAuditEventsAsync(chain[2].EventId, chain[3].EventId);
+
+		var result = await store.VerifyChainIntegrityAsync(
+			now.AddMinutes(-55), now.AddMinutes(-15), TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.FirstViolationEventId.ShouldBe(chain[4].EventId);
+	}
+
+	/// <summary>
+	/// The right-edge pin resolves a successor per chain partition, so an untouched estate holding more than
+	/// one tenant still verifies.
+	/// </summary>
+	/// <remarks>
+	/// The failure this guards against is a successor drawn from whichever record happens to sit next in the
+	/// global sequence: on an estate with two tenants that record belongs to a different chain, and pinning
+	/// against it would report tampering on a trail nobody had touched.
+	/// </remarks>
+	[Fact]
+	public async Task Verify_chain_integrity_verifies_an_untouched_two_tenant_range_that_has_successors()
+	{
+		await InitializeAuditTableAsync();
+		using var firstTenantStore = CreateStore();
+		using var secondTenantStore = CreateStore(tenantId: "tenant-2");
+
+		var now = DateTimeOffset.UtcNow;
+
+		// Interleaved in write order, so each partition's neighbour in the global sequence belongs to the
+		// other tenant's chain.
+		for (var i = 0; i < 4; i++)
+		{
+			var timestamp = now.AddMinutes(-40 + (i * 10));
+			_ = await firstTenantStore.StoreAsync(
+				CreateAuditEvent($"evt-two-t1-{i}", "tenant-1", timestamp), TestCancellationToken);
+			_ = await secondTenantStore.StoreAsync(
+				CreateAuditEvent($"evt-two-t2-{i}", "tenant-2", timestamp), TestCancellationToken);
+		}
+
+		var result = await firstTenantStore.VerifyChainIntegrityAsync(
+			now.AddMinutes(-45), now.AddMinutes(-15), TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
+		result.EventsVerified.ShouldBe(6);
+	}
+
+	/// <summary>
+	/// Corrupting only the stored prior-tag column is reported, and an untouched trail is not.
+	/// </summary>
+	/// <remarks>
+	/// The column is not a MAC input — the tag is computed over the prior tag supplied at write time, not
+	/// over the copy kept in the row — so moving it alone leaves every MAC intact. It is compared against the
+	/// predecessor actually present for exactly that reason: auditor-facing exports read this value, and a
+	/// value nothing verifies can be rewritten for free.
+	/// </remarks>
+	[Fact]
+	public async Task Verify_chain_integrity_reports_a_rewritten_stored_prior_tag_and_passes_an_untouched_one()
+	{
+		await InitializeAuditTableAsync();
+		using var store = CreateStore();
+
+		var now = DateTimeOffset.UtcNow;
+		var chain = await StoreChainAsync(store, "evt-linkage", "tenant-1", now, 3);
+
+		var start = now.AddMinutes(-45);
+		var end = now.AddMinutes(-5);
+
+		// Liveness first: untouched, this must verify.
+		var untouched = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
+		untouched.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
+
+		await using (var connection = new SqlConnection(_fixture.ConnectionString))
+		{
+			await connection.OpenAsync(TestCancellationToken);
+			_ = await connection.ExecuteAsync(
+				"UPDATE [audit].[AuditEvents] SET PreviousEventHash = @BadHash WHERE EventId = @EventId",
+				new { BadHash = new string('F', 64), EventId = chain[1].EventId });
+		}
+
+		var result = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
+
+		result.Outcome.ShouldBe(AuditIntegrityOutcome.ViolationsDetected);
+		result.FirstViolationEventId.ShouldBe(chain[1].EventId);
+		result.ViolationDescription.ShouldContain("stored prior tag");
+	}
+
+	/// <summary>
+	/// Stores a run of records ten minutes apart, oldest first, and returns them in write order.
+	/// </summary>
+	private async Task<IReadOnlyList<AuditEvent>> StoreChainAsync(
+		SqlServerAuditStore store,
+		string idPrefix,
+		string tenantId,
+		DateTimeOffset now,
+		int count)
+	{
+		var stored = new List<AuditEvent>(count);
+		for (var i = 0; i < count; i++)
+		{
+			var auditEvent = CreateAuditEvent(
+				$"{idPrefix}-{i}", tenantId, now.AddMinutes(-10 * (count - i)));
+
+			_ = await store.StoreAsync(auditEvent, TestCancellationToken);
+			stored.Add(auditEvent);
+		}
+
+		return stored;
+	}
+
+	/// <summary>Removes rows from the audit table, standing in for an actor who can delete records.</summary>
+	private async Task DeleteAuditEventsAsync(params string[] eventIds)
+	{
+		await using var connection = new SqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(
+			"DELETE FROM [audit].[AuditEvents] WHERE EventId IN @EventIds",
+			new { EventIds = eventIds });
 	}
 
 	[Fact]
@@ -529,7 +778,9 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 				TableName = "AuditAnnotations",
 			}),
 			AuditIntegrityTestStrategy.Create(),
-			tenantContext: tenantId is null ? null : new FixedTenantContext(tenantId),
+			tenantContext: tenantId is null
+				? new TestTenantContext(TenantScope.UntenantedSentinel)
+				: (ITenantContext)new FixedTenantContext(tenantId),
 			EnabledTestLogger.Create<SqlServerAuditStore>());
 	}
 

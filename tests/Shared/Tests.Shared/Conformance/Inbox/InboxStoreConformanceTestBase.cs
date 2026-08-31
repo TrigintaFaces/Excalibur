@@ -287,10 +287,16 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		var payload = "test-payload"u8.ToArray();
 		var metadata = new Dictionary<string, object> { ["key"] = "value" };
 
-		// Act
+		// Act. The bracketing timestamps are captured around the call rather than measured backwards from
+		// the assertion: a fixed backward window silently encodes an assumption about how long the store
+		// takes, and breaks when it is slower than the guess rather than when the timestamp is wrong. This
+		// assertion previously allowed 5 seconds and failed on a container run that took 9 -- reporting a
+		// correct ReceivedAt as a defect.
+		var before = DateTimeOffset.UtcNow;
 		var entry = await Store.CreateEntryAsync(
 			messageId, handlerType, messageType, payload, metadata, CancellationToken.None)
 			.ConfigureAwait(false);
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		_ = entry.ShouldNotBeNull();
@@ -299,9 +305,13 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		entry.MessageType.ShouldBe(messageType);
 		entry.Payload.ShouldBe(payload);
 		entry.Status.ShouldBe(InboxStatus.Received);
+
+		// One second of slack on each side absorbs clock granularity and any skew between this process and
+		// a store that stamps the time itself; it does NOT absorb operation duration, which is what the
+		// bracket is for. The assertion therefore holds however slow the backend is.
 		entry.ReceivedAt.ShouldBeInRange(
-			DateTimeOffset.UtcNow.AddSeconds(-5),
-			DateTimeOffset.UtcNow.AddSeconds(1));
+			before.AddSeconds(-1),
+			after.AddSeconds(1));
 	}
 
 	[Fact]
@@ -526,7 +536,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act
-		var failedEntries = await AdminStore.GetFailedEntriesAsync(
+		var failedEntries = await AdminStore.GetAllTenantsFailedEntriesAsync(
 			maxRetries: 5, olderThan: null, batchSize: 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -556,7 +566,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		}
 
 		// Act - maxRetries = 3 means entries with retryCount >= 3 are excluded
-		var failedEntries = await AdminStore.GetFailedEntriesAsync(
+		var failedEntries = await AdminStore.GetAllTenantsFailedEntriesAsync(
 			maxRetries: 3, olderThan: null, batchSize: 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -582,7 +592,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		}
 
 		// Act
-		var failedEntries = await AdminStore.GetFailedEntriesAsync(
+		var failedEntries = await AdminStore.GetAllTenantsFailedEntriesAsync(
 			maxRetries: 10, olderThan: null, batchSize: 2, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -621,7 +631,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act
-		var stats = await AdminStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await AdminStore.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		stats.TotalEntries.ShouldBe(3);
@@ -634,7 +644,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	public async Task GetStatistics_EmptyStore_ReturnsZeroCounts()
 	{
 		// Act
-		var stats = await AdminStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await AdminStore.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		stats.TotalEntries.ShouldBe(0);
@@ -667,7 +677,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
 		do
 		{
-			removed += await AdminStore.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
+			removed += await AdminStore.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			entry = await Store.GetEntryAsync(messageId, "Handler.A", CancellationToken.None).ConfigureAwait(false);
 			if (entry is null || removed > 0)
 			{
@@ -697,7 +707,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act - Cleanup with 1 hour retention should preserve recent entries
-		var removed = await AdminStore.CleanupAsync(DateTimeOffset.UtcNow.AddHours(-1), CancellationToken.None)
+		var removed = await AdminStore.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow.AddHours(-1), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -722,7 +732,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act - Cleanup should not remove failed entries
-		var removed = await AdminStore.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None)
+		var removed = await AdminStore.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -744,7 +754,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act - Cleanup should not remove pending entries
-		var removed = await AdminStore.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None)
+		var removed = await AdminStore.CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -784,7 +794,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		// id3 remains pending
 
 		// Act
-		var allEntries = await AdminStore.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var allEntries = await AdminStore.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		var entriesList = allEntries.ToList();
@@ -798,7 +808,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	public async Task GetAllEntries_EmptyStore_ReturnsEmptyCollection()
 	{
 		// Act
-		var allEntries = await AdminStore.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var allEntries = await AdminStore.GetAllTenantsEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		allEntries.ShouldBeEmpty();

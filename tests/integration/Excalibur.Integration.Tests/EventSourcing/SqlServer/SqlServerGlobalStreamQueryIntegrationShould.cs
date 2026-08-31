@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Reflection;
+using Tests.Shared.Fixtures;
 
 using Excalibur.Dispatch;
 
@@ -37,26 +38,26 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
 {
     private MsSqlContainer? _container;
     private string? _connectionString;
-    private bool _dockerAvailable;
+    private readonly RequiredContainer _requiredContainer = new("SQL Server (Docker)");
 
     public async ValueTask InitializeAsync()
     {
         try
         {
             _container = new MsSqlBuilder()
+                .WithBoundedMemory()
                 .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
                 .Build();
 
             await _container.StartAsync().ConfigureAwait(false);
             _connectionString = _container.GetConnectionString();
-            _dockerAvailable = true;
+            _requiredContainer.MarkStarted();
 
             await InitializeDatabaseAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Docker initialization failed: {ex.Message}");
-            _dockerAvailable = false;
+            throw _requiredContainer.Failed(ex);
         }
     }
 
@@ -79,10 +80,7 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
     [Fact]
     public async Task ReadEventsAcrossAggregatesInGlobalPositionOrderAcrossAPageBoundary()
     {
-        if (!_dockerAvailable)
-        {
-            return;
-        }
+        _requiredContainer.Require();
 
         // Arrange — append INTERLEAVED so the global (append/Position) order differs from per-aggregate
         // Version order. Aggregate A gets 3 events (Position 1,2,3), then aggregate B gets 1 (Position 4).
@@ -128,7 +126,7 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
     }
 
     private IEventStore CreateEventStore() =>
-        new SqlServerEventStore(_connectionString!, NullLogger<SqlServerEventStore>.Instance);
+        new SqlServerEventStore(_connectionString!, NullLogger<SqlServerEventStore>.Instance, SingleTenantTestContext.Instance);
 
     // SqlServerGlobalStreamQuery is internal; this integration-test assembly is not a friend assembly,
     // so construct it via its internal ctor (Func<SqlConnection>, IOptions<SqlServerEventSourcingOptions>)

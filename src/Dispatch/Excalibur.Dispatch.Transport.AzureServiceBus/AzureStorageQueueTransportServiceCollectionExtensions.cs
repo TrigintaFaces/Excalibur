@@ -101,10 +101,7 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 		configure(builder);
 
 		// Register core Azure Storage Queue services
-		RegisterAzureStorageQueueServices(services, transportOptions);
-
-		// Register Azure Storage Queue options
-		RegisterOptions(services, transportOptions);
+		RegisterAzureStorageQueueServices(services, name, transportOptions);
 
 		return services;
 	}
@@ -142,8 +139,8 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Accumulated message type registrations for the <see cref="MessageDeserializerRegistry"/>.
-	/// Read by <see cref="MessageDeserializerRegistryPopulator"/> on first options resolution.
+	/// Accumulated message type registrations for the <see cref="MessageDeserializerRegistry"/>,
+	/// drained once when the registry is first resolved.
 	/// </summary>
 	internal static readonly ConcurrentBag<Action<MessageDeserializerRegistry>> MessageDeserializerPendingRegistrations = [];
 
@@ -180,10 +177,18 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 		MessageDeserializerPendingRegistrations.Add(
 			static registry => registry.Register<TMessage>());
 
-		// Ensure registry + populator are registered (idempotent)
-		services.TryAddSingleton<MessageDeserializerRegistry>();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IPostConfigureOptions<AzureStorageQueueOptions>, MessageDeserializerRegistryPopulator>());
+		// Registry is built from the accumulated registrations on first resolution (idempotent).
+		services.TryAddSingleton(_ =>
+		{
+			var registry = new MessageDeserializerRegistry();
+			foreach (var pending in MessageDeserializerPendingRegistrations)
+			{
+				pending(registry);
+			}
+
+			registry.Freeze();
+			return registry;
+		});
 
 		return services;
 	}
@@ -193,10 +198,13 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterAzureStorageQueueServices(
 		IServiceCollection services,
+		string name,
 		AzureStorageQueueTransportOptions transportOptions)
 	{
-		// Register QueueClient
-		services.TryAddSingleton(sp =>
+		// Keyed by transport name: TryAddSingleton-by-type de-duplicates, so a second named Storage
+		// Queue transport contributed no registration and both names resolved the first transport's
+		// client, silently sending every named transport to the first transport's queue.
+		services.TryAddKeyedSingleton<QueueClient>(name, (_, _) =>
 		{
 			if (!string.IsNullOrEmpty(transportOptions.Connection.ConnectionString) && !string.IsNullOrEmpty(transportOptions.QueueName))
 			{
@@ -213,45 +221,10 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 				"Azure Storage Queue requires either a ConnectionString or StorageAccountUri with managed identity, and a QueueName.");
 		});
 
-	}
-
-	/// <summary>
-	/// Registers options with the service collection.
-	/// </summary>
-	private static void RegisterOptions(
-		IServiceCollection services,
-		AzureStorageQueueTransportOptions transportOptions)
-	{
-		// Register AzureProviderOptions (base Azure options)
-		_ = services.AddOptions<AzureProviderOptions>()
-			.Configure(options =>
-			{
-				options.Authentication.UseManagedIdentity = transportOptions.Connection.UseManagedIdentity;
-				options.Storage.StorageAccountUri = transportOptions.Connection.StorageAccountUri;
-			})
-			.ValidateOnStart();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<AzureProviderOptions>>(new AzureProviderOptionsValidator()));
-
-		// Map AzureStorageQueueTransportOptions to existing AzureStorageQueueOptions
-		_ = services.AddOptions<AzureStorageQueueOptions>()
-			.Configure(options =>
-			{
-				options.ConnectionString = transportOptions.Connection.ConnectionString;
-				options.StorageAccountUri = transportOptions.Connection.StorageAccountUri;
-				options.QueueName = transportOptions.QueueName ?? string.Empty;
-				options.MaxConcurrentMessages = transportOptions.MaxConcurrentMessages;
-				options.Polling.VisibilityTimeout = transportOptions.VisibilityTimeout;
-				options.Polling.PollingInterval = transportOptions.PollingInterval;
-				options.Polling.MaxMessages = transportOptions.MaxMessages;
-				options.EnableEncryption = transportOptions.EnableEncryption;
-				options.DeadLetterQueueName = transportOptions.DeadLetter.QueueName;
-				options.MaxDequeueCount = transportOptions.DeadLetter.MaxDequeueCount;
-			})
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<AzureStorageQueueOptions>, AzureStorageQueueOptionsValidator>());
+		// Unkeyed convenience registration for the single-transport host. TryAdd, so the
+		// first-registered named transport wins -- a multi-transport host must resolve the keyed
+		// client by name instead.
+		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<QueueClient>(name));
 	}
 
 }
@@ -343,70 +316,11 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 		return this;
 	}
 
-	/// <summary>Sets the visibility timeout for messages.</summary>
-	public IAzureStorageQueueTransportBuilder VisibilityTimeout(TimeSpan visibilityTimeout)
-	{
-		_options.VisibilityTimeout = visibilityTimeout;
-		return this;
-	}
-
-	/// <summary>Sets the maximum number of concurrent messages to process.</summary>
-	public IAzureStorageQueueTransportBuilder MaxConcurrentMessages(int maxConcurrentMessages)
-	{
-		_options.MaxConcurrentMessages = maxConcurrentMessages;
-		return this;
-	}
-
-	/// <summary>Sets the polling interval for checking new messages.</summary>
-	public IAzureStorageQueueTransportBuilder PollingInterval(TimeSpan pollingInterval)
-	{
-		_options.PollingInterval = pollingInterval;
-		return this;
-	}
-
-	/// <summary>Enables a dead letter queue.</summary>
-	public IAzureStorageQueueTransportBuilder EnableDeadLetterQueue(string deadLetterQueueName, int maxDequeueCount = 5)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(deadLetterQueueName);
-		_options.DeadLetter.QueueName = deadLetterQueueName;
-		_options.DeadLetter.MaxDequeueCount = maxDequeueCount;
-		return this;
-	}
-
 	/// <inheritdoc/>
 	public IAzureStorageQueueTransportBuilder ConfigureOptions(Action<AzureStorageQueueTransportOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		configure(_options);
 		return this;
-	}
-}
-
-/// <summary>
-/// Populates <see cref="MessageDeserializerRegistry"/> from message type actions accumulated during DI composition.
-/// Runs once on first <see cref="AzureStorageQueueOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
-/// </summary>
-[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
-	Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
-internal sealed class MessageDeserializerRegistryPopulator(
-	MessageDeserializerRegistry registry) : IPostConfigureOptions<AzureStorageQueueOptions>
-{
-	private volatile bool _populated;
-
-	public void PostConfigure(string? name, AzureStorageQueueOptions options)
-	{
-		if (_populated)
-		{
-			return;
-		}
-
-		_populated = true;
-
-		foreach (var registration in AzureStorageQueueTransportServiceCollectionExtensions.MessageDeserializerPendingRegistrations)
-		{
-			registration(registry);
-		}
-
-		registry.Freeze();
 	}
 }

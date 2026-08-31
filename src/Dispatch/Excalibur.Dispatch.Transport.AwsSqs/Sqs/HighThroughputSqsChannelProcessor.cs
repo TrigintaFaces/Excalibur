@@ -16,6 +16,7 @@ using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ObjectPool;
 
 namespace Excalibur.Dispatch.Transport.Aws;
 
@@ -39,9 +40,9 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	/// <summary>
 	/// Object pools for zero-allocation.
 	/// </summary>
-	private readonly SimpleObjectPool<ReceiveMessageRequest> _receiveRequestPool;
+	private readonly ObjectPool<ReceiveMessageRequest> _receiveRequestPool;
 
-	private readonly SimpleObjectPool<DeleteMessageBatchRequest> _deleteRequestPool;
+	private readonly ObjectPool<DeleteMessageBatchRequest> _deleteRequestPool;
 	private readonly ArrayPool<byte> _bufferPool;
 
 	/// <summary>
@@ -103,7 +104,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 		_uptimeStopwatch = ValueStopwatch.StartNew();
 
 		// Initialize object pools
-		_receiveRequestPool = new SimpleObjectPool<ReceiveMessageRequest>(
+		_receiveRequestPool = new DefaultObjectPool<ReceiveMessageRequest>(new DelegatePooledObjectPolicy<ReceiveMessageRequest>(
 			() => new ReceiveMessageRequest
 			{
 				QueueUrl = _options.QueueUrl!.ToString(),
@@ -116,11 +117,11 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 			request =>
 			{
 				// Reset is not needed as values are immutable
-			});
+			}));
 
-		_deleteRequestPool = new SimpleObjectPool<DeleteMessageBatchRequest>(
+		_deleteRequestPool = new DefaultObjectPool<DeleteMessageBatchRequest>(new DelegatePooledObjectPolicy<DeleteMessageBatchRequest>(
 			() => new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl!.ToString() },
-			request => request.Entries.Clear());
+			request => request.Entries.Clear()));
 
 		_bufferPool = ArrayPool<byte>.Shared;
 
@@ -245,7 +246,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 						{
 							// Create a basic message object for the context
 							var messageBody = Encoding.UTF8.GetBytes(message.Body ?? string.Empty);
-							// R0.8: Dispose objects before losing scope - memoryMessage ownership is transferred to MessageContext
+							// Dispose objects before losing scope - memoryMessage ownership is transferred to MessageContext
 #pragma warning disable CA2000
 							var memoryMessage = new MemoryMessage(messageBody.AsMemory(), "application/json");
 #pragma warning restore CA2000
@@ -274,7 +275,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 							}
 
 							// Create the envelope using the constructor
-							// R0.8: Dispose objects before losing scope - envelope ownership is transferred to channel
+							// Dispose objects before losing scope - envelope ownership is transferred to channel
 #pragma warning disable CA2000
 							var envelope = new SqsMessageEnvelope(
 								message,

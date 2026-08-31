@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text;
+
 using Excalibur.Dispatch.Delivery;
 
 namespace Excalibur.Outbox.Tests;
@@ -23,7 +25,7 @@ public sealed class InboxMessageShould : UnitTestBase
 			ExternalMessageId = "ext-1",
 			MessageType = "TestType",
 			MessageMetadata = "{}",
-			MessageBody = "{}",
+			MessageBody = Utf8("{}"),
 			ReceivedAt = DateTimeOffset.UtcNow
 		};
 
@@ -43,7 +45,7 @@ public sealed class InboxMessageShould : UnitTestBase
 		var externalMessageId = "ext-123";
 		var messageType = "OrderCreated";
 		var messageMetadata = "{\"correlationId\": \"abc\"}";
-		var messageBody = "{\"orderId\": 123}";
+		var messageBody = Utf8("{\"orderId\": 123}");
 		var receivedAt = DateTimeOffset.UtcNow;
 
 		// Act
@@ -65,7 +67,7 @@ public sealed class InboxMessageShould : UnitTestBase
 		var externalMessageId = "ext-456";
 		var messageType = "OrderShipped";
 		var messageMetadata = "{}";
-		var messageBody = "{}";
+		var messageBody = Utf8("{}");
 		var receivedAt = DateTimeOffset.UtcNow;
 		var expiresAt = receivedAt.AddHours(24);
 
@@ -84,7 +86,7 @@ public sealed class InboxMessageShould : UnitTestBase
 		var receivedAt = DateTimeOffset.UtcNow;
 
 		// Act
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt, null);
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt, null);
 
 		// Assert
 		message.ExpiresAt.ShouldBeNull();
@@ -97,7 +99,7 @@ public sealed class InboxMessageShould : UnitTestBase
 		var externalMessageId = "ext-789";
 		var messageType = "PaymentProcessed";
 		var messageMetadata = "{}";
-		var messageBody = "{}";
+		var messageBody = Utf8("{}");
 		var receivedAt = DateTimeOffset.UtcNow;
 		var attempts = 3;
 		var dispatcherId = "processor-1";
@@ -122,7 +124,7 @@ public sealed class InboxMessageShould : UnitTestBase
 		var receivedAt = DateTimeOffset.UtcNow;
 
 		// Act
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt, 0, null, null);
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt, 0, null, null);
 
 		// Assert
 		message.DispatcherId.ShouldBeNull();
@@ -137,7 +139,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void Attempts_CanBeModified()
 	{
 		// Arrange
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), DateTimeOffset.UtcNow);
 
 		// Act
 		message.Attempts = 5;
@@ -150,7 +152,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void DispatcherId_CanBeModified()
 	{
 		// Arrange
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), DateTimeOffset.UtcNow);
 
 		// Act
 		message.DispatcherId = "new-processor";
@@ -163,7 +165,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void DispatcherTimeout_CanBeModified()
 	{
 		// Arrange
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), DateTimeOffset.UtcNow);
 		var timeout = DateTimeOffset.UtcNow.AddMinutes(10);
 
 		// Act
@@ -177,7 +179,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void ExpiresAt_CanBeModified()
 	{
 		// Arrange
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), DateTimeOffset.UtcNow);
 		var expiresAt = DateTimeOffset.UtcNow.AddDays(1);
 
 		// Act
@@ -196,8 +198,8 @@ public sealed class InboxMessageShould : UnitTestBase
 	{
 		// Arrange
 		var receivedAt = DateTimeOffset.UtcNow;
-		var message1 = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt);
-		var message2 = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt);
+		var message1 = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt);
+		var message2 = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt);
 
 		// Act & Assert
 		message1.ShouldBe(message2);
@@ -208,8 +210,8 @@ public sealed class InboxMessageShould : UnitTestBase
 	{
 		// Arrange
 		var receivedAt = DateTimeOffset.UtcNow;
-		var message1 = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt);
-		var message2 = new InboxMessage("ext-2", "Type", "{}", "{}", receivedAt);
+		var message1 = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt);
+		var message2 = new InboxMessage("ext-2", "Type", "{}", Utf8("{}"), receivedAt);
 
 		// Act & Assert
 		message1.ShouldNotBe(message2);
@@ -220,8 +222,8 @@ public sealed class InboxMessageShould : UnitTestBase
 	{
 		// Arrange
 		var receivedAt = DateTimeOffset.UtcNow;
-		var message1 = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt) { Attempts = 1 };
-		var message2 = new InboxMessage("ext-1", "Type", "{}", "{}", receivedAt) { Attempts = 2 };
+		var message1 = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt) { Attempts = 1 };
+		var message2 = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), receivedAt) { Attempts = 2 };
 
 		// Act & Assert
 		message1.ShouldNotBe(message2);
@@ -231,7 +233,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void WithExpression_CreatesCopyWithModifiedProperty()
 	{
 		// Arrange
-		var original = new InboxMessage("ext-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var original = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), DateTimeOffset.UtcNow);
 
 		// Act
 		var modified = original with { ExternalMessageId = "ext-2" };
@@ -255,7 +257,7 @@ public sealed class InboxMessageShould : UnitTestBase
 			ExternalMessageId = "",
 			MessageType = "",
 			MessageMetadata = "",
-			MessageBody = "",
+			MessageBody = [],
 			ReceivedAt = DateTimeOffset.UtcNow
 		};
 
@@ -268,7 +270,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void Message_WithLargePayload_IsValid()
 	{
 		// Arrange
-		var largeBody = new string('x', 100000);
+		var largeBody = Utf8(new string('x', 100000));
 
 		// Act
 		var message = new InboxMessage("ext-1", "Type", "{}", largeBody, DateTimeOffset.UtcNow);
@@ -281,7 +283,7 @@ public sealed class InboxMessageShould : UnitTestBase
 	public void Message_WithMaxAttempts_IsValid()
 	{
 		// Arrange & Act
-		var message = new InboxMessage("ext-1", "Type", "{}", "{}", DateTimeOffset.UtcNow)
+		var message = new InboxMessage("ext-1", "Type", "{}", Utf8("{}"), DateTimeOffset.UtcNow)
 		{
 			Attempts = int.MaxValue
 		};
@@ -291,4 +293,8 @@ public sealed class InboxMessageShould : UnitTestBase
 	}
 
 	#endregion
+
+	// Returns a FRESH array per call: the record-equality arms must compare two distinct arrays with equal
+	// content, or they would pass on reference equality and prove nothing about the byte[] body.
+	private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
 }

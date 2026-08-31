@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 
@@ -143,21 +144,25 @@ public static class EventSourcingBuilderMongoDbExtensions
 		// every keyed-"default" consumer (GDPR erasure, prereq validator, projections, time-travel all
 		// resolve IEventStore via GetKeyedService("default")). Non-keyed consumers resolve through the core
 		// forwarder that maps non-keyed IEventStore -> keyed "default".
-		services.TryAddKeyedSingleton<IEventStore>("mongodb", (sp, _) =>
-		{
-			var client = sp.GetRequiredService<IMongoClient>();
-			var opts = sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<MongoDbEventStore>>();
-			var internalSerializer = sp.GetService<ISerializer>();
-			var payloadSerializer = sp.GetService<IPayloadSerializer>();
+		// The store composes the ambient tenant into its stored stream id, so the default context is
+		// registered before it: a host that never enabled multi-tenancy still resolves the framework
+		// single-tenant default rather than failing to construct the store.
+		//
+		// AddTenantAwareStore, not a bare TryAdd: it registers the store AND emits the
+		// ITenantScopingCapability<IEventStore> marker inseparably, derived from the store's own
+		// constructor shape. A store that stopped taking ITenantContext would silently lose the marker
+		// rather than keep attesting a confinement it no longer provides.
+		_ = services.AddDefaultTenantContext();
+		_ = services.AddTenantAwareStore<IEventStore, MongoDbEventStore>(sp => new MongoDbEventStore(
+			sp.GetRequiredService<IMongoClient>(),
+			sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>(),
+			sp.GetRequiredService<ILogger<MongoDbEventStore>>(),
+			sp.GetRequiredService<ITenantContext>(),
+			sp.GetService<ISerializer>(),
+			sp.GetService<IPayloadSerializer>()));
 
-			return new MongoDbEventStore(
-				client,
-				opts,
-				logger,
-				internalSerializer,
-				payloadSerializer);
-		});
+		services.TryAddKeyedSingleton<IEventStore>(
+			"mongodb", (sp, _) => sp.GetRequiredService<MongoDbEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("mongodb"));
 	}
@@ -170,19 +175,19 @@ public static class EventSourcingBuilderMongoDbExtensions
 		// Keyed singleton mirroring every sibling provider (see RegisterClientAndStore). Repairs both the
 		// captive-dependency hazard and Mongo's absence from every keyed-"default" consumer; non-keyed
 		// consumers resolve through the core forwarder that maps non-keyed IEventStore -> keyed "default".
-		services.TryAddKeyedSingleton<IEventStore>("mongodb", (sp, _) =>
-		{
-			var opts = sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
-			var logger = sp.GetRequiredService<ILogger<MongoDbEventStore>>();
-			var internalSerializer = sp.GetService<ISerializer>();
-			var payloadSerializer = sp.GetService<IPayloadSerializer>();
+		// See RegisterClientAndStore for why this goes through AddTenantAwareStore rather than a bare
+		// TryAdd: the store composes the ambient tenant into its stored stream id, and the capability
+		// marker must be emitted by the same seam that supplies that dependency.
+		_ = services.AddDefaultTenantContext();
+		_ = services.AddTenantAwareStore<IEventStore, MongoDbEventStore>(sp => new MongoDbEventStore(
+			sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>(),
+			sp.GetRequiredService<ILogger<MongoDbEventStore>>(),
+			sp.GetRequiredService<ITenantContext>(),
+			sp.GetService<ISerializer>(),
+			sp.GetService<IPayloadSerializer>()));
 
-			return new MongoDbEventStore(
-				opts,
-				logger,
-				internalSerializer,
-				payloadSerializer);
-		});
+		services.TryAddKeyedSingleton<IEventStore>(
+			"mongodb", (sp, _) => sp.GetRequiredService<MongoDbEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("mongodb"));
 	}

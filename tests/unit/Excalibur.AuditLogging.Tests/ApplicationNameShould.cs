@@ -17,7 +17,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task BeStoredAndRetrievedFromInMemoryStore()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
 		var auditEvent = CreateEvent("app-1");
 
 		await store.StoreAsync(auditEvent, CancellationToken.None);
@@ -30,7 +30,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task FilterByApplicationNameInQuery()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
 		await store.StoreAsync(CreateEvent("app-a"), CancellationToken.None);
 		await store.StoreAsync(CreateEvent("app-b"), CancellationToken.None);
 		await store.StoreAsync(CreateEvent("app-a"), CancellationToken.None);
@@ -45,7 +45,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task ReturnAllWhenApplicationNameFilterIsNull()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
 		await store.StoreAsync(CreateEvent("app-x"), CancellationToken.None);
 		await store.StoreAsync(CreateEvent("app-y"), CancellationToken.None);
 
@@ -114,7 +114,7 @@ public sealed class ApplicationNameShould
 	[Fact]
 	public async Task SupportEmptyStringApplicationName()
 	{
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
 		var evt = CreateEvent("");
 
 		await store.StoreAsync(evt, CancellationToken.None);

@@ -23,6 +23,20 @@ public sealed class PulsarOptions
 	public string ServiceUrl { get; set; } = "pulsar://localhost:6650";
 
 	/// <summary>
+	/// Gets or sets a value indicating whether an unencrypted broker URL is refused.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> (the default) to refuse a <see cref="ServiceUrl"/> whose scheme is not
+	/// <c>pulsar+ssl</c> or <c>https</c>; <see langword="false"/> to accept a plaintext broker URL.
+	/// </value>
+	/// <remarks>
+	/// The <c>pulsar://</c> and <c>http://</c> schemes carry the authentication token and every payload in
+	/// the clear. Set this to <see langword="false"/> only for a broker reached over a channel that is
+	/// already encrypted, or for local development.
+	/// </remarks>
+	public bool RequireTls { get; set; } = true;
+
+	/// <summary>
 	/// Gets or sets the Pulsar topic name.
 	/// </summary>
 	/// <value>The Pulsar topic name.</value>

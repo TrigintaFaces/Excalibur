@@ -106,6 +106,22 @@ public static class KafkaTransportServiceCollectionExtensions
 		var builder = new KafkaTransportBuilder(transportOptions);
 		configure(builder);
 
+
+		// The adapter binds the UNNAMED KafkaCloudEventOptions, so this registers unnamed too.
+		// A transport that also copies values into these options registers that copy separately;
+		// where both apply, the later registration wins.
+		if (builder.CloudEventsConfigure is not null)
+		{
+			_ = services.AddOptions<KafkaCloudEventOptions>()
+				.Configure(builder.CloudEventsConfigure)
+				.ValidateOnStart();
+		}
+
+		// KafkaMessageBus takes IPayloadSerializer, whose only registration is AddPluggableSerialization.
+		// Seat it here (all TryAdd) so the documented AddDispatch() + AddKafkaTransport() composition can
+		// construct the bus; a consumer registering their own serializer still wins.
+		_ = services.AddPluggableSerialization();
+
 		// Register core Kafka services
 		RegisterKafkaServices(services, transportOptions);
 
@@ -116,7 +132,7 @@ public static class KafkaTransportServiceCollectionExtensions
 		RegisterSubscriber(services, name, transportOptions);
 
 		// Route the rich ITransportSender/ITransportReceiver classes through DI so they are
-		// reachable on the AddKafkaTransport path instead of orphaned (kek7vm shared-seam wiring).
+		// reachable on the AddKafkaTransport path instead of orphaned (shared-seam wiring).
 		RegisterTransportSenderReceiver(services, name, transportOptions);
 
 		return services;
@@ -165,11 +181,22 @@ public static class KafkaTransportServiceCollectionExtensions
 		IServiceCollection services,
 		KafkaTransportOptions transportOptions)
 	{
-		// Configure KafkaOptions from the new transport options
-		_ = services.AddOptions<KafkaOptions>()
-			.Configure(kafkaOptions =>
+		var transportName = transportOptions.Name ?? DefaultTransportName;
+
+		// NAMED, so two named Kafka transports in one container no longer write the same options
+		// instance and silently discard the first one's configuration.
+		//
+		// The delegate is applied to the unnamed instance as well, because several types in this
+		// package take IOptions<KafkaOptions> in their constructors and would otherwise resolve an
+		// unconfigured object the moment the options became named - a silent failure worse than the
+		// one being fixed. The unnamed instance keeps its existing last-registration-wins behaviour;
+		// what changes is that anything resolving BY NAME now gets its own transport's values.
+		void ConfigureKafkaOptions(KafkaOptions kafkaOptions)
+		{
 			{
 				kafkaOptions.BootstrapServers = transportOptions.BootstrapServers;
+				kafkaOptions.SecurityProtocol = transportOptions.SecurityProtocol;
+				kafkaOptions.RequireTls = transportOptions.RequireTls;
 
 				if (transportOptions.ConsumerOptions is not null)
 				{
@@ -201,15 +228,18 @@ public static class KafkaTransportServiceCollectionExtensions
 						kafkaOptions.AdditionalConfig[config.Key] = config.Value;
 					}
 				}
-			})
-			.ValidateOnStart();
+			}
+		}
+
+		_ = services.AddOptions<KafkaOptions>(transportName).Configure(ConfigureKafkaOptions).ValidateOnStart();
+		_ = services.AddOptions<KafkaOptions>().Configure(ConfigureKafkaOptions).ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<KafkaOptions>, KafkaOptionsValidator>());
 
 		// Configure CloudEventOptions from transport options
-		_ = services.AddOptions<KafkaCloudEventOptions>()
-			.Configure(cloudEventOptions =>
+		void ConfigureCloudEventOptions(KafkaCloudEventOptions cloudEventOptions)
+		{
 			{
 				if (transportOptions.ProducerOptions is not null)
 				{
@@ -225,16 +255,19 @@ public static class KafkaTransportServiceCollectionExtensions
 					cloudEventOptions.ConsumerGroupId = transportOptions.ConsumerOptions.GroupId;
 					cloudEventOptions.OffsetReset = transportOptions.ConsumerOptions.AutoOffsetReset;
 				}
-			})
-			.ValidateOnStart();
+			}
+		}
 
-		services.TryAddSingleton(static sp => sp.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value);
+		_ = services.AddOptions<KafkaCloudEventOptions>(transportName).Configure(ConfigureCloudEventOptions).ValidateOnStart();
+		_ = services.AddOptions<KafkaCloudEventOptions>().Configure(ConfigureCloudEventOptions).ValidateOnStart();
+
+		services.TryAddSingleton(sp => sp.GetRequiredService<IOptionsMonitor<KafkaCloudEventOptions>>().Get(transportName));
 
 		// Register the Kafka producer
 		services.TryAddSingleton(sp =>
 		{
-			var kafkaOptions = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
-			var cloudEventOptions = sp.GetService<IOptions<KafkaCloudEventOptions>>()?.Value;
+			var kafkaOptions = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(transportName);
+			var cloudEventOptions = sp.GetService<IOptionsMonitor<KafkaCloudEventOptions>>()?.Get(transportName);
 			var config = KafkaProducerConfigBuilder.Build(
 				kafkaOptions,
 				cloudEventOptions);
@@ -247,9 +280,9 @@ public static class KafkaTransportServiceCollectionExtensions
 		// without this registration, resolving the keyed ITransportSubscriber throws because no
 		// consumer is registered. The consumer carries the configured GroupId and manual-commit
 		// policy (EnableAutoCommit defaults to false) so it consumes from a real broker.
-		services.TryAddSingleton<IConsumer<string, byte[]>>(static sp =>
+		services.TryAddSingleton<IConsumer<string, byte[]>>(sp =>
 		{
-			var kafkaOptions = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
+			var kafkaOptions = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(transportName);
 			var config = KafkaConsumerConfigBuilder.Build(kafkaOptions);
 
 			var rebalanceLogger = sp.GetRequiredService<ILoggerFactory>()
@@ -277,6 +310,7 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <param name="transportName">The transport name for keyed services.</param>
 	/// <param name="options">The Schema Registry configuration options.</param>
 	[RequiresUnreferencedCode("Schema Registry uses reflection for subject name strategies and serialization")]
+	[RequiresDynamicCode("Schema Registry uses runtime code generation for subject name strategies and serialization")]
 	private static void RegisterSchemaRegistryServices(
 		IServiceCollection services,
 		string transportName,
@@ -410,7 +444,7 @@ public static class KafkaTransportServiceCollectionExtensions
 		{
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportReceiver>>();
-			var maxPayloadBytes = sp.GetRequiredService<IOptions<KafkaOptions>>().Value.Consumer.MaxPayloadBytes;
+			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer.MaxPayloadBytes;
 			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming);
 		});
 	}
@@ -432,7 +466,7 @@ public static class KafkaTransportServiceCollectionExtensions
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportSubscriber>>();
 			var source = transportOptions.ConsumerOptions?.GroupId ?? name;
-			var maxPayloadBytes = sp.GetRequiredService<IOptions<KafkaOptions>>().Value.Consumer.MaxPayloadBytes;
+			var maxPayloadBytes = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(name).Consumer.MaxPayloadBytes;
 			var nativeSubscriber = new KafkaTransportSubscriber(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming);
 
 			var meterFactory = sp.GetService<IMeterFactory>();

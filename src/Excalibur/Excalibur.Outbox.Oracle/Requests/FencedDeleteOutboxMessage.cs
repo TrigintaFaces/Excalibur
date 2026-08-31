@@ -62,8 +62,12 @@ internal sealed class FenceMutationResult
 /// the row it claimed, regardless of any ambient tenant context.
 /// </para>
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the post-claim mutation path, fenced: the drain has already claimed this row cross-tenant and removes it by its globally-unique message id, gated on the fence high-water token. The fence bounds which dispatcher generation may act, not which tenant. This store holds no tenant context to filter by, so the statement carries no tenant term; isolation on this table is established where the row is written, by stamping tenant_id")]
 internal sealed class FencedDeleteOutboxMessage : DataRequest<FenceMutationResult>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FencedDeleteOutboxMessage"/> class.
 	/// </summary>

@@ -32,7 +32,8 @@ namespace Excalibur.Inbox.Oracle.Tests;
 [Trait("Component", "Inbox")]
 [Trait("Database", "Oracle")]
 [Trait("Infra", "Required")]
-public sealed class OracleInboxStoreDeploymentModeShould : IClassFixture<OracleInboxStoreContainerFixture>
+[Collection(OracleInboxTestCollection.CollectionName)]
+public sealed class OracleInboxStoreDeploymentModeShould
 {
     private const string HandlerType = "TestHandler";
     private const string TenantA = "tenant-A";
@@ -134,7 +135,11 @@ public sealed class OracleInboxStoreDeploymentModeShould : IClassFixture<OracleI
         return new OracleInboxStore(
             options,
             NullLogger<OracleInboxStore>.Instance,
-            tenantId is null ? null : new FixedTenantContext(tenantId),
+            // A non-multi-tenant deployment: the reserved untenanted term, which is exactly what this store
+            // resolved when no context was registered at all. Byte-identical to the state these arms model.
+            tenantId is null
+                ? new FixedTenantContext(TenantScope.UntenantedSentinel)
+                : new FixedTenantContext(tenantId),
             Options.Create(new TenantContextOptions { RequireTenant = requireTenant }));
     }
 

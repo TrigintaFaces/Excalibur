@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
@@ -28,12 +27,6 @@ public sealed class AuthenticationOptions
 	public string? Base64ApiKey { get; init; }
 
 	/// <summary>
-	/// Gets the certificate-based authentication configuration.
-	/// </summary>
-	/// <value> Settings for mutual TLS certificate authentication. </value>
-	public CertificateAuthenticationOptions Certificate { get; init; } = new();
-
-	/// <summary>
 	/// Gets the OAuth2 authentication configuration.
 	/// </summary>
 	/// <value> Settings for OAuth2/OpenID Connect authentication. </value>
@@ -50,10 +43,4 @@ public sealed class AuthenticationOptions
 	/// </summary>
 	/// <value> Settings for automatic credential rotation and lifecycle management. </value>
 	public CredentialRotationOptions CredentialRotation { get; init; } = new();
-
-	/// <summary>
-	/// Gets the authentication failure protection configuration.
-	/// </summary>
-	/// <value> Settings for rate limiting and account protection against authentication attacks. </value>
-	public AuthenticationProtectionOptions Protection { get; init; } = new();
 }

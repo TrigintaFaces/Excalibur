@@ -1,0 +1,69 @@
+# ddl-migration-completeness baseline.
+#
+# Each non-comment line records something the gate found and we have not yet closed, so that CI is
+# green on the tree as it stands and only a NEW gap fails. A baseline is a record of known debt, not
+# a place debt goes to be forgotten -- so it is enforced as a SET, in BOTH directions:
+#
+#   * an entry that is no longer produced is STALE and FAILS the gate. When the missing migration is
+#     written, or a verification learns to read columns, the finding disappears and the line here
+#     must be deleted in the same change. A forgiveness list that only ever grows stops recording
+#     anything.
+#   * a finding that is not listed here FAILS the gate. That is the point.
+#
+# The anchor bounds the committed history the gate walks. It is a commit, never a count: a rolling
+# N-commit window would silently drop an entry out of scope, at which point the line here would read
+# as stale and be deleted while the defect was still shipping.
+#
+# anchor: 5ea1e1cb3~1
+#
+# ---------------------------------------------------------------------------------------------
+# NOT EVALUATED  (prefix `refuse:`) -- the gate RAN and could not read this artifact. It is neither
+# a defect nor a clean result: coverage there is UNKNOWN. Recorded so the blindness is committed
+# where a reader can see it rather than absorbed into a green run.
+# ---------------------------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------------------------
+# SCHEMA VERIFICATION THAT CANNOT SEE A COLUMN -- the store advertises a fail-fast schema check and
+# implements it as a table-existence probe, so it reports healthy on a database whose table exists
+# with a stale column set: precisely the database that is broken.
+#
+# EMPTY. All five listed stores now read a column catalogue and name the columns they find missing,
+# so the gate reports none of them and a line for any would be stale. The population is closed: the
+# gate examines seven schema-probing provisioning files and reports existence-only for zero.
+# ---------------------------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------------------------
+# RELOCATION, NOT AN ALTERATION -- the gate diffs each schema-authoring artifact against its own
+# previous content, so a definition that MOVES to another file reads as a column disappearing from
+# the file it left. That is what this entry is, and it is the one shape of finding this gate cannot
+# distinguish on its own.
+# ---------------------------------------------------------------------------------------------
+#
+# src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/schema.sql no longer contains schema.
+# Excalibur.Dispatch is the messaging core and holds no SQL dead-letter store, so it was shipping
+# DDL for tables owned and written by other packages. The SQL Server definition moved UNCHANGED to
+# Excalibur.Data.SqlServer/Scripts/001_CreateDeadLetterSchema.sql, column for column, including both
+# TenantId upgrade arms -- the additive ADD COLUMN for a database created before the column existed,
+# and the collation rewrite for one created before Latin1_General_BIN2 was pinned.
+#
+# So there is no column change for a consumer to follow: TenantId was not altered, dropped or
+# retyped, and the migration an upgrading consumer needs is present and guarded in the replacement
+# script, which is a no-op on a database that already has it. The finding is an artifact of where
+# the text lives, not of what the schema says.
+#
+# DELETE THIS ENTRY if that file ever carries a CREATE TABLE again. It is scoped to the file being
+# empty of schema; it forgives nothing about the table itself.
+Excalibur.Dispatch:DeadLetterMessages:TENANTID
+refuse:src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerMaterializedViewStore.cs:unresolvable table identity '{_positionTableName}'
+# The schema and table are method PARAMETERS on every statement-building method here, so there is
+# no declaration in this file to resolve them to a name. They come from options whose DEFAULTS are
+# literals (public / excalibur_outbox_claims), but a consumer sets both, so resolving them would
+# record a default and call it an identity.
+#
+# The gate's question is answered by construction for this table: it ships no DDL script at all,
+# and the store both creates and migrates it -- CREATE TABLE IF NOT EXISTS plus an idempotent
+# ADD COLUMN IF NOT EXISTS, re-run on every claim-connection open rather than cached behind a flag.
+#
+# DELETE THIS ENTRY if the claim table gains a shipped DDL script, or if the identity stops being
+# a parameter.
+refuse:src/Excalibur/Excalibur.Outbox.Marten/MartenOutboxClaims.cs:unresolvable table identity '{qualified}'

@@ -120,7 +120,9 @@ public static class StoreEncryptionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, InboxEncryptionWiringValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, InboxEncryptionWiringValidator>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, OutboxEncryptionWiringValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, OutboxEncryptionWiringValidator>());
 
 		return services;
 	}

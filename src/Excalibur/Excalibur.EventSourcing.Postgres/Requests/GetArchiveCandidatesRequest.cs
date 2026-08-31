@@ -20,6 +20,9 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// legs instead — the tenant is <em>projected</em> here and carried on each candidate, then supplied
 /// explicitly to the cold write and the hot delete, both of which are tenant-addressed.
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the archive scan is cross-tenant by design: one archiver serves every tenant, and the projection carries the tenant term so each candidate's owning partition is re-established before it is archived. Scoping this scan to the ambient tenant would leave every other tenant's events unarchived")]
 public sealed class GetArchiveCandidatesRequest
 	: DataRequestBase<IDbConnection, IReadOnlyList<ArchiveCandidate>>
 {

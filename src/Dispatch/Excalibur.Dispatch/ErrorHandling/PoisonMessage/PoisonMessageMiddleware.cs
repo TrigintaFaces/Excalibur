@@ -28,12 +28,12 @@ public sealed partial class PoisonMessageMiddleware : IDispatchMiddleware, IDisp
 	private readonly ActivitySource _activitySource;
 	private volatile bool _disposed;
 
-	// fypqgz / L5: dead-letter routing metrics. Static library Meter (ADR-142 lifecycle) mirroring the
+	// L5: dead-letter routing metrics. Static library Meter mirroring the
 	// ActivitySource name. Counts messages moved to the dead-letter queue, tagged by detector + reason.
 	private static readonly Meter PoisonMeter = new(DispatchTelemetryConstants.Meters.PoisonMessage, "1.0.0");
 	private static readonly Counter<long> DeadLetteredCounter = PoisonMeter.CreateCounter<long>(
 		"dispatch.poison.dead_lettered",
-		unit: "messages",
+		unit: "{messages}",
 		description: "Number of poison messages moved to the dead-letter queue, tagged with poison.detector and poison.reason.");
 
 	/// <summary>

@@ -59,7 +59,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class KeyRotationSchedulerConformanceTestKit
+public abstract class KeyRotationSchedulerConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh key rotation scheduler instance with its dependencies for testing.
@@ -139,7 +139,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that CheckAndRotateAsync returns empty result when no keys exist.
 	/// </summary>
-	protected virtual async Task CheckAndRotateAsync_NoKeys_ShouldReturnEmptyResult()
+	public virtual async Task CheckAndRotateAsync_NoKeys_ShouldReturnEmptyResult()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -172,7 +172,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that CheckAndRotateAsync checks existing keys.
 	/// </summary>
-	protected virtual async Task CheckAndRotateAsync_WithRecentKeys_ShouldCheckButNotRotate()
+	public virtual async Task CheckAndRotateAsync_WithRecentKeys_ShouldCheckButNotRotate()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -210,7 +210,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that CheckAndRotateAsync includes timestamps.
 	/// </summary>
-	protected virtual async Task CheckAndRotateAsync_ShouldIncludeTimestamps()
+	public virtual async Task CheckAndRotateAsync_ShouldIncludeTimestamps()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -251,7 +251,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that IsRotationDueAsync throws ArgumentException for null keyId.
 	/// </summary>
-	protected virtual async Task IsRotationDueAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task IsRotationDueAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -285,7 +285,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that IsRotationDueAsync throws ArgumentException for empty keyId.
 	/// </summary>
-	protected virtual async Task IsRotationDueAsync_EmptyKeyId_ShouldThrowArgumentException()
+	public virtual async Task IsRotationDueAsync_EmptyKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -319,7 +319,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that IsRotationDueAsync returns false for non-existent key.
 	/// </summary>
-	protected virtual async Task IsRotationDueAsync_NonExistentKey_ShouldReturnFalse()
+	public virtual async Task IsRotationDueAsync_NonExistentKey_ShouldReturnFalse()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -346,7 +346,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that IsRotationDueAsync returns false for recently created key.
 	/// </summary>
-	protected virtual async Task IsRotationDueAsync_RecentKey_ShouldReturnFalse()
+	public virtual async Task IsRotationDueAsync_RecentKey_ShouldReturnFalse()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -380,7 +380,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that ForceRotateAsync throws ArgumentException for null keyId.
 	/// </summary>
-	protected virtual async Task ForceRotateAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task ForceRotateAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -414,7 +414,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that ForceRotateAsync throws ArgumentException for empty keyId.
 	/// </summary>
-	protected virtual async Task ForceRotateAsync_EmptyKeyId_ShouldThrowArgumentException()
+	public virtual async Task ForceRotateAsync_EmptyKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -448,7 +448,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that ForceRotateAsync throws ArgumentException for null reason.
 	/// </summary>
-	protected virtual async Task ForceRotateAsync_NullReason_ShouldThrowArgumentException()
+	public virtual async Task ForceRotateAsync_NullReason_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -484,7 +484,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that ForceRotateAsync throws ArgumentException for empty reason.
 	/// </summary>
-	protected virtual async Task ForceRotateAsync_EmptyReason_ShouldThrowArgumentException()
+	public virtual async Task ForceRotateAsync_EmptyReason_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -520,7 +520,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that ForceRotateAsync returns failed result for non-existent key.
 	/// </summary>
-	protected virtual async Task ForceRotateAsync_NonExistentKey_ShouldReturnFailedResult()
+	public virtual async Task ForceRotateAsync_NonExistentKey_ShouldReturnFailedResult()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -556,7 +556,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that ForceRotateAsync successfully rotates an existing key.
 	/// </summary>
-	protected virtual async Task ForceRotateAsync_ExistingKey_ShouldRotateSuccessfully()
+	public virtual async Task ForceRotateAsync_ExistingKey_ShouldRotateSuccessfully()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -605,7 +605,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that GetNextRotationTimeAsync throws ArgumentException for null keyId.
 	/// </summary>
-	protected virtual async Task GetNextRotationTimeAsync_NullKeyId_ShouldThrowArgumentException()
+	public virtual async Task GetNextRotationTimeAsync_NullKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -639,7 +639,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that GetNextRotationTimeAsync throws ArgumentException for empty keyId.
 	/// </summary>
-	protected virtual async Task GetNextRotationTimeAsync_EmptyKeyId_ShouldThrowArgumentException()
+	public virtual async Task GetNextRotationTimeAsync_EmptyKeyId_ShouldThrowArgumentException()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -673,7 +673,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that GetNextRotationTimeAsync returns null for non-existent key.
 	/// </summary>
-	protected virtual async Task GetNextRotationTimeAsync_NonExistentKey_ShouldReturnNull()
+	public virtual async Task GetNextRotationTimeAsync_NonExistentKey_ShouldReturnNull()
 	{
 		// Arrange
 		var (scheduler, keyProvider, _) = CreateScheduler();
@@ -702,7 +702,7 @@ public abstract class KeyRotationSchedulerConformanceTestKit
 	/// <summary>
 	/// Verifies that GetNextRotationTimeAsync returns calculated time for existing key.
 	/// </summary>
-	protected virtual async Task GetNextRotationTimeAsync_ExistingKey_ShouldReturnCalculatedTime()
+	public virtual async Task GetNextRotationTimeAsync_ExistingKey_ShouldReturnCalculatedTime()
 	{
 		// Arrange
 		var (scheduler, keyProvider, options) = CreateScheduler();

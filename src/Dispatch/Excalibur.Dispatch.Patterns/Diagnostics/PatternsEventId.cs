@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Patterns.Diagnostics;
 /// <item>91100-91199: Performance</item>
 /// </list>
 /// </remarks>
-public static class PatternsEventId
+internal static class PatternsEventId
 {
 	// ========================================
 	// 90000-90099: ClaimCheck Core
@@ -338,7 +338,7 @@ public static class PatternsEventId
 	public const int PerformanceThresholdExceeded = 91103;
 
 	// ========================================
-	// 91200-91299: Azure Blob ClaimCheck Provider (Sprint 373)
+	// 91200-91299: Azure Blob ClaimCheck Provider
 	// ========================================
 
 	/// <summary>Azure Blob ClaimCheck payload stored.</summary>

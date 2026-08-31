@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Diagnostics;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -44,7 +45,7 @@ internal sealed class DeadLetterTransportSubscriber : DelegatingTransportSubscri
 		_sourceGuard = new TagCardinalityGuard(maxCardinality: 100);
 		_deadLetteredCounter = meter?.CreateCounter<long>(
 			TransportTelemetryConstants.MetricNames.MessagesDeadLettered,
-			"messages",
+			"{messages}",
 			"Total messages routed to dead letter queue");
 	}
 

@@ -44,6 +44,20 @@ public sealed class MqttOptions
 	public bool UseTls { get; set; }
 
 	/// <summary>
+	/// Gets or sets a value indicating whether an unencrypted broker connection is refused.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> (the default) to refuse the connection unless <see cref="UseTls"/> is set;
+	/// <see langword="false"/> to accept a plaintext connection.
+	/// </value>
+	/// <remarks>
+	/// MQTT over plain TCP carries the user name, password and every payload in the clear, so the default
+	/// posture refuses it. Set this to <see langword="false"/> only for a broker reached over a channel that
+	/// is already encrypted, or for local development.
+	/// </remarks>
+	public bool RequireTls { get; set; } = true;
+
+	/// <summary>
 	/// Gets or sets a value indicating whether to subscribe using an MQTT-5 shared subscription so multiple
 	/// consumers compete for messages. Requires an MQTT-5 broker that supports shared subscriptions.
 	/// </summary>

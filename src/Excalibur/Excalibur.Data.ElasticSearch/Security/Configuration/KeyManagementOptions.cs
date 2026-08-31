@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
@@ -15,30 +13,17 @@ public sealed class KeyManagementOptions
 	/// Gets the key management provider type.
 	/// </summary>
 	/// <value> The type of key management system to use. </value>
+	/// <remarks>
+	/// The provider is selected while services are being registered, from the
+	/// <c>Elasticsearch:Security:Encryption:KeyManagement:Provider</c> configuration value, so it must be
+	/// supplied through configuration. Assigning it in code after registration does not change which
+	/// provider was composed.
+	/// </remarks>
 	public KeyManagementProvider Provider { get; init; } = KeyManagementProvider.Local;
-
-	/// <summary>
-	/// Gets the key vault or KMS endpoint URL.
-	/// </summary>
-	/// <value> The endpoint URL for external key management services. </value>
-	[Url]
-	public string? EndpointUrl { get; init; }
-
-	/// <summary>
-	/// Gets the key vault or KMS authentication configuration.
-	/// </summary>
-	/// <value> Authentication settings for key management service access. </value>
-	public string? AuthenticationConfig { get; init; }
 
 	/// <summary>
 	/// Gets the key rotation interval.
 	/// </summary>
 	/// <value> The time interval between automatic key rotations. Defaults to 90 days. </value>
 	public TimeSpan KeyRotationInterval { get; init; } = TimeSpan.FromDays(90);
-
-	/// <summary>
-	/// Gets a value indicating whether to use hardware security modules (HSM).
-	/// </summary>
-	/// <value> True to require HSM-backed key storage, false to allow software keys. </value>
-	public bool RequireHsm { get; init; }
 }

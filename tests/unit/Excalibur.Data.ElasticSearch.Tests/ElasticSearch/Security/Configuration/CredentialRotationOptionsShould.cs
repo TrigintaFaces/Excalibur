@@ -17,8 +17,6 @@ public sealed class CredentialRotationOptionsShould
 		sut.Enabled.ShouldBeFalse();
 		sut.RotationInterval.ShouldBe(TimeSpan.FromDays(30));
 		sut.WarningThreshold.ShouldBe(TimeSpan.FromDays(7));
-		sut.MaintenanceWindowOnly.ShouldBeTrue();
-		sut.MaxRetries.ShouldBe(3);
 	}
 
 	[Fact]
@@ -29,14 +27,10 @@ public sealed class CredentialRotationOptionsShould
 			Enabled = true,
 			RotationInterval = TimeSpan.FromDays(14),
 			WarningThreshold = TimeSpan.FromDays(3),
-			MaintenanceWindowOnly = false,
-			MaxRetries = 5,
 		};
 
 		sut.Enabled.ShouldBeTrue();
 		sut.RotationInterval.ShouldBe(TimeSpan.FromDays(14));
 		sut.WarningThreshold.ShouldBe(TimeSpan.FromDays(3));
-		sut.MaintenanceWindowOnly.ShouldBeFalse();
-		sut.MaxRetries.ShouldBe(5);
 	}
 }

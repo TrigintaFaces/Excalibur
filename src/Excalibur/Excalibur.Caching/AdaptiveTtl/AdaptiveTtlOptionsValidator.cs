@@ -9,6 +9,11 @@ namespace Excalibur.Caching.AdaptiveTtl;
 /// Validates <see cref="AdaptiveTtlOptions"/> cross-property constraints that cannot be expressed
 /// with <see cref="System.ComponentModel.DataAnnotations.RangeAttribute"/> alone.
 /// </summary>
+/// <typeparam name="TOptions">
+/// The concrete options type being validated. The base rules apply to every derived options type, so
+/// each derived type registers its own closed instantiation rather than relying on a base-typed
+/// registration the options pipeline would never resolve.
+/// </typeparam>
 /// <remarks>
 /// <para>Validates:</para>
 /// <list type="bullet">
@@ -16,10 +21,11 @@ namespace Excalibur.Caching.AdaptiveTtl;
 /// <item><description><see cref="AdaptiveTtlOptions.MaxTtl"/> must be greater than or equal to <see cref="AdaptiveTtlOptions.MinTtl"/>.</description></item>
 /// </list>
 /// </remarks>
-internal sealed class AdaptiveTtlOptionsValidator : IValidateOptions<AdaptiveTtlOptions>
+internal sealed class AdaptiveTtlOptionsValidator<TOptions> : IValidateOptions<TOptions>
+	where TOptions : AdaptiveTtlOptions
 {
 	/// <inheritdoc />
-	public ValidateOptionsResult Validate(string? name, AdaptiveTtlOptions options)
+	public ValidateOptionsResult Validate(string? name, TOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 

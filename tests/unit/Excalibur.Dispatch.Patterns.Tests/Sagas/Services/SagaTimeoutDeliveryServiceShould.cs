@@ -38,6 +38,7 @@ public sealed class SagaTimeoutDeliveryServiceShould
 {
 	private readonly ISagaTimeoutStore _fakeTimeoutStore = A.Fake<ISagaTimeoutStore>();
 	private readonly IServiceProvider _fakeServiceProvider = A.Fake<IServiceProvider>();
+	private readonly ISagaTypeRegistry _fakeTypeRegistry = A.Fake<ISagaTypeRegistry>();
 
 	#region Constructor Validation Tests
 
@@ -55,7 +56,8 @@ public sealed class SagaTimeoutDeliveryServiceShould
 			timeoutStore: null!,
 			_fakeServiceProvider,
 			NullLogger<SagaTimeoutDeliveryService>.Instance,
-			options));
+			options,
+			_fakeTypeRegistry));
 	}
 
 	/// <summary>
@@ -72,7 +74,8 @@ public sealed class SagaTimeoutDeliveryServiceShould
 			_fakeTimeoutStore,
 			serviceProvider: null!,
 			NullLogger<SagaTimeoutDeliveryService>.Instance,
-			options));
+			options,
+			_fakeTypeRegistry));
 	}
 
 	/// <summary>
@@ -89,7 +92,8 @@ public sealed class SagaTimeoutDeliveryServiceShould
 			_fakeTimeoutStore,
 			_fakeServiceProvider,
 			logger: null!,
-			options));
+			options,
+			_fakeTypeRegistry));
 	}
 
 	/// <summary>
@@ -103,7 +107,8 @@ public sealed class SagaTimeoutDeliveryServiceShould
 			_fakeTimeoutStore,
 			_fakeServiceProvider,
 			NullLogger<SagaTimeoutDeliveryService>.Instance,
-			options: null!));
+			options: null!,
+			_fakeTypeRegistry));
 	}
 
 	/// <summary>
@@ -120,7 +125,8 @@ public sealed class SagaTimeoutDeliveryServiceShould
 			_fakeTimeoutStore,
 			_fakeServiceProvider,
 			NullLogger<SagaTimeoutDeliveryService>.Instance,
-			options);
+			options,
+			_fakeTypeRegistry);
 
 		// Assert
 		_ = service.ShouldNotBeNull();

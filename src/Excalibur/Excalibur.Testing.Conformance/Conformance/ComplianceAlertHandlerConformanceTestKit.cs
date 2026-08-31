@@ -47,7 +47,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class ComplianceAlertHandlerConformanceTestKit
+public abstract class ComplianceAlertHandlerConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a fresh compliance alert handler instance for testing.
@@ -155,7 +155,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleComplianceGapAsync throws ArgumentNullException for null alert.
 	/// </summary>
-	protected virtual async Task HandleComplianceGapAsync_NullAlert_ShouldThrowArgumentNullException()
+	public virtual async Task HandleComplianceGapAsync_NullAlert_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -188,7 +188,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleComplianceGapAsync completes successfully with low severity.
 	/// </summary>
-	protected virtual async Task HandleComplianceGapAsync_LowSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleComplianceGapAsync_LowSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -218,7 +218,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleComplianceGapAsync completes successfully with critical severity.
 	/// </summary>
-	protected virtual async Task HandleComplianceGapAsync_CriticalSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleComplianceGapAsync_CriticalSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -252,7 +252,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleValidationFailureAsync throws ArgumentNullException for null alert.
 	/// </summary>
-	protected virtual async Task HandleValidationFailureAsync_NullAlert_ShouldThrowArgumentNullException()
+	public virtual async Task HandleValidationFailureAsync_NullAlert_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -285,7 +285,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleValidationFailureAsync completes successfully with medium severity (1 failure).
 	/// </summary>
-	protected virtual async Task HandleValidationFailureAsync_MediumSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleValidationFailureAsync_MediumSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -316,7 +316,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleValidationFailureAsync completes successfully with critical severity (5+ failures).
 	/// </summary>
-	protected virtual async Task HandleValidationFailureAsync_CriticalSeverity_ShouldCompleteSuccessfully()
+	public virtual async Task HandleValidationFailureAsync_CriticalSeverity_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -351,7 +351,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleStatusChangeAsync throws ArgumentNullException for null notification.
 	/// </summary>
-	protected virtual async Task HandleStatusChangeAsync_NullNotification_ShouldThrowArgumentNullException()
+	public virtual async Task HandleStatusChangeAsync_NullNotification_ShouldThrowArgumentNullException()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -384,7 +384,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleStatusChangeAsync completes successfully when compliance is restored.
 	/// </summary>
-	protected virtual async Task HandleStatusChangeAsync_ComplianceRestored_ShouldCompleteSuccessfully()
+	public virtual async Task HandleStatusChangeAsync_ComplianceRestored_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();
@@ -408,7 +408,7 @@ public abstract class ComplianceAlertHandlerConformanceTestKit
 	/// <summary>
 	/// Verifies that HandleStatusChangeAsync completes successfully when compliance is lost.
 	/// </summary>
-	protected virtual async Task HandleStatusChangeAsync_ComplianceLost_ShouldCompleteSuccessfully()
+	public virtual async Task HandleStatusChangeAsync_ComplianceLost_ShouldCompleteSuccessfully()
 	{
 		// Arrange
 		var handler = CreateHandler();

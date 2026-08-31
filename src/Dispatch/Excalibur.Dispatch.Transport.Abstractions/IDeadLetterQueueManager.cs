@@ -8,6 +8,25 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Manages dead letter queue operations for failed messages.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Scope: estate-wide, by construction.</b> Every operation here addresses a broker entity -- a topic, a
+/// queue, a subscription -- named by the transport's own options, not a set of rows selected by a predicate.
+/// There is no tenant discriminator to apply and none is applied. When several tenants share one transport
+/// entity, every operation on this interface observes and modifies all of their messages together.
+/// </para>
+/// <para>
+/// This is stated rather than left to be inferred, because the persistence-side dead-letter contract nearby
+/// says the opposite: a dead-letter <em>store</em> confines every read and every delete to the ambient
+/// tenant. A reader who carries that expectation across to this interface will be wrong, and wrong in the
+/// destructive direction.
+/// </para>
+/// <para>
+/// The consequence for a multi-tenant host is a deployment decision, not a call-site one: give each tenant
+/// its own dead-letter entity, or accept that dead-letter administration is an operator-level activity that
+/// spans the estate. No argument on these methods can narrow it.
+/// </para>
+/// </remarks>
 public interface IDeadLetterQueueManager
 {
 	/// <summary>
@@ -25,11 +44,15 @@ public interface IDeadLetterQueueManager
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Retrieves messages from the dead letter queue.
+	/// Retrieves messages from the dead letter entity, across every tenant sharing it.
 	/// </summary>
 	/// <param name="maxMessages"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
-	/// <returns> A list of dead letter messages. </returns>
+	/// <returns> A list of dead letter messages, from every tenant sharing the entity. </returns>
+	/// <remarks>
+	/// The returned messages carry their bodies, so on a shared entity this reads one tenant's failed
+	/// message content into a caller acting for another. It is the widest disclosure on this interface.
+	/// </remarks>
 	Task<IReadOnlyList<DeadLetterMessage>> GetDeadLetterMessagesAsync(
 		int maxMessages,
 		CancellationToken cancellationToken);
@@ -55,10 +78,16 @@ public interface IDeadLetterQueueManager
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Purges all messages from the dead letter queue.
+	/// Purges every message from the dead letter entity, across every tenant sharing it.
 	/// </summary>
 	/// <param name="cancellationToken"> Cancellation token. </param>
-	/// <returns> The number of messages purged. </returns>
-	Task<int> PurgeDeadLetterQueueAsync(
+	/// <returns> The number of messages purged, across every tenant. </returns>
+	/// <remarks>
+	/// Destructive and unbounded: it empties the configured entity. Nothing is selected, so nothing is
+	/// spared -- a message another tenant has not yet reprocessed is discarded along with the rest, and a
+	/// dead-lettered message is the only remaining copy. Reprocess what is worth keeping, with
+	/// <see cref="ReprocessDeadLetterMessagesAsync" />, before calling this.
+	/// </remarks>
+	Task<int> PurgeAllTenantsDeadLetterQueueAsync(
 		CancellationToken cancellationToken);
 }

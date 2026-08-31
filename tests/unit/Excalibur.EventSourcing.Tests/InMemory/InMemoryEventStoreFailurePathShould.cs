@@ -15,11 +15,11 @@ public sealed class InMemoryEventStoreFailurePathShould
 	[Fact]
 	public async Task LoadAsync_Rethrows_WhenCorruptedAggregateEventListContainsNull()
 	{
-		var store = new InMemoryEventStore();
-		var eventsByAggregate = GetPrivateField<ConcurrentDictionary<(string, string), List<StoredEvent>>>(
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
+		var eventsByAggregate = GetPrivateField<ConcurrentDictionary<(string, string, string), List<StoredEvent>>>(
 			store,
 			"_events");
-		eventsByAggregate[("agg-1", "Order")] = [null!];
+		eventsByAggregate[(TenantScope.UntenantedSentinel, "agg-1", "Order")] = [null!];
 
 		await Should.ThrowAsync<NullReferenceException>(() =>
 			store.LoadAsync("agg-1", "Order", fromVersion: 0, CancellationToken.None).AsTask());
@@ -28,11 +28,11 @@ public sealed class InMemoryEventStoreFailurePathShould
 	[Fact]
 	public async Task AppendAsync_Rethrows_WhenCorruptedAggregateEventListIsNull()
 	{
-		var store = new InMemoryEventStore();
-		var eventsByAggregate = GetPrivateField<ConcurrentDictionary<(string, string), List<StoredEvent>>>(
+		var store = new InMemoryEventStore(UntenantedContext.Instance);
+		var eventsByAggregate = GetPrivateField<ConcurrentDictionary<(string, string, string), List<StoredEvent>>>(
 			store,
 			"_events");
-		eventsByAggregate[("agg-1", "Order")] = null!;
+		eventsByAggregate[(TenantScope.UntenantedSentinel, "agg-1", "Order")] = null!;
 
 		var evt = new TestDomainEvent
 		{

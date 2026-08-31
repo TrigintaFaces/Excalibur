@@ -99,6 +99,8 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	/// </summary>
 	public IDispatcher Dispatcher
 	{
+		[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Building the harness composes the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+		[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Building the harness composes the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 		get
 		{
 			EnsureBuilt();
@@ -112,6 +114,8 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	/// </summary>
 	public IServiceProvider Services
 	{
+		[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Building the harness composes the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+		[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Building the harness composes the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 		get
 		{
 			EnsureBuilt();
@@ -154,6 +158,8 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Building the harness composes the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Building the harness composes the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public IServiceScope CreateScope()
 	{
 		EnsureBuilt();
@@ -182,6 +188,8 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Building the harness composes the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Building the harness composes the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public AsyncServiceScope CreateAsyncScope()
 	{
 		EnsureBuilt();
@@ -205,6 +213,8 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	private void EnsureBuilt()
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -235,6 +245,17 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 			// Register core Dispatch pipeline
 			services.AddDispatch(builder =>
 			{
+				// No ConfigureDispatch call was made, so nothing has named a handler. Discover them from
+				// the entry assembly — under a test runner that is the consumer's own test assembly, which
+				// is where the handlers under test live. A harness that silently registers nothing is worse
+				// than one that requires a statement: every dispatch would fail for a reason the caller
+				// cannot see from here.
+				if (_dispatchConfigurations.Count == 0)
+				{
+					_ = builder.AddHandlersFromEntryAssembly();
+					return;
+				}
+
 				foreach (var configure in _dispatchConfigurations)
 				{
 					configure(builder);

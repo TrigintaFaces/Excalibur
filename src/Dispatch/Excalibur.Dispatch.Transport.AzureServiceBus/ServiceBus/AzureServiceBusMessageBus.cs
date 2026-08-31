@@ -41,7 +41,9 @@ internal sealed partial class AzureServiceBusMessageBus(
 	AzureServiceBusOptions serviceBusOptions,
 	ILogger<AzureServiceBusMessageBus> logger) : IMessageBus, IAsyncDisposable
 {
-	private readonly ServiceBusSender _sender = client.CreateSender(serviceBusOptions.QueueName);
+	private readonly ServiceBusSender _sender = client.CreateSender(serviceBusOptions.Sender.DefaultEntityName ?? string.Empty);
+
+	private readonly string _entityName = serviceBusOptions.Sender.DefaultEntityName ?? string.Empty;
 
 	/// <summary>
 	/// Publishes a dispatch action to the Service Bus queue.
@@ -57,7 +59,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 		ArgumentNullException.ThrowIfNull(context);
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, serviceBusOptions.QueueName, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, _entityName, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(action, action.GetType());
@@ -89,7 +91,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 		ArgumentNullException.ThrowIfNull(context);
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, serviceBusOptions.QueueName, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, _entityName, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(evt, evt.GetType());
@@ -121,7 +123,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 		ArgumentNullException.ThrowIfNull(context);
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, serviceBusOptions.QueueName, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.AzureServiceBus, _entityName, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(doc, doc.GetType());
@@ -145,7 +147,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 	/// <returns> A task representing the asynchronous disposal operation. </returns>
 	public ValueTask DisposeAsync() => _sender.DisposeAsync();
 
-	// Source-generated logging methods (Sprint 362 - EventId Migration)
+	// Source-generated logging methods
 	[LoggerMessage(AzureServiceBusEventId.ActionSent, LogLevel.Information,
 		"Sent action via Azure Service Bus: {Action}")]
 	private partial void LogSentAction(string action);

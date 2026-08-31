@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.GooglePubSub.Internal;
 /// <summary>
 /// Narrow internal seam over the high-level <see cref="PublisherClient"/> publish operation used by
 /// the Pub/Sub message bus. Exposes only the single-message publish so tests substitute at this
-/// boundary without faking the concrete SDK client type (ADR-142 §D7).
+/// boundary without faking the concrete SDK client type.
 /// </summary>
 /// <remarks>
 /// Distinct from <see cref="IPublisherClientSeam"/> (which wraps the low-level

@@ -149,15 +149,29 @@ public abstract class CosmosDbDataProviderTestBase : IAsyncDisposable
 	}
 
 	/// <summary>
-	/// Verifies that GetService returns transaction sub-interface.
+	/// Verifies that GetService returns the connection sub-interface, and declines the transaction one.
 	/// </summary>
-	protected virtual void GetService_Transaction_ShouldReturnInstance()
+	/// <remarks>
+	/// Cosmos DB is atomic only within a transactional batch, which fixes its partition key and
+	/// operation set at construction, so it cannot honour the ambient scope
+	/// <see cref="IPersistenceProviderTransaction"/> describes and declines that capability. It does
+	/// supply connection details and a retry policy, which are a separate capability, so declining
+	/// transactions must not cost it those.
+	/// </remarks>
+	protected virtual void GetService_Connection_ShouldReturnInstance()
 	{
 		var provider = CreateProvider();
-		var transaction = provider.GetService(typeof(IPersistenceProviderTransaction));
-		if (transaction is null)
+
+		if (provider.GetService(typeof(IPersistenceProviderConnection)) is null)
 		{
-			throw new InvalidOperationException("Provider should support IPersistenceProviderTransaction via GetService.");
+			throw new InvalidOperationException("Provider should support IPersistenceProviderConnection via GetService.");
+		}
+
+		if (provider.GetService(typeof(IPersistenceProviderTransaction)) is not null)
+		{
+			throw new InvalidOperationException(
+				"Provider should decline IPersistenceProviderTransaction via GetService rather than "
+				+ "advertise a transaction scope it cannot honour.");
 		}
 	}
 

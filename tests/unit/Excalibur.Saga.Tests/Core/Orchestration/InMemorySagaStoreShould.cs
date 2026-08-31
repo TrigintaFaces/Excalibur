@@ -10,7 +10,7 @@ namespace Excalibur.Saga.Tests.Core.Orchestration;
 [Trait("Component", "Core")]
 public sealed class InMemorySagaStoreShould
 {
-	private readonly InMemorySagaStore _sut = new();
+	private readonly InMemorySagaStore _sut = new(new TestTenantContext());
 
 	[Fact]
 	public async Task SaveAsync_PersistState()

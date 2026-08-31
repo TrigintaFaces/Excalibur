@@ -33,15 +33,19 @@ public sealed class NullCircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void HaveZeroConsecutiveFailures()
+	public void NotReportAFailureCountThroughTheDiagnosticsContract()
 	{
-		NullCircuitBreakerPolicy.Instance.ConsecutiveFailures.ShouldBe(0);
+		// It counts nothing, so any number it reported would be fabricated. A caller must be able to tell
+		// "no breaker installed" from "breaker installed and healthy", and the contract is how it learns.
+		NullCircuitBreakerPolicy.Instance.ShouldNotBeAssignableTo<ICircuitBreakerDiagnostics>();
 	}
 
 	[Fact]
-	public void HaveNullLastOpenedAt()
+	public void LeaveARealBreakerAbleToReportDiagnostics()
 	{
-		NullCircuitBreakerPolicy.Instance.LastOpenedAt.ShouldBeNull();
+		// LIVENESS: withholding the contract from the null policy must not withhold it from a breaker that
+		// actually measures, or diagnostics would be unreachable everywhere.
+		typeof(ICircuitBreakerDiagnostics).IsAssignableFrom(typeof(CircuitBreakerPolicy)).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -92,12 +96,6 @@ public sealed class NullCircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void ImplementICircuitBreakerDiagnostics()
-	{
-		NullCircuitBreakerPolicy.Instance.ShouldBeAssignableTo<ICircuitBreakerDiagnostics>();
-	}
-
-	[Fact]
 	public void ImplementICircuitBreakerEvents()
 	{
 		NullCircuitBreakerPolicy.Instance.ShouldBeAssignableTo<ICircuitBreakerEvents>();
@@ -126,6 +124,5 @@ public sealed class NullCircuitBreakerPolicyShould
 		}
 
 		sut.State.ShouldBe(CircuitState.Closed);
-		sut.ConsecutiveFailures.ShouldBe(0);
 	}
 }

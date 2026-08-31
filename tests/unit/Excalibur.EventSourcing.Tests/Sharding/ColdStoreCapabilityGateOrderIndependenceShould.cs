@@ -7,6 +7,7 @@ using Excalibur.EventSourcing.Sharding;
 using Excalibur.MultiTenancy;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace Excalibur.EventSourcing.Tests.Sharding;
@@ -66,7 +67,7 @@ public sealed class ColdStoreCapabilityGateOrderIndependenceShould
 		_ = services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
 		// Registered AFTER multi-tenancy, and tenant-UNAWARE: no ITenantScopingCapability<IColdEventStore>.
-		_ = services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore());
+		_ = services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore(A.Fake<ITenantContext>()));
 
 		await using var provider = services.BuildServiceProvider();
 
@@ -90,7 +91,7 @@ public sealed class ColdStoreCapabilityGateOrderIndependenceShould
 		var services = new ServiceCollection();
 		AddCapabilityProvingHotStore(services);
 		_ = services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
-		_ = services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore());
+		_ = services.AddSingleton<IColdEventStore>(new TenantUnawareColdEventStore(A.Fake<ITenantContext>()));
 
 		await using var provider = services.BuildServiceProvider();
 
@@ -114,9 +115,13 @@ public sealed class ColdStoreCapabilityGateOrderIndependenceShould
 		_ = services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
 
 		// The dep-gated seam emits ITenantScopingCapability<IColdEventStore> inseparably from the registration,
-		// so the attestation cannot be present without the wiring that earns it.
-		_ = services.AddTenantScopedStore<IColdEventStore, IColdEventStore>(
-			(_, _) => new TenantUnawareColdEventStore());
+		// so the attestation cannot be present without the wiring that earns it. Register the CONCRETE type
+		// through the seam (its constructor now declares ITenantContext, so the seam derives the scoped
+		// marker), then forward-register IColdEventStore separately — the same two-registration pattern
+		// every real provider uses (concrete + interface forwarder).
+		_ = services.AddTenantAwareStore<IColdEventStore, TenantUnawareColdEventStore>(
+			sp => new TenantUnawareColdEventStore(sp.GetRequiredService<ITenantContext>()));
+		services.TryAddSingleton<IColdEventStore>(sp => sp.GetRequiredService<TenantUnawareColdEventStore>());
 
 		await using var provider = services.BuildServiceProvider();
 
@@ -160,15 +165,16 @@ public sealed class ColdStoreCapabilityGateOrderIndependenceShould
 	/// </summary>
 	private static void AddCapabilityProvingHotStore(IServiceCollection services)
 	{
-		_ = services.AddSingleton<IEventStore>(new MinimalEventStore());
-		_ = services.AddTenantScopedStore<IEventStore, MinimalEventStore>((_, _) => new MinimalEventStore());
+		_ = services.AddSingleton<IEventStore>(new MinimalEventStore(A.Fake<ITenantContext>()));
+		_ = services.AddTenantAwareStore<IEventStore, MinimalEventStore>(
+			sp => new MinimalEventStore(sp.GetRequiredService<ITenantContext>()));
 	}
 
 	/// <summary>
 	/// A cold tier that accepts the tenant term and deliberately ignores it — the leak vector the gate exists to
 	/// refuse. Implements <see cref="IColdEventStore"/> directly; no first-party base supplies any member.
 	/// </summary>
-	private sealed class TenantUnawareColdEventStore : IColdEventStore
+	private sealed class TenantUnawareColdEventStore(ITenantContext tenantContext) : IColdEventStore
 	{
 		public Task<long> WriteAsync(
 			KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events,
@@ -190,7 +196,7 @@ public sealed class ColdStoreCapabilityGateOrderIndependenceShould
 	}
 
 	/// <summary>Satisfies the primary tenant-owned store requirement; implements the interface directly.</summary>
-	private sealed class MinimalEventStore : IEventStore
+	private sealed class MinimalEventStore(ITenantContext tenantContext) : IEventStore
 	{
 		public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
 			string aggregateId, string aggregateType, CancellationToken cancellationToken) =>

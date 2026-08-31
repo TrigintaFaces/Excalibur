@@ -18,6 +18,22 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${DOCS_GATE_REPO:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 TOOL="$SCRIPT_DIR/docs-csharp-extract.py"
+MEMBER_TOOL="$SCRIPT_DIR/docs-csharp-member-gate.py"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/gate-denominator.sh"
+
+# Combine two gate verdicts without letting either mask the other.
+#   FAIL(1)   an actionable finding -- always wins; a REFUSE must not downgrade it
+#   REFUSE(2) nothing was measured  -- wins over PASS, never over FAIL
+#   PASS(0)
+combine_verdict() {
+    local a="$1" b="$2"
+    if [ "$a" -eq 1 ] || [ "$b" -eq 1 ]; then echo 1; return; fi
+    if [ "$a" -eq 2 ] || [ "$b" -eq 2 ]; then echo 2; return; fi
+    if [ "$a" -ne 0 ]; then echo "$a"; return; fi
+    echo "$b"
+}
+
 BASE_REF="${DOCS_GATE_BASE_REF:-origin/main}"
 
 # A doc file the gate cares about: docs/** or docs-site/** markdown, or any README*.md(x).
@@ -62,22 +78,34 @@ if [ "$mode" = "files" ]; then
         echo "docs-csharp-phantom-gate: no changed doc files vs ${BASE_REF} — nothing to gate. PASS."
         exit 0
     fi
-    echo "docs-csharp-phantom-gate: scanning $(grep -c . "$filesfile") changed doc file(s) [whole-file] vs ${BASE_REF}"
+    gate_denominator_may_be_empty "$(grep -c . "$filesfile")" "changed doc file(s) [whole-file] vs ${BASE_REF}"
     python3 "$TOOL" --repo "$REPO" --gate-files "$filesfile"
     rc=$?
+    if [ -n "$(find "$REPO/src" -name "*.cs" -print -quit 2>/dev/null)" ]; then
+        python3 "$MEMBER_TOOL" --repo "$REPO" --gate-files "$filesfile"; member_rc=$?
+        rc="$(combine_verdict "$rc" "$member_rc")"
+    else
+        echo "docs-csharp-phantom-gate: member check NOT APPLICABLE — no C# sources under $REPO/src to resolve members against."
+    fi
 else
     if [ ! -s "$linesfile" ]; then
         echo "docs-csharp-phantom-gate: no changed doc snippets vs ${BASE_REF} — nothing to gate. PASS."
         exit 0
     fi
-    echo "docs-csharp-phantom-gate: scanning $(grep -c . "$linesfile") changed line(s) [hunk] vs ${BASE_REF}"
+    gate_denominator_may_be_empty "$(grep -c . "$linesfile")" "changed line(s) [hunk] vs ${BASE_REF}"
     python3 "$TOOL" --repo "$REPO" --gate-lines "$linesfile"
     rc=$?
+    if [ -n "$(find "$REPO/src" -name "*.cs" -print -quit 2>/dev/null)" ]; then
+        python3 "$MEMBER_TOOL" --repo "$REPO" --gate-lines "$linesfile"; member_rc=$?
+        rc="$(combine_verdict "$rc" "$member_rc")"
+    else
+        echo "docs-csharp-phantom-gate: member check NOT APPLICABLE — no C# sources under $REPO/src to resolve members against."
+    fi
 fi
 
 if [ "$rc" -ne 0 ]; then
     echo "" >&2
-    echo "docs-csharp-phantom-gate: FAIL — a changed C# snippet references a phantom framework API (above)." >&2
+    echo "docs-csharp-phantom-gate: FAIL — a changed C# snippet references a phantom framework type or member (above)." >&2
     echo "  Fix the snippet to use a real API, or — if the type is an intentional placeholder —" >&2
     echo "  mark the fence:  \`\`\`csharp ignore" >&2
 fi

@@ -262,6 +262,21 @@ internal sealed class WorkflowExecutor : IWorkflowExecutor
             // EventTypeNameHelper), not a journal discriminator. Resolve it against the engine's own closed
             // set of journal types — a workflow host is not required to register these with the event
             // serializer, so the engine owns the resolution — then let the serializer deserialize the bytes.
+            // A workflow journal drives side effects on replay: a journaled activity completion is what
+            // stops that activity being executed a second time. If an entry has been GDPR-erased, its
+            // record of what already happened is permanently gone, so the instance cannot be replayed
+            // faithfully -- skipping the entry would silently re-execute work that already ran. Refuse,
+            // and say why: without this check the erased entry surfaces as the generic unknown-type error
+            // below, which misdiagnoses a lawful erasure as journal corruption or an engine mismatch.
+            if (ErasedEventMarker.IsErased(se.EventType) || se.EventData is null)
+            {
+                throw new InvalidOperationException(
+                    $"Workflow instance '{instanceId}' cannot be replayed: journal entry '{se.EventId}' "
+                    + "has been erased, so the record of what the instance already did is permanently "
+                    + "unavailable. Replaying it would risk re-running activities that already ran. "
+                    + "Terminate the instance rather than resuming it.");
+            }
+
             var type = WorkflowJournalEventTypes.Resolve(se.EventType);
             history.Add((WorkflowJournalEvent)_serializer.DeserializeEvent(se.EventData, type));
         }
@@ -290,12 +305,16 @@ internal sealed class WorkflowExecutor : IWorkflowExecutor
             expectedVersion,
             cancellationToken).ConfigureAwait(false);
 
-        if (!result.Success)
+        // A successful append always states the version it left the stream at; a failure states
+        // none. Reading the version through the success check rather than beside it keeps the two
+        // facts from drifting apart -- there is no branch here that can reach a version that is not
+        // there.
+        if (!result.Success || result.NextExpectedVersion is not { } nextExpectedVersion)
         {
             throw new WorkflowConcurrencyException(instanceId, result.ErrorMessage);
         }
 
-        return result.NextExpectedVersion;
+        return nextExpectedVersion;
     }
 
     private static bool HasEvent<TEvent>(IReadOnlyList<WorkflowJournalEvent> history)

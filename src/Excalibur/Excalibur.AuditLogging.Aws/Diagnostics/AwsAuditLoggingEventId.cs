@@ -5,7 +5,7 @@ namespace Excalibur.AuditLogging.Aws;
 /// <summary>
 /// Event IDs for AWS CloudWatch audit exporter diagnostics (93480-93499).
 /// </summary>
-public static class AwsAuditLoggingEventId
+internal static class AwsAuditLoggingEventId
 {
 	/// <summary>AWS CloudWatch event forwarded.</summary>
 	public const int EventForwarded = 93480;

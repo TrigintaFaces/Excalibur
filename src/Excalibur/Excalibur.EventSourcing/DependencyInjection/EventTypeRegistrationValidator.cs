@@ -30,7 +30,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// reflection, no assembly scanning.
 /// </para>
 /// </remarks>
-internal sealed class EventTypeRegistrationValidator : IHostedService
+internal sealed class EventTypeRegistrationValidator : IHostedService, IStartupPrerequisiteValidator
 {
 	private readonly IServiceProvider _services;
 
@@ -41,11 +41,17 @@ internal sealed class EventTypeRegistrationValidator : IHostedService
 
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		Validate();
+		return Task.CompletedTask;
+	}
+
+	public void Validate()
+	{
 		// Only the default reflection serializer rejects unregistered types. A consumer-supplied or AOT
 		// serializer is exempt — it owns its own type-resolution contract.
 		if (_services.GetService<IEventSerializer>() is not JsonEventSerializer)
 		{
-			return Task.CompletedTask;
+			return;
 		}
 
 		// An empty allow-list + the type-rejecting default serializer bricks every replay. "Empty" means
@@ -64,8 +70,6 @@ internal sealed class EventTypeRegistrationValidator : IHostedService
 				+ "or services.AddEventTypes<MyEvent>() — before host startup. (An AOT or consumer-supplied "
 				+ "IEventSerializer is exempt from this check.)");
 		}
-
-		return Task.CompletedTask;
 	}
 
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -33,7 +33,7 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	{
 		// Assert
 		_ = _provider.ShouldNotBeNull();
-		_provider.Name.ShouldBe("MongoDB");
+		_provider.Name.ShouldBe("mongodb");
 		_provider.ProviderType.ShouldBe("Document");
 		_provider.DocumentStoreType.ShouldBe("MongoDB");
 	}
@@ -162,13 +162,13 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	}
 
 	[Fact]
-	public void ExecuteAsyncThrowsInvalidOperationException()
+	public void DeclinesTheDataRequestExecutorCapability()
 	{
-		// Arrange
-		var request = A.Fake<IDataRequest<IDbConnection, string>>();
-
-		// Act & Assert - Provider throws InvalidOperationException when not initialized
-		_ = Should.Throw<InvalidOperationException>(() => _provider.ExecuteAsync(request, CancellationToken.None));
+		// A document store is not reachable through an IDbConnection, so it declines the capability
+		// rather than advertising a member that throws. This replaces an arm that asserted the throw:
+		// declining is now the contract, and it is what a consumer must be able to detect before
+		// calling. Its execution surface is ExecuteDocumentAsync, exercised above.
+		_provider.GetService(typeof(IDataRequestExecutor)).ShouldBeNull();
 	}
 
 	[Fact]
@@ -234,17 +234,6 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GetConnectionPoolStatsAsyncReturnsDefaultStatsWithDefaultOptions()
-	{
-		// Act - Provider initialized with default options returns default stats
-		var stats = await _provider.GetConnectionPoolStatsAsync(CancellationToken.None).ConfigureAwait(false);
-
-		// Assert - With default initialization, returns default pool stats
-		_ = stats.ShouldNotBeNull();
-		stats.ShouldContainKey("MaxPoolSize");
-	}
-
-	[Fact]
 	public void CreateTransactionScopeReturnsValidScopeWithDefaultOptions()
 	{
 		// Act - Provider initialized with default options can create transaction scopes
@@ -284,7 +273,7 @@ public sealed class MongoDbPersistenceProviderShould : IDisposable
 	public void PropertiesHaveExpectedValues()
 	{
 		// Assert - Provider initialized with default options has default connection string
-		_provider.Name.ShouldBe("MongoDB");
+		_provider.Name.ShouldBe("mongodb");
 		_provider.ProviderType.ShouldBe("Document");
 		_provider.DocumentStoreType.ShouldBe("MongoDB");
 		// Default constructor sets default connection string

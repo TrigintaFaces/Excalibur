@@ -13,8 +13,12 @@ namespace Excalibur.Outbox.Postgres;
 /// <summary>
 /// Represents a data request to move an outbox message to the dead letter table in the Postgres database.
 /// </summary>
+[NoTenantTerm(
+	TenantConfinement.IdentityAddressed,
+	"the post-claim mutation path: the drain has already claimed this row cross-tenant and moves it by its globally-unique message id. This store holds no tenant context to filter by - an outbox store reads no ambient tenant context and accepts a tenant only as an explicit argument - so the statement carries no tenant term, and a caller that supplies a message id it did not obtain from a claim reaches the row behind it. Isolation on this table is established where the row is written, by stamping tenant_id")]
 public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 {
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MoveOutboxMessageToDeadLetter"/> class.
 	/// </summary>
@@ -24,9 +28,18 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <remarks>
+	/// <para>
 	/// The copy-to-DLQ and delete target the globally-unique outbox <c>message_id</c>, which addresses exactly
 	/// one row, so no tenant predicate is applied: the drain is cross-tenant infrastructure and must always be
 	/// able to move the row it claimed, regardless of any ambient tenant context.
+	/// </para>
+	/// <para>
+	/// The tenant is nonetheless COPIED, as provenance. The delete leaves the dead-letter row as the only
+	/// remaining record of the message, so a term this statement does not carry across is destroyed rather
+	/// than merely unqueryable: an operator could no longer attribute the entry, and a redrive could no
+	/// longer re-enter the partition the message came from. It is copied from the outbox row, whose tenant
+	/// column is total, so the value is always present and is never inferred here.
+	/// </para>
 	/// </remarks>
 	public MoveOutboxMessageToDeadLetter(
 		string messageId,
@@ -36,8 +49,8 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 		CancellationToken cancellationToken)
 	{
 		var sql = $"""
-		   INSERT INTO {deadLetterTableName} (message_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-		           SELECT message_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, @ErrorMessage
+		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+		           SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, @ErrorMessage
 		           FROM {outboxTableName}
 		           WHERE message_id = @MessageId;
 

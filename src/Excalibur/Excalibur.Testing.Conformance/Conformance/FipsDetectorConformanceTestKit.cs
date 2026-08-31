@@ -60,7 +60,7 @@ namespace Excalibur.Testing.Conformance;
 /// </code>
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
-public abstract class FipsDetectorConformanceTestKit
+public abstract class FipsDetectorConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates an instance of the <see cref="IFipsDetector"/> implementation under test.
@@ -82,7 +82,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// The property should return either true or false depending on the platform's
 	/// FIPS configuration. It should never throw an exception.
 	/// </remarks>
-	protected virtual void IsFipsEnabled_ShouldReturnBooleanWithoutThrowing()
+	public virtual void IsFipsEnabled_ShouldReturnBooleanWithoutThrowing()
 	{
 		// Arrange
 		var detector = CreateDetector();
@@ -106,7 +106,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// GetStatus should never return null. It must always return a valid
 	/// FipsDetectionResult with all required properties populated.
 	/// </remarks>
-	protected virtual void GetStatus_ShouldReturnNonNullResult()
+	public virtual void GetStatus_ShouldReturnNonNullResult()
 	{
 		// Arrange
 		var detector = CreateDetector();
@@ -129,7 +129,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// FipsDetectionResult has required properties: IsFipsEnabled, Platform, ValidationDetails.
 	/// All must be populated (Platform and ValidationDetails should not be null).
 	/// </remarks>
-	protected virtual void GetStatus_ShouldReturnResultWithRequiredProperties()
+	public virtual void GetStatus_ShouldReturnResultWithRequiredProperties()
 	{
 		// Arrange
 		var detector = CreateDetector();
@@ -170,7 +170,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// The IsFipsEnabled property and GetStatus().IsFipsEnabled must be consistent.
 	/// They should always return the same value for the same detector instance.
 	/// </remarks>
-	protected virtual void IsFipsEnabled_ShouldMatchGetStatusResult()
+	public virtual void IsFipsEnabled_ShouldMatchGetStatusResult()
 	{
 		// Arrange
 		var detector = CreateDetector();
@@ -195,7 +195,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// Multiple calls should return the same DetectedAt timestamp, indicating
 	/// the result was cached and not re-detected.
 	/// </remarks>
-	protected virtual void GetStatus_MultipleCalls_ShouldReturnConsistentDetectedAt()
+	public virtual void GetStatus_MultipleCalls_ShouldReturnConsistentDetectedAt()
 	{
 		// Arrange
 		var detector = CreateDetector();
@@ -224,7 +224,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// The Enabled factory method should create a result with IsFipsEnabled = true
 	/// and the provided platform and details values.
 	/// </remarks>
-	protected virtual void FipsDetectionResult_Enabled_ShouldCreateCorrectResult()
+	public virtual void FipsDetectionResult_Enabled_ShouldCreateCorrectResult()
 	{
 		// Arrange
 		const string platform = "TestPlatform";
@@ -272,7 +272,7 @@ public abstract class FipsDetectorConformanceTestKit
 	/// The Disabled factory method should create a result with IsFipsEnabled = false
 	/// and the provided platform and details values.
 	/// </remarks>
-	protected virtual void FipsDetectionResult_Disabled_ShouldCreateCorrectResult()
+	public virtual void FipsDetectionResult_Disabled_ShouldCreateCorrectResult()
 	{
 		// Arrange
 		const string platform = "TestPlatform";

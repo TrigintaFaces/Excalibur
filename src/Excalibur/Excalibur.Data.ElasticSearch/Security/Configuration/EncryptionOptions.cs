@@ -16,12 +16,6 @@ public sealed class EncryptionOptions
 	public bool FieldLevelEncryption { get; init; }
 
 	/// <summary>
-	/// Gets a value indicating whether document-level security is enabled.
-	/// </summary>
-	/// <value> True to enable document-level access controls, false otherwise. </value>
-	public bool DocumentLevelSecurity { get; init; }
-
-	/// <summary>
 	/// Gets the encryption algorithm for field-level encryption.
 	/// </summary>
 	/// <value> The encryption algorithm to use. Defaults to AES-256-GCM. </value>

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
+
 using Excalibur.Dispatch;
 using Excalibur.Inbox.Postgres;
 
@@ -54,8 +56,36 @@ namespace Excalibur.Data.Tests.Postgres;
 [Trait("Component", "Core")]
 public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 {
-	[Fact]
-	public async Task FailClosed_BeforeTouchingSql_WhenMultiTenantAndAmbientTenantIsNull()
+	/// <summary>
+	/// Every tenant-facing operation, by name. The guard on each resolves the tenant into a local that the
+	/// connection open and schema read below then require as an argument, so deleting or reordering it is a
+	/// compile error rather than a silent reversion to fail-open. The bare discard this replaced was neither:
+	/// its correctness rested entirely on sitting above the first connection open, and one operation had it
+	/// below.
+	/// </summary>
+	public static TheoryData<string, Func<PostgresInboxStore, ValueTask>> TenantFacingOperations() => new()
+	{
+		{ "CreateEntryAsync", static s => new ValueTask(s.CreateEntryAsync("m", "h", "t", [1], new Dictionary<string, object>(StringComparer.Ordinal), CancellationToken.None).AsTask()) },
+		{ "MarkProcessedAsync", static s => s.MarkProcessedAsync("m", "h", CancellationToken.None) },
+		{ "TryProcessTransactionallyAsync", static s => new ValueTask(s.TryProcessTransactionallyAsync("m", "h", static (System.Data.IDbTransaction _, CancellationToken _) => ValueTask.CompletedTask, CancellationToken.None).AsTask()) },
+		{ "MarkProcessingAsync", static s => s.MarkProcessingAsync("m", "h", CancellationToken.None) },
+		{ "TryMarkAsProcessedAsync", static s => new ValueTask(s.TryMarkAsProcessedAsync("m", "h", CancellationToken.None).AsTask()) },
+		{ "TryClaimAsync", static s => new ValueTask(s.TryClaimAsync("m", "h", CancellationToken.None).AsTask()) },
+		{ "TryAcquireLeaseAsync", static s => new ValueTask(s.TryAcquireLeaseAsync("m", "h", TimeSpan.FromMinutes(1), CancellationToken.None).AsTask()) },
+		{ "CompleteAsync", static s => new ValueTask(s.CompleteAsync("m", "h", new LeaseToken("term"), CancellationToken.None).AsTask()) },
+		{ "FailAsync", static s => new ValueTask(s.FailAsync("m", "h", new LeaseToken("term"), "boom", CancellationToken.None).AsTask()) },
+		{ "ReleaseAsync", static s => s.ReleaseAsync("m", "h", CancellationToken.None) },
+		{ "IsProcessedAsync", static s => new ValueTask(s.IsProcessedAsync("m", "h", CancellationToken.None).AsTask()) },
+		{ "GetEntryAsync", static s => new ValueTask(s.GetEntryAsync("m", "h", CancellationToken.None).AsTask()) },
+		{ "MarkFailedAsync", static s => s.MarkFailedAsync("m", "h", "boom", CancellationToken.None) },
+		{ "MarkFailedAsync(retryCount)", static s => s.MarkFailedAsync("m", "h", "boom", 3, CancellationToken.None) },
+	};
+
+	[Theory]
+	[MemberData(nameof(TenantFacingOperations))]
+	public async Task FailClosed_BeforeTouchingSql_WhenMultiTenantAndAmbientTenantIsNull(
+		string operationName,
+		Func<PostgresInboxStore, ValueTask> operation)
 	{
 		// SAFETY — the regression arm. RED against the fail-open ternary (reaches the sentinel factory → throws
 		// SentinelConnectionReached, NOT ArgumentException). GREEN once the op guards fail-closed pre-SQL.
@@ -66,8 +96,8 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 		// InvalidOperationException) — the same canonical fail-closed signal the EventStore/Outbox/Saga emit —
 		// rather than the ad-hoc ArgumentException the pre-canonical guard threw. Strengthened to the specific type.
 		await Should.ThrowAsync<TenantRequiredException>(
-			async () => await store.TryMarkAsProcessedAsync("message-1", "handler-1", CancellationToken.None),
-			"A multi-tenant inbox (ITenantContext injected) with a NULL ambient tenant must FAIL CLOSED on the dedup " +
+			async () => await operation(store),
+			$"{operationName}: a multi-tenant inbox (ITenantContext injected) with a NULL ambient tenant must FAIL CLOSED on the dedup " +
 			"path — not widen to the bare (message_id, handler_type) conflict target across all tenants. Fail-open " +
 			"here silently discards tenant B's message as a duplicate of tenant A's same id (cross-tenant loss) and " +
 			"leaks keyed reads. The op must throw before it ever opens a connection, symmetric with the event " +
@@ -86,14 +116,17 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 		var store = CreateStore(tenantContext: new AmbientTenantContext(tenantId: null));
 
 		await Should.ThrowAsync<SentinelConnectionReached>(
-			async () => await store.GetAllEntriesAsync(CancellationToken.None),
+			async () => await store.GetAllTenantsEntriesAsync(CancellationToken.None),
 			"The admin drain (GetAllEntries) must reach SQL even with a null ambient tenant — it is deliberately " +
 			"cross-tenant and unguarded (SA criterion 2). If it throws ArgumentException, the fail-closed guard has " +
 			"leaked from the tenant-facing dedup ops onto the drain, breaking background re-admission.");
 	}
 
-	[Fact]
-	public async Task ReachSql_WhenMultiTenantAndAmbientTenantIsResolved()
+	[Theory]
+	[MemberData(nameof(TenantFacingOperations))]
+	public async Task ReachSql_WhenMultiTenantAndAmbientTenantIsResolved(
+		string operationName,
+		Func<PostgresInboxStore, ValueTask> operation)
 	{
 		// LIVENESS (resolved) + non-vacuity partner of the safety arm. A resolved tenant must pass the guard and
 		// reach SQL. If a fix satisfied the safety arm by throwing whenever an ITenantContext is present, THIS arm
@@ -101,10 +134,52 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 		var store = CreateStore(tenantContext: new AmbientTenantContext(tenantId: "tenant-a"));
 
 		await Should.ThrowAsync<SentinelConnectionReached>(
-			async () => await store.TryMarkAsProcessedAsync("message-1", "handler-1", CancellationToken.None),
-			"A multi-tenant inbox with a RESOLVED ambient tenant must pass the fail-closed guard and reach SQL " +
+			async () => await operation(store),
+			$"{operationName}: a multi-tenant inbox with a RESOLVED ambient tenant must pass the fail-closed guard and reach SQL " +
 			"(sentinel). If this throws ArgumentException, the guard is firing on every multi-tenant op rather than " +
 			"only the null-ambient path — an over-correction that would reject correct multi-tenant hosts.");
+	}
+
+	[Fact]
+	public void RequireAResolvedTenantTermToOpenAConnection()
+	{
+		// STRUCTURAL — the arm that pins the fix rather than its current call sites. The fail-closed check used
+		// to be a discard whose only claim on correctness was POSITION: it had to precede the first connection
+		// open, and in one operation it did not, so a multi-tenant host with no ambient tenant opened a
+		// connection and began a transaction before anything refused it. Position is not a property a test can
+		// hold, so the store now carries two connection openers: an explicitly untenanted one for the
+		// estate-wide admin drains, and one that takes the ALREADY-RESOLVED term as an argument. An argument
+		// cannot be evaluated after the call it is passed to, so on a tenant-facing path the term is resolved
+		// before a connection can exist no matter where the statement sits — reordering it below the open is
+		// CS0841, not a silent hole. This arm is RED by construction against the pre-fix shape, whose only
+		// opener took a CancellationToken alone.
+		var openers = typeof(PostgresInboxStore)
+			.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+			.Where(static m => m.Name.StartsWith("Open", StringComparison.Ordinal)
+				&& m.Name.Contains("Connection", StringComparison.Ordinal))
+			.ToList();
+
+		// Positive control for the negatives below: the query must find the openers at all.
+		openers.ShouldNotBeEmpty(
+			"No connection opener was found on the store at all — this arm is measuring nothing. Either the " +
+			"openers were renamed away from Open*Connection*, or the reflection query is wrong.");
+
+		var untenanted = openers.Where(static m => m.Name.Contains("Untenanted", StringComparison.Ordinal)).ToList();
+		untenanted.Count.ShouldBe(
+			1,
+			"Exactly one opener may declare cross-tenant intent in its name — the one the estate-wide admin " +
+			"drains use. A second one is a second way to reach SQL with no tenant resolved, which is the hole " +
+			"this fix closed.");
+
+		foreach (var opener in openers.Except(untenanted))
+		{
+			opener.GetParameters()
+				.Any(static p => p.ParameterType.Name == "ResolvedTenantTerm")
+				.ShouldBeTrue(
+					$"{opener.Name} opens a connection without requiring an already-resolved tenant term. A " +
+					"tenant-facing path can then reach SQL with the fail-closed check sitting anywhere — or " +
+					"nowhere — and no test would see it, because ordering is not a property a test can hold.");
+		}
 	}
 
 	private static PostgresInboxStore CreateStore(ITenantContext? tenantContext) =>
@@ -112,7 +187,12 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 			connectionFactory: () => throw new SentinelConnectionReached(),
 			options: new PostgresInboxOptions(),
 			logger: NullLogger<PostgresInboxStore>.Instance,
-			tenantContext: tenantContext);
+			tenantContext: tenantContext,
+			// RequireTenant = true: this arm exists to prove the store FAILS CLOSED when a multi-tenant host
+			// has established no tenant. The single-tenant value would resolve the untenanted partition
+			// instead of refusing, so the arm would pass by never reaching the behaviour under test.
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(
+				new TenantContextOptions { RequireTenant = true }));
 
 	// Thrown by the connection factory the instant it is invoked. Its appearance means the op reached the SQL/
 	// connection stage; its ABSENCE (when ArgumentException is thrown instead) means the op failed closed first.

@@ -11,8 +11,9 @@ dotnet add package Excalibur.Compliance.Aws
 ## Quick Start
 
 ```csharp
-// Add Excalibur.Compliance.Aws to your service configuration
-services.AddComplianceAws();
+services.AddAwsKmsKeyManagement(aws => aws
+    .Region("us-east-1")
+    .KeyAliasPrefix("myapp"));
 ```
 
 ## Documentation
@@ -21,4 +22,4 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur) for det
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](..\..\..\LICENSE) for license details.
+This package is part of the Excalibur framework. See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for license details.

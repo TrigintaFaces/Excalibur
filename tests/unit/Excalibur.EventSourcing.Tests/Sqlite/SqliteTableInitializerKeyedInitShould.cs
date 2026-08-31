@@ -43,7 +43,7 @@ public sealed class SqliteTableInitializerKeyedInitShould : IDisposable
     }
 
     private static SqliteEventStore Store(string connectionString, string table) =>
-        new(connectionString, NullLogger<SqliteEventStore>.Instance, table);
+        new(connectionString, NullLogger<SqliteEventStore>.Instance, TestTenantContext.SingleTenantDefault, Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }), table);
 
     [Fact]
     public async Task InitializeSecondTable_OnSameFile_WhenFirstTableAlreadyInitialized()

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Amazon;
+using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBv2;
 
 namespace Excalibur.EventSourcing.DynamoDb;
@@ -10,6 +11,8 @@ internal sealed class DynamoDBEventSourcingBuilder : IDynamoDBEventSourcingBuild
 {
 	internal IAmazonDynamoDB? ClientInstance { get; private set; }
 	internal Func<IServiceProvider, IAmazonDynamoDB>? ClientFactoryFunc { get; private set; }
+	internal IAmazonDynamoDBStreams? StreamsClientInstance { get; private set; }
+	internal Func<IServiceProvider, IAmazonDynamoDBStreams>? StreamsClientFactoryFunc { get; private set; }
 	internal string? ServiceUrlValue { get; private set; }
 	internal RegionEndpoint? RegionValue { get; private set; }
 	internal string? BindConfigurationPath { get; private set; }
@@ -57,6 +60,24 @@ internal sealed class DynamoDBEventSourcingBuilder : IDynamoDBEventSourcingBuild
 		ServiceUrlValue = null;
 		RegionValue = null;
 		BindConfigurationPath = null;
+		return this;
+	}
+
+	// The Streams client is orthogonal to the connection mode: it is a companion to the document client,
+	// not an alternative to it, so selecting a connection mode neither sets nor clears it.
+	public IDynamoDBEventSourcingBuilder StreamsClient(IAmazonDynamoDBStreams streamsClient)
+	{
+		ArgumentNullException.ThrowIfNull(streamsClient);
+		StreamsClientInstance = streamsClient;
+		StreamsClientFactoryFunc = null;
+		return this;
+	}
+
+	public IDynamoDBEventSourcingBuilder StreamsClientFactory(Func<IServiceProvider, IAmazonDynamoDBStreams> streamsClientFactory)
+	{
+		ArgumentNullException.ThrowIfNull(streamsClientFactory);
+		StreamsClientFactoryFunc = streamsClientFactory;
+		StreamsClientInstance = null;
 		return this;
 	}
 

@@ -38,7 +38,7 @@ namespace Excalibur.Outbox.Tests;
 /// <c>nextAttemptAt ≈ now + CalculateDelay(attempt)</c> when the store supports it.</item>
 /// <item><b>Fail-open</b> — a store that does NOT implement the capability falls back to the plain
 /// <see cref="IInboxStore.MarkFailedAsync(string, string, string, System.Threading.CancellationToken)"/>.</item>
-/// <item><b>Not-inert floor</b> — <c>ReserveBatchRecordsAsync</c> passes <c>now − CalculateDelay(1)</c> as the
+/// <item><b>Not-inert floor</b> — <c>ReadRetryableEntriesAsync</c> passes <c>now − CalculateDelay(1)</c> as the
 /// re-admission floor, NOT the pre-fix hardcoded <c>now − 5min</c>.</item>
 /// </list>
 /// <para>
@@ -104,7 +104,7 @@ public sealed class InboxProcessorBackoffShould
 	{
 		DateTimeOffset? capturedOlderThan = null;
 		var store = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
-		_ = A.CallTo(() => ((IInboxStoreAdmin)store).GetFailedEntriesAsync(
+		_ = A.CallTo(() => ((IInboxStoreAdmin)store).GetAllTenantsFailedEntriesAsync(
 				A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
 			.Invokes(call => capturedOlderThan = call.GetArgument<DateTimeOffset?>(1))
 			.ReturnsLazily(() => new ValueTask<IEnumerable<InboxEntry>>(Array.Empty<InboxEntry>()));
@@ -113,7 +113,7 @@ public sealed class InboxProcessorBackoffShould
 		_ = A.CallTo(() => backoff.CalculateDelay(1)).Returns(TimeSpan.FromSeconds(7));
 		await using var processor = CreateProcessor(store, backoff);
 
-		var reserveBatch = GetPrivateMethod("ReserveBatchRecordsAsync");
+		var reserveBatch = GetPrivateMethod("ReadRetryableEntriesAsync");
 
 		var before = DateTimeOffset.UtcNow;
 		await (Task)reserveBatch.Invoke(processor, [10, CancellationToken.None])!;

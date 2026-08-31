@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Diagnostics;
@@ -28,7 +29,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// scenarios where message volumes are predictable and memory constraints are well-understood.
 /// <para>
 /// <b>Related deduplication components:</b>
-/// For handler-level persistent deduplication, see <c>IdempotentHandlerMiddleware</c>.
+/// For persistent, store-backed deduplication, see <c>InboxMiddleware</c>.
 /// For content-based outbox deduplication, see <c>ContentHashDeduplicationStrategy</c> in Excalibur.Outbox.
 /// </para>
 /// </remarks>
@@ -97,7 +98,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			?? new Meter(DispatchTelemetryConstants.Meters.ExactlyOnce, "1.0.0");
 		_duplicatesSuppressedCounter = _meter.CreateCounter<long>(
 			"dispatch.exactlyonce.duplicates.suppressed",
-			unit: "duplicates",
+			unit: "{duplicates}",
 			description: "Number of duplicate messages suppressed by exactly-once deduplication.");
 
 		var opts = options.Value;
@@ -149,8 +150,11 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 				return Task.FromResult(true);
 			}
 
-			// Entry has expired, remove it
-			if (_processedMessages.TryRemove(messageId, out _))
+			// Entry has expired, remove it -- but only if it is still the entry we just judged expired.
+			// A blind TryRemove(key) deletes whatever occupies the key NOW, which may be a live entry a
+			// concurrent caller installed after our read; deleting it would let the same message be
+			// admitted twice. The value-comparing overload makes that inexpressible.
+			if (_processedMessages.TryRemove(new KeyValuePair<string, ProcessedEntry>(messageId, entry)))
 			{
 				_ = Interlocked.Increment(ref _entriesExpired);
 				LogExpiredEntryRemoved(messageId);
@@ -185,7 +189,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		var now = DateTimeOffset.UtcNow;
 		var expiresAt = now.Add(expiry);
 
-		var entry = new ProcessedEntry { MessageId = messageId, ProcessedAt = now, ExpiresAt = expiresAt };
+		var entry = new ProcessedEntry { ClaimId = NewClaimId(), MessageId = messageId, ProcessedAt = now, ExpiresAt = expiresAt };
 
 		// Atomic TryAdd to prevent race conditions between concurrent IsDuplicate/MarkProcessed calls.
 		// If the key already exists (another thread raced ahead), we keep the existing entry.
@@ -205,7 +209,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	}
 
 	/// <inheritdoc />
-	public Task<bool> TryClaimAsync(string messageId, TimeSpan expiry, CancellationToken cancellationToken)
+	public Task<LeaseToken?> TryClaimAsync(string messageId, TimeSpan expiry, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		if (expiry <= TimeSpan.Zero)
@@ -224,11 +228,13 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			{
 				_ = Interlocked.Increment(ref _duplicatesDetected);
 				_duplicatesSuppressedCounter.Add(1);
-				return Task.FromResult(false);
+				return Task.FromResult<LeaseToken?>(null);
 			}
 
-			// Expired -- drop it so the slot can be re-claimed below.
-			if (_processedMessages.TryRemove(messageId, out _))
+			// Expired -- drop it so the slot can be re-claimed below, but only if it is still the entry we
+			// judged expired. A blind TryRemove(key) would delete a live claim installed by a concurrent
+			// caller between our read and our removal, and both callers would then hold the same message id.
+			if (_processedMessages.TryRemove(new KeyValuePair<string, ProcessedEntry>(messageId, existing)))
 			{
 				_ = Interlocked.Increment(ref _entriesExpired);
 			}
@@ -242,61 +248,84 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		if (_maxTrackedEntries != int.MaxValue && _processedMessages.Count >= _maxTrackedEntries)
 		{
 			LogCapacityReached(_maxTrackedEntries);
-			return Task.FromResult(false);
+			return Task.FromResult<LeaseToken?>(null);
 		}
 
-		var entry = new ProcessedEntry { MessageId = messageId, ProcessedAt = now, ExpiresAt = now.Add(expiry) };
+		var entry = new ProcessedEntry { ClaimId = NewClaimId(), MessageId = messageId, ProcessedAt = now, ExpiresAt = now.Add(expiry) };
 
 		// Atomic first-writer-wins: only the caller whose TryAdd succeeds holds the claim.
 		// A concurrent duplicate loses the race and is told it is a duplicate.
 		if (_processedMessages.TryAdd(messageId, entry))
 		{
 			LogMessageMarkedProcessed(messageId, entry.ExpiresAt);
-			return Task.FromResult(true);
+			return Task.FromResult<LeaseToken?>(new LeaseToken(entry.ClaimId));
 		}
 
 		_ = Interlocked.Increment(ref _duplicatesDetected);
 		_duplicatesSuppressedCounter.Add(1);
-		return Task.FromResult(false);
+		return Task.FromResult<LeaseToken?>(null);
 	}
 
 	/// <inheritdoc />
-	public Task ReleaseAsync(string messageId, CancellationToken cancellationToken)
+	public Task<bool> ReleaseAsync(string messageId, LeaseToken claim, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-		// Remove the claim so a redelivery can re-admit. No-op if already removed or never claimed.
-		_ = _processedMessages.TryRemove(messageId, out _);
+		// Remove the claim so a redelivery can re-admit -- but ONLY this caller's own claim.
+		//
+		// A blind TryRemove(key) deletes whatever occupies the key NOW. This claim carries an expiry, so a
+		// caller that outran it can arrive here after a second caller has already re-claimed the id; the
+		// blind removal would delete that LIVE claim and let the same message be admitted twice. Comparing
+		// the term first makes releasing someone else's claim inexpressible.
+		//
+		// No status predicate substitutes for this: at the instant of the bad removal the entry is a
+		// perfectly valid, unexpired claim -- its successor's.
+		if (!_processedMessages.TryGetValue(messageId, out var entry) ||
+			!string.Equals(entry.ClaimId, claim.Value, StringComparison.Ordinal))
+		{
+			return Task.FromResult(false);
+		}
 
-		return Task.CompletedTask;
+		// Remove the exact entry whose term matched. The value-comparing overload closes the remaining
+		// window in which a concurrent caller swaps the entry between the check above and the removal.
+		return Task.FromResult(_processedMessages.TryRemove(new KeyValuePair<string, ProcessedEntry>(messageId, entry)));
 	}
+
+	/// <summary>
+	/// Mints an opaque, unique ownership term for a newly installed entry.
+	/// </summary>
+	private static string NewClaimId() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
 
 	/// <inheritdoc />
 	public Task<int> CleanupExpiredEntriesAsync(CancellationToken cancellationToken)
 	{
 		var now = DateTimeOffset.UtcNow;
 		var removedCount = 0;
-		var expiredKeys = new List<string>();
+
+		// Capture the whole entry, not just the key. The scan and the removal are separate passes, so a
+		// concurrent caller can replace an expired entry with a live claim in between; removing by key
+		// alone would delete that live claim and let the message be admitted twice.
+		var expired = new List<KeyValuePair<string, ProcessedEntry>>();
 
 		// Identify expired entries
 		foreach (var kvp in _processedMessages)
 		{
 			if (kvp.Value.ExpiresAt <= now)
 			{
-				expiredKeys.Add(kvp.Key);
+				expired.Add(kvp);
 			}
 
-			// Check for cancellation periodically (use expiredKeys.Count, not removedCount which is always 0 here)
-			if (expiredKeys.Count % 100 == 0 && cancellationToken.IsCancellationRequested)
+			// Check for cancellation periodically (use expired.Count, not removedCount which is always 0 here)
+			if (expired.Count % 100 == 0 && cancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
 		}
 
-		// Remove expired entries
-		foreach (var key in expiredKeys)
+		// Remove expired entries -- each only if it is still the exact entry the scan judged expired.
+		foreach (var entry in expired)
 		{
-			if (_processedMessages.TryRemove(key, out _))
+			if (_processedMessages.TryRemove(entry))
 			{
 				removedCount++;
 				_ = Interlocked.Increment(ref _entriesExpired);
@@ -412,8 +441,28 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	/// <summary>
 	/// Internal structure to track processed message information.
 	/// </summary>
+	/// <remarks>
+	/// Instances are immutable and every write installs a fresh one, so reference identity means
+	/// "the exact version I read". The removal paths rely on that: they use the value-comparing
+	/// <c>TryRemove(KeyValuePair{TKey,TValue})</c> overload, which compares through
+	/// <see cref="EqualityComparer{T}.Default"/> — reference equality for this type. Do not give this
+	/// type value equality (do not convert it to a record or add <c>Equals</c>): two distinct claims
+	/// that happened to share a timestamp would then compare equal, and a caller holding a stale entry
+	/// could delete a live claim — the defect the comparing overload exists to prevent.
+	/// </remarks>
 	private sealed class ProcessedEntry
 	{
+		/// <summary>
+		/// Gets the opaque term identifying the caller that installed this entry.
+		/// </summary>
+		/// <remarks>
+		/// Drawn from a cryptographic RNG rather than derived from the timestamps, so it is unique by
+		/// construction and stays valid even when a later write extends <see cref="ExpiresAt"/>. A term
+		/// derived from the expiry would silently change underneath a live holder when that happens.
+		/// </remarks>
+		/// <value>The current <see cref="ClaimId"/> value.</value>
+		public required string ClaimId { get; init; }
+
 		/// <summary>
 		/// Gets the message identifier.
 		/// </summary>
@@ -433,7 +482,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		public required DateTimeOffset ExpiresAt { get; init; }
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(DeliveryEventId.DeduplicatorInitialized, LogLevel.Debug,
 		"InMemoryDeduplicator initialized with cleanup interval: {CleanupInterval}")]
 	private partial void LogDeduplicatorInitialized(TimeSpan cleanupInterval);

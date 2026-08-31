@@ -30,17 +30,29 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	private readonly ILogger<SqlServerDeadLetterStore> _logger;
 	private readonly string _schema;
 	private readonly string _tableName;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerDeadLetterStore" /> class.
 	/// </summary>
 	/// <param name="options"> The SQL Server dead letter options. </param>
-	/// <param name="tenantContext"> The ambient tenant, or <see langword="null" /> in a single-tenant host. </param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="logger"> The logger for diagnostic output. </param>
 	public SqlServerDeadLetterStore(
 		IOptions<SqlServerDeadLetterOptions> options,
-		ITenantContext? tenantContext,
+		ITenantContext tenantContext,
 		ILogger<SqlServerDeadLetterStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -53,9 +65,8 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 		_schema = opts.SchemaName;
 		_tableName = opts.TableName;
 
-		// Optional by construction: a single-tenant host registers no ITenantContext, which resolves to the
-		// untenanted partition. That partition still binds a concrete term, so no statement is ever emitted
 		// without a tenant predicate.
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger;
 
@@ -73,13 +84,9 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	/// inhabitant, so the term is always concrete and a tenant-blind statement cannot arise by omission.
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "JSON serialization used for properties storage; Dictionary<string, string> is well-defined and preserved")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "JSON serialization of message properties dictionary uses well-known types that are preserved")]
 	public async Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -122,17 +129,13 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 				message.ReplayedAt,
 				message.SourceSystem,
 				message.CorrelationId,
-				Properties = JsonSerializer.Serialize(message.Properties),
+				Properties = JsonSerializer.Serialize(message.Properties, DeadLetterJsonContext.Default.DictionaryStringString),
 			}).ConfigureAwait(false);
 
 		LogStoredDeadLetterMessage(message.MessageId, message.MessageType, message.Reason);
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Dapper query mapping and JSON deserialization use well-known types that are preserved")]
-	[UnconditionalSuppressMessage("AOT", "IL3051:RequiresDynamicCode",
-		Justification = "ToDeadLetterMessage uses JSON deserialization for properties; Dictionary<string, string> is well-defined")]
 	public async Task<DeadLetterMessage?> GetByIdAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -209,11 +212,7 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 			parameters.Add("CorrelationId", filter.CorrelationId);
 		}
 
-		sql += """
-		        ORDER BY MovedToDeadLetterAt DESC
-		        OFFSET @Skip ROWS
-		        FETCH NEXT @MaxResults ROWS ONLY
-		""";
+		sql += " ORDER BY MovedToDeadLetterAt DESC OFFSET @Skip ROWS FETCH NEXT @MaxResults ROWS ONLY";
 
 		parameters.Add("Skip", filter.Skip);
 		parameters.Add("MaxResults", filter.MaxResults);
@@ -370,10 +369,6 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 
 		public string? Properties { get; set; }
 
-		[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "JSON deserialization used for properties retrieval; Dictionary<string, string> is well-defined and preserved")]
-		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "JSON deserialization of Dictionary<string, string> uses well-known types that are preserved")]
 		public DeadLetterMessage ToDeadLetterMessage() =>
 			new()
 			{
@@ -394,7 +389,7 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 				CorrelationId = CorrelationId,
 				Properties = string.IsNullOrWhiteSpace(Properties)
 					? []
-					: JsonSerializer.Deserialize<Dictionary<string, string>>(Properties) ?? [],
+					: JsonSerializer.Deserialize(Properties, DeadLetterJsonContext.Default.DictionaryStringString) ?? [],
 			};
 	}
 }

@@ -161,48 +161,6 @@ public sealed class GooglePubSubSerializationRecordsShould
 	}
 
 	[Fact]
-	public void CreateSchemaMetadataWithDefaults()
-	{
-		// Act
-		var metadata = new SchemaMetadata();
-
-		// Assert
-		metadata.TypeName.ShouldBe(string.Empty);
-		metadata.Schema.ShouldBe(string.Empty);
-		metadata.Version.ShouldBe(0);
-		metadata.Format.ShouldBe(default);
-		metadata.RegisteredAt.ShouldBe(default);
-		metadata.Metadata.ShouldNotBeNull();
-		metadata.Metadata.Count.ShouldBe(0);
-	}
-
-	[Fact]
-	public void SetSchemaMetadataProperties()
-	{
-		// Arrange
-		var registeredAt = DateTimeOffset.UtcNow;
-
-		// Act
-		var metadata = new SchemaMetadata
-		{
-			TypeName = "OrderCreatedEvent",
-			Schema = "{\"type\":\"object\"}",
-			Version = 3,
-			Format = SerializationFormat.Json,
-			RegisteredAt = registeredAt,
-			Metadata = new Dictionary<string, string> { ["author"] = "system" },
-		};
-
-		// Assert
-		metadata.TypeName.ShouldBe("OrderCreatedEvent");
-		metadata.Schema.ShouldBe("{\"type\":\"object\"}");
-		metadata.Version.ShouldBe(3);
-		metadata.Format.ShouldBe(SerializationFormat.Json);
-		metadata.RegisteredAt.ShouldBe(registeredAt);
-		metadata.Metadata["author"].ShouldBe("system");
-	}
-
-	[Fact]
 	public void CreateSerializationStatisticsWithDefaults()
 	{
 		// Act

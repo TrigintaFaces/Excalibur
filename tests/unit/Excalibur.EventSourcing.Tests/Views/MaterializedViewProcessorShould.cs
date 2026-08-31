@@ -858,8 +858,83 @@ public sealed class MaterializedViewProcessorShould
 
     #endregion Test Events
 
-    #region Test Doubles
+    #region Erased (tombstoned) events
 
+    // Regression lock: a GDPR-erased event must be recognized structurally and skipped, never handed to
+    // the serializer.
+    //
+    // NOTE ON THE RED, stated honestly: unlike the projection hosts and the live subscription, this
+    // processor was NEVER wedged by a tombstone. Its per-event catch already logged-and-continued, and
+    // its position advances unconditionally past the last event in the batch, so there is no
+    // "position fails to advance" RED available here and none is claimed. The pre-fix defect is
+    // narrower: every tombstone was pushed through ResolveType, threw, and was logged at Error level as
+    // a processing failure. During a rebuild over a stream containing an erased subject that is an error
+    // storm which an operator cannot distinguish from real poison events. This lock binds that: no error
+    // is logged for a tombstone, and a good event in the same batch still applies.
+    [Fact]
+    public async Task SkipErasedEventsWithoutLoggingAProcessingError()
+    {
+        // Arrange - a tombstone followed by a genuine event, in one batch.
+        var builder = new OrderSummaryViewBuilder();
+        var capturingLogger = new global::Tests.Shared.Helpers.CapturingLogger<MaterializedViewProcessor>();
+        var processor = new MaterializedViewProcessor(
+            _viewStore,
+            _globalStreamQuery,
+            _eventSerializer,
+            CreateRegistrations(builder),
+            _options,
+            capturingLogger);
+
+        var tombstone = CreateStoredEvent("order-erased", ErasedEventMarker.EventType, 1);
+        var liveEvent = CreateStoredEvent("order-1", nameof(OrderCreatedEvent), 2);
+        _globalStreamQuery.SetEvents([tombstone, liveEvent]);
+        _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+        _eventSerializer.RegisterEvent(liveEvent.EventData, new OrderCreatedEvent("order-1", "Live", 42m));
+
+        // Act
+        await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
+
+        // Assert - the tombstone produced no error. Pre-fix it was resolved, threw, and was logged as a
+        // processing error: RED here.
+        capturingLogger.Entries
+            .Where(e => e.Level >= LogLevel.Error)
+            .ShouldBeEmpty("an erased event is a normal part of the stream, not a processing failure");
+
+        // Liveness: the non-erased event in the same batch was still applied, so the skip did not
+        // swallow the batch.
+        var view = await _viewStore.GetAsync<OrderSummaryView>(
+            "OrderSummary", "order-1", CancellationToken.None);
+        _ = view.ShouldNotBeNull("a good event alongside a tombstone must still reach its builder");
+    }
+
+    // Over-reach guard: a genuinely unresolvable (non-marker) event must STILL be logged as a processing
+    // error, so real corruption is never quietly reclassified as a lawful erasure. Green on both surfaces.
+    [Fact]
+    public async Task StillLogAProcessingErrorForAGenuinelyUnresolvableEvent()
+    {
+        var builder = new OrderSummaryViewBuilder();
+        var capturingLogger = new global::Tests.Shared.Helpers.CapturingLogger<MaterializedViewProcessor>();
+        var processor = new MaterializedViewProcessor(
+            _viewStore,
+            _globalStreamQuery,
+            _eventSerializer,
+            CreateRegistrations(builder),
+            _options,
+            capturingLogger);
+
+        // Registered with no type mapping -> FakeEventSerializer.ResolveType throws.
+        _globalStreamQuery.SetEvents([CreateStoredEvent("order-1", "UnregisteredEvent", 1)]);
+
+        await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
+
+        capturingLogger.Entries
+            .Where(e => e.Level >= LogLevel.Error)
+            .ShouldNotBeEmpty("genuine corruption must still surface as a processing error");
+    }
+
+    #endregion Erased (tombstoned) events
+
+    #region Test Doubles
     /// <summary>
     /// In-memory view store that supports the reflection-based generic calls
     /// used by <see cref="MaterializedViewProcessor"/>.

@@ -10,10 +10,9 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This interface composes four focused sub-interfaces for consumers that need only a subset of capabilities:
+/// This interface composes three focused sub-interfaces for consumers that need only a subset of capabilities:
 /// </para>
 /// <list type="bullet">
-/// <item><description><see cref="IElasticsearchSecurityMonitoring"/> — Lifecycle operations (start, stop, status).</description></item>
 /// <item><description><see cref="IElasticsearchSecurityAnalysis"/> — Event analysis and threat detection.</description></item>
 /// <item><description><see cref="IElasticsearchSecurityAlerting"/> — Alert processing, risk scoring, and automated response.</description></item>
 /// <item><description><see cref="IElasticsearchSecurityMonitorEvents"/> — Events and threat intelligence updates.</description></item>
@@ -24,9 +23,13 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// </para>
 /// </remarks>
 public interface IElasticsearchSecurityMonitor
-	: IElasticsearchSecurityMonitoring,
-	  IElasticsearchSecurityAnalysis,
+	: IElasticsearchSecurityAnalysis,
 	  IElasticsearchSecurityAlerting,
 	  IElasticsearchSecurityMonitorEvents
 {
+	/// <summary>
+	/// Gets the monitoring configuration this monitor was created with.
+	/// </summary>
+	/// <value> The effective security monitoring options. </value>
+	SecurityMonitoringOptions Configuration { get; }
 }

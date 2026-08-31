@@ -27,8 +27,8 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// <param name="qualifiedTableName">The fully qualified saga table name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope. When <see cref="TenantScope.None"/> (the non-multi-tenant default), no tenant
-	/// predicate or parameter is emitted; when tenant-scoped, the load is restricted to the current tenant's
+	/// The tenant scope. The tenant predicate and its parameter are emitted unconditionally — an untenanted
+	/// scope binds the reserved sentinel — so the load is restricted to the current partition's
 	/// saga (<c>AND TenantId = :TenantId</c>) so a tenant can never load another tenant's saga by id. A
 	/// tenant-scoped read cannot be constructed without a tenant, so a predicate-less all-tenants load while
 	/// tenancy is active is unrepresentable.

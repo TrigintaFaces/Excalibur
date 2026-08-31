@@ -24,10 +24,10 @@ namespace Excalibur.EventSourcing.Projections;
 /// </code>
 /// <para>
 /// If neither <see cref="Inline"/> nor <see cref="Async"/> is called, the projection
-/// defaults to <see cref="ProjectionMode.Async"/> (R27.31).
+/// defaults to <see cref="ProjectionMode.Async"/>.
 /// </para>
 /// <para>
-/// A second registration for the same projection type replaces the first (R27.37).
+/// A second registration for the same projection type replaces the first.
 /// </para>
 /// </remarks>
 public interface IProjectionBuilder<TProjection>
@@ -117,7 +117,7 @@ public interface IProjectionBuilder<TProjection>
 	/// for cross-aggregate lookups, logging, and other services.
 	/// </para>
 	/// <para>
-	/// A second registration for the same event type replaces the first (R27.37).
+	/// A second registration for the same event type replaces the first.
 	/// </para>
 	/// </remarks>
 #pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
@@ -182,7 +182,7 @@ public interface IProjectionBuilder<TProjection>
 
 	/// <summary>
 	/// Registers a deletion handler that is invoked when the associated aggregate
-	/// is deleted (R27.23). The handler receives the projection ID and a cancellation token,
+	/// is deleted. The handler receives the projection ID and a cancellation token,
 	/// and is responsible for removing the projection from its store.
 	/// </summary>
 	/// <param name="deleteAction">

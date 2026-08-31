@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Data;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.MongoDB;
@@ -42,7 +43,7 @@ public sealed class MongoDbEventStoreBatchAppendAtomicityShould : IClassFixture<
 			ConnectionString = _fixture.ConnectionString,
 			DatabaseName = _fixture.DatabaseName,
 		});
-		return new MongoDbEventStore(options, NullLogger<MongoDbEventStore>.Instance);
+		return new MongoDbEventStore(options, NullLogger<MongoDbEventStore>.Instance, UntenantedContext.Instance);
 	}
 
 	private static List<TestDomainEvent> NewBatch(string aggregateId, int count) =>

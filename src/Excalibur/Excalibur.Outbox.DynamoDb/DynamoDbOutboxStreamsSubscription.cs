@@ -10,6 +10,7 @@ using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
 
 using Excalibur.Data.CloudNative;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 
@@ -319,16 +320,19 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 			Payload = item.TryGetValue("payload", out var payload) && !string.IsNullOrEmpty(payload.S)
 				? Convert.FromBase64String(payload.S)
 				: [],
-#pragma warning disable IL2026
+#pragma warning disable IL2026, IL3050
 			Headers = item.TryGetValue("headers", out var headers) && !string.IsNullOrEmpty(headers.S)
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(headers.S, JsonOptions)
 				: null,
-#pragma warning restore IL2026
+#pragma warning restore IL2026, IL3050
 			AggregateId = item.TryGetValue("aggregateId", out var aggId) ? aggId.S : null,
 			AggregateType = item.TryGetValue("aggregateType", out var aggType) ? aggType.S : null,
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,
 			CausationId = item.TryGetValue("causationId", out var causId) ? causId.S : null,
-			TenantId = item.TryGetValue("tenantId", out var tenId) ? tenId.S : null,
+			// Read-tolerant, matching DynamoDbOutboxStore.FromAttributeMap: a missing attribute folds
+			// onto the reserved sentinel through the same total conversion, never surfacing as null.
+			TenantId = KeyedTenantPartition.FromStoredValue(
+				item.TryGetValue("tenantId", out var tenId) ? tenId.S : null).TenantId,
 			Destination = item.TryGetValue("destination", out var dest) ? dest.S : null,
 			CreatedAt = item.TryGetValue("createdAt", out var created) && !string.IsNullOrEmpty(created.S)
 				? DateTimeOffset.Parse(created.S, CultureInfo.InvariantCulture)

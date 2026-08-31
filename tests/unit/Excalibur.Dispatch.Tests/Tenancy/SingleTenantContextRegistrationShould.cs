@@ -141,7 +141,7 @@ public sealed class SingleTenantContextRegistrationShould
 
 		var scope = TenantScope.FromContext(context);
 
-		scope.IsScoped.ShouldBeTrue(
+		scope.TenantId.ShouldNotBeNullOrWhiteSpace(
 			"the single-tenant default must produce a usable scope, not merely resolve from DI. If this " +
 			"throws or reports unscoped, a validation rule has been added to TenantScope.Scoped that " +
 			"rejects this context's value WITHOUT the coupled change to that value — which makes every " +

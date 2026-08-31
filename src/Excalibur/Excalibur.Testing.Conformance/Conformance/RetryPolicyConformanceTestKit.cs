@@ -40,7 +40,7 @@ namespace Excalibur.Testing.Conformance;
 /// </example>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class RetryPolicyConformanceTestKit
+public abstract class RetryPolicyConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Gets a value indicating whether the policy under test is a null/no-retry policy.

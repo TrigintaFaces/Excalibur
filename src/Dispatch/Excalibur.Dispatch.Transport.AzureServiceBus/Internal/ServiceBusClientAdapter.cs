@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 /// to a real <see cref="ServiceBusClient"/>. This adapter is intentionally the
 /// only place in the framework that touches live Azure Service Bus SDK
 /// client/sender/receiver types — tests substitute at the seam, never at the
-/// SDK types directly (ADR-142 §D7, S798 task-515).
+/// SDK types directly.
 /// </summary>
 internal sealed class ServiceBusClientAdapter : IServiceBusClient
 {

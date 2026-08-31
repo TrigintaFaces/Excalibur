@@ -27,19 +27,18 @@ internal sealed partial class ContextEnrichingExporter(IServiceProvider serviceP
 	/// </summary>
 	/// <param name="batch">The batch of activities to export.</param>
 	/// <returns>The export result indicating success or failure.</returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: enrichment serializes context values reflectively, but BaseExporter<T>.Export is a third-party base member that cannot carry the annotation, so no consumer signal is reachable from here. Tracked for a source-generated context-serialization seam.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: enrichment serializes context values reflectively, but BaseExporter<T>.Export is a third-party base member that cannot carry the annotation, so no consumer signal is reachable from here. Tracked for a source-generated context-serialization seam.")]
 	public override ExportResult Export(in Batch<Activity> batch)
 	{
-		// R0.8: Suppress: calling method with RequiresUnreferencedCode/RequiresDynamicCode - override cannot have attribute
-#pragma warning disable IL2026, IL3050
 		EnrichActivities(serviceProvider, batch);
-#pragma warning restore IL2026, IL3050
 		return ExportResult.Success;
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
 		Justification = "Fail-open enrichment: a throwing enricher must never break the trace export (Microsoft skip-pattern).")]
+	[RequiresUnreferencedCode("Context values are serialized with the reflection-based JSON serializer; supply source-generated serialization for trimming and AOT.")]
+	[RequiresDynamicCode("Context values are serialized with the reflection-based JSON serializer; supply source-generated serialization for trimming and AOT.")]
 	private static void EnrichActivities(IServiceProvider serviceProvider, in Batch<Activity> batch)
 	{
 		var enricher = serviceProvider.GetService<IContextTraceEnricher>();

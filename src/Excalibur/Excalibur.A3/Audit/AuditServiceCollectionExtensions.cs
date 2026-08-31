@@ -82,14 +82,17 @@ internal static class AuditServiceCollectionExtensions
 
 		// Framework-internal IOutboxDispatcher sibling — Shape 1 Bucket-A TryAdd
 		// default so the Audit composition is wireable without an explicit Outbox
-		// backend (S792 bd-drizep / ADR-322 §Decision-3). When AddExcaliburOutbox
+		// backend (§Decision-3). When AddExcaliburOutbox
 		// is present, TryAdd is a no-op and the real MessageOutbox wins.
 		services.TryAddSingleton<IOutboxDispatcher, DefaultOutboxDispatcher>();
 
-		// The middleware itself — Scoped lifetime aligns with IActivityContext
-		// (itself Scoped) so ServiceProviderOptions.ValidateScopes=true is clean.
-		// TryAddEnumerable avoids double-registration when this extension is
-		// called more than once (S792 bd-b5w27b / captive-dep fix).
+		// The middleware itself. It holds no per-request state — the audit context is
+		// resolved from the action's own scope on every invocation — so the lifetime is
+		// not what keeps callers apart. What the lifetime does state truthfully is the
+		// dependency subtree: a consumer's IAuditMessagePublisher may itself be scoped,
+		// so a singleton descriptor here would be a captive dependency ValidateOnBuild
+		// rejects. TryAddEnumerable avoids double-registration when this extension is
+		// called more than once.
 		services.TryAddEnumerable(ServiceDescriptor.Scoped<IDispatchMiddleware, AuditMiddleware>());
 
 		return services;

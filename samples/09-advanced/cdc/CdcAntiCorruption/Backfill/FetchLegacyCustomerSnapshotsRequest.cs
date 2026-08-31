@@ -20,9 +20,13 @@ namespace CdcAntiCorruption.Backfill;
 /// for cursor-paginated batch reads from a legacy database table.
 /// The cursor is the <c>ChangedAtUtc</c> timestamp of the last record in the previous batch.
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.NoTenantDimension,
+	"a backfill sweep over a legacy source table that has no tenant dimension: it walks LegacyCustomers in change order on behalf of the migration, not on behalf of a tenant, and its reach is bounded by the cursor and batch size it is given rather than by any tenant state. When the legacy source does carry a tenant column, a backfill has two honest options — sweep it estate-wide as an operator and keep this declaration, or take the tenant as an explicit parameter, filter on it, and declare Scoped. What it must not do is filter on a tenant it inferred from ambient state, because a backfill runs on a background thread where that state is absent")]
 public sealed class FetchLegacyCustomerSnapshotsRequest
 	: DataRequestBase<IDbConnection, CursorFetchResult<LegacyCustomerSnapshot>>
 {
+
 	private const string SqlWithCursor = """
 		SELECT TOP (@BatchSize) ExternalId, Name, Email, Phone, ChangedAtUtc
 		FROM LegacyCustomers

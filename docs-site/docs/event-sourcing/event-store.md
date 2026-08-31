@@ -112,13 +112,25 @@ CREATE TABLE [events].[Events] (
     [EventData] VARBINARY(MAX) NULL,
     [Metadata] VARBINARY(MAX) NULL,
     [Timestamp] DATETIMEOFFSET NOT NULL,
-    -- Only used when multi-tenancy is enabled, and MUST stay nullable: on the
-    -- unscoped path the insert emits neither this column nor its parameter.
-    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
+    -- NOT NULL, and part of the stream key below. Every write binds a tenant term: a
+    -- single-tenant (unscoped) host stores the reserved '__untenanted__' sentinel here rather
+    -- than omitting the column, so there is exactly one way to say "this event has no tenant"
+    -- and it is a value. The sentinel is concrete because a NULL discriminator cannot
+    -- participate in a unique constraint on any provider.
+    -- Binary collation: the server default is typically case-insensitive, so without it a
+    -- scoped read matches another tenant whose identifier differs only by case.
+    [TenantId] NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
 
     CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
     CONSTRAINT [UQ_Events_EventId] UNIQUE ([EventId]),
-    CONSTRAINT [UQ_Events_Aggregate_Version] UNIQUE ([AggregateId], [AggregateType], [Version])
+    -- The tenant participates in stream IDENTITY, not merely in read filters, which makes
+    -- optimistic concurrency per-tenant rather than global. Leaving it out of this key while
+    -- the version probe is tenant-scoped makes the two disagree: the probe reports "no such
+    -- aggregate" for a tenant that has never used the id, while the insert collides with
+    -- another tenant's row. The caller sees a retryable concurrency conflict whose retry
+    -- re-probes and collides again, so it never converges.
+    CONSTRAINT [UQ_Events_Aggregate_Version]
+        UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
 
 CREATE INDEX [IX_Events_Aggregate] ON [events].[Events] ([AggregateId], [AggregateType], [Version]);
@@ -132,13 +144,13 @@ earlier `Events` schema, add it before deploying — otherwise, once an ambient 
 and every append fails with `Invalid column name 'TenantId'`:
 
 ```sql
-ALTER TABLE [events].[Events] ADD [TenantId] NVARCHAR(255) COLLATE Latin1_General_BIN2 NULL;
+ALTER TABLE [events].[Events] ADD [TenantId] NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL;
 ```
 
 On PostgreSQL the column is `tenant_id`:
 
 ```sql
-ALTER TABLE events ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255);
+ALTER TABLE events ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64);
 ```
 
 :::

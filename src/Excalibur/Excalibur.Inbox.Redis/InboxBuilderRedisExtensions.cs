@@ -115,25 +115,26 @@ public static class InboxBuilderRedisExtensions
 		// multi-tenancy composition replaces it with the ambient context.
 		builder.Services.AddDefaultTenantContext();
 
-		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup key + every keyed read
-		// scope per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably from that
-		// wiring (S886 rw2ull — an unwired provider can't carry a truthful marker).
+		// AddTenantAwareStore builds the store injecting ITenantContext (so the dedup key + every keyed read
+		// scope per tenant, since this store's constructor declares one) AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably from that wiring (an
+		// unwired provider can't carry a truthful marker).
 		if (hasBuilderConnection || redisBuilder.ConnectionStringValue is not null)
 		{
-			builder.Services.AddTenantScopedStore<IInboxStore, RedisInboxStore>((sp, tenantContext) =>
+			builder.Services.AddTenantAwareStore<IInboxStore, RedisInboxStore>(sp =>
 				new RedisInboxStore(
 					sp.GetRequiredService<ConnectionMultiplexer>(),
 					sp.GetRequiredService<IOptions<RedisInboxOptions>>(),
 					sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisInboxStore>>(),
-					tenantContext));
+					sp.GetRequiredService<ITenantContext>()));
 		}
 		else
 		{
-			builder.Services.AddTenantScopedStore<IInboxStore, RedisInboxStore>((sp, tenantContext) =>
+			builder.Services.AddTenantAwareStore<IInboxStore, RedisInboxStore>(sp =>
 				new RedisInboxStore(
 					sp.GetRequiredService<IOptions<RedisInboxOptions>>(),
 					sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisInboxStore>>(),
-					tenantContext));
+					sp.GetRequiredService<ITenantContext>()));
 		}
 
 		builder.Services.AddKeyedSingleton<IInboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisInboxStore>());

@@ -15,7 +15,7 @@ namespace Excalibur.Saga.Diagnostics;
 /// <item>123000-123999: Saga Storage</item>
 /// </list>
 /// </remarks>
-public static class SagaEventId
+internal static class SagaEventId
 {
 	// ========================================
 	// 120000-120099: Saga Core

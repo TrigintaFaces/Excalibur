@@ -7,11 +7,10 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// xUnit collection definition for Firestore InboxStore integration tests.
 /// Collection definitions must be in the same assembly as the tests.
 /// </summary>
-[CollectionDefinition(CollectionName)]
-public class FirestoreInboxStoreTestCollection : ICollectionFixture<FirestoreInboxStoreContainerFixture>
+public static class FirestoreInboxStoreTestCollection
 {
 	/// <summary>
 	/// The collection name used by test classes.
 	/// </summary>
-	public const string CollectionName = "Firestore InboxStore Integration Tests";
+	public const string CollectionName = global::Excalibur.Integration.Tests.FirestoreSerialCollection.CollectionName;
 }

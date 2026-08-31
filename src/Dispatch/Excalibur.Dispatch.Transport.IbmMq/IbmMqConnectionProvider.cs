@@ -18,6 +18,22 @@ internal sealed class IbmMqConnectionProvider : IIbmMqConnectionProvider
 	public IbmMqConnectionProvider(IbmMqOptions options)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+
+		// Refused here rather than at connect: this provider is the single queue-manager seam both the
+		// sender and the receiver route through, and it is constructed when the transport is resolved, so
+		// a plaintext registration fails while the host is starting instead of on the first put.
+		if (_options.RequireTls && string.IsNullOrWhiteSpace(_options.SslCipherSpec))
+		{
+			throw new TransportSecurityException(
+				"Cannot connect to the IBM MQ queue manager: TLS is required but no CipherSpec is configured, so "
+				+ "the user id, password and every message body would cross the wire in the clear. Set "
+				+ "IbmMqOptions.SslCipherSpec to the CipherSpec configured on the SVRCONN channel (for example "
+				+ "ANY_TLS12_OR_HIGHER), or set IbmMqOptions.RequireTls to false to accept an unencrypted channel.")
+			{
+				TransportName = "IBM MQ",
+				FailureReason = TransportSecurityFailureReason.TlsNotEnabled,
+			};
+		}
 	}
 
 	public MQQueueManager CreateQueueManager()
@@ -38,6 +54,18 @@ internal sealed class IbmMqConnectionProvider : IIbmMqConnectionProvider
 		if (!string.IsNullOrWhiteSpace(_options.Password))
 		{
 			properties.Add(MQC.PASSWORD_PROPERTY, _options.Password);
+		}
+
+		// The CipherSpec is what turns the channel into a TLS channel; without it the managed client
+		// connects in the clear regardless of the port.
+		if (!string.IsNullOrWhiteSpace(_options.SslCipherSpec))
+		{
+			properties.Add(MQC.SSL_CIPHER_SPEC_PROPERTY, _options.SslCipherSpec);
+
+			if (!string.IsNullOrWhiteSpace(_options.SslPeerName))
+			{
+				properties.Add(MQC.SSL_PEER_NAME_PROPERTY, _options.SslPeerName);
+			}
 		}
 
 		return new MQQueueManager(_options.QueueManager, properties);

@@ -112,7 +112,7 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 	public async Task<int> InsertActivityGroupGrantAsync(
 		string userId,
 		string fullName,
-		string? tenantId,
+		string tenantId,
 		string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn,

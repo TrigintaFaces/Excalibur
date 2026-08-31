@@ -29,7 +29,8 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 [Trait("Category", "Integration")]
 [Trait("Component", "Saga")]
 [Trait("Database", "Firestore")]
-public sealed class FirestoreSagaStoreConcurrencyConformanceShould : SagaStoreConformanceTestBase, IClassFixture<FirestoreSagaStoreContainerFixture>
+[Collection(global::Excalibur.Integration.Tests.FirestoreSerialCollection.CollectionName)]
+public sealed class FirestoreSagaStoreConcurrencyConformanceShould : SagaStoreConformanceTestBase
 {
 	private readonly FirestoreSagaStoreContainerFixture _fixture;
 	private readonly string _collectionName = $"sagas_{Guid.NewGuid():N}";
@@ -67,7 +68,9 @@ public sealed class FirestoreSagaStoreConcurrencyConformanceShould : SagaStoreCo
 		});
 
 		return Task.FromResult<ISagaStore>(
-			new FirestoreSagaStore(_fixture.Db, options, NullLogger<FirestoreSagaStore>.Instance, new DispatchJsonSerializer()));
+			new FirestoreSagaStore(
+				_fixture.Db, options, NullLogger<FirestoreSagaStore>.Instance, new DispatchJsonSerializer(),
+				SingleTenantTestContext.Instance));
 	}
 
 	/// <inheritdoc/>

@@ -83,8 +83,12 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 		// Act
 		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
-		// Assert - Same-partition messages are claimed in ascending SequenceNumber (partition-FIFO).
-		request.Command.CommandText.ShouldContain("ORDER BY PartitionKey, SequenceNumber ASC");
+		// Assert - Same-partition messages are claimed in ascending SequenceNumber (partition-FIFO), and
+		// CreatedAt breaks a tie on both, matching the Postgres and Oracle claims. Asserting the full key
+		// list rather than a prefix is deliberate: "ORDER BY PartitionKey, SequenceNumber ASC" is a
+		// substring of the correct statement, so a prefix assertion passes whether or not the tiebreak is
+		// present and cannot see the divergence this arm exists to catch.
+		request.Command.CommandText.ShouldContain("ORDER BY PartitionKey, SequenceNumber ASC, CreatedAt ASC");
 	}
 
 	[Fact]
@@ -94,8 +98,14 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert - A failed message is withheld until its computed backoff (NextAttemptAt) elapses;
-		// NULL means immediately eligible (no backoff schedule applied).
-		request.Command.CommandText.ShouldContain("NextAttemptAt IS NULL OR NextAttemptAt <= @Now");
+		// NULL means immediately eligible (no backoff schedule applied). The comparison is made on the
+		// SERVER clock, matching the clock the failure backoff writes NextAttemptAt from: comparing a
+		// server-stamped column against a caller-supplied instant delays the message by any skew between
+		// the two, so a caller-supplied instant here is a defect, not an equivalent formulation.
+		request.Command.CommandText.ShouldContain(
+			"NextAttemptAt IS NULL OR NextAttemptAt <= TODATETIMEOFFSET(SYSUTCDATETIME(), 0)");
+		request.Command.CommandText.ShouldNotContain(
+			"NextAttemptAt <= @Now", Case.Sensitive, "retry visibility must not depend on the caller's clock");
 	}
 
 	[Fact]
@@ -126,8 +136,12 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 		// Act
 		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
-		// Assert
-		request.Command.CommandText.ShouldContain("ScheduledAt IS NULL OR ScheduledAt <= @Now");
+		// Assert - decided on the server clock, for the same reason retry visibility is: a scheduled
+		// message must become due when the database says it is due, not when the caller's clock agrees.
+		request.Command.CommandText.ShouldContain(
+			"ScheduledAt IS NULL OR ScheduledAt <= TODATETIMEOFFSET(SYSUTCDATETIME(), 0)");
+		request.Command.CommandText.ShouldNotContain(
+			"ScheduledAt <= @Now", Case.Sensitive, "schedule visibility must not depend on the caller's clock");
 	}
 
 	[Fact]

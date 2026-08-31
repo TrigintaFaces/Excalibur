@@ -75,7 +75,6 @@ public static class OutboxBuilderElasticsearchExtensions
 			opt.IndexName = options.IndexName;
 			opt.RefreshPolicy = options.RefreshPolicy;
 			opt.DefaultBatchSize = options.DefaultBatchSize;
-			opt.SentMessageRetentionDays = options.SentMessageRetentionDays;
 		});
 
 		// Register BindConfiguration if set
@@ -97,7 +96,13 @@ public static class OutboxBuilderElasticsearchExtensions
 		RegisterClientFromBuilder(builder.Services, esBuilder);
 
 		// Register store services
-		builder.Services.TryAddSingleton<ElasticsearchOutboxStore>();
+		// AddTenantAwareStore emits ITenantPartitionedCapability<IOutboxStore> as part of THIS registration,
+		// so the attestation cannot exist without the store it describes. It is the partitioned seam rather
+		// than the scoped one because this store reads no ambient tenant on any path: it records the tenant
+		// on each document and returns it on drain, so the owning tenant is re-established from the document.
+		// That seam takes no ITenantContext, so there is no dependency here to be handed over and silently
+		// discarded. Without it, row-discriminator multi-tenancy refuses every host that selects this provider.
+		_ = builder.Services.AddTenantAwareStore<IOutboxStore, ElasticsearchOutboxStore>();
 		builder.Services.AddKeyedSingleton<IOutboxStore>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchOutboxStore>());
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("elasticsearch"));

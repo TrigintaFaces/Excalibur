@@ -56,9 +56,11 @@ public static class LeaderElectionBuilderExtensions
 		builder.Services.TryAddSingleton<FencingTokenMiddleware>();
 
 		// Fail loud at host startup if WithFencingTokens() was called without a registered provider
-		// (ADR-339 Decision 3). TryAddEnumerable keeps this idempotent across repeated calls. [bd-umemwa]
+		// (Decision 3). TryAddEnumerable keeps this idempotent across repeated calls.
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, FencingTokenPrerequisiteValidator>());
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, FencingTokenPrerequisiteValidator>());
 
 		return builder;
 	}

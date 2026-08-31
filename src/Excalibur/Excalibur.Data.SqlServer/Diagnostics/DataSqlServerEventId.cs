@@ -18,7 +18,7 @@ namespace Excalibur.Data.SqlServer.Diagnostics;
 /// <item>100600-100699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataSqlServerEventId
+internal static class DataSqlServerEventId
 {
 	// ========================================
 	// 100000-100099: Connection Management

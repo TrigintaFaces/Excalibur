@@ -43,17 +43,31 @@ namespace Excalibur.EventSourcing.Postgres;
 /// </remarks>
 public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive
 {
-	// Format markers for envelope detection (ADR-058)
+	// Format markers for envelope detection
 	private const byte EnvelopeFormatMarker = 0x01;
 
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<PostgresEventStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
+
+	/// <summary>
+	/// Whether the host supplied an event type-info resolver, selecting the reflection-free serialization
+	/// path. Decided once at construction because the resolver cannot change for a constructed store.
+	/// </summary>
+	private readonly bool _hasEventTypeInfoResolver;
 	private readonly ISerializer? _internalSerializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly string _schema;
 	private readonly string _table;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
 
 	/// <summary>
 	/// Clock used to evaluate age-based archive policy. Injectable so a conformance test can drive
@@ -67,13 +81,14 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// </summary>
 	/// <param name="connectionString">The Postgres connection string.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The ambient tenant context. Required: this store resolves the tenant partition it reads and writes from here.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ITenantContext, ISerializer, IPayloadSerializer, string, string, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
-	public PostgresEventStore(string connectionString, ILogger<PostgresEventStore> logger)
-		: this(CreateDataSource(connectionString), logger, internalSerializer: null, payloadSerializer: null, schema: "public", table: "events")
+	public PostgresEventStore(string connectionString, ILogger<PostgresEventStore> logger, ITenantContext tenantContext)
+		: this(CreateDataSource(connectionString), logger, internalSerializer: null, payloadSerializer: null, schema: "public", table: "events", tenantContext: tenantContext)
 	{
 	}
 
@@ -82,17 +97,19 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// </summary>
 	/// <param name="connectionString">The Postgres connection string.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The ambient tenant context. Required: this store resolves the tenant partition it reads and writes from here.</param>
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ITenantContext, ISerializer, IPayloadSerializer, string, string, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
 		string connectionString,
 		ILogger<PostgresEventStore> logger,
+		ITenantContext tenantContext,
 		ISerializer? internalSerializer)
-		: this(CreateDataSource(connectionString), logger, internalSerializer, payloadSerializer: null)
+		: this(CreateDataSource(connectionString), logger, tenantContext, internalSerializer, payloadSerializer: null)
 	{
 	}
 
@@ -101,19 +118,21 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// </summary>
 	/// <param name="connectionString">The Postgres connection string.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The ambient tenant context. Required: this store resolves the tenant partition it reads and writes from here.</param>
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ITenantContext, ISerializer, IPayloadSerializer, string, string, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
 		string connectionString,
 		ILogger<PostgresEventStore> logger,
+		ITenantContext tenantContext,
 		ISerializer? internalSerializer,
 		IPayloadSerializer? payloadSerializer)
-		: this(CreateDataSource(connectionString), logger, internalSerializer, payloadSerializer)
+		: this(CreateDataSource(connectionString), logger, tenantContext, internalSerializer, payloadSerializer)
 	{
 	}
 
@@ -130,11 +149,9 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
 	/// <param name="table">The event store table name. Default: "events".</param>
 	/// <param name="tenantContext">
-	/// Optional ambient tenant context. When supplied and a tenant is resolved, every query is scoped to the
-	/// current tenant (row-level <c>tenant_id</c> discriminator) in the same atomic statement. When
-	/// <see langword="null"/> (the default, non-multi-tenant path) no tenant scoping is applied and behavior
-	/// is unchanged. Fail-closed enforcement (throwing when a tenant is required but absent) is provided by
-	/// the tenant-scoping store decorator registered by the multi-tenancy composition, not by this base store.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
 	/// <remarks>
 	/// <para>
@@ -146,22 +163,33 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// <item><description>Integration with <see cref="IDb"/> abstraction</description></item>
 	/// </list>
 	/// </remarks>
+	/// <param name="eventTypeInfoResolver">
+	/// An optional source-generated JSON type-info resolver covering the application's domain event types
+	/// and the runtime types of the values it places in
+	/// <see cref="Excalibur.Dispatch.IDomainEvent.Metadata"/>. Supplied, the store serializes without
+	/// reflection, which is what a native-AOT host published with reflection-based serialization disabled
+	/// requires. Omitted, the store serializes through the reflection-based serializer exactly as before, so
+	/// an existing caller is unaffected. The stored wire format is byte-identical either way.
+	/// </param>
 	public PostgresEventStore(
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresEventStore> logger,
+		ITenantContext tenantContext,
 		ISerializer? internalSerializer = null,
 		IPayloadSerializer? payloadSerializer = null,
 		string schema = "public",
 		string table = "events",
-		ITenantContext? tenantContext = null)
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver = null)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
+		_hasEventTypeInfoResolver = EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, eventTypeInfoResolver);
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
 		_schema = schema;
 		_table = table;
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 	}
 
@@ -194,7 +222,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -231,7 +259,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		ArgumentNullException.ThrowIfNull(events);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
-		// Performance optimization: AD-250-1 - avoid ToList() when possible
+		// Performance optimization: - avoid ToList() when possible
 		// If already a collection with Count, use directly; otherwise materialize once
 		var eventList = events as IReadOnlyCollection<IDomainEvent> ?? events.ToList();
 
@@ -257,36 +285,33 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 			return appendResult;
 		}
-		catch (PostgresException pgEx) when (pgEx.SqlState == PostgresErrorCodes.UniqueViolation)
+		// NARROW BY DESIGN, and an ALLOW-LIST rather than an exclusion list. These are the two shapes a
+		// store fault reaches this method in: the driver's own exception, and the data-request seam's
+		// wrapper around it -- a closed set, because those are the only two layers between here and the
+		// database. An exclusion list would instead enumerate what must escape, which is wrong by default
+		// the first time something new appears and silently converts the newcomer into an ordinary append
+		// failure. That is how a cancelled append came to be reported as a store fault and retried inside
+		// a cancelled scope. Everything else -- cancellation, an event type the configured resolver does
+		// not declare, a programming error -- propagates, because a returned failure means "this could
+		// succeed if you try again" and none of those can.
+		catch (Exception ex) when (ex is NpgsqlException or OperationFailedException)
 		{
-			// A concurrent writer committed the same (aggregate_id, aggregate_type, version) tuple between our
-			// pre-check and INSERT; the UNIQUE constraint rejected our write. This is a genuine optimistic-
-			// concurrency conflict, not a generic failure — surfacing it as a conflict lets the repository's
-			// retry path (keyed on IsConcurrencyConflict) re-load and retry instead of failing hard.
-			result = WriteStoreTelemetry.Results.Conflict;
-			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+			// Nothing was written: the append's transaction and connection are scoped to the method that
+			// raised, so both are disposed -- and an uncommitted transaction rolled back -- while the
+			// exception unwinds, before this body runs. The only question left is whether this append lost
+			// its version precondition to another writer, which is a concurrency conflict, or failed for its
+			// own reasons, which is not.
+			var currentVersion = await ReadCurrentVersionAfterFailedAppendAsync(
+				aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 
-			long actualVersion;
-			try
+			if (IsLostRace(ex, currentVersion, expectedVersion))
 			{
-				await using var conflictConnection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-				actualVersion = await conflictConnection.ResolveAsync(
-						new GetCurrentVersionRequest(aggregateId, aggregateType, transaction: null, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
-					.ConfigureAwait(false);
-			}
-			catch (NpgsqlException reReadEx)
-			{
-				// Best-effort re-read; the conflict classification (not the exact version) is what drives retry.
-				actualVersion = expectedVersion + eventList.Count;
-				_logger.LogDebug(reReadEx,
-					"Could not re-read current version after unique violation for {AggregateType}/{AggregateId}",
-					aggregateType, aggregateId);
+				result = WriteStoreTelemetry.Results.Conflict;
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion ?? expectedVersion);
 			}
 
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
-		}
-		catch (Exception ex)
-		{
 			result = WriteStoreTelemetry.Results.Failure;
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
 			activity.RecordException(ex);
@@ -318,7 +343,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 		// Check current version using IDataRequest
 		var currentVersion = await connection.ResolveAsync(
-				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 
 		if (currentVersion != expectedVersion)
@@ -339,6 +364,128 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		_ = (activity?.SetTag(EventSourcingTags.Version, version));
 		activity.SetOperationResult(EventSourcingTagValues.Success);
 		return AppendResult.CreateSuccess(version, firstPosition);
+	}
+
+	/// <summary>
+	/// Determines whether the exception is the stream unique-constraint violation used for optimistic
+	/// concurrency.
+	/// </summary>
+	/// <param name="ex"> The exception to classify. </param>
+	/// <returns> <see langword="true"/> when the error is a unique-key violation. </returns>
+	/// <remarks>
+	/// <para>
+	/// The events table declares exactly one uniqueness constraint, on
+	/// <c>(aggregate_id, aggregate_type, version, tenant_id)</c>, so a uniqueness violation raised by an
+	/// append to that table is a collision on the stream key and nothing else.
+	/// </para>
+	/// <para>
+	/// The inner-exception chain is walked rather than the exception typed directly, because the insert
+	/// runs through the data-request seam, which wraps whatever the driver raised in an
+	/// <see cref="OperationFailedException"/>. Matching on the outermost type alone silently never
+	/// matched: every lost race arrived wrapped, missed this classification, and was reported to the
+	/// caller as an ordinary failure rather than the concurrency conflict it is -- so a caller's
+	/// reload-and-retry policy, which keys on the conflict flag, never fired. A pre-check hid that from
+	/// ordinary use, because it rejects a stale expected version before the insert is attempted; only a
+	/// genuinely concurrent writer, arriving between the pre-check and the insert, reaches here at all.
+	/// </para>
+	/// </remarks>
+	private static bool IsStreamUniqueViolation(Exception? ex)
+	{
+		for (var current = ex; current is not null; current = current.InnerException)
+		{
+			if (current is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Determines whether a failed append lost an optimistic-concurrency race, rather than failing on its
+	/// own account.
+	/// </summary>
+	/// <param name="ex"> The exception that ended the append. </param>
+	/// <param name="currentVersion"> The stream's version re-read after rollback, or <see langword="null"/> if it could not be read. </param>
+	/// <param name="expectedVersion"> The version the append required the stream to be at. </param>
+	/// <returns> <see langword="true"/> when the append is a concurrency conflict; otherwise <see langword="false"/>. </returns>
+	/// <remarks>
+	/// <para>
+	/// Every loser of an optimistic-concurrency race is a concurrency conflict regardless of which error
+	/// the engine happened to raise, and under contention Postgres does not always raise the same one: a
+	/// racing writer may be refused by the unique constraint, but it may equally be chosen as a deadlock
+	/// victim or be cancelled while waiting on the winner's locks. Those are different error codes for
+	/// one logical outcome. Classifying by error code alone therefore reports most losers correctly and
+	/// mislabels the rest, and a caller whose retry policy keys on the conflict flag does not reload and
+	/// retry the ones it mislabels -- it surfaces an opaque failure for an ordinary, expected conflict.
+	/// </para>
+	/// <para>
+	/// So the primary test is structural rather than a list of codes: the append's transaction has been
+	/// rolled back, so this writer wrote nothing; if the stream is no longer at the version this append
+	/// required, the precondition was lost to another writer, whatever surfaced. That test needs no
+	/// maintenance as engines and versions change, and it cannot over-report -- a stream still sitting at
+	/// the expected version proves nothing else claimed it, so the failure is the append's own and is
+	/// reported as one.
+	/// </para>
+	/// <para>
+	/// The unique-constraint code is kept as a first branch because a violation of the stream key is a
+	/// proof of conflict from the error alone, and it stands even when the re-read cannot be performed.
+	/// Without it, a lost race whose follow-up read also failed would be demoted to an ordinary failure.
+	/// </para>
+	/// </remarks>
+	private static bool IsLostRace(Exception ex, long? currentVersion, long expectedVersion) =>
+		IsStreamUniqueViolation(ex) || (currentVersion is { } version && version != expectedVersion);
+
+	/// <summary>
+	/// Re-reads the stream's committed version on a fresh connection after an append failed.
+	/// </summary>
+	/// <param name="aggregateId"> The aggregate whose append failed. </param>
+	/// <param name="aggregateType"> The aggregate type whose append failed. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns> The current persisted version, or <see langword="null"/> if it cannot be read. </returns>
+	/// <remarks>
+	/// <para>
+	/// A fresh connection is required: the appending connection is scoped to the method that raised and
+	/// has already been disposed, and reading through it before that point would have returned this
+	/// writer's own uncommitted state. Runs only on the failure path, so it costs a round trip precisely
+	/// when the caller has to reload anyway. Reporting the winner's version rather than echoing the
+	/// expected one back is what makes the conflict actionable.
+	/// </para>
+	/// <para>
+	/// Returns <see langword="null"/> rather than a substitute when the read fails, because the caller
+	/// uses this value to decide whether the stream moved. Supplying the expected version there would
+	/// read as "the stream did not move" and the classifier would conclude "no conflict" from a
+	/// measurement that never happened; supplying an estimate would read as "the stream moved" and
+	/// conclude the opposite from the same non-measurement.
+	/// </para>
+	/// <para>
+	/// The seam's wrapper is caught alongside the driver exception because this read goes through the
+	/// data-request seam, which wraps whatever the driver raised. Catching the driver type alone would
+	/// leave the wrapper to escape the failure path entirely and replace an append's own diagnosis with
+	/// the re-read's.
+	/// </para>
+	/// </remarks>
+	private async Task<long?> ReadCurrentVersionAfterFailedAppendAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+			return await connection.ResolveAsync(
+					new GetCurrentVersionRequest(
+						aggregateId, aggregateType, transaction: null, CurrentTenantScope, cancellationToken, _schema, _table))
+				.ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is NpgsqlException or OperationFailedException)
+		{
+			_logger.LogDebug(ex,
+				"Could not re-read current version after a failed append for {AggregateType}/{AggregateId}",
+				aggregateType, aggregateId);
+			return null;
+		}
 	}
 
 	private async ValueTask<(long Version, long FirstPosition)> InsertEventsAsync(
@@ -388,7 +535,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			var chunk = rows.GetRange(offset, count);
 
 			var inserted = await connection.ResolveAsync(
-					new InsertEventsBatchRequest(chunk, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+					new InsertEventsBatchRequest(chunk, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			foreach (var row in inserted)
@@ -443,7 +590,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// </summary>
 	private static string GetFullExceptionMessage(Exception ex)
 	{
-		// Performance optimization: AD-250-1 - use StringBuilder to avoid List allocation
+		// Performance optimization: - use StringBuilder to avoid List allocation
 		// Most exception chains are short (1-3 levels), so this is efficient
 		var current = ex;
 		if (current.InnerException == null)
@@ -502,7 +649,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// </summary>
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
-	private byte[] SerializeEvent(IDomainEvent @event)
+	private byte[] SerializeEvent(IDomainEvent @event, string? aggregateId, string? aggregateType)
 	{
 		if (_payloadSerializer != null)
 		{
@@ -510,13 +657,17 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		}
 
 		// Fallback to System.Text.Json for backward compatibility
-		return JsonSerializer.SerializeToUtf8Bytes(@event, @event.GetType(), _jsonOptions);
+		return _hasEventTypeInfoResolver
+			? ResolvedEventPayload.Serialize(@event, _jsonOptions, aggregateId, aggregateType)
+			: JsonSerializer.SerializeToUtf8Bytes(@event, @event.GetType(), _jsonOptions);
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
 	private byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
-		JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
+		_hasEventTypeInfoResolver
+			? EventSerializationDefaults.SerializeMetadataWithResolver(metadata, _jsonOptions)
+			: JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
 
 	/// <summary>
 	/// Serializes an event with envelope support if internal serializer is available.
@@ -533,13 +684,13 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		if (_internalSerializer is null)
 		{
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-			return SerializeEvent(@event);
+			return SerializeEvent(@event, aggregateId, aggregateType);
 #pragma warning restore IL2026, IL3050
 		}
 
 		// Create envelope with event data
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-		var eventBytes = SerializeEvent(@event);
+		var eventBytes = SerializeEvent(@event, aggregateId, aggregateType);
 #pragma warning restore IL2026, IL3050
 
 		var envelope = new EventEnvelope
@@ -577,7 +728,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 
@@ -590,7 +741,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.IsErasedRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+			new Requests.IsErasedRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 

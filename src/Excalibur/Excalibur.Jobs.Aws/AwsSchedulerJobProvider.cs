@@ -8,6 +8,7 @@ using Amazon.Scheduler;
 using Amazon.Scheduler.Model;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Jobs.Aws;
 
@@ -20,12 +21,12 @@ namespace Excalibur.Jobs.Aws;
 /// <param name="logger"> Logger for this provider. </param>
 public sealed partial class AwsSchedulerJobProvider(
 	AmazonSchedulerClient schedulerClient,
-	AwsSchedulerOptions options,
+	IOptions<AwsSchedulerOptions> options,
 	ILogger<AwsSchedulerJobProvider> logger) : IJobSchedulerProvider, IDisposable
 {
 	private readonly AmazonSchedulerClient _schedulerClient = schedulerClient ?? throw new ArgumentNullException(nameof(schedulerClient));
 	private readonly ILogger<AwsSchedulerJobProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly AwsSchedulerOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+	private readonly AwsSchedulerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private volatile bool _disposed;
 
 	/// <summary>

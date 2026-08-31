@@ -196,7 +196,6 @@ namespace Excalibur.Dispatch {
         internal static string CircuitBreakerOpenException_CircuitBreakerIsOpenWithName { get { return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpenWithName", resourceCulture); } }
         internal static string CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter { get { return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter", resourceCulture); } }
         internal static string CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided { get { return ResourceManager.GetString("CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided", resourceCulture); } }
-        internal static string InboxHandlerConfiguration_RetentionMustBePositive { get { return ResourceManager.GetString("InboxHandlerConfiguration_RetentionMustBePositive", resourceCulture); } }
         internal static string DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation { get { return ResourceManager.GetString("DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation", resourceCulture); } }
         internal static string BatchResult_IndexOutOfRange { get { return ResourceManager.GetString("BatchResult_IndexOutOfRange", resourceCulture); } }
         internal static string BindingConfigurationBuilder_TransportNotFoundFormat { get { return ResourceManager.GetString("BindingConfigurationBuilder_TransportNotFoundFormat", resourceCulture); } }

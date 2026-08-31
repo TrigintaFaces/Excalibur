@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <param name="handlerType"> The type of the handler implementation that processes the message. </param>
 /// <param name="expectsResponse"> Indicates whether this handler returns a response after processing. </param>
 internal sealed class HandlerRegistryEntry(
-	Type messageType,
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType,
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType,
 	bool expectsResponse) : IHandlerRegistryEntry
 {
 	/// <summary>
@@ -31,6 +31,7 @@ internal sealed class HandlerRegistryEntry(
 	/// The message type serves as the primary key for handler lookup during message processing. It must match the generic type parameter of
 	/// the handler implementation to ensure type safety during handler invocation.
 	/// </remarks>
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
 	public Type MessageType { get; } = messageType;
 
 	/// <summary>
@@ -43,7 +44,7 @@ internal sealed class HandlerRegistryEntry(
 	/// dependency injection container for successful activation. This type information enables the framework to instantiate the correct
 	/// handler at runtime. DynamicallyAccessedMembers annotation preserves PublicProperties for reflection-based context injection.
 	/// </remarks>
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 	public Type HandlerType { get; } = handlerType;
 
 	/// <summary>

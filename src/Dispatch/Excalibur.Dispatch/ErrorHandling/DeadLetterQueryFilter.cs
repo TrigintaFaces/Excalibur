@@ -55,6 +55,18 @@ public sealed class DeadLetterQueryFilter
 	public int Skip { get; set; }
 
 	/// <summary>
+	/// Gets or sets the maximum number of entries to return (for pagination).
+	/// </summary>
+	/// <value>The page size. Defaults to 100.</value>
+	/// <remarks>
+	/// The companion to <see cref="Skip"/>. It lives here rather than beside the cancellation token on the
+	/// query methods because an optional parameter cannot follow a required one: carrying the page size as
+	/// a method argument forced the token to the FRONT of one estate-wide query while its sibling kept it
+	/// last, so a single interface ordered the token two different ways.
+	/// </remarks>
+	public int Take { get; set; } = 100;
+
+	/// <summary>
 	/// Creates a filter for entries with a specific reason.
 	/// </summary>
 	/// <param name="reason">The dead letter reason to filter by.</param>

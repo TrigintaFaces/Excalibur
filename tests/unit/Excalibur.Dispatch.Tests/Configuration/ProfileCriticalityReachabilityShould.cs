@@ -370,12 +370,6 @@ public sealed class ProfileCriticalityReachabilityShould
 
 		public MessageKinds SupportedMessageKinds => MessageKinds.All;
 
-		public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind) =>
-			MiddlewareEntries.Select(static e => e.MiddlewareType).ToList();
-
-		public IReadOnlyList<Type> GetApplicableMiddleware(
-			MessageKinds messageKind,
-			IReadOnlySet<DispatchFeatures> enabledFeatures) => GetApplicableMiddleware(messageKind);
 	}
 
 	/// <summary>

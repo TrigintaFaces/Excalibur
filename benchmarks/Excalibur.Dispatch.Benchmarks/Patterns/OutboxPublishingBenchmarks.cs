@@ -119,7 +119,7 @@ public class OutboxPublishingBenchmarks
 	[Benchmark]
 	public async Task<long> GetStatistics()
 	{
-		var stats = await _outboxStore!.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await _outboxStore!.GetAllTenantsStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		return stats.StagedMessageCount;
 	}
 }

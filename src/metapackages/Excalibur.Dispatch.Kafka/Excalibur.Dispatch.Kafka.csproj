@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -7,7 +7,11 @@
     <PackageTags>excalibur;dispatch;kafka;streaming;metapackage</PackageTags>
   </PropertyGroup>
   <PropertyGroup>
-    <IsAotCompatible>true</IsAotCompatible>
+    <!-- AOT: NOT compatible. This package ships Excalibur.Dispatch.Transport.Kafka, which declares itself
+         not AOT-compatible, so its reflection paths are reachable from any application that
+         publishes this package with PublishAot. Claiming compatibility here would be a
+         promise the shipped assembly cannot keep. -->
+    <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
   <ItemGroup>

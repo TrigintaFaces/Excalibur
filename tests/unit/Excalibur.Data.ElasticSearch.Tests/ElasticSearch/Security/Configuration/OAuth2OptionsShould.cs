@@ -18,8 +18,6 @@ public sealed class OAuth2OptionsShould
 		sut.Authority.ShouldBeNull();
 		sut.ClientId.ShouldBeNull();
 		sut.Scope.ShouldBe("elasticsearch:read elasticsearch:write");
-		sut.Audience.ShouldBeNull();
-		sut.RefreshBuffer.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -31,15 +29,11 @@ public sealed class OAuth2OptionsShould
 			Authority = "https://auth.example.com",
 			ClientId = "my-client",
 			Scope = "custom:scope",
-			Audience = "https://elastic.example.com",
-			RefreshBuffer = TimeSpan.FromMinutes(10),
 		};
 
 		sut.Enabled.ShouldBeTrue();
 		sut.Authority.ShouldBe("https://auth.example.com");
 		sut.ClientId.ShouldBe("my-client");
 		sut.Scope.ShouldBe("custom:scope");
-		sut.Audience.ShouldBe("https://elastic.example.com");
-		sut.RefreshBuffer.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 }

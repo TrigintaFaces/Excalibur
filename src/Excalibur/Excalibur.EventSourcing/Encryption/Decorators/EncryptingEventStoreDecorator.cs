@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
 using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.Decorators;
 
 using Microsoft.Extensions.Options;
 
@@ -32,7 +34,7 @@ namespace Excalibur.EventSourcing.Encryption.Decorators;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreErasure
+public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator, IEventStoreErasure
 {
 	private readonly IEventStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -61,8 +63,9 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 		SubjectFieldCryptor subjectFieldCryptor,
 		IEventSerializer eventSerializer,
 		IOptions<EncryptionOptions> options)
+		: base(inner)
 	{
-		_inner = inner ?? throw new ArgumentNullException(nameof(inner));
+		_inner = Inner;
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_subjectFieldCryptor = subjectFieldCryptor ?? throw new ArgumentNullException(nameof(subjectFieldCryptor));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -76,7 +79,7 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
+	public override async ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
 		string aggregateId,
 		string aggregateType,
 		CancellationToken cancellationToken)
@@ -86,7 +89,7 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
+	public override async ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(
 		string aggregateId,
 		string aggregateType,
 		long fromVersion,
@@ -97,7 +100,7 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<AppendResult> AppendAsync(
+	public override async ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
 		IEnumerable<IDomainEvent> events,
@@ -133,7 +136,7 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 	/// unchanged. (Per-subject crypto-shredding — destroying a subject's key so their <c>[PersonalData]</c> fields
 	/// decrypt to a tombstone — is a separate GDPR mechanism handled on the read path, not by this tombstoning erase.)
 	/// </remarks>
-	public Task<int> EraseEventsAsync(
+	public override Task<int> EraseEventsAsync(
 		string aggregateId,
 		string aggregateType,
 		Guid erasureRequestId,
@@ -141,18 +144,11 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 		=> RequireInnerErasure().EraseEventsAsync(aggregateId, aggregateType, erasureRequestId, cancellationToken);
 
 	/// <inheritdoc/>
-	public Task<bool> IsErasedAsync(
+	public override Task<bool> IsErasedAsync(
 		string aggregateId,
 		string aggregateType,
 		CancellationToken cancellationToken)
 		=> RequireInnerErasure().IsErasedAsync(aggregateId, aggregateType, cancellationToken);
-
-	// A decorator can only forward the capability the store it wraps supports; if the inner store does not
-	// implement IEventStoreErasure, surface that explicitly rather than silently stripping erasure.
-	private IEventStoreErasure RequireInnerErasure()
-		=> _inner as IEventStoreErasure
-			?? throw new NotSupportedException(
-				$"The inner event store ({_inner.GetType().Name}) does not support GDPR erasure (IEventStoreErasure).");
 
 	private async ValueTask<IEnumerable<IDomainEvent>> EncryptEventsAsync(
 		IEnumerable<IDomainEvent> events,
@@ -208,6 +204,14 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 
 		foreach (var evt in events)
 		{
+			// A tombstoned event carries no payload: there is nothing to decrypt and nothing to rewrite, so
+			// it passes through untouched. Without this the load path dereferenced the absent payload.
+			if (evt.EventData is null)
+			{
+				results.Add(evt);
+				continue;
+			}
+
 			// 1. Legacy whole-blob decrypt (mixed-mode migration: data written by the whole-blob provider path).
 			var decryptedEventData = await TryDecryptFieldAsync(evt.EventData, cancellationToken).ConfigureAwait(false);
 			var decryptedMetadata = evt.Metadata is not null
@@ -238,7 +242,7 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 		try
 		{
 			var eventType = _eventSerializer.ResolveType(stored.EventType);
-			if (eventType is null)
+			if (eventType is null || stored.EventData is null)
 			{
 				return stored;
 			}
@@ -276,5 +280,58 @@ public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreEras
 						   Resources.Encryption_NoProviderCanDecrypt);
 
 		return await provider.DecryptAsync(encryptedData, _defaultContext, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Wraps a capability of the decorated store so events still pass through encryption on their way to it.
+	/// </summary>
+	/// <param name="serviceType">The capability interface being resolved.</param>
+	/// <returns>An encrypting view over the capability, or <see langword="null"/> when the inner store lacks it.</returns>
+	/// <remarks>
+	/// The transactional append is an append: handing it over unwrapped would write the caller's events to
+	/// the store in plaintext, through the very object that exists to prevent that. The view therefore
+	/// applies the same encryption the ordinary append path applies, and honours the same modes.
+	/// </remarks>
+	protected override object? WrapCapability(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(ITransactionalEventStore)
+			&& Inner.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore transactional)
+		{
+			return new EncryptingTransactionalView(this, transactional);
+		}
+
+		return null;
+	}
+
+	private sealed class EncryptingTransactionalView(
+		EncryptingEventStoreDecorator outer,
+		ITransactionalEventStore capability)
+		: EventStoreCapabilityView(outer), ITransactionalEventStore
+	{
+		public async ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+			string aggregateId,
+			string aggregateType,
+			IEnumerable<IDomainEvent> events,
+			long expectedVersion,
+			Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+			CancellationToken cancellationToken)
+		{
+			var mode = outer._options.Value.Mode;
+
+			if (mode == EncryptionMode.DecryptOnlyReadOnly)
+			{
+				throw new InvalidOperationException(Resources.Encryption_ReadOnlyEventStore);
+			}
+
+			var toAppend = mode is EncryptionMode.Disabled or EncryptionMode.DecryptOnlyWritePlaintext
+				? events
+				: await outer.EncryptEventsAsync(events, cancellationToken).ConfigureAwait(false);
+
+			return await capability.AppendWithOutboxStagingAsync(
+				aggregateId, aggregateType, toAppend, expectedVersion, stageOutbox, cancellationToken)
+				.ConfigureAwait(false);
+		}
 	}
 }

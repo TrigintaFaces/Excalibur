@@ -61,11 +61,13 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Security.Aws` | AWS KMS key management |
 | `Excalibur.Security.Azure` | Azure Key Vault key management |
 | `Excalibur.Compliance` | GDPR erasure, compliance monitoring |
+| `Excalibur.Compliance.Pdf` | Opt-in SOC 2 PDF export (adds a QuestPDF license obligation) |
 | `Excalibur.Compliance.Abstractions` | Compliance interfaces |
 | `Excalibur.Compliance.Aws` | AWS compliance integration |
 | `Excalibur.Compliance.Azure` | Azure compliance integration |
 | `Excalibur.Compliance.Vault` | HashiCorp Vault compliance integration |
 | `Excalibur.Compliance.SqlServer` | SQL Server compliance store |
+| `Excalibur.Compliance.MongoDb` | MongoDB compliance store (the only package that brings MongoDB.Driver) |
 | `Excalibur.Compliance.Postgres` | PostgreSQL compliance store |
 
 ## Audit Logging
@@ -127,7 +129,6 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Hosting.AwsLambda` | AWS Lambda hosting |
 | `Excalibur.Hosting.AzureFunctions` | Azure Functions hosting |
 | `Excalibur.Hosting.GoogleCloudFunctions` | Google Cloud Functions hosting |
-| `Excalibur.Hosting.Serverless` | Serverless hosting abstractions |
 | `Excalibur.Hosting.HealthChecks` | Aggregated health check registration |
 | `Excalibur.Hosting.Jobs` | Background job hosting |
 | `Excalibur.Hosting.Logging.Serilog` | Serilog structured logging integration |

@@ -26,6 +26,13 @@ public sealed class AwsSqsTransportConformanceTests
 {
 	private const string QueueName = "conformance-test-queue";
 
+	/// <summary>
+	/// LocalStack is genuinely optional infrastructure, so this suite skips rather than fails when it cannot
+	/// start -- the same call <c>AwsSqsContainerFixture</c> already makes by overriding
+	/// <c>AllowGracefulDegradation</c> to true. Required transports keep the fail-closed default.
+	/// </summary>
+	protected override bool AllowUnavailableTransport => true;
+
 	private LocalStackContainer? _localStackContainer;
 	private IAmazonSQS? _sqsClient;
 	private string? _queueUrl;
@@ -365,7 +372,7 @@ public sealed class AwsSqsDeadLetterQueueManager : IDeadLetterQueueManager
 		};
 	}
 
-	public async Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public async Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		var stats = await GetStatisticsAsync(cancellationToken).ConfigureAwait(false);
 		var count = stats.MessageCount;

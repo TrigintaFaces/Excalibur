@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 #pragma warning disable IDE0007 // Use implicit type (var)
@@ -24,10 +24,21 @@ namespace Excalibur.Testing.Conformance;
 /// class. Each test creates a fresh store via <see cref="CreateStateStoreAsync"/> and disposes it (and
 /// calls <see cref="CleanupAsync"/>) afterwards.
 /// </para>
+/// <para>
+/// <b>This kit is trim-excluded, not trim-safe, and that is a statement about the CDC state-store contract
+/// rather than about the kit.</b> The arms save checkpoints and reload them through the store, and a conformant store rehydrates the provider's own ChangePosition subclass, whose concrete type it does not know statically. No annotation on this kit can reach
+/// those types, so a deriving suite must itself carry
+/// <see cref="System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute"/> — or suppress the
+/// warning deliberately — when it is compiled with the trim analyzer enabled. Overriding an arm
+/// rather than wrapping it requires the same annotation on the override. A trimmed test host is not
+/// a supported configuration for this kit.
+/// </para>
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores",
 	Justification = "Test method naming convention")]
-public abstract class CdcProviderConformanceTestKit
+[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+	"CDC state-store conformance arms save and reload checkpoints through the store, which rehydrates the provider's own ChangePosition subclass reflectively. A trimmed test host is not a supported configuration for this kit.")]
+public abstract class CdcProviderConformanceTestKit : ConformanceTestKit
 {
 	/// <summary>
 	/// Creates a new instance of the <see cref="ICdcStateStore"/> implementation under test.
@@ -337,4 +348,5 @@ public abstract class CdcProviderConformanceTestKit
 			throw new TestFixtureAssertionException("Should have a valid position after concurrent writes.");
 		}
 	});
+
 }

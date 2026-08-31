@@ -112,7 +112,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 
 			var keyIdsToVerify = certificate?.Verification.DeletedKeyIds ?? [];
 
-			// 412fo4: a certificate claiming keys were deleted but carrying NO deleted-key IDs is vacuous —
+			// a certificate claiming keys were deleted but carrying NO deleted-key IDs is vacuous —
 			// key-deletion verification would otherwise "pass" having checked zero keys. Fail it explicitly.
 			if (certificate is { Summary.KeysDeleted: > 0 } && keyIdsToVerify.Count == 0)
 			{

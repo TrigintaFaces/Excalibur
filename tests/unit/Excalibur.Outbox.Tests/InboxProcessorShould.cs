@@ -7,7 +7,6 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.ErrorHandling;
-using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 
@@ -33,12 +32,10 @@ namespace Excalibur.Outbox.Tests;
 /// producer-consumer pattern, circuit breaker integration, and dead letter queue routing.
 /// </summary>
 /// <remarks>
-/// The InboxProcessor's legacy format base64-encodes the InboxEntry.Payload before placing it
-/// in InboxMessage.MessageBody. Because DispatchJsonSerializer is sealed and expects valid JSON
-/// in MessageBody, the real serializer cannot parse base64-encoded payloads. Tests that previously
-/// relied on a faked serializer to bypass this limitation now verify the actual error-handling
-/// behavior (retry or dead-letter routing) that occurs when the legacy format is used with the
-/// real serializer.
+/// The drain carries InboxEntry.Payload through to IInboxMessage.MessageBody as raw bytes and reads it
+/// back with the serializer's UTF-8 overload, so an entry holding UTF-8 JSON round-trips and dispatches.
+/// These arms use the real (sealed) DispatchJsonSerializer, so an entry seeded with payload bytes that are
+/// not UTF-8 JSON still exercises the genuine deserialization-failure path (retry or dead-letter routing).
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Inbox")]
@@ -51,6 +48,11 @@ public sealed class InboxProcessorShould : UnitTestBase
 	/// Shared JSON options matching the DispatchJsonSerializer's camelCase configuration
 	/// for creating test payloads that the real serializer can deserialize.
 	/// </summary>
+	// The handler type every fixture entry is stored under. Distinct from the message type by
+	// construction — the store's composite key is (MessageId, HandlerType), and a mark addressed with
+	// the message type instead matches no row.
+	private const string FixtureHandlerType = "TestHandler";
+
 	private static readonly JsonSerializerOptions s_testJsonOptions = new()
 	{
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -59,9 +61,6 @@ public sealed class InboxProcessorShould : UnitTestBase
 		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 	};
 
-	private static readonly MethodInfo PerformBatchDatabaseOperationsAsyncMethod = typeof(InboxProcessor)
-		.GetMethod("PerformBatchDatabaseOperationsAsync", BindingFlags.NonPublic | BindingFlags.Instance)
-		?? throw new InvalidOperationException("Expected private PerformBatchDatabaseOperationsAsync method.");
 
 	#region Constructor Tests
 
@@ -315,11 +314,9 @@ public sealed class InboxProcessorShould : UnitTestBase
 	public async Task DispatchPendingMessagesAsync_MarksEntryProcessed_WhenDispatchSucceeds()
 	{
 		// Arrange
-		// The InboxProcessor's legacy format base64-encodes InboxEntry.Payload into
-		// InboxMessage.MessageBody. Because DispatchJsonSerializer is sealed and expects
-		// valid JSON, the base64-encoded body cannot be deserialized as the message type.
-		// With maxAttempts=3 and retryCount=0, the deserialization failure causes the
-		// parallel processor to route the message to retry (not success).
+		// The entry's payload is real UTF-8 JSON, which is what the default serializer writes. The drain must
+		// carry those bytes through unchanged and deserialize them, so the message reaches the dispatcher and
+		// the entry is finalized as processed.
 		await using var scenario = await CreateDispatchScenarioAsync(
 			messageId: "inbox-success",
 			maxAttempts: 3,
@@ -328,15 +325,22 @@ public sealed class InboxProcessorShould : UnitTestBase
 		// Act
 		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
-		// Assert - Deserialization failure in the legacy base64 path causes retry, not success
-		processed.ShouldBe(0);
-		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
-				"inbox-success",
-				typeof(TestInboxDispatchMessage).Name,
-				ErrorConstants.ProcessingFailedRetryAttempt,
+		// Assert - the drain must actually reach the handler. Without this call assertion the arm would pass
+		// on any path that finalizes the entry without dispatching it, which is how a body that never
+		// deserialized went unnoticed.
+		A.CallTo(() => scenario.Dispatcher.DispatchAsync(
+				A<IDispatchMessage>._,
+				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => scenario.InboxStore.MarkProcessedAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		processed.ShouldBe(1);
+		A.CallTo(() => scenario.InboxStore.MarkProcessedAsync(
+				"inbox-success",
+				FixtureHandlerType,
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
+				A<string>._, A<string>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -356,7 +360,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		processed.ShouldBe(0);
 		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
 				"inbox-retry",
-				typeof(TestInboxDispatchMessage).Name,
+				FixtureHandlerType,
 				ErrorConstants.ProcessingFailedRetryAttempt,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -394,12 +398,40 @@ public sealed class InboxProcessorShould : UnitTestBase
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
 				"inbox-dlq",
-				typeof(TestInboxDispatchMessage).Name,
+				FixtureHandlerType,
 				A<string>.That.Contains("Moved to DLQ: Max retries exceeded"),
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.InboxStore.MarkProcessedAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DispatchPendingMessagesAsync_FailsDiagnosably_WhenTheStoredPayloadIsBinaryRatherThanJson()
+	{
+		// Arrange
+		// A payload written by a configured IPayloadSerializer is magic-byte-prefixed binary. The JSON drain
+		// structurally cannot read it, and it must say so: a bare parse error names neither the payload shape
+		// nor the cause, leaving the entry to burn its retry budget with nothing to diagnose from.
+		await using var scenario = await CreateBinaryPayloadDispatchScenarioAsync(
+			messageId: "inbox-binary-payload",
+			payload: [0x02, 0xFF, 0x00, 0x10]);
+
+		// Act
+		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert
+		processed.ShouldBe(0);
+		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
+				A<IInboxMessage>.That.Matches(m => m.ExternalMessageId == "inbox-binary-payload"),
+				DeadLetterReason.MaxRetriesExceeded,
+				A<CancellationToken>._,
+				A<Exception?>.That.Matches(ex =>
+					ex != null
+					&& ex.ToString().Contains("not UTF-8 JSON", StringComparison.Ordinal)
+					&& ex.ToString().Contains("0x02", StringComparison.Ordinal)),
+				A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -415,91 +447,27 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var internalSerializer = scenario.InternalSerializer ?? throw new InvalidOperationException("Internal serializer was not configured.");
 		internalSerializer.DeserializeCalls.ShouldBe(1);
 
-		// The envelope path also base64-encodes the payload into MessageBody, so the real
-		// DispatchJsonSerializer cannot parse it as JSON. With maxAttempts=3 and retryCount=0,
-		// the deserialization failure causes a retry.
+		// The envelope in this scenario carries payload bytes [7, 8, 9], which are not UTF-8 JSON, so the real
+		// DispatchJsonSerializer cannot read them as the message type. With maxAttempts=3 and retryCount=0,
+		// the deserialization failure causes a retry. The assertion above is what pins the envelope path.
 		processed.ShouldBe(0);
 		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
-				scenario.EnvelopeMessageId.ToString(),
-				typeof(TestInboxDispatchMessage).Name,
+				// The mark is keyed by the ENTRY, so the envelope's own message id is not the key here.
+				"inbox-envelope",
+				FixtureHandlerType,
 				ErrorConstants.ProcessingFailedRetryAttempt,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
-	[Fact]
-	public async Task PerformBatchDatabaseOperationsAsync_MarksProcessedRetryAndDeadLetterEntries()
-	{
-		// Arrange
-		var inboxStore = A.Fake<IInboxStore>();
-		await using var processor = CreateProcessor(inboxStore: inboxStore);
 
-		var successful = new List<(string MessageId, string HandlerType)> { ("inbox-success", "HandlerA") };
-		var failedToRetry = new List<(string MessageId, string HandlerType, int Attempt)> { ("inbox-retry", "HandlerB", 1) };
-		var failedToDeadLetter = new List<(string MessageId, string HandlerType)> { ("inbox-dlq", "HandlerC") };
-
-		// Act
-		var task = (Task?)PerformBatchDatabaseOperationsAsyncMethod.Invoke(
-			processor,
-			[successful, failedToRetry, failedToDeadLetter, CancellationToken.None]);
-		if (task is null)
-		{
-			throw new InvalidOperationException("Expected task result from PerformBatchDatabaseOperationsAsync.");
-		}
-
-		await task;
-
-		// Assert
-		A.CallTo(() => inboxStore.MarkProcessedAsync("inbox-success", "HandlerA", A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => inboxStore.MarkFailedAsync(
-				"inbox-retry",
-				"HandlerB",
-				ErrorConstants.ProcessingFailedRetryAttempt,
-				A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => inboxStore.MarkFailedAsync(
-				"inbox-dlq",
-				"HandlerC",
-				ErrorConstants.MessageMovedToDeadLetterQueueMaxRetriesExceeded,
-				A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-	}
-
-	[Fact]
-	public async Task PerformBatchDatabaseOperationsAsync_DoesNotWrite_WhenAllListsAreEmpty()
-	{
-		// Arrange
-		var inboxStore = A.Fake<IInboxStore>();
-		await using var processor = CreateProcessor(inboxStore: inboxStore);
-
-		// Act
-		var task = (Task?)PerformBatchDatabaseOperationsAsyncMethod.Invoke(
-			processor,
-			[new List<(string MessageId, string HandlerType)>(),
-				new List<(string MessageId, string HandlerType, int Attempt)>(),
-				new List<(string MessageId, string HandlerType)>(),
-				CancellationToken.None]);
-		if (task is null)
-		{
-			throw new InvalidOperationException("Expected task result from PerformBatchDatabaseOperationsAsync.");
-		}
-
-		await task;
-
-		// Assert
-		A.CallTo(() => inboxStore.MarkProcessedAsync(A<string>._, A<string>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
-		A.CallTo(() => inboxStore.MarkFailedAsync(A<string>._, A<string>._, A<string>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
-	}
 
 	[Fact]
 	public async Task DispatchPendingMessagesAsync_LeavesEntryForRetry_WhenCircuitBreakerIsOpenBeforeExecution()
 	{
 		// bd-v9jq1a AC-1 (Inbox CB-open pre-check, non-vacuity): a transient circuit-breaker-OPEN must leave
 		// the entry FOR RETRY via the no-increment IInboxStoreAdmin.MarkFailedAsync(retryCount) overload
-		// (re-admitted by GetFailedEntriesAsync once the breaker recovers), NEVER dead-letter it. RED on
+		// (re-admitted by GetAllTenantsFailedEntriesAsync once the breaker recovers), NEVER dead-letter it. RED on
 		// pre-fix (pre-fix routed CB-open straight to the DLQ → bulk loss). Flipped broken-behavior cert (NFR-6).
 		// Arrange
 		await using var scenario = await CreateOpenCircuitDispatchScenarioAsync("inbox-open-circuit");
@@ -523,7 +491,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		// Assert — left for retry via the no-increment IInboxStoreAdmin overload (retryCount preserved)
 		A.CallTo(() => ((IInboxStoreAdmin)scenario.InboxStore).MarkFailedAsync(
 				"inbox-open-circuit",
-				typeof(TestInboxDispatchMessage).Name,
+				FixtureHandlerType,
 				A<string>._,
 				A<int>._,
 				A<CancellationToken>._))
@@ -647,7 +615,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 		processed.ShouldBe(0);
 		A.CallTo(() => inboxStore.MarkFailedAsync(
 				"inbox-missing-type",
-				"MissingDispatchMessageType",
+				// Keyed by the entry, so the unresolvable MESSAGE type is not what the mark is addressed with.
+				FixtureHandlerType,
 				ErrorConstants.ProcessingFailedRetryAttempt,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -657,11 +626,9 @@ public sealed class InboxProcessorShould : UnitTestBase
 	public async Task DispatchPendingMessagesAsync_RoutesEntryToDeadLetterQueue_WhenMetadataDeserializationFails()
 	{
 		// Arrange
-		// With the real DispatchJsonSerializer, the legacy path base64-encodes the payload
-		// into MessageBody. Since base64 is not valid JSON, the body deserialization fails
-		// before metadata deserialization is even attempted. With maxAttempts=1, the
-		// deserialization error causes the message to be routed to the dead letter queue
-		// via MaxRetriesExceeded (same end result as the original metadata failure test).
+		// The entry's payload bytes are [1, 2, 3], which are not UTF-8 JSON, so the body deserialization fails
+		// before metadata deserialization is even attempted. With maxAttempts=1, the deserialization error
+		// routes the message to the dead letter queue via MaxRetriesExceeded.
 		await using var scenario = await CreateBadMetadataDispatchScenarioAsync("inbox-bad-metadata");
 
 		// Act
@@ -678,7 +645,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.InboxStore.MarkFailedAsync(
 				"inbox-bad-metadata",
-				typeof(TestInboxDispatchMessage).Name,
+				FixtureHandlerType,
 				A<string>.That.Contains("Moved to DLQ: Max retries exceeded"),
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -1017,23 +984,62 @@ public sealed class InboxProcessorShould : UnitTestBase
 			dispatcher));
 	}
 
-	private static Task<DispatchScenario> CreateBadMetadataDispatchScenarioAsync(string messageId)
+	private static Task<DispatchScenario> CreateBinaryPayloadDispatchScenarioAsync(string messageId, byte[] payload)
 	{
 		MessageTypeRegistry.RegisterType<TestInboxDispatchMessage>();
-		// Create an entry with arbitrary payload bytes. The legacy path base64-encodes
-		// these bytes, producing a MessageBody that is not valid JSON. With maxAttempts=1,
-		// the deserialization failure routes the message to the dead letter queue.
 		var entry = new InboxEntry
 		{
 			MessageId = messageId,
-			HandlerType = "TestHandler",
+			HandlerType = FixtureHandlerType,
+			MessageType = typeof(TestInboxDispatchMessage).Name,
+			Payload = payload,
+			Metadata = new Dictionary<string, object>(StringComparer.Ordinal)
+			{
+				["CorrelationId"] = "corr-binary"
+			},
+			RetryCount = 0,
+			ReceivedAt = DateTimeOffset.UtcNow
+		};
+		var inboxStore = CreateInboxStore(entry);
+		// Use real DispatchJsonSerializer -- it is sealed and cannot be faked
+		var serializer = new DispatchJsonSerializer();
+		var deadLetterQueue = CreateDeadLetterQueue();
+		var dispatcher = CreateDispatcher(DispatchMessageResult.Success());
+		var serviceProvider = CreateServiceProvider(dispatcher);
+
+		// maxAttempts 1 so the single drain reaches the dead-letter branch, where the exception is observable.
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 1),
+			inboxStore: inboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue);
+		processor.Init("dispatcher-1");
+
+		return Task.FromResult(new DispatchScenario(
+			processor,
+			inboxStore,
+			deadLetterQueue,
+			serviceProvider,
+			dispatcher));
+	}
+
+	private static Task<DispatchScenario> CreateBadMetadataDispatchScenarioAsync(string messageId)
+	{
+		MessageTypeRegistry.RegisterType<TestInboxDispatchMessage>();
+		// Create an entry with arbitrary payload bytes. They are carried through to MessageBody unchanged and
+		// are not UTF-8 JSON, so with maxAttempts=1 the deserialization failure routes the message to the
+		// dead letter queue.
+		var entry = new InboxEntry
+		{
+			MessageId = messageId,
+			HandlerType = FixtureHandlerType,
 			MessageType = typeof(TestInboxDispatchMessage).Name,
 			Payload = [1, 2, 3],
 			Metadata = new Dictionary<string, object>(StringComparer.Ordinal)
 			{
-				// String values that the CoreMessageJsonContext can serialize,
-				// but the payload [1, 2, 3] base64-encodes to non-JSON content,
-				// causing deserialization failure downstream.
+				// String values that the CoreMessageJsonContext can serialize, while the payload [1, 2, 3] is
+				// not UTF-8 JSON, causing deserialization failure downstream.
 				["CorrelationId"] = "bad-correlation"
 			},
 			RetryCount = 0,
@@ -1084,7 +1090,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		return new InboxEntry
 		{
 			MessageId = messageId,
-			HandlerType = "TestHandler",
+			HandlerType = FixtureHandlerType,
 			MessageType = typeof(TMessage).Name,
 			Payload = System.Text.Encoding.UTF8.GetBytes(messageJson),
 			Metadata = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -1105,7 +1111,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		return new InboxEntry
 		{
 			MessageId = messageId,
-			HandlerType = "TestHandler",
+			HandlerType = FixtureHandlerType,
 			MessageType = typeof(TestInboxDispatchMessage).Name,
 			Payload = [1, 2, 3],
 			Metadata = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -1120,7 +1126,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 	private static IInboxStore CreateInboxStore(InboxEntry entry)
 	{
 		var inboxStore = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
-		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetFailedEntriesAsync(
+		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetAllTenantsFailedEntriesAsync(
 				A<int>._,
 				A<DateTimeOffset?>._,
 				A<int>._,

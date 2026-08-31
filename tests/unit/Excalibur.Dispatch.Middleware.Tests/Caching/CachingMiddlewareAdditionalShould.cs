@@ -201,6 +201,7 @@ public sealed class CachingMiddlewareAdditionalShould : UnitTestBase
 			A<CancellationToken>._))
 			.Returns(new ValueTask<CachedValue>(new CachedValue
 			{
+				ActionTypeName = CachingMiddleware.DescribeActionType(typeof(CacheableTestQuery)),
 				HasExecuted = true,
 				ShouldCache = true,
 				Value = "cached",

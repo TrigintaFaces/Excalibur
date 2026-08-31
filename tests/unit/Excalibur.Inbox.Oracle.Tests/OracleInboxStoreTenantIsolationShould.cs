@@ -42,7 +42,8 @@ namespace Excalibur.Inbox.Oracle.Tests;
 [Trait("Category", "Integration")]
 [Trait("Database", "Oracle")]
 [Trait("Component", "Inbox")]
-public sealed class OracleInboxStoreTenantIsolationShould : IClassFixture<OracleInboxStoreContainerFixture>
+[Collection(OracleInboxTestCollection.CollectionName)]
+public sealed class OracleInboxStoreTenantIsolationShould
 {
 	private const string TableName = "INBOX_TENANT_ISO_TEST";
 	private const string HandlerType = "TestHandler";

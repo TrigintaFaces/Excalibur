@@ -40,7 +40,7 @@ With an outbox:
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
-    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
           .EnableBackgroundProcessing();
 }));
 ```
@@ -52,7 +52,7 @@ services.AddExcalibur(excalibur =>
 {
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
+        outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
               .EnableBackgroundProcessing();
     });
 });
@@ -84,40 +84,62 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 }));
 ```
 
-### Preset-Based API
+### Suggested profiles
 
-Use presets for common scenarios:
+There is no preset argument to pass. `AddOutbox` takes a configuration callback and nothing else, so a
+profile is just the set of `WithProcessing` values below -- type out the one you want.
+
+| Setting | High throughput | Balanced | High reliability |
+|---------|-----------------|----------|------------------|
+| `BatchSize` | 1000 | 100 | 10 |
+| `PollingInterval` | 100ms | 1s | 5s |
+| `MaxRetryCount` | 3 | 5 | 10 |
+| `RetryDelay` | 1 min | 5 min | 15 min |
+| `EnableParallelProcessing` | 8 | 4 | omit (sequential) |
+
+To drain sequentially, leave `EnableParallelProcessing` off rather than passing `1`: passing `1` turns the
+parallel path *on* with a single worker, which is not the same thing as not enabling it.
+
+High throughput -- large batches, tight polling:
 
 ```csharp
-// High throughput (event streaming, analytics)
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighThroughput().Build()));
-
-// Balanced (most applications)
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.Balanced().Build()));
-
-// High reliability (financial, critical systems)
-services.AddExcalibur(excalibur => excalibur.AddOutbox(OutboxOptions.HighReliability().Build()));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(1000)
+        .PollingInterval(TimeSpan.FromMilliseconds(100))
+        .MaxRetryCount(3)
+        .RetryDelay(TimeSpan.FromMinutes(1))
+        .EnableParallelProcessing(maxDegreeOfParallelism: 8))
+    .EnableBackgroundProcessing()));
 ```
 
-Customize presets:
+Balanced -- most applications:
 
 ```csharp
-services.AddExcalibur(excalibur => excalibur.AddOutbox(
-    OutboxOptions.HighThroughput()
-        .WithBatchSize(2000)
-        .WithProcessorId("worker-1")
-        .Build()));
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(100)
+        .PollingInterval(TimeSpan.FromSeconds(1))
+        .MaxRetryCount(5)
+        .RetryDelay(TimeSpan.FromMinutes(5))
+        .EnableParallelProcessing(maxDegreeOfParallelism: 4))
+    .EnableBackgroundProcessing()));
 ```
 
-## Preset Comparison
+High reliability -- small batches, long backoff, sequential:
 
-| Setting | HighThroughput | Balanced | HighReliability |
-|---------|----------------|----------|-----------------|
-| BatchSize | 1000 | 100 | 10 |
-| PollingInterval | 100ms | 1s | 5s |
-| MaxRetryCount | 3 | 5 | 10 |
-| RetryDelay | 1min | 5min | 15min |
-| Parallelism | 8 | 4 | 1 |
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(10)
+        .PollingInterval(TimeSpan.FromSeconds(5))
+        .MaxRetryCount(10)
+        .RetryDelay(TimeSpan.FromMinutes(15)))
+    .EnableBackgroundProcessing()));
+```
 
 ## Database Providers
 
@@ -205,6 +227,9 @@ outbox.UseElasticSearch(options =>
 {
     options.IndexName = "excalibur-outbox";
     options.DefaultBatchSize = 100;
+
+    // Longer than your slowest expected delivery — see the note below.
+    options.LeaseTimeoutSeconds = 300;
 });
 ```
 
@@ -215,7 +240,27 @@ Key `ElasticsearchOutboxOptions` properties:
 | `IndexName` | `string` | `"excalibur-outbox"` | Elasticsearch index name |
 | `DefaultBatchSize` | `int` | `100` | Default batch size for operations |
 | `RefreshPolicy` | `string` | `"wait_for"` | Index refresh policy |
-| `SentMessageRetentionDays` | `int` | `7` | **Not currently applied.** The value is validated and carried, but no code path removes entries based on it — sent messages are not expired. Use the cleanup operation (see [Retention and cleanup](#retention-and-cleanup)) until this is wired. |
+| `LeaseTimeoutSeconds` | `int` | `300` | How long a claimed message stays hidden from other pollers |
+| `ProcessorId` | `string?` | `null` | Lease-owner identifier for diagnostics; generated per instance when unset |
+
+**Sizing the lease.** When a poller claims a batch, each message is leased for `LeaseTimeoutSeconds` and
+hidden from other pollers until it reaches a terminal state or the lease expires. Set this comfortably
+longer than your slowest expected delivery: if the lease expires while a delivery is still in flight,
+another poller may claim the same message and your handler sees a duplicate. Setting it too long has the
+opposite cost — a poller that dies mid-delivery leaves its messages unclaimable until the lease runs out.
+
+**Your slowest delivery is the only quantity you need.** Whether a lease has expired is decided by the
+Elasticsearch node, not by the poller asking the question: the claim reads the node's clock, compares the
+stored lease against it, and stamps the new lease from that same reading. Two pollers whose own clocks
+disagree therefore cannot disagree about whether a lease is live, and you do not need to pad
+`LeaseTimeoutSeconds` to cover clock differences between your poller hosts. The same is true of the
+MongoDB, Redis and Marten outbox stores, each of which decides claim eligibility on its own store's clock.
+
+`ProcessorId` records which poller holds a lease and is used for diagnostics only. Claim disjointness does
+not depend on it. It is enforced by two mechanisms together: a compare-and-swap on the document's
+concurrency tokens, which refuses a candidate that changed between the search and the claim, and the
+node-side condition above, which refuses a lease that is still live. Two pollers sharing an identifier
+still receive disjoint batches.
 
 ### Firestore
 
@@ -356,7 +401,7 @@ Whether stored entries are removed automatically depends on the store.
 | Cosmos DB | **Yes** — container and per-document TTL, on by default (7 days) | Yes |
 | DynamoDB | **Yes, on the default path.** When `CreateTableIfNotExists` is `true` (the default) the store creates the table **and enables TTL on it**. If you manage the table yourself, enable TTL on the expiry attribute or nothing is deleted | Yes |
 | Firestore | **No, until you act.** The store writes an `expireAt` field but never creates a TTL policy — Firestore deletes nothing until you configure that policy on the field yourself | Yes |
-| Elasticsearch | No — its retention **setting is not currently applied** | Yes |
+| Elasticsearch | No | Yes |
 
 **Every provider gives you a callable cleanup operation.** What differs is whether anything happens if you never call it: on the relational stores, Marten and in-memory, nothing does — entries accumulate until you remove them.
 
@@ -388,7 +433,7 @@ For serverless or custom scenarios:
 
 ```csharp
 // Don't enable background processing
-outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
+outbox.UseSqlServer(opts => opts.ConnectionString(connectionString));
 
 // Manually trigger processing
 var processor = services.GetRequiredService<IOutboxProcessor>();
@@ -402,9 +447,10 @@ await processor.DispatchPendingMessagesAsync(CancellationToken.None);
 Assign unique IDs to prevent duplicate processing:
 
 ```csharp
-OutboxOptions.Balanced()
-    .WithProcessorId(Environment.MachineName)
-    .Build()
+services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing.ProcessorId(Environment.MachineName))
+    .EnableBackgroundProcessing()));
 ```
 
 ## Health Checks

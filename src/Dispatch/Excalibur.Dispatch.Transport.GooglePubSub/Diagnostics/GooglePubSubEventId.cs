@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.GooglePubSub;
 /// <item>23700-23799: Dead Letter</item>
 /// </list>
 /// </remarks>
-public static class GooglePubSubEventId
+internal static class GooglePubSubEventId
 {
 	// ========================================
 	// 23000-23099: Core
@@ -154,41 +154,6 @@ public static class GooglePubSubEventId
 	/// <summary>Stream reconnecting.</summary>
 	public const int StreamReconnecting = 23204;
 
-	// StreamHealthMonitor
-	/// <summary>Stream error occurred.</summary>
-	public const int StreamError = 23210;
-
-	/// <summary>Stream connected.</summary>
-	public const int StreamConnected = 23211;
-
-	/// <summary>Stream disconnected.</summary>
-	public const int StreamDisconnected = 23212;
-
-	/// <summary>Stream is idle.</summary>
-	public const int StreamIdle = 23213;
-
-	/// <summary>High error rate detected.</summary>
-	public const int HighErrorRate = 23214;
-
-	/// <summary>High ack failure rate detected.</summary>
-	public const int HighAckFailureRate = 23215;
-
-	/// <summary>Unhealthy streams found.</summary>
-	public const int UnhealthyStreamsFound = 23216;
-
-	/// <summary>Health check error.</summary>
-	public const int HealthCheckError = 23217;
-
-	// StreamingPullStream
-	/// <summary>Task cleanup failed.</summary>
-	public const int TaskCleanupFailed = 23220;
-
-	/// <summary>Task cleanup cancelled.</summary>
-	public const int TaskCleanupCancelled = 23221;
-
-	/// <summary>Task cleanup disposed.</summary>
-	public const int TaskCleanupDisposed = 23222;
-
 	// ========================================
 	// 23300-23399: Ordering
 	// ========================================
@@ -315,10 +280,6 @@ public static class GooglePubSubEventId
 
 	/// <summary>Outstanding messages limit reached.</summary>
 	public const int OutstandingMessagesLimit = 23503;
-
-	// PubSubSubscriberFactory
-	/// <summary>Flow-controlled subscriber created.</summary>
-	public const int FlowControlledSubscriberCreated = 23510;
 
 	/// <summary>Message processing error in subscriber.</summary>
 	public const int SubscriberMessageProcessingError = 23511;

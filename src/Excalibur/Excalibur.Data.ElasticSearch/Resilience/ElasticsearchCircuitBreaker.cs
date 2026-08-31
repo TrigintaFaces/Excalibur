@@ -176,7 +176,7 @@ public sealed class ElasticsearchCircuitBreaker : IElasticsearchCircuitBreaker
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
-			// FR-116-2: cancellation is not a failure — non-tripping.
+			// Cancellation is not a failure — non-tripping.
 			_logger.LogError(ex, "Operation failed");
 			await RecordFailureAsync().ConfigureAwait(false);
 			throw;
@@ -235,7 +235,7 @@ public sealed class ElasticsearchCircuitBreaker : IElasticsearchCircuitBreaker
 	/// <summary>
 	/// Transitions the circuit breaker to a new state and logs the change.
 	/// </summary>
-	/// <param name="newState"> The new state to transition Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="newState"> The new state to transition to. </param>
 	/// <param name="reason"> The reason for the state change. </param>
 	private void TransitionToState(CircuitState newState, string reason)
 	{

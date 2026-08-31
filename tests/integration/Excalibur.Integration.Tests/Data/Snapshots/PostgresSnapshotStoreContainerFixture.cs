@@ -7,6 +7,7 @@ using Npgsql;
 
 using Testcontainers.PostgreSql;
 using Tests.Shared.Fixtures;
+using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - table name is a constant in test fixture
 
@@ -23,7 +24,7 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 {
 	private PostgreSqlContainer? _container;
-	private bool _initialized;
+	private readonly OneTimeInitializer _initializer = new();
 
 	/// <summary>
 	/// Static constructor to configure Dapper.
@@ -52,9 +53,9 @@ public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 	public string SchemaName { get; } = "public";
 
 	/// <summary>
-	/// Gets the table name for snapshots.
+	/// Gets the table name for snapshots (the store's default -- matches the shipped schema).
 	/// </summary>
-	public string TableName { get; } = "snapshots";
+	public string TableName { get; } = "event_store_snapshots";
 
 	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(4);
 
@@ -76,40 +77,31 @@ public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Ensures the snapshot store schema is initialized.
 	/// </summary>
-	public async Task EnsureInitializedAsync()
-	{
-		if (_initialized)
-		{
-			return;
-		}
+	public Task EnsureInitializedAsync() => _initializer.RunAsync(InitializeSchemaAsync);
 
+	/// <summary>
+	/// Provisions the schema. Runs once, through <see cref="OneTimeInitializer"/>, so a failure
+	/// here is rethrown to every later caller instead of being retried against a database this
+	/// call already half-provisioned.
+	/// </summary>
+	private async Task InitializeSchemaAsync()
+	{
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Matches the canonical Excalibur.EventSourcing.Postgres snapshot store's shipped schema
-		// (Scripts/001_CreateSnapshotSchema.sql): snapshot_id is TEXT, metadata is a nullable BYTEA, and
-		// there is no snapshot_type column. tenant_id participates in the primary key.
-		var createTableSql = $"""
-			CREATE TABLE IF NOT EXISTS {SchemaName}.{TableName} (
-				snapshot_id TEXT NOT NULL,
-				aggregate_id VARCHAR(255) NOT NULL,
-				aggregate_type VARCHAR(255) NOT NULL,
-				version BIGINT NOT NULL,
-				data BYTEA NOT NULL,
-				metadata BYTEA,
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				tenant_id VARCHAR(255) NOT NULL DEFAULT '',
-				PRIMARY KEY (aggregate_id, aggregate_type, tenant_id)
-			);
+		// The schema is the one the package SHIPS, applied in the order a consumer applies it. A
+		// hand-written copy named the table "snapshots" -- the shipped script creates
+		// "event_store_snapshots" -- and defaulted tenant_id to '', the sentinel the store retired in
+		// favour of the reserved '__untenanted__' value. A fixture that holds no schema cannot drift.
+		var scripts = ShippedSchemaScript.ReadAll(
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/001_CreateSnapshotSchema.sql",
+			"src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/002_MigrateSnapshotsToKeyedSentinel.sql");
 
-			CREATE INDEX IF NOT EXISTS idx_snapshots_version
-				ON {SchemaName}.{TableName}(aggregate_id, aggregate_type, version);
-			""";
-
-		await using var command = new NpgsqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-
-		_initialized = true;
+		foreach (var script in scripts)
+		{
+			await using var command = new NpgsqlCommand(script, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

@@ -47,7 +47,7 @@ public sealed class SagaTimeoutMethodsShould
 	{
 		_dispatcher = A.Fake<IDispatcher>();
 		_logger = NullLogger.Instance;
-		_timeoutStore = new InMemorySagaTimeoutStore();
+		_timeoutStore = new InMemorySagaTimeoutStore(new TestTenantContext());
 	}
 
 	/// <summary>

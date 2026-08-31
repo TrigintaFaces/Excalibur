@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing;
 
 /// <summary>
@@ -35,5 +37,7 @@ public interface IExistsProjectionStore<TProjection> : IProjectionStore<TProject
 	/// <see langword="true"/> if a projection with the specified <paramref name="id"/> exists;
 	/// otherwise, <see langword="false"/>.
 	/// </returns>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	Task<bool> ExistsAsync(string id, CancellationToken cancellationToken);
 }

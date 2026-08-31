@@ -87,32 +87,6 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultRsaKeyWrapping_RegistersWrapperAndOptions()
-	{
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddAzureKeyVaultKeyManagement(azure =>
-		{
-			azure.VaultUri(new Uri("https://wrapping.vault.azure.net/"));
-		});
-
-		_ = services.AddAzureKeyVaultRsaKeyWrapping(options =>
-		{
-			options.KeyVaultUrl = new Uri("https://wrapping.vault.azure.net/");
-			options.KeyName = "dispatch-rsa";
-			options.Algorithm = RsaWrappingAlgorithm.RsaOaep;
-		});
-
-		using var provider = services.BuildServiceProvider();
-		provider.GetRequiredService<IAzureRsaKeyWrapper>().ShouldBeOfType<AzureKeyVaultRsaKeyWrapper>();
-
-		var wrappingOptions = provider.GetRequiredService<IOptions<RsaKeyWrappingOptions>>().Value;
-		wrappingOptions.KeyVaultUrl.ShouldBe(new Uri("https://wrapping.vault.azure.net/"));
-		wrappingOptions.KeyName.ShouldBe("dispatch-rsa");
-		wrappingOptions.Algorithm.ShouldBe(RsaWrappingAlgorithm.RsaOaep);
-	}
-
-	[Fact]
 	public void AddAzureKeyVaultKeyManagement_ThrowsWhenServicesIsNull()
 	{
 		IServiceCollection? services = null;
@@ -126,17 +100,4 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 		_ = Should.Throw<ArgumentNullException>(() => services.AddAzureKeyVaultKeyManagement((Action<IComplianceAzureBuilder>)null!));
 	}
 
-	[Fact]
-	public void AddAzureKeyVaultRsaKeyWrapping_ThrowsWhenServicesIsNull()
-	{
-		IServiceCollection? services = null;
-		_ = Should.Throw<ArgumentNullException>(() => services!.AddAzureKeyVaultRsaKeyWrapping(_ => { }));
-	}
-
-	[Fact]
-	public void AddAzureKeyVaultRsaKeyWrapping_ThrowsWhenConfigureIsNull()
-	{
-		var services = new ServiceCollection();
-		_ = Should.Throw<ArgumentNullException>(() => services.AddAzureKeyVaultRsaKeyWrapping((Action<RsaKeyWrappingOptions>)null!));
-	}
 }

@@ -21,7 +21,7 @@ namespace Excalibur.Data.InMemory;
 /// <summary>
 /// In-memory implementation of the persistence provider for testing purposes.
 /// </summary>
-public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction
+public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderConnection, IDataRequestExecutor
 {
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -32,7 +32,15 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	private readonly InMemoryProviderOptions _options;
 	private readonly ILogger<InMemoryPersistenceProvider> _logger;
 	private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, object>> _collections;
-	private readonly SemaphoreSlim _transactionLock;
+	/// <summary> Serialises disk persistence so a load and a save never interleave on the file. </summary>
+	private readonly SemaphoreSlim _diskGate;
+
+	/// <summary>
+	/// Serialises the capacity check with the write it guards. Taken only when a cap is configured, and
+	/// never held across a call that can re-enter the provider.
+	/// </summary>
+	private readonly Lock _capacityGate = new();
+
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -48,9 +56,9 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_collections = new ConcurrentDictionary<string, ConcurrentDictionary<string, object>>(StringComparer.Ordinal);
-		_transactionLock = new SemaphoreSlim(1, 1);
+		_diskGate = new SemaphoreSlim(1, 1);
 
-		Name = _options.Name ?? "inmemory";
+		Name = string.IsNullOrWhiteSpace(_options.Name) ? "inmemory" : _options.Name;
 		ConnectionString = $"InMemory:{Name}";
 	}
 
@@ -80,39 +88,15 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
-	// R0.8: Remove unused parameter - public API contract requires cancellationToken even though in-memory operations are synchronous
+	// Remove unused parameter - public API contract requires cancellationToken even though in-memory operations are synchronous
 
 	public ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		// R0.8: Dispose objects before losing scope - Connection ownership transferred to caller who is responsible for disposal
+		// Dispose objects before losing scope - Connection ownership transferred to caller who is responsible for disposal
 #pragma warning disable CA2000
 		return ValueTask.FromResult<IDbConnection>(new InMemoryConnection(this));
 #pragma warning restore CA2000
-	}
-
-	/// <inheritdoc />
-	public IDbTransaction BeginTransaction(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		// AD-221-2: Use timeout to prevent thread pool starvation from indefinite blocking
-		if (!_transactionLock.Wait(TimeSpan.FromSeconds(30)))
-		{
-			throw new TimeoutException("Failed to acquire transaction lock within 30 seconds.");
-		}
-
-		return new InMemoryTransaction(this, _transactionLock, isolationLevel);
-	}
-
-	/// <inheritdoc />
-	public async ValueTask<IDbTransaction> BeginTransactionAsync(
-		IsolationLevel isolationLevel,
-		CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		await _transactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-		return new InMemoryTransaction(this, _transactionLock, isolationLevel);
 	}
 
 	/// <inheritdoc />
@@ -132,10 +116,9 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
-	public async Task<TResult> ExecuteAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
+	public async Task<TResult> ExecuteAsync<TResult>(
+		IDataRequest<IDbConnection, TResult> request,
 		CancellationToken cancellationToken)
-		where TConnection : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -145,9 +128,9 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 		// For in-memory provider, we directly execute without actual connection The request should handle the in-memory data operations
 		try
 		{
-			// Create a dummy connection for the request R0.8: Dispose objects before losing scope - Wrapped in using statement, disposal is guaranteed
+			// Disposal is guaranteed by the using statement.
 #pragma warning disable CA2000
-			using var connection = (TConnection)(object)new InMemoryConnection(this);
+			using IDbConnection connection = new InMemoryConnection(this);
 #pragma warning restore CA2000
 			return await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
 		}
@@ -156,54 +139,6 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 			LogExecuteDataRequestFailed(_logger, ex, request.GetType().Name);
 			throw;
 		}
-	}
-
-	/// <inheritdoc />
-	public async Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		ITransactionScope transactionScope,
-		CancellationToken cancellationToken)
-		where TConnection : IDisposable
-	{
-		ArgumentNullException.ThrowIfNull(request);
-		ArgumentNullException.ThrowIfNull(transactionScope);
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		LogExecutingDataRequestInTransaction(_logger, request.GetType().Name);
-
-		await _transactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-		try
-		{
-			// R0.8: Dispose objects before losing scope - Wrapped in using statement, disposal is guaranteed
-#pragma warning disable CA2000
-			using var connection = (TConnection)(object)new InMemoryConnection(this);
-#pragma warning restore CA2000
-			var result = await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
-
-			// Commit transaction if successful
-			await transactionScope.CommitAsync(cancellationToken).ConfigureAwait(false);
-			return result;
-		}
-		catch (Exception ex)
-		{
-			// Rollback transaction on error
-			await transactionScope.RollbackAsync(cancellationToken).ConfigureAwait(false);
-			LogExecuteDataRequestInTransactionFailed(_logger, ex, request.GetType().Name);
-			throw;
-		}
-		finally
-		{
-			_ = _transactionLock.Release();
-		}
-	}
-
-	/// <inheritdoc />
-	public ITransactionScope CreateTransactionScope(
-		IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
-		TimeSpan? timeout = null)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		return new InMemoryTransactionScope(this, isolationLevel, timeout);
 	}
 
 	/// <inheritdoc />
@@ -242,12 +177,6 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
-	public Task<IDictionary<string, object>?> GetConnectionPoolStatsAsync(CancellationToken cancellationToken) =>
-
-		// In-memory provider doesn't have a connection pool
-		Task.FromResult<IDictionary<string, object>?>(null);
-
-	/// <inheritdoc />
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
@@ -257,10 +186,24 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 			return this;
 		}
 
-		if (serviceType == typeof(IPersistenceProviderTransaction))
+		if (serviceType == typeof(IDataRequestExecutor))
 		{
 			return this;
 		}
+
+		if (serviceType == typeof(IPersistenceProviderConnection))
+		{
+			return this;
+		}
+
+		// IPersistenceProviderTransaction is deliberately not offered, and is not implemented. That
+		// capability's scope is ambient: created before the provider knows what will enrol in it, then
+		// written through, with a rollback expected to restore what was there before. This store writes
+		// by overwriting the entry in place, so no prior value is retained and a rollback has nothing to
+		// restore -- it is not merely unimplemented, it is unrepresentable. Declining at discovery lets a
+		// caller choose another path while it still can, which returning a scope that silently drops the
+		// rollback does not. Health, connection and data-request execution are separate capabilities and
+		// are offered above -- being unable to run a transaction is no reason to withhold them.
 
 		return null;
 	}
@@ -310,13 +253,25 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 
 		var collection = GetCollection(collectionName);
 
-		if (_options.MaxItemsPerCollection > 0 && collection.Count >= _options.MaxItemsPerCollection)
+		if (_options.MaxItemsPerCollection > 0)
 		{
-			throw new InvalidOperationException(
-				$"Collection '{collectionName}' has reached maximum capacity of {_options.MaxItemsPerCollection} items.");
+			// Count-then-write is only a cap if nothing can write between the two.
+			lock (_capacityGate)
+			{
+				if (collection.Count >= _options.MaxItemsPerCollection)
+				{
+					throw new InvalidOperationException(
+						$"Collection '{collectionName}' has reached maximum capacity of {_options.MaxItemsPerCollection} items.");
+				}
+
+				collection[key] = item;
+			}
+		}
+		else
+		{
+			collection[key] = item;
 		}
 
-		collection[key] = item;
 		LogStoredItem(_logger, key, collectionName);
 	}
 
@@ -399,41 +354,19 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 
 		if (_options.PersistToDisk && !string.IsNullOrWhiteSpace(_options.PersistenceFilePath))
 		{
-			// Use fire-and-forget pattern to avoid blocking in Dispose
-			_ = Task.Factory.StartNew(
-					async () =>
-					{
-						try
-						{
-#pragma warning disable IL2026, IL3050 // PersistToDiskAsync uses JSON serialization
-							await PersistToDiskAsync(CancellationToken.None).ConfigureAwait(false);
-#pragma warning restore IL2026, IL3050
-						}
-						catch (Exception ex)
-						{
-							LogFailedToPersistOnDispose(_logger, ex, Name);
-						}
-					},
-					CancellationToken.None,
-					TaskCreationOptions.DenyChildAttach,
-					TaskScheduler.Default)
-				.Unwrap();
+			LogPersistOnDisposeSkipped(_logger, Name);
 		}
 
 		_collections.Clear();
-		_transactionLock?.Dispose();
+		_diskGate?.Dispose();
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
-	public async ValueTask DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
 		if (_disposed)
 		{
-			return;
+			return ValueTask.CompletedTask;
 		}
 
 		_disposed = true;
@@ -441,23 +374,13 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 
 		if (_options.PersistToDisk && !string.IsNullOrWhiteSpace(_options.PersistenceFilePath))
 		{
-			try
-			{
-				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-				await PersistToDiskAsync(cts.Token).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-			{
-				LogFailedToPersistOnAsyncDispose(_logger, new TimeoutException("Persist to disk timed out after 30 seconds"), Name);
-			}
-			catch (Exception ex)
-			{
-				LogFailedToPersistOnAsyncDispose(_logger, ex, Name);
-			}
+			LogPersistOnDisposeSkipped(_logger, Name);
 		}
 
 		_collections.Clear();
-		_transactionLock?.Dispose();
+		_diskGate?.Dispose();
+
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -480,7 +403,7 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 			LogLoadingDataFromDisk(_logger, _options.PersistenceFilePath);
 
 			// Use semaphore to ensure thread safety during loading
-			await _transactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+			await _diskGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
 				var jsonContent = await File.ReadAllTextAsync(_options.PersistenceFilePath, cancellationToken).ConfigureAwait(false);
@@ -520,7 +443,7 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 			}
 			finally
 			{
-				_ = _transactionLock.Release();
+				_ = _diskGate.Release();
 			}
 		}
 		catch (JsonException ex)
@@ -557,7 +480,7 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	/// <exception cref="InvalidOperationException"> </exception>
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private async Task PersistToDiskAsync(CancellationToken cancellationToken)
+	public async Task PersistToDiskAsync(CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(_options.PersistenceFilePath))
 		{
@@ -569,7 +492,7 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 			LogPersistingDataToDisk(_logger, _options.PersistenceFilePath);
 
 			// Use semaphore to ensure thread safety during persistence
-			await _transactionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+			await _diskGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
 				// Create directory if it doesn't exist
@@ -626,7 +549,7 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 			}
 			finally
 			{
-				_ = _transactionLock.Release();
+				_ = _diskGate.Release();
 			}
 		}
 		catch (UnauthorizedAccessException ex)
@@ -700,11 +623,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	[LoggerMessage(DataInMemoryEventId.DisposingProvider, LogLevel.Debug, "Disposing in-memory provider '{Name}'")]
 	private static partial void LogDisposingProvider(ILogger logger, string name);
 
-	[LoggerMessage(DataInMemoryEventId.FailedToPersistOnDispose, LogLevel.Error, "Failed to persist data to disk during dispose for provider '{Name}'")]
-	private static partial void LogFailedToPersistOnDispose(ILogger logger, Exception ex, string name);
-
-	[LoggerMessage(DataInMemoryEventId.FailedToPersistOnAsyncDispose, LogLevel.Error, "Failed to persist data during async disposal for provider '{Name}'")]
-	private static partial void LogFailedToPersistOnAsyncDispose(ILogger logger, Exception ex, string name);
+	[LoggerMessage(DataInMemoryEventId.PersistOnDisposeSkipped, LogLevel.Warning, "Provider '{Name}' is configured to persist to disk, but disposal does not persist. Call PersistToDiskAsync before disposing to flush data")]
+	private static partial void LogPersistOnDisposeSkipped(ILogger logger, string name);
 
 	[LoggerMessage(DataInMemoryEventId.LoadingDataFromDisk, LogLevel.Debug, "Loading data from disk at '{FilePath}'")]
 	private static partial void LogLoadingDataFromDisk(ILogger logger, string filePath);
@@ -792,9 +712,11 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 
 		public ConnectionState State { get; private set; } = ConnectionState.Closed;
 
-		public IDbTransaction BeginTransaction() => _provider.BeginTransaction();
+		public IDbTransaction BeginTransaction() => throw new NotSupportedException(
+			"The in-memory provider does not support transactions. Its store overwrites values in place, so no prior value is retained and a rollback cannot be expressed. Use the provider methods directly.");
 
-		public IDbTransaction BeginTransaction(IsolationLevel il) => _provider.BeginTransaction(il);
+		public IDbTransaction BeginTransaction(IsolationLevel il) => throw new NotSupportedException(
+			"The in-memory provider does not support transactions. Its store overwrites values in place, so no prior value is retained and a rollback cannot be expressed. Use the provider methods directly.");
 
 		public void ChangeDatabase(string databaseName) => throw new NotSupportedException();
 
@@ -805,57 +727,5 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 		public void Dispose() => Close();
 
 		public void Open() => State = ConnectionState.Open;
-	}
-
-	/// <summary>
-	/// In-memory transaction implementation.
-	/// </summary>
-	private sealed class InMemoryTransaction(InMemoryPersistenceProvider provider, SemaphoreSlim lockObject, IsolationLevel isolationLevel)
-		: IDbTransaction
-	{
-		private bool _committed;
-		private volatile bool _disposed;
-
-		public IDbConnection? Connection { get; private set; } = new InMemoryConnection(provider);
-
-		public IsolationLevel IsolationLevel { get; } = isolationLevel;
-
-		public void Commit()
-		{
-			if (_disposed)
-			{
-				throw new ObjectDisposedException(nameof(InMemoryTransaction));
-			}
-
-			_committed = true;
-			LogTransactionCommitted(provider._logger);
-		}
-
-		public void Rollback()
-		{
-			if (_disposed)
-			{
-				throw new ObjectDisposedException(nameof(InMemoryTransaction));
-			}
-
-			LogTransactionRolledBack(provider._logger);
-		}
-
-		public void Dispose()
-		{
-			if (_disposed)
-			{
-				return;
-			}
-
-			_disposed = true;
-			Connection = null;
-			_ = lockObject.Release();
-
-			if (!_committed)
-			{
-				LogTransactionDisposedWithoutCommit(provider._logger);
-			}
-		}
 	}
 }

@@ -47,9 +47,14 @@ internal sealed partial class RetentionEnforcementBackgroundService : Background
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "EnforceRetentionAsync uses reflection to discover PersonalDataAttribute annotations. " +
-		"AOT consumers should register retention-eligible types explicitly.")]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "IRetentionEnforcementService.EnforceRetentionAsync scans loaded assemblies for "
+			+ "[PersonalData] annotations, so it is annotated RequiresUnreferencedCode. BackgroundService."
+			+ "ExecuteAsync cannot carry that annotation, so the requirement is surfaced to consumers on the "
+			+ "AddRetentionEnforcement registration instead. Retention enforcement is inert under trimming "
+			+ "unless the annotated types are rooted.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		if (!_options.Value.Enabled)

@@ -31,7 +31,7 @@ internal interface IProjectionRegistry
 
 	/// <summary>
 	/// Registers or replaces a projection. A second registration for the same
-	/// projection type replaces the first (idempotent, R27.37).
+	/// projection type replaces the first (idempotent).
 	/// </summary>
 	/// <param name="registration">The projection registration to add.</param>
 	void Register(ProjectionRegistration registration);

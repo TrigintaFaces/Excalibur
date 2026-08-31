@@ -60,7 +60,7 @@ public sealed class SaveSnapshotRequestShould
 
 	// --- Tenant-scope-required lock (k28ac1) -------------------------------------------------
 	// SaveSnapshotRequest is a tenant-KEYED store: the tenant term is part of the unique upsert key,
-	// so an unscoped save (TenantScope.None emitted by omission) is unsafe. The `scope` parameter MUST
+	// so an unscoped save (TenantScope.Untenanted emitted by omission) is unsafe. The `scope` parameter MUST
 	// be required so the unsafe omission is a COMPILE error, not a runtime default — enforce the
 	// invariant structurally. These locks bind that requirement across ALL three providers.
 
@@ -76,7 +76,7 @@ public sealed class SaveSnapshotRequestShould
 	public void RequireAnExplicitTenantScope(Type requestType)
 	{
 		// SAFETY: the `scope` ctor parameter must not be optional — omitting the tenant scope must be
-		// inexpressible (a compile error), so no caller can silently take the unsafe TenantScope.None path.
+		// inexpressible (a compile error), so no caller can silently take the unsafe TenantScope.Untenanted path.
 		var ctor = requestType.GetConstructors(BindingFlags.Public | BindingFlags.Instance).ShouldHaveSingleItem();
 
 		var scopeParam = ctor.GetParameters().SingleOrDefault(p => p.ParameterType == typeof(TenantScope));

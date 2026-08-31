@@ -18,9 +18,17 @@ public interface IInboxMessage
 	string ExternalMessageId { get; init; }
 
 	/// <summary>
-	/// Gets the fully qualified type name of the message payload. This is used for message deserialization and routing to appropriate handlers.
+	/// Gets the name under which the message payload's .NET type is registered, used to resolve the type for
+	/// deserialization when the entry is drained.
 	/// </summary>
-	/// <value> A string containing the .NET type name, typically in the format "Namespace.TypeName, AssemblyName". </value>
+	/// <value>
+	/// A type name the message type registry can resolve. The framework's own
+	/// inbox writers store the <b>simple name</b> (<c>Type.Name</c>), so a message type whose simple name is
+	/// shared with another registered type must be disambiguated by registering only one of them; a qualified name is always unambiguous.
+	/// An ambiguous simple name — one shared by two registered types — resolves to
+	/// <b>nothing</b> rather than to either of them, so a collision fails loudly at resolution rather
+	/// than deserializing the payload as the wrong type.
+	/// </value>
 	string MessageType { get; init; }
 
 	/// <summary>
@@ -31,10 +39,15 @@ public interface IInboxMessage
 	string MessageMetadata { get; init; }
 
 	/// <summary>
-	/// Gets the serialized message payload body. This contains the actual message data that will be deserialized and processed by message handlers.
+	/// Gets the serialized message payload body. This contains the actual message data that will be deserialized and processed by message
+	/// handlers. The payload is carried as raw bytes because a configured payload serializer may produce a binary encoding that no text
+	/// encoding can round-trip without corrupting it.
 	/// </summary>
-	/// <value> A string containing the serialized message payload, typically in JSON format. </value>
-	string MessageBody { get; init; }
+	/// <value>
+	/// The raw serialized payload bytes exactly as produced by the configured serializer, or an empty array if the message has no body. When
+	/// the default JSON serializer is in use these bytes are UTF-8 encoded JSON.
+	/// </value>
+	byte[] MessageBody { get; init; }
 
 	/// <summary>
 	/// Gets the timestamp when this message was first received and stored in the inbox. This is used for ordering, debugging, and message

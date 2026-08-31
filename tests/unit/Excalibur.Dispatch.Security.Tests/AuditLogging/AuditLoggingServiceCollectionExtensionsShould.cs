@@ -301,7 +301,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var customStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var customStore = AuditStoreTenantScope.Untenanted();
 
 		// Act
 		_ = services.AddAuditLogging(_ => customStore);
@@ -328,7 +328,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			AuditLoggingServiceCollectionExtensions.AddAuditLogging(null!, _ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create())));
+			AuditLoggingServiceCollectionExtensions.AddAuditLogging(null!, _ => AuditStoreTenantScope.Untenanted()));
 	}
 
 	[Fact]
@@ -338,7 +338,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		var result = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 
 		// Assert
 		result.ShouldBeSameAs(services);
@@ -351,7 +351,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 
 		// Assert
 		var storeDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAuditStore));
@@ -367,7 +367,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 
 		// Assert
 		var loggerDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAuditLogger));
@@ -387,7 +387,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		_ = services.AddAuditLogging(sp =>
 		{
 			capturedProvider = sp;
-			return new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+			return AuditStoreTenantScope.Untenanted();
 		});
 		using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredService<IAuditStore>();
@@ -403,8 +403,8 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act - call twice
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 
 		// Assert - TryAdd prevents duplicates
 		var storeDescriptors = services.Where(d => d.ServiceType == typeof(IAuditStore)).ToList();
@@ -417,7 +417,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 		using var provider = services.BuildServiceProvider();
 
 		// Act
@@ -450,7 +450,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		{
 			// Verify we can resolve logging from the provider
 			_ = sp.GetRequiredService<ILoggerFactory>();
-			return new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+			return AuditStoreTenantScope.Untenanted();
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -521,7 +521,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 
 		// Act
 		_ = services.UseAuditStore<CustomAuditStore>();
@@ -584,7 +584,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var instance = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var instance = AuditStoreTenantScope.Untenanted();
 		_ = services.AddSingleton<IAuditStore>(instance);
 
 		// Act
@@ -665,7 +665,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		// Arrange - ImplementationInstance branch
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var storeInstance = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var storeInstance = AuditStoreTenantScope.Untenanted();
 		_ = services.AddSingleton<IAuditStore>(storeInstance);
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
@@ -686,7 +686,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		// Arrange - ImplementationFactory branch
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
 		// Act
@@ -772,13 +772,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_DelegatesStoreOperationsDirectly()
 	{
 		// Arrange - construct RbacAuditStore directly
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -803,13 +803,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_DelegatesQueryOperationsDirectly()
 	{
 		// Arrange - construct directly
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Pre-populate the inner store
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -834,13 +834,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_DelegatesGetByIdDirectly()
 	{
 		// Arrange - construct directly
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Pre-populate
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -865,14 +865,14 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_WithMetaAuditLogger_DelegatesCorrectly()
 	{
 		// Arrange - construct directly with meta audit logger
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 		var metaLogger = A.Fake<IAuditLogger>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, metaLogger), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -896,13 +896,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_DelegatesCountDirectly()
 	{
 		// Arrange
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Pre-populate
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -926,13 +926,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_DelegatesVerifyIntegrityDirectly()
 	{
 		// Arrange
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Act
 		var result = await rbacStore.VerifyChainIntegrityAsync(
@@ -941,7 +941,9 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			CancellationToken.None);
 
 		// Assert
-		result.IsValid.ShouldBeTrue();
+		result.Outcome.ShouldBe(
+			AuditIntegrityOutcome.NoEventsInScope,
+			"the inner store is empty, so the delegated call examined nothing.");
 		result.EventsVerified.ShouldBe(0);
 	}
 
@@ -949,13 +951,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_DelegatesGetLastEventDirectly()
 	{
 		// Arrange
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		// Pre-populate
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -980,13 +982,13 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 	public async Task RbacAuditStore_FullWorkflow_StoreQueryGetByIdCount()
 	{
 		// Arrange - full end-to-end workflow with direct construction
-		var innerStore = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var innerStore = AuditStoreTenantScope.Untenanted();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
+		var rbacStore = new RbacAuditStore(innerStore, TestScopeFactory.For(roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>()), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -1109,7 +1111,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		// Arrange - verify instance + RBAC descriptor wiring
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var storeInstance = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var storeInstance = AuditStoreTenantScope.Untenanted();
 		_ = services.AddSingleton<IAuditStore>(storeInstance);
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
@@ -1134,7 +1136,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		// Arrange - verify factory + RBAC descriptor wiring
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAuditLogging(_ => new InMemoryAuditStore(AuditIntegrityTestStrategy.Create()));
+		_ = services.AddAuditLogging(_ => AuditStoreTenantScope.Untenanted());
 		_ = services.AddScoped<IAuditRoleProvider, TestRoleProvider>();
 
 		// Act
@@ -1193,7 +1195,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			DateTimeOffset startDate,
 			DateTimeOffset endDate,
 			CancellationToken cancellationToken = default)
-			=> Task.FromResult(AuditIntegrityResult.Valid(0, startDate, endDate));
+			=> Task.FromResult(AuditIntegrityResult.NoEventsInScope(startDate, endDate));
 
 		public Task<AuditEvent?> GetLastEventAsync(string? tenantId = null, CancellationToken cancellationToken = default)
 			=> Task.FromResult<AuditEvent?>(null);

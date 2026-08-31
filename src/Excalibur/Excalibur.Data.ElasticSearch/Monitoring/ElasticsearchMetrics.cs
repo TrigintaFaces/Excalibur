@@ -47,22 +47,22 @@ public sealed class ElasticsearchMetrics : IDisposable
 		// Operation counters
 		_operationCounter = _meter.CreateCounter<long>(
 			"elasticsearch_operations_total",
-			"operation",
+			"{operations}",
 			"Total number of Elasticsearch operations by type and result");
 
 		_retryCounter = _meter.CreateCounter<long>(
 			"elasticsearch_retries_total",
-			"retry",
+			"{retries}",
 			"Total number of retry attempts by operation type");
 
 		_circuitBreakerStateChangeCounter = _meter.CreateCounter<long>(
 			"elasticsearch_circuit_breaker_state_changes_total",
-			"state_change",
+			"{state_changes}",
 			"Total number of circuit breaker state changes");
 
 		_permanentFailureCounter = _meter.CreateCounter<long>(
 			"elasticsearch_permanent_failures_total",
-			"operation",
+			"{failures}",
 			"Total number of operations that failed permanently after exhausting all resilience mechanisms");
 
 		// Duration and performance metrics
@@ -76,26 +76,26 @@ public sealed class ElasticsearchMetrics : IDisposable
 
 		_documentCounter = _meter.CreateHistogram<long>(
 			"elasticsearch_documents_processed",
-			"document",
+			"{documents}",
 			"Number of documents processed in bulk operations");
 
 		// Active operations tracking
 		_activeOperationsCounter = _meter.CreateUpDownCounter<long>(
 			"elasticsearch_active_operations",
-			"operation",
+			"{operations}",
 			"Number of currently active Elasticsearch operations");
 
 		// Observable gauges for state monitoring
 		_circuitBreakerStateGauge = _meter.CreateObservableGauge(
 			"elasticsearch_circuit_breaker_state",
 			() => _circuitBreakerState,
-			"state",
+			"{state}",
 			"Current circuit breaker state (0=Closed, 1=Open, 2=Half-Open)");
 
 		_healthStatusGauge = _meter.CreateObservableGauge(
 			"elasticsearch_health_status",
 			() => _lastHealthStatus,
-			"status",
+			"{status}",
 			"Current Elasticsearch cluster health status (1.0=Healthy, 0.0=Unhealthy)");
 	}
 
@@ -283,7 +283,7 @@ public sealed class ElasticsearchMetrics : IDisposable
 	/// <remarks>
 	/// Nested type is intentionally public as it is returned from StartOperation() method and part of the metrics API surface.
 	/// </remarks>
-	// R0.8: Do not nest type - Required for public API compatibility
+	// Do not nest type - Required for public API compatibility
 #pragma warning disable CA1034
 	public sealed class ElasticsearchOperationContext : IDisposable
 #pragma warning restore CA1034

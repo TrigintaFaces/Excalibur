@@ -94,9 +94,19 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		// Get the multi-stream projection containing the registered When<T> handlers
 		var multiStreamProjection = (MultiStreamProjection<TProjection>)registration.Projection;
 
-		// Apply all events through the same handlers used by inline/async (R27.42)
+		// Apply all events through the same handlers used by inline/async
 		foreach (var storedEvent in storedEvents)
 		{
+			// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a nulled
+			// payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any deserialization
+			// attempt, and skip it. A fully erased aggregate therefore projects to its empty initial state,
+			// which is the faithful answer once the subject's data is gone -- not an exception that makes the
+			// projection permanently unreadable. Only the reserved marker is skipped.
+			if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+			{
+				continue;
+			}
+
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
 			var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
 

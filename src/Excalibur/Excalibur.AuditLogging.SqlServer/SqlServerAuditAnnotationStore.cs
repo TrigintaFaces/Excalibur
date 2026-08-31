@@ -10,6 +10,7 @@ using Excalibur.Compliance;
 using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -56,27 +57,57 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		"COALESCE(ae.TenantId, @UntenantedSentinel) = @TenantId";
 
 	private readonly SqlServerAuditAnnotationStoreOptions _options;
-	private readonly IAuditActorProvider _actorProvider;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly TimeProvider _timeProvider;
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenantPartition =>
+		KeyedTenantPartition.FromContext(_tenantContext);
+
 	private readonly ILogger<SqlServerAuditAnnotationStore> _logger;
+
+	/// <summary>
+	/// Resolves the identity of the caller performing the current operation, from a scope opened for that
+	/// operation.
+	/// </summary>
+	/// <remarks>
+	/// The provider is never held in a field. This store is a singleton, so a provider captured at
+	/// construction answers for one caller for the life of the process -- and the value it returns is
+	/// written to the row as the annotation's author and used as the authorship term on reads, so every
+	/// annotation the process wrote would be attributed to whoever happened to be first, and every read
+	/// would be filtered by that same identity. A provider that reads ambient state (claims, an
+	/// <c>IHttpContextAccessor</c>, an async-local) resolves correctly from the scope opened here, because
+	/// that state flows with the call rather than with the container scope.
+	/// </remarks>
+	private async Task<string> GetCurrentActorIdAsync(CancellationToken cancellationToken)
+	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
+		return await scope.ServiceProvider
+			.GetRequiredService<IAuditActorProvider>()
+			.GetCurrentActorIdAsync(cancellationToken)
+			.ConfigureAwait(false);
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerAuditAnnotationStore"/> class.
 	/// </summary>
 	public SqlServerAuditAnnotationStore(
 		IOptions<SqlServerAuditAnnotationStoreOptions> options,
-		IAuditActorProvider actorProvider,
+		IServiceScopeFactory scopeFactory,
 		TimeProvider timeProvider,
-		ITenantContext? tenantContext,
+		ITenantContext tenantContext,
 		ILogger<SqlServerAuditAnnotationStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-		_actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
+		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-		// Optional by construction: a single-tenant host registers no ITenantContext, and that resolves to
-		// the untenanted partition — which still binds a concrete term, so the predicate is never empty.
+		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -93,7 +124,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 	/// always concrete and a tenant-blind statement cannot be produced by omission.
 	/// </remarks>
 	private string CurrentTenantTerm =>
-		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+		CurrentTenantPartition.TenantId;
 
 	/// <inheritdoc />
 	public async Task TagAsync(string eventId, IReadOnlyList<string> tags, CancellationToken cancellationToken)
@@ -106,7 +137,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 			return;
 		}
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 		var tenantId = CurrentTenantTerm;
 
@@ -173,7 +204,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
@@ -191,7 +222,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		// case in multi-tenant SaaS — tenant B's bookmark took the MATCHED branch against tenant A's row
 		// and overwrote its Content. A cross-tenant write, not merely a cross-tenant read.
 		var sql = $@"
-			MERGE {_options.FullyQualifiedTableName} AS target
+			MERGE {_options.FullyQualifiedTableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (
 				SELECT ae.EventId AS EventId, @ActorId AS ActorId
 				FROM {_options.FullyQualifiedEventsTableName} ae
@@ -235,7 +266,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -273,7 +304,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(note);
 
-		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var actorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 		var id = Guid.NewGuid().ToString("N");
 
@@ -395,7 +426,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		// annotation they may not read exists. No post-hoc row filter can restore a row that was excluded,
 		// so the term belongs inside the subquery. An annotation counts toward existence only when the
 		// caller could read it — shared, or authored by them.
-		var currentActorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		var currentActorId = await GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		parameters.Add("@SharedVisibility", (int)AuditAnnotationVisibility.Shared);
 		parameters.Add("@CurrentActorId", currentActorId);
 

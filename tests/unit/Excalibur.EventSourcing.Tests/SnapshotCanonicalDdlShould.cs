@@ -54,7 +54,7 @@ public sealed class SnapshotCanonicalDdlShould
 		// partition. RED if a future edit drops the NOT NULL or narrows the key.
 		var ddl = Normalize(File.ReadAllText(PostgresScriptPath));
 
-		ddl.ShouldContain("tenant_id       varchar(255) not null".Replace("       ", " "), Case.Insensitive,
+		ddl.ShouldContain("tenant_id       varchar(64) not null".Replace("       ", " "), Case.Insensitive,
 			"the Postgres snapshot DDL must make tenant_id NOT NULL — it participates in the primary key.");
 		ddl.ShouldContain("primary key (aggregate_id, aggregate_type, tenant_id)", Case.Insensitive,
 			"the primary key must be the (aggregate_id, aggregate_type, tenant_id) triple — a narrower key "
@@ -100,7 +100,7 @@ public sealed class SnapshotCanonicalDdlShould
 		// INSERT in the untenanted partition and make "I forgot the tenant" indistinguishable from "this
 		// row is deliberately untenanted". A separate ShouldNotContain("default") was considered and
 		// rejected: it would false-fail the day an unrelated column gains a legitimate DEFAULT.
-		ddl.ShouldContain("tenantid       varchar2(255) not null".Replace("       ", " "), Case.Insensitive,
+		ddl.ShouldContain("tenantid       varchar2(64) not null".Replace("       ", " "), Case.Insensitive,
 			"TENANTID must be NOT NULL with no DEFAULT between the type and the constraint. While it was "
 			+ "nullable, Oracle's NULL-distinct treatment left every untenanted row unconstrained by the "
 			+ "unique index — the duplicate-snapshot defect this arm exists to catch.");

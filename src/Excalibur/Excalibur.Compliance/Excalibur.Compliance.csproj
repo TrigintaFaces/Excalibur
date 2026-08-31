@@ -3,10 +3,17 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Compliance</PackageId>
-    <Description>Compliance implementations for the Excalibur framework. Provides AES-256-GCM encryption, key management, key rotation, and FIPS 140-2 validation for SOC2/GDPR requirements.</Description>
+    <Description>Compliance implementations for the Excalibur framework. Provides AES-256-GCM encryption, key management, key rotation, and FIPS 140-2 validation for SOC2/GDPR requirements. SOC 2 reports export to JSON, CSV, XML, Excel and text; PDF export is opt-in via the separate Excalibur.Compliance.Pdf package.</Description>
     <PackageTags>compliance;encryption;aes-gcm;key-management;gdpr;soc2;security;fips</PackageTags>
-    <!-- AOT: Compatible. Reflection-using methods (encryption, masking, retention, QuestPDF) carry [RequiresUnreferencedCode]/[RequiresDynamicCode]. -->
+    <!-- AOT: Reflection-using methods (encryption, masking, retention) carry [RequiresUnreferencedCode]/[RequiresDynamicCode]. -->
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- The Add*(IConfiguration) overloads in this assembly call OptionsBuilder<T>.Bind(configuration).
+         The source-generated config binder makes those calls interceptor-rewritten to generated,
+         reflection-free code at THIS assembly's own compile time, instead of falling back to
+         ConfigurationBinder.Bind()'s reflection path, which silently drops nested record properties
+         (e.g. Soc2Options.SystemDescription) under trimming. Enabling it here, not just when a
+         consumer opts in, is what makes AddSoc2Compliance(IConfiguration) actually AOT-safe. -->
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
@@ -21,6 +28,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Compliance.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Security.Tests" />
     <!-- The SqlServer escrow provider delegates to the internal QuorumRecoverySeam so the M-of-N
          quorum invariant lives in exactly one place across both first-party provider assemblies. -->
     <InternalsVisibleTo Include="Excalibur.Compliance.SqlServer" />
@@ -32,6 +40,10 @@
     <!-- Real-infrastructure lock for the internal encrypting decorator's scoped-transactional forward: the
          atomic guarantee through a DECORATED store can only be proven against a live provider transaction. -->
     <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+    <!-- Parity lock for the in-memory stores' tenant term: the property under test is that the in-memory
+         and relational stores persist the SAME spelling of an absent tenant, so one half of every
+         comparison is a real server and the other is this assembly's internal store. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
@@ -46,11 +58,6 @@
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
-    <PackageReference Include="MongoDB.Driver" />
-    <PackageReference Include="Npgsql" />
-    <!-- QuestPDF for production PDF generation (MIT license, Community Edition) -->
-    <!-- Note: QuestPDF uses reflection, making this package not AOT-compatible when PDF export is used -->
-    <PackageReference Include="QuestPDF" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

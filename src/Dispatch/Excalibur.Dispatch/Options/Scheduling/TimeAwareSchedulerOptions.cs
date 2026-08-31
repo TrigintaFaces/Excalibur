@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Delivery;
 namespace Excalibur.Dispatch.Options.Scheduling;
 
 /// <summary>
-/// Enhanced scheduler options with integrated TimePolicy configuration for time-aware scheduled message processing. R7.4: Configurable
+/// Enhanced scheduler options with integrated TimePolicy configuration for time-aware scheduled message processing. Configurable
 /// timeout handling with adaptive capabilities for scheduled message operations.
 /// </summary>
 public sealed class TimeAwareSchedulerOptions
@@ -217,12 +217,6 @@ public sealed class TimeAwareSchedulerOptions
 public sealed class SchedulerTimeoutOptions
 {
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable timeout policies for scheduling operations.
-	/// </summary>
-	/// <value><see langword="true"/> by default.</value>
-	public bool EnableTimeoutPolicies { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets the timeout for scheduled message retrieval operations.
 	/// </summary>
 	/// <value>30 seconds by default.</value>
@@ -269,12 +263,6 @@ public sealed class SchedulerTimeoutOptions
 	/// </summary>
 	/// <value><see langword="true"/> by default.</value>
 	public bool LogSchedulingTimeouts { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to include timeout metrics in scheduling telemetry.
-	/// </summary>
-	/// <value><see langword="true"/> by default.</value>
-	public bool IncludeTimeoutMetrics { get; set; } = true;
 }
 
 /// <summary>

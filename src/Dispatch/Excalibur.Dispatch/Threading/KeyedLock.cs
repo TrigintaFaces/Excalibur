@@ -94,7 +94,7 @@ public sealed class KeyedLock : IKeyedLock
 	private sealed class LockHandle(KeyedLock owner, string key, Entry entry) : IDisposable
 	{
 		// volatile: LockHandle.Dispose may be called from any thread, so the guard read/write must be
-		// visible across threads (project-wide _disposed conformance rule, S569).
+		// visible across threads (project-wide _disposed conformance rule,).
 		private volatile bool _disposed;
 
 		public void Dispose()

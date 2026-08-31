@@ -91,10 +91,21 @@ internal sealed partial class JitAccessExpiryService(
 				continue;
 			}
 
+			// A grant belongs to a tenant, so a request that never named one cannot have produced a grant
+			// to revoke: the lookup could only ever match nothing. Skip it with a reason rather than
+			// probing the store with an empty tenant term, which is a second spelling of "no tenant".
+			if (string.IsNullOrEmpty(request.TenantId))
+			{
+				LogJitExpirySkippedWithoutTenant(logger, request.UserId, request.GrantScope);
+				continue;
+			}
+
+			var tenantId = request.TenantId;
+
 			// Check if the grant still exists
 			var grantExists = await grantStore.GrantExistsAsync(
 				request.UserId,
-				request.TenantId ?? string.Empty,
+				tenantId,
 				request.GrantType,
 				request.GrantScope,
 				cancellationToken).ConfigureAwait(false);
@@ -107,7 +118,7 @@ internal sealed partial class JitAccessExpiryService(
 			// Revoke the expired JIT grant
 			await grantStore.DeleteGrantAsync(
 				request.UserId,
-				request.TenantId ?? string.Empty,
+				tenantId,
 				request.GrantType,
 				request.GrantScope,
 				revokedBy: "JitAccessExpiryService",
@@ -126,6 +137,9 @@ internal sealed partial class JitAccessExpiryService(
 
 	[LoggerMessage(EventId = 3581, Level = LogLevel.Information, Message = "JIT grant expired and revoked for user '{UserId}', scope '{GrantScope}'.")]
 	private static partial void LogJitGrantExpired(ILogger logger, string userId, string grantScope);
+
+	[LoggerMessage(EventId = 3584, Level = LogLevel.Debug, Message = "JIT expiry check skipped a provisioned request for user '{UserId}', scope '{GrantScope}': the request names no tenant, so no grant could exist for it.")]
+	private static partial void LogJitExpirySkippedWithoutTenant(ILogger logger, string userId, string grantScope);
 
 	[LoggerMessage(EventId = 3582, Level = LogLevel.Information, Message = "JIT expiry check completed. {RevokedCount} grant(s) revoked.")]
 	private static partial void LogJitExpiryCheckCompleted(ILogger logger, int revokedCount);

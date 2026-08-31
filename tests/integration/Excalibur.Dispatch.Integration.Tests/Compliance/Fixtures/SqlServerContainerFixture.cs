@@ -34,6 +34,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
+			.WithBoundedMemory()
 			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-compliance-test-{Guid.NewGuid():N}")
 			.WithPassword("YourStrong(!)Password")

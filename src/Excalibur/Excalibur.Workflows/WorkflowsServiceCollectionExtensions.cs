@@ -30,7 +30,21 @@ public static class WorkflowsServiceCollectionExtensions
         services.TryAddSingleton<WorkflowRegistry>();
         services.TryAddSingleton<ActivityRegistry>();
         services.TryAddSingleton<WorkflowSignalNotifier>();
-        services.TryAddSingleton<IWorkflowSignalInbox, InMemoryWorkflowSignalInbox>();
+
+        // TryAdd, so a host that established its own tenancy keeps it and a single-tenant host still gets a
+        // context. The in-process inbox's constructor requires ITenantContext — the tenant term is part of
+        // its mailbox key — so without this the default registration cannot construct it.
+        _ = services.AddDefaultTenantContext();
+
+        // Through the tenant-aware seam, not a bare TryAdd. The seam resolves the ambient context
+        // (fail-closed) before constructing the inbox and emits the tenant-scoping capability for the
+        // contract in the same act, so the attestation cannot be present without the wiring it describes.
+        // The mailbox contract is tenant-owned, and a multi-tenant host refuses any tenant-owned store that
+        // attests nothing -- registering this default plainly made the framework's own default the thing
+        // that failed the gate.
+        _ = services.AddTenantAwareStore<IWorkflowSignalInbox, InMemoryWorkflowSignalInbox>();
+        services.TryAddSingleton<IWorkflowSignalInbox>(
+            static sp => sp.GetRequiredService<InMemoryWorkflowSignalInbox>());
         services.TryAddScoped<IWorkflowExecutor, WorkflowExecutor>();
 
         services.AddOptions<WorkflowOptions>().ValidateOnStart();
@@ -64,6 +78,7 @@ public static class WorkflowsServiceCollectionExtensions
 
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, WorkflowSignalInboxDurabilityValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, WorkflowSignalInboxDurabilityValidator>());
 
         return services;
     }

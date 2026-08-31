@@ -1,9 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb;
@@ -20,8 +19,6 @@ namespace Excalibur.Outbox.CosmosDb;
 /// </summary>
 public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSubscription<CloudOutboxMessage>
 {
-	private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
 	private readonly Container _container;
 	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
@@ -134,7 +131,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 				continue;
 			}
 
-			FeedResponse<OutboxDocument>? response = null;
+			FeedResponse<CosmosDbOutboxDocument>? response = null;
 			try
 			{
 				response = await iterator.ReadNextAsync(linkedToken).ConfigureAwait(false);
@@ -167,7 +164,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 			// Capture THIS page's "resume-after-this-page" continuation token before yielding; persist it
 			// only AFTER the consumer has processed (pulled) the page (post-yield, below) — never before —
 			// so a crash mid-page resumes from BEFORE the page (at-least-once), never advancing past
-			// unprocessed changes. bd-ydln24 / SA seam 17195.
+			// unprocessed changes. / SA seam 17195.
 			var pageContinuationToken = response.ContinuationToken;
 			CurrentContinuationToken = pageContinuationToken;
 
@@ -180,7 +177,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 					continue;
 				}
 
-				var message = FromDocument(doc);
+				var message = CosmosDbOutboxDocumentMap.FromDocument(doc);
 				yield return new OutboxChangeFeedEvent(
 					ChangeFeedEventType.Created,
 					message,
@@ -216,31 +213,6 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 		_cts.Dispose();
 	}
 
-	private static CloudOutboxMessage FromDocument(OutboxDocument doc) =>
-		new()
-		{
-			MessageId = doc.Id,
-			MessageType = doc.MessageType,
-			Payload = Convert.FromBase64String(doc.Payload),
-#pragma warning disable IL2026
-			Headers = !string.IsNullOrEmpty(doc.Headers)
-				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.Headers, JsonOptions)
-				: null,
-#pragma warning restore IL2026
-			AggregateId = doc.AggregateId,
-			AggregateType = doc.AggregateType,
-			CorrelationId = doc.CorrelationId,
-			CausationId = doc.CausationId,
-			TenantId = doc.TenantId,
-			Destination = doc.Destination,
-			CreatedAt = DateTimeOffset.Parse(doc.CreatedAt, CultureInfo.InvariantCulture),
-			PublishedAt = !string.IsNullOrEmpty(doc.PublishedAt) ? DateTimeOffset.Parse(doc.PublishedAt, CultureInfo.InvariantCulture) : null,
-			RetryCount = doc.RetryCount,
-			LastError = doc.LastError,
-			PartitionKeyValue = doc.PartitionKey,
-			ETag = doc.ETag
-		};
-
 	private DateTime? GetStartTime()
 	{
 		return _options.StartPosition switch
@@ -253,7 +225,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 		};
 	}
 
-	private FeedIterator<OutboxDocument> CreateChangeFeedIterator(DateTime? startTime)
+	private FeedIterator<CosmosDbOutboxDocument> CreateChangeFeedIterator(DateTime? startTime)
 	{
 		ChangeFeedStartFrom startFrom;
 
@@ -276,31 +248,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 
 		var requestOptions = new ChangeFeedRequestOptions { PageSizeHint = _options.MaxBatchSize };
 
-		return _container.GetChangeFeedIterator<OutboxDocument>(startFrom, ChangeFeedMode.Incremental, requestOptions);
-	}
-
-	/// <summary>
-	/// Internal document representation for Cosmos DB storage.
-	/// </summary>
-	private sealed class OutboxDocument
-	{
-		public required string Id { get; set; }
-		public required string PartitionKey { get; set; }
-		public required string MessageType { get; set; }
-		public required string Payload { get; set; }
-		public string? Headers { get; set; }
-		public string? AggregateId { get; set; }
-		public string? AggregateType { get; set; }
-		public string? CorrelationId { get; set; }
-		public string? CausationId { get; set; }
-		public string? TenantId { get; set; }
-		public string? Destination { get; set; }
-		public required string CreatedAt { get; set; }
-		public string? PublishedAt { get; set; }
-		public bool IsPublished { get; set; }
-		public int RetryCount { get; set; }
-		public string? LastError { get; set; }
-		public string? ETag { get; set; }
+		return _container.GetChangeFeedIterator<CosmosDbOutboxDocument>(startFrom, ChangeFeedMode.Incremental, requestOptions);
 	}
 }
 

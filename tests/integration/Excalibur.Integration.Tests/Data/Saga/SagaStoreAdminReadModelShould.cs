@@ -356,7 +356,8 @@ public sealed class SqlServerSagaStoreAdminReadModelShould : SagaStoreAdminReadM
 		var store = new SqlServerSagaStore(
 			_fixture.ConnectionString,
 			NullLogger<SqlServerSagaStore>.Instance,
-			new DispatchJsonSerializer());
+			new DispatchJsonSerializer(),
+			UntenantedTestTenantContext.Instance);
 		return (store, (ISagaStoreAdmin)store);
 	}
 
@@ -399,7 +400,11 @@ public sealed class PostgresSagaStoreAdminReadModelShould : SagaStoreAdminReadMo
 			CommandTimeoutSeconds = 30,
 		});
 
-		var store = new PostgresSagaStore(options, NullLogger<PostgresSagaStore>.Instance, new DispatchJsonSerializer());
+		var store = new PostgresSagaStore(
+			options,
+			NullLogger<PostgresSagaStore>.Instance,
+			new DispatchJsonSerializer(),
+			UntenantedTestTenantContext.Instance);
 		return (store, (ISagaStoreAdmin)store);
 	}
 

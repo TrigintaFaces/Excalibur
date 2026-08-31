@@ -27,7 +27,7 @@ internal sealed class ProjectionObservability
 		_meter = meterFactory.Create(EventNotificationTelemetry.MeterName);
 		var meter = _meter;
 
-		// R27.47: Projection error counter
+		// Projection error counter
 		_errorCounter = meter.CreateCounter<long>(
 			"excalibur.projection.error.count",
 			unit: "{errors}",
@@ -35,7 +35,7 @@ internal sealed class ProjectionObservability
 	}
 
 	/// <summary>
-	/// Records a projection error (R27.47).
+	/// Records a projection error.
 	/// </summary>
 	internal void RecordError(string projectionType, string errorType)
 	{

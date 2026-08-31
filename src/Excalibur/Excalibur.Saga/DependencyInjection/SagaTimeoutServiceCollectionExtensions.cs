@@ -64,9 +64,19 @@ public static class SagaTimeoutServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
+		// The in-memory store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = services.AddDefaultTenantContext();
+
 		// Register in-memory store as default (can be overridden)
 		services.TryAddSingleton<InMemorySagaTimeoutStore>();
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<InMemorySagaTimeoutStore>());
+
+		// The delivery service resolves every timeout message type through this registry, so the
+		// entry point that registers the service must guarantee it. TryAdd yields to AddSagas(),
+		// which registers the same instance the AddSaga<T>() calls populate.
+		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 
 		// Register hosted service
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
@@ -99,9 +109,19 @@ public static class SagaTimeoutServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
+		// The in-memory store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = services.AddDefaultTenantContext();
+
 		// Register in-memory store as default (can be overridden)
 		services.TryAddSingleton<InMemorySagaTimeoutStore>();
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<InMemorySagaTimeoutStore>());
+
+		// The delivery service resolves every timeout message type through this registry, so the
+		// entry point that registers the service must guarantee it. TryAdd yields to AddSagas(),
+		// which registers the same instance the AddSaga<T>() calls populate.
+		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 
 		// Register hosted service
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
@@ -133,6 +153,11 @@ public static class SagaTimeoutServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
 
+		// The delivery service resolves every timeout message type through this registry, so the
+		// entry point that registers the service must guarantee it. TryAdd yields to AddSagas(),
+		// which registers the same instance the AddSaga<T>() calls populate.
+		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
+
 		// Register hosted service only (store must be registered separately)
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
 
@@ -163,6 +188,11 @@ public static class SagaTimeoutServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SagaTimeoutOptions>, SagaTimeoutOptionsValidator>());
+
+		// The delivery service resolves every timeout message type through this registry, so the
+		// entry point that registers the service must guarantee it. TryAdd yields to AddSagas(),
+		// which registers the same instance the AddSaga<T>() calls populate.
+		services.TryAddSingleton<ISagaTypeRegistry, SagaTypeRegistry>();
 
 		// Register hosted service only (store must be registered separately)
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();

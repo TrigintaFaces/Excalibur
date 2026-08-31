@@ -57,7 +57,12 @@ internal static partial class TieredStorageLogging
 		this ILogger logger, int archivedCount, int totalCount, long eventCount);
 
 	[LoggerMessage(EventId = 3030, Level = LogLevel.Debug,
-		Message = "Archiving {AggregateId}: {EventCount} events from version {FromVersion} to {ToVersion}")]
+		Message = "Archived {AggregateId}: {EventCount} events removed from the hot tier, versions {FromVersion} to {ToVersion}")]
 	internal static partial void ArchivingAggregate(
 		this ILogger logger, string aggregateId, int eventCount, long fromVersion, long toVersion);
+
+	[LoggerMessage(EventId = 3031, Level = LogLevel.Warning,
+		Message = "Archive of {AggregateId} durably wrote {EventCount} events to cold storage up to version {ToVersion}, but the hot delete removed no rows; the events remain in both tiers")]
+	internal static partial void ArchiveHotDeleteRemovedNothing(
+		this ILogger logger, string aggregateId, int eventCount, long toVersion);
 }

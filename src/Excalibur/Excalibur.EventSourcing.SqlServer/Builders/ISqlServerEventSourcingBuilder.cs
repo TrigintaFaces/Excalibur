@@ -156,4 +156,23 @@ public interface ISqlServerEventSourcingBuilder
 	ISqlServerEventSourcingBuilder UseMaterializedViewStore(
 		string viewTableName,
 		string positionTableName);
+
+	/// <summary>
+	/// Supplies a source-generated JSON type-info resolver covering the application's domain event types and
+	/// the runtime types of the values it places in <see cref="Excalibur.Dispatch.IDomainEvent.Metadata"/>,
+	/// so the event store serializes without reflection under trimming and native AOT.
+	/// </summary>
+	/// <remarks>
+	/// Domain events are consumer types the framework cannot source-generate, so with no resolver the store
+	/// serializes them through the reflection-based serializer. That works under the JIT, but a native-AOT
+	/// application published with reflection-based serialization disabled has no reflection path to fall back
+	/// on and the first append fails. The stored wire format does not vary with this setting: the resolver
+	/// supplies type metadata only, and the naming policy, string-enum representation and null handling remain
+	/// the store's own.
+	/// </remarks>
+	/// <param name="resolver">The application's event type-info resolver, typically a source-generated context.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="resolver"/> is <see langword="null"/>.</exception>
+	ISqlServerEventSourcingBuilder EventTypeInfoResolver(
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver);
 }

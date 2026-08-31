@@ -27,10 +27,17 @@ public static partial class ResultFactoryRegistry
 {
 	private static readonly ConcurrentDictionary<Type, Func<object?, RoutingDecision?, object?, IAuthorizationResult?, bool, IMessageResult>> _factories = new();
 
+	private static readonly ConcurrentDictionary<Type, Func<object?, bool, IMessageResult>> _leanFactories = new();
+
 	/// <summary>
 	/// Registers a factory for creating <c>MessageResult.Success&lt;T&gt;</c> instances.
 	/// </summary>
 	/// <typeparam name="T">The result type.</typeparam>
+	/// <remarks>
+	/// Registers both the full factory (used when a routing, validation, or authorization result is
+	/// present) and the lean factory used by the plain dispatch path. One call covers both, so callers
+	/// and code generators never have to know which path a given dispatch will take.
+	/// </remarks>
 	public static void RegisterFactory<T>()
 	{
 		_factories.TryAdd(
@@ -42,17 +49,30 @@ public static partial class ResultFactoryRegistry
 					validation,
 					auth,
 					cacheHit));
+
+		// Mirrors the reflective lean factory, including its null-becomes-default(T) behaviour.
+		_leanFactories.TryAdd(
+			typeof(T),
+			static (returnValue, cacheHit) =>
+				new SimpleSuccessMessageResultOfT<T>(
+					returnValue is null ? default : (T)returnValue,
+					cacheHit));
 	}
 
 	/// <summary>
 	/// Gets a factory for creating MessageResult instances of the specified type.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Factory delegates are registered at startup by source-generated code. No reflection at runtime.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Factory delegates are registered at startup by source-generated code. No runtime code generation.")]
 	internal static Func<object?, RoutingDecision?, object?, IAuthorizationResult?, bool, IMessageResult>? GetFactory(Type resultType)
 	{
 		return _factories.TryGetValue(resultType, out var factory) ? factory : null;
+	}
+
+	/// <summary>
+	/// Gets a factory for creating lean success results of the specified type, used by the plain
+	/// dispatch path where no routing, validation, or authorization result is present.
+	/// </summary>
+	internal static Func<object?, bool, IMessageResult>? GetLeanFactory(Type resultType)
+	{
+		return _leanFactories.TryGetValue(resultType, out var factory) ? factory : null;
 	}
 }

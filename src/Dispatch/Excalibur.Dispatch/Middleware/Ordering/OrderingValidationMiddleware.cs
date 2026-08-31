@@ -63,7 +63,7 @@ internal sealed partial class OrderingValidationMiddleware : DispatchMiddlewareB
 				+ "or do not register AddOrderingValidation for this pipeline.");
 		}
 
-		// smeh4k: verify order BEFORE processing, but advance the watermark only AFTER the handler
+		// verify order BEFORE processing, but advance the watermark only AFTER the handler
 		// succeeds. Advancing on receipt breaks at-least-once retry: if the handler for seq-N throws and
 		// the transport redelivers N, an already-advanced watermark would reject the redelivery as
 		// "out of order" and the message would be stuck forever. Advancing on success means a
@@ -81,7 +81,7 @@ internal sealed partial class OrderingValidationMiddleware : DispatchMiddlewareB
 
 	// Fail-closed order check: a non-increasing sequence (a duplicate or an out-of-order arrival) throws
 	// OutOfOrderMessageException and does NOT invoke the rest of the pipeline. Does not mutate the
-	// watermark — that happens only after successful processing (smeh4k).
+	// watermark — that happens only after successful processing.
 	private void EnsureInOrder(string orderingKey, long sequence)
 	{
 		if (_lastSequences.TryGetValue(orderingKey, out var last) && sequence <= last)

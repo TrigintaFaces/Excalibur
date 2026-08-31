@@ -16,7 +16,7 @@ using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Tests.Encryption;
 [Trait("Component", "Compliance")]
 public sealed class EncryptingAuditEventStoreRoundTripShould : IDisposable
 {
-    private readonly InMemoryAuditStore _innerStore = new(AuditIntegrityTestStrategy.Create());
+    private readonly InMemoryAuditStore _innerStore = new(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
     public void Dispose() => _innerStore.Dispose();
     private readonly IEncryptionProvider _encryption = A.Fake<IEncryptionProvider>();
 

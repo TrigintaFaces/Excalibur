@@ -27,6 +27,29 @@ The Oracle packages are **opt-in**: install only the subsystems you use, and reg
 
 **Common dependencies:** `Oracle.ManagedDataAccess.Core`, `Dapper`
 
+:::caution The Oracle driver is not open source
+
+`Oracle.ManagedDataAccess.Core` is Oracle's own ODP.NET Core driver and is **not** distributed under
+an OSI-approved open-source license. Its `LICENSE.txt` opens:
+
+> Your use of this Program is governed by the Oracle Free Distribution, Hosting, and Use Terms and
+> Conditions set forth below, unless you have received this Program (alone or as part of another
+> Oracle product) under an Oracle license agreement (including but not limited to the Oracle Master
+> Agreement), in which case your use of this Program is governed solely by such license agreement
+> with Oracle.
+
+Excalibur redistributes no Oracle software and asserts nothing about your eligibility on your
+behalf -- the same position it takes on the [QuestPDF license](../compliance/checklists/soc2.md).
+Installing any of the four packages above makes NuGet install the driver into your application, so
+the obligations are yours. Read the terms shipped inside the driver package and confirm your
+deployment is covered before you ship.
+
+Every other Excalibur database provider carries an OSI-approved driver license: SQL Server, MySQL
+and SQLite are MIT, and Npgsql is the PostgreSQL license. Choosing a different provider is the
+remedy if these terms do not suit you.
+
+:::
+
 ## Event Sourcing
 
 ```bash

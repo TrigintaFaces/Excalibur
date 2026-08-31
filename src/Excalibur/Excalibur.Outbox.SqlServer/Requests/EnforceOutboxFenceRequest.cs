@@ -17,7 +17,7 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// <para>
 /// A single serializable <c>MERGE</c> both reads the recorded high-water and advances it monotonically to
 /// the presented token — never lowering it. Because the whole compare-and-advance is one statement under
-/// <c>HOLDLOCK</c>, two concurrent leaders cannot both advance the high-water: the second observes the
+/// <c>UPDLOCK, HOLDLOCK</c>, two concurrent leaders cannot both advance the high-water: the second observes the
 /// first's write and is ordered after it. The statement always emits exactly one row carrying the
 /// <em>resulting</em> high-water:
 /// </para>
@@ -34,6 +34,9 @@ namespace Excalibur.Outbox.SqlServer.Requests;
 /// never touches, so it survives the deletion of the token-bearing message rows.
 /// </para>
 /// </remarks>
+[NoTenantTerm(
+	TenantConfinement.EstateWide,
+	"the fence is keyed on the outbox table, not on a tenant: a fencing token orders competing processors of one table and has no tenant dimension to scope to")]
 public sealed class EnforceOutboxFenceRequest : DataRequestBase<IDbConnection, long>
 {
 	/// <summary>
@@ -59,9 +62,13 @@ public sealed class EnforceOutboxFenceRequest : DataRequestBase<IDbConnection, l
 		// WHEN MATCHED THEN UPDATE always fires (so the OUTPUT always yields a row), but only raises the
 		// high-water when the token is at least the current value — a monotonic advance that never regresses.
 		// HOLDLOCK (serializable) on the target range makes the compare-and-advance atomic across concurrent
-		// leaders. OUTPUT returns the resulting high-water for both the matched and the inserted branch.
+		// leaders, and UPDLOCK makes that range lock an UPDATE lock rather than a SHARED one. Both hints are
+		// required: with HOLDLOCK alone two leaders enforcing the same scope each hold a shared range lock and
+		// each need to convert it to exclusive for the write, so the engine breaks the cycle by killing one as
+		// a deadlock victim. UPDATE locks are not mutually compatible, so the second leader blocks instead.
+		// OUTPUT returns the resulting high-water for both the matched and the inserted branch.
 		var sql = $"""
-			MERGE {fenceTableName} WITH (HOLDLOCK) AS f
+			MERGE {fenceTableName} WITH (UPDLOCK, HOLDLOCK) AS f
 			USING (SELECT @Scope AS OutboxTable) AS s ON (f.OutboxTable = s.OutboxTable)
 			WHEN MATCHED THEN
 				UPDATE SET HighWaterToken =

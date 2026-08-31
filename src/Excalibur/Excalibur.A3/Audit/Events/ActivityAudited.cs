@@ -19,8 +19,6 @@ public sealed record ActivityAudited : DomainEvent, IActivityAudited
 	/// </summary>
 	/// <param name="audit"> The <see cref="IActivityAudited" /> instance to copy data from. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="audit" /> is <c> null </c>. </exception>
-	[RequiresUnreferencedCode("Copying properties from IActivityAudited which has properties marked with RequiresUnreferencedCode")]
-	[RequiresDynamicCode("Copying properties from IActivityAudited which has properties marked with RequiresDynamicCode")]
 	[SetsRequiredMembers]
 	public ActivityAudited(IActivityAudited audit)
 	{
@@ -70,8 +68,6 @@ public sealed record ActivityAudited : DomainEvent, IActivityAudited
 	/// <value>The serialized request string.</value>
 	public required string Request
 	{
-		[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		get;
 		init;
 	}

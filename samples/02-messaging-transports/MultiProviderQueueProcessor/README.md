@@ -70,6 +70,10 @@ Create `appsettings.json` with your infrastructure settings:
 }
 ```
 
+The broker these samples run against is plaintext, so the registration calls `RequireTls(false)`.
+The transport otherwise refuses an unencrypted connection; a real deployment uses an `amqps://`
+connection string and leaves that alone.
+
 Each provider is conditionally registered -- only providers with non-empty connection strings are activated.
 
 ## Running the Sample
@@ -97,8 +101,7 @@ MultiProviderQueueProcessor/
 │   └── OrderHandlers.cs            # Event handlers
 ├── Infrastructure/
 │   ├── DatabaseInitializer.cs      # Schema setup
-│   ├── OrderRepository.cs          # Event-sourced repository
-│   └── OutboxProcessorService.cs   # Outbox background service
+│   └── OrderRepository.cs          # Event-sourced repository
 └── Projections/
     ├── IOrderProjectionUpdater.cs        # Projection interface
     └── ElasticOrderProjectionUpdater.cs  # Read model updates
@@ -157,8 +160,8 @@ builder.Services.AddAzureServiceBusTransport("azure-servicebus", asb =>
     _ = asb.ConnectionString(azureConnectionString)
         .ConfigureProcessor(processor =>
         {
-            _ = processor.MaxConcurrentCalls(10)
-                .PrefetchCount(20);
+            processor.MaxConcurrentCalls = 10;
+            processor.PrefetchCount = 20;
         })
         .MapEntity<object>(azureConfig["QueueName"] ?? "dispatch-events");
 });
@@ -192,10 +195,6 @@ builder.Services.AddAwsSqsTransport("aws-sqs", sqs =>
         {
             _ = queue.ReceiveWaitTimeSeconds(20)
                 .VisibilityTimeout(TimeSpan.FromSeconds(30));
-        })
-        .ConfigureBatch(batch =>
-        {
-            _ = batch.ReceiveMaxMessages(10);
         })
         .MapQueue<object>(awsQueueUrl);
 });

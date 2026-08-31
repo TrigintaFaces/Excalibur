@@ -19,7 +19,18 @@ namespace Excalibur.Dispatch.Messaging;
 /// This is the basic saga persistence contract in the Dispatch layer. For saga orchestration with
 /// coordination and timeout support, see the Excalibur.Saga package.
 /// </para>
+/// <para>
+/// <b>Tenant confinement.</b> <see cref="LoadAsync{TSagaState}"/> and <see cref="SaveAsync{TSagaState}"/>
+/// are confined to the ambient tenant established for this store instance: a confined load returns the
+/// caller's own saga state and never another tenant's, and a confined save can neither overwrite nor be
+/// overwritten by another tenant's state for the same <c>sagaId</c>. Which mechanism a given provider
+/// uses to hold that boundary is declared by its capability marker — <see cref="ITenantScopingCapability{TContract}"/>
+/// for a store that reads an ambient tenant — and the package's own <c>ARCHITECTURE.md</c> states the
+/// falsifiable guarantee and how it is verified. A store presenting no marker is not confined by the
+/// framework.
+/// </para>
 /// </remarks>
+[TenantOwned]
 public interface ISagaStore
 {
 	/// <summary>
@@ -37,6 +48,12 @@ public interface ISagaStore
 	/// Implementations should handle storage-specific error conditions gracefully and may implement caching strategies for performance
 	/// optimization. The method should preserve saga state integrity and handle concurrent access scenarios appropriately. Failed loads due
 	/// to storage issues should propagate exceptions to enable proper error handling in the saga coordination layer.
+	/// <para>
+	/// Confined to the ambient tenant established for this store instance: resolves the caller's own saga
+	/// state for <paramref name="sagaId"/> when it exists, and never resolves state stored under another
+	/// tenant's identical <paramref name="sagaId"/> — such a lookup returns <see langword="null"/>, the same
+	/// outcome as a genuinely missing saga.
+	/// </para>
 	/// </remarks>
 	Task<TSagaState?> LoadAsync<TSagaState>(Guid sagaId, CancellationToken cancellationToken)
 		where TSagaState : SagaState;
@@ -54,6 +71,11 @@ public interface ISagaStore
 	/// optimistic concurrency control or version-based conflict resolution. The save operation should be atomic and durable, guaranteeing
 	/// that saga state changes are reliably persisted before the operation completes. Failed saves should propagate exceptions to enable
 	/// proper error handling and potential retry logic in calling code.
+	/// <para>
+	/// Confined to the ambient tenant established for this store instance: the save can neither overwrite
+	/// another tenant's saga state for the same identifier nor be overwritten by one — the two occupy
+	/// separate partitions even when every other field is identical.
+	/// </para>
 	/// </remarks>
 	Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState;

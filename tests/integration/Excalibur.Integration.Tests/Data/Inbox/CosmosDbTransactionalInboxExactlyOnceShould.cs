@@ -75,7 +75,7 @@ public sealed class CosmosDbTransactionalInboxExactlyOnceShould
 				HttpClientFactory = _fixture.HttpClientFactory,
 			},
 		});
-		return new CosmosDbInboxStore(options, NullLogger<CosmosDbInboxStore>.Instance);
+		return new CosmosDbInboxStore(options, NullLogger<CosmosDbInboxStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	// A handler-owned side-effect doc, written ENLISTED on the batch so it commits atomically with the mark.

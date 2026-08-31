@@ -2029,12 +2029,6 @@ dotnet_diagnostic.CA1054.severity = suggestion
 dotnet_diagnostic.CS8602.severity = suggestion  # Dereference possibly null reference
 dotnet_diagnostic.CS9113.severity = suggestion  # Unread parameter
 dotnet_diagnostic.CS0618.severity = suggestion  # Obsolete types (documented migration path)
-dotnet_diagnostic.IL2055.severity = suggestion  # AOT analysis (MakeGenericType)
-dotnet_diagnostic.IL2057.severity = suggestion  # Type.GetType AOT analysis
-dotnet_diagnostic.IL2060.severity = suggestion  # AOT analysis (ADR-041 Phase 5)
-dotnet_diagnostic.IL2070.severity = suggestion  # Trim analysis - DynamicallyAccessedMembers (ADR-041 Phase 5)
-dotnet_diagnostic.IL2075.severity = suggestion  # Trim analysis - GetMethod/GetProperty (ADR-041 Phase 5)
-dotnet_diagnostic.IL2095.severity = suggestion  # AOT analysis - Generic parameter annotations (ADR-041 Phase 5)
 dotnet_diagnostic.CS8656.severity = suggestion  # Readonly member implicit copy
 # XML comment cref resolution. Raised from suggestion to warning (and so to an error under
 # TreatWarningsAsErrors) because an unresolved cref ships as a dead link in the NuGet .xml and in
@@ -4291,10 +4285,15 @@ dotnet_diagnostic.CA1303.severity = none
 # IDE0010: Switch completeness — intentional partial matches in source generators and domain code
 dotnet_diagnostic.IDE0010.severity = none
 
-# IDE0051/IDE0052: Unused private members — tracked for incremental cleanup, visible as suggestions
-# These were hidden by Phase 8-3b; set to suggestion (not none) so they remain visible
+# IDE0052: a private member assigned and never read. `suggestion` is NOT emitted by the build,
+# so this detector reported to nobody. Re-armed to `warning`; the population measured at the
+# moment it was re-armed is frozen in eng/ci/ide0052-baseline.txt and ratcheted by
+# eng/ci/ide0052-ratchet-gate.sh, which fails on any site not already in that ledger.
+# IDE0052 is listed in WarningsNotAsErrors (src/Directory.Build.props) so the existing debt
+# stays visible without redding every build; delete that entry once the ledger reaches zero.
+# IDE0051 (unused, never assigned) is a DIFFERENT diagnostic and is left as-is pending scope.
 dotnet_diagnostic.IDE0051.severity = suggestion
-dotnet_diagnostic.IDE0052.severity = suggestion
+dotnet_diagnostic.IDE0052.severity = warning
 
 # Sprint 585: PublicAPI Analyzer - Track public API changes
 # Root cause fix: Added PackageReference to src/Directory.Build.props (was missing, analyzer never ran)
@@ -4391,15 +4390,22 @@ dotnet_diagnostic.CA1816.severity = none
 dotnet_diagnostic.MA0105.severity = warning
 
 ##########################################
-# AOT/Trim Warnings - Deferred per ADR-040
-# IL3050/IL2026: AOT compilation not currently enabled (<PublishAot>false</PublishAot>)
-# Justification: Project does not target AOT deployment. Warnings deferred until AOT is required.
-# Timeline: Re-enable when PublishAot=true is set (estimated Q2 2026)
+# Trim and ahead-of-time analysis (IL2xxx / IL3xxx)
+#
+# Left at analyzer defaults on purpose. These diagnostics are emitted only by projects that opt
+# in to trim/AOT analysis - IsAotCompatible, IsTrimmable, PublishTrimmed or PublishAot - so a
+# project that makes no ahead-of-time claim never sees them, and a project that does make the
+# claim cannot build green while contradicting it. Scoping is therefore already exact and needs
+# no severity entry here.
+#
+# Do not add a global severity of none for one of these. It silences every project at once,
+# including the ones whose package metadata advertises ahead-of-time compatibility, so their
+# builds report zero warnings whether or not the code is clean, and nothing reports when the
+# hidden set grows. Where a reflection site is genuinely unavoidable, either annotate it at
+# source with [UnconditionalSuppressMessage] or [RequiresUnreferencedCode], or add a path-scoped
+# entry to the enumerated list at the end of this file. Both forms are countable; a global mute
+# is not.
 ##########################################
-
-dotnet_diagnostic.IL3050.severity = none
-dotnet_diagnostic.IL2026.severity = none
-dotnet_diagnostic.IL2091.severity = none
 
 ##########################################
 # XML Documentation - Deferred Quality Work
@@ -4425,11 +4431,6 @@ dotnet_diagnostic.IDE0051.severity = none
 # These rules are suppressed to achieve 0 build errors per task requirements.
 # All suppressions documented with justification and remediation timeline.
 ##########################################
-
-# IL3051/IL2046: P/Invoke and COM interop AOT warnings
-# Justification: Project does not use PublishAot. Deferred until AOT deployment required.
-dotnet_diagnostic.IL3051.severity = none
-dotnet_diagnostic.IL2046.severity = none
 
 # SA1137: Elements should be documented
 # Justification: Internal implementation details, public API already documented
@@ -4527,3 +4528,19 @@ dotnet_diagnostic.NS1008.severity = error
 # See: https://github.com/dotnet/roslyn-analyzers/blob/main/src/PublicApiAnalyzers/PublicApiAnalyzers.Help.md
 [*.{g,generated}.cs]
 generated_code = true
+
+##########################################
+# Enumerated trim-analysis debt
+#
+# One entry per location, naming the single diagnostic it relaxes and why that site is not a
+# defect. A site outside this list fails the build, so the list cannot grow without someone
+# deciding to grow it - which is the property a global severity of none does not have. Delete an
+# entry when the reflection it describes is gone.
+##########################################
+
+[src/Excalibur/Excalibur.Testing.Conformance/Conformance/*.cs]
+# Every conformance kit ends in a self-check that reflects over the concrete suite type
+# (GetType().GetMethods / GetMethod) to prove no conformance arm was left unwired. The reflection
+# target is the suite deriving from the kit, which is compiled into a test project and is neither
+# trimmed nor published ahead-of-time. 16 sites: one per kit, plus two seam lookups.
+dotnet_diagnostic.IL2075.severity = suggestion

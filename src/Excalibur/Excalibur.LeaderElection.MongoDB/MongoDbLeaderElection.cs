@@ -57,7 +57,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	// provider is configured or leadership is not held.
 	// Sentinel for "no current fencing token" — a real monotonic token is never long.MinValue. The field is
 	// accessed via Interlocked from both the acquire/renew flow and the LeaderChanged event raise, so a plain
-	// long? (non-atomic, no memory barrier) could tear or read stale across those threads (wj6b10).
+	// long? (non-atomic, no memory barrier) could tear or read stale across those threads.
 	private const long NoFencingToken = long.MinValue;
 	private long _currentFencingToken = NoFencingToken;
 
@@ -69,7 +69,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private volatile bool _disposed;
-	// 3g58kl: the instant the current leadership tenure began, read together with _currentFencingToken
+	// the instant the current leadership tenure began, read together with _currentFencingToken
 	// (and _isLeader) under _lock via CurrentLeadership.
 	private DateTimeOffset _leadershipAcquiredAt;
 
@@ -113,7 +113,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		ArgumentNullException.ThrowIfNull(electionOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		// 5fswhd/sd36sc: durable fencing is the DEFAULT for framework-protected resources. When no provider
+		// durable fencing is the DEFAULT for framework-protected resources. When no provider
 		// is supplied, fall back to the durable per-resource counter (a SEPARATE, TTL-free collection) rather
 		// than the store-arbitrated token that lives in the lock document — the lock document is destroyed by
 		// ReleaseLockAsync's DeleteOne and by the ttl_expiresAt TTL index, which would reset that token to 1 on
@@ -196,6 +196,12 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 		_isStarted = true;
 		_renewalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		// One acquisition attempt is awaited BEFORE returning, so reading IsLeader on the statement after
+		// StartAsync observes the outcome of a real attempt rather than the pre-attempt default. The other
+		// providers acquire inside StartAsync; returning before attempting made this store the odd one out,
+		// and a caller written against the others silently did nothing here.
+		await RunElectionStepAsync(_renewalCts.Token).ConfigureAwait(false);
 
 		_renewalTask = RunElectionLoopAsync(_renewalCts.Token);
 
@@ -282,68 +288,89 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		_renewalCts?.Dispose();
 	}
 
+	/// <summary>
+	/// Performs one election step: renew the lease while leading, otherwise attempt to acquire it.
+	/// </summary>
+	/// <remarks>
+	/// Extracted from the election loop so <see cref="StartAsync" /> can await a single attempt before it
+	/// returns. Errors are absorbed here rather than propagated: a step run from <see cref="StartAsync" />
+	/// must not turn a transient acquisition failure into a start failure, because losing the race is the
+	/// ordinary outcome for a follower. Cancellation still propagates.
+	/// </remarks>
+	private async Task RunElectionStepAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			if (_isLeader)
+			{
+				var renewed = await TryRenewLockAsync(cancellationToken).ConfigureAwait(false);
+				if (!renewed)
+				{
+					SetLeader(false, null);
+				}
+
+				return;
+			}
+
+			var acquired = await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
+			if (acquired)
+			{
+				// Mint the fencing token BEFORE declaring leadership so the fence is always advanced
+				// before this candidate acts as leader. If the token domain is exhausted, relinquish
+				// (release the lock, do not lead) rather than lead with an un-advanced/wrapped fence.
+				if (await TryMintFencingTokenAsync(cancellationToken).ConfigureAwait(false))
+				{
+					SetLeader(true, CandidateId);
+				}
+				else
+				{
+					await ReleaseLockAsync().ConfigureAwait(false);
+					RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
+				}
+
+				return;
+			}
+
+			// Check who the current leader is
+			var currentLeader = await GetCurrentLeaderAsync(cancellationToken).ConfigureAwait(false);
+			UpdateCurrentLeader(currentLeader);
+			RaiseAcquisitionFailed("lost the acquisition race", exception: null);
+		}
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			LogElectionError(ex);
+
+			// An error while attempting to acquire (not while holding leadership) is a failed acquisition.
+			if (!_isLeader)
+			{
+				RaiseAcquisitionFailed("error during acquisition", ex);
+			}
+		}
+	}
+
 	private async Task RunElectionLoopAsync(CancellationToken cancellationToken)
 	{
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			try
 			{
-				if (_isLeader)
-				{
-					var renewed = await TryRenewLockAsync(cancellationToken).ConfigureAwait(false);
-					if (!renewed)
-					{
-						SetLeader(false, null);
-					}
-				}
-				else
-				{
-					var acquired = await TryAcquireLockAsync(cancellationToken).ConfigureAwait(false);
-					if (acquired)
-					{
-						// Mint the fencing token BEFORE declaring leadership so the fence is always advanced
-						// before this candidate acts as leader. If the token domain is exhausted, relinquish
-						// (release the lock, do not lead) rather than lead with an un-advanced/wrapped fence.
-						if (await TryMintFencingTokenAsync(cancellationToken).ConfigureAwait(false))
-						{
-							SetLeader(true, CandidateId);
-						}
-						else
-						{
-							await ReleaseLockAsync().ConfigureAwait(false);
-							RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
-						}
-					}
-					else
-					{
-						// Check who the current leader is
-						var currentLeader = await GetCurrentLeaderAsync(cancellationToken).ConfigureAwait(false);
-						UpdateCurrentLeader(currentLeader);
-						RaiseAcquisitionFailed("lost the acquisition race", exception: null);
-					}
-				}
-
+				// The delay leads the step because StartAsync has already performed the first attempt;
+				// stepping immediately here would duplicate it.
 				var interval = _isLeader
 					? TimeSpan.FromSeconds(_options.RenewIntervalSeconds)
 					: _electionOptions.RetryInterval;
 
 				await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
+
+				await RunElectionStepAsync(cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
-			}
-			catch (Exception ex)
-			{
-				LogElectionError(ex);
-
-				// An error while attempting to acquire (not while holding leadership) is a failed acquisition.
-				if (!_isLeader)
-				{
-					RaiseAcquisitionFailed("error during acquisition", ex);
-				}
-
-				await Task.Delay(_electionOptions.RetryInterval, cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}
@@ -421,7 +448,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 		// equality (ResourceName == _id), and $set-ting the immutable _id during that insert fails the
 		// operation ("would modify the immutable field '_id'") — which silently blocks a FRESH candidate
 		// from acquiring an uncontested resource. The filter already pins _id; setting it is redundant.
-		// 5fswhd: the takeover decision (`isSelf`/`leaseExpired`/`takeover`) and every output field must be
+		// the takeover decision (`isSelf`/`leaseExpired`/`takeover`) and every output field must be
 		// computed in ONE atomic stage, but MongoDB `$set`/`$addFields` evaluate all sibling expressions
 		// against the document AS IT ENTERS the stage — a field set in the same stage is NOT visible to its
 		// siblings. Computing `_takeover = $or($_isSelf, $_leaseExpired)` (and the outputs from `$_takeover`)

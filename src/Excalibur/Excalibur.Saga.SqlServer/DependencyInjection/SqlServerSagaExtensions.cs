@@ -28,6 +28,8 @@ public static class SqlServerSagaExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure saga store options (connection string, schema, table names).</param>
 	/// <returns>The service collection for chaining.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddSqlServerSagaStore(
 		this IServiceCollection services,
 		Action<SqlServerSagaStoreOptions> configure)
@@ -35,21 +37,28 @@ public static class SqlServerSagaExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
+
 		RegisterSagaStoreOptions(services, configure);
 
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
 		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
 		// multi-tenant context still wins regardless of composition order.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<ISagaStore> marker inseparably (S886 rw2ull — the marker moved off the
-		// shared options helper and onto the store registration so it cannot exist without the store).
-		services.AddTenantScopedStore<ISagaStore, SqlServerSagaStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISagaStore> marker inseparably (
+		// — the marker moved off the shared options helper and onto the store registration so it cannot
+		// exist without the store).
+		services.AddTenantAwareStore<ISagaStore, SqlServerSagaStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new SqlServerSagaStore(options.Value.ConnectionString!, options, logger, serializer, tenantContext);
+			return new SqlServerSagaStore(options.Value.ConnectionString!, options, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
@@ -79,6 +88,8 @@ public static class SqlServerSagaExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddSqlServerSagaStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
@@ -87,21 +98,27 @@ public static class SqlServerSagaExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
+
 		RegisterSagaStoreOptions(services, configure);
 
-		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// Fail-closed single-tenant default so the dep-gated AddTenantAwareStore seam resolves
 		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
 		// multi-tenant context still wins regardless of composition order.
 		services.AddDefaultTenantContext();
-		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
-		// ITenantScopingCapability<ISagaStore> marker inseparably (S886 rw2ull).
-		services.AddTenantScopedStore<ISagaStore, SqlServerSagaStore>((sp, tenantContext) =>
+		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
+		// declares one) AND emits the ITenantScopingCapability<ISagaStore> marker inseparably.
+		services.AddTenantAwareStore<ISagaStore, SqlServerSagaStore>(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new SqlServerSagaStore(connectionFactory, options, logger, serializer, tenantContext);
+			return new SqlServerSagaStore(connectionFactory, options, logger, serializer, sp.GetRequiredService<ITenantContext>());
 		});
 		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
@@ -127,12 +144,20 @@ public static class SqlServerSagaExtensions
 	/// <c>sp =&gt; () =&gt; (SqlConnection)sp.GetRequiredService&lt;TDb&gt;().Connection</c>
 	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddSqlServerSagaStore<TDb>(
 		this IServiceCollection services,
 		Action<SqlServerSagaStoreOptions>? configure = null)
 		where TDb : class, Excalibur.Data.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
+
+		// Ensure core saga registration, the way AddExcaliburSaga ensures AddDispatch: this is a public
+		// entry point, so a consumer who calls only this must still receive a resolvable ISagaStore. Core
+		// owns the non-keyed contract alias rather than each provider re-registering it. Idempotent, so a
+		// consumer who also calls AddSagas composes cleanly.
+		_ = services.AddExcaliburSaga();
 
 		return services.AddSqlServerSagaStore(
 			sp => () => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
@@ -145,6 +170,8 @@ public static class SqlServerSagaExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IDispatchBuilder UseSqlServerSagaStore(
 		this IDispatchBuilder builder,
 		Action<SqlServerSagaStoreOptions> configure)
@@ -166,6 +193,8 @@ public static class SqlServerSagaExtensions
 	/// </param>
 	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IDispatchBuilder UseSqlServerSagaStore(
 		this IDispatchBuilder builder,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
@@ -206,11 +235,16 @@ public static class SqlServerSagaExtensions
 
 		RegisterSagaTimeoutStoreOptions(services, configure);
 
+		// The timeout store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaTimeoutStore>>();
-			return new SqlServerSagaTimeoutStore(options.Value.ConnectionString!, options, logger);
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			return new SqlServerSagaTimeoutStore(options.Value.ConnectionString!, options, logger, tenantContext);
 		});
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<SqlServerSagaTimeoutStore>());
 
@@ -237,12 +271,17 @@ public static class SqlServerSagaExtensions
 
 		RegisterSagaTimeoutStoreOptions(services, configure);
 
+		// The timeout store takes a required ITenantContext and is registered here by type, so it must
+		// resolve. This registers the single-tenant default only when no context exists yet, so a
+		// multi-tenant host keeps its own.
+		_ = services.AddDefaultTenantContext();
 		services.TryAddSingleton(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaTimeoutStore>>();
-			return new SqlServerSagaTimeoutStore(connectionFactory, options, logger);
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
+			return new SqlServerSagaTimeoutStore(connectionFactory, options, logger, tenantContext);
 		});
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<SqlServerSagaTimeoutStore>());
 
@@ -299,6 +338,11 @@ public static class SqlServerSagaExtensions
 		IServiceCollection services,
 		Action<SqlServerSagaStoreOptions>? configure)
 	{
+		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
+		// service, so it wires the default itself instead of relying on a sibling registration having run
+		// first. TryAdd makes it idempotent, and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
 		_ = services.AddOptions<SqlServerSagaStoreOptions>()
 			.ValidateOnStart();
 		if (configure is not null)
@@ -309,8 +353,8 @@ public static class SqlServerSagaExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerSagaStoreOptions>, SqlServerSagaStoreOptionsValidator>());
 
 		// NOTE: the ITenantScopingCapability<ISagaStore> marker is intentionally NOT registered here. It is
-		// emitted by AddTenantScopedStore at each store registration site so the marker is inseparable from
-		// the store wiring (S886 rw2ull) — registering it from this shared options helper decoupled the
+		// emitted by AddTenantAwareStore at each store registration site so the marker is inseparable from
+		// the store wiring — registering it from this shared options helper decoupled the
 		// capability attestation from the store that must honor it.
 	}
 

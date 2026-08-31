@@ -4,7 +4,10 @@
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 
+using FakeItEasy;
+
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Outbox.Tests.DependencyInjection;
 
@@ -19,29 +22,33 @@ namespace Excalibur.Outbox.Tests.DependencyInjection;
 public sealed class OutboxDispatcherRegistrationShould
 {
 	[Fact]
-	public void RegisterRealDispatcher_WithoutRequiringA3()
+	public async Task RegisterRealDispatcher_WithoutRequiringA3()
 	{
 		var services = new ServiceCollection();
 
 		_ = services.AddExcalibur(x => x.AddOutbox(_ => { }));
 
-		services.Any(d =>
-			d.ServiceType == typeof(IOutboxDispatcher) &&
-			d.ImplementationType == typeof(MessageOutbox))
-			.ShouldBeTrue("AddOutbox(...) must register the real IOutboxDispatcher (MessageOutbox).");
+		// Resolved rather than read off the descriptor: IOutboxDispatcher is registered by factory
+		// (so the container stays constructible when no store provider was chosen), which leaves
+		// ImplementationType null. Resolving asserts the strictly stronger property -- the registration
+		// actually PRODUCES a MessageOutbox -- instead of trusting a descriptor's declared type.
+		await using var provider = BuildResolvableProvider(services);
+		provider.GetRequiredService<IOutboxDispatcher>()
+			.ShouldBeOfType<MessageOutbox>("AddOutbox(...) must register the real IOutboxDispatcher (MessageOutbox).");
 	}
 
 	[Fact]
-	public void RegisterOutboxProcessor()
+	public async Task RegisterOutboxProcessor()
 	{
 		var services = new ServiceCollection();
 
 		_ = services.AddExcalibur(x => x.AddOutbox(_ => { }));
 
-		services.Any(d =>
-			d.ServiceType == typeof(IOutboxProcessor) &&
-			d.ImplementationType == typeof(OutboxProcessor))
-			.ShouldBeTrue("AddOutbox(...) must register IOutboxProcessor (OutboxProcessor).");
+		// See RegisterRealDispatcher_WithoutRequiringA3: factory registration, so assert the produced
+		// instance rather than the descriptor's declared implementation type.
+		await using var provider = BuildResolvableProvider(services);
+		provider.GetRequiredService<IOutboxProcessor>()
+			.ShouldBeOfType<OutboxProcessor>("AddOutbox(...) must register IOutboxProcessor (OutboxProcessor).");
 	}
 
 	[Fact]
@@ -56,7 +63,7 @@ public sealed class OutboxDispatcherRegistrationShould
 	}
 
 	[Fact]
-	public void RealDispatcherWins_WhenA3FallbackStubRegisteredFirst()
+	public async Task RealDispatcherWins_WhenA3FallbackStubRegisteredFirst()
 	{
 		var services = new ServiceCollection();
 
@@ -67,8 +74,14 @@ public sealed class OutboxDispatcherRegistrationShould
 
 		var dispatchers = services.Where(d => d.ServiceType == typeof(IOutboxDispatcher)).ToList();
 		_ = dispatchers.ShouldHaveSingleItem();
-		dispatchers[0].ImplementationType.ShouldBe(typeof(MessageOutbox),
-			"The real MessageOutbox must win over A3's DefaultOutboxDispatcher stub regardless of order.");
+
+		// The stub-removal contract is a descriptor-count property and still reads off the collection;
+		// WHICH dispatcher survived is asserted by resolving it (factory registration -- see
+		// RegisterRealDispatcher_WithoutRequiringA3).
+		await using var provider = BuildResolvableProvider(services);
+		provider.GetRequiredService<IOutboxDispatcher>()
+			.ShouldBeOfType<MessageOutbox>(
+				"The real MessageOutbox must win over A3's DefaultOutboxDispatcher stub regardless of order.");
 	}
 
 	[Fact]
@@ -85,6 +98,23 @@ public sealed class OutboxDispatcherRegistrationShould
 		_ = dispatchers.ShouldHaveSingleItem();
 		dispatchers[0].ImplementationType.ShouldBe(typeof(CustomConsumerOutboxDispatcher),
 			"A consumer-supplied IOutboxDispatcher must not be removed by the outbox registration.");
+	}
+
+	/// <summary>
+	/// Builds a provider that can actually construct the outbox pipeline: supplies the
+	/// <see cref="IOutboxStore"/> a store provider would have registered, plus logging, so the
+	/// assertions above can resolve rather than inspect. Deliberately NOT part of the
+	/// production surface -- the point of these tests is what <c>AddOutbox</c> registers.
+	/// </summary>
+	/// <remarks>
+	/// Callers must <c>await using</c> the result: the resolved outbox pipeline is
+	/// <see cref="IAsyncDisposable"/>-only, and a synchronous container dispose throws.
+	/// </remarks>
+	private static ServiceProvider BuildResolvableProvider(IServiceCollection services)
+	{
+		services.AddLogging();
+		services.TryAddSingleton(A.Fake<IOutboxStore>());
+		return services.BuildServiceProvider();
 	}
 }
 

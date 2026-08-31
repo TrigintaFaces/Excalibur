@@ -158,38 +158,36 @@ public sealed class DistributedCircuitBreakerDepthShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public async Task RecordSuccessAsync_IncrementsCacheMetrics()
+	public async Task RecordSuccessAsync_WritesNothingToTheSharedStore()
 	{
-		// Arrange
+		// The counters are per-instance and never leave the process; only a state TRANSITION crosses to
+		// the store. A success that does not close a circuit therefore writes nothing at all.
 		var breaker = CreateBreaker();
 		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
 			.Returns((byte[]?)null);
 
-		// Act
 		await breaker.RecordSuccessAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert — should have written metrics to cache
 		A.CallTo(() => _cache.SetAsync(
-			A<string>.That.Contains("metrics"),
+			A<string>._,
 			A<byte[]>._,
 			A<DistributedCacheEntryOptions>._,
-			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+			A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
-	public async Task RecordFailureAsync_IncrementsCacheMetrics()
+	public async Task RecordFailureAsync_CountsTheFailureAgainstTheThreshold()
 	{
-		// Arrange
-		var breaker = CreateBreaker();
+		// A threshold of 1 makes the single failure trip, so the state write is the observable proof the
+		// failure was counted.
+		var breaker = CreateBreaker(new DistributedCircuitBreakerOptions { ConsecutiveFailureThreshold = 1, SyncInterval = TimeSpan.FromHours(1) });
 		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
 			.Returns((byte[]?)null);
 
-		// Act
 		await breaker.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("Test error")).ConfigureAwait(false);
 
-		// Assert — should have written metrics to cache
 		A.CallTo(() => _cache.SetAsync(
-			A<string>.That.Contains("metrics"),
+			A<string>.That.Contains("state"),
 			A<byte[]>._,
 			A<DistributedCacheEntryOptions>._,
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
@@ -199,16 +197,16 @@ public sealed class DistributedCircuitBreakerDepthShould : IAsyncDisposable
 	public async Task RecordFailureAsync_WithNullException_StillRecords()
 	{
 		// Arrange
-		var breaker = CreateBreaker();
+		var breaker = CreateBreaker(new DistributedCircuitBreakerOptions { ConsecutiveFailureThreshold = 1, SyncInterval = TimeSpan.FromHours(1) });
 		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
 			.Returns((byte[]?)null);
 
 		// Act
 		await breaker.RecordFailureAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
+		// Assert — a failure with no exception still counts against the threshold.
 		A.CallTo(() => _cache.SetAsync(
-			A<string>.That.Contains("metrics"),
+			A<string>.That.Contains("state"),
 			A<byte[]>._,
 			A<DistributedCacheEntryOptions>._,
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
@@ -247,12 +245,12 @@ public sealed class DistributedCircuitBreakerDepthShould : IAsyncDisposable
 		// Act
 		await breaker.ResetAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert — both state and metrics keys should be removed
+		// Assert — the state key is the only thing the breaker keeps in the shared store.
 		A.CallTo(() => _cache.RemoveAsync(
 			A<string>.That.Contains("state"),
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => _cache.RemoveAsync(
-			A<string>.That.Contains("metrics"),
+			A<string>._,
 			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -50,17 +51,17 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 	/// </summary>
 	/// <param name="dbConfig"> The database configuration used for CDC processing. </param>
 	/// <param name="cdcRepository"> The CDC repository for querying change data. </param>
-	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
+	/// <param name="stateStoreConnectionFactory"> Supplies a connection per CDC-state operation. </param>
 	/// <returns> A configured <see cref="IDataChangeEventProcessor" /> instance. </returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="dbConfig" />, <paramref name="cdcRepository" />, or <paramref name="stateStoreConnection" /> is <c>
+	/// Thrown if <paramref name="dbConfig" />, <paramref name="cdcRepository" />, or <paramref name="stateStoreConnectionFactory" /> is <c>
 	/// null </c>.
 	/// </exception>
-	public IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, CdcRepository cdcRepository, SqlConnection stateStoreConnection)
+	public IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, CdcRepository cdcRepository, Func<IDbConnection> stateStoreConnectionFactory)
 	{
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(cdcRepository);
-		ArgumentNullException.ThrowIfNull(stateStoreConnection);
+		ArgumentNullException.ThrowIfNull(stateStoreConnectionFactory);
 
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 		var timeProvider = _serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
@@ -72,7 +73,7 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 				_appLifetime,
 				dbConfig,
 				cdcRepository,
-				stateStoreConnection,
+				stateStoreConnectionFactory,
 				stateStoreOptions,
 				_serviceProvider,
 				_policyFactory,

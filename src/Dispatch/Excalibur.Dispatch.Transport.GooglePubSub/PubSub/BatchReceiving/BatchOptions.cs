@@ -33,16 +33,6 @@ public sealed class BatchOptions
 	public int MinMessagesPerBatch { get; set; } = 1;
 
 	/// <summary>
-	/// Gets or sets the maximum wait time for accumulating a batch.
-	/// Default: 100ms.
-	/// </summary>
-	/// <value>
-	/// The maximum wait time for accumulating a batch.
-	/// Default: 100ms.
-	/// </value>
-	public TimeSpan MaxBatchWaitTime { get; set; } = TimeSpan.FromMilliseconds(100);
-
-	/// <summary>
 	/// Gets or sets the maximum total size of messages in a batch (in bytes).
 	/// Default: 10MB.
 	/// </summary>
@@ -82,29 +72,6 @@ public sealed class BatchOptions
 	public int ConcurrentBatchProcessors { get; set; } = Environment.ProcessorCount;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to maintain message ordering within batches.
-	/// When true, messages are processed in order within each batch.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> to maintain message ordering within batches; otherwise, <see langword="false"/>.
-	/// </value>
-	public bool PreserveMessageOrder { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable batch compression for metrics.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> to enable batch compression for metrics; otherwise, <see langword="false"/>.
-	/// </value>
-	public bool EnableMetricsCompression { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the acknowledgment configuration for batch receiving.
-	/// </summary>
-	/// <value>The batch acknowledgment options.</value>
-	public BatchAcknowledgmentOptions Acknowledgment { get; set; } = new();
-
-	/// <summary>
 	/// Creates a copy of the configuration.
 	/// </summary>
 	/// <returns>A new <see cref="BatchOptions"/> instance with the same configuration.</returns>
@@ -113,33 +80,9 @@ public sealed class BatchOptions
 		{
 			MaxMessagesPerBatch = MaxMessagesPerBatch,
 			MinMessagesPerBatch = MinMessagesPerBatch,
-			MaxBatchWaitTime = MaxBatchWaitTime,
 			MaxBatchSizeBytes = MaxBatchSizeBytes,
 			EnableAdaptiveBatching = EnableAdaptiveBatching,
 			TargetBatchProcessingTime = TargetBatchProcessingTime,
 			ConcurrentBatchProcessors = ConcurrentBatchProcessors,
-			PreserveMessageOrder = PreserveMessageOrder,
-			EnableMetricsCompression = EnableMetricsCompression,
-			Acknowledgment = new BatchAcknowledgmentOptions
-			{
-				AckDeadlineSeconds = Acknowledgment.AckDeadlineSeconds,
-			},
 		};
-}
-
-/// <summary>
-/// Configuration options for batch message acknowledgment behavior.
-/// </summary>
-public sealed class BatchAcknowledgmentOptions
-{
-	/// <summary>
-	/// Gets or sets the acknowledgment deadline extension in seconds.
-	/// Messages not processed within this time will be redelivered.
-	/// </summary>
-	/// <value>
-	/// The acknowledgment deadline extension in seconds.
-	/// Default: 600 (10 minutes).
-	/// </value>
-	[Range(10, 600)]
-	public int AckDeadlineSeconds { get; set; } = 600; // 10 minutes
 }

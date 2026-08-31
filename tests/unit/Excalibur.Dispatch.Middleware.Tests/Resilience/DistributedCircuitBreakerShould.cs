@@ -56,6 +56,19 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 		return _circuitBreaker;
 	}
 
+	/// <summary>
+	/// Makes every state-key read return <paramref name="state"/>, standing in for another instance
+	/// having driven the shared circuit there.
+	/// </summary>
+	private void SeedSharedState(CircuitState state)
+	{
+		var json = JsonSerializer.Serialize(
+			new DistributedCircuitState { State = state, InstanceId = "other-instance" },
+			DistributedCircuitJsonContext.Default.DistributedCircuitState);
+		A.CallTo(() => _cache.GetAsync(A<string>.That.Contains("state"), A<CancellationToken>._))
+			.Returns(System.Text.Encoding.UTF8.GetBytes(json));
+	}
+
 	#region Constructor Tests
 
 	[Fact]
@@ -216,32 +229,31 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 	[Fact]
 	public async Task ExecuteAsync_WhenOperationSucceeds_RecordsSuccess()
 	{
-		// Arrange
-		var cb = CreateCircuitBreaker();
-		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
-			.Returns((byte[]?)null);
+		// Asserted through the decision the count drives — a half-open circuit closing — rather than
+		// through a cache write. Counters are per-instance and never leave the process, so a write
+		// assertion would be testing an implementation detail that no longer exists.
+		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions { SuccessThresholdToClose = 1 });
+		SeedSharedState(CircuitState.HalfOpen);
 
-		// Act
 		_ = await cb.ExecuteAsync(() => Task.FromResult(42), CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("metrics"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+		A.CallTo(() => _cache.RemoveAsync(A<string>.That.Contains("state"), A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
 	[Fact]
 	public async Task ExecuteAsync_WhenOperationFails_RecordsFailure()
 	{
-		// Arrange
-		var cb = CreateCircuitBreaker();
+		// A threshold of 1 makes the single recorded failure trip the circuit, so the shared state write
+		// is the observable proof that the failure was counted.
+		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions { ConsecutiveFailureThreshold = 1, SyncInterval = TimeSpan.FromHours(1) });
 		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
 			.Returns((byte[]?)null);
 
-		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await cb.ExecuteAsync<int>(() => throw new InvalidOperationException("Test error"), CancellationToken.None));
 
-		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("metrics"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("state"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -266,18 +278,23 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 	#region RecordSuccessAsync Tests
 
 	[Fact]
-	public async Task RecordSuccessAsync_UpdatesMetricsInCache()
+	public async Task RecordSuccessAsync_CountsTowardsClosingAHalfOpenCircuit()
 	{
-		// Arrange
-		var cb = CreateCircuitBreaker();
-		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
-			.Returns((byte[]?)null);
+		// Arrange — the shared store says half-open (another instance drove it there) and one success is
+		// enough to close, so the close is the observable proof this success was counted.
+		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions
+		{
+			SuccessThresholdToClose = 1,
+			SyncInterval = TimeSpan.FromHours(1),
+		});
+		SeedSharedState(CircuitState.HalfOpen);
 
 		// Act
 		await cb.RecordSuccessAsync(CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("metrics"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+		// Assert — the success counts towards closing the circuit, which is what closing a half-open
+		// circuit proves. Nothing about the count itself crosses to the shared store.
+		A.CallTo(() => _cache.RemoveAsync(A<string>.That.Contains("state"), A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -298,18 +315,22 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 	#region RecordFailureAsync Tests
 
 	[Fact]
-	public async Task RecordFailureAsync_UpdatesMetricsInCache()
+	public async Task RecordFailureAsync_CountsTowardsOpeningTheCircuit()
 	{
-		// Arrange
-		var cb = CreateCircuitBreaker();
+		// Arrange — a threshold of one, so this single failure must trip.
+		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions
+		{
+			ConsecutiveFailureThreshold = 1,
+			SyncInterval = TimeSpan.FromHours(1),
+		});
 		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._))
 			.Returns((byte[]?)null);
 
 		// Act
 		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("Test"));
 
-		// Assert
-		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("metrics"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+		// Assert — the failure counts towards opening the circuit; the trip is the observable proof.
+		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("state"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -337,65 +358,67 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("Test"));
 	}
 
-	// gt2x7g (j604qc-a / thkygd): the persisted LastFailureReason MUST be the exception TYPE name, never the
-	// raw message. The metrics blob is written to a shared IDistributedCache (at rest, cross-instance), so a
-	// message carrying PII (user input, credentials, connection strings, record ids) would leak. RED on a
-	// mutant that persists exception.Message instead of exception.GetType().Name (DistributedCircuitBreaker.cs:232).
+	// gt2x7g (j604qc-a / thkygd): nothing derived from an exception may reach the shared store. The store
+	// is written by every instance and read at rest cross-instance, so an exception message carrying PII
+	// (user input, credentials, connection strings, record ids) would leak there. RED on a mutant that
+	// puts exception.Message — or any per-failure detail — into a value written to the cache.
 	[Fact]
-	public async Task RecordFailureAsync_PersistsExceptionTypeName_NotRawMessage_ForPiiSafety()
+	public async Task RecordFailureAsync_WritesNoExceptionDetailToTheSharedStore()
 	{
-		// Arrange
-		var cb = CreateCircuitBreaker();
+		// Arrange — a threshold of 1 so this single failure trips and a state write definitely happens;
+		// a test that captured no writes at all would pass vacuously.
+		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions { ConsecutiveFailureThreshold = 1 });
 		A.CallTo(() => _cache!.GetAsync(A<string>._, A<CancellationToken>._))
 			.Returns((byte[]?)null);
 
-		byte[]? savedMetrics = null;
+		var written = new List<byte[]>();
 		A.CallTo(() => _cache!.SetAsync(
-				A<string>.That.Contains("metrics"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
-			.Invokes(call => savedMetrics = call.GetArgument<byte[]>(1));
+				A<string>._, A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+			.Invokes(call => written.Add(call.GetArgument<byte[]>(1)!));
 
-		// A message deliberately laden with PII/secret-shaped content that must NOT reach the cache.
+		// A message deliberately laden with PII/secret-shaped content that must NOT reach the store.
 		const string piiMessage = "login failed for user alice@example.com token=hunter2 record-id=42";
 
 		// Act
 		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException(piiMessage));
 
-		// Assert — the reason is the TYPE name…
-		savedMetrics.ShouldNotBeNull("RecordFailureAsync must persist the metrics blob to the cache.");
-		var metrics = JsonSerializer.Deserialize(savedMetrics, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics);
-		metrics.ShouldNotBeNull();
-		metrics!.LastFailureReason.ShouldBe(
-			nameof(InvalidOperationException),
-			"LastFailureReason must persist the exception TYPE name (PII-safe diagnostic), not the raw message.");
+		// Assert — the write happened…
+		written.ShouldNotBeEmpty("the failure must trip the circuit, which writes the shared state");
 
-		// …and none of the message's PII fragments are anywhere in the persisted blob.
-		var persistedJson = System.Text.Encoding.UTF8.GetString(savedMetrics);
-		persistedJson.ShouldNotContain("alice@example.com", Case.Insensitive,
-			"the raw exception message (PII) must never be written to the shared distributed cache.");
-		persistedJson.ShouldNotContain("hunter2", Case.Insensitive,
+		// …and none of the message's fragments — nor the exception type — are anywhere in what was written.
+		var persisted = string.Join("\n", written.Select(System.Text.Encoding.UTF8.GetString));
+		persisted.ShouldNotContain("alice@example.com", Case.Insensitive,
+			"the raw exception message (PII) must never be written to the shared store.");
+		persisted.ShouldNotContain("hunter2", Case.Insensitive,
 			"secret-shaped content from the exception message must never be persisted.");
-		persistedJson.ShouldNotContain("record-id=42", Case.Insensitive,
+		persisted.ShouldNotContain("record-id=42", Case.Insensitive,
 			"record identifiers from the exception message must never be persisted.");
+		persisted.ShouldNotContain(nameof(InvalidOperationException), Case.Insensitive,
+			"per-failure detail stays in the process; only circuit state crosses to the shared store.");
 	}
 
-	#endregion
-
-	#region ResetAsync Tests
-
 	[Fact]
-	public async Task ResetAsync_RemovesCacheEntries()
+	public async Task ResetAsync_RemovesTheSharedStateAndClearsTheLocalRun()
 	{
-		// Arrange
-		var cb = CreateCircuitBreaker();
+		// Arrange — one failure short of the threshold, so a reset that failed to clear the local run
+		// would let the very next failure trip the circuit.
+		var cb = CreateCircuitBreaker(options: new DistributedCircuitBreakerOptions
+		{
+			ConsecutiveFailureThreshold = 2,
+			MinimumThroughput = int.MaxValue,
+		});
+		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._)).Returns((byte[]?)null);
+		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("before reset"));
 
 		// Act
 		await cb.ResetAsync(CancellationToken.None);
+		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("after reset"));
 
 		// Assert
 		A.CallTo(() => _cache.RemoveAsync(A<string>.That.Contains("state"), A<CancellationToken>._))
 			.MustHaveHappened();
-		A.CallTo(() => _cache.RemoveAsync(A<string>.That.Contains("metrics"), A<CancellationToken>._))
-			.MustHaveHappened();
+		A.CallTo(() => _cache.SetAsync(A<string>.That.Contains("state"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -477,24 +500,12 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 			FailureRatio = 0.9 // High ratio so consecutive failures trigger first
 		};
 		var cb = CreateCircuitBreaker(options: options);
+		A.CallTo(() => _cache.GetAsync(A<string>._, A<CancellationToken>._)).Returns((byte[]?)null);
 
-		// Simulate existing metrics with one failure
-		var existingMetrics = new
-		{
-			SuccessCount = 0L,
-			FailureCount = 1L,
-			ConsecutiveFailures = 1L,
-			ConsecutiveSuccesses = 0L,
-			LastFailure = DateTime.UtcNow.AddSeconds(-1),
-			LastFailureReason = "Previous error"
-		};
-		var metricsJson = JsonSerializer.Serialize(existingMetrics);
-		var metricsBytes = System.Text.Encoding.UTF8.GetBytes(metricsJson);
-
-		A.CallTo(() => _cache.GetAsync(A<string>.That.Contains("metrics"), A<CancellationToken>._))
-			.Returns(metricsBytes);
-
-		// Act - This should exceed threshold and open circuit
+		// Act — the run is this instance's own, so both failures are recorded through it rather than one
+		// being seeded into the store. A count read back from the store is exactly what a distributed
+		// breaker over this abstraction cannot do correctly.
+		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("First failure"));
 		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("Second failure"));
 
 		// Assert - State should be set to open

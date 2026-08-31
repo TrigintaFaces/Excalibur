@@ -4,8 +4,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Telemetry;
+using Excalibur.Compliance;
+
 using Excalibur.Security;
 using Excalibur.Security.EventStores;
 
@@ -52,6 +55,27 @@ public static class SecurityServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the encryption-version migration service, which re-encrypts data from one encryption
+	/// context to another.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// The migration service re-encrypts through <see cref="Excalibur.Compliance.IEncryptionProvider"/>,
+	/// which the consumer supplies: register an encryption provider before resolving
+	/// <see cref="Excalibur.Compliance.IEncryptionMigrationService"/>. Migration status is tracked in
+	/// process, so a status identifier is only readable from the instance that started that migration.
+	/// </remarks>
+	public static IServiceCollection AddEncryptionMigration(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAddSingleton<IEncryptionMigrationService, EncryptionMigrationService>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds secure credential management services.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -67,7 +91,7 @@ public static class SecurityServiceCollectionExtensions
 		services.TryAddSingleton<ICredentialStore, EnvironmentVariableCredentialStore>();
 
 		// Note: Azure Key Vault and AWS Secrets Manager credential stores live in their own packages:
-		// - Excalibur.Security.Azure: services.AddDispatchSecurityAzure(azure => azure.VaultUri(...).EnableServiceBusValidation())
+		// - Excalibur.Security.Azure: services.AddDispatchSecurityAzure(azure => azure.VaultUri(...))
 		// - Excalibur.Security.Aws: services.AddDispatchSecurityAws(aws => aws.Region(...))
 		// Use those packages for cloud-specific credential management.
 
@@ -137,6 +161,12 @@ public static class SecurityServiceCollectionExtensions
 		// Register validation middleware concrete type for pipeline resolution
 		services.TryAddSingleton<InputValidationMiddleware>();
 
+		// Add to the dispatch pipeline. The pipeline discovers middleware by enumerating
+		// IEnumerable<IDispatchMiddleware> from DI; registering only the concrete type above
+		// leaves the middleware inert. Ordering is by Stage, so registration order is irrelevant.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IDispatchMiddleware, InputValidationMiddleware>());
+
 		// No default validators registered -- IInputValidator is a consumer extension point.
 		// Consumers register their own validators for their application's specific needs.
 		// SQL injection prevention belongs in parameterized queries, not message-level validation.
@@ -194,7 +224,7 @@ public static class SecurityServiceCollectionExtensions
 				// SqlSecurityEventStore placeholder ACCEPTED then silently DISCARDED every audit event
 				// (validated, logged a warning, persisted nothing) and returned empty queries — a
 				// catastrophic compliance/forensics data-loss landmine. Refuse to register so the
-				// silent-discard behavior is unreachable via StoreType=SQL (NFR-5: observable, not a Warning).
+				// silent-discard behavior is unreachable via StoreType=SQL (observable, not a Warning).
 				throw new InvalidOperationException(
 					"Security:Auditing:StoreType='SQL' selects a SQL-backed audit store, but no SQL " +
 					"ISecurityEventStore implementation is available in Excalibur.Security. SQL persistence " +
@@ -216,15 +246,77 @@ public static class SecurityServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds the security middleware to the dispatch pipeline.
+	/// Adds the composed security middleware to the dispatch pipeline built by
+	/// <c>AddDispatch(builder =&gt; ...)</c>.
 	/// </summary>
 	/// <param name="builder">The dispatch builder instance.</param>
 	/// <returns>The builder for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Call this after composing the security features you want. Only the middleware whose feature
+	/// has actually been added is placed in the pipeline: a host that composes signing alone gets
+	/// signing alone. Composing no security feature adds no middleware.
+	/// </para>
+	/// <para>
+	/// This is required on the builder path. A dispatch pipeline built via
+	/// <c>AddDispatch(builder =&gt; ...)</c> is materialized from the middleware registered on the
+	/// builder, so middleware present in the service collection but never added here does not run.
+	/// A pipeline built without builder configuration instead discovers middleware from the service
+	/// collection, and the security features register themselves there as well; calling this method
+	/// is harmless in that case and makes the intent explicit.
+	/// </para>
+	/// <example>
+	/// <code>
+	/// services.AddDispatchSecurityMiddleware(configuration);
+	/// services.AddDispatch(dispatch =&gt; dispatch.UseSecurityMiddleware());
+	/// </code>
+	/// </example>
+	/// </remarks>
 	public static IDispatchBuilder UseSecurityMiddleware(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		// Add input validation middleware early in the pipeline Middleware is automatically registered in services and will be used by the pipeline
-		return builder;
+		var added = 0;
+		added += builder.UseWhenComposed<JwtAuthenticationMiddleware>();
+		added += builder.UseWhenComposed<RateLimitingMiddleware>();
+		added += builder.UseWhenComposed<MessageEncryptionMiddleware>();
+		added += builder.UseWhenComposed<MessageSigningMiddleware>();
+		added += builder.UseWhenComposed<InputValidationMiddleware>();
+
+		// Fail loud rather than add nothing. The pipeline is materialized when the enclosing
+		// AddDispatch(configure) call returns, so a security feature composed after this point can
+		// never reach it. Silently adding nothing would leave the host running with the security it
+		// believes it configured entirely absent -- the failure this method exists to prevent.
+		return added > 0
+			? builder
+			: throw new InvalidOperationException(
+				"UseSecurityMiddleware() was called but no security feature has been composed, so it " +
+				"would add nothing to the pipeline and the host would start with no security " +
+				"middleware running. Compose the features first -- AddDispatchSecurityMiddleware(...), " +
+				"or the individual AddJwtAuthentication/AddRateLimiting/AddMessageEncryption/" +
+				"AddMessageSigning/AddInputValidation calls -- and note that they must be called " +
+				"BEFORE AddDispatch(builder => builder.UseSecurityMiddleware()), because the pipeline " +
+				"is built when that AddDispatch call returns.");
+	}
+
+	/// <summary>
+	/// Adds <typeparamref name="TMiddleware" /> to the pipeline when, and only when, its feature has
+	/// been composed into the service collection.
+	/// </summary>
+	/// <typeparam name="TMiddleware">The security middleware type.</typeparam>
+	/// <param name="builder">The dispatch builder instance.</param>
+	/// <returns>1 when the middleware was added; otherwise 0.</returns>
+	private static int UseWhenComposed<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		this IDispatchBuilder builder)
+		where TMiddleware : IDispatchMiddleware
+	{
+		if (!builder.Services.Any(static descriptor => descriptor.ServiceType == typeof(TMiddleware)))
+		{
+			return 0;
+		}
+
+		_ = builder.UseMiddleware<TMiddleware>();
+		return 1;
 	}
 }

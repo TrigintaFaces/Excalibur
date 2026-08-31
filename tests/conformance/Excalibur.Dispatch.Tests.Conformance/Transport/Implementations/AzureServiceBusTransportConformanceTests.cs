@@ -4,6 +4,8 @@
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 
+using CloudNative.CloudEvents;
+
 using Testcontainers.ServiceBus;
 
 using Xunit;
@@ -20,14 +22,38 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 // CA1001: Disposable fields are disposed via IAsyncLifetime.DisposeAsync -> DisposeTransportAsync pattern
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable", Justification = "Base class implements IAsyncLifetime which calls DisposeTransportAsync to dispose fields")]
 public sealed class AzureServiceBusTransportConformanceTests
-	: TransportConformanceTestBase<AzureServiceBusChannelSender, AzureServiceBusChannelReceiver>
+	: TransportConformanceTestBase<AzureServiceBusChannelSender, AzureServiceBusChannelReceiver>,
+	ITransportConformanceCapabilities
 {
 	private const string QueueName = "conformance-test-queue";
+	private const string TopicName = "conformance-test-topic";
+	private const string SubscriptionName = "conformance-test-sub";
+
+	/// <summary>
+	/// The Service Bus emulator is genuinely optional infrastructure, so this suite skips rather than fails
+	/// when it cannot start -- the same call <c>AzureServiceBusContainerFixture</c> already makes by
+	/// overriding <c>AllowGracefulDegradation</c> to true. Required transports keep the fail-closed default.
+	/// </summary>
+	protected override bool AllowUnavailableTransport => true;
+
+	/// <summary>
+	/// Only <see cref="TransportCapability.Filtering" /> is advertised (R2.15, bd-uzzze3): Azure Service Bus
+	/// supports real server-side content filtering via a topic subscription's SQL rule. The other capability
+	/// flags are not implemented here -- this suite exists to prove filtering, not the full capability set.
+	/// Returns null until the emulator client exists, so the capability-gated fact skips rather than NREs
+	/// if it somehow ran before <see cref="CreateSenderAsync" />.
+	/// </summary>
+	protected override ITransportConformanceCapabilities? AdvancedCapabilities => _client is null ? null : this;
+
+	/// <inheritdoc />
+	TransportCapability ITransportConformanceCapabilities.Capabilities => TransportCapability.Filtering;
 
 	private ServiceBusContainer? _serviceBusContainer;
 	private ServiceBusClient? _client;
+	private ServiceBusAdministrationClient? _adminClient;
 	private ServiceBusSender? _sender;
 	private ServiceBusReceiver? _receiver;
+	private ServiceBusSender? _topicSender;
 	private AzureServiceBusDeadLetterQueueManager? _dlqManager;
 
 	protected override async Task<AzureServiceBusChannelSender> CreateSenderAsync()
@@ -45,16 +71,128 @@ public sealed class AzureServiceBusTransportConformanceTests
 
 		// Create the queue using the administration client
 		var adminClient = new ServiceBusAdministrationClient(connectionString);
+		_adminClient = adminClient;
 		if (!await adminClient.QueueExistsAsync(QueueName))
 		{
 			_ = await adminClient.CreateQueueAsync(QueueName);
 		}
+
+		// Topic + subscription for R2.15 (message filtering, bd-uzzze3): the subscription's SQL rule is
+		// (re)configured per ReceiveMatchingAsync call so it reflects the caller's filter, which is what
+		// makes the assertion real -- a broker-side rule, not a client-side re-implementation of filtering.
+		if (!await adminClient.TopicExistsAsync(TopicName))
+		{
+			_ = await adminClient.CreateTopicAsync(TopicName);
+		}
+
+		if (!await adminClient.SubscriptionExistsAsync(TopicName, SubscriptionName))
+		{
+			_ = await adminClient.CreateSubscriptionAsync(TopicName, SubscriptionName);
+		}
+
+		_topicSender = _client.CreateSender(TopicName);
 
 		_sender = _client.CreateSender(QueueName);
 
 		var sender = new AzureServiceBusChannelSender(_sender);
 		return sender;
 	}
+
+	/// <inheritdoc />
+	Task ITransportConformanceCapabilities.SendFilterableAsync<T>(
+		T body,
+		IReadOnlyDictionary<string, string> attributes,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(attributes);
+		if (_topicSender is null)
+		{
+			throw new InvalidOperationException("Topic sender not initialized. CreateSenderAsync must run first.");
+		}
+
+		var json = System.Text.Json.JsonSerializer.Serialize(body);
+		var message = new ServiceBusMessage(json) { ContentType = "application/json" };
+		foreach (var (key, value) in attributes)
+		{
+			message.ApplicationProperties[key] = value;
+		}
+
+		return _topicSender.SendMessageAsync(message, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	async Task<ConformanceReceiveResult<T>?> ITransportConformanceCapabilities.ReceiveMatchingAsync<T>(
+		IReadOnlyDictionary<string, string> filter,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+		if (_client is null || _adminClient is null)
+		{
+			throw new InvalidOperationException("Client not initialized. CreateSenderAsync must run first.");
+		}
+
+		// A subscription's rules are broker-side and persist across calls, so the fixed default rule
+		// ($Default, TrueFilter -> matches everything) is replaced with a real SQL rule built from the
+		// caller's filter. That is what makes this a server-side filtering assertion rather than a
+		// client-side re-implementation of it.
+		var sqlExpression = string.Join(
+			" AND ",
+			filter.Select(kv => $"{kv.Key} = '{kv.Value.Replace("'", "''", StringComparison.Ordinal)}'"));
+
+		await foreach (var rule in _adminClient.GetRulesAsync(TopicName, SubscriptionName, cancellationToken))
+		{
+			await _adminClient.DeleteRuleAsync(TopicName, SubscriptionName, rule.Name, cancellationToken)
+				.ConfigureAwait(false);
+		}
+
+		_ = await _adminClient.CreateRuleAsync(
+			TopicName,
+			SubscriptionName,
+			new CreateRuleOptions("conformance-filter", new SqlRuleFilter(sqlExpression)),
+			cancellationToken).ConfigureAwait(false);
+
+		await using var subscriptionReceiver = _client.CreateReceiver(TopicName, SubscriptionName);
+		var received = await subscriptionReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30), cancellationToken)
+			.ConfigureAwait(false);
+
+		if (received is null)
+		{
+			return null;
+		}
+
+		await subscriptionReceiver.CompleteMessageAsync(received, cancellationToken).ConfigureAwait(false);
+		var body = System.Text.Json.JsonSerializer.Deserialize<T>(received.Body.ToString());
+		return new ConformanceReceiveResult<T>(body, headers: null, acknowledge: null, reject: null);
+	}
+
+	/// <inheritdoc />
+	Task ITransportConformanceCapabilities.SendWithHeadersAsync<T>(
+		T body,
+		IReadOnlyDictionary<string, string> headers,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+
+	/// <inheritdoc />
+	Task<ConformanceReceiveResult<T>?> ITransportConformanceCapabilities.ReceiveWithContextAsync<T>(
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+
+	/// <inheritdoc />
+	Task ITransportConformanceCapabilities.SendCloudEventAsync(
+		CloudEvent cloudEvent,
+		CloudEventBinding binding,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
+
+	/// <inheritdoc />
+	Task<CloudEvent?> ITransportConformanceCapabilities.ReceiveCloudEventAsync(
+		CloudEventBinding binding,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			$"{nameof(AzureServiceBusTransportConformanceTests)} advertises only {nameof(TransportCapability.Filtering)}.");
 
 	protected override async Task<AzureServiceBusChannelReceiver> CreateReceiverAsync()
 	{
@@ -94,6 +232,11 @@ public sealed class AzureServiceBusTransportConformanceTests
 		if (_receiver != null)
 		{
 			await _receiver.DisposeAsync();
+		}
+
+		if (_topicSender != null)
+		{
+			await _topicSender.DisposeAsync();
 		}
 
 		if (_client != null)
@@ -307,7 +450,7 @@ public sealed class AzureServiceBusDeadLetterQueueManager : IDeadLetterQueueMana
 		};
 	}
 
-	public async Task<int> PurgeDeadLetterQueueAsync(CancellationToken cancellationToken)
+	public async Task<int> PurgeAllTenantsDeadLetterQueueAsync(CancellationToken cancellationToken)
 	{
 		await using var dlqReceiver = _client.CreateReceiver(_queueName, new ServiceBusReceiverOptions
 		{

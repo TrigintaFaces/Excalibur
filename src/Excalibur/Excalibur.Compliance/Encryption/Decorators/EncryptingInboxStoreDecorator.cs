@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, ITransactionalInboxStore, IScopedTransactionalInboxStore
+internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, ILeasedInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, ITransactionalInboxStore, IScopedTransactionalInboxStore
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -60,6 +60,15 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	public bool SupportsClaim =>
 		_inner is IClaimableInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsClaim);
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Reports the EFFECTIVE lease capability and composes through chains (see <see cref="SupportsClaim"/>).
+	/// Tracked separately from <see cref="SupportsClaim"/> because the two are different protocols: an inner
+	/// store may offer the caller-governed claim and no lease, and forwarding a lease into it would fail.
+	/// </remarks>
+	public bool SupportsLeasedClaim =>
+		_inner is ILeasedInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsLeasedClaim);
+
 	/// <inheritdoc />
 	/// <remarks>
 	/// Reports the EFFECTIVE durable Processing-tracking capability and composes through chains (see
@@ -89,6 +98,69 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 		_inner is IInboxStoreCapabilities capabilities
 			? capabilities.SupportsTransactional
 			: _inner is ITransactionalInboxStore or IScopedTransactionalInboxStore;
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// Reports the EFFECTIVE scoped transactional capability, composing through chains (see
+	/// <see cref="SupportsClaim"/>). This decorator declares <see cref="IScopedTransactionalInboxStore"/>
+	/// in order to FORWARD it, so a bare type check on the decorator reports the seam unconditionally;
+	/// reporting it here answers for what the chain can actually execute.
+	/// </para>
+	/// <para>
+	/// Either inner seam satisfies it, which is why this tracks <see cref="SupportsTransactional"/> rather
+	/// than narrowing to the scoped one. The decorator BRIDGES the scoped seam onto a relational-only inner
+	/// store -- wrapping its transaction in a scope -- so through this decorator a relational store really
+	/// does offer the scoped protocol. Narrowing here would report the seam absent while the decorator
+	/// stands ready to serve it, sending the caller to the weaker claim protocol for no reason.
+	/// </para>
+	/// </remarks>
+	public bool SupportsScopedTransactional =>
+		_inner is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsScopedTransactional || capabilities.SupportsTransactional
+			: _inner is ITransactionalInboxStore or IScopedTransactionalInboxStore;
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Reports the EFFECTIVE backoff-schedule capability and composes through chains (see
+	/// <see cref="SupportsClaim"/>). This decorator declares
+	/// <see cref="IBackoffSchedulableInboxStore"/> so it can FORWARD the schedule, which makes a bare type
+	/// check on this decorator report a capability the inner store may not have. Answering here is what
+	/// keeps the caller's own fallback decision observable rather than absorbed.
+	/// </remarks>
+	public bool SupportsBackoffScheduling =>
+		_inner is IBackoffSchedulableInboxStore
+		|| (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsBackoffScheduling);
+
+	/// <summary>
+	/// Resolves the inner store's administrative surface, refusing with a stated reason when it has none.
+	/// </summary>
+	/// <value>The inner store's <see cref="IInboxStoreAdmin"/> implementation.</value>
+	/// <exception cref="NotSupportedException">
+	/// The decorated store does not provide the administrative surface. The message names the store that
+	/// does not, because a decorated chain gives the caller no other way to find out which one it was.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This decorator implements <see cref="IInboxStoreAdmin"/> so the retry processor reaches the inner
+	/// store through it, and an inner store without that surface is a genuine misconfiguration. What the
+	/// cast got wrong was the REPORT, not the refusal: a hard cast raises
+	/// <see cref="InvalidCastException"/>, which <see cref="IInboxStoreAdmin"/> does not document and which
+	/// names neither the capability that was missing nor the store that was missing it. A caller reading it
+	/// learns only that some cast failed somewhere inside a decorator chain.
+	/// </para>
+	/// <para>
+	/// The refusal is deliberately not softened into a silent no-op. Dropping an administrative call would
+	/// leave the retry processor believing it had queried or mutated entries it never reached.
+	/// </para>
+	/// </remarks>
+	private IInboxStoreAdmin Admin =>
+		_inner as IInboxStoreAdmin
+		?? throw new NotSupportedException(
+			$"The inbox store this decorator wraps ({_inner.GetType().Name}) does not implement "
+			+ "IInboxStoreAdmin, so the administrative surface (bulk queries, statistics, cleanup and the "
+			+ "retry processor's failed-entry sweep) cannot be forwarded to it. Configure an admin-capable "
+			+ "inbox store, or do not register the components that require one.");
 
 	/// <inheritdoc />
 	public ValueTask<bool> TryProcessTransactionallyAsync(
@@ -218,19 +290,47 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 
 	/// <inheritdoc/>
 	/// <inheritdoc/>
-	public ValueTask<bool> TryClaimAsync(string messageId, string handlerType, TimeSpan leaseDuration, CancellationToken cancellationToken)
+	public ValueTask<LeaseToken?> TryAcquireLeaseAsync(string messageId, string handlerType, TimeSpan leaseDuration, CancellationToken cancellationToken)
 	{
-		// Forward the lease-based claim to the inner store. The claim carries no encrypted payload (only the
-		// message/handler identifiers), so no transformation is needed. Fail LOUD if the inner store cannot
-		// claim atomically — a silent fallback would re-create the race.
-		if (_inner is not IClaimableInboxStore claimable)
+		// Forward the lease acquisition to the inner store. It carries no encrypted payload (only the
+		// message/handler identifiers), so no transformation is needed. Fail LOUD if the inner store has no
+		// lease path — a silent fallback would re-create the race.
+		if (_inner is not ILeasedInboxStore leased)
 		{
 			throw new NotSupportedException(
-				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
-				"lease-based claiming cannot be forwarded through the encrypting decorator.");
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ILeasedInboxStore; " +
+				"a lease cannot be acquired through the encrypting decorator.");
 		}
 
-		return claimable.TryClaimAsync(messageId, handlerType, leaseDuration, cancellationToken);
+		return leased.TryAcquireLeaseAsync(messageId, handlerType, leaseDuration, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask<bool> CompleteAsync(string messageId, string handlerType, LeaseToken lease, CancellationToken cancellationToken)
+	{
+		// The lease term is opaque and carries no payload, so it crosses the encryption boundary unchanged.
+		// Fail LOUD, as the acquire path does.
+		if (_inner is not ILeasedInboxStore leased)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ILeasedInboxStore; " +
+				"a leased entry cannot be completed through the encrypting decorator.");
+		}
+
+		return leased.CompleteAsync(messageId, handlerType, lease, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public ValueTask<bool> FailAsync(string messageId, string handlerType, LeaseToken lease, string errorMessage, CancellationToken cancellationToken)
+	{
+		if (_inner is not ILeasedInboxStore leased)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ILeasedInboxStore; " +
+				"a leased entry cannot be failed through the encrypting decorator.");
+		}
+
+		return leased.FailAsync(messageId, handlerType, lease, errorMessage, cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -290,7 +390,7 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	public ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, int retryCount, CancellationToken cancellationToken)
 	{
 		// errorMessage is not encrypted by the core MarkFailedAsync path; delegate the admin overload likewise.
-		return ((IInboxStoreAdmin)_inner).MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken);
+		return Admin.MarkFailedAsync(messageId, handlerType, errorMessage, retryCount, cancellationToken);
 	}
 
 	/// <inheritdoc />
@@ -315,36 +415,36 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsFailedEntriesAsync(
 		int maxRetries,
 		DateTimeOffset? olderThan,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var admin = (IInboxStoreAdmin)_inner;
-		var entries = await admin.GetFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken)
+		var admin = Admin;
+		var entries = await admin.GetAllTenantsFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken)
 			.ConfigureAwait(false);
 		return await DecryptEntriesAsync(entries, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllTenantsEntriesAsync(CancellationToken cancellationToken)
 	{
-		var admin = (IInboxStoreAdmin)_inner;
-		var entries = await admin.GetAllEntriesAsync(cancellationToken).ConfigureAwait(false);
+		var admin = Admin;
+		var entries = await admin.GetAllTenantsEntriesAsync(cancellationToken).ConfigureAwait(false);
 		return await DecryptEntriesAsync(entries, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	public ValueTask<InboxStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
 	{
-		return ((IInboxStoreAdmin)_inner).GetStatisticsAsync(cancellationToken);
+		return Admin.GetAllTenantsStatisticsAsync(cancellationToken);
 	}
 
 	/// <inheritdoc />
-	public ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+	public ValueTask<int> CleanupAllTenantsProcessedEntriesAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
-		return ((IInboxStoreAdmin)_inner).CleanupAsync(olderThan, cancellationToken);
+		return Admin.CleanupAllTenantsProcessedEntriesAsync(olderThan, cancellationToken);
 	}
 
 	private static byte[] SerializeEncryptedData(EncryptedData encryptedData)

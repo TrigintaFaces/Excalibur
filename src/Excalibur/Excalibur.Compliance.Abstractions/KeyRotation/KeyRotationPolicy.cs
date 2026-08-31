@@ -3,6 +3,7 @@
 
 
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Compliance;
 
@@ -21,12 +22,13 @@ public sealed record KeyRotationPolicy
 	/// <summary>
 	/// Gets the name of this policy.
 	/// </summary>
-	public required string Name { get; init; }
+	[Required]
+	public string Name { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets the key purpose this policy applies to. Null applies to all purposes without a specific policy.
 	/// </summary>
-	public string? Purpose { get; init; }
+	public string? Purpose { get; set; }
 
 	/// <summary>
 	/// Gets the maximum age of a key before rotation is required.
@@ -35,27 +37,27 @@ public sealed record KeyRotationPolicy
 	/// Default is 90 days per SOC 2 and PCI DSS recommendations.
 	/// NIST 800-57 recommends rotation at least annually.
 	/// </remarks>
-	public TimeSpan MaxKeyAge { get; init; } = TimeSpan.FromDays(90);
+	public TimeSpan MaxKeyAge { get; set; } = TimeSpan.FromDays(90);
 
 	/// <summary>
 	/// Gets the encryption algorithm to use when creating new key versions.
 	/// </summary>
-	public EncryptionAlgorithm Algorithm { get; init; } = EncryptionAlgorithm.Aes256Gcm;
+	public EncryptionAlgorithm Algorithm { get; set; } = EncryptionAlgorithm.Aes256Gcm;
 
 	/// <summary>
 	/// Gets a value indicating whether automatic rotation is enabled for this policy.
 	/// </summary>
-	public bool AutoRotateEnabled { get; init; } = true;
+	public bool AutoRotateEnabled { get; set; } = true;
 
 	/// <summary>
 	/// Gets the number of days before rotation to generate a warning.
 	/// </summary>
-	public int WarningDaysBeforeRotation { get; init; } = 14;
+	public int WarningDaysBeforeRotation { get; set; } = 14;
 
 	/// <summary>
 	/// Gets a value indicating whether to send notifications before rotation.
 	/// </summary>
-	public bool NotifyBeforeRotation { get; init; } = true;
+	public bool NotifyBeforeRotation { get; set; } = true;
 
 	/// <summary>
 	/// Gets the number of previous key versions to retain for decryption.
@@ -64,12 +66,12 @@ public sealed record KeyRotationPolicy
 	/// This supports zero-downtime rotation by allowing decryption with
 	/// previous key versions while new encryptions use the latest version.
 	/// </remarks>
-	public int RetainedVersionCount { get; init; } = 3;
+	public int RetainedVersionCount { get; set; } = 3;
 
 	/// <summary>
 	/// Gets a value indicating whether to require FIPS 140-2 compliant key generation.
 	/// </summary>
-	public bool RequireFipsCompliance { get; init; }
+	public bool RequireFipsCompliance { get; set; }
 
 	/// <summary>
 	/// Creates a default policy with 90-day rotation.

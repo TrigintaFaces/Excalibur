@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Resilience;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Caching;
@@ -14,6 +16,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
@@ -33,6 +36,35 @@ public static class CachingServiceCollectionExtensions
 	internal static readonly ConcurrentBag<Action<CachePolicyRegistry, IServiceProvider>> CachePolicyPendingRegistrations = [];
 
 	/// <summary>
+	/// Names the trimming requirement that registering result caching places on the composing application.
+	/// </summary>
+	internal const string CachingTrimmingReason =
+		"Result caching reconstructs a cached value from the type name stored with the entry, which requires types "
+		+ "that trimming may remove. An entry whose type can no longer be resolved is discarded and the handler runs again.";
+
+	/// <summary>
+	/// Names the runtime-code-generation requirement that registering result caching places on the composing application.
+	/// </summary>
+	internal const string CachingDynamicCodeReason =
+		"Result caching deserializes a cached value by its runtime type, which requires runtime code generation. Under "
+		+ "ahead-of-time compilation a serialized entry cannot be reconstructed and the handler runs again.";
+
+	/// <summary>
+	/// Names the trimming requirement that binding cache options from configuration adds on top of <see cref="CachingTrimmingReason"/>.
+	/// </summary>
+	private const string ConfigurationBindingTrimmingReason =
+		"Binds the cache options from configuration by reflecting over the options type, which requires properties that "
+		+ "trimming may remove. Use the overload that takes a configuration delegate for a trim-compatible composition. ";
+
+	/// <summary>
+	/// Names the runtime-code-generation requirement that binding cache options from configuration adds on top of
+	/// <see cref="CachingDynamicCodeReason"/>.
+	/// </summary>
+	private const string ConfigurationBindingDynamicCodeReason =
+		"Binds the cache options from configuration by reflecting over the options type, which requires runtime code "
+		+ "generation. Use the overload that takes a configuration delegate for an ahead-of-time compatible composition. ";
+
+	/// <summary>
 	/// Registers a message-specific cache policy for AOT-safe resolution.
 	/// </summary>
 	/// <typeparam name="TMessage">The message type the policy applies to.</typeparam>
@@ -46,6 +78,8 @@ public static class CachingServiceCollectionExtensions
 	/// to resolve policies without <see cref="Type.MakeGenericType"/>.
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode(CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingDynamicCodeReason)]
 	public static IServiceCollection AddCachePolicy<TMessage, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPolicy>(
 		this IServiceCollection services)
 		where TMessage : class, IDispatchMessage
@@ -84,6 +118,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
 	/// <param name="configure"> Optional callback to configure <see cref="CacheOptions" />. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[RequiresUnreferencedCode(CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchCaching(this IServiceCollection services, Action<CacheOptions>? configure = null)
 	{
 		_ = services.ConfigureOptions(configure, static defaults =>
@@ -107,10 +143,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="CacheOptions"/>. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode(ConfigurationBindingTrimmingReason + CachingTrimmingReason)]
+	[RequiresDynamicCode(ConfigurationBindingDynamicCodeReason + CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchCaching(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -132,6 +166,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="configureMemory"> Optional callback to configure memory cache options. </param>
 	/// <param name="configureCaching"> Optional callback to configure general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[RequiresUnreferencedCode(CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchMemoryCaching(
 		this IServiceCollection services,
 		Action<MsMemoryCacheOptions>? configureMemory = null,
@@ -159,10 +195,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="memoryCacheConfiguration"> Optional configuration section for memory cache options. </param>
 	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode(ConfigurationBindingTrimmingReason + CachingTrimmingReason)]
+	[RequiresDynamicCode(ConfigurationBindingDynamicCodeReason + CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchMemoryCaching(
 		this IServiceCollection services,
 		IConfiguration? memoryCacheConfiguration,
@@ -204,6 +238,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="configureRedis"> Callback to configure Redis cache options. </param>
 	/// <param name="configureCaching"> Optional callback to configure general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[RequiresUnreferencedCode(CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchRedisCaching(
 		this IServiceCollection services,
 		Action<RedisCacheOptions> configureRedis,
@@ -233,10 +269,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="redisConfiguration"> The configuration section for Redis cache options. </param>
 	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode(ConfigurationBindingTrimmingReason + CachingTrimmingReason)]
+	[RequiresDynamicCode(ConfigurationBindingDynamicCodeReason + CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchRedisCaching(
 		this IServiceCollection services,
 		IConfiguration redisConfiguration,
@@ -274,6 +308,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="configureRedis"> Optional callback to configure Redis as the distributed cache backend. </param>
 	/// <param name="configureCaching"> Optional callback to configure general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[RequiresUnreferencedCode(CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchHybridCaching(
 		this IServiceCollection services,
 		Action<HybridCacheOptions>? configureHybrid = null,
@@ -309,10 +345,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="redisConfiguration"> Optional configuration section for Redis as the distributed cache backend. </param>
 	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode(ConfigurationBindingTrimmingReason + CachingTrimmingReason)]
+	[RequiresDynamicCode(ConfigurationBindingDynamicCodeReason + CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchHybridCaching(
 		this IServiceCollection services,
 		IConfiguration? hybridConfiguration,
@@ -361,6 +395,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
 	/// <param name="configureCaching"> Optional callback to configure general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[RequiresUnreferencedCode(CachingTrimmingReason)]
+	[RequiresDynamicCode(CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchDistributedCaching<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
@@ -389,10 +425,8 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
 	/// <param name="cachingConfiguration"> The configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[RequiresUnreferencedCode(ConfigurationBindingTrimmingReason + CachingTrimmingReason)]
+	[RequiresDynamicCode(ConfigurationBindingDynamicCodeReason + CachingDynamicCodeReason)]
 	public static IServiceCollection AddDispatchDistributedCaching<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
@@ -413,6 +447,123 @@ public static class CachingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Marks a service collection whose distributed cache registration has already been bounded, so
+	/// repeated caching registrations do not stack decorators.
+	/// </summary>
+	private sealed class DistributedCacheLatencyBoundMarker;
+
+	/// <summary>
+	/// Replaces the registered <see cref="IDistributedCache"/> with one whose asynchronous calls are bounded
+	/// by <see cref="CacheBehaviorOptions.CacheTimeout"/>.
+	/// </summary>
+	/// <param name="services">The service collection to modify.</param>
+	/// <remarks>
+	/// <para>
+	/// The bound lives here, on the backend call, rather than around the cache lookup-or-create operation.
+	/// That operation runs the handler inside it and is shared between concurrent callers of one key, so a
+	/// deadline around it bounds the handler and is abandoned per-caller, which defeats the single-flight
+	/// behaviour that makes caching worth having. Bounding the backend call keeps the deadline inside the
+	/// shared operation, where one timeout serves every waiting caller.
+	/// </para>
+	/// <para>
+	/// This decorates whatever backend is registered at the time caching is added, which for every entry
+	/// point in this class is the backend that entry point just registered. A consumer that registers a
+	/// distributed cache <em>after</em> adding caching is simply not bounded by this option and relies on
+	/// its cache client's own timeouts, as it would have anyway. Nothing here can add waiting: the
+	/// decorator only ever shortens a call.
+	/// </para>
+	/// </remarks>
+	private static void BoundDistributedCacheLatency(IServiceCollection services)
+	{
+		if (services.Any(static d => d.ServiceType == typeof(DistributedCacheLatencyBoundMarker)))
+		{
+			return;
+		}
+
+		var index = -1;
+		for (var i = services.Count - 1; i >= 0; i--)
+		{
+			var candidate = services[i];
+			if (candidate.ServiceType == typeof(IDistributedCache) && !candidate.IsKeyedService)
+			{
+				index = i;
+				break;
+			}
+		}
+
+		if (index < 0)
+		{
+			// Memory-only composition: there is no distributed backend whose latency could be bounded.
+			return;
+		}
+
+		var original = services[index];
+
+		// An in-memory "distributed" cache cannot stall on I/O, so bounding it would buy nothing and cost a
+		// linked token source per call.
+		if (original.GetImplementationType() == typeof(MemoryDistributedCache))
+		{
+			return;
+		}
+
+		services[index] = ServiceDescriptor.Describe(
+			typeof(IDistributedCache),
+			sp =>
+			{
+				var inner = ResolveOriginalDistributedCache(original, sp);
+				var options = sp.GetRequiredService<IOptions<CacheOptions>>();
+
+				// Telemetry is resolved optionally: bounding backend latency is a correctness property, and
+				// decorating IDistributedCache must not make its resolution depend on a consumer having
+				// registered metrics or logging.
+				var meterFactory = sp.GetService<IMeterFactory>();
+				var logger = sp.GetService<ILogger<TimeoutDistributedCache>>()
+					?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TimeoutDistributedCache>.Instance;
+
+				// The breaker MUST be handed to the decorator, not merely exist in the container. Bounding a
+				// backend call converts a slow backend into an ordinary cache miss, which is invisible to
+				// everything above this point -- so if the decorator cannot report the timeout, nothing can,
+				// and the breaker stays closed forever against a backend that is failing every request.
+				var circuitBreaker = sp.GetService<ICircuitBreakerPolicy>();
+
+				return inner is IBufferDistributedCache buffered
+					? new BufferTimeoutDistributedCache(buffered, options, meterFactory, logger, circuitBreaker)
+					: new TimeoutDistributedCache(inner, options, meterFactory, logger, circuitBreaker);
+			},
+			original.Lifetime);
+
+		services.Add(ServiceDescriptor.Singleton(new DistributedCacheLatencyBoundMarker()));
+	}
+
+	/// <summary>
+	/// Materializes the distributed cache described by the registration that was decorated.
+	/// </summary>
+	/// <param name="original">The registration that was replaced by the bounded one.</param>
+	/// <param name="services">The service provider resolving the registration.</param>
+	/// <returns>The undecorated distributed cache.</returns>
+	/// <remarks>
+	/// The keyed-safe accessors are used deliberately. ServiceDescriptor.ImplementationType,
+	/// .ImplementationInstance and .ImplementationFactory THROW on a keyed descriptor, so reading them
+	/// directly would turn a consumer registering IDistributedCache as a keyed service into an exception at
+	/// container build. A boundary guard enforces this repo-wide.
+	/// </remarks>
+	private static IDistributedCache ResolveOriginalDistributedCache(ServiceDescriptor original, IServiceProvider services)
+	{
+		if (original.GetImplementationInstance() is IDistributedCache instance)
+		{
+			return instance;
+		}
+
+		var factory = original.GetImplementationFactory();
+		if (factory is not null)
+		{
+			return (IDistributedCache)factory(services);
+		}
+
+		return (IDistributedCache)ActivatorUtilities.CreateInstance(services, original.GetImplementationType()!);
+	}
+
+	/// <summary>
 	/// Registers core caching services including middleware and invalidation services.
 	/// </summary>
 	/// <param name="services">The service collection to register services with.</param>
@@ -425,6 +576,9 @@ public static class CachingServiceCollectionExtensions
 		// HybridCache is required by CachingMiddleware regardless of CacheMode.
 		// In Memory-only mode it acts as L1-only; in Distributed mode the DisableLocalCache flag is set.
 		_ = services.AddHybridCache();
+
+		// Bound the distributed backend so a slow L2 degrades to a miss rather than stalling the request.
+		BoundDistributedCacheLatency(services);
 
 		// Register tag tracker: auto-selects DistributedCacheTagTracker for Distributed/Hybrid
 		// modes with a real distributed cache, or InMemoryCacheTagTracker otherwise.
@@ -449,6 +603,22 @@ public static class CachingServiceCollectionExtensions
 				if (distributedCache is not null
 					&& !string.Equals(distributedCache.GetType().Name, "MemoryDistributedCache", StringComparison.Ordinal))
 				{
+					// Tell the consumer what they are getting. This tracker maintains its tag-to-keys set with a
+					// read-modify-write, because IDistributedCache exposes no atomic set-add and no compare-and-swap
+					// to build one on. Two instances registering different keys under one tag concurrently can lose
+					// the earlier write, and a key dropped from the set is never invalidated when its tag is, so that
+					// entry serves stale data until its own expiry. Redis does not have this problem and is selected
+					// above when present. Saying so at startup is the difference between a known limitation and a
+					// silent one.
+					sp.GetService<ILoggerFactory>()
+						?.CreateLogger("Excalibur.Dispatch.Caching")
+						?.LogWarning(
+							"Cache tag invalidation is running on a best-effort tracker over {CacheType}. Concurrent "
+							+ "registrations under one tag can drop a key, and a dropped key is not invalidated with its "
+							+ "tag, so that entry serves stale data until it expires. Register a Redis connection for "
+							+ "atomic tag tracking, or keep entry lifetimes short enough that staleness is acceptable.",
+							distributedCache.GetType().Name);
+
 					return new DistributedCacheTagTracker(
 						distributedCache,
 						sp.GetRequiredService<IOptions<CacheOptions>>());
@@ -466,10 +636,14 @@ public static class CachingServiceCollectionExtensions
 		services.TryAddSingleton<CachingMiddlewareWrapper>();
 		services.TryAddSingleton<CacheInvalidationMiddlewareWrapper>();
 
+		// DefaultCacheKeyBuilder takes the concrete serializer, so caching composed on its own must seat it
+		// rather than rely on the consumer also having called AddDispatchPipeline/AddDispatchSerializer.
+		services.TryAddSingleton<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
+
 		// Register cache services
 		services.TryAddSingleton<ICacheInvalidationService, HybridCacheInvalidationService>();
 
-		// Note: Projection caching services moved to Excalibur.Caching.Projections (Sprint 330 T1.2, AD-330-3)
+		// Note: Projection caching services moved to Excalibur.Caching.Projections
 		// Use services.AddExcaliburProjectionCaching() after AddDispatchCaching() for projection invalidation
 
 		// Note: CachedRouterService decoration should be done in Excalibur.Patterns where the implementation belongs (architectural
@@ -498,10 +672,16 @@ public static class CachingServiceCollectionExtensions
 		public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Cache;
 
 		/// <inheritdoc />
-		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-			Justification = "CachingMiddleware is only invoked when caching is enabled and AOT limitations are acceptable")]
-		[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-			Justification = "CachingMiddleware is only invoked when caching is enabled and AOT limitations are acceptable")]
+		[UnconditionalSuppressMessage("AOT", "IL2046:RequiresUnreferencedCode mismatch",
+			Justification = "The wrapped middleware reflects; IDispatchMiddleware does not declare that, because a "
+			+ "consumer-authored middleware need not reflect. The requirement reaches the consumer at the caching "
+			+ "registration methods instead, which this type is internal to.")]
+		[UnconditionalSuppressMessage("AOT", "IL3051:RequiresDynamicCode mismatch",
+			Justification = "The wrapped middleware requires runtime code generation; IDispatchMiddleware does not "
+			+ "declare that, because a consumer-authored middleware need not. The requirement reaches the consumer at "
+			+ "the caching registration methods instead, which this type is internal to.")]
+		[RequiresUnreferencedCode(CachingTrimmingReason)]
+		[RequiresDynamicCode(CachingDynamicCodeReason)]
 		public ValueTask<IMessageResult> InvokeAsync(
 			IDispatchMessage message,
 			IMessageContext context,

@@ -60,8 +60,8 @@ public sealed class AvroSerializer : ISerializer
 	// (Rabin) fingerprint of the WRITER schema. Avro binary is not self-describing, so on read this
 	// fingerprint is what lets us detect a writer/reader schema skew. On a mismatch with no resolvable
 	// writer schema we FAIL CLOSED (throw SchemaMismatchException) instead of positionally decoding
-	// against the wrong schema — which would silently corrupt field values (AC-F4 "no silent corruption
-	// on version skew"). The fingerprint prefix is also the shared substrate for future writer-schema
+	// against the wrong schema — which would silently corrupt field values on version skew. The
+	// fingerprint prefix is also the shared substrate for future writer-schema
 	// resolution (real schema evolution): the wire format does not change when that lands.
 
 	private const byte SingleObjectMarker0 = 0xC3;
@@ -167,7 +167,11 @@ public sealed class AvroSerializer : ISerializer
 
 		try
 		{
-#pragma warning disable RS0030 // Activator.CreateInstance<T>() is required for Avro deserialization (ISpecificRecord requires instance creation)
+// ActivatorUtilities.CreateInstance cannot substitute here: it needs an IServiceProvider, and this
+			// deserialization seam has none - the record being constructed is decoded payload, not a
+			// container-composed service. Avro's SpecificDatumReader requires a live instance to read its
+			// schema from before it can decode into it.
+#pragma warning disable RS0030
 			var instance = (ISpecificRecord)Activator.CreateInstance<T>()!;
 #pragma warning restore RS0030
 			// Fail-closed skew detection: validate the writer-schema fingerprint before decoding.
@@ -261,7 +265,10 @@ public sealed class AvroSerializer : ISerializer
 		}
 	}
 
-#pragma warning disable RS0030 // Activator.CreateInstance(Type) is required for runtime-typed Avro deserialization
+// ActivatorUtilities.CreateInstance cannot substitute here: it needs an IServiceProvider, and this
+// static helper has none - the record is decoded payload, not a container-composed service. The
+// parameterless constructor is preserved by the DynamicallyAccessedMembers annotation below.
+#pragma warning disable RS0030
 
 	private static ISpecificRecord CreateInstance(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]

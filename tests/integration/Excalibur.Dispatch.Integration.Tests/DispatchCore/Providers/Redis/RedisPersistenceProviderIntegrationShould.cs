@@ -111,26 +111,6 @@ public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestB
 	}
 
 	/// <summary>
-	/// Tests that pool stats are available.
-	/// </summary>
-	[Fact]
-	public async Task RetrieveConnectionPoolStats()
-	{
-		// Arrange
-		using var provider = CreatePersistenceProvider();
-
-		// Act
-		var stats = await provider.GetConnectionPoolStatsAsync(TestCancellationToken);
-
-		// Assert
-		_ = stats.ShouldNotBeNull();
-		stats.ShouldContainKey("IsConnected");
-		((bool)stats["IsConnected"]).ShouldBeTrue();
-		stats.ShouldContainKey("EndpointCount");
-		((int)stats["EndpointCount"]).ShouldBeGreaterThan(0);
-	}
-
-	/// <summary>
 	/// Tests that the provider disposes correctly.
 	/// </summary>
 	[Fact]

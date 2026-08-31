@@ -224,7 +224,7 @@ public sealed class SqlServerInboxStoreDeploymentModeShould : IClassFixture<SqlS
             () => new SqlConnection(_fixture.ConnectionString),
             options,
             NullLogger<SqlServerInboxStore>.Instance,
-            tenantContext,
+            tenantContext ?? UntenantedTestTenantContext.Instance,
             Options.Create(new TenantContextOptions { RequireTenant = requireTenant }));
     }
 

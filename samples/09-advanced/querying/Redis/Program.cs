@@ -24,7 +24,7 @@ using StackExchange.Redis;
 //   4. Direct CRUD operations via StackExchange.Redis IDatabase
 //   5. Transaction support via CreateTransactionScope / RedisTransactionScope
 //   6. Health checks via IPersistenceProviderHealth (TestConnectionAsync)
-//   7. Provider metrics and connection pool statistics
+//   7. Provider metrics
 //   8. Pub/Sub via GetSubscriber()
 //   9. Retry policy with exponential backoff (built-in Polly resilience)
 //  10. SSL/TLS and password configuration
@@ -152,18 +152,25 @@ Console.WriteLine($"DEL sample:user:2 = {deleted}");
 Console.WriteLine();
 
 // ---------------------------------------------------------------------------
-// 5. Transaction Support -- batch operations via CreateTransactionScope
+// 5. Capability discovery -- ask the provider what it can actually do
 // ---------------------------------------------------------------------------
-Console.WriteLine("--- Transaction Support ---");
+Console.WriteLine("--- Provider Capabilities ---");
 
-// The provider implements IPersistenceProviderTransaction, accessible via GetService.
+// Capabilities are separate questions, so a provider can answer each one honestly.
+// "How do I reach this store, and how does it handle transient failure?" is one capability;
+// "can I run a multi-statement transaction?" is another. Redis answers the first and not the
+// second, and GetService says so before you write any code against it.
+var connectionCapability =
+    (IPersistenceProviderConnection?)provider.GetService(typeof(IPersistenceProviderConnection));
+if (connectionCapability != null)
+{
+    Console.WriteLine("Connection capability: available");
+    Console.WriteLine($"Retry policy max attempts: {connectionCapability.RetryPolicy.MaxRetryAttempts}");
+}
+
 var txCapability = (IPersistenceProviderTransaction?)provider.GetService(typeof(IPersistenceProviderTransaction));
 if (txCapability != null)
 {
-    Console.WriteLine("Transaction support: available");
-    Console.WriteLine($"Retry policy max attempts: {txCapability.RetryPolicy.MaxRetryAttempts}");
-
-    // Create a transaction scope
     await using var scope = txCapability.CreateTransactionScope(IsolationLevel.ReadCommitted);
     Console.WriteLine($"Transaction ID:  {scope.TransactionId}");
     Console.WriteLine($"Transaction status: {scope.Status}");
@@ -183,19 +190,21 @@ if (txCapability != null)
         });
     }
 
-    // Commit the transaction
     await scope.CommitAsync(ct).ConfigureAwait(false);
     Console.WriteLine($"Transaction status after commit: {scope.Status}");
 }
 else
 {
-    Console.WriteLine("Transaction support: not available");
+    // Expected for Redis: there is no client-side transaction to give. Atomicity comes from
+    // server-side Lua in the individual stores. Declining here means you find that out now,
+    // rather than from an exception after building a workflow around a scope.
+    Console.WriteLine("Transaction capability: declined by this provider");
 }
 
 Console.WriteLine();
 
 // ---------------------------------------------------------------------------
-// 7. Provider Metrics & Connection Pool Statistics
+// 7. Provider Metrics
 // ---------------------------------------------------------------------------
 Console.WriteLine("--- Provider Metrics ---");
 var healthCapability = (IPersistenceProviderHealth?)provider.GetService(typeof(IPersistenceProviderHealth));
@@ -205,17 +214,6 @@ if (healthCapability != null)
     foreach (var kvp in metrics)
     {
         Console.WriteLine($"  {kvp.Key}: {kvp.Value}");
-    }
-
-    Console.WriteLine();
-    Console.WriteLine("--- Connection Pool Statistics ---");
-    var poolStats = await healthCapability.GetConnectionPoolStatsAsync(ct).ConfigureAwait(false);
-    if (poolStats != null)
-    {
-        foreach (var kvp in poolStats)
-        {
-            Console.WriteLine($"  {kvp.Key}: {kvp.Value}");
-        }
     }
 }
 

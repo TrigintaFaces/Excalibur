@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Diagnostics;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -306,42 +307,42 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		_contextSnapshotCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.snapshots",
-			"snapshots",
+			"{snapshots}",
 			"Total number of context snapshots taken");
 
 		_contextMutationCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.mutations",
-			"mutations",
+			"{mutations}",
 			"Total number of context mutations detected");
 
 		_contextErrorCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.errors",
-			"errors",
+			"{errors}",
 			"Total number of context flow errors");
 
 		_contextValidationFailureCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.validation_failures",
-			"failures",
+			"{failures}",
 			"Total number of context validation failures");
 
 		_crossBoundaryTransitionCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.cross_boundary_transitions",
-			"transitions",
+			"{transitions}",
 			"Total number of cross-boundary transitions");
 
 		_contextPreservationSuccessCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.preservation_success",
-			"successes",
+			"{successes}",
 			"Total number of successful context preservations");
 
 		_contextFieldLossCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.field_loss",
-			"losses",
+			"{losses}",
 			"Total number of context field losses detected");
 
 		_contextSizeThresholdExceededCounter = _meter.CreateCounter<long>(
 			"dispatch.context.flow.size_threshold_exceeded",
-			"exceeds",
+			"{events}",
 			"Number of times context size exceeded threshold");
 	}
 
@@ -349,27 +350,27 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 	{
 		_contextSizeHistogram = _meter.CreateHistogram<double>(
 			"dispatch.context.flow.size_bytes",
-			"bytes",
+			"By",
 			"Distribution of context sizes in bytes");
 
 		_contextFieldCountHistogram = _meter.CreateHistogram<double>(
 			"dispatch.context.flow.field_count",
-			"fields",
+			"{fields}",
 			"Distribution of context field counts");
 
 		_pipelineStageLatencyHistogram = _meter.CreateHistogram<double>(
-			"dispatch.context.flow.stage_latency_ms",
-			"milliseconds",
+			"dispatch.context.flow.stage_latency",
+			"ms",
 			"Latency of pipeline stages in milliseconds");
 
 		_contextSerializationLatencyHistogram = _meter.CreateHistogram<double>(
-			"dispatch.context.flow.serialization_latency_ms",
-			"milliseconds",
+			"dispatch.context.flow.serialization_latency",
+			"ms",
 			"Context serialization latency in milliseconds");
 
 		_contextDeserializationLatencyHistogram = _meter.CreateHistogram<double>(
-			"dispatch.context.flow.deserialization_latency_ms",
-			"milliseconds",
+			"dispatch.context.flow.deserialization_latency",
+			"ms",
 			"Context deserialization latency in milliseconds");
 	}
 
@@ -378,19 +379,19 @@ public sealed class ContextFlowMetrics : IContextFlowMetrics, IDisposable
 		_ = _meter.CreateObservableGauge(
 			"dispatch.context.flow.preservation_rate",
 			CalculatePreservationRate,
-			"ratio",
+			"1",
 			"Current context preservation rate (0-1)");
 
 		_ = _meter.CreateObservableGauge(
 			"dispatch.context.flow.active_contexts",
 			() => _activeContexts,
-			"contexts",
+			"{contexts}",
 			"Number of currently active contexts");
 
 		_ = _meter.CreateObservableGauge(
 			"dispatch.context.flow.lineage_depth",
 			() => _maxLineageDepth,
-			"depth",
+			"{depth}",
 			"Maximum observed context lineage depth");
 	}
 

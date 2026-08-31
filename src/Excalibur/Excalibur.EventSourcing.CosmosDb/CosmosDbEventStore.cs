@@ -23,9 +23,41 @@ namespace Excalibur.EventSourcing.CosmosDb;
 public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudNativeProviderInfo,
 	ICloudNativeEventStoreChangeFeed, ICloudNativeEventStoreInfo, IEventStore, IAsyncDisposable
 {
+	/// <summary>
+	/// The leading segment every stream identifier this store writes carries, ahead of the owning tenant.
+	/// </summary>
+	/// <remarks>
+	/// Declared once and consumed by both the key builder and the legacy-document probe, so the shape the
+	/// store writes and the shape it refuses to read cannot drift apart.
+	/// </remarks>
+	private const string TenantKeyPrefix = "t:";
+
+	/// <summary>
+	/// Exclusive upper bound of the tenant-prefixed key range, used by the legacy-document probe.
+	/// </summary>
+	/// <remarks>
+	/// <c>':'</c> is U+003A and <c>';'</c> is U+003B, so every identifier beginning with
+	/// <see cref="TenantKeyPrefix"/> sorts inside <c>["t:", "t;")</c> and every identifier outside that
+	/// range lacks the prefix. Expressing the probe as a range keeps it served by the container's ordered
+	/// index rather than by a scan.
+	/// </remarks>
+	private const string TenantKeyPrefixUpperBound = "t;";
+
+	// Set only once the legacy-document probe has come back clean. Separate from _initialized because the
+	// probe is deliberately NOT on the initialisation path: it runs on the first read that comes back
+	// empty, which is the first moment an unaddressable document could be mistaken for an absent one.
+	private volatile bool _legacyDocumentsProbed;
+
 	private readonly CosmosClient _cosmosClient;
 	private readonly IOptions<CosmosDbEventStoreOptions> _options;
+
+	/// <summary>
+	/// Writes event payloads and metadata under the canonical wire contract, through the host's
+	/// source-generated type-info resolver when one was configured.
+	/// </summary>
+	private readonly CosmosDbEventPayloadWriter _payloadWriter;
 	private readonly ILogger<CosmosDbEventStore> _logger;
+	private readonly ITenantContext _tenantContext;
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 
 	private Container? _container;
@@ -44,6 +76,11 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// <param name="cosmosClient">The Cosmos DB client.</param>
 	/// <param name="options">The event store options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Required: this store partitions events by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
+	/// </param>
 	/// <param name="checkpointStore">
 	/// Optional durable change-feed checkpoint store (DI-supplied; the registered
 	/// <see cref="IChangeFeedCheckpointStore"/> — in-memory default or the durable Cosmos store when the
@@ -55,12 +92,15 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		CosmosClient cosmosClient,
 		IOptions<CosmosDbEventStoreOptions> options,
 		ILogger<CosmosDbEventStore> logger,
+		ITenantContext tenantContext,
 		IChangeFeedCheckpointStore? checkpointStore = null)
 	{
 		_cosmosClient = cosmosClient ?? throw new ArgumentNullException(nameof(cosmosClient));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 		_checkpointStore = checkpointStore;
+		_payloadWriter = new CosmosDbEventPayloadWriter(_options.Value.EventTypeInfoResolver);
 	}
 
 	/// <inheritdoc/>
@@ -130,6 +170,14 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 				{
 					events.Add(ToCloudStoredEvent(doc));
 				}
+			}
+
+			if (events.Count == 0)
+			{
+				// An empty result is the ambiguous one: either this aggregate was never written, or it was
+				// written under the untenanted key shape and is unaddressable now. Refuse before reporting
+				// emptiness to a caller who would read it as a new aggregate.
+				await EnsureEmptyReadIsTrustworthyAsync(cancellationToken).ConfigureAwait(false);
 			}
 
 			LogLoadingEvents(streamId, events.Count);
@@ -226,12 +274,13 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// When transactional batching is enabled, an append of up to 100 events commits as a single atomic
-	/// Cosmos DB transactional batch within the stream's partition. Cosmos DB caps a transactional batch
-	/// at 100 operations, so an append of <b>more than 100 events</b> is committed in sequential batches of
-	/// at most 100. Those batches are each individually atomic but are <b>not</b> a single atomic unit — a
-	/// failure partway through a large append can leave earlier batches committed while later ones are not.
-	/// Callers that require all-or-nothing semantics should keep a single append at or below 100 events.
+	/// When transactional batching is enabled, an append commits as a single atomic Cosmos DB
+	/// transactional batch within the stream's partition. Cosmos DB caps a transactional batch at 100
+	/// operations and offers no larger atomic primitive, so an append of <b>more than 100 events</b> is
+	/// rejected with <see cref="EventBatchTooLargeException"/> before anything is written, rather than
+	/// committed as a sequence of batches that could leave a torn prefix behind. Callers split the append
+	/// into batches of at most 100 events, or set <c>UseTransactionalBatch=false</c> to opt into the
+	/// documented non-atomic sequential path.
 	/// </remarks>
 	public async Task<CloudAppendResult> AppendAsync(
 		string aggregateId,
@@ -261,6 +310,24 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 				result,
 				stopwatch.Elapsed);
 			return CloudAppendResult.CreateSuccess(expectedVersion, 0);
+		}
+
+		// On the ATOMIC (transactional-batch) path, Cosmos DB hard-caps a TransactionalBatch at 100 operations
+		// and offers no >100 atomic primitive, so an all-or-nothing append (the IEventStore.AppendAsync
+		// contract) is impossible beyond 100 events. Reject at the boundary BEFORE any write rather than
+		// commit sequential batches and risk a torn event-stream prefix -- callers split into <=100-event
+		// appends. (A torn append is event-stream corruption, which event sourcing must never produce, and a
+		// consumer holding a torn stream cannot detect it: it has a prefix and no suffix, and every later read
+		// is consistent with a shorter history.) The non-transactional opt-out path (UseTransactionalBatch=false)
+		// is NOT rejected: the consumer explicitly traded away atomicity for the per-item sequential path, so
+		// >100 is its accepted (documented non-atomic) behavior.
+		if (_options.Value.UseTransactionalBatch && eventList.Count > MaxTransactionalBatchOperations)
+		{
+			throw new EventBatchTooLargeException(
+				nameof(events),
+				eventList.Count,
+				MaxTransactionalBatchOperations,
+				$"Cosmos DB atomic append is limited to {MaxTransactionalBatchOperations} events per call; split the batch into appends of at most {MaxTransactionalBatchOperations} events, or set UseTransactionalBatch=false to opt into the non-atomic sequential path.");
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -293,7 +360,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			if (_options.Value.UseTransactionalBatch && eventList.Count > 1)
 			{
 				appendResult = await AppendWithTransactionAsync(
-						streamId, aggregateId, aggregateType, eventList, expectedVersion, pk, cancellationToken)
+						streamId, aggregateId, aggregateType, partitionKey, eventList, expectedVersion, pk, cancellationToken)
 					.ConfigureAwait(false);
 			}
 			else
@@ -307,6 +374,14 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			{
 				_ = (activity?.SetTag(EventSourcingTags.Version, appendResult.NextExpectedVersion));
 				activity.SetOperationResult(EventSourcingTagValues.Success);
+			}
+			else if (appendResult.IsConcurrencyConflict)
+			{
+				// A batch reports its outcome by returning, not by throwing, so a lost race arrives here
+				// rather than at the conflict handler below. It is the same outcome and is recorded as one.
+				LogConcurrencyConflict(streamId, expectedVersion);
+				result = WriteStoreTelemetry.Results.Conflict;
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			}
 			else
 			{
@@ -401,9 +476,18 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		{
 			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
 			var version = response.FirstOrDefault();
+
+			if (version is null)
+			{
+				// AppendAsync prechecks through here, so guarding this answer also guards the write that
+				// would otherwise start a second, disjoint history at version 0.
+				await EnsureEmptyReadIsTrustworthyAsync(cancellationToken).ConfigureAwait(false);
+			}
+
 			return version ?? -1;
 		}
 
+		await EnsureEmptyReadIsTrustworthyAsync(cancellationToken).ConfigureAwait(false);
 		return -1;
 	}
 
@@ -456,12 +540,15 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		{
 			// Cosmos DB has no store-wide global sequence across partitions/streams; global ordering is
 			// unsupported for this provider, so no global first-event position is reported.
-			return AppendResult.CreateSuccess(result.NextExpectedVersion, firstEventPosition: null);
+			// A successful CloudAppendResult always states the version it advanced the stream to.
+			return AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)
 		{
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
+			// A concurrency conflict is the one failure that measured the stream's actual version, so it
+			// always states one.
+			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion!.Value);
 		}
 
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");
@@ -492,10 +579,9 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		await Task.CompletedTask.ConfigureAwait(false);
 	}
 
-	private static readonly System.Text.Json.JsonSerializerOptions CanonicalEventOptions =
-		Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 
-	private static EventDocument CreateEventDocument(
+
+	private EventDocument CreateEventDocument(
 		string streamId,
 		string aggregateId,
 		string aggregateType,
@@ -515,14 +601,31 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			Version = version,
 			Timestamp = evt.OccurredAt,
 #pragma warning disable IL2026, IL3050
-			EventData = JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), CanonicalEventOptions),
-			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata, CanonicalEventOptions) : null
+			EventData = _payloadWriter.SerializeEvent(evt, aggregateId, aggregateType),
+			Metadata = evt.Metadata != null ? _payloadWriter.SerializeMetadata(evt.Metadata) : null
 #pragma warning restore IL2026, IL3050
 		};
 	}
 
-	private static string BuildStreamId(string aggregateType, string aggregateId) =>
-		$"{aggregateType}:{aggregateId}";
+	/// <summary>
+	/// Composes the Cosmos partition key for one stream, with the owning tenant as its leading segment.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The tenant is part of the stream's IDENTITY rather than a filter applied to it. A filter would scope
+	/// reads while leaving two tenants sharing one document set and one version sequence, so the second
+	/// tenant to use an aggregate identifier would be told it has a concurrency conflict on a stream it
+	/// never wrote. Composing the key gives each tenant its own logical partition, its own documents, and
+	/// its own version sequence, and makes a cross-tenant read unaddressable rather than merely filtered.
+	/// </para>
+	/// <para>
+	/// The tenant term is total (never null, never empty): a host with no tenancy resolves the framework
+	/// single-tenant default, and a genuinely untenanted row resolves the reserved untenanted sentinel. So
+	/// every key carries a tenant segment and none can be produced without one.
+	/// </para>
+	/// </remarks>
+	private string BuildStreamId(string aggregateType, string aggregateId) =>
+		$"{TenantKeyPrefix}{TenantScope.FromContext(_tenantContext).TenantId}:{aggregateType}:{aggregateId}";
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
@@ -583,6 +686,104 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			cloudEvent.Version,
 			cloudEvent.Timestamp);
 
+	/// <summary>
+	/// Refuses when the events container still holds a document written under the untenanted key shape of an
+	/// earlier release. Called only through <see cref="EnsureEmptyReadIsTrustworthyAsync"/>, which decides
+	/// when it runs.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Such a document is unaddressable under the current key shape, and the failure that follows is the
+	/// worst one available: a load returns an EMPTY STREAM rather than an error, so the caller sees a new
+	/// aggregate, appends at version 0, and ends holding two disjoint histories under one identity. Refusing
+	/// converts that silence into a failure while every event is still intact.
+	/// </para>
+	/// <para>
+	/// Nothing is modified. Which tenant owns an existing untenanted document is a question about the
+	/// deployment rather than about the data, so it cannot be decided here; the message states the
+	/// procedure instead.
+	/// </para>
+	/// </remarks>
+	/// <param name="container">The events container to probe.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <exception cref="InvalidOperationException">
+	/// The container holds at least one event document whose stream identifier carries no tenant segment.
+	/// </exception>
+	private async Task RefuseLegacyUntenantedDocumentsAsync(
+		Container container,
+		CancellationToken cancellationToken)
+	{
+		// SELECT VALUE yields the identifier itself, so the probe reads the same whichever serializer the
+		// consumer-supplied client is configured with.
+		var query = new QueryDefinition(
+				"SELECT TOP 1 VALUE c.streamId FROM c WHERE c.streamId < @prefix OR c.streamId >= @upperBound")
+			.WithParameter("@prefix", TenantKeyPrefix)
+			.WithParameter("@upperBound", TenantKeyPrefixUpperBound);
+
+		using var iterator = container.GetItemQueryIterator<string>(
+			query,
+			requestOptions: new QueryRequestOptions { MaxItemCount = 1 });
+
+		// A cross-partition query can return an empty page while later partitions still hold results, so
+		// the pages are drained rather than sampled. TOP 1 bounds the total.
+		while (iterator.HasMoreResults)
+		{
+			var page = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			var legacyStreamId = page.FirstOrDefault();
+
+			if (legacyStreamId is null)
+			{
+				continue;
+			}
+
+			throw new InvalidOperationException(
+				$"Events container '{_options.Value.EventsContainerName}' holds at least one event " +
+				$"document whose stream identifier ('{legacyStreamId}') carries no tenant segment, so it " +
+				$"was written by a release that stored streams without one. Those documents are " +
+				$"unaddressable under the current key shape: a load of the aggregate they belong to would " +
+				$"return an empty stream, and the caller would then append a second, disjoint history " +
+				$"under the same identity. Nothing has been modified. Stop writers, export every event " +
+				$"document preserving version order within each stream, re-key each one by prefixing " +
+				$"'{TenantKeyPrefix}<tenantId>:' with the tenant that owns the aggregate, re-import, and " +
+				$"start the application again.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies, at most once per store instance, that an empty read from the events container means the
+	/// stream is genuinely absent rather than merely unaddressable.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Called from every point at which this store is about to act on the ABSENCE of documents, and from
+	/// nowhere else. A read that returns rows proves the container is addressable and needs no probe; only
+	/// silence is ambiguous, and only silence is checked.
+	/// </para>
+	/// <para>
+	/// Deliberately not on the initialisation path. Probing there would spend a request on every process
+	/// start - on every serverless cold start, forever - to detect a condition that can only hold across a
+	/// one-time upgrade, and would make the store unconstructible without a live container. Here it costs
+	/// nothing at startup, nothing on a read that finds data, and at most one request per store instance.
+	/// </para>
+	/// <para>
+	/// Unsynchronised: two concurrent first-empty-reads may both probe. The probe reads and modifies
+	/// nothing, so a duplicate costs one extra request and nothing else - cheaper than serialising every
+	/// empty read behind a lock. The flag is set only once the probe has come back clean, so a container
+	/// that holds legacy documents refuses every call rather than only the first.
+	/// </para>
+	/// </remarks>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	private async Task EnsureEmptyReadIsTrustworthyAsync(CancellationToken cancellationToken)
+	{
+		if (_legacyDocumentsProbed)
+		{
+			return;
+		}
+
+		await RefuseLegacyUntenantedDocumentsAsync(_container!, cancellationToken).ConfigureAwait(false);
+		_legacyDocumentsProbed = true;
+	}
+
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
 		if (_initialized)
@@ -599,7 +800,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			{
 				return;
 			}
-			var database = _cosmosClient.GetDatabase("events");
+			var database = _cosmosClient.GetDatabase(_options.Value.DatabaseName);
 
 			if (_options.Value.CreateContainerIfNotExists)
 			{
@@ -636,9 +837,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// Maximum number of operations Cosmos DB permits in a single transactional batch.
 	/// </summary>
 	/// <remarks>
-	/// Cosmos DB hard-caps a <c>TransactionalBatch</c> at 100 operations. Appends larger than this are
-	/// split into multiple sequential batches (each atomic within its own partition, but not atomic across
-	/// batches — see <see cref="AppendWithTransactionAsync"/>).
+	/// Cosmos DB hard-caps a <c>TransactionalBatch</c> at 100 operations. An atomic append larger than
+	/// this is refused at the boundary rather than split, because splitting cannot be all-or-nothing.
 	/// </remarks>
 	private const int MaxTransactionalBatchOperations = 100;
 
@@ -646,61 +846,156 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	/// Appends events using one or more Cosmos DB transactional batches.
 	/// </summary>
 	/// <remarks>
-	/// Cosmos DB caps a single <c>TransactionalBatch</c> at
-	/// <see cref="MaxTransactionalBatchOperations"/> operations. When the append exceeds that limit the
-	/// events are committed in sequential batches of at most that size. Each batch is atomic within the
-	/// stream's partition, but the batches are <b>not</b> a single atomic unit: an append of more than
-	/// <see cref="MaxTransactionalBatchOperations"/> events commits in chunks, so a failure partway
-	/// through can leave earlier chunks committed while later chunks are not. Optimistic-concurrency and
-	/// version handling are preserved per chunk (each event's deterministic id makes a duplicate version a
-	/// conflict).
+	/// The caller guarantees at most <see cref="MaxTransactionalBatchOperations"/> events reach here: the
+	/// append boundary rejects a larger atomic batch, so one <c>TransactionalBatch</c> always covers the
+	/// whole append and it is genuinely all-or-nothing. Each event's deterministic id makes a duplicate
+	/// version a conflict.
 	/// </remarks>
 	private async Task<CloudAppendResult> AppendWithTransactionAsync(
 		string streamId,
 		string aggregateId,
 		string aggregateType,
+		IPartitionKey partitionKey,
 		List<IDomainEvent> events,
 		long expectedVersion,
 		Microsoft.Azure.Cosmos.PartitionKey pk,
 		CancellationToken cancellationToken)
 	{
+		// The version the stream must still be at for this append to be appendable, kept for the failure
+		// classifier below.
+		var requiredVersion = expectedVersion;
 		var version = expectedVersion;
-		double totalRu = 0;
-		string? sessionToken = null;
+		var batch = _container!.CreateTransactionalBatch(pk);
 
-		var chunkCount = (events.Count + MaxTransactionalBatchOperations - 1) / MaxTransactionalBatchOperations;
-		if (chunkCount > 1)
+		foreach (var evt in events)
 		{
-			LogLargeAppendChunked(streamId, events.Count, chunkCount, MaxTransactionalBatchOperations);
+			version++;
+			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
+			_ = batch.CreateItem(doc);
 		}
 
-		for (var offset = 0; offset < events.Count; offset += MaxTransactionalBatchOperations)
+		using var response = await batch.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+		var totalRu = response.RequestCharge;
+
+		if (!response.IsSuccessStatusCode)
 		{
-			var batch = _container!.CreateTransactionalBatch(pk);
-			var chunkEnd = Math.Min(offset + MaxTransactionalBatchOperations, events.Count);
-
-			for (var i = offset; i < chunkEnd; i++)
-			{
-				version++;
-				var doc = CreateEventDocument(streamId, aggregateId, aggregateType, events[i], version);
-				_ = batch.CreateItem(doc);
-			}
-
-			using var response = await batch.ExecuteAsync(cancellationToken).ConfigureAwait(false);
-			totalRu += response.RequestCharge;
-
-			if (!response.IsSuccessStatusCode)
-			{
-				return CloudAppendResult.CreateFailure(
-					$"Transactional batch failed with status {response.StatusCode}",
-					totalRu);
-			}
-
-			sessionToken = response.Headers.Session;
+			return await ClassifyFailedBatchAsync(
+					response, aggregateId, aggregateType, partitionKey, requiredVersion, totalRu, cancellationToken)
+				.ConfigureAwait(false);
 		}
 
 		LogEventsAppended(streamId, events.Count, totalRu);
-		return CloudAppendResult.CreateSuccess(version, totalRu, sessionToken);
+		return CloudAppendResult.CreateSuccess(version, totalRu, response.Headers.Session);
+	}
+
+	/// <summary>
+	/// Classifies a transactional batch that did not succeed, as either a lost optimistic-concurrency race
+	/// or a failure on the append's own account.
+	/// </summary>
+	/// <param name="response"> The unsuccessful batch response. </param>
+	/// <param name="aggregateId"> The aggregate whose append failed. </param>
+	/// <param name="aggregateType"> The aggregate type whose append failed. </param>
+	/// <param name="partitionKey"> The partition holding the stream. </param>
+	/// <param name="requiredVersion"> The version the stream had to be at for this batch to be appendable. </param>
+	/// <param name="requestCharge"> The request units consumed by the append so far. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns> A concurrency-conflict result when the race was lost; otherwise a failure result. </returns>
+	/// <remarks>
+	/// <para>
+	/// A batch REPORTS its outcome rather than throwing it. Executing a batch returns a response whose
+	/// status carries the failure, so the conflict handler on the append -- which catches a thrown
+	/// conflict, and is what the single-item path relies on -- never sees a batched one. Every loser of a
+	/// race on this path was therefore reported as an opaque failure whose text happened to name the
+	/// conflict, while the flag a caller's retry policy keys on stayed false: the caller surfaced an error
+	/// instead of reloading and retrying an ordinary, expected outcome.
+	/// </para>
+	/// <para>
+	/// A conflict status is a proof of conflict from the response alone, because every event id in the
+	/// batch is derived from the stream and the version it claims, so the only document that can already
+	/// exist under one is another writer's event at that version. It is read from the batch status and
+	/// from each operation's status, because a failed batch reports the offending operation's status on
+	/// that operation while its siblings report a failed dependency, and which of the two surfaces at the
+	/// batch level is the SDK's business rather than a guarantee to rely on.
+	/// </para>
+	/// <para>
+	/// The structural test stands behind it, for the same reason as elsewhere: a batch is atomic, so a
+	/// failed one wrote nothing, and if the stream is no longer at the version this batch required, the
+	/// precondition was lost to another writer whatever status surfaced. It cannot over-report -- a
+	/// stream still sitting at the required version proves nothing else claimed it.
+	/// </para>
+	/// </remarks>
+	private async Task<CloudAppendResult> ClassifyFailedBatchAsync(
+		TransactionalBatchResponse response,
+		string aggregateId,
+		string aggregateType,
+		IPartitionKey partitionKey,
+		long requiredVersion,
+		double requestCharge,
+		CancellationToken cancellationToken)
+	{
+		var currentVersion = await ReadCurrentVersionAfterFailedAppendAsync(
+			aggregateId, aggregateType, partitionKey, cancellationToken).ConfigureAwait(false);
+
+		if (HasConflictStatus(response) || (currentVersion is { } version && version != requiredVersion))
+		{
+			return CloudAppendResult.CreateConcurrencyConflict(
+				requiredVersion, currentVersion ?? requiredVersion, requestCharge);
+		}
+
+		return CloudAppendResult.CreateFailure(
+			$"Transactional batch failed with status {response.StatusCode}",
+			requestCharge);
+	}
+
+	/// <summary>Reports whether a batch response carries a conflict, at the batch or at any operation.</summary>
+	/// <param name="response"> The batch response to inspect. </param>
+	/// <returns> <see langword="true"/> when a conflict status is present. </returns>
+	private static bool HasConflictStatus(TransactionalBatchResponse response)
+	{
+		if (response.StatusCode == HttpStatusCode.Conflict)
+		{
+			return true;
+		}
+
+		foreach (var operation in response)
+		{
+			if (operation.StatusCode == HttpStatusCode.Conflict)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>Re-reads the stream's committed version after an append failed, or reports that it could not be read.</summary>
+	/// <param name="aggregateId"> The aggregate whose append failed. </param>
+	/// <param name="aggregateType"> The aggregate type whose append failed. </param>
+	/// <param name="partitionKey"> The partition holding the stream. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns> The current persisted version, or <see langword="null"/> if it cannot be read. </returns>
+	/// <remarks>
+	/// Returns <see langword="null"/> rather than a substitute when the read fails, because the caller uses
+	/// this value to decide whether the stream moved: supplying the required version there would read as
+	/// "the stream did not move" and conclude "no conflict" from a measurement that never happened. The
+	/// re-read's own fault is never allowed to replace the append's diagnosis, so it is swallowed to a
+	/// no-value rather than propagated; cancellation still propagates.
+	/// </remarks>
+	private async Task<long?> ReadCurrentVersionAfterFailedAppendAsync(
+		string aggregateId,
+		string aggregateType,
+		IPartitionKey partitionKey,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			return await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch (CosmosException)
+		{
+			return null;
+		}
 	}
 
 	private async Task<CloudAppendResult> AppendSequentiallyAsync(

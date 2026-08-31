@@ -7,7 +7,7 @@ using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Tests;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryAuditStoreShould : IDisposable
 {
-    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create());
+    private readonly InMemoryAuditStore _sut = new(AuditIntegrityTestStrategy.Create(), TestTenantHosts.UntenantedAuditHost());
     public void Dispose() => _sut.Dispose();
 
     private static AuditEvent CreateEvent(
@@ -259,19 +259,21 @@ public sealed class InMemoryAuditStoreShould : IDisposable
         var result = await _sut.VerifyChainIntegrityAsync(
             now.AddMinutes(-1), now.AddMinutes(1), CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(AuditIntegrityOutcome.Verified);
         result.EventsVerified.ShouldBe(2);
     }
 
     [Fact]
-    public async Task Verify_chain_integrity_returns_valid_for_empty_range()
+    public async Task Verify_chain_integrity_reports_no_events_in_scope_for_empty_range()
     {
         var now = DateTimeOffset.UtcNow;
 
         var result = await _sut.VerifyChainIntegrityAsync(
             now.AddDays(-1), now.AddDays(1), CancellationToken.None);
 
-        result.IsValid.ShouldBeTrue();
+        result.Outcome.ShouldBe(
+            AuditIntegrityOutcome.NoEventsInScope,
+            "A window containing no audit events establishes nothing about the chain and must not be reported as a pass.");
         result.EventsVerified.ShouldBe(0);
     }
 

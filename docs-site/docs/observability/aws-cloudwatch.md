@@ -104,8 +104,8 @@ builder.Services.AddOpenTelemetry()
 | `dispatch.transport.messages_sent_total` | Counter | Messages sent |
 | `dispatch.transport.messages_received_total` | Counter | Messages received |
 | `dispatch.transport.errors_total` | Counter | Transport errors |
-| `dispatch.transport.send_duration_ms` | Histogram | Send duration |
-| `dispatch.transport.receive_duration_ms` | Histogram | Receive duration |
+| `dispatch.transport.send.duration` | Histogram | Send duration |
+| `dispatch.transport.receive.duration` | Histogram | Receive duration |
 | `dispatch.transport.starts_total` | Counter | Transport starts |
 | `dispatch.transport.stops_total` | Counter | Transport stops |
 | `dispatch.transport.connection_status` | Gauge | Connection status |
@@ -163,7 +163,8 @@ public sealed class ServerlessHostOptions
     // Tracing/metrics/logging toggles (platform-provisioned).
     public ServerlessTelemetryOptions Telemetry { get; set; } = new();
 
-    // Handler execution timeout; null = platform default.
+    // Upper bound on a single invocation. Only ever shortens the platform's own remaining-time
+    // budget (less a fixed cleanup reserve); null = run to the platform limit.
     public TimeSpan? ExecutionTimeout { get; set; }
 
     // Memory limit in MB; null = platform default.

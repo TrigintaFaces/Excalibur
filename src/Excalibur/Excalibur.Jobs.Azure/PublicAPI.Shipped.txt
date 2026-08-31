@@ -1,13 +1,11 @@
 #nullable enable
 Excalibur.Jobs.Azure.AzureLogicAppsJobProvider
-Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.AzureLogicAppsJobProvider(Azure.ResourceManager.ArmClient! armClient, Excalibur.Jobs.Azure.AzureLogicAppsOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Azure.AzureLogicAppsJobProvider!>! logger) -> void
 Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.DeleteJobAsync(string! jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Azure.AzureLogicAppsOptions
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.AzureLogicAppsOptions() -> void
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.JobExecutionEndpoint.get -> string!
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.JobExecutionEndpoint.set -> void
-Excalibur.Jobs.Azure.AzureLogicAppsOptions.Location.get -> Azure.Core.AzureLocation
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.Location.set -> void
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.ResourceGroupName.get -> string!
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.ResourceGroupName.set -> void
@@ -18,3 +16,5 @@ Excalibur.Jobs.Azure.AzureLogicAppsOptions.Tags.set -> void
 Microsoft.Extensions.DependencyInjection.AzureJobsServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.AzureJobsServiceCollectionExtensions.AddAzureLogicApps(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureJobsServiceCollectionExtensions.AddAzureLogicApps(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Jobs.Azure.AzureLogicAppsOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.AzureLogicAppsJobProvider(Azure.ResourceManager.ArmClient! armClient, Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Azure.AzureLogicAppsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Azure.AzureLogicAppsJobProvider!>! logger) -> void
+Excalibur.Jobs.Azure.AzureLogicAppsOptions.Location.get -> string!

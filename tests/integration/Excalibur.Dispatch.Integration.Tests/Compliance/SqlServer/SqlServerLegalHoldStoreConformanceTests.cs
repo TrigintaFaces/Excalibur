@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.SqlServer.Erasure;
 using Excalibur.Testing.Conformance;
@@ -72,7 +73,9 @@ public sealed class SqlServerLegalHoldStoreConformanceTests : LegalHoldStoreConf
 		// Fully qualified: this file's namespace makes a bare `Options` bind to Excalibur.Dispatch.Options.
 		return new SqlServerLegalHoldStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			EnabledTestLogger.Create<SqlServerLegalHoldStore>());
+			EnabledTestLogger.Create<SqlServerLegalHoldStore>(),
+			UntenantedContext.Instance,
+			tenantContextOptions: Microsoft.Extensions.Options.Options.Create(new Excalibur.Dispatch.TenantContextOptions()));
 	}
 
 	#region Save
@@ -131,8 +134,20 @@ public sealed class SqlServerLegalHoldStoreConformanceTests : LegalHoldStoreConf
 		GetActiveHoldsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly();
 
 	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped_Test() =>
+		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeReachableUnscoped();
+
+	[Fact]
+	public Task GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() =>
+		GetActiveHoldsForDataSubjectAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
+
+	[Fact]
 	public Task GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching_Test() =>
 		GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching();
+
+	[Fact]
+	public Task GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller_Test() =>
+		GetActiveHoldsForTenantAsync_GlobalHold_ShouldBeVisibleToScopedCaller();
 
 	[Fact]
 	public Task GetActiveHoldsForTenantAsync_NullTenantId_ShouldThrowArgumentException_Test() =>
@@ -167,4 +182,20 @@ public sealed class SqlServerLegalHoldStoreConformanceTests : LegalHoldStoreConf
 		GetExpiredHoldsAsync_ShouldExcludeReleasedHolds();
 
 	#endregion Expiry
+
+	#region Suite Wiring
+
+	/// <summary>
+	/// Fails if this suite stops exposing any arm the kit declares.
+	/// </summary>
+	/// <remarks>
+	/// An arm nobody wires never executes, and an arm that never executes cannot fail - in the results it
+	/// is indistinguishable from one that passed. That is why the wiring is checked rather than trusted to
+	/// survive an edit: a new arm added to the shipped kit turns this red here instead of going silently
+	/// unrun.
+	/// </remarks>
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+
+	#endregion
 }

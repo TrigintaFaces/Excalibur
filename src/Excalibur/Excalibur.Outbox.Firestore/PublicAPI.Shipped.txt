@@ -22,6 +22,8 @@ Excalibur.Outbox.Firestore.FirestoreOutboxOptions.DefaultTimeToLiveSeconds.set -
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions.EmulatorHost.get -> string?
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions.EmulatorHost.set -> void
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions.FirestoreOutboxOptions() -> void
+Excalibur.Outbox.Firestore.FirestoreOutboxOptions.LeaseTimeoutSeconds.get -> int
+Excalibur.Outbox.Firestore.FirestoreOutboxOptions.LeaseTimeoutSeconds.set -> void
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions.MaxBatchSize.get -> int
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions.MaxBatchSize.set -> void
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions.MaxRetryAttempts.get -> int
@@ -32,6 +34,7 @@ Excalibur.Outbox.Firestore.FirestoreOutboxOptions.Validate() -> void
 Excalibur.Outbox.Firestore.FirestoreOutboxStore
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.AddAsync(Excalibur.Data.CloudNative.CloudOutboxMessage! message, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.AddBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.CloudNative.CloudOutboxMessage!>! messages, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
+Excalibur.Outbox.Firestore.FirestoreOutboxStore.ClaimPendingAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, int batchSize, string! claimantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.CleanupOldMessagesAsync(Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudCleanupResult!>!
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.FirestoreOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Firestore.FirestoreOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.Firestore.FirestoreOutboxStore!>! logger) -> void

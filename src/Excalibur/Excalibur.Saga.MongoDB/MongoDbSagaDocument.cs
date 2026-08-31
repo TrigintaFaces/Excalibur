@@ -12,7 +12,10 @@ namespace Excalibur.Saga.MongoDB;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses the saga ID as the document ID for efficient lookups and atomic upserts.
+/// The document key is the owning tenant composed with the saga identifier, not the saga identifier
+/// alone. Sagas are correlated by a business key such as an order identifier, so two tenants
+/// legitimately hold the same saga identifier; keyed on that identifier alone they are one document,
+/// and the second tenant's create collides with the first tenant's document instead of making its own.
 /// The Guid is stored with string representation for readability and portability.
 /// </para>
 /// <para>
@@ -22,9 +25,28 @@ namespace Excalibur.Saga.MongoDB;
 internal sealed class MongoDbSagaDocument
 {
 	/// <summary>
-	/// Gets or sets the saga identifier (used as _id).
+	/// Gets or sets the stored document key (_id): the owning tenant composed with the saga identifier.
 	/// </summary>
+	/// <remarks>
+	/// The tenant is part of the document's IDENTITY, which is a different property from the tenant term a
+	/// query carries. A term scopes which documents a query is willing to return; the identity decides which
+	/// documents can exist at all. With the tenant only in the term, both tenants still address one document,
+	/// so the term can refuse a cross-tenant overwrite but cannot let the second tenant create its own saga —
+	/// the refusal degenerates into an estate-wide uniqueness constraint on the saga identifier. With the
+	/// tenant in the key, each tenant has its own document and a cross-tenant write is unaddressable rather
+	/// than merely refused.
+	/// </remarks>
 	[BsonId]
+	public string Id { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the saga identifier as the caller supplied it, without the tenant segment.
+	/// </summary>
+	/// <remarks>
+	/// Persisted beside <see cref="Id"/> rather than parsed back out of it, so the identifier a caller
+	/// asked for is returned unchanged and no reader has to know the key's composition to recover it.
+	/// </remarks>
+	[BsonElement("sagaId")]
 	[BsonRepresentation(BsonType.String)]
 	public Guid SagaId { get; set; }
 
@@ -66,6 +88,7 @@ internal sealed class MongoDbSagaDocument
 	/// cannot translate <see cref="DateTimeOffset"/> comparisons; <see langword="null"/> until the saga completes.
 	/// </summary>
 	[BsonElement("completedAt")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime? CompletedAt { get; set; }
 
 	/// <summary>
@@ -78,11 +101,13 @@ internal sealed class MongoDbSagaDocument
 	/// Gets or sets when the document was created.
 	/// </summary>
 	[BsonElement("createdUtc")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime CreatedUtc { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the document was last updated.
 	/// </summary>
 	[BsonElement("updatedUtc")]
+	[BsonRepresentation(BsonType.DateTime)]
 	public DateTime UpdatedUtc { get; set; }
 }

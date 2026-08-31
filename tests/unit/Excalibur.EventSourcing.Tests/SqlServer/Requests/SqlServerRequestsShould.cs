@@ -94,7 +94,7 @@ public sealed class SqlServerRequestsShould
 	public void LoadEventsRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new LoadEventsRequest(aggregateId, "Agg", -1, TenantScope.None, Ct));
+			new LoadEventsRequest(aggregateId, "Agg", -1, TenantScope.Untenanted, Ct));
 	}
 
 	[Theory]
@@ -104,7 +104,7 @@ public sealed class SqlServerRequestsShould
 	public void LoadEventsRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new LoadEventsRequest("agg-1", aggregateType, -1, TenantScope.None, Ct));
+			new LoadEventsRequest("agg-1", aggregateType, -1, TenantScope.Untenanted, Ct));
 	}
 
 	[Fact]
@@ -203,7 +203,7 @@ public sealed class SqlServerRequestsShould
 	public void GetCurrentVersionRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest(aggregateId, "Agg", null, TenantScope.None, Ct));
+			new GetCurrentVersionRequest(aggregateId, "Agg", null, TenantScope.Untenanted, Ct));
 	}
 
 	[Theory]
@@ -213,7 +213,7 @@ public sealed class SqlServerRequestsShould
 	public void GetCurrentVersionRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest("agg-1", aggregateType, null, TenantScope.None, Ct));
+			new GetCurrentVersionRequest("agg-1", aggregateType, null, TenantScope.Untenanted, Ct));
 	}
 
 	#endregion
@@ -223,7 +223,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void GetLatestSnapshotRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("[dbo].[EventStoreSnapshots]");
@@ -232,7 +232,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void GetLatestSnapshotRequest_SelectCorrectColumns()
 	{
-		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.Command.CommandText.ShouldContain("SnapshotId");
 		request.Command.CommandText.ShouldContain("AggregateId");
@@ -245,7 +245,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void GetLatestSnapshotRequest_SetParameterNames()
 	{
-		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		var paramNames = request.Parameters.ParameterNames.ToList();
 		paramNames.ShouldContain("AggregateId");
@@ -255,7 +255,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void GetLatestSnapshotRequest_HaveCorrectRequestType()
 	{
-		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.RequestType.ShouldBe("GetLatestSnapshotRequest");
 	}
@@ -263,7 +263,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void GetLatestSnapshotRequest_HaveResolveAsync()
 	{
-		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.ResolveAsync.ShouldNotBeNull();
 	}
@@ -275,7 +275,7 @@ public sealed class SqlServerRequestsShould
 	public void GetLatestSnapshotRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetLatestSnapshotRequest(aggregateId, "Agg", TenantScope.None, Ct));
+			new GetLatestSnapshotRequest(aggregateId, "Agg", TenantScope.Untenanted, Ct));
 	}
 
 	[Theory]
@@ -285,7 +285,7 @@ public sealed class SqlServerRequestsShould
 	public void GetLatestSnapshotRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetLatestSnapshotRequest("agg-1", aggregateType, TenantScope.None, Ct));
+			new GetLatestSnapshotRequest("agg-1", aggregateType, TenantScope.Untenanted, Ct));
 	}
 
 	#endregion
@@ -295,7 +295,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventStoreSnapshots]");
@@ -304,7 +304,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsRequest_FilterByAggregateIdAndType()
 	{
-		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.Command.CommandText.ShouldContain("AggregateId = @AggregateId");
 		request.Command.CommandText.ShouldContain("AggregateType = @AggregateType");
@@ -313,7 +313,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsRequest_SetParameterNames()
 	{
-		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		var paramNames = request.Parameters.ParameterNames.ToList();
 		paramNames.ShouldContain("AggregateId");
@@ -323,7 +323,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsRequest_HaveCorrectRequestType()
 	{
-		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.RequestType.ShouldBe("DeleteSnapshotsRequest");
 	}
@@ -331,7 +331,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsRequest_HaveResolveAsync()
 	{
-		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
+		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.Untenanted, Ct);
 
 		request.ResolveAsync.ShouldNotBeNull();
 	}
@@ -343,7 +343,7 @@ public sealed class SqlServerRequestsShould
 	public void DeleteSnapshotsRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsRequest(aggregateId, "Agg", TenantScope.None, Ct));
+			new DeleteSnapshotsRequest(aggregateId, "Agg", TenantScope.Untenanted, Ct));
 	}
 
 	[Theory]
@@ -353,7 +353,7 @@ public sealed class SqlServerRequestsShould
 	public void DeleteSnapshotsRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsRequest("agg-1", aggregateType, TenantScope.None, Ct));
+			new DeleteSnapshotsRequest("agg-1", aggregateType, TenantScope.Untenanted, Ct));
 	}
 
 	#endregion
@@ -363,7 +363,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.Untenanted, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("Version < @Version");
@@ -372,7 +372,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_TargetEventStoreSnapshotsTable()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.Untenanted, Ct);
 
 		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventStoreSnapshots]");
 	}
@@ -380,7 +380,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_FilterByAggregateIdAndTypeAndVersion()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.Untenanted, Ct);
 
 		request.Command.CommandText.ShouldContain("AggregateId = @AggregateId");
 		request.Command.CommandText.ShouldContain("AggregateType = @AggregateType");
@@ -390,7 +390,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_SetParameterNames()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.Untenanted, Ct);
 
 		var paramNames = request.Parameters.ParameterNames.ToList();
 		paramNames.ShouldContain("AggregateId");
@@ -401,7 +401,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_HaveCorrectRequestType()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.Untenanted, Ct);
 
 		request.RequestType.ShouldBe("DeleteSnapshotsOlderThanRequest");
 	}
@@ -409,7 +409,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_HaveResolveAsync()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.Untenanted, Ct);
 
 		request.ResolveAsync.ShouldNotBeNull();
 	}
@@ -417,7 +417,7 @@ public sealed class SqlServerRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_AcceptZeroVersion()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 0, TenantScope.None, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 0, TenantScope.Untenanted, Ct);
 
 		request.ShouldNotBeNull();
 	}
@@ -429,7 +429,7 @@ public sealed class SqlServerRequestsShould
 	public void DeleteSnapshotsOlderThanRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsOlderThanRequest(aggregateId, "Agg", 5, TenantScope.None, Ct));
+			new DeleteSnapshotsOlderThanRequest(aggregateId, "Agg", 5, TenantScope.Untenanted, Ct));
 	}
 
 	[Theory]
@@ -439,7 +439,7 @@ public sealed class SqlServerRequestsShould
 	public void DeleteSnapshotsOlderThanRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsOlderThanRequest("agg-1", aggregateType, 5, TenantScope.None, Ct));
+			new DeleteSnapshotsOlderThanRequest("agg-1", aggregateType, 5, TenantScope.Untenanted, Ct));
 	}
 
 	#endregion

@@ -52,6 +52,47 @@ public sealed class TenantIdShould
 
 	#endregion
 
+	#region MaxLength Tests
+
+	// SAFETY: an over-length identifier is rejected at construction, where the caller still has context,
+	// rather than reaching a store that could truncate or reject it far from the call that caused it.
+	// LIVENESS (the paired arm): a legal identifier — including one at exactly the boundary — still
+	// constructs and round-trips through Value unchanged. A guard that rejected everything would pass the
+	// safety arm alone; asserting the boundary length actually succeeds is what proves it does not.
+
+	[Fact]
+	public void Constructor_WithValueAtMaxLength_Succeeds()
+	{
+		var value = new string('t', TenantId.MaxLength);
+
+		var tenantId = new TenantId(value);
+
+		tenantId.Value.ShouldBe(value);
+		tenantId.Value.Length.ShouldBe(TenantId.MaxLength);
+	}
+
+	[Fact]
+	public void Constructor_WithValueOneOverMaxLength_Throws()
+	{
+		// RED pre-fix: no shipped provider is guaranteed to store this whole (the narrowest shipped tenant
+		// column is exactly TenantId.MaxLength characters), so accepting it here would let the framework
+		// hand a store an identifier it may silently truncate.
+		var value = new string('t', TenantId.MaxLength + 1);
+
+		var ex = Should.Throw<ArgumentException>(() => new TenantId(value));
+		ex.ParamName.ShouldBe("value");
+	}
+
+	[Fact]
+	public void FromString_WithValueOneOverMaxLength_Throws()
+	{
+		var value = new string('t', TenantId.MaxLength + 1);
+
+		_ = Should.Throw<ArgumentException>(() => TenantId.FromString(value));
+	}
+
+	#endregion
+
 	#region Value Property Tests
 
 	[Fact]

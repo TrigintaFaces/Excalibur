@@ -10,8 +10,6 @@ using Excalibur.Dispatch.Resilience.Polly;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 
-using MsOptions = Microsoft.Extensions.Options.Options;
-
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
 /// <summary>
@@ -22,13 +20,13 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 public sealed class DistributedCircuitBreakerFactoryShould : UnitTestBase
 {
 	private IDistributedCache _cache = null!;
-	private IOptions<DistributedCircuitBreakerOptions> _options = null!;
+	private IOptionsMonitor<DistributedCircuitBreakerOptions> _options = null!;
 	private ILoggerFactory _loggerFactory = null!;
 
 	public DistributedCircuitBreakerFactoryShould()
 	{
 		_cache = A.Fake<IDistributedCache>();
-		_options = MsOptions.Create(new DistributedCircuitBreakerOptions());
+		_options = new StaticOptionsMonitor(new DistributedCircuitBreakerOptions());
 		_loggerFactory = A.Fake<ILoggerFactory>();
 		A.CallTo(() => _loggerFactory.CreateLogger(A<string>._))
 			.Returns(A.Fake<ILogger>());
@@ -218,7 +216,7 @@ public sealed class DistributedCircuitBreakerFactoryShould : UnitTestBase
 	public void Constructor_WithCustomOptions_UsesOptions()
 	{
 		// Arrange
-		var customOptions = MsOptions.Create(new DistributedCircuitBreakerOptions
+		var customOptions = new StaticOptionsMonitor(new DistributedCircuitBreakerOptions
 		{
 			ConsecutiveFailureThreshold = 10,
 			BreakDuration = TimeSpan.FromMinutes(5)
@@ -233,4 +231,18 @@ public sealed class DistributedCircuitBreakerFactoryShould : UnitTestBase
 	}
 
 	#endregion
+
+	/// <summary>
+	/// A minimal <see cref="IOptionsMonitor{TOptions}"/> returning the same value for every name. The
+	/// factory resolves options per breaker name; these tests exercise one name at a time.
+	/// </summary>
+	private sealed class StaticOptionsMonitor(DistributedCircuitBreakerOptions value)
+		: IOptionsMonitor<DistributedCircuitBreakerOptions>
+	{
+		public DistributedCircuitBreakerOptions CurrentValue => value;
+
+		public DistributedCircuitBreakerOptions Get(string? name) => value;
+
+		public IDisposable? OnChange(Action<DistributedCircuitBreakerOptions, string?> listener) => null;
+	}
 }

@@ -10,6 +10,7 @@ using Excalibur.Compliance.Encryption;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -70,7 +71,7 @@ public static class EncryptionServiceCollectionExtensions
 	/// Do not use in production as keys are stored in memory and not persisted.
 	/// </para>
 	/// <para>
-	/// A warning will be logged at startup to alert developers that this configuration
+	/// A warning is logged when the host starts, to alert developers that this configuration
 	/// is not suitable for production use.
 	/// </para>
 	/// </remarks>
@@ -78,8 +79,9 @@ public static class EncryptionServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register warning logger that fires on first resolution.
-		_ = services.AddSingleton<DevEncryptionWarningLogger>();
+		// Emit the warning from a hosted service. Registering a plain singleton would never warn: the
+		// container only constructs a singleton when something resolves it, and nothing resolves this.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DevEncryptionWarningLogger>());
 
 		return services.AddEncryption(encryption => encryption
 			.UseInMemoryKeyManagement("dev-inmemory", options =>
@@ -121,10 +123,6 @@ public static class EncryptionServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="HkdfKeyDerivationOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddHkdfKeyDerivation(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -143,16 +141,28 @@ public static class EncryptionServiceCollectionExtensions
 }
 
 /// <summary>
-/// Internal service to log warnings when dev encryption is used.
+/// Hosted service that warns at startup when development-only encryption is active.
 /// </summary>
-internal sealed partial class DevEncryptionWarningLogger
+internal sealed partial class DevEncryptionWarningLogger : IHostedService
 {
+	private readonly ILogger<DevEncryptionWarningLogger> _logger;
+
 	public DevEncryptionWarningLogger(ILogger<DevEncryptionWarningLogger> logger)
 	{
 		ArgumentNullException.ThrowIfNull(logger);
 
-		LogDevEncryptionWarning(logger);
+		_logger = logger;
 	}
+
+	/// <inheritdoc/>
+	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		LogDevEncryptionWarning(_logger);
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc/>
+	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 	[LoggerMessage(ComplianceEventId.DevEncryptionWarning, LogLevel.Warning,
 			"DEV ENCRYPTION IS ACTIVE. In-memory key management is being used. Keys are not persisted and will be lost on restart. Do NOT use this configuration in production. Configure a production key management provider using AddEncryption().")]

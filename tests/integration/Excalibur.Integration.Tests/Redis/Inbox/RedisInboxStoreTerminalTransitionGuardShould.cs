@@ -61,7 +61,7 @@ public sealed class RedisInboxStoreTerminalTransitionGuardShould
 		});
 
 		var connection = await ConnectionMultiplexer.ConnectAsync(_fixture.ConnectionString).ConfigureAwait(false);
-		return new RedisInboxStore(connection, options, NullLogger<RedisInboxStore>.Instance);
+		return new RedisInboxStore(connection, options, NullLogger<RedisInboxStore>.Instance, SingleTenantTestContext.Instance);
 	}
 
 	[Fact]

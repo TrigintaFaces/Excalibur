@@ -70,25 +70,92 @@ internal sealed class HmacAuditIntegrityStrategy : IAuditIntegrityStrategy
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<AuditChainVerificationResult> VerifyChainAsync(IReadOnlyList<AuditChainLink> chain, CancellationToken cancellationToken)
+	public async ValueTask<AuditChainVerificationResult> VerifyChainAsync(
+		IAsyncEnumerable<AuditChainLink> chain,
+		string? anchorPriorTag,
+		AuditChainLink? successor,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(chain);
 
-		string? priorTag = null;
-		for (var i = 0; i < chain.Count; i++)
+		// The fold carries exactly one accumulator — the prior tag — plus the index used to report where a
+		// break was found. Nothing else is retained, so the space cost does not grow with the range.
+		//
+		// Seeded from the anchor, so the first in-range link is bound to the record preceding the range
+		// rather than being treated as a genesis record. Without this, truncating the front of a range is
+		// indistinguishable from verifying a range that legitimately starts at genesis.
+		var priorTag = anchorPriorTag;
+		var index = 0;
+
+		await foreach (var link in chain.WithCancellation(cancellationToken).ConfigureAwait(false))
 		{
-			var link = chain[i];
-			var verified = await VerifyAsync(link.CanonicalContent, priorTag, link.Tag, cancellationToken).ConfigureAwait(false);
-			if (!verified)
+			// An untagged record cannot be a link. Reported rather than skipped, because skipping it would
+			// let clearing a record's tag stand in for deleting the record.
+			if (string.IsNullOrEmpty(link.Tag))
 			{
-				return new AuditChainVerificationResult(false, i);
+				return new AuditChainVerificationResult(false, index, AuditChainBreak.UntaggedRecord);
+			}
+
+			var macVerified = await VerifyAsync(link.CanonicalContent, priorTag, link.Tag, cancellationToken).ConfigureAwait(false);
+
+			// The record's own claim about its predecessor, against the predecessor actually present. The MAC
+			// does not cover this value — it covers the prior tag supplied at write time, not the copy stored
+			// in the row — so it is the one part of a link an attacker can move without moving a MAC input.
+			// Comparing it here is what makes it a verified value rather than an unread one.
+			var claimMatchesPredecessor = TagsEqual(link.StoredPriorTag, priorTag);
+
+			if (!macVerified)
+			{
+				// The MAC covers the record's contents and its predecessor's tag together, so a mismatch alone
+				// does not say which of the two moved. The stored claim separates them, and the distinction is
+				// what a reader needs: a rewritten record and a missing one call for different responses.
+				return new AuditChainVerificationResult(
+					false,
+					index,
+					claimMatchesPredecessor ? AuditChainBreak.ContentAltered : AuditChainBreak.PredecessorMismatch);
+			}
+
+			if (!claimMatchesPredecessor)
+			{
+				return new AuditChainVerificationResult(false, index, AuditChainBreak.StoredLinkageAltered);
 			}
 
 			priorTag = link.Tag;
+			index++;
 		}
 
-		return new AuditChainVerificationResult(true, -1);
+		// The right edge, pinned the way the anchor pins the left. The successor was written to follow the
+		// range's last record, so its keyed MAC is bound to a tag that changes the moment records are removed
+		// from the end of the range. Without this the right edge is pinned by nothing at all: the survivors
+		// chain perfectly to one another and to the anchor, and nothing inside the range mentions the removed
+		// suffix, so there is nothing left to detect. The successor is the only record that still carries it.
+		if (successor is { } tail)
+		{
+			if (string.IsNullOrEmpty(tail.Tag))
+			{
+				return new AuditChainVerificationResult(false, index, AuditChainBreak.UntaggedRecord);
+			}
+
+			var tailVerified = await VerifyAsync(tail.CanonicalContent, priorTag, tail.Tag, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (!tailVerified)
+			{
+				return new AuditChainVerificationResult(false, index, AuditChainBreak.SuccessorLinkBroken);
+			}
+		}
+
+		return new AuditChainVerificationResult(true, -1, AuditChainBreak.None);
 	}
+
+	// A tag column that holds no tag means the same thing however a backend spells absence: a record claiming
+	// to be its partition's genesis. Comparing the two spellings as distinct values would report an intact
+	// trail broken on any store that writes an empty string where another writes null.
+	private static bool TagsEqual(string? left, string? right) =>
+		string.Equals(
+			string.IsNullOrEmpty(left) ? null : left,
+			string.IsNullOrEmpty(right) ? null : right,
+			StringComparison.Ordinal);
 
 	// MAC input = canonicalContent ‖ length-prefixed(priorTag). The length prefix keeps the
 	// content/priorTag boundary unambiguous so chain linkage cannot be forged by shifting bytes.

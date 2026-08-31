@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 
 public partial class AzureBlobClaimCheckProvider
 {
-	// Source-generated logging methods (Sprint 373 - LoggerMessage.Define migration)
+	// Source-generated logging methods
 
 	[LoggerMessage(PatternsEventId.AzureBlobPayloadStored, LogLevel.Information,
 		"Stored payload with claim check {ClaimCheckId}, size: {Size} bytes (original: {OriginalSize} bytes)")]

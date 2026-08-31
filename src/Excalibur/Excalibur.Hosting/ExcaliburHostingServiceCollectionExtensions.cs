@@ -6,7 +6,6 @@ using Excalibur.Application;
 using Excalibur.Domain;
 
 using Excalibur.Hosting.Builders;
-using Excalibur.Hosting.Configuration;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -42,8 +41,10 @@ public static class ExcaliburHostingServiceCollectionExtensions
 	///         .AddEventSourcing(es => es.UseEventStore&lt;SqlServerEventStore&gt;())
 	///         .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)))
 	///         .AddCdc(cdc => cdc.TrackTable&lt;Order&gt;())
-	///         .AddSagas(opts => opts.EnableTimeouts = true)
-	///         .AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
+	///         .AddSagas(saga => saga.WithCoordination().WithTimeouts())
+	///         .AddLeaderElection(le => le
+	///             .UseSqlServer(sql => sql.ConnectionString(connectionString))
+	///             .WithOptions(o => o.LeaseDuration = TimeSpan.FromSeconds(30)));
 	/// });
 	/// </code>
 	/// </para>
@@ -79,14 +80,7 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Ensure Dispatch primitives are registered (idempotent via TryAdd*)
-		_ = services.AddDispatch();
-
-		// Register ExcaliburOptions with ValidateOnStart
-		_ = services.AddOptions<ExcaliburOptions>()
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<ExcaliburOptions>, ExcaliburOptionsValidator>());
+		_ = services.AddDispatchPipeline();
 
 		var builder = new ExcaliburBuilder(services);
 		configure(builder);
@@ -99,7 +93,6 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		//   * consumer did nothing → TryAdd lands the default;
 		//   * consumer registered a custom impl in configure → their descriptor is
 		//     already present, TryAdd is the no-op, and their impl wins.
-		// [S793 bd-sdhocq P0 / COMPASS msg 1449 §1]
 		_ = services.AddExcaliburContextServices();
 		services.TryAddScoped<IActivityContext>(static sp => new ActivityContext(
 			sp.GetService<Excalibur.Dispatch.ITenantContext>()?.TenantId ?? Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
@@ -112,7 +105,7 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		return services;
 	}
 
-	// AddExcaliburBaseServices(...) was deleted in S804 (bd-sdhocq A8) per ADR-325 §2.
+	// AddExcaliburBaseServices(...) was deleted.
 	// The canonical composition path is services.AddExcalibur(x => x.ScanAssemblies(...))
 	// with explicit .UseTenant(...) / .UseLocalClientAddress() opt-ins.
 }

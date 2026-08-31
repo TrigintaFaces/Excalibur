@@ -63,7 +63,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 
 		_acquisitionsCounter = meter.CreateCounter<long>(
 			LeaderElectionTelemetryConstants.MetricNames.Acquisitions,
-			"attempts",
+			"{attempts}",
 			"Lease acquisition attempts");
 
 		_leaseDurationHistogram = meter.CreateHistogram<double>(

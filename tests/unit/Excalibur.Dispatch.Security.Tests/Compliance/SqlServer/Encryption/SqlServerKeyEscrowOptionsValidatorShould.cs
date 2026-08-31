@@ -139,6 +139,13 @@ public sealed class SqlServerKeyEscrowOptionsValidatorShould
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
+
+		// Escrow now refuses to start without an encryption provider, because it encrypts every key
+		// it stores. These arms are about option SHAPE, so the provider is supplied to keep the
+		// wiring rule out of the way -- and, for the rejection arms, so they still fail for the
+		// reason they are testing rather than for a missing provider.
+		_ = services.AddSingleton(A.Fake<IEncryptionProvider>());
+
 		services.AddSqlServerKeyEscrow(o =>
 		{
 			o.ConnectionString = "";
@@ -154,6 +161,13 @@ public sealed class SqlServerKeyEscrowOptionsValidatorShould
 	{
 		var services = new ServiceCollection();
 		services.AddLogging();
+
+		// Escrow now refuses to start without an encryption provider, because it encrypts every key
+		// it stores. These arms are about option SHAPE, so the provider is supplied to keep the
+		// wiring rule out of the way -- and, for the rejection arms, so they still fail for the
+		// reason they are testing rather than for a missing provider.
+		_ = services.AddSingleton(A.Fake<IEncryptionProvider>());
+
 		services.AddSqlServerKeyEscrow(o =>
 		{
 			o.ConnectionString = "Server=test;Database=test;";

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
@@ -165,7 +165,13 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				return null;
 			}
 
-			var metadata = MapToKeyMetadata(keyId, keyInfo.Data, version);
+			// Overlaid here for the same reason GetKeyAsync overlays it: MapToKeyMetadata cannot see the
+			// purpose sidecar, so without this a version lookup would describe the key as having no
+			// purpose while GetKeyAsync describes the same key as having one.
+			var metadata = MapToKeyMetadata(keyId, keyInfo.Data, version) with
+			{
+				Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+			};
 			CacheMetadata(cacheKey, metadata);
 
 			return await ApplySuspensionStatusAsync(keyId, metadata, cancellationToken).ConfigureAwait(false);
@@ -226,7 +232,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 					var metadata = MapToKeyMetadata(keyId, keyInfo.Data);
 
 					// Surface a durably-suspended key as Suspended so status filtering (e.g. Active) excludes
-					// it and an admin status filter can still list it (bd-vihqw6).
+					// it and an admin status filter can still list it.
 					if (await IsKeySuspendedAsync(keyId, cancellationToken).ConfigureAwait(false))
 					{
 						metadata = metadata with { Status = KeyStatus.Suspended };
@@ -266,6 +272,17 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// The <paramref name="purpose"/> argument is three-valued here. <see langword="null"/> leaves any
+	/// previously recorded purpose untouched — a rotation that does not mention the purpose must not
+	/// erase one. An empty or whitespace string removes it. Any other value records it.
+	/// </para>
+	/// <para>
+	/// The empty-string case exists so a purpose is not write-once: without a spelling that means
+	/// "no purpose", a value recorded on a key could never be taken off it through the public API.
+	/// </para>
+	/// </remarks>
 	public async Task<KeyRotationResult> RotateKeyAsync(
 		string keyId,
 		DispatchEncryptionAlgorithm algorithm,
@@ -313,9 +330,27 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 					keyName,
 					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
+				// Fence the superseded versions out of NEW encryption, which is what makes them
+				// decrypt-only in fact rather than merely in our reporting. Vault governs this natively:
+				// min_encryption_version bars older versions from encrypting while min_decryption_version
+				// leaves them able to decrypt. Until this was installed, rotation left version 1 fully
+				// encryption-capable and the provider was truthfully reporting a state it had never changed
+				// -- so patching only the status mapper would have reported a fence that did not exist.
+				//
+				// The value is the NEW LATEST version, not latest + 1. Vault caps min_encryption_version at
+				// the latest version and rejects anything above it with a 400; an earlier attempt in this
+				// provider used latest + 1 and threw on the happy path, which is worse than doing nothing.
+				if (rotatedKey?.Data is not null)
+				{
+					await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
+						keyName,
+						new UpdateKeyRequestOptions { MinimumEncryptionVersion = rotatedKey.Data.LatestVersion },
+						_options.Keys.TransitMountPath).ConfigureAwait(false);
+				}
+
 				// Persist BEFORE invalidating, so the cache cannot be repopulated from a stale sidecar
-				// between the two. Rotation keeps the caller-supplied purpose; passing null leaves any
-				// previously recorded purpose untouched rather than erasing it.
+				// between the two. The purpose argument is three-valued: null leaves any previously
+				// recorded purpose untouched, an empty string removes it, and a non-empty value records it.
 				await WriteKeyPurposeAsync(keyId, purpose, cancellationToken).ConfigureAwait(false);
 
 				var newMetadata = MapToKeyMetadata(keyId, rotatedKey.Data) with
@@ -327,7 +362,15 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 
 				LogRotatedKey(keyId, newMetadata.Version);
 
-				return KeyRotationResult.Succeeded(newMetadata, previousKeyMetadata);
+				// Report the superseded version as DecryptOnly. Its metadata was read BEFORE the encryption
+				// floor was installed, so it still describes the key as it was a moment ago -- reporting that
+				// verbatim would tell the caller the old version is still encryption-capable when rotation
+				// has just fenced it.
+				var supersededMetadata = previousKeyMetadata is null
+					? null
+					: previousKeyMetadata with { Status = KeyStatus.DecryptOnly };
+
+				return KeyRotationResult.Succeeded(newMetadata, supersededMetadata);
 			}
 			else
 			{
@@ -391,36 +434,82 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		try
 		{
 			var keyName = GetKeyName(keyId);
+			bool keyExisted;
 
-			// First, update the key to allow deletion
-			var updateRequest = new UpdateKeyRequestOptions { DeletionAllowed = true };
+			try
+			{
+				// First, update the key to allow deletion
+				var updateRequest = new UpdateKeyRequestOptions { DeletionAllowed = true };
 
-			await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
-				keyName,
-				updateRequest,
-				_options.Keys.TransitMountPath).ConfigureAwait(false);
+				await _vaultClient.V1.Secrets.Transit.UpdateEncryptionKeyConfigAsync(
+					keyName,
+					updateRequest,
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
-			// Now delete the key
-			await _vaultClient.V1.Secrets.Transit.DeleteEncryptionKeyAsync(
-				keyName,
-				_options.Keys.TransitMountPath).ConfigureAwait(false);
+				// Now delete the key
+				await _vaultClient.V1.Secrets.Transit.DeleteEncryptionKeyAsync(
+					keyName,
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
+
+				keyExisted = true;
+			}
+			catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
+			{
+				LogKeyNotFoundForDeletion(keyId);
+				keyExisted = false;
+			}
+
+			// Erase the KV sidecars whether or not the Transit key was present. This is the crypto-shredding
+			// path, so it must leave nothing behind that describes the erased key: the purpose sidecar records
+			// what the key protected (values such as "customer-pii-eu" are the intended use), and the
+			// suspension marker records a caller-supplied free-text reason. Destroying the key material while
+			// leaving either of those in place is an erasure that did not erase.
+			//
+			// Running this even when the key was absent makes the operation repairable: a delete that
+			// previously destroyed the key material and then failed part-way leaves orphans that a later call
+			// clears, rather than orphans no code path can ever reach again.
+			//
+			// Failures are NOT swallowed. A sidecar that survived means erasure is incomplete, and reporting
+			// Completed for it would be exactly the false assurance this path exists to avoid.
+			await EraseKeyMetadataAsync(keyId).ConfigureAwait(false);
 
 			InvalidateCache(keyId);
+
+			if (!keyExisted)
+			{
+				return KeyDestructionOutcome.NotFound;
+			}
 
 			LogDeletedKey(keyId);
 
 			// Vault Transit deletes the key material immediately — irrecoverable on return.
 			return KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow);
 		}
-		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
-		{
-			LogKeyNotFoundForDeletion(keyId);
-			return KeyDestructionOutcome.NotFound;
-		}
 		finally
 		{
 			_ = _rateLimitSemaphore.Release();
 		}
+	}
+
+	/// <summary>
+	/// Permanently removes every KV document describing a key: its purpose sidecar and its suspension marker.
+	/// </summary>
+	/// <remarks>
+	/// <c>DeleteMetadataAsync</c> removes the document and all of its versions, which is what erasure requires
+	/// — a KV&#160;v2 soft delete would leave the prior version readable. Deleting an absent document is
+	/// idempotent (Vault answers 204), so this is safe for a key that was never suspended or never given a
+	/// purpose.
+	/// </remarks>
+	/// <param name="keyId">The key whose descriptive metadata is being erased.</param>
+	private async Task EraseKeyMetadataAsync(string keyId)
+	{
+		await _vaultClient.V1.Secrets.KeyValue.V2.DeleteMetadataAsync(
+			GetPurposeMarkerPath(keyId),
+			mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+		await _vaultClient.V1.Secrets.KeyValue.V2.DeleteMetadataAsync(
+			GetSuspensionMarkerPath(keyId),
+			mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -473,7 +562,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				return false;
 			}
 
-			// Durably record the suspension (bd-vihqw6). Vault Transit has NO native "disable key for
+			// Durably record the suspension. Vault Transit has NO native "disable key
 			// encryption" primitive — min_encryption_version is CAPPED at the latest version, so the previous
 			// "LatestVersion + 1" was rejected by Vault (400) and threw on the happy path (worse than a no-op).
 			// Suspension is enforced at the provider boundary: persist a DURABLE marker in Vault KV (NOT an
@@ -535,7 +624,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				return false;
 			}
 
-			// Inverse of SuspendKeyAsync (bd-vihqw6): suspension persists a DURABLE marker in Vault KV; reactivation
+			// Inverse of SuspendKeyAsync: suspension persists a DURABLE marker in Vault KV; reactivation
 			// removes it. DeleteMetadataAsync permanently deletes the marker and all its versions so key-status
 			// resolution surfaces the key as Active again. Deleting an absent marker is idempotent (Vault returns
 			// 204), so reactivating a never-suspended existing key is a safe no-op. Genuine KV failures propagate.
@@ -609,12 +698,21 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		};
 	}
 
-	private static KeyStatus DetermineKeyStatus(EncryptionKeyInfo keyInfo)
+	private static KeyStatus DetermineKeyStatus(EncryptionKeyInfo keyInfo, int version)
 	{
 		// Check if key is deletable (indicates it might be marked for destruction)
 		if (keyInfo.DeletionAllowed)
 		{
 			return KeyStatus.PendingDestruction;
+		}
+
+		// A version below the encryption floor can still decrypt but may no longer encrypt, which is
+		// exactly DecryptOnly. Rotation installs that floor; reading it back here is what makes the two
+		// halves agree. Reporting the floor without installing it would be a worse defect than the one
+		// this replaces, so the two changes belong together.
+		if (keyInfo.MinimumEncryptionVersion > 0 && version < keyInfo.MinimumEncryptionVersion)
+		{
+			return KeyStatus.DecryptOnly;
 		}
 
 		return KeyStatus.Active;
@@ -738,27 +836,53 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 	/// regression. Keeping them apart leaves the suspension predicate untouched.
 	/// </para>
 	/// <para>
-	/// The extra path segment also prevents collision: suspension reads <c>{Path}/{keyId}</c>, purpose reads
-	/// <c>{Path}/purpose/{keyId}</c>, so even a key literally named "purpose" addresses a folder rather than
-	/// the suspension document.
+	/// The two live under DISJOINT roots -- suspension reads <c>{Path}/{keyId}</c>, purpose reads
+	/// <c>{PurposePath}/{keyId}</c> -- so no key identifier can make one address the other. An earlier
+	/// layout nested purpose at <c>{Path}/purpose/{keyId}</c>, where a key identifier of <c>purpose/foo</c>
+	/// addressed the purpose sidecar of the key <c>foo</c> and so read back as suspended.
 	/// </para>
 	/// </remarks>
 	/// <param name="keyId">The key identifier.</param>
 	/// <returns>The KV path holding the key's purpose.</returns>
-	private string GetPurposeMarkerPath(string keyId) => $"{_options.Suspension.Path}/purpose/{keyId}";
+	private string GetPurposeMarkerPath(string keyId) => $"{_options.Suspension.PurposePath}/{keyId}";
 
 	private static string GetPurposeCacheKey(string keyId) => $"purpose:{keyId}";
 
 	/// <summary>
-	/// Persists a key's purpose so purpose-scoped resolution can find it later.
+	/// Persists, preserves, or removes a key's purpose so purpose-scoped resolution can find it later.
 	/// </summary>
 	/// <param name="keyId">The key identifier.</param>
-	/// <param name="purpose">The purpose to record. No-op when null or empty.</param>
+	/// <param name="purpose">
+	/// The purpose to record; <see langword="null"/> to leave any recorded purpose untouched; an empty or
+	/// whitespace string to remove it.
+	/// </param>
 	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <remarks>
+	/// The three cases are distinct on purpose. "Not supplied" and "supplied as empty" are different
+	/// intentions, and collapsing them leaves a purpose that can be set and never cleared: a rotation that
+	/// omits the purpose must not erase one recorded earlier, but a caller who explicitly asks for no
+	/// purpose must be able to get it removed.
+	/// </remarks>
 	private async Task WriteKeyPurposeAsync(string keyId, string? purpose, CancellationToken cancellationToken)
 	{
-		if (string.IsNullOrEmpty(purpose))
+		if (purpose is null)
 		{
+			return;
+		}
+
+		if (string.IsNullOrWhiteSpace(purpose))
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			// DeleteMetadataAsync removes the document and all of its versions, so a purpose-scoped
+			// lookup cannot read a prior version back. Deleting an absent document is idempotent
+			// (Vault answers 204), so clearing a key that never had a purpose is a safe no-op.
+			await _vaultClient.V1.Secrets.KeyValue.V2.DeleteMetadataAsync(
+				GetPurposeMarkerPath(keyId),
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+			_cache.Remove(GetPurposeCacheKey(keyId));
+
 			return;
 		}
 
@@ -947,7 +1071,11 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 	private KeyMetadata MapToKeyMetadata(string keyId, EncryptionKeyInfo keyInfo, int? overrideVersion = null)
 	{
 		var version = overrideVersion ?? keyInfo.LatestVersion;
-		var status = DetermineKeyStatus(keyInfo);
+
+		// Status is per VERSION, not per key. This previously computed it from the key alone and ignored the
+		// version argument entirely, which made DecryptOnly unreachable however the key was configured: a
+		// caller asking about version 1 of a rotated key was told about the key's newest version instead.
+		var status = DetermineKeyStatus(keyInfo, version);
 
 		// Determine algorithm from key type - use Type property (TransitKeyType enum)
 		var algorithm = keyInfo.Type switch

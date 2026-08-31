@@ -30,19 +30,50 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
 	};
 
-	private readonly ConcurrentDictionary<Guid, StoredSaga> _store = new();
+	// Keyed on (tenant, sagaId) -- NOT on sagaId alone. The tenant is part of the identity of a saga here,
+	// exactly as it is part of the primary key in every persistent provider, so two tenants holding the same
+	// saga identifier occupy two entries and a lookup under one tenant cannot name the other's. Confinement
+	// is therefore a property of the key rather than a predicate someone has to remember to apply: a read
+	// that crosses the boundary is not "checked and refused", it is unaddressable. The partition type is
+	// KeyedTenantPartition, whose stated purpose is to be the tenant component of a keyed store's key and
+	// which has no absent inhabitant -- so a key carrying no tenant term is unconstructable.
+	private readonly ConcurrentDictionary<(KeyedTenantPartition Tenant, Guid SagaId), StoredSaga> _store = new();
 
-	private readonly ITenantContext? _tenantContext;
+	private readonly ITenantContext _tenantContext;
+	/// <summary>
+	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
+	/// the same value. The context is a required dependency, so the term is decided identically on every
+	/// path: the store cannot resolve one partition on write and a different one on read.
+	/// </summary>
+	private TenantScope CurrentTenantScope =>
+		TenantScope.FromContext(_tenantContext);
+
+	/// <summary>
+	/// Gets the ambient partition as the key component. Projected from the same <see cref="CurrentTenantScope"/>
+	/// the write path stamps onto the state, so the key and the stamped term are the same value by
+	/// construction and cannot drift apart.
+	/// </summary>
+	private KeyedTenantPartition CurrentPartition =>
+		KeyedTenantPartition.FromScope(CurrentTenantScope);
+
+	/// <summary>
+	/// Builds the full identity of a saga under the ambient tenant. Every keyed operation goes through this,
+	/// so no call site can address an entry by saga identifier alone.
+	/// </summary>
+	/// <param name="sagaId"> The saga identifier. </param>
+	/// <returns> The composite key naming that saga within the ambient partition. </returns>
+	private (KeyedTenantPartition Tenant, Guid SagaId) KeyFor(Guid sagaId) => (CurrentPartition, sagaId);
+
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemorySagaStore"/> class.
 	/// </summary>
 	/// <param name="tenantContext">
-	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. Supplied, it restricts the
-	/// tenant-scoped purge to the ambient tenant's sagas; absent, that purge addresses the untenanted partition
-	/// — the sagas carrying no tenant. The estate-wide purge ignores it by design.
+	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
+	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
+	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
-	public InMemorySagaStore(ITenantContext? tenantContext = null) => _tenantContext = tenantContext;
+	public InMemorySagaStore(ITenantContext tenantContext) => _tenantContext = tenantContext;
 
 	/// <summary>
 	/// Loads a saga state by its identifier from the in-memory store. Returns null if no saga with the specified ID exists in the store.
@@ -57,11 +88,17 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		// Safe downcast: a different saga type stored under this id is "not found" from the requested
 		// type's perspective -> return null (graceful), never throw InvalidCastException. A hard
 		// (TSagaState?)state cast would throw on a concrete-type mismatch, violating the ISagaStore
-		// type-isolation contract (SagaStoreConformanceTestBase). [bd-c9ioqa]
-		if (_store.TryGetValue(sagaId, out var stored) && stored.State is TSagaState typed)
+		// type-isolation contract (SagaStoreConformanceTestBase).
+		// The ambient partition is part of the key, so this lookup can only ever name a saga inside the
+		// caller's own tenant. Another tenant's saga is not filtered out here -- it is not reachable from
+		// this key at all, and the caller receives the same null a genuinely missing saga returns. There is
+		// deliberately NO tenant predicate after the lookup: on a statement already addressed by the full
+		// key, a further tenant term selects a subset of an at-most-one-row result, so it cannot exclude a
+		// foreign row and its only reachable effect is turning a correct hit into a miss.
+		if (_store.TryGetValue(KeyFor(sagaId), out var stored) && stored.State is TSagaState typed)
 		{
 			// Return an INDEPENDENT copy: two concurrent loaders must receive isolated instances so each
-			// carries its own version token (the optimistic-concurrency contract — e1tsq2). Persistent
+			// carries its own version token (the optimistic-concurrency contract). Persistent
 			// stores get this for free via deserialize-on-read; the in-memory store must clone to match.
 			return Task.FromResult<TSagaState?>(Clone(typed));
 		}
@@ -93,6 +130,13 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		var snapshot = Clone(sagaState);
 		snapshot.Version = expectedVersion + 1;
 
+		// Stamp the ambient tenant, exactly as the persistent providers do on their write path. Without this
+		// the store writes rows carrying no tenant while every read and purge resolves a concrete term, so a
+		// saga saved here could never be addressed again by the scope that saved it. The term is taken from
+		// the store's own resolved scope rather than from the caller's state, so a caller cannot write into
+		// another tenant's partition by setting the field.
+		snapshot.TenantId = CurrentTenantScope.TenantId;
+
 		// Record the DECLARED type the saga was saved under (typeof(TSagaState).Name), matching the
 		// persistent providers which persist SagaType from the declared type — the type-isolation key.
 		// This keeps the surfaced SagaType consistent across every store under saga-state inheritance,
@@ -103,8 +147,14 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		// MERGE). AddOrUpdate's update factory re-runs against the latest stored value on contention and the
 		// final swap is atomic, so a stale version is detected without a racy check-then-set (a plain
 		// check-then-assign would be vacuous under concurrency). store-owns-increment.
+		//
+		// The key carries the tenant, so the version counter is PER PARTITION. Keyed on the saga identifier
+		// alone it was shared across tenants, and the resulting failure was not a disclosure but a write
+		// collision: a second tenant creating its own saga under an identifier another tenant already held
+		// read the first tenant's version, failed the expected-version-0 guard, and could never create it --
+		// while a save that did land overwrote the other tenant's in-flight process outright.
 		_ = _store.AddOrUpdate(
-			sagaState.SagaId,
+			KeyFor(sagaState.SagaId),
 			addValueFactory: _ =>
 			{
 				// No-resurrect guard (SqlServer reference contract): only a brand-new saga (expected
@@ -147,17 +197,15 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	/// <inheritdoc />
 	public Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
 	{
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 
-		// Mirrors the SQL providers' three-way split. A scoped purge matches its own tenant; an unscoped one
-		// matches the untenanted partition -- the sagas that carry no tenant at all -- rather than everything.
-		// "No tenant established" is a real scope here, not a wildcard, so this can never remove another
-		// tenant's saga, and the rows carrying no tenant remain reachable for retention.
+		// Mirrors the SQL providers. A purge matches the ambient partition and nothing else: the untenanted
+		// partition is a real partition -- the sagas that carry no tenant at all -- not a wildcard, so this
+		// can never remove another tenant's saga, and the rows carrying no tenant remain reachable for
+		// retention. Estate-wide retention is the separately named PurgeAllTenantsCompletedBeforeAsync.
 		return PurgeAsync(
 			threshold,
-			saga => scope.IsScoped
-				? string.Equals(saga.TenantId, scope.TenantId, StringComparison.Ordinal)
-				: string.IsNullOrEmpty(saga.TenantId),
+			saga => MatchesAmbientTenant(saga, scope),
 			cancellationToken);
 	}
 
@@ -206,7 +254,7 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 		// It was absent, so this handed a multi-tenant host every tenant's summaries whenever the caller
 		// passed no TenantId filter -- and the filter is optional, so the default was the leak.
 		// SagaQueryFilter.TenantId narrows WITHIN the ambient tenant; it does not select one.
-		var scope = TenantScope.FromContext(_tenantContext);
+		var scope = CurrentTenantScope;
 
 		var matches = _store.Values
 			.Where(s => (filter.IsCompleted is not { } wantCompleted || s.State.Completed == wantCompleted)
@@ -226,12 +274,12 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		// Tenant-checked: a saga id alone must not reach across the boundary. Returning null for a saga
-		// that exists in another tenant is the same answer the SQL providers give, whose predicate simply
-		// does not match the row.
-		var scope = TenantScope.FromContext(_tenantContext);
-
-		return _store.TryGetValue(sagaId, out var stored) && MatchesAmbientTenant(stored.State, scope)
+		// Tenant-confined by the key: a saga identifier alone cannot reach across the boundary, because it
+		// is not a whole key. A saga that exists in another tenant returns null -- the same answer the SQL
+		// providers give, whose predicate simply does not match the row. No tenant predicate follows the
+		// lookup, for the reason given on LoadAsync: on a fully-keyed at-most-one-row read, a further
+		// tenant term cannot admit a foreign row and can only turn a correct hit into a miss.
+		return _store.TryGetValue(KeyFor(sagaId), out var stored)
 			? new ValueTask<SagaInstanceSummary?>(ToSummary(stored))
 			: new ValueTask<SagaInstanceSummary?>((SagaInstanceSummary?)null);
 	}
@@ -241,18 +289,18 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		// Statistics diverge from the two summary reads DELIBERATELY, matching the SQL providers: a scoped
-		// caller counts only its own tenant, and an unscoped one still gets estate-wide totals, which is
-		// the operator diagnostic. Only the identifying data — saga ids, types, tenants — is closed off to
-		// an unscoped caller; bare counts are not. Scoping this would both break that diagnostic and put
-		// the in-memory store out of step with the providers it stands in for.
-		var scope = TenantScope.FromContext(_tenantContext);
+		// Counts cover the ambient partition and no other, matching the SQL providers. The guard used to be
+		// `scope.IsScoped && !MatchesAmbientTenant(...)`, written when an unscoped caller was expected to fall
+		// through to estate-wide totals -- but CurrentTenantScope is TenantScope.FromContext and is always
+		// scoped, so that conjunct is provably true and the estate-wide read had no reachable caller. Operators
+		// who want totals across every tenant call GetAllTenantsStatisticsAsync, which says so at the call site.
+		var scope = CurrentTenantScope;
 
 		var completed = 0;
 		var total = 0;
 		foreach (var stored in _store.Values)
 		{
-			if (scope.IsScoped && !MatchesAmbientTenant(stored.State, scope))
+			if (!MatchesAmbientTenant(stored.State, scope))
 			{
 				continue;
 			}
@@ -264,31 +312,54 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 			}
 		}
 
-		return new ValueTask<SagaStoreStatistics>(new SagaStoreStatistics
-		{
-			RunningCount = total - completed,
-			CompletedCount = completed,
-			TotalCount = total,
-			CapturedAt = DateTimeOffset.UtcNow,
-		});
+		return new ValueTask<SagaStoreStatistics>(Snapshot(total, completed));
 	}
+
+	/// <inheritdoc />
+	public ValueTask<SagaStoreStatistics> GetAllTenantsStatisticsAsync(CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// No tenant predicate at all: every partition is counted. Reachable only through this method's name,
+		// never by an absent or permissive scope.
+		var completed = 0;
+		var total = 0;
+		foreach (var stored in _store.Values)
+		{
+			total++;
+			if (stored.State.Completed)
+			{
+				completed++;
+			}
+		}
+
+		return new ValueTask<SagaStoreStatistics>(Snapshot(total, completed));
+	}
+
+	private static SagaStoreStatistics Snapshot(int total, int completed) => new()
+	{
+		RunningCount = total - completed,
+		CompletedCount = completed,
+		TotalCount = total,
+		CapturedAt = DateTimeOffset.UtcNow,
+	};
 
 	/// <summary>
 	/// Determines whether a saga belongs to the ambient tenant scope.
 	/// </summary>
 	/// <remarks>
-	/// The three-way split mirrors <see cref="PurgeCompletedBeforeAsync"/> and the SQL providers: a scoped
-	/// caller matches its own tenant; an unscoped one matches the sagas carrying no tenant at all, rather
-	/// than everything. "No tenant established" is a real scope here, not a wildcard — treating it as one
-	/// is what turned every unscoped admin read into a cross-tenant disclosure.
+	/// One predicate, mirroring <see cref="PurgeCompletedBeforeAsync"/> and the SQL providers: a caller
+	/// matches its own partition. It used to branch on whether a scope was set, so a caller who had
+	/// established no tenant matched the sagas carrying none. That branch is gone because the untenanted
+	/// partition now carries a real term and is addressed by the same equality as any other tenant.
+	/// "No tenant established" is a real partition here, never a wildcard — treating it as one is what
+	/// turned every unscoped admin read into a cross-tenant disclosure.
 	/// </remarks>
 	/// <param name="state">The stored saga state.</param>
 	/// <param name="scope">The ambient tenant scope.</param>
 	/// <returns><see langword="true"/> when the saga is visible under <paramref name="scope"/>.</returns>
 	private static bool MatchesAmbientTenant(SagaState state, TenantScope scope) =>
-		scope.IsScoped
-			? string.Equals(state.TenantId, scope.TenantId, StringComparison.Ordinal)
-			: string.IsNullOrEmpty(state.TenantId);
+		string.Equals(state.TenantId, scope.TenantId, StringComparison.Ordinal);
 
 	private static SagaInstanceSummary ToSummary(StoredSaga stored) => new()
 	{

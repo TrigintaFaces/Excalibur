@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Reflection;
+
+using Excalibur.Dispatch;
 using System.Text.Json.Serialization;
 
 using Excalibur.Data.CosmosDb.Snapshots;
@@ -32,20 +34,43 @@ public sealed class CosmosDbSnapshotDocumentShould
 
 	#region CreateId Tests
 
+	// CreateId takes the tenant partition as a REQUIRED argument. The tenant-less single-argument
+	// overload is gone: the store always resolves the partition from the total tenant term, so it never
+	// produced the tenant-less shape, and a factory that could still emit one only offered an id no read
+	// path composes.
+	private string CreateId(string aggregateId, string tenantPartition)
+	{
+		var method = _documentType.GetMethod(
+			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null,
+			types: [typeof(string), typeof(string)], modifiers: null);
+
+		method.ShouldNotBeNull("CreateId(aggregateId, tenantPartition) must exist.");
+		return (string)method.Invoke(null, [aggregateId, tenantPartition])!;
+	}
+
+	[Fact]
+	public void CreateId_HasNoTenantLessOverload()
+	{
+		// The invariant this file exists to hold: one id shape per document. A second, tenant-omitting form
+		// is what lets a read and a write disagree about which of two shapes to address.
+		_documentType.GetMethod(
+				"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null,
+				types: [typeof(string)], modifiers: null)
+			.ShouldBeNull("A tenant-less CreateId would emit a document id no read path composes.");
+
+		// Positive control: the reflection query itself discriminates, so the null above is a real absence
+		// rather than a lookup that could never have matched.
+		_documentType.GetMethod(
+				"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null,
+				types: [typeof(string), typeof(string)], modifiers: null)
+			.ShouldNotBeNull();
+	}
+
 	[Fact]
 	public void CreateId_ReturnsUrlSafeBase64()
 	{
-		// Arrange
-		var aggregateId = "test-aggregate-123";
-				// CreateId is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
-		// document ids (e6t62k) — disambiguate the single-arg overload explicitly to avoid AmbiguousMatchException.
-		var createIdMethod = _documentType.GetMethod(
-			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
+		var result = CreateId("test-aggregate-123", "tenant-a");
 
-		// Act
-		var result = (string)createIdMethod!.Invoke(null, new object[] { aggregateId })!;
-
-		// Assert
 		result.ShouldNotContain("+");
 		result.ShouldNotContain("/");
 		result.ShouldNotContain("=");
@@ -54,17 +79,9 @@ public sealed class CosmosDbSnapshotDocumentShould
 	[Fact]
 	public void CreateId_HandlesSpecialCharacters()
 	{
-		// Arrange - Characters that need escaping: / \ ? #
-		var aggregateId = "order/123\\test?query#fragment";
-				// CreateId is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
-		// document ids (e6t62k) — disambiguate the single-arg overload explicitly to avoid AmbiguousMatchException.
-		var createIdMethod = _documentType.GetMethod(
-			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
+		// Characters that need escaping in a Cosmos id: / \ ? #
+		var result = CreateId("order/123\test?query#fragment", "tenant-a");
 
-		// Act
-		var result = (string)createIdMethod!.Invoke(null, new object[] { aggregateId })!;
-
-		// Assert - Should be URL-safe Base64 (no + / =)
 		result.ShouldNotContain("+");
 		result.ShouldNotContain("/");
 		result.ShouldNotContain("=");
@@ -73,49 +90,39 @@ public sealed class CosmosDbSnapshotDocumentShould
 	[Fact]
 	public void CreateId_ProducesConsistentResults()
 	{
-		// Arrange
-		var aggregateId = "my-aggregate-id";
-				// CreateId is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
-		// document ids (e6t62k) — disambiguate the single-arg overload explicitly to avoid AmbiguousMatchException.
-		var createIdMethod = _documentType.GetMethod(
-			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
-
-		// Act
-		var result1 = (string)createIdMethod!.Invoke(null, new object[] { aggregateId })!;
-		var result2 = (string)createIdMethod.Invoke(null, new object[] { aggregateId })!;
-
-		// Assert
-		result1.ShouldBe(result2);
+		CreateId("my-aggregate-id", "tenant-a").ShouldBe(CreateId("my-aggregate-id", "tenant-a"));
 	}
 
 	[Fact]
-	public void CreateId_WithTenant_DiffersFromUnscoped_AndBetweenTenants()
+	public void CreateId_CarriesTheTenantSegment_ForEveryPartition()
 	{
-		// STRENGTHEN (e6t62k): the tenant goes in the DOCUMENT ID so a tenant-scoped snapshot can never
-		// collide with an unscoped one, nor with another tenant's snapshot of the same aggregate.
-		var aggregateId = "shared-aggregate";
-		var single = _documentType.GetMethod(
-			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
-		var tenanted = _documentType.GetMethod(
-			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string), typeof(string) }, modifiers: null);
-		tenanted.ShouldNotBeNull("CreateId(aggregateId, tenantId) overload must exist for tenant-inclusive ids.");
+		// LIVENESS: a real tenant and the untenanted partition both yield a well-formed, URL-safe id.
+		// Without this arm a builder returning the empty string for everything satisfies the safety arm.
+		foreach (var partition in new[] { "tenant-a", TenantScope.UntenantedSentinel })
+		{
+			var id = CreateId("shared-aggregate", partition);
 
-		var unscoped = (string)single!.Invoke(null, new object[] { aggregateId })!;
-		var tenantA = (string)tenanted!.Invoke(null, new object?[] { aggregateId, "tenant-a" })!;
-		var tenantB = (string)tenanted.Invoke(null, new object?[] { aggregateId, "tenant-b" })!;
+			id.ShouldNotBeNullOrEmpty();
+			id.ShouldNotContain("+");
+			id.ShouldNotContain("/");
+			id.ShouldNotContain("=");
+		}
+	}
 
-		tenantA.ShouldNotBe(unscoped);
-		tenantB.ShouldNotBe(unscoped);
+	[Fact]
+	public void CreateId_SeparatesTenants_AndSeparatesUntenantedFromTenanted()
+	{
+		// SAFETY: no two partitions share an id for the same aggregate. The untenanted partition is a value
+		// like any other, so it is separated too - it is not an absence.
+		const string AggregateId = "shared-aggregate";
+
+		var tenantA = CreateId(AggregateId, "tenant-a");
+		var tenantB = CreateId(AggregateId, "tenant-b");
+		var untenanted = CreateId(AggregateId, TenantScope.UntenantedSentinel);
+
 		tenantA.ShouldNotBe(tenantB);
-
-		// A null/empty tenant must map back to the unscoped id (single-tenant hosts keep their existing keys).
-		var tenantNull = (string)tenanted.Invoke(null, new object?[] { aggregateId, null })!;
-		tenantNull.ShouldBe(unscoped);
-
-		// The tenant-scoped id remains URL-safe Base64.
-		tenantA.ShouldNotContain("+");
-		tenantA.ShouldNotContain("/");
-		tenantA.ShouldNotContain("=");
+		tenantA.ShouldNotBe(untenanted);
+		tenantB.ShouldNotBe(untenanted);
 	}
 
 	#endregion

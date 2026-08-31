@@ -300,62 +300,6 @@ public sealed class PipelineProfileShould
 	}
 
 	[Fact]
-	public void GetApplicableMiddlewareForMessageKind()
-	{
-		// Arrange
-		var profile = new PipelineProfile("Test", MessageKinds.All);
-		profile.AddMiddleware<TestMiddleware>(0);
-
-		// Act
-		var middleware = profile.GetApplicableMiddleware(MessageKinds.Action);
-
-		// Assert
-		middleware.ShouldNotBeEmpty();
-	}
-
-	[Fact]
-	public void GetApplicableMiddleware_DoesNotExcludeByAttributeKind_akwb5j()
-	{
-		// akwb5j convergence lock (non-vacuous): the profile no longer filters by the [AppliesTo] attribute —
-		// message-kind applicability is the single-source-of-truth runtime IMiddlewareApplicabilityStrategy's
-		// job (each middleware's ApplicableMessageKinds property). An [AppliesTo(Action)]-decorated middleware
-		// is STILL returned when querying a DIFFERENT kind (Event). RED before convergence (the attribute
-		// kinds-filter excluded it); GREEN after (kind filtering moved to the property strategy).
-		var profile = new PipelineProfile("Test", MessageKinds.All);
-		profile.AddMiddleware<ActionScopedMiddleware>(0);
-
-		var middleware = profile.GetApplicableMiddleware(MessageKinds.Event);
-
-		middleware.ShouldContain(typeof(ActionScopedMiddleware));
-	}
-
-	[Fact]
-	public void GetApplicableMiddlewareWithEnabledFeatures()
-	{
-		// Arrange
-		var profile = new PipelineProfile("Test", MessageKinds.All);
-		profile.AddMiddleware<TestMiddleware>(0);
-		var enabledFeatures = new HashSet<DispatchFeatures> { DispatchFeatures.Validation };
-
-		// Act
-		var middleware = profile.GetApplicableMiddleware(MessageKinds.Action, enabledFeatures);
-
-		// Assert
-		middleware.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void ThrowWhenGetApplicableMiddlewareEnabledFeaturesIsNull()
-	{
-		// Arrange
-		var profile = new PipelineProfile("Test", MessageKinds.All);
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			profile.GetApplicableMiddleware(MessageKinds.Action, null!));
-	}
-
-	[Fact]
 	public void NotAddDuplicateMiddleware()
 	{
 		// Arrange

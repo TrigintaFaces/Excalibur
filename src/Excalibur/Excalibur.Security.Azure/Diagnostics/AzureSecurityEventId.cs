@@ -9,7 +9,7 @@ namespace Excalibur.Security.Azure;
 /// <remarks>
 /// These event IDs are in the Cloud Credential Stores range defined in Excalibur.Security.
 /// </remarks>
-public static class AzureSecurityEventId
+internal static class AzureSecurityEventId
 {
 	/// <summary>Azure Key Vault credential store created.</summary>
 	public const int AzureKeyVaultCredentialStoreCreated = 70900;

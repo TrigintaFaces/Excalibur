@@ -2,19 +2,29 @@
 # Cosmos LIVENESS gate — proves the emulator was REACHED, and refuses a run that reported success
 # while executing nothing against it.
 #
-# ⚠ WHY THIS GATE CANNOT BE KEYED ON COUNTS, STATED FIRST BECAUSE IT IS THE WHOLE DESIGN.
+# ⚠ WHY THIS GATE IS NOT KEYED ON COUNTS, STATED FIRST BECAUSE IT IS THE WHOLE DESIGN.
 #
-# A dynamic in-test skip is recorded by the runner as an EXECUTED, PASSING test. Measured on the
-# Cosmos telemetry class: a blanket skip fires for all 14 tests and the result file reads
-# total=14 executed=14 passed=14 notExecuted=0. So every counter a gate could compare — executed
-# against expected, passed against total, notExecuted against zero — is SATISFIED by a run that
-# touched no emulator. An accounting gate is vacuous here BY CONSTRUCTION, not by an error in its
-# arithmetic, and no amount of tightening the comparison repairs that.
+# Not because a count cannot see a skip. Measured on this stack, every skip mechanism records the
+# test as outcome=NotExecuted and EXCLUDES it from both the executed and the passed counter, so a
+# fully-skipped suite reads total=N executed=0 passed=0. Comparing executed against an expected
+# count DOES detect a skipped suite, and is worth doing wherever an expected count is known.
+#
+# It is the counters a gate reaches for by reflex that cannot see it:
+#   failed == 0        satisfied by a run that executed nothing
+#   exit code 0        likewise — a fully-skipped run exits clean
+#   notExecuted == 0   always zero from the VSTest trx logger even when the per-result rows read
+#                      NotExecuted. It reports nothing. Derive skips as total minus executed.
+#
+# And one shape defeats every counter, executed-versus-expected included: a test whose body takes
+# an early return on an availability guard. That test genuinely ran, so it counts as executed AND
+# passed, and no accounting anywhere can distinguish it from real work. Evidence can.
 #
 # This gate therefore keys on POSITIVE EVIDENCE that a test genuinely reached the emulator:
 # execution records the fixtures append, one per genuinely-executed test, to the file named by the
-# environment. A SKIPPED TEST WRITES NOTHING. Absence of records is the signal; it is the one thing
-# a skip cannot fake, and it is the exact inverse of a counter, which a skip fakes perfectly.
+# environment. A SKIPPED TEST WRITES NOTHING, AND NEITHER DOES AN EARLY RETURN — the record is
+# appended past the guard, on the path where the emulator answered. Absence of records is the
+# signal, and it is the only one that covers both shapes: a count catches the skip and misses the
+# early return, while evidence catches both without needing an expected count to compare against.
 #
 # SCOPE, HONESTLY. This proves records of the required SHAPE are PRESENT in the quantity required.
 # It does NOT re-verify the round-trip that produced them — if the fixtures were ever changed to

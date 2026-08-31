@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using SqlServerNs = Excalibur.EventSourcing.SqlServer;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.SqlServer;
 
 /// <summary>
@@ -28,7 +30,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	public void CreateWithDefaultTableNames()
 	{
 		// Act — should not throw with valid args and default table names
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 		// Assert — instance created (no public property for table names, so we verify no exception)
 		store.ShouldNotBeNull();
@@ -38,14 +40,14 @@ public sealed class SqlServerMaterializedViewStoreShould
 	public void ThrowArgumentNullException_WhenConnectionFactoryIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerNs.SqlServerMaterializedViewStore((Func<SqlConnection>)null!, Logger));
+			new SqlServerNs.SqlServerMaterializedViewStore((Func<SqlConnection>)null!, Logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, null!));
+			new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, null!, TenantViewFixture.SingleTenant));
 	}
 
 	// ═══════════════════════════════════════════════════
@@ -57,7 +59,8 @@ public sealed class SqlServerMaterializedViewStoreShould
 	{
 		var store = new SqlServerNs.SqlServerMaterializedViewStore(
 			"Server=localhost;Database=TestDb",
-			Logger);
+			Logger,
+			TenantViewFixture.SingleTenant);
 
 		store.ShouldNotBeNull();
 	}
@@ -66,14 +69,14 @@ public sealed class SqlServerMaterializedViewStoreShould
 	public void ThrowArgumentException_WhenConnectionStringIsNull()
 	{
 		Should.Throw<ArgumentException>(() =>
-			new SqlServerNs.SqlServerMaterializedViewStore((string)null!, Logger));
+			new SqlServerNs.SqlServerMaterializedViewStore((string)null!, Logger, TenantViewFixture.SingleTenant));
 	}
 
 	[Fact]
 	public void ThrowArgumentException_WhenConnectionStringIsWhitespace()
 	{
 		Should.Throw<ArgumentException>(() =>
-			new SqlServerNs.SqlServerMaterializedViewStore("   ", Logger));
+			new SqlServerNs.SqlServerMaterializedViewStore("   ", Logger, TenantViewFixture.SingleTenant));
 	}
 
 	// ═══════════════════════════════════════════════════
@@ -86,6 +89,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 		var store = new SqlServerNs.SqlServerMaterializedViewStore(
 			ValidConnectionFactory,
 			Logger,
+			TenantViewFixture.SingleTenant,
 			viewTableName: "CustomViews",
 			positionTableName: "CustomPositions");
 
@@ -100,6 +104,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 			new SqlServerNs.SqlServerMaterializedViewStore(
 				ValidConnectionFactory,
 				Logger,
+				TenantViewFixture.SingleTenant,
 				viewTableName: "DROP TABLE Users; --"));
 	}
 
@@ -110,6 +115,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 			new SqlServerNs.SqlServerMaterializedViewStore(
 				ValidConnectionFactory,
 				Logger,
+				TenantViewFixture.SingleTenant,
 				positionTableName: "'; DROP TABLE Events; --"));
 	}
 
@@ -120,7 +126,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task GetAsync_ThrowsWhenViewNameIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 #pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 #pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality
@@ -133,7 +139,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task GetAsync_ThrowsWhenViewIdIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 #pragma warning disable IL2026
 #pragma warning disable IL3050
@@ -146,7 +152,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task SaveAsync_ThrowsWhenViewNameIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 #pragma warning disable IL2026
 #pragma warning disable IL3050
@@ -159,7 +165,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task SaveAsync_ThrowsWhenViewIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 #pragma warning disable IL2026
 #pragma warning disable IL3050
@@ -172,7 +178,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task DeleteAsync_ThrowsWhenViewNameIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 		await Should.ThrowAsync<ArgumentException>(async () =>
 			await store.DeleteAsync(null!, "id-1", CancellationToken.None));
@@ -181,7 +187,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task GetPositionAsync_ThrowsWhenViewNameIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 		await Should.ThrowAsync<ArgumentException>(async () =>
 			await store.GetPositionAsync(null!, CancellationToken.None));
@@ -190,7 +196,7 @@ public sealed class SqlServerMaterializedViewStoreShould
 	[Fact]
 	public async Task SavePositionAsync_ThrowsWhenViewNameIsNull()
 	{
-		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger);
+		var store = new SqlServerNs.SqlServerMaterializedViewStore(ValidConnectionFactory, Logger, TenantViewFixture.SingleTenant);
 
 		await Should.ThrowAsync<ArgumentException>(async () =>
 			await store.SavePositionAsync(null!, 100L, CancellationToken.None));
@@ -204,4 +210,19 @@ public sealed class SqlServerMaterializedViewStoreShould
 	{
 		public string Name { get; set; } = string.Empty;
 	}
+
+	/// <summary>
+	/// The ambient tenant these constructions run under. The store resolves its partition from here rather
+	/// than from a parameter, so a caller can neither widen a lookup by omitting a tenant nor redirect it by
+	/// naming another.
+	/// </summary>
+	private sealed class TenantViewFixture : ITenantContext
+	{
+		public static ITenantContext SingleTenant { get; } = new TenantViewFixture();
+
+		public string? TenantId => "tenant-a";
+
+		public bool HasTenant => true;
+	}
+
 }

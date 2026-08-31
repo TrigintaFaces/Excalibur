@@ -76,6 +76,10 @@ public sealed class CdcBuilderCosmosDbExtensionsShould : UnitTestBase
             sd.ServiceType == typeof(IConfigureOptions<CosmosDbCdcOptions>));
     }
 
+    // DatabaseId and ContainerId name the consumer's own source container, so neither has a default and
+    // validation requires both. Each arm below supplies the full required set and asserts only the verb it
+    // is testing: resolving IOptions runs the validator, so an arm naming a single verb threw before it
+    // could assert anything.
     [Fact]
     public void UseCosmosDb_ConfiguresDatabaseIdViaBuilder()
     {
@@ -87,6 +91,7 @@ public sealed class CdcBuilderCosmosDbExtensionsShould : UnitTestBase
         // Act
         builder.UseCosmosDb((Action<ICosmosDbCdcBuilder>)(cosmo => cosmo
             .ConnectionString(TestConnectionString)
+            .ContainerId("cdc_container")
             .DatabaseId("custom_cdc")));
 
         // Assert
@@ -106,6 +111,7 @@ public sealed class CdcBuilderCosmosDbExtensionsShould : UnitTestBase
         // Act
         builder.UseCosmosDb((Action<ICosmosDbCdcBuilder>)(cosmo => cosmo
             .ConnectionString(TestConnectionString)
+            .DatabaseId("cdc_db")
             .ContainerId("my_cdc_container")));
 
         // Assert
@@ -125,6 +131,8 @@ public sealed class CdcBuilderCosmosDbExtensionsShould : UnitTestBase
         // Act
         builder.UseCosmosDb((Action<ICosmosDbCdcBuilder>)(cosmo => cosmo
             .ConnectionString(TestConnectionString)
+            .DatabaseId("cdc_db")
+            .ContainerId("cdc_container")
             .ProcessorName("cdc-processor-1")));
 
         // Assert

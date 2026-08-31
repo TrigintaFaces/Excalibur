@@ -38,13 +38,13 @@ public sealed class GoogleCloudSchedulerConformanceTests : SchedulerConformanceT
 
 		return new GoogleCloudSchedulerJobProvider(
 			_schedulerClient,
-			new GoogleCloudSchedulerOptions
+			Microsoft.Extensions.Options.Options.Create(new GoogleCloudSchedulerOptions
 			{
 				ProjectId = "conformance-project",
 				LocationId = "us-central1",
 				TargetUrl = "https://jobs.example.com/execute",
 				TimeZone = "UTC",
-			},
+			}),
 			NullLogger<GoogleCloudSchedulerJobProvider>.Instance);
 	}
 
@@ -74,4 +74,7 @@ public sealed class GoogleCloudSchedulerConformanceTests : SchedulerConformanceT
 			return Task.FromResult(new Job());
 		}
 	}
+
+	[Fact]
+	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 }

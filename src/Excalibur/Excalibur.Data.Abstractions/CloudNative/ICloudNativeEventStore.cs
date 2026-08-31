@@ -34,7 +34,19 @@ namespace Excalibur.Data.CloudNative;
 /// Uses conditional writes on version field to ensure optimistic concurrency
 /// without cross-partition transactions.
 /// </para>
+/// <para>
+/// <strong>Tenancy:</strong>
+/// Events written through this contract belong to a tenant -- the document model above composes the
+/// owning tenant into the document id -- so it declares <see cref="TenantOwnedAttribute"/>. A store
+/// registered under this contract in a multi-tenant deployment must present a tenant capability or be
+/// refused at registration. The applicable one is the ambient-scoping capability: every read here is
+/// addressed by aggregate and partition key with no tenant argument, so confinement can only come from
+/// the store applying the ambient tenant. A store that composes its keys without the tenant returns
+/// another tenant's events for the same aggregate id, so the refusal is the correct outcome for it
+/// rather than a limitation to work around.
+/// </para>
 /// </remarks>
+[TenantOwned]
 public interface ICloudNativeEventStore
 {
 	/// <summary>
@@ -285,7 +297,7 @@ public sealed class CloudAppendResult
 
 	private CloudAppendResult(
 		bool success,
-		long nextExpectedVersion,
+		long? nextExpectedVersion,
 		double requestCharge,
 		string? sessionToken = null,
 		string? errorMessage = null,
@@ -305,9 +317,25 @@ public sealed class CloudAppendResult
 	public bool Success { get; }
 
 	/// <summary>
-	/// Gets the next expected version for the aggregate after this append.
+	/// Gets the next expected version for the aggregate after this append — or <see langword="null"/>
+	/// when this result cannot state one.
 	/// </summary>
-	public long NextExpectedVersion { get; }
+	/// <remarks>
+	/// <para>
+	/// A failed append reports <see langword="null"/> rather than a number, because it has no version to
+	/// report and <c>-1</c> is not free to borrow as a sentinel: under this store's version base <c>-1</c>
+	/// is the ordinary value meaning <em>this stream does not exist</em>. Reporting it after a failure
+	/// would hand a caller a number asserting the opposite of the truth, which they could pass straight
+	/// back as an expected version and create a stream that already holds events.
+	/// </para>
+	/// <para>
+	/// A concurrency conflict is the one failure that <em>can</em> state a version: the store read the
+	/// stream's actual version in order to detect the conflict, so it reports that measured value here —
+	/// including a genuine <c>-1</c> when the conflict is that the stream does not exist at all.
+	/// </para>
+	/// </remarks>
+	/// <value>The stream's current version after the append, or <see langword="null"/> when unavailable.</value>
+	public long? NextExpectedVersion { get; }
 
 	/// <summary>
 	/// Gets the request charge (RUs for Cosmos DB, WCUs for DynamoDB).
@@ -366,7 +394,12 @@ public sealed class CloudAppendResult
 	/// </summary>
 	/// <param name="errorMessage">The error message.</param>
 	/// <param name="requestCharge">The request charge consumed.</param>
-	/// <returns>A failed append result.</returns>
+	/// <returns>A failed append result, reporting no version.</returns>
+	/// <remarks>
+	/// Nothing was appended, so the result states no version: <see cref="NextExpectedVersion"/> is
+	/// <see langword="null"/>. Use <see cref="CreateConcurrencyConflict"/> for the one failure that has a
+	/// version to report.
+	/// </remarks>
 	public static CloudAppendResult CreateFailure(string errorMessage, double requestCharge) =>
-		new(success: false, -1, requestCharge, errorMessage: errorMessage);
+		new(success: false, nextExpectedVersion: null, requestCharge, errorMessage: errorMessage);
 }

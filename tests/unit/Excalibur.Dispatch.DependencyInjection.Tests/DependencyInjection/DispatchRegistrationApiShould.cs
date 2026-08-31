@@ -306,29 +306,70 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 	}
 
 	[Fact]
-	public void RegisterHandlersWithScopedLifetime_ByDefault()
+	public void RegisterHandlersWithTransientLifetime_ByDefault()
 	{
-		// Arrange
+		// This replaces a test that asserted the default was Scoped. The default changed to Transient by
+		// SoftwareArchitect ruling: scope ownership belongs to the framework, not the registration, because
+		// HandlerScopeResolver already opens a scope whenever a handler's dependency graph reaches a Scoped
+		// service. Scoped registration was buying protection that already existed and charging a
+		// per-dispatch scope for it.
+		//
+		// Note what this test does NOT assert. It cannot assert "two resolutions give different instances"
+		// the way the old Scoped test did, because a stateless handler under a Transient registration is
+		// eligible for the framework's singleton promotion (on by default), so identity is legitimately
+		// unstable here. Asserting identity would bind an optimisation rather than the registration
+		// contract, and would go red the moment promotion changed. The descriptor is the contract; the
+		// sibling test RegisterHandlersWithTransientLifetime_WhenSpecified covers instance behaviour with
+		// promotion explicitly disabled.
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
-		// Act
+		// AutoPromote is disabled for the same reason the sibling Transient test disables it: promotion
+		// rewrites the descriptor for an eligible stateless handler, so leaving it on would mean asserting
+		// against whatever promotion produced rather than against the registration default under test.
 		_ = services.AddDispatch(dispatch =>
 		{
+			dispatch.WithOptions(o => o.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = false);
 			_ = dispatch.AddHandlersFromAssembly(typeof(RegistrationTestActionHandler).Assembly);
 		});
 
-		// Assert - Scoped handlers should be different across scopes
-		var provider = services.BuildServiceProvider();
-		using var scope1 = provider.CreateScope();
-		using var scope2 = provider.CreateScope();
+		var descriptor = services.LastOrDefault(d =>
+			d.ServiceType == typeof(IActionHandler<RegistrationTestAction>));
 
-		var handler1 = scope1.ServiceProvider.GetService<IActionHandler<RegistrationTestAction>>();
-		var handler2 = scope2.ServiceProvider.GetService<IActionHandler<RegistrationTestAction>>();
+		_ = descriptor.ShouldNotBeNull(
+			"assembly scanning must register the handler interface, or this assertion passes vacuously");
+		descriptor.Lifetime.ShouldBe(
+			ServiceLifetime.Transient,
+			"AddHandlersFromAssembly defaults to Transient; the framework must not impose the strongest "
+			+ "lifetime on a consumer who stated none, when the resolver already supplies a scope to any "
+			+ "handler that actually needs one");
+	}
 
-		_ = handler1.ShouldNotBeNull();
-		_ = handler2.ShouldNotBeNull();
-		handler1.ShouldNotBeSameAs(handler2);
+	[Fact]
+	public void StillHonorAnExplicitlyRequestedScopedLifetime()
+	{
+		// LIVENESS PARTNER. The default moving to Transient must not mean Scoped became unreachable — a
+		// consumer who asks for it explicitly must still get it, or the change has removed a capability
+		// rather than changed a default. Without this arm, an implementation that hardcoded Transient and
+		// ignored the parameter entirely would satisfy the test above.
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+
+		_ = services.AddDispatch(dispatch =>
+		{
+			dispatch.WithOptions(o => o.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = false);
+			_ = dispatch.AddHandlersFromAssembly(
+				typeof(RegistrationTestActionHandler).Assembly,
+				ServiceLifetime.Scoped);
+		});
+
+		var descriptor = services.LastOrDefault(d =>
+			d.ServiceType == typeof(IActionHandler<RegistrationTestAction>));
+
+		_ = descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(
+			ServiceLifetime.Scoped,
+			"the lifetime parameter must still be honoured; only the DEFAULT changed");
 	}
 
 	[Fact]

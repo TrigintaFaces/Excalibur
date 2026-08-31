@@ -34,7 +34,7 @@ public sealed class InMemoryInboxStoreConformanceShould : InboxStoreConformanceT
 		});
 
 		var logger = NullLogger<InMemoryInboxStore>.Instance;
-		var store = new InMemoryInboxStore(options, logger);
+		var store = new InMemoryInboxStore(options, logger, UntenantedContext.Instance);
 
 		return Task.FromResult<IInboxStore>(store);
 	}

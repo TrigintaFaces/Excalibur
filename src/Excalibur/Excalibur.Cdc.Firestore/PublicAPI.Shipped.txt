@@ -38,26 +38,6 @@ Excalibur.Cdc.Firestore.FirestoreCdcProcessor.FirestoreCdcProcessor(Google.Cloud
 Excalibur.Cdc.Firestore.FirestoreCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition!>!
 Excalibur.Cdc.Firestore.FirestoreCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.Firestore.FirestoreCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> bool
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AutoReconnectOnDisconnect.get -> bool
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AutoReconnectOnDisconnect.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxRecoveryAttempts.get -> int
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxRecoveryAttempts.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxUnavailableWaitTime.get -> System.TimeSpan
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxUnavailableWaitTime.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.OnPositionReset.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.ReconnectionTimeout.get -> System.TimeSpan
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.ReconnectionTimeout.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryAttemptDelay.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryStrategy.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RetryOnPermissionDenied.get -> bool
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RetryOnPermissionDenied.init -> void
-Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.Validate() -> void
 Excalibur.Cdc.Firestore.FirestoreCdcStateEntry
 Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.EventCount.get -> long
 Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.EventCount.set -> void

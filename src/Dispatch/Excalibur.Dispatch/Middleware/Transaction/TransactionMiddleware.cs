@@ -29,7 +29,10 @@ namespace Excalibur.Dispatch.Middleware.Transaction;
 /// <item> Automatic rollback on exceptions </item>
 /// <item> Integration with outbox patterns for consistent event publishing </item>
 /// </list>
-/// This middleware primarily targets Action messages (commands) that modify state, rather than Events which are typically read-only notifications.
+/// Applies to Actions only. An Event's atomicity with the producer's state change is provided by outbox staging
+/// inside the producer's transaction -- see <c> OutboxStagingMiddleware </c>, which applies to all message kinds --
+/// not by enrolling event handlers in the producer's transaction. Enrolling them would extend the transaction across
+/// handler execution and make a subscriber's failure roll back the producer's command.
 /// </remarks>
 [AppliesTo(MessageKinds.Action)]
 public sealed partial class TransactionMiddleware : IDispatchMiddleware
@@ -72,7 +75,10 @@ public sealed partial class TransactionMiddleware : IDispatchMiddleware
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// Transactions primarily apply to Actions (commands) that modify state, rather than Events which are typically read-only notifications.
+	/// Applies to Actions only. An Event's atomicity with the producer's state change is provided by outbox staging
+	/// inside the producer's transaction -- see <c> OutboxStagingMiddleware </c>, which applies to all message kinds
+	/// -- not by enrolling event handlers in the producer's transaction. Enrolling them would extend the transaction
+	/// across handler execution and make a subscriber's failure roll back the producer's command.
 	/// </remarks>
 	public MessageKinds ApplicableMessageKinds => MessageKinds.Action;
 
@@ -206,7 +212,7 @@ public sealed partial class TransactionMiddleware : IDispatchMiddleware
 		_ = activity.SetTag("transaction.distributed", config.EnableDistributedTransactions);
 	}
 
-	// Source-generated logging methods (Sprint 360 - EventId Migration Phase 1)
+	// Source-generated logging methods
 	[LoggerMessage(MiddlewareEventId.TransactionMiddlewareExecuting, LogLevel.Debug,
 		"Message type {MessageType} does not require transaction")]
 	private partial void LogMessageTypeDoesNotRequireTransaction(string messageType);

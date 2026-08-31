@@ -76,16 +76,6 @@ public sealed class DispatchOptionsShould
 	}
 
 	[Fact]
-	public void Default_DefaultRetryPolicy_IsNotNull()
-	{
-		// Arrange & Act
-		var options = new DispatchOptions();
-
-		// Assert
-		_ = options.CrossCutting.DefaultRetryPolicy.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void Default_ValidateMessageSchemas_IsTrue()
 	{
 		// Arrange & Act
@@ -103,16 +93,6 @@ public sealed class DispatchOptionsShould
 
 		// Assert
 		options.MessageBufferSize.ShouldBe(1024);
-	}
-
-	[Fact]
-	public void Default_EnableCacheMiddleware_IsTrue()
-	{
-		// Arrange & Act
-		var options = new DispatchOptions();
-
-		// Assert
-		options.Features.EnableCacheMiddleware.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -352,7 +332,7 @@ public sealed class DispatchOptionsShould
 		var options = new DispatchOptions
 		{
 			UseLightMode = true,
-			Features = { EnableMetrics = false, EnableAuthorization = false, EnableTransactions = false, EnableCacheMiddleware = false },
+			Features = { EnableMetrics = false, EnableAuthorization = false, EnableTransactions = false },
 		};
 
 		// Assert

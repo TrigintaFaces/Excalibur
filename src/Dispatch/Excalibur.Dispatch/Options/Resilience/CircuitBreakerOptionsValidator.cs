@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Options.Resilience;
@@ -13,6 +15,9 @@ namespace Excalibur.Dispatch.Options.Resilience;
 /// </remarks>
 public sealed class CircuitBreakerOptionsValidator : IValidateOptions<CircuitBreakerOptions>
 {
+	/// <summary>The shortest rolling window a ratio-based circuit breaker provider accepts.</summary>
+	private static readonly TimeSpan MinimumSamplingDuration = TimeSpan.FromMilliseconds(500);
+
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, CircuitBreakerOptions options)
 	{
@@ -24,6 +29,22 @@ public sealed class CircuitBreakerOptionsValidator : IValidateOptions<CircuitBre
 		if (options.FailureThreshold < 1)
 		{
 			failures.Add($"{nameof(CircuitBreakerOptions.FailureThreshold)} must be >= 1 (was {options.FailureThreshold}).");
+		}
+
+		// FailureRatio must be a usable proportion. Zero would open the circuit on an empty window.
+		if (options.FailureRatio is <= 0.0 or > 1.0)
+		{
+			failures.Add(
+				$"{nameof(CircuitBreakerOptions.FailureRatio)} must be greater than 0 and at most 1 " +
+				$"(was {options.FailureRatio.ToString(CultureInfo.InvariantCulture)}).");
+		}
+
+		// SamplingDuration is a rolling window; ratio-based providers require at least 500ms.
+		if (options.SamplingDuration < MinimumSamplingDuration)
+		{
+			failures.Add(
+				$"{nameof(CircuitBreakerOptions.SamplingDuration)} must be at least {MinimumSamplingDuration} " +
+				$"(was {options.SamplingDuration}).");
 		}
 
 		// OpenDuration must be positive

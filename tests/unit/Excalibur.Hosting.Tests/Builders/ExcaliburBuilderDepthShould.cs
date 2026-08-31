@@ -6,12 +6,6 @@ using Excalibur.Saga;
 
 using Microsoft.Extensions.Options;
 
-using HostingCdcOptions = Excalibur.Hosting.Configuration.CdcOptions;
-using HostingEventSourcingOptions = Excalibur.Hosting.Configuration.EventSourcingOptions;
-using HostingExcaliburOptions = Excalibur.Hosting.Configuration.ExcaliburOptions;
-using HostingLeaderElectionOptions = Excalibur.Hosting.Configuration.LeaderElectionOptions;
-using HostingOutboxOptions = Excalibur.Hosting.Configuration.ExcaliburOutboxOptions;
-using HostingSagaOptions = Excalibur.Hosting.Configuration.SagaOptions;
 
 namespace Excalibur.Hosting.Tests.Builders;
 
@@ -346,90 +340,4 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 
 	#endregion
 
-	#region ExcaliburOptions Defaults
-
-	[Fact]
-	public void HaveCorrectDefaultsForEventSourcingOptions()
-	{
-		var options = new HostingEventSourcingOptions();
-
-		options.Enabled.ShouldBeFalse();
-		options.EnableSnapshots.ShouldBeTrue();
-		options.SnapshotFrequency.ShouldBe(100);
-		options.DefaultReadBatchSize.ShouldBe(500);
-	}
-
-	[Fact]
-	public void HaveCorrectDefaultsForOutboxOptions()
-	{
-		var options = new HostingOutboxOptions();
-
-		options.Enabled.ShouldBeFalse();
-		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaxBatchSize.ShouldBe(100);
-		options.MaxRetryAttempts.ShouldBe(3);
-	}
-
-	[Fact]
-	public void HaveCorrectDefaultsForSagaOptions()
-	{
-		var options = new HostingSagaOptions();
-
-		options.Enabled.ShouldBeFalse();
-		options.EnableTimeouts.ShouldBeFalse();
-		options.DefaultTimeout.ShouldBe(TimeSpan.FromMinutes(30));
-	}
-
-	[Fact]
-	public void HaveCorrectDefaultsForLeaderElectionOptions()
-	{
-		var options = new HostingLeaderElectionOptions();
-
-		options.Enabled.ShouldBeFalse();
-		options.LeaseDuration.ShouldBe(TimeSpan.FromSeconds(30));
-		options.RenewInterval.ShouldBe(TimeSpan.FromSeconds(10));
-	}
-
-	[Fact]
-	public void HaveCorrectDefaultsForCdcOptions()
-	{
-		var options = new HostingCdcOptions();
-
-		options.Enabled.ShouldBeFalse();
-		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		options.MaxBatchSize.ShouldBe(200);
-	}
-
-	[Fact]
-	public void HaveCorrectDefaultsForExcaliburOptions()
-	{
-		var options = new HostingExcaliburOptions();
-
-		options.EventSourcing.ShouldNotBeNull();
-		options.Outbox.ShouldNotBeNull();
-		options.Saga.ShouldNotBeNull();
-		options.LeaderElection.ShouldNotBeNull();
-		options.Cdc.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AllowSettingExcaliburOptionsProperties()
-	{
-		var options = new HostingExcaliburOptions
-		{
-			EventSourcing = new HostingEventSourcingOptions { Enabled = true },
-			Outbox = new HostingOutboxOptions { MaxBatchSize = 50 },
-			Saga = new HostingSagaOptions { EnableTimeouts = true },
-			LeaderElection = new HostingLeaderElectionOptions { LeaseDuration = TimeSpan.FromMinutes(1) },
-			Cdc = new HostingCdcOptions { Enabled = true },
-		};
-
-		options.EventSourcing.Enabled.ShouldBeTrue();
-		options.Outbox.MaxBatchSize.ShouldBe(50);
-		options.Saga.EnableTimeouts.ShouldBeTrue();
-		options.LeaderElection.LeaseDuration.ShouldBe(TimeSpan.FromMinutes(1));
-		options.Cdc.Enabled.ShouldBeTrue();
-	}
-
-	#endregion
 }

@@ -29,17 +29,6 @@ public enum DirectLocalContextInitializationProfile
 public sealed class PerformanceOptions
 {
 	/// <summary>
-	/// Gets or sets a value indicating whether Cache stage middleware is included in synthesized pipelines.
-	/// </summary>
-	/// <remarks>
-	/// When <c>true</c> (default), middleware registered in the
-	/// <see cref="Excalibur.Dispatch.DispatchMiddlewareStage.Cache"/> stage will be
-	/// included in automatically synthesized pipelines.
-	/// </remarks>
-	/// <value><see langword="true"/> to include cache middleware; otherwise, <see langword="false"/>.</value>
-	public bool EnableCacheMiddleware { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable type metadata caching.
 	/// </summary>
 	/// <value>The current <see cref="EnableTypeMetadataCaching"/> value.</value>

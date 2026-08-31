@@ -30,14 +30,14 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
-        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+        es.UseSqlServer(opts => opts.ConnectionString(connectionString));
         es.AddRepository<OrderAggregate, OrderId>();
         es.UseIntervalSnapshots(100);
     });
 
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
+        outbox.UseSqlServer(opts => opts.ConnectionString(connectionString));
         outbox.EnableBackgroundProcessing();
     });
 });
@@ -76,9 +76,9 @@ public class OrdersController : ControllerBase
     {
         var result = await _dispatcher.DispatchAsync(command, ct);
 
-        return result.Match<ActionResult<OrderId>>(
-            success: id => CreatedAtAction(nameof(GetOrder), new { id }, id),
-            failure: error => BadRequest(error));
+        return result.Match<OrderId, ActionResult<OrderId>>(
+            onSuccess: id => CreatedAtAction(nameof(GetOrder), new { id }, id),
+            onFailure: problem => Problem(problem?.Detail, statusCode: problem?.Status));
     }
 
     [HttpGet("{id}")]

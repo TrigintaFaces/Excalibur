@@ -25,8 +25,8 @@
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Postgres" />
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Sqlite" />
     <InternalsVisibleTo Include="Excalibur.Benchmarks" />
-    <!-- S795 A3: IVT granted to test assemblies that retain direct aggregator
-         access per COMPASS msg 1498 §1. -->
+    <!-- IVT granted to test assemblies that retain direct aggregator
+         access to the aggregator. -->
     <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
     <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
@@ -34,6 +34,9 @@
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
     <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
     <InternalsVisibleTo Include="Excalibur.Tests" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.CosmosDb" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.DynamoDb" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Firestore" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">

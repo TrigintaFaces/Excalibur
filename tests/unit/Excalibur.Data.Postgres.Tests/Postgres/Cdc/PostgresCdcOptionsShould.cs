@@ -90,14 +90,6 @@ public sealed class PostgresCdcOptionsShould
 	}
 
 	[Fact]
-	public void HaveNullRecoveryOptionsByDefault()
-	{
-		var options = new PostgresCdcOptions();
-
-		options.RecoveryOptions.ShouldBeNull();
-	}
-
-	[Fact]
 	public void ValidateSuccessfullyWithRequiredValues()
 	{
 		var options = new PostgresCdcOptions
@@ -150,18 +142,6 @@ public sealed class PostgresCdcOptionsShould
 		};
 
 		Should.Throw<InvalidOperationException>(() => options.Validate());
-	}
-
-	[Fact]
-	public void ValidateRecoveryOptionsWhenPresent()
-	{
-		var options = new PostgresCdcOptions
-		{
-			ConnectionString = "Host=localhost",
-			RecoveryOptions = new PostgresCdcRecoveryOptions()
-		};
-
-		Should.NotThrow(() => options.Validate());
 	}
 
 	[Fact]

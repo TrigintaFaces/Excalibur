@@ -6,6 +6,7 @@
     <AssemblyName>Excalibur.Dispatch.Observability</AssemblyName>
     <NeutralLanguage>en</NeutralLanguage>
     <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <!-- NuGet Package Metadata -->
     <PackageId>Excalibur.Dispatch.Observability</PackageId>
     <Title>Dispatch Observability</Title>
@@ -55,5 +56,10 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Middleware.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Diagnostics.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

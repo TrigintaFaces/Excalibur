@@ -73,7 +73,7 @@ public sealed class DynamoDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 
 		// The options ctor auto-creates the (per-test, unique) table — the injected-client ctor would skip it.
 		return Task.FromResult<ISagaStore>(
-			new DynamoDbSagaStore(options, NullLogger<DynamoDbSagaStore>.Instance, new DispatchJsonSerializer()));
+			new DynamoDbSagaStore(options, NullLogger<DynamoDbSagaStore>.Instance, new DispatchJsonSerializer(), SingleTenantTestContext.Instance));
 	}
 
 	/// <inheritdoc/>

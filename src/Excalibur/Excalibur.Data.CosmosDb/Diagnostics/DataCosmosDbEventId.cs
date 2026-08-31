@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Data.CosmosDb.Diagnostics;
@@ -18,7 +18,7 @@ namespace Excalibur.Data.CosmosDb.Diagnostics;
 /// <item>102600-102699: Error Handling</item>
 /// </list>
 /// </remarks>
-public static class DataCosmosDbEventId
+internal static class DataCosmosDbEventId
 {
 	// ========================================
 	// 102000-102099: Client Management
@@ -343,6 +343,9 @@ public static class DataCosmosDbEventId
 
 	/// <summary>CDC position not found for deletion.</summary>
 	public const int CdcPositionNotFoundForDeletion = 103504;
+
+	/// <summary>CDC position save retried after a create conflict.</summary>
+	public const int CdcPositionSaveRetriedAfterConflict = 103505;
 
 	// ========================================
 	// 103600-103699: Grant Service

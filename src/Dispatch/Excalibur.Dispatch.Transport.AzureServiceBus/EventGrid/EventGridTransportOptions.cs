@@ -25,12 +25,6 @@ public sealed class EventGridTransportOptions
 	public string? AccessKey { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use managed identity for authentication.
-	/// </summary>
-	/// <value><see langword="true"/> to use managed identity; otherwise, <see langword="false"/>.</value>
-	public bool UseManagedIdentity { get; set; }
-
-	/// <summary>
 	/// Gets or sets the event schema mode.
 	/// </summary>
 	/// <value>The schema mode. Defaults to <see cref="EventGridSchemaMode.CloudEvents"/>.</value>

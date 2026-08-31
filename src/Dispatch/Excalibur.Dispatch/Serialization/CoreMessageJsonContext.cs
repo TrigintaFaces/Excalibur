@@ -31,6 +31,12 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(object))]
+
+// A Dictionary<string, object> that has been through a JSON round-trip holds JsonElement values, so the
+// dictionary entry above is only serializable in one direction without this one. Writing such a dictionary
+// resolves a converter for each value's RUNTIME type, and without JsonElement declared here that resolution
+// throws NotSupportedException on a dictionary this context claims to support.
+[JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(DateTimeOffset))]
