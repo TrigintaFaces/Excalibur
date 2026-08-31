@@ -1,0 +1,182 @@
+# Clock dependence in test code that exists TODAY -- one entry per distinct violating line.
+#
+# Read eng/ci/task-delay-syncwait-gate.sh for why this file exists. In short: a test that
+# synchronizes on a fixed `await Task.Delay(N)` before asserting a background condition, or gives
+# itself a sub-ten-second CancellationTokenSource deadline to beat, is racing the CI runner. Under
+# thread-pool starvation it loses and reports working code as broken.
+#
+# THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
+#   - A hit NOT listed here is a FAIL on its first appearance.
+#   - An entry listed here that matches no live hit is ALSO a FAIL -- remove it.
+# So the list can only shrink. Removing a line is the fix; adding one should be argued, not assumed.
+#
+# THE FIX for an entry is to DELETE THE LINE IT NAMES: poll the real condition with
+# Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync under a generous bounded timeout, or widen
+# the deadline. Where the duration genuinely IS the semantic under test (a lease TTL, a batch
+# timeout, distinct timestamps, simulated work), say so on the line with `// delay-ok:` or
+# `// deadline-ok:` -- the predicates honor both, and the entry then leaves this file for free.
+#
+# FORMAT: <repo-relative-path>|<the line, leading and trailing whitespace stripped>
+#
+# ENTRIES ARE DEDUPED. One entry covers every byte-identical occurrence of that line in that file,
+# which is why six identical `await Task.Delay(50);` calls in one file appear here once. A line
+# number would have been a worse key: it churns on every unrelated edit above it.
+#
+# Regenerate with `task-delay-syncwait-gate.sh --update-baseline`. That is a DELIBERATE act whose
+# diff is reviewed like any other change -- never a way to clear a red.
+tests/Shared/Tests.Shared/Conformance/LeaderElection/LeaderElectionConformanceTestBase.cs|Task.Delay(TimeSpan.FromSeconds(3)),
+tests/conformance/Excalibur.Dispatch.Tests.Conformance/Transport/Implementations/MqttTransportConformanceTests.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+tests/conformance/Excalibur.Dispatch.Tests.Conformance/Transport/Implementations/RabbitMqTransportConformanceTests.cs|await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+tests/conformance/Excalibur.Dispatch.Tests.Conformance/TransportProvider/MessageBusAdapterConformanceTests.cs|await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/ErrorHandling/ErrorHandlingMiddlewareFunctionalShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+tests/functional/Excalibur.Dispatch.Tests.Functional/ErrorHandling/SlowMessageHandler.cs|await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Messaging/MessageContextFunctionalShould.cs|await Task.Delay(10, cancellationToken);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Middleware/MiddlewareChainFunctionalShould.cs|await Task.Delay(10, t2).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Middleware/MiddlewareChainFunctionalShould.cs|await Task.Delay(100, ct).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Pipeline/MiddlewarePipelineFunctionalShould.cs|await Task.Delay(10).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Pipeline/MiddlewarePipelineFunctionalShould.cs|await Task.Delay(50).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Security/SecurityPatternsFunctionalShould.cs|await Task.Delay(1).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Serverless/ServerlessColdStartE2EShould.cs|await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+tests/functional/Excalibur.Dispatch.Tests.Functional/Serverless/ServerlessColdStartE2EShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+tests/functional/Excalibur.Dispatch.Tests.Functional/Validation/ValidationPipelineFunctionalShould.cs|await Task.Delay(1).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Cdc/CosmosDbCdcStateStoreConformanceTests.cs|await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Cdc/DynamoDbCdcStateStoreConformanceTests.cs|await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/EndToEnd/DispatcherEndToEndIntegrationShould.cs|await Task.Delay(action.DelayMs, cancellationToken);
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/EndToEnd/MetadataPropagationE2EShould.cs|await Task.Delay(action.WorkDurationMs, cancellationToken);
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/Infrastructure/TestContainersTestBase.cs|await Task.Delay(100, TestCancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/Providers/InMemory/InMemoryConcurrencyIntegrationShould.cs|await Task.Delay(10, TestCancellationToken).ConfigureAwait(false); // Slightly longer delay
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/Providers/InMemory/InMemoryConcurrencyIntegrationShould.cs|await Task.Delay(5, TestCancellationToken).ConfigureAwait(false); // Small delay
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/Providers/Postgres/PostgresOutboxConcurrentClaimSkipLockedShould.cs|await Task.Delay(250, TestCancellationToken);
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/Providers/Postgres/PostgresOutboxStoreIntegrationShould.cs|await Task.Delay(10, TestCancellationToken); // Ensure distinct timestamps
+tests/integration/Excalibur.Dispatch.Integration.Tests/DispatchCore/Providers/Redis/RedisOutboxLeaseClaimShould.cs|await Task.Delay(TimeSpan.FromSeconds(2.5), TestCancellationToken);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Messaging/MessageDispatchIntegrationShould.cs|await Task.Delay(action.Delay, cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Messaging/MessageDispatchIntegrationShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+tests/integration/Excalibur.Dispatch.Integration.Tests/Observability/EventSourcing/CosmosDbEventStoreTelemetryTestFixture.cs|await Task.Delay(delay).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Observability/EventSourcing/DynamoDbEventStoreTelemetryTestFixture.cs|await Task.Delay(500).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Resilience/ResiliencePolicyIntegrationShould.cs|await Task.Delay(10, TestCancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Dispatch.Integration.Tests/Transport/GooglePubSub/GooglePubSubSubscriberIntegrationShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(150 * attempt)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Caching/CachingIntegrationShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(50));
+tests/integration/Excalibur.Integration.Tests/Caching/DistributedCacheConcurrencyShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(50));
+tests/integration/Excalibur.Integration.Tests/Caching/DistributedCacheOnlyShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(50));
+tests/integration/Excalibur.Integration.Tests/Caching/SlowHandlerStampedeProbe.cs|await Task.Delay(Delay, cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/EventStore/PostgresEventStoreRacingConflictClassificationShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Inbox/CosmosDbTransactionalInboxExactlyOnceFixture.cs|await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Inbox/MongoDbInboxStoreLeaseFencingShould.cs|await Task.Delay(50, ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Inbox/MongoDbInboxStoreLeaseReclaimShould.cs|await Task.Delay(ShortLease + TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Inbox/SqlServerInboxStoreLeaseFencingShould.cs|await Task.Delay(50, ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Inbox/SqlServerInboxStoreLeaseReclaimShould.cs|await Task.Delay(ShortLease + TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/CosmosDbOutboxStoreClaimAtomicityShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/DynamoDbOutboxStoreClaimAtomicityShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/ElasticsearchOutboxStoreClaimAtomicityShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250));
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/FirestoreOutboxStoreClaimAtomicityShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/MartenOutboxFailureMarkAtomicityShould.cs|using var abandon = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/MartenOutboxSettleTombstoneShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/OutboxBackoffFloorClampShould.cs|await Task.Delay(TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/OutboxBackoffFloorClampShould.cs|await Task.Delay(TimeSpan.FromSeconds(ShortFloorSeconds + 2), ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/OutboxClockSkew.cs|await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/OutboxDrainLeaseTestBase.cs|await Task.Delay(TimeSpan.FromMilliseconds(500), ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/OutboxDrainLeaseTestBase.cs|await Task.Delay(publishDelay, token).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/PostgresOutboxReservationWindowSecondsShould.cs|await Task.Delay(LivenessPollInterval, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/PostgresOutboxReservationWindowSecondsShould.cs|await Task.Delay(SafetyCheckDelay, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Outbox/SqlServerOutboxMarkBatchFailedGuardsShould.cs|await Task.Delay(TimeSpan.FromSeconds(FloorSeconds + 2), ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Saga/PostgresSagaStoreConformanceShould.cs|await Task.Delay(50).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Data/Saga/SqlServerSagaStoreConcurrencyConformanceShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(750)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Conformance/ProjectionEventScanAdapterConformanceShould.cs|await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Conformance/ProjectionEventScanAdapterConformanceShould.cs|await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Conformance/SchemaHistoryStoreAdapterConformanceShould.cs|await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Conformance/SecurityAuditStoreAdapterConformanceShould.cs|await Task.Delay(2000, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/DataAccess/ElasticSearch/Monitoring/MonitoredResilientElasticsearchClientShould.cs|await Task.Delay(1000).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/ElasticsearchIntegrationTestBase.cs|await Task.Delay(500).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/IndexManagement/IndexTemplateManagerIntegrationShould.cs|await Task.Delay(200, CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/DataElasticSearch/Security/SecurityAuditPiiMaskingShould.cs|await Task.Delay(500).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/EventSourcing/SqlServer/OutboxBackoffScheduleIntegrationShould.cs|await Task.Delay(pollInterval).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/EventSourcing/SqlServer/SqlServerOutboxStoreIntegrationShould.cs|await Task.Delay(10);
+tests/integration/Excalibur.Integration.Tests/Inbox/Postgres/PostgresInboxStoreLeaseFencingShould.cs|await Task.Delay(50, ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Inbox/Postgres/PostgresInboxStoreLeaseReclaimShould.cs|await Task.Delay(ShortLease + TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Jobs/JobSchedulingIntegrationShould.cs|await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Jobs/JobSchedulingIntegrationShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+tests/integration/Excalibur.Integration.Tests/Jobs/RedisJobLockOwnershipShould.cs|await Task.Delay(200, TestCancellationToken);
+tests/integration/Excalibur.Integration.Tests/LeaderElection/MongoDbLeaderElectionTakeoverShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/LeaderElection/RedisLeaderElectionRenewerLivenessShould.cs|await Task.Delay(TimeSpan.FromSeconds(6), CancellationToken.None).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/LeaderElection/SqlServerLeaderElectionDisposeShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(500), TestCancellationToken);
+tests/integration/Excalibur.Integration.Tests/Redis/Inbox/RedisInboxStoreLeaseFencingShould.cs|await Task.Delay(50, ct).ConfigureAwait(false);
+tests/integration/Excalibur.Integration.Tests/Redis/Inbox/RedisInboxStoreLeaseReclaimShould.cs|await Task.Delay(ShortLease + TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/unit/Excalibur.Cdc.Tests/Cdc/Processing/CdcProcessingHostedServiceEdgeCasesShould.cs|await Task.Delay(10).ConfigureAwait(false);
+tests/unit/Excalibur.Cdc.Tests/Cdc/Processing/CdcProcessingHostedServiceShould.cs|await Task.Delay(200);
+tests/unit/Excalibur.Compliance.Tests/Encryption/KeyCacheStampedeShould.cs|await Task.Delay(FactoryDuration, ct).ConfigureAwait(false);
+tests/unit/Excalibur.Compliance.Tests/Erasure/ErasureSchedulerBackgroundServiceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.Compliance.Tests/Erasure/LegalHoldExpirationServiceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+tests/unit/Excalibur.Compliance.Tests/Erasure/LegalHoldExpirationServiceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.Compliance.Tests/Retention/RetentionEnforcementBackgroundServiceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.Compliance.Tests/Soc2/ComplianceMonitoringServiceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.Data.DataProcessing.Tests/DataProcessing/Diagnostics/DataProcessingHealthCheckShould.cs|await Task.Delay(10, CancellationToken.None).ConfigureAwait(false);
+tests/unit/Excalibur.Data.DataProcessing.Tests/DataProcessing/Processing/DataProcessingHostedServiceShould.cs|await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
+tests/unit/Excalibur.Data.DataProcessing.Tests/DataProcessing/Processing/DataProcessingHostedServiceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.Data.InMemory.Tests/InMemory/OutboxFailedReclaimableAfterFloorShould.cs|await Task.Delay(50, CancellationToken.None);
+tests/unit/Excalibur.Dispatch.Caching.Tests/TimeoutDistributedCacheShould.cs|await Task.Delay(GetDelay, token).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Caching.Tests/TimeoutDistributedCacheShould.cs|await Task.Delay(SetDelay, token).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/BatchProcessorShould.cs|await Task.Delay(100, timeout.Token).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/HighThroughputStressShould.cs|await Task.Delay(1).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/HighThroughputStressShould.cs|await Task.Delay(50);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/HighThroughputStressShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutAndCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(1, 5)).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutAndCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(1, 5), currentToken).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutAndCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(100, 500)).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutAndCancellationPerformanceShould.cs|await Task.Delay(workDuration, cts.Token).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutAndCancellationPerformanceShould.cs|await Task.Delay(workTime, ct).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutAndCancellationPerformanceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|: new CancellationTokenSource(TimeSpan.FromSeconds(1)); // Normal timeout
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|? new CancellationTokenSource(TimeSpan.FromMilliseconds(50)) // Realistic short timeout: 10ms batch + 40ms safety
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(1000 / targetThroughput).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(5).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(50).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(1, 50)).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(1, maxProcessingMs)).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(10, stageTimeout / 2)).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|await Task.Delay(Random.Shared.Next(5, 50)).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(remainingBudget));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(stageTimeout));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/BatchProcessing/TimeoutCancellationPerformanceShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/Channels/YieldWaitStrategyShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/Delivery/BatchProcessing/ChannelBatchUtilitiesShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/Delivery/BatchProcessing/EventDrivenWaitPatternShould.cs|using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+tests/unit/Excalibur.Dispatch.Messaging.Tests/Messaging/Transport/CronTimerTransportAdapterShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+tests/unit/Excalibur.Dispatch.Middleware.Tests/Resilience/DistributedCircuitBreakerFunctionalShould.cs|await Task.Delay(20, CancellationToken.None); // brief poll interval, not a sync barrier
+tests/unit/Excalibur.Dispatch.Middleware.Tests/Resilience/PollyRetryPolicyAdapterFunctionalShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+tests/unit/Excalibur.Dispatch.Patterns.Tests/Sagas/Services/SagaCleanupBackgroundServiceShould.cs|await Task.Delay(10);
+tests/unit/Excalibur.Dispatch.Patterns.Tests/Sagas/Services/SagaTimeoutTypeResolutionShould.cs|await Task.Delay(10);
+tests/unit/Excalibur.Dispatch.Tests/Channels/DispatchChannelShould.cs|using var readCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+tests/unit/Excalibur.Dispatch.Tests/Messaging/Channels/AdaptiveWaitStrategyCpuShould.cs|await Task.Delay(100, CancellationToken.None);
+tests/unit/Excalibur.Dispatch.Tests/Messaging/Channels/AdaptiveWaitStrategyCpuShould.cs|await Task.Delay(200, CancellationToken.None);
+tests/unit/Excalibur.Dispatch.Tests/Messaging/Channels/AdaptiveWaitStrategyCpuShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.Dispatch.Tests/Messaging/Delivery/InMemoryDeduplicatorStaleRemovalShould.cs|await Task.Delay(50);
+tests/unit/Excalibur.Dispatch.Tests/Messaging/Delivery/InMemoryScheduleStoreShould.cs|await Task.Delay(50, _ct);
+tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|await Task.Delay(10).ConfigureAwait(false);
+tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|await Task.Delay(50);
+tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|await Task.Delay(500); // Give waiter time to enter WaitAsync on loaded CI runners
+tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+tests/unit/Excalibur.Dispatch.Transport.Tests/GooglePubSub/BatchReceiving/ParallelBatchProcessorConcurrencyShould.cs|await Task.Delay(25, ct).ConfigureAwait(false);
+tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/AsyncProjectionProcessingHostShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/ErasedEventProjectionHostShould.cs|await Task.Delay(TestTimeouts.Scale(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
+tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/GlobalStreamProjectionHostAtomicCheckpointShould.cs|await Task.Delay(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)))
+tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/GlobalStreamProjectionHostShould.cs|await Task.Delay(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)))
+tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/ProjectionPoisonHaltParityShould.cs|await Task.Delay(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)))
+tests/unit/Excalibur.EventSourcing.Tests/DynamoDb/DynamoDbEventStoreStreamsSubscriptionShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+tests/unit/Excalibur.Inbox.Oracle.Tests/OracleInboxStoreLeaseFencingShould.cs|await Task.Delay(50, ct).ConfigureAwait(false);
+tests/unit/Excalibur.Jobs.Tests/SqlServer/SqlServerDistributedJobLockShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+tests/unit/Excalibur.Jobs.Tests/SqlServer/SqlServerJobCoordinatorShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+tests/unit/Excalibur.LeaderElection.Tests/DependencyInjection/FactoryOnlyProvidersWireOutboxGateShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
+tests/unit/Excalibur.LeaderElection.Tests/InMemory/InMemoryLeaderElectionRenewalClockShould.cs|await Task.Delay(10, TestContext.Current.CancellationToken);
+tests/unit/Excalibur.LeaderElection.Tests/InMemory/InMemoryLeaderElectionRenewalClockShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+tests/unit/Excalibur.LeaderElection.Tests/InMemory/InMemoryLeaderElectionStoppedAcquireShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+tests/unit/Excalibur.LeaderElection.Tests/InMemory/InMemoryLeaderElectionStoppedAcquireShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(5), TestContext.Current.CancellationToken);
+tests/unit/Excalibur.LeaderElection.Tests/Watch/DefaultLeaderElectionWatcherShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+tests/unit/Excalibur.LeaderElection.Tests/Watch/DefaultLeaderElectionWatcherShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+tests/unit/Excalibur.Outbox.Oracle.Tests/OracleOutboxBackoffFloorClampShould.cs|await Task.Delay(TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
+tests/unit/Excalibur.Outbox.Oracle.Tests/OracleOutboxBackoffFloorClampShould.cs|await Task.Delay(TimeSpan.FromSeconds(ShortFloorSeconds + 2), ct).ConfigureAwait(false);
+tests/unit/Excalibur.Outbox.Oracle.Tests/OracleOutboxBackoffFloorClampShould.cs|await Task.Delay(TimeSpan.FromSeconds(ShortFloorSeconds + 3), ct).ConfigureAwait(false);
+tests/unit/Excalibur.Outbox.Tests/InboxProcessorDrainFenceShould.cs|await Task.Delay(HandlerDwell).ConfigureAwait(false);
+tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InMemoryTransportConformanceTests.cs|await Task.Delay(5, cancellationToken).ConfigureAwait(false);
+tests/unit/Excalibur.Workflows.Tests/WorkflowDurableTimerReplayShould.cs|await Task.Delay(25);
+tests/unit/Excalibur.Workflows.Tests/WorkflowSignalDeliveryShould.cs|await Task.Delay(20);

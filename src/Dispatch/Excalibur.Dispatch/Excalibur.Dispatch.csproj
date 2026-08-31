@@ -126,6 +126,10 @@
          a reward for finding a second package. -->
     <None Include="..\Excalibur.Dispatch.SourceGenerators\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.SourceGenerators.dll"
           Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- Opts the generated interceptor namespace in for consumers. Travels with the bundled
+         generator above so the two never get separated. -->
+    <None Include="build\Excalibur.Dispatch.props" Pack="true" PackagePath="buildTransitive/Excalibur.Dispatch.props" />
+    <None Include="build\Excalibur.Dispatch.props" Pack="true" PackagePath="build/Excalibur.Dispatch.props" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Messaging\Resources\ErrorMessages.Designer.cs">

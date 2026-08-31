@@ -143,15 +143,27 @@ public sealed class EcdsaSignatureAlgorithmProviderShould
 	// The published algorithm table names P-256 as the minimum. The curve is carried by the consumer's
 	// key rather than chosen here, so these arms are what make that a guarantee instead of a hope.
 
+	// A P-224 key, fixed rather than generated: macOS/CoreCrypto refuses to create this curve at all, so
+	// generating one would throw in the arrangement and never reach the assertion. The signature is over
+	// "test message" and is genuinely valid, so removing the provider's floor turns these arms green.
+	private static readonly byte[] WeakCurvePrivateKeyPkcs8 = Convert.FromBase64String(
+		"MHgCAQAwEAYHKoZIzj0CAQYFK4EEACEEYTBfAgEBBBy95bEzeX5jUxoB2F1jUvJA7NPNDU4Sx2xTTBEboTwDOgAE"
+		+ "U1IsYf2fEgjMIMpmhUE2vfSOe4K5oEtSQQqrgeXL/+zegzOl5GIeKVov0p6BL7g9I/75ax9IGxk=");
+
+	private static readonly byte[] WeakCurvePublicKeySpki = Convert.FromBase64String(
+		"ME4wEAYHKoZIzj0CAQYFK4EEACEDOgAEU1IsYf2fEgjMIMpmhUE2vfSOe4K5oEtSQQqrgeXL/+zegzOl5GIeKVov"
+		+ "0p6BL7g9I/75ax9IGxk=");
+
+	private static readonly byte[] WeakCurveSignatureOverTestMessage = Convert.FromBase64String(
+		"MD0CHQCp+9BP//CKVdY8XpgXiYuPxqkQoPHiA2l1Ux9bAhx3bFdate3o9wHuZZByuS1XAI8fPlTudpMCng8m");
+
 	[Fact]
 	public async Task RejectSigningWithACurveWeakerThanTheDocumentedMinimum()
 	{
-		using var weak = ECDsa.Create(ECCurve.CreateFromFriendlyName("nistP224"));
-		var privateKey = weak.ExportPkcs8PrivateKey();
 		var data = Encoding.UTF8.GetBytes("test message");
 
 		var error = await Should.ThrowAsync<SigningException>(
-			() => _sut.SignAsync(data, privateKey, SigningAlgorithm.ECDSASHA256, CancellationToken.None));
+			() => _sut.SignAsync(data, WeakCurvePrivateKeyPkcs8, SigningAlgorithm.ECDSASHA256, CancellationToken.None));
 
 		error.Message.ShouldContain("P-256", Case.Sensitive);
 	}
@@ -159,13 +171,12 @@ public sealed class EcdsaSignatureAlgorithmProviderShould
 	[Fact]
 	public async Task RejectVerifyingWithACurveWeakerThanTheDocumentedMinimum()
 	{
-		using var weak = ECDsa.Create(ECCurve.CreateFromFriendlyName("nistP224"));
-		var publicKey = weak.ExportSubjectPublicKeyInfo();
 		var data = Encoding.UTF8.GetBytes("test message");
-		var signature = weak.SignData(data, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
 
 		var error = await Should.ThrowAsync<VerificationException>(
-			() => _sut.VerifyAsync(data, signature, publicKey, SigningAlgorithm.ECDSASHA256, CancellationToken.None));
+			() => _sut.VerifyAsync(
+				data, WeakCurveSignatureOverTestMessage, WeakCurvePublicKeySpki, SigningAlgorithm.ECDSASHA256,
+				CancellationToken.None));
 
 		error.Message.ShouldContain("P-256", Case.Sensitive);
 	}

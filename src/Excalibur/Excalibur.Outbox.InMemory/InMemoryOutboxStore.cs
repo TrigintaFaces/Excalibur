@@ -176,30 +176,23 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 				_fencingHighWaterMark = Math.Max(_fencingHighWaterMark, fencingToken.Value);
 			}
 
-			// Use array-based approach to avoid ToList() allocation
-			var count = 0;
+			// Single pass: _claimLock serialises claimers but NOT producers, so a two-pass count-then-fill
+			// can find more claimable messages in pass 2 than pass 1 sized the array for.
+			var candidateList = new List<OutboundMessage>();
 			foreach (var m in _messages.Values)
 			{
 				if (IsClaimable(m, now, leaseCutoff))
 				{
-					count++;
+					candidateList.Add(m);
 				}
 			}
 
-			if (count == 0)
+			if (candidateList.Count == 0)
 			{
 				return new ValueTask<IEnumerable<OutboundMessage>>(Array.Empty<OutboundMessage>());
 			}
 
-			var candidates = new OutboundMessage[count];
-			var idx = 0;
-			foreach (var m in _messages.Values)
-			{
-				if (IsClaimable(m, now, leaseCutoff))
-				{
-					candidates[idx++] = m;
-				}
-			}
+			var candidates = candidateList.ToArray();
 
 			Array.Sort(candidates, static (a, b) =>
 			{
@@ -389,34 +382,25 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// Use array-based approach to avoid ToList() allocation
-		var count = 0;
+		// Single pass: concurrent producers can grow _messages between two passes, so a count-then-fill
+		// would overflow the array it sized.
+		var candidateList = new List<OutboundMessage>();
 		foreach (var m in _messages.Values)
 		{
 			if (m.Status == OutboxStatus.Failed &&
 				(maxRetries <= 0 || m.RetryCount < maxRetries) &&
 				(!olderThan.HasValue || m.LastAttemptAt < olderThan.Value))
 			{
-				count++;
+				candidateList.Add(m);
 			}
 		}
 
-		if (count == 0)
+		if (candidateList.Count == 0)
 		{
 			return new ValueTask<IEnumerable<OutboundMessage>>(Array.Empty<OutboundMessage>());
 		}
 
-		var candidates = new OutboundMessage[count];
-		var idx = 0;
-		foreach (var m in _messages.Values)
-		{
-			if (m.Status == OutboxStatus.Failed &&
-				(maxRetries <= 0 || m.RetryCount < maxRetries) &&
-				(!olderThan.HasValue || m.LastAttemptAt < olderThan.Value))
-			{
-				candidates[idx++] = m;
-			}
-		}
+		var candidates = candidateList.ToArray();
 
 		Array.Sort(candidates, static (a, b) =>
 		{
@@ -440,30 +424,23 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IOutboxSto
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		// Use array-based approach to avoid ToList() allocation
-		var count = 0;
+		// Single pass: concurrent producers can grow _messages between two passes, so a count-then-fill
+		// would overflow the array it sized.
+		var candidateList = new List<OutboundMessage>();
 		foreach (var m in _messages.Values)
 		{
 			if (m.Status == OutboxStatus.Staged && m.ScheduledAt.HasValue && m.ScheduledAt.Value <= scheduledBefore)
 			{
-				count++;
+				candidateList.Add(m);
 			}
 		}
 
-		if (count == 0)
+		if (candidateList.Count == 0)
 		{
 			return new ValueTask<IEnumerable<OutboundMessage>>(Array.Empty<OutboundMessage>());
 		}
 
-		var candidates = new OutboundMessage[count];
-		var idx = 0;
-		foreach (var m in _messages.Values)
-		{
-			if (m.Status == OutboxStatus.Staged && m.ScheduledAt.HasValue && m.ScheduledAt.Value <= scheduledBefore)
-			{
-				candidates[idx++] = m;
-			}
-		}
+		var candidates = candidateList.ToArray();
 
 		Array.Sort(candidates, static (a, b) => Nullable.Compare(a.ScheduledAt, b.ScheduledAt));
 

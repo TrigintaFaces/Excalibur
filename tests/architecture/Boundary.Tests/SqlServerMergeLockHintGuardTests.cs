@@ -76,7 +76,17 @@ public sealed class SqlServerMergeLockHintGuardTests
 	/// vacuously: a scan that silently matched nothing (wrong root, renamed provider, MERGE replaced by a
 	/// hand-rolled read-then-write) fails here instead of reporting a clean sweep over an empty set.
 	/// </summary>
-	private const int KnownMergeStatementCount = 21;
+	/// <remarks>
+	/// Lowered 21 -> 20 when the SQL Server snapshot upsert (<c>SaveSnapshotRequest</c>) deliberately stopped
+	/// being a MERGE. Its HOLDLOCK MERGE deadlocked concurrent saves for DIFFERENT aggregates: the clustered
+	/// index is (AggregateType, TenantId) — the full key triple exceeds SQL Server's 900-byte clustered cap —
+	/// so every snapshot of one type and tenant shares one clustered key value, and concurrent inserts each
+	/// held their own primary-key range while waiting on that shared clustered range. It is now a guarded
+	/// UPDATE-then-INSERT, which seeks the primary key under row locks and takes no key-range locks. Counted
+	/// again after the removal: 20 statements across the providers, and that one file was the only SQL Server
+	/// provider source the change touched.
+	/// </remarks>
+	private const int KnownMergeStatementCount = 20;
 
 	[Fact]
 	public void EveryMergeInASqlServerProvider_TakesBothLockHints()

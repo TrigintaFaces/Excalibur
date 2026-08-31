@@ -14,7 +14,7 @@ Dispatch includes Roslyn source generators that enable ahead-of-time (AOT) compi
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.SourceGenerators  # source generators
+  dotnet add package Excalibur.Dispatch  # includes the source generators
   ```
 - Familiarity with [handlers](../handlers.md) and [dependency injection](../core-concepts/dependency-injection.md)
 
@@ -62,7 +62,7 @@ builder.Services.AddGeneratedServices();
 ## Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.SourceGenerators
+dotnet add package Excalibur.Dispatch
 ```
 
 The `[AutoRegister]` attribute is provided by `Excalibur.Dispatch.Abstractions`.

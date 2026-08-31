@@ -81,6 +81,40 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 	#region HandlerRegistrySourceGenerator (8 tests)
 
 	[Fact]
+	public void HandlerRegistry_WithOpenGenericHandlerBase_EmitsNoUnresolvableTypeParameter()
+	{
+		// A generic handler base closes over a type parameter that does not exist at the generated
+		// call site, so emitting it produces CS0246 in every consumer that compiles the output.
+		const string source = """
+			using System;
+			using System.Threading;
+			using System.Threading.Tasks;
+			using Excalibur.Dispatch;
+			using Excalibur.Dispatch.Delivery;
+
+			namespace TestApp
+			{
+			    public class JobResult { }
+			    public abstract class JobHandlerBase<TRequest> : IActionHandler<TRequest, JobResult>
+			        where TRequest : class
+			    {
+			        public Task<JobResult> HandleAsync(TRequest message, CancellationToken cancellationToken)
+			            => Task.FromResult(new JobResult());
+			    }
+			}
+			""";
+
+		var result = RunGenerator<HandlerRegistrySourceGenerator>(source);
+
+		result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+
+		foreach (var tree in result.GeneratedTrees)
+		{
+			tree.GetText().ToString().ShouldNotContain("TRequest", Case.Sensitive);
+		}
+	}
+
+	[Fact]
 	public void HandlerRegistry_WithActionHandler_GeneratesPrecompiledHandlerRegistry()
 	{
 		const string source = """

@@ -305,7 +305,6 @@ Because all packages share the same `Excalibur.*` namespace, you never rewrite e
 | Package | Description |
 |---------|-------------|
 | `Excalibur.Dispatch.Analyzers` | Roslyn analyzers |
-| `Excalibur.Dispatch.SourceGenerators` | Source generators |
 | `Excalibur.Dispatch.LeaderElection.Abstractions` | Leader election abstractions |
 
 </details>

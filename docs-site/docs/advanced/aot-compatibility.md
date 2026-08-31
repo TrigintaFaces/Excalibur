@@ -141,8 +141,8 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Dispatch.SourceGenerators` | N/A | Roslyn source generator (netstandard2.0) |
-| `Excalibur.Dispatch.SourceGenerators.Analyzers` | N/A | Roslyn analyzer (netstandard2.0) |
+| `Excalibur.Dispatch` (bundled generator) | N/A | Roslyn source generator (netstandard2.0) |
+| `Excalibur.Dispatch` (bundled analyzer) | N/A | Roslyn analyzer (netstandard2.0) |
 | `Excalibur.Dispatch.Analyzers` | N/A | Roslyn analyzer (netstandard2.0) |
 
 ---
@@ -366,8 +366,8 @@ To publish an AOT application with Excalibur:
 1. **Verify all referenced packages are AOT-safe** using the matrix above
 2. **Add source generators** to your project:
    ```xml
-   <PackageReference Include="Excalibur.Dispatch.SourceGenerators" />
-   <PackageReference Include="Excalibur.Dispatch.SourceGenerators.Analyzers" />
+   <!-- The generators and DISP analyzers are bundled in Excalibur.Dispatch; no extra reference needed. -->
+   <PackageReference Include="Excalibur.Dispatch" />
    ```
 3. **Create a `JsonSerializerContext`** for your application types (see [Native AOT Guide](native-aot.md#json-serialization))
 4. **Mark handlers with `[AutoRegister]`** for compile-time DI registration

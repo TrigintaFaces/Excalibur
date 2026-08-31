@@ -51,7 +51,8 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 
 	private static HandlerInfo? GetHandlerInfo(GeneratorSyntaxContext context)
 	{
-		if (context.SemanticModel.GetDeclaredSymbol(context.Node) is not INamedTypeSymbol typeSymbol || typeSymbol.IsAbstract)
+		if (context.SemanticModel.GetDeclaredSymbol(context.Node) is not INamedTypeSymbol typeSymbol || typeSymbol.IsAbstract ||
+			typeSymbol.IsGenericType)
 		{
 			return null;
 		}

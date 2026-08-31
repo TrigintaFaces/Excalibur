@@ -340,9 +340,15 @@ jobs:
             $published = $report.PublishedProjects
             $findings = $report.Findings
           }
-          $summary = "AOT coverage gate: REPORT-ONLY, does not fail the build. $declaring declaring projects, $published published/analyzed, $findings findings. Blocking once a clean baseline is established."
+          $summary = "AOT coverage gate: REPORT-ONLY, does not fail the build. Gate exited $exitCode. $declaring declaring projects, $published published/analyzed, $findings findings. Blocking once a clean baseline is established."
           Write-Host "::notice::$summary"
           "## $summary" >> $env:GITHUB_STEP_SUMMARY
+          # The swallow the comment above promises. Without it the step inherits the script's exit
+          # code (GitHub's pwsh shell re-exits $LASTEXITCODE), so a "report-only" step failed the job
+          # on its findings -- which is the one thing it says it cannot do. The exit code is reported
+          # in the notice above rather than discarded; when the FLIP CONDITION is met, delete this
+          # line and the report-only framing together.
+          exit 0
 
       - name: Upload coverage gate results
         if: always()
@@ -384,6 +390,9 @@ jobs:
           pwsh -File ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath ./aot-build-analysis
           $exitCode = $LASTEXITCODE
           Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
+          # Same latent defect as the coverage gate above: the subprocess call does not, on its own,
+          # stop a non-zero $LASTEXITCODE from failing the step. It has only ever exited 0 here.
+          exit 0
 
       - name: Upload analysis report
         if: always()

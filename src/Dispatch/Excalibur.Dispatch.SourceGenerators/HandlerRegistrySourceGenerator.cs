@@ -67,6 +67,15 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 				continue;
 			}
 
+			// Every generated form names these types in a typeof(...) or a cast, so an open generic
+			// or an abstract base emits either a type parameter that does not exist at the generated
+			// call site (CS0246) or an instantiation that cannot be constructed. A generic handler
+			// base is resolved by the runtime path, not the precompiled one.
+			if (classSymbol.IsAbstract || classSymbol.IsStatic || ContainsTypeParameter(classSymbol))
+			{
+				continue;
+			}
+
 			foreach (var iface in classSymbol.AllInterfaces)
 			{
 				if (!iface.IsGenericType)
@@ -87,6 +96,11 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 				var messageType = iface.TypeArguments[0];
 				var responseType = iface.TypeArguments.Length > 1 ? iface.TypeArguments[1] : null;
 
+				if (ContainsTypeParameter(messageType) || (responseType is not null && ContainsTypeParameter(responseType)))
+				{
+					continue;
+				}
+
 				handlers.Add(new HandlerInfo
 				{
 					HandlerType = classSymbol,
@@ -99,6 +113,37 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		}
 
 		return handlers;
+	}
+
+	/// <summary>
+	///     Determines whether a symbol is, or is constructed over, an unsubstituted type parameter.
+	/// </summary>
+	/// <param name="type">The type to inspect.</param>
+	/// <returns><see langword="true" /> when the type cannot be named at a generated call site.</returns>
+	private static bool ContainsTypeParameter(ITypeSymbol type)
+	{
+		switch (type)
+		{
+			case ITypeParameterSymbol:
+				return true;
+
+			case IArrayTypeSymbol array:
+				return ContainsTypeParameter(array.ElementType);
+
+			case INamedTypeSymbol named:
+				foreach (var argument in named.TypeArguments)
+				{
+					if (ContainsTypeParameter(argument))
+					{
+						return true;
+					}
+				}
+
+				return false;
+
+			default:
+				return false;
+		}
 	}
 
 	private void GenerateRegistryClass(SourceProductionContext context, List<HandlerInfo> handlers)

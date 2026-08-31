@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# task-delay-syncwait-gate — block NEW clock dependence in test code.
+# task-delay-syncwait-gate — block clock dependence in test code, against a shrink-only baseline.
 #
 # TWO shapes, because a test comes to depend on the clock in two ways and catching one leaves the
 # other free: a raw `await Task.Delay(...)` sync-wait, and a short deadline on a
@@ -12,42 +12,66 @@
 #   tests/Shared/Tests.Shared/Infrastructure/WaitHelpers.cs (WaitUntilAsync / AwaitSignalAsync)
 # rather than a fixed `await Task.Delay(N)` followed by an assertion.
 #
-# This is the mechanical enforcement companion to the one-time sweep:
-# a documented standard without a gate decays as new tests copy the flaky pattern.
+# DESIGN — WHOLE-TREE SCAN AGAINST A BASELINE, and the diff it replaced is why.
 #
-# DESIGN — diff-based (catches NEW introductions only). Like f5-sweep.sh it inspects the
-# ADDED lines of the change under test (not the whole tree), so the many LEGITIMATE
-# pre-existing Task.Delay uses (perf pacing, work-simulation in fakes, lease-TTL /
-# distinct-timestamp semantics, Task.WhenAny timeout-guards) are grandfathered and only
-# a newly-added raw sync-wait fails the gate.
+#   This gate used to diff HEAD~1...HEAD and flag only NEWLY ADDED lines, so the legitimate
+#   pre-existing uses were grandfathered by the diff itself. That premise holds only where history
+#   is granular. It is not: this workflow also runs on a public mirror whose every push is ONE
+#   SQUASHED RELEASE COMMIT. There HEAD~1 is the PREVIOUS RELEASE, the "added lines" are the whole
+#   release, and the gate reported ~50 long-standing uses as newly added -- 130,524 added lines
+#   examined -- and took the default branch red. Nothing in that list was new.
 #
-# A new Task.Delay in test code is allowed (not flagged) when ANY holds:
+#   A diff-based gate cannot distinguish the grandfathered population from the new one when the
+#   history shape changes underneath it. So the diff is gone. This scans every tests/**/*.cs in the
+#   tree and compares the hits against an enumerated baseline, which is the pattern this repository
+#   already uses in sixteen places (see conformance-fork-gate.sh) and the analyzer-baseline pattern
+#   generally. Its verdict depends on the CONTENT of the tree and on nothing else.
+#
+# A Task.Delay in test code is allowed (not flagged) when ANY holds:
 #   * the file is an allowlisted determinism-infra file (WaitHelpers/TestTiming/
-#     TestTimeouts/ContainerFixtureBase — these legitimately implement the delay);
+#     TestTimeouts/ContainerFixtureBase -- these legitimately implement the delay);
 #   * the file is under tests/performance/** or benchmarks/** (throughput/rate pacing);
-#   * the added line is a comment (// or ///);
-#   * the added line is a Task.WhenAny(..., Task.Delay(...)) timeout-guard (bounded race,
+#   * the line is a comment (// or ///);
+#   * the line is a Task.WhenAny(..., Task.Delay(...)) timeout-guard (bounded race,
 #     not a sync-wait);
-#   * the added line carries the explicit justification pragma `// delay-ok:` (author
-#     asserts a legitimate time-based semantic — e.g. lease-TTL expiry, distinct
-#     timestamps, simulated work — and states the reason).
+#   * the line carries the explicit justification pragma `// delay-ok:` (author
+#     asserts a legitimate time-based semantic -- e.g. lease-TTL expiry, distinct
+#     timestamps, simulated work -- and states the reason);
+#   * the hit is enumerated in eng/ci/task-delay-syncwait.baseline.txt.
+#
+# THE BASELINE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST. An unbaselined hit FAILS on its
+# first appearance; a baseline entry matching no live hit ALSO FAILS and must be removed. So the
+# file can only shrink, and it cannot re-admit a violation under a recycled line.
+#
+# --update-baseline regenerates it from the live tree. That is a DELIBERATE act whose diff is
+# reviewed like any other change -- it is not a way to clear a red.
 #
 # Exit codes:
-#   0  no new raw sync-wait Task.Delay added (or --report-only)
-#   1  new raw sync-wait Task.Delay added without justification (gate fail)
-#   2  usage / environment error
+#   0  PASS    every hit is baselined, no stale entry (or --report-only)
+#   1  FAIL    an unbaselined hit, or a stale baseline entry
+#   2  REFUSE  usage / environment error, or zero files scanned (a gate that scanned nothing
+#              must not report a pass it did not earn)
 #   3  --self-test failed (the gate itself is broken / vacuous)
 #
 # Usage:
-#   task-delay-syncwait-gate.sh [--base <ref>] [--staged] [--working] [--all] [--report-only]
+#   task-delay-syncwait-gate.sh [--report-only]
+#   task-delay-syncwait-gate.sh --update-baseline
 #   task-delay-syncwait-gate.sh --self-test
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
+. "$SCRIPT_DIR/gate-denominator.sh"
+
+# The tree under test is the work tree you are STANDING IN, falling back to this script's own
+# repository. That is what lets the harness lock drive the real gate over throwaway fixture trees
+# without a second code path -- the thing a test exercises should be the thing that ships.
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+BASELINE_DEFAULT="${TDS_BASELINE_OVERRIDE:-$SCRIPT_DIR/task-delay-syncwait.baseline.txt}"
 
 # ---------------------------------------------------------------------------
-# Core (pure, testable) predicate
+# Core (pure, testable) predicates -- UNCHANGED from the diff-based gate. They were argued at
+# length and are correct; only the population they are applied to has changed.
 # ---------------------------------------------------------------------------
 
 # tds_is_allowlisted_file <path>  -> 0 (allowlisted) / 1 (subject to the gate)
@@ -64,17 +88,18 @@ tds_is_allowlisted_file() {
 }
 
 # tds_line_is_violation <line>  -> 0 (a raw sync-wait Task.Delay) / 1 (not)
-# Operates on ONE added code line (without the leading diff '+').
 tds_line_is_violation() {
     local line="$1"
-    # Must contain a Task.Delay( call.
-    printf '%s' "$line" | grep -qE '\bTask\.Delay[[:space:]]*\(' || return 1
+    # Must contain a Task.Delay( call. `(^|[^A-Za-z0-9_])` is the word boundary GNU grep spells `\b`
+    # -- bash's ERE has no `\b`, and these run once per candidate line, so a subprocess apiece cost
+    # six minutes of process spawning on a 5,600-file tree. Same language, no fork.
+    [[ $line =~ (^|[^A-Za-z0-9_])Task\.Delay[[:space:]]*\( ]] || return 1
     # Not a comment line.
-    printf '%s' "$line" | grep -qE '^[[:space:]]*(//|///|\*)' && return 1
+    [[ $line =~ ^[[:space:]]*(//|///|\*) ]] && return 1
     # Not a Task.WhenAny(...Task.Delay...) timeout-guard.
-    printf '%s' "$line" | grep -qE '\bWhenAny\b' && return 1
+    [[ $line =~ (^|[^A-Za-z0-9_])WhenAny([^A-Za-z0-9_]|$) ]] && return 1
     # Not explicitly justified with the delay-ok pragma.
-    printf '%s' "$line" | grep -qE '//[[:space:]]*delay-ok' && return 1
+    [[ $line =~ //[[:space:]]*delay-ok ]] && return 1
     return 0
 }
 
@@ -91,15 +116,14 @@ tds_line_is_violation() {
 # caller. A health-check test inherited a 100ms threshold and was really asserting that the agent
 # had completed a crypto round-trip in a tenth of a second.
 #
-# THE BAR IS FIVE SECONDS, and it is a bar on NEW code only, like the rest of this gate. Under it,
-# say why. Generous bounds are the recommended shape and the majority here already: 58 use 30s.
-# A duration that IS the semantic under test -- a batch timeout, a lease TTL, a rate -- is
-# legitimate and carries the pragma rather than being contorted.
+# THE BAR IS TEN SECONDS. Under it, say why. Generous bounds are the recommended shape and the
+# majority here already: 58 use 30s. A duration that IS the semantic under test -- a batch timeout,
+# a lease TTL, a rate -- is legitimate and carries the pragma rather than being contorted.
 tds_line_is_short_deadline() {
     local line="$1"
-    printf '%s' "$line" | grep -qE 'new CancellationTokenSource\(TimeSpan\.From' || return 1
-    printf '%s' "$line" | grep -qE '^[[:space:]]*(//|///|\*)' && return 1
-    printf '%s' "$line" | grep -qE '//[[:space:]]*deadline-ok' && return 1
+    [[ $line == *"new CancellationTokenSource(TimeSpan.From"* ]] || return 1
+    [[ $line =~ ^[[:space:]]*(//|///|\*) ]] && return 1
+    [[ $line =~ //[[:space:]]*deadline-ok ]] && return 1
     # Milliseconds is always under the bar. Seconds: any SINGLE-DIGIT value.
     #
     # This was below 5, and 5 is exactly what got through. A subscription token carrying
@@ -110,165 +134,187 @@ tds_line_is_short_deadline() {
     # Moving the bound to 5 would only relocate the same argument to 6. Under ten seconds is the
     # line, because the defect is not the specific number: it is an unexplained wall-clock deadline
     # in a test, and anything genuinely deliberate says so with `// deadline-ok:` and passes.
-    printf '%s' "$line" | grep -qE 'TimeSpan\.FromMilliseconds\(' && return 0
-    printf '%s' "$line" | grep -qE 'TimeSpan\.FromSeconds\([0-9]\)' && return 0
+    [[ $line == *"TimeSpan.FromMilliseconds("* ]] && return 0
+    [[ $line =~ TimeSpan\.FromSeconds\([0-9]\) ]] && return 0
     return 1
 }
 
 # ---------------------------------------------------------------------------
-# Diff plumbing
+# Whole-tree scan
 # ---------------------------------------------------------------------------
 
-tds_diff_text() {
-    local mode="$1" base="$2"
-    case "$mode" in
-        committed) git diff "$base...HEAD" -- 'tests/**/*.cs' ;;
-        staged)    git diff --cached        -- 'tests/**/*.cs' ;;
-        working)   git diff                 -- 'tests/**/*.cs' ;;
-        all)
-            git diff "$base...HEAD"  -- 'tests/**/*.cs'
-            git diff --cached        -- 'tests/**/*.cs'
-            git diff                 -- 'tests/**/*.cs'
-            ;;
-    esac 2>/dev/null
+# tds_files <root> -> repo-relative paths of the C# files under tests/.
+# git ls-files, so an untracked scratch file is out of scope: the gate judges committed content.
+tds_files() {
+    ( cd "$1" && git ls-files -- 'tests' 2>/dev/null | grep -E '\.cs$' )
 }
 
-# tds_scan_diff  (stdin: a unified git diff)  -> prints "file:added-line" violations
-# Tracks the current +++ file; for each added ('+', not '+++') line, applies the
-# file allowlist and the line predicate.
-tds_scan_diff() {
-    awk '
-        /^\+\+\+ / {
-            f=$2; sub(/^b\//,"",f); sub(/^\.\//,"",f); next
-        }
-        /^--- / { next }
-        /^\+/ {
-            line=substr($0,2)
-            print f "\x1f" line
-        }
-    ' | while IFS=$'\x1f' read -r file line; do
-        [ -n "$file" ] || continue
-        if tds_is_allowlisted_file "$file"; then continue; fi
-        if tds_line_is_violation "$line"; then
-            printf '%s:%s\n' "$file" "$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//')"
-        elif tds_line_is_short_deadline "$line"; then
-            printf '%s:[deadline] %s\n' "$file" "$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//')"
+# tds_hits <root> -> "path|line-text" for every live violation, DEDUPED.
+#
+# One key covers N byte-identical occurrences in the same file, so six identical `await
+# Task.Delay(50);` in one file are one baseline entry. A line number would be a worse key: it churns
+# on every unrelated edit above it, and the baseline would need regenerating constantly.
+#
+# The grep prefilter is not a second predicate -- it is a strict superset of what the two predicates
+# below can match, so it only decides which lines are worth the (much slower) per-line evaluation.
+tds_hits() {
+    local root="$1" files
+    files="$(tds_files "$root")"
+    [ -n "$files" ] || return 0
+    ( cd "$root" && printf '%s\n' "$files" | tr '\n' '\0' \
+        | xargs -0 grep -HE 'Task\.Delay[[:space:]]*\(|new CancellationTokenSource\(TimeSpan\.From' 2>/dev/null ) \
+    | while IFS= read -r raw; do
+        local file line
+        file="${raw%%:*}"
+        line="${raw#*:}"
+        tds_is_allowlisted_file "$file" && continue
+        if tds_line_is_violation "$line" || tds_line_is_short_deadline "$line"; then
+            printf '%s|%s\n' "$file" "$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
         fi
-    done
+    done | sort -u
+}
+
+tds_baseline_entries() {
+    [ -f "$1" ] || return 0
+    grep -vE '^[[:space:]]*(#|$)' "$1" 2>/dev/null || true
 }
 
 run_gate() {
-    local mode="$1" base="$2" report_only="$3"
+    local root="$1" baseline="$2" report_only="$3"
 
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "task-delay-syncwait-gate: error — not inside a git work tree" >&2
+    if [ -z "$root" ] || ! ( cd "$root" && git rev-parse --is-inside-work-tree >/dev/null 2>&1 ); then
+        echo "task-delay-syncwait-gate: REFUSE — '$root' is not inside a git work tree." >&2
         return 2
     fi
 
-    # The base must exist before it is diffed against. git reports an unknown revision on stderr and
-    # produces no output, and the diff plumbing below sends stderr to /dev/null -- so an unresolvable
-    # base yielded an empty diff, an empty diff yielded no violations, and the gate printed a clean
-    # pass having compared nothing at all. That is the one outcome a gate must never produce: a green
-    # it did not earn. It happens in CI for ordinary reasons, not exotic ones -- a shallow clone that
-    # never fetched the base, a force-push that orphaned it, a deleted branch.
-    #
-    # An unresolvable base is therefore a REFUSAL, not a pass and not a violation: nothing was
-    # measured, so there is nothing to report either way. Only the modes that consume the base are
-    # checked; --staged and --working diff against the index and the work tree and never touch it.
-    case "$mode" in
-        committed|all)
-            if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null 2>&1; then
-                echo "task-delay-syncwait-gate: REFUSE — base '$base' does not resolve to a commit." >&2
-                echo "  NOTHING was compared. This is not a pass: the gate could not run, which is a" >&2
-                echo "  different outcome from running and finding nothing." >&2
-                echo "  Usually a shallow clone (try: git fetch --unshallow, or fetch-depth: 0 in CI), a" >&2
-                echo "  force-push that orphaned the ref, or a deleted branch." >&2
-                return 2
-            fi
-            ;;
-    esac
+    local files file_count line_count hits baselined
+    files="$(tds_files "$root")"
+    file_count="$(printf '%s' "$files" | grep -c . || true)"
 
-    local hits diff_text added
-    diff_text="$(tds_diff_text "$mode" "$base")"
-    hits="$(printf '%s
-' "$diff_text" | tds_scan_diff)"
+    echo "=== task-delay sync-wait gate (whole-tree scan vs baseline) ==="
 
-    echo "=== task-delay sync-wait gate (mode=$mode, base=$base) ==="
-    # The DENOMINATOR — how many ADDED lines this invocation actually inspected. The population here
-    # is a diff, so zero is legitimate (a change touching no test code adds nothing to inspect) and
-    # the may-be-empty form is used deliberately rather than by omission. It still prints, because a
-    # clean verdict over zero added lines and a clean verdict over four hundred are different facts
-    # and the reader cannot otherwise tell them apart.
-    added="$(printf '%s
-' "$diff_text" | grep -c '^+' || true)"
-    case "$added" in ''|*[!0-9]*) added=0 ;; esac
-    gate_denominator_may_be_empty "$added" "added diff line(s)"
-    if [ -z "$hits" ]; then
-        echo "✅ No NEW sync-wait or short deadline added in test code. Determinism gate clean."
-        return 0
+    # The DENOMINATOR. Unlike the diff this replaced, the population here is the TREE, so a zero is
+    # never legitimate -- it means the path, the pathspec, or the repository changed underneath the
+    # gate, and a clean verdict over nothing is the one outcome a gate must never produce.
+    GATE_NAME="task-delay-syncwait-gate" gate_denominator "$file_count" "tests/**/*.cs file(s) scanned" || return 2
+
+    line_count="$( ( cd "$root" && printf '%s\n' "$files" | tr '\n' '\0' | xargs -0 cat 2>/dev/null ) | wc -l | tr -d ' ' )"
+    echo "EXAMINED: $line_count line(s) of test code"
+
+    hits="$(tds_hits "$root")"
+    baselined="$(tds_baseline_entries "$baseline")"
+
+    # Set difference in both directions, one pass each: -F -x -v is "fixed strings, whole line,
+    # inverted", so the first is exactly the hits matching no baseline entry and the second the
+    # entries matching no hit. An empty pattern file matches nothing, which reports everything --
+    # correct in both directions (no baseline => every hit is new; no hits => every entry is stale).
+    local tmp_h tmp_b unbaselined stale
+    tmp_h="$(mktemp)"; tmp_b="$(mktemp)"
+    printf '%s\n' "$hits"      | grep -v '^$' > "$tmp_h"
+    printf '%s\n' "$baselined" | grep -v '^$' > "$tmp_b"
+    unbaselined="$(grep -Fxv -f "$tmp_b" "$tmp_h" || true)"
+    stale="$(grep -Fxv -f "$tmp_h" "$tmp_b" || true)"
+    rm -f "$tmp_h" "$tmp_b"
+
+    local rc=0
+    if [ -n "$unbaselined" ]; then
+        rc=1
+        echo "❌ FAIL — clock dependence in test code that is not in the baseline:"
+        printf '%s\n' "$unbaselined" | sed 's/^/    /'
+        echo ""
+        echo "Tests MUST NOT synchronize on a fixed wall-clock delay before asserting a background"
+        echo "condition (flaky under CI thread-pool starvation). Poll the real condition via"
+        echo "  Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync / AwaitSignalAsync"
+        echo "with a generous bounded timeout. See docs/testing/async-test-standards.md."
+        echo ""
+        echo "A CancellationTokenSource hit is a deadline the test must finish inside. Prefer a"
+        echo "generous bound (30s is the shape most of this repo uses) or, better, cancel on the EVENT"
+        echo "you are waiting for rather than after a duration. If the duration IS the semantic under"
+        echo "test, say so:"
+        echo "    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50)); // deadline-ok: the batch timeout under test"
+        echo ""
+        echo "If this Task.Delay is a LEGITIMATE time-based semantic (lease-TTL expiry, distinct"
+        echo "timestamps, simulated work in a fake, throughput pacing), append a justification:"
+        echo "    await Task.Delay(50); // delay-ok: distinct-timestamp ordering, not a sync-wait"
+        echo ""
+        echo "The lines above are printed in baseline key form (<path>|<line>) so an ACKNOWLEDGED"
+        echo "debt can be pasted into $(basename "$baseline") -- but removing the line is the fix."
+    fi
+    if [ -n "$stale" ]; then
+        rc=1
+        echo "❌ FAIL — stale baseline entries: these match no live hit and must be REMOVED." >&2
+        printf '%s\n' "$stale" | sed 's/^/    /' >&2
+        echo "A baseline that keeps dead entries can re-admit a violation under a recycled line." >&2
     fi
 
-    echo "❌ NEW clock dependence added in test code (sync-wait, or a [deadline] under five seconds):"
-    printf '%s\n' "$hits" | sed 's/^/    /'
-    echo ""
-    echo "Tests MUST NOT synchronize on a fixed wall-clock delay before asserting a background"
-    echo "condition (flaky under CI thread-pool starvation). Poll the real condition via"
-    echo "  Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync / AwaitSignalAsync"
-    echo "with a generous bounded timeout. See docs/testing/async-test-standards.md."
-    echo ""
-    echo "A [deadline] line is a CancellationTokenSource the test must finish inside. Prefer a"
-echo "generous bound (30s is the shape most of this repo uses) or, better, cancel on the EVENT"
-echo "you are waiting for rather than after a duration. If the duration IS the semantic under"
-echo "test, say so:"
-echo "    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50)); // deadline-ok: the batch timeout under test"
-echo ""
-echo "If this Task.Delay is a LEGITIMATE time-based semantic (lease-TTL expiry, distinct"
-    echo "timestamps, simulated work in a fake, throughput pacing), append a justification:"
-    echo "    await Task.Delay(50); // delay-ok: distinct-timestamp ordering, not a sync-wait"
+    if [ "$rc" -eq 0 ]; then
+        local n
+        n="$(printf '%s' "$hits" | grep -c . || true)"
+        echo "✅ PASS — $n baselined hit(s); no new clock dependence, no stale entry."
+    fi
 
     [ "$report_only" = "1" ] && return 0
-    return 1
+    return "$rc"
+}
+
+update_baseline() {
+    local root="$1" baseline="$2" hits
+    hits="$(tds_hits "$root")"
+    { cat <<'HDR'
+# Clock dependence in test code that exists TODAY -- one entry per distinct violating line.
+#
+# Read eng/ci/task-delay-syncwait-gate.sh for why this file exists. In short: a test that
+# synchronizes on a fixed `await Task.Delay(N)` before asserting a background condition, or gives
+# itself a sub-ten-second CancellationTokenSource deadline to beat, is racing the CI runner. Under
+# thread-pool starvation it loses and reports working code as broken.
+#
+# THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
+#   - A hit NOT listed here is a FAIL on its first appearance.
+#   - An entry listed here that matches no live hit is ALSO a FAIL -- remove it.
+# So the list can only shrink. Removing a line is the fix; adding one should be argued, not assumed.
+#
+# THE FIX for an entry is to DELETE THE LINE IT NAMES: poll the real condition with
+# Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync under a generous bounded timeout, or widen
+# the deadline. Where the duration genuinely IS the semantic under test (a lease TTL, a batch
+# timeout, distinct timestamps, simulated work), say so on the line with `// delay-ok:` or
+# `// deadline-ok:` -- the predicates honor both, and the entry then leaves this file for free.
+#
+# FORMAT: <repo-relative-path>|<the line, leading and trailing whitespace stripped>
+#
+# ENTRIES ARE DEDUPED. One entry covers every byte-identical occurrence of that line in that file,
+# which is why six identical `await Task.Delay(50);` calls in one file appear here once. A line
+# number would have been a worse key: it churns on every unrelated edit above it.
+#
+# Regenerate with `task-delay-syncwait-gate.sh --update-baseline`. That is a DELIBERATE act whose
+# diff is reviewed like any other change -- never a way to clear a red.
+HDR
+      printf '%s\n' "$hits"
+    } > "$baseline"
+    echo "wrote $(printf '%s' "$hits" | grep -c . || true) entry(ies) to $baseline"
 }
 
 # ---------------------------------------------------------------------------
-# Self-test (non-vacuous: MUST flag a planted sync-wait, MUST ignore the allowlist)
+# Self-test -- predicate arms, plus whole-tree arms over real temp fixture repositories.
 # ---------------------------------------------------------------------------
 
 self_test() {
     local pass=1
 
     # --- Predicate: line classification ------------------------------------
-    # MUST flag a bare sync-wait.
     if ! tds_line_is_violation '            await Task.Delay(1000);'; then
         echo "self-test FAIL: did not flag a bare 'await Task.Delay(1000);' sync-wait" >&2; pass=0
     fi
-    # MUST ignore a WhenAny timeout-guard.
     if tds_line_is_violation '  var c = await Task.WhenAny(task, Task.Delay(timeout));'; then
         echo "self-test FAIL: flagged a Task.WhenAny(...Task.Delay...) timeout-guard" >&2; pass=0
     fi
-    # MUST ignore a comment line.
     if tds_line_is_violation '        // await Task.Delay(200) replaced with poll'; then
         echo "self-test FAIL: flagged a comment line mentioning Task.Delay" >&2; pass=0
     fi
-    # MUST ignore an explicitly justified line.
     if tds_line_is_violation '        await Task.Delay(10); // delay-ok: distinct timestamps'; then
         echo "self-test FAIL: flagged a line carrying the // delay-ok justification pragma" >&2; pass=0
     fi
-    # MUST ignore a line with no Task.Delay at all.
     if tds_line_is_violation '        var found = await WaitHelpers.WaitUntilAsync(() => x, t);'; then
         echo "self-test FAIL: flagged a line with no Task.Delay" >&2; pass=0
-    fi
-
-    # --- Base resolution: an unresolvable base must REFUSE, never pass -----
-    # No set -e here, so the non-zero return is captured rather than fatal.
-    local base_rc
-    run_gate "all" "0000000000000000000000000000000000000000" "0" >/dev/null 2>&1
-    base_rc=$?
-    if [ "$base_rc" -ne 2 ]; then
-        echo "self-test FAIL: an unresolvable base returned $base_rc, expected 2 (REFUSE)." >&2
-        echo "                A gate that cannot resolve its base has compared nothing, so a clean" >&2
-        echo "                verdict from it is a green it did not earn." >&2
-        pass=0
     fi
 
     # --- Predicate: short wall-clock deadlines -----------------------------
@@ -278,14 +324,12 @@ self_test() {
     if ! tds_line_is_short_deadline '  var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));'; then
         echo "self-test FAIL: did not flag a 2s deadline" >&2; pass=0
     fi
-    # The one that got through: 5s was one second outside the old bound and it took main red.
     if ! tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));'; then
         echo "self-test FAIL: did not flag the 5s deadline that escaped the previous bound" >&2; pass=0
     fi
     if ! tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(9));'; then
         echo "self-test FAIL: did not flag a 9s deadline (single-digit seconds is the bar)" >&2; pass=0
     fi
-    # LIVENESS at the boundary: ten seconds and above must still pass, or the bar is meaningless.
     if tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));'; then
         echo "self-test FAIL: flagged a 10s deadline; the bar is single-digit seconds, not all seconds" >&2; pass=0
     fi
@@ -316,45 +360,85 @@ self_test() {
         echo "self-test FAIL: a normal unit test file was wrongly allowlisted" >&2; pass=0
     fi
 
-    # --- Whole-diff scan: planted violation + grandfathered allowlist ------
-    local diff_fixture scan
-    diff_fixture="$(cat <<'EOF'
-diff --git a/tests/unit/Excalibur.Foo.Tests/NewFlakyShould.cs b/tests/unit/Excalibur.Foo.Tests/NewFlakyShould.cs
---- a/tests/unit/Excalibur.Foo.Tests/NewFlakyShould.cs
-+++ b/tests/unit/Excalibur.Foo.Tests/NewFlakyShould.cs
-@@ -1,3 +1,5 @@
-     await svc.StartAsync(ct);
-+        await Task.Delay(500);
-+        result.ShouldBe(1);
-diff --git a/tests/performance/Perf/PacingShould.cs b/tests/performance/Perf/PacingShould.cs
---- a/tests/performance/Perf/PacingShould.cs
-+++ b/tests/performance/Perf/PacingShould.cs
-@@ -1,2 +1,3 @@
-+        await Task.Delay(100); // throughput pacing
-diff --git a/tests/unit/Excalibur.Foo.Tests/JustifiedShould.cs b/tests/unit/Excalibur.Foo.Tests/JustifiedShould.cs
---- a/tests/unit/Excalibur.Foo.Tests/JustifiedShould.cs
-+++ b/tests/unit/Excalibur.Foo.Tests/JustifiedShould.cs
-@@ -1,2 +1,3 @@
-+        await Task.Delay(10); // delay-ok: distinct timestamps
-EOF
-)"
-    scan="$(printf '%s\n' "$diff_fixture" | tds_scan_diff)"
+    # --- Whole-tree arms over real fixture repositories --------------------
+    local tmp
+    tmp="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmp'" RETURN
 
-    # MUST flag the planted unit-test sync-wait.
-    if ! printf '%s\n' "$scan" | grep -q 'tests/unit/Excalibur.Foo.Tests/NewFlakyShould.cs'; then
-        echo "self-test FAIL: whole-diff scan did not flag the planted sync-wait in NewFlakyShould.cs" >&2; pass=0
-    fi
-    # MUST NOT flag the tests/performance addition (allowlisted dir).
-    if printf '%s\n' "$scan" | grep -q 'tests/performance/'; then
-        echo "self-test FAIL: whole-diff scan flagged a tests/performance addition (allowlisted)" >&2; pass=0
-    fi
-    # MUST NOT flag the justified addition.
-    if printf '%s\n' "$scan" | grep -q 'JustifiedShould.cs'; then
-        echo "self-test FAIL: whole-diff scan flagged a // delay-ok justified addition" >&2; pass=0
-    fi
+    tds_mkrepo() { # tds_mkrepo <dir>  -- commit whatever is there, so git ls-files sees it
+        ( cd "$1" && git init -q && git config user.email t@t.local && git config user.name t \
+            && git add -A && git commit -qm fixture ) >/dev/null 2>&1
+    }
+    arm() { # arm <name> <want-rc> <root> [baseline]
+        local name="$1" want="$2" root="$3" got
+        run_gate "$root" "${4:-/nonexistent-baseline}" "0" >/dev/null 2>&1
+        got=$?
+        if [ "$got" -ne "$want" ]; then
+            echo "self-test FAIL: $name — expected exit $want, got $got" >&2
+            pass=0
+        fi
+    }
+
+    local sw="$tmp/syncwait" dl="$tmp/deadline" clean="$tmp/clean" perf="$tmp/perf" empty="$tmp/empty"
+    local sw_line='public class BarShould { public async Task T() { await Task.Delay(1234); r.ShouldBe(1); } }'
+
+    # LIVENESS 1 — an unbaselined planted sync-wait FAILS.
+    mkdir -p "$sw/tests/unit/Foo.Tests"
+    printf '%s\n' "$sw_line" > "$sw/tests/unit/Foo.Tests/BarShould.cs"
+    tds_mkrepo "$sw"
+    arm "an unbaselined sync-wait FAILS" 1 "$sw"
+
+    # LIVENESS 2 — an unbaselined planted short CTS deadline FAILS.
+    mkdir -p "$dl/tests/unit/Foo.Tests"
+    printf 'public class BarShould { public async Task T() { using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)); } }\n' \
+        > "$dl/tests/unit/Foo.Tests/BarShould.cs"
+    tds_mkrepo "$dl"
+    arm "an unbaselined 3s CancellationTokenSource deadline FAILS" 1 "$dl"
+
+    # SAFETY 3 — the SAME tree PASSES once the hit is baselined.
+    printf 'tests/unit/Foo.Tests/BarShould.cs|%s\n' "$sw_line" > "$tmp/bl.txt"
+    arm "a baselined hit PASSES" 0 "$sw" "$tmp/bl.txt"
+
+    # RATCHET 4 — a baseline entry matching no live hit FAILS.
+    { printf 'tests/unit/Foo.Tests/BarShould.cs|%s\n' "$sw_line"
+      printf 'tests/unit/Foo.Tests/GhostShould.cs|await Task.Delay(999);\n'; } > "$tmp/bl2.txt"
+    arm "a stale baseline entry FAILS" 1 "$sw" "$tmp/bl2.txt"
+
+    # SAFETY 5 — pragma / WhenAny / comment / generous-bound PASS with NO baseline at all.
+    mkdir -p "$clean/tests/unit/Foo.Tests"
+    cat > "$clean/tests/unit/Foo.Tests/BarShould.cs" <<'EOF'
+public class BarShould
+{
+    public async Task T()
+    {
+        await Task.Delay(10); // delay-ok: distinct timestamps
+        var c = await Task.WhenAny(work, Task.Delay(timeout));
+        // await Task.Delay(200) replaced with a poll
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var found = await WaitHelpers.WaitUntilAsync(() => ready, t);
+    }
+}
+EOF
+    tds_mkrepo "$clean"
+    arm "pragma / WhenAny / comment / generous-bound PASS with an empty baseline" 0 "$clean"
+
+    # SAFETY 6 — an allowlisted directory is exempt even carrying a bare sync-wait.
+    mkdir -p "$perf/tests/performance/Perf" "$perf/tests/unit/Foo.Tests"
+    printf 'public class PacingShould { public async Task T() { await Task.Delay(100); } }\n' \
+        > "$perf/tests/performance/Perf/PacingShould.cs"
+    printf 'public class OkShould { }\n' > "$perf/tests/unit/Foo.Tests/OkShould.cs"
+    tds_mkrepo "$perf"
+    arm "a bare sync-wait under tests/performance/** is allowlisted, PASSES" 0 "$perf"
+
+    # VACUITY 7 — a tree with no test files at all must REFUSE(2), never PASS(0).
+    mkdir -p "$empty"
+    printf 'root\n' > "$empty/README.md"
+    tds_mkrepo "$empty"
+    arm "zero files scanned REFUSES with exit 2 (a scan of nothing is not a pass)" 2 "$empty"
 
     if [ "$pass" -eq 1 ]; then
-        echo "✅ task-delay-syncwait-gate self-test PASSED (flags planted sync-wait AND short deadline; ignores allowlist/perf/pragma/WhenAny/comment/generous-bound; REFUSES an unresolvable base)."
+        echo "✅ task-delay-syncwait-gate self-test PASSED (flags an unbaselined sync-wait AND short deadline; honors the baseline; FAILS a stale entry; ignores allowlist/perf/pragma/WhenAny/comment/generous-bound; REFUSES a scan of zero files)."
         return 0
     fi
     echo "❌ task-delay-syncwait-gate self-test FAILED." >&2
@@ -365,29 +449,20 @@ EOF
 # CLI
 # ---------------------------------------------------------------------------
 
-usage() { sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'; }
 
 main() {
-    local mode="committed" base="" report_only="0"
+    local report_only="0"
     while [ $# -gt 0 ]; do
         case "$1" in
-            --self-test) self_test; exit $? ;;
-            --base)      base="$2"; shift 2 ;;
-            --committed) mode="committed"; shift ;;
-            --staged)    mode="staged"; shift ;;
-            --working)   mode="working"; shift ;;
-            --all)       mode="all"; shift ;;
-            --report-only) report_only="1"; shift ;;
-            -h|--help)   usage; exit 0 ;;
-            *) echo "task-delay-syncwait-gate: unknown arg '$1'" >&2; usage; exit 2 ;;
+            --self-test)       self_test; exit $? ;;
+            --update-baseline) update_baseline "$REPO_ROOT" "$BASELINE_DEFAULT"; exit $? ;;
+            --report-only)     report_only="1"; shift ;;
+            -h|--help)         usage; exit 0 ;;
+            *) echo "task-delay-syncwait-gate: REFUSE — unknown arg '$1'" >&2; usage; exit 2 ;;
         esac
     done
-
-    if [ -z "$base" ]; then
-        base="$(git rev-parse HEAD~1 2>/dev/null || echo HEAD)"
-    fi
-
-    run_gate "$mode" "$base" "$report_only"
+    run_gate "$REPO_ROOT" "$BASELINE_DEFAULT" "$report_only"
     exit $?
 }
 

@@ -14,7 +14,7 @@ Excalibur provides first-class Native AOT support through source generators that
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
+  dotnet add package Excalibur.Dispatch
   ```
 - Familiarity with [source generators](../source-generators/getting-started.md) and [deployment patterns](../deployment/aspnet-core.md)
 
@@ -109,7 +109,7 @@ Expected: zero IL2XXX/IL3XXX trimming or AOT warnings.
 
 ## What Gets Generated
 
-When you build with `Excalibur.Dispatch.SourceGenerators` referenced, the following compile-time code is produced:
+When you build with `Excalibur.Dispatch` referenced, its bundled generators produce the following compile-time code:
 
 ### Handler Factory (`PrecompiledHandlerRegistry.g.cs`)
 
@@ -443,7 +443,7 @@ services.AddKafkaTransport("kafka", builder => { ... });
 
 If you see trimming warnings:
 
-1. Ensure `Excalibur.Dispatch.SourceGenerators` is referenced
+1. Ensure `Excalibur.Dispatch` is referenced
 2. Check that handlers have `[AutoRegister]` attribute
 3. Add `[DynamicallyAccessedMembers]` to custom reflection-heavy code
 4. Verify `TrimmerRoots.xml` is included in your project

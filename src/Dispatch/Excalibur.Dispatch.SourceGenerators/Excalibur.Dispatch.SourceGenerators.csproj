@@ -1,7 +1,14 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- NOT a standalone package. The generator reaches consumers ONE way: bundled into
+         Excalibur.Dispatch at analyzers/dotnet/cs, the same discipline Excalibur.Data.Analyzers
+         follows inside Excalibur.Data.Abstractions. Shipping it standalone too gave the generator
+         two delivery paths, so a consumer referencing both packages ran it twice in one
+         compilation and every generated type collided (CS0101). Standalone was not a working
+         alternative either: the emitted code references Excalibur.Dispatch types and the package
+         declared no dependency on Excalibur.Dispatch, so on its own it failed with CS0234/CS0246. -->
+    <IsPackable>false</IsPackable>
     <!-- Source generators MUST target netstandard2.0 only - override multi-targeting from Directory.Build.props -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
@@ -55,11 +62,5 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
-    <None Include="build\Dispatch.SourceGenerators.props" Pack="true" PackagePath="build/Excalibur.Dispatch.SourceGenerators.props" />
-    <None Include="build\Dispatch.SourceGenerators.targets" Pack="true" PackagePath="build/Excalibur.Dispatch.SourceGenerators.targets" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

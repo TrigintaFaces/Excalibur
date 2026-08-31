@@ -313,11 +313,11 @@ using Excalibur.EventSourcing;     // Event sourcing
 
 **Problem:** `AddGeneratedServices()` method not found after conversion
 
-**Solution:** Add the source generators package:
+**Solution:** Reference `Excalibur.Dispatch`, which carries the source generators:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Excalibur.Dispatch.SourceGenerators" Version="1.0.0" />
+  <PackageReference Include="Excalibur.Dispatch" Version="10.0.0" />
 </ItemGroup>
 ```
 

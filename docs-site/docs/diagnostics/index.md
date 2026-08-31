@@ -29,16 +29,16 @@ shim. The `EXMIG####` range does not overlap with `DISP###`.
 
 ## Installation
 
-The analyzers are included automatically when you reference `Excalibur.Dispatch.SourceGenerators.Analyzers`:
+The analyzers are included automatically when you reference `Excalibur.Dispatch`:
 
 ```bash
-dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
+dotnet add package Excalibur.Dispatch
 ```
 
 Or use the combined source generators package which includes analyzers:
 
 ```bash
-dotnet add package Excalibur.Dispatch.SourceGenerators
+dotnet add package Excalibur.Dispatch
 ```
 
 ## Suppressing Diagnostics

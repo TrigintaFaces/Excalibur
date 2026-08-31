@@ -69,7 +69,7 @@ public sealed class MessageResultExtractorGenerator : IIncrementalGenerator
 	private static ResultTypeInfo? GetResultTypeFromDispatchAction(GeneratorSyntaxContext context)
 	{
 		var symbol = context.SemanticModel.GetDeclaredSymbol(context.Node);
-		if (symbol is not INamedTypeSymbol typeSymbol)
+		if (symbol is not INamedTypeSymbol typeSymbol || typeSymbol.IsGenericType)
 		{
 			return null;
 		}

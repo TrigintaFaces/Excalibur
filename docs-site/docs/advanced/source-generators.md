@@ -13,7 +13,7 @@ Dispatch includes Roslyn source generators that enable ahead-of-time (AOT) compi
 - **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
+  dotnet add package Excalibur.Dispatch
   ```
 - Familiarity with [dependency injection](../core-concepts/dependency-injection.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
@@ -39,7 +39,7 @@ Source generators are Roslyn compiler extensions that analyze your code during c
 
 ### Generator Inventory
 
-The principal generators in the `Excalibur.Dispatch.SourceGenerators` package are:
+The principal generators bundled in the `Excalibur.Dispatch` package are:
 
 | Generator | Purpose | Output File |
 |-----------|---------|-------------|
@@ -63,7 +63,7 @@ complete generator-to-output-file inventory, see
 ## Installation
 
 ```bash
-dotnet add package Excalibur.Dispatch.SourceGenerators
+dotnet add package Excalibur.Dispatch
 ```
 
 The generators run automatically during compilation - no additional configuration required.
@@ -616,7 +616,7 @@ See `tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Generators/Integration
 **Symptoms:** No generated files, handlers not discovered
 
 **Solutions:**
-1. Ensure `Excalibur.Dispatch.SourceGenerators` package is referenced
+1. Ensure the `Excalibur.Dispatch` package is referenced
 2. Clean and rebuild the solution
 3. Check for analyzer errors in build output
 4. Verify handler interfaces are from `Excalibur.Dispatch.Delivery`

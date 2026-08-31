@@ -447,14 +447,19 @@ public sealed class SqlServerRequestsShould
 	#region SaveSnapshotRequest
 
 	[Fact]
-	public void SaveSnapshotRequest_CreateSuccessfully_WithValidParameters()
+	public void SaveSnapshotRequest_TargetTheSnapshotTable()
 	{
 		var snapshot = CreateFakeSnapshot();
 
 		var request = new SaveSnapshotRequest(snapshot, TenantScope.Untenanted, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("MERGE INTO [dbo].[EventStoreSnapshots] WITH (HOLDLOCK, ROWLOCK, UPDLOCK)");
+		request.Command.CommandText.ShouldContain("[dbo].[EventStoreSnapshots]");
+
+		// The upsert must NOT be a MERGE. A MERGE here took key-range locks on a clustered index keyed
+		// (AggregateType, TenantId), so concurrent saves for DIFFERENT aggregates deadlocked and nothing
+		// retried them. A revert to that shape must go red here.
+		request.Command.CommandText.ShouldNotContain("MERGE", Case.Insensitive);
 	}
 
 	[Fact]
@@ -464,10 +469,20 @@ public sealed class SqlServerRequestsShould
 
 		var request = new SaveSnapshotRequest(snapshot, TenantScope.Untenanted, Ct);
 
-		request.Command.CommandText.ShouldContain("WHEN MATCHED AND source.Version > target.Version THEN");
-		request.Command.CommandText.ShouldContain("UPDATE SET");
-		request.Command.CommandText.ShouldContain("WHEN NOT MATCHED THEN");
-		request.Command.CommandText.ShouldContain("INSERT");
+		var sql = request.Command.CommandText;
+
+		// Monotonicity: a lower-versioned snapshot must not overwrite a higher one.
+		sql.ShouldContain("[Version] < @Version");
+
+		// Insert only when the update matched nothing, and only when no row is already there.
+		sql.ShouldContain("UPDATE");
+		sql.ShouldContain("@@ROWCOUNT = 0");
+		sql.ShouldContain("NOT EXISTS");
+		sql.ShouldContain("INSERT INTO");
+
+		// The concurrent-insert race converges by re-running the guarded update on a duplicate key.
+		sql.ShouldContain("2627");
+		sql.ShouldContain("2601");
 	}
 
 	[Fact]

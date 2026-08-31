@@ -140,9 +140,19 @@
     <ValidateShippingMetadata Condition="'$(ValidateShippingMetadata)' == ''">true</ValidateShippingMetadata>
   </PropertyGroup>
 
+  <!--
+       IsPackable=false is part of the condition because this target validates NUGET PACKAGE metadata,
+       and a non-packable project produces no package for that metadata to appear in. The target hangs
+       off BeforeTargets="Pack", and Pack still RUNS on a non-packable project; it short-circuits
+       inside, after this target has already fired. So a project that deliberately ships bundled
+       inside another package (an analyzer carried in its owner's analyzers/dotnet/cs folder) was
+       failing the release rehearsal for lacking a Description that nothing would ever read. This
+       cannot exempt anything that genuinely packs, because a shipping project leaves IsPackable at
+       its default and the empty case is treated as packable.
+  -->
   <Target Name="ValidateShippingProjectMetadata"
           BeforeTargets="Pack"
-          Condition="'$(IsShippingProject)' == 'true' And '$(ValidateShippingMetadata)' == 'true'">
+          Condition="'$(IsShippingProject)' == 'true' And '$(ValidateShippingMetadata)' == 'true' And '$(IsPackable)' != 'false'">
 
     <!-- AD-325-2: Validate Description is set for shipping projects -->
     <Error Condition="'$(Description)' == ''"

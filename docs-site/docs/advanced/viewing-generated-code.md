@@ -13,7 +13,7 @@ Source generators produce code at compile time. This guide explains how to view 
 - **.NET 10.0**
 - A project using Excalibur.Dispatch source generators:
   ```bash
-  dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
+  dotnet add package Excalibur.Dispatch
   ```
 - Familiarity with [source generators](../source-generators/getting-started.md)
 
@@ -211,7 +211,7 @@ Dispatch uses incremental generators that only regenerate when relevant source c
 
 1. **Check package reference:**
    ```xml
-   <PackageReference Include="Excalibur.Dispatch.SourceGenerators" Version="..." OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+   <PackageReference Include="Excalibur.Dispatch" Version="..." />
    ```
 
 2. **Clean and rebuild:**

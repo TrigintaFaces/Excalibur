@@ -1,0 +1,11 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- The handler/pipeline generator bundled in this package's analyzers/dotnet/cs folder emits
+         [InterceptsLocation] members in Excalibur.Dispatch.Generated. Interceptors require the
+         namespace to be opted in explicitly, so consuming projects get the opt-in here rather than
+         having to know about it. -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+</Project>

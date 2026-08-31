@@ -352,11 +352,18 @@ jobs:
       - name: architecture-evidence-gate
         run: bash eng/ci/architecture-evidence-gate.sh
 
-      # BLOCKING — a raw `await Task.Delay(...)` sync-wait newly added to test code is a non-deterministic
-      # wall-clock dependency (poll a condition with a bounded timeout instead). Whole-tree scan; passes
-      # clean on committed content today. fetch-depth: 0 (above) gives it the history it diffs against.
+      # BLOCKING — a raw `await Task.Delay(...)` sync-wait in test code, or a sub-ten-second
+      # CancellationTokenSource deadline, is a non-deterministic wall-clock dependency (poll a condition
+      # with a bounded timeout instead).
+      #
+      # NOT diff-based. It scans every tests/**/*.cs in the tree and compares the hits against the
+      # shrink-only baseline in eng/ci/task-delay-syncwait.baseline.txt, so its verdict depends on the
+      # content of the tree and on nothing else. Do not reintroduce the diff: this workflow also runs on
+      # a mirror whose every push is one squashed release commit, where HEAD~1 is the previous RELEASE —
+      # there the "added lines" are the entire release, and the diff form reported ~50 long-standing uses
+      # as newly added across 130,524 added lines and took the default branch red.
       - name: task-delay-syncwait-gate
-        run: bash eng/ci/task-delay-syncwait-gate.sh --all
+        run: bash eng/ci/task-delay-syncwait-gate.sh
 
       # ADVISORY pending cleanup — a .ValidateOnStart() with no IValidateOptions<T>/ValidateDataAnnotations
       # validator validates nothing (false-safety). There are pre-existing chains in src/ tracked for fix;

@@ -39,6 +39,9 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 	/// </remarks>
 	private const int MinimumCurveSizeInBits = 256;
 
+	// Some platforms (macOS/CoreCrypto) refuse to import a sub-minimum curve at all, raising
+	// PlatformNotSupportedException before the floor below is ever reached. Both catch blocks funnel it
+	// into the same signing/verification failure so a weak key is refused identically everywhere.
 	private static void RejectCurvesBelowTheMinimum(ECDsa ecdsa)
 	{
 		if (ecdsa.KeySize < MinimumCurveSizeInBits)
@@ -73,7 +76,7 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 				DSASignatureFormat.Rfc3279DerSequence);
 			return Task.FromResult(signature);
 		}
-		catch (CryptographicException ex)
+		catch (Exception ex) when (ex is CryptographicException or PlatformNotSupportedException)
 		{
 			throw new SigningException(
 				"ECDSA signing failed. Verify that the key material is a valid PKCS#8 private key on a "
@@ -102,7 +105,7 @@ public sealed class EcdsaSignatureAlgorithmProvider : ISignatureAlgorithmProvide
 				DSASignatureFormat.Rfc3279DerSequence);
 			return Task.FromResult(result);
 		}
-		catch (CryptographicException ex)
+		catch (Exception ex) when (ex is CryptographicException or PlatformNotSupportedException)
 		{
 			throw new VerificationException(
 				"ECDSA verification failed. Verify that the key material is a valid SubjectPublicKeyInfo on a "

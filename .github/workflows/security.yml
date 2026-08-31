@@ -326,12 +326,16 @@ jobs:
       - name: Run dependency audit
         shell: pwsh
         run: |
+          # -MaxProjects is a RUNAWAY guard and must sit ABOVE the src/ population, not level
+          # with it: a cap EQUAL to the population breaches the moment one project is added.
+          # src/ held 201 when this went red at 200. nightly.yml already used 400; this is the
+          # sibling that was not updated with it.
           ./eng/ci/dependency-audit.ps1 `
             -OutDir management/reports/DependencyAuditReport `
             -ProjectRoot src `
             -PerProjectTimeoutSeconds 120 `
             -TotalBudgetMinutes 30 `
-            -MaxProjects 200 `
+            -MaxProjects 400 `
             -FailOnGuardrailBreach
 
       - name: Enforce vulnerability policy (allowlist optional)

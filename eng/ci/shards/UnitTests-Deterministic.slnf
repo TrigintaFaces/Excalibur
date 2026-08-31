@@ -25,6 +25,7 @@
       "tests\\unit\\Excalibur.Data.MySql.Tests\\Excalibur.Data.MySql.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Postgres.Tests\\Excalibur.Data.Postgres.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Redis.Tests\\Excalibur.Data.Redis.Tests.csproj",
+      "tests\\unit\\Excalibur.Data.Spanner.Tests\\Excalibur.Data.Spanner.Tests.csproj",
       "tests\\unit\\Excalibur.Data.SqlServer.Tests\\Excalibur.Data.SqlServer.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Tests\\Excalibur.Data.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Abstractions.Tests\\Excalibur.Dispatch.Abstractions.Tests.csproj",

@@ -11,11 +11,10 @@ This guide walks through migrating an existing Excalibur.Dispatch application fr
 ## Prerequisites
 
 - .NET 10.0 (current LTS with best AOT support)
-- `Excalibur.Dispatch.SourceGenerators` package referenced in your entry-point project
+- `Excalibur.Dispatch` referenced in your entry-point project (it carries the generators)
 
 ```bash
-dotnet add package Excalibur.Dispatch.SourceGenerators
-dotnet add package Excalibur.Dispatch.SourceGenerators.Analyzers
+dotnet add package Excalibur.Dispatch
 ```
 
 ## Migration Checklist
@@ -210,7 +209,7 @@ Expected outcome:
 - Sub-millisecond startup time
 
 If you see warnings, check:
-1. `Excalibur.Dispatch.SourceGenerators` is referenced in the entry-point project
+1. `Excalibur.Dispatch` is referenced in the entry-point project
 2. All handlers have `[AutoRegister]`
 3. All custom DTOs are included in your `JsonSerializerContext`
 4. You are not using incompatible packages (see Step 6)

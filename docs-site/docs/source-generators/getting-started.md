@@ -13,7 +13,7 @@ The Dispatch source generators enable **compile-time service registration** with
 - **.NET 10.0**
 - Install the source generator package:
   ```bash
-  dotnet add package Excalibur.Dispatch.SourceGenerators
+  dotnet add package Excalibur.Dispatch
   ```
 - Familiarity with [dependency injection](../core-concepts/dependency-injection.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
@@ -32,7 +32,7 @@ The Dispatch source generators enable **compile-time service registration** with
 ### 1. Install the Package
 
 ```bash
-dotnet add package Excalibur.Dispatch.SourceGenerators
+dotnet add package Excalibur.Dispatch
 ```
 
 The `[AutoRegister]` attribute is included in `Excalibur.Dispatch.Abstractions`, which is automatically referenced.

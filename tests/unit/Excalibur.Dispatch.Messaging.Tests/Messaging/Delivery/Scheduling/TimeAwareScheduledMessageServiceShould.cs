@@ -105,11 +105,10 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		// Wait for the batch to be consumed (processing loop picks up the schedule)
-		var consumed = await store.WaitForBatchConsumedAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
-		consumed.ShouldBeTrue();
-		// Allow one more poll cycle so error handling completes
-		await Task.Delay(100, CancellationToken.None).ConfigureAwait(false);
+		// Wait for the advance itself -- the batch being dequeued only means the loop READ the row, not that it
+		// finished handling the failure, so waiting on that and then sleeping races the subject on a loaded runner.
+		var advanced = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
+		advanced.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// SAFETY: an undeserializable body is never dispatched.
@@ -137,9 +136,8 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var consumed = await store.WaitForBatchConsumedAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
-		consumed.ShouldBeTrue();
-		await Task.Delay(100, CancellationToken.None).ConfigureAwait(false);
+		var advanced = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
+		advanced.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
@@ -148,8 +146,8 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		// what a store call count of zero would mean -- makes the same unresolvable row due again on every poll
 		// forever, ahead of every other schedule.
 		store.StoreCalls.ShouldBe(1);
-		var advanced = store.StoredMessages.ShouldHaveSingleItem();
-		advanced.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		var stored = store.StoredMessages.ShouldHaveSingleItem();
+		stored.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
 	}
 
 	[Fact]
@@ -275,7 +273,6 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 	{
 		private readonly ConcurrentQueue<IEnumerable<IScheduledMessage>> _batches = new(batches);
 		private readonly TaskCompletionSource<bool> _storeCallObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		private readonly TaskCompletionSource<bool> _batchConsumed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private int _storeCalls;
 		private int _isDisposed;
 
@@ -301,34 +298,12 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 			}
 		}
 
-		public async Task<bool> WaitForBatchConsumedAsync(TimeSpan timeout, CancellationToken cancellationToken)
-		{
-			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-			timeoutCts.CancelAfter(timeout);
-
-			try
-			{
-				_ = await _batchConsumed.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
-				return true;
-			}
-			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-			{
-				return false;
-			}
-		}
-
 		public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			if (_batches.TryDequeue(out var next))
 			{
-				var items = next.ToList();
-				if (items.Count > 0)
-				{
-					_ = _batchConsumed.TrySetResult(true);
-				}
-
-				return Task.FromResult<IEnumerable<IScheduledMessage>>(items);
+				return Task.FromResult<IEnumerable<IScheduledMessage>>(next.ToList());
 			}
 
 			return Task.FromResult<IEnumerable<IScheduledMessage>>([]);
