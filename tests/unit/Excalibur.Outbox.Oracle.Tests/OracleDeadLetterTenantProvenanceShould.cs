@@ -297,7 +297,7 @@ public sealed class OracleDeadLetterTenantProvenanceShould(OracleOutboxStoreCont
 		await ShippedOracleOutboxSchema.CreateFreshAsync(ConnectionString, Ct);
 	}
 
-	private Task<string> StoredTenantOfAsync(string messageId) =>
+	private Task<string?> StoredTenantOfAsync(string messageId) =>
 		ScalarAsync<string>(
 			$"SELECT TENANT_ID FROM OUTBOX_DEAD_LETTERS WHERE MESSAGE_ID = '{messageId}'");
 
@@ -324,7 +324,7 @@ public sealed class OracleDeadLetterTenantProvenanceShould(OracleOutboxStoreCont
 		_ = await connection.ExecuteAsync(sql);
 	}
 
-	private async Task<T> ScalarAsync<T>(string sql)
+	private async Task<T?> ScalarAsync<T>(string sql)
 	{
 		await using var connection = new OracleConnection(ConnectionString);
 		await connection.OpenAsync(Ct);

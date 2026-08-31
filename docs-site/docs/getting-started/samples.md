@@ -80,7 +80,7 @@ dotnet run
 
 Sample certification is governed by:
 
-- `management/governance/framework-governance.json`
+- `eng/governance/framework-governance.json`
 - `pwsh eng/validate-samples.ps1`
 - `pwsh eng/ci/validate-framework-governance.ps1 -Mode Governance -Enforce:$true`
 

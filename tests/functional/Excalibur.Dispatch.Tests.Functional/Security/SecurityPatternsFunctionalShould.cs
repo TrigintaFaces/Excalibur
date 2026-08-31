@@ -285,7 +285,7 @@ public sealed class SecurityPatternsFunctionalShould : FunctionalTestBase
 	private static string ComputeSha256Hash(string input)
 	{
 		var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-		return Convert.ToHexString(bytes).ToLowerInvariant();
+		return Convert.ToHexStringLower(bytes);
 	}
 
 	private static bool IsSafeSqlInput(string input)

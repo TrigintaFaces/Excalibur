@@ -1,1 +1,2 @@
 #nullable enable
+static Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectDispatchRegistry.FromCompletedResult<TResult>(System.Threading.Tasks.Task<TResult>! task) -> System.Threading.Tasks.ValueTask<object?>

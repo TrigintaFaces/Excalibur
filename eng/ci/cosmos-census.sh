@@ -54,7 +54,7 @@ if [ "${1:-}" = "--self-test" ]; then
         | xargs -r grep -hoE '(class|record)[[:space:]]+[A-Za-z0-9_]*(Fixture|Collection)[A-Za-z0-9_]*' 2>/dev/null \
         | awk '{print $2}' | sort -u)"
     fp="$(printf '%s|' $ft | sed 's/|$//')"
-    live="$(grep -rlE "$fp" tests/ --include='*Should.cs' 2>/dev/null | grep -c . || true)"
+    live="$(grep -rlE "$fp" tests/ --include='*Should.cs' --include='*Tests.cs' 2>/dev/null | grep -c . || true)"
     if [ "${live:-0}" -gt 0 ]; then
         echo "  liveness: behaviour census finds $live Cosmos class(es) in the real tree — PASS"
     else
@@ -231,7 +231,11 @@ fixture_types="$(grep -rlE 'CosmosDbBuilder|CosmosDbContainer' tests/ --include=
 [ -n "${fixture_types//[[:space:]]/}" ] || fail "no Cosmos emulator fixture types found. The behaviour census cannot key on anything, so it would agree with the trait census by measuring nothing."
 
 fixture_pattern="$(printf '%s|' $fixture_types | sed 's/|$//')"
-behaviour_classes="$(grep -rlE "$fixture_pattern" tests/ --include='*Should.cs' 2>/dev/null \
+# GLOB. `*Should.cs` alone is a NAMING census wearing a behaviour census's hat: a class that starts an
+# emulator but is named `*Tests.cs` is invisible to it, and invisibility here reads as agreement. Measured:
+# two such classes (a workflow conformance suite and a CDC state-store suite) were admitted on the
+# emulator-free path while this census reported the set clean. Both suffixes are in use in this tree.
+behaviour_classes="$(grep -rlE "$fixture_pattern" tests/ --include='*Should.cs' --include='*Tests.cs' 2>/dev/null \
     | xargs -r -n1 basename \
     | sed 's/\.cs$//' | sort -u)"
 BEHAVIOUR_CLASSES="$(printf '%s\n' "$behaviour_classes" | grep -c . || true)"

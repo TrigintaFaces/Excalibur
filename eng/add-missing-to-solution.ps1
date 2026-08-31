@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Load manifest to get missing projects
-$manifestPath = "management/governance/project-manifest.yaml"
+$manifestPath = "eng/governance/project-manifest.yaml"
 if (-not (Test-Path $manifestPath)) {
     Write-Error "Manifest not found at $manifestPath. Run inventory-projects.ps1 first."
     exit 1

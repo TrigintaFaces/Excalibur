@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.Worker">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,7 +7,13 @@
     <UserSecretsId>dotnet-JobWorkerSample-c1be17f8-29f3-4a9c-b0ac-0b01ec0b1234</UserSecretsId>
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
-    <IsAotCompatible>true</IsAotCompatible>
+    <!-- NOT AOT-compatible, and it must not claim to be. The job host is composed through
+         AddJobs(..., params Assembly[]), whose every overload discovers jobs by scanning the
+         assemblies it is handed; that is reflection over types the trimmer cannot see and typed
+         invokers built at runtime. Declaring IsAotCompatible here turned on the AOT analyzer and
+         produced IL3050 against the sample's own composition root. The sample was asserting a
+         property it does not have. Quartz-hosted job discovery has no source-generated path today,
+         so the honest declaration is the absent one. -->
     <!-- CA5394: this sample simulates work with Random (fake metrics, retry jitter, demo inventory).
          Every site was checked: none generates an identifier, key, token, or any security-sensitive
          value, so a cryptographic RNG would add noise without adding safety. Anything a consumer

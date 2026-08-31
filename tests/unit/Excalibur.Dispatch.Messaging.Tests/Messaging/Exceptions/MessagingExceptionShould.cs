@@ -265,18 +265,24 @@ public sealed class MessagingExceptionShould
 		}
 	}
 
-	public static TheoryData<MessagingException> Factories() =>
-	[
-		MessagingException.RoutingFailed("msg-1", "no route"),
-		MessagingException.DuplicateMessage("msg-1"),
-		MessagingException.RetryLimitExceeded("msg-1", 3),
-		MessagingException.BrokerConnectionFailed("localhost:5672"),
-	];
+	// Rows carry the factory NAME only; the exception is built inside the fact. An exception is not
+	// serializable, so a theory keyed on one collapses to a single unnamed row in the runner instead
+	// of one row per factory -- and a factory that stopped being covered would not show in the results.
+	private static readonly Dictionary<string, Func<MessagingException>> ExceptionFactories = new(StringComparer.Ordinal)
+	{
+		{ "RoutingFailed", static () => MessagingException.RoutingFailed("msg-1", "no route") },
+		{ "DuplicateMessage", static () => MessagingException.DuplicateMessage("msg-1") },
+		{ "RetryLimitExceeded", static () => MessagingException.RetryLimitExceeded("msg-1", 3) },
+		{ "BrokerConnectionFailed", static () => MessagingException.BrokerConnectionFailed("localhost:5672") },
+	};
+
+	public static TheoryData<string> Factories() => [.. ExceptionFactories.Keys];
 
 	[Theory]
 	[MemberData(nameof(Factories))]
-	public void AgreeBetweenErrorCodePropertyAndDataEntry(MessagingException exception)
+	public void AgreeBetweenErrorCodePropertyAndDataEntry(string factoryName)
 	{
+		var exception = ExceptionFactories[factoryName]();
 		// The single-string constructor stamps ErrorCode with MessageSendFailed, so a factory that
 		// set only Data["ErrorCode"] reported two different codes for the same failure.
 		exception.ErrorCode.ShouldBe(exception.Data["ErrorCode"]);

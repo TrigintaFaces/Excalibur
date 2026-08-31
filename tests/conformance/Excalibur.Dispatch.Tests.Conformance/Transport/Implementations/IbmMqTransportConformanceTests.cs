@@ -32,7 +32,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// </para>
 /// <para>
 /// The queue manager runs in an <see cref="IbmMqContainerFixture"/> class fixture (its startup far exceeds
-/// the base class's 30-second per-test budget) and soft-skips when Docker is unavailable, matching the other
+/// the base class's per-test initialization budget) and soft-skips when Docker is unavailable, matching the other
 /// transport conformance suites; the lock is authored non-skipped and runs authoritatively on the CI shard.
 /// </para>
 /// </remarks>

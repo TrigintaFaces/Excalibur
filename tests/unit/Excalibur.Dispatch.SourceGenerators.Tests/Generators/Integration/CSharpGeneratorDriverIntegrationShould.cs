@@ -37,6 +37,10 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 		var abstractionsAssembly = typeof(Excalibur.Dispatch.IDispatchMessage).Assembly;
 		references.Add(MetadataReference.CreateFromFile(abstractionsAssembly.Location));
 
+		// FluentValidation, so AbstractValidator<T> base types resolve semantically.
+		references.Add(MetadataReference.CreateFromFile(
+			typeof(global::FluentValidation.AbstractValidator<object>).Assembly.Location));
+
 		// Add system runtime references needed for compilation
 		var runtimeDir = System.IO.Path.GetDirectoryName(typeof(object).Assembly.Location);
 		var runtimeAssemblies = new[]
@@ -940,6 +944,63 @@ public sealed class CSharpGeneratorDriverIntegrationShould
 
 		var text = extensionsSource.GetText().ToString();
 		text.ShouldContain("AddGeneratedServices");
+	}
+
+	#endregion
+
+	#region FluentValidationGenerator -- anchor-type guard
+
+	/// <summary>
+	/// The generated dispatcher implements <c>IAotValidationDispatcher</c>, which lives in a package
+	/// a consumer of Excalibur.Dispatch need not reference. Emitting into such a compilation is CS0234.
+	/// </summary>
+	private const string FluentValidationSource = """
+		using System.Threading;
+		using System.Threading.Tasks;
+		using Excalibur.Dispatch;
+		using FluentValidation;
+
+		namespace TestApp
+		{
+		    public class CreateThing : IDispatchMessage
+		    {
+		        public string Name { get; set; } = "";
+		    }
+
+		    public class CreateThingValidator : AbstractValidator<CreateThing> { }
+		}
+		""";
+
+	/// <summary>The anchor interface, as the validation package declares it.</summary>
+	private const string AnchorDeclarationSource = """
+		namespace Excalibur.Dispatch.Validation.FluentValidation
+		{
+		    public interface IAotValidationDispatcher
+		    {
+		        Excalibur.Dispatch.Validation.IValidationResult? TryValidate(
+		            Excalibur.Dispatch.IDispatchMessage message, System.IServiceProvider provider);
+		    }
+		}
+		""";
+
+	[Fact]
+	public void FluentValidation_WithoutValidationPackage_EmitsNothing()
+	{
+		var result = RunGenerator<FluentValidationGenerator>(FluentValidationSource);
+
+		result.GeneratedTrees.ShouldBeEmpty();
+	}
+
+	[Fact]
+	public void FluentValidation_WithValidationPackage_EmitsDispatcher()
+	{
+		var result = RunGenerator<FluentValidationGenerator>(
+			FluentValidationSource + AnchorDeclarationSource);
+
+		var tree = result.GeneratedTrees
+			.FirstOrDefault(t => t.FilePath.EndsWith("FluentValidationDispatcher.g.cs"));
+		tree.ShouldNotBeNull();
+		tree.GetText().ToString().ShouldContain("IAotValidationDispatcher");
 	}
 
 	#endregion

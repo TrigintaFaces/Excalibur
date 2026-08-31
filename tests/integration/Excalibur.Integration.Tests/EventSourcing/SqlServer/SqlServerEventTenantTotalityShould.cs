@@ -341,7 +341,7 @@ public sealed class SqlServerEventTenantTotalityShould(SqlServerEventStoreContai
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
-	private async Task<T> ScalarAsync<T>(string sql)
+	private async Task<T?> ScalarAsync<T>(string sql)
 	{
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync().ConfigureAwait(false);

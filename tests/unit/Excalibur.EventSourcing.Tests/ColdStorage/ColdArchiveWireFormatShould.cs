@@ -58,17 +58,22 @@ public sealed class ColdArchiveWireFormatShould
     private static string Serialize(JsonTypeInfo<List<StoredEvent>> typeInfo) =>
         Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(Fixture(), typeInfo));
 
-    public static TheoryData<string, JsonTypeInfo<List<StoredEvent>>> ArchiveContexts() => new()
+    // Rows carry the provider NAME only; the type info is looked up inside the fact. A JsonTypeInfo is
+    // not serializable, so a theory keyed on one collapses to a single unnamed row in the runner instead
+    // of one row per provider -- and a provider that stopped being covered would not show in the results.
+    private static readonly Dictionary<string, JsonTypeInfo<List<StoredEvent>>> ArchiveTypeInfos = new(StringComparer.Ordinal)
     {
         { "AwsS3", AwsS3ColdEventStore.ArchiveTypeInfo },
         { "AzureBlob", AzureBlobColdEventStore.ArchiveTypeInfo },
         { "Gcs", GcsColdEventStore.ArchiveTypeInfo },
     };
 
+    public static TheoryData<string> ArchiveContexts() => [.. ArchiveTypeInfos.Keys];
+
     [Theory]
     [MemberData(nameof(ArchiveContexts))]
-    public void WriteTheFrozenArchiveFormat(string provider, JsonTypeInfo<List<StoredEvent>> typeInfo) =>
-        Serialize(typeInfo).ShouldBe(
+    public void WriteTheFrozenArchiveFormat(string provider) =>
+        Serialize(ArchiveTypeInfos[provider]).ShouldBe(
             GoldenArchiveJson,
             $"the {provider} cold archive holds events consumers have already written; its wire format is frozen");
 
@@ -80,8 +85,9 @@ public sealed class ColdArchiveWireFormatShould
     /// </summary>
     [Theory]
     [MemberData(nameof(ArchiveContexts))]
-    public void SourceTheCanonicalEventContract(string provider, JsonTypeInfo<List<StoredEvent>> typeInfo)
+    public void SourceTheCanonicalEventContract(string provider)
     {
+        var typeInfo = ArchiveTypeInfos[provider];
         var canonical = EventSerializationDefaults.CreateCanonicalOptions();
 
         typeInfo.Options.PropertyNamingPolicy.ShouldBe(

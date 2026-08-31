@@ -27,7 +27,7 @@ This page captures architecture migration decisions so contributors can see wher
 
 Governance source:
 
-- [`management/governance/framework-governance.json`](https://github.com/TrigintaFaces/Excalibur/blob/main/management/governance/framework-governance.json)
+- [`eng/governance/framework-governance.json`](https://github.com/TrigintaFaces/Excalibur/blob/main/eng/governance/framework-governance.json)
 
 Related docs:
 

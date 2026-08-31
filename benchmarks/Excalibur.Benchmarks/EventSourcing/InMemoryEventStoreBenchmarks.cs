@@ -28,8 +28,6 @@ public class InMemoryEventStoreBenchmarks
 	private string _aggregateWith100Events = null!;
 	private string _aggregateWith1000Events = null!;
 	private string _aggregateWith10000Events = null!;
-	private TestDomainEvent[] _singleEventBatch = null!;
-	private TestDomainEvent[] _tenEventBatch = null!;
 
 	[GlobalSetup]
 	public void GlobalSetup()
@@ -41,10 +39,6 @@ public class InMemoryEventStoreBenchmarks
 		_aggregateWith100Events = CreateAggregateWithEvents(100);
 		_aggregateWith1000Events = CreateAggregateWithEvents(1000);
 		_aggregateWith10000Events = CreateAggregateWithEvents(10000);
-
-		// Pre-create event batches for append benchmarks
-		_singleEventBatch = CreateEvents("new-agg-1", 1);
-		_tenEventBatch = CreateEvents("new-agg-10", 10);
 	}
 
 	[GlobalCleanup]

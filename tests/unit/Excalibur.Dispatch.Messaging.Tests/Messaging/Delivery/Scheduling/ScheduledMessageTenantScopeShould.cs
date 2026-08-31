@@ -31,7 +31,7 @@ public sealed class ScheduledMessageTenantScopeShould
 	{
 		// Arrange — the poller runs under a DIFFERENT ambient tenant than the schedule names. Anything
 		// that merely inherits the caller's scope will observe the poller's tenant, not the schedule's.
-		MessageTypeRegistry.RegisterType(typeof(TenantScopedTestAction));
+		MessageTypeRegistry.RegisterType<TenantScopedTestAction>();
 		var schedule = CreateDueSchedule("tenant-a");
 		var store = new AmbientRecordingScheduleStore(schedule);
 

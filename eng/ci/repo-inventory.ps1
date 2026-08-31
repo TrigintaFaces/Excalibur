@@ -1,5 +1,5 @@
 param(
-  [string]$Output = "management/reports/dependency-inventory.md",
+  [string]$Output = "artifacts/reports/dependency-inventory.md",
   [string]$ProjectRoot = ".",
   # 45s was too tight on a cold NuGet cache: `dotnet list package --include-transitive` resolves the
   # graph per project, and the first few projects on a fresh runner pay for the whole restore. The

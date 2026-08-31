@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// <para>
 /// The Pulsar container is started by the <see cref="PulsarContainerFixture"/> (an <see cref="IClassFixture{T}"/>)
 /// rather than inside the harness's <c>CreateSenderAsync</c>: Pulsar standalone startup routinely exceeds the
-/// base class's 30-second per-test initialization budget, so starting it in the class fixture (which has no
+/// base class's per-test initialization budget, so starting it in the class fixture (which has no
 /// such cap) keeps the round-trip deterministic instead of intermittently soft-skipping. Matches the
 /// Docker-unavailable soft-skip convention of the other transport conformance suites (Kafka/RabbitMQ).
 /// </para>

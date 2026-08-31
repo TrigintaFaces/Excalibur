@@ -15,7 +15,7 @@
 #>
 param(
     [string]$SolutionFilter = "eng/ci/shards/ShippingOnly.slnf",
-    [string]$OutDir = "management/reports/PackageDependencyReport",
+    [string]$OutDir = "artifacts/reports/PackageDependencyReport",
     [string]$Version = "0.0.0-ci-validation",
     [switch]$Enforce = $true,
     [switch]$SelfTest

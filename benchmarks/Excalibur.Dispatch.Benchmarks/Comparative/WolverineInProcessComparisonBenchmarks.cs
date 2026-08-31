@@ -177,6 +177,10 @@ public class WolverineInProcessComparisonBenchmarks
 		return await DispatchWithFreshContextAsync(evt).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Publishes a notification handled by two Wolverine handlers, invoked inline on the calling thread.
+	/// </summary>
+	/// <returns>A task that completes once both handlers have run.</returns>
 	/// <remarks>
 	/// Rebuilt from <c>PublishAsync</c> + completion tracker to <c>InvokeAsync</c>. The previous shape awaited
 	/// real execution, but routed Wolverine through its local queue while the Dispatch row ran both handlers

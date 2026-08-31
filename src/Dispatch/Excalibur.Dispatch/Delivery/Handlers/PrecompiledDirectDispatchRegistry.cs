@@ -38,6 +38,41 @@ public static class PrecompiledDirectDispatchRegistry
 		Func<IDispatchAction, IServiceProvider, IMessageContext?, CancellationToken, ValueTask<object?>> Invoke)> _providers = new();
 
 	/// <summary>
+	/// Projects an already-successfully-completed <see cref="Task{TResult}"/> onto a
+	/// <see cref="ValueTask{TResult}"/> of <see cref="object"/> without allocating an async state machine.
+	/// </summary>
+	/// <remarks>
+	/// Public for the same reason as <see cref="Register"/>: the only caller is the generated
+	/// <c>PrecompiledDirectActionDispatch</c> class compiled into the consumer's own assembly.
+	/// <para>
+	/// The caller MUST have observed <see cref="Task.IsCompletedSuccessfully"/> first. This is a
+	/// completed-result read, not a wait: it cannot block, and it cannot observe a fault or a
+	/// cancellation, because neither state satisfies that precondition. Keeping it here rather than in
+	/// emitted source means the single justified result-read lives in framework source that is reviewed,
+	/// instead of being re-emitted into every consuming assembly where it reads as sync-over-async.
+	/// </para>
+	/// </remarks>
+	/// <typeparam name="TResult">The task's result type.</typeparam>
+	/// <param name="task">A task already observed to be successfully completed.</param>
+	/// <returns>A completed <see cref="ValueTask{TResult}"/> carrying the task's result.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="task"/> is <see langword="null"/>.</exception>
+	/// <exception cref="InvalidOperationException"><paramref name="task"/> is not successfully completed.</exception>
+	public static ValueTask<object?> FromCompletedResult<TResult>(Task<TResult> task)
+	{
+		ArgumentNullException.ThrowIfNull(task);
+
+		if (!task.IsCompletedSuccessfully)
+		{
+			throw new InvalidOperationException(
+				"FromCompletedResult requires a successfully completed task; await the task instead.");
+		}
+
+#pragma warning disable RS0030, CA1849 // Guarded by IsCompletedSuccessfully above: a result read, never a wait.
+		return new ValueTask<object?>(task.Result);
+#pragma warning restore RS0030, CA1849
+	}
+
+	/// <summary>
 	/// Registers a precompiled direct-action dispatch table. Called by source-generated module initializers.
 	/// </summary>
 	public static void Register(

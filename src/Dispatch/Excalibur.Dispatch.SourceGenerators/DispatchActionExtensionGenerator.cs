@@ -178,7 +178,7 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// via C# overload resolution (concrete parameter > interface parameter).");
 		_ = sb.AppendLine("/// </summary>");
 		_ = sb.AppendLine("[System.CodeDom.Compiler.GeneratedCode(\"Excalibur.Dispatch.SourceGenerators\", \"1.0\")]");
-		_ = sb.AppendLine($"public static class {className}");
+		_ = sb.AppendLine($"internal static class {className}");
 		_ = sb.AppendLine("{");
 
 		foreach (var action in uniqueActions)

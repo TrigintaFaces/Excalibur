@@ -10,7 +10,7 @@
 .PARAMETER CheckHotPaths
     Identify potential hot-path violations through pattern analysis
 .PARAMETER ExportReport
-    Export detailed report to management/reports/
+    Export detailed report to artifacts/reports/
 .PARAMETER DetailedOutput
     Enable detailed output with violation-level analysis
 .EXAMPLE
@@ -332,7 +332,7 @@ if (Test-Path $directoryBuildProps) {
 # Generate summary report
 if ($ExportReport) {
     Write-Host "📊 Generating banned API compliance report..." -ForegroundColor Yellow
-    $reportDir = Join-Path $repoRoot "management/reports"
+    $reportDir = Join-Path $repoRoot "artifacts/reports"
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
     
     $report = @{

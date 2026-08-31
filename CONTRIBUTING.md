@@ -446,7 +446,7 @@ dotnet test
 
 ## Project Governance
 
-All projects in the repository are tracked by a **project manifest** (`management/governance/project-manifest.yaml`). CI validates governance rules automatically.
+All projects in the repository are tracked by a **project manifest** (`eng/governance/project-manifest.yaml`). CI validates governance rules automatically.
 
 ### Rules
 

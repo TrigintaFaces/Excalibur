@@ -36,9 +36,6 @@ public class HandlerActivatorBenchmarks
 	private IMessageContext _context = null!;
 	private Type _handlerType = null!;
 
-	// Cached delegate for comparison
-	private Action<object, IMessageContext>? _cachedSetter;
-
 	// Pre-compiled setter for baseline
 	private Action<object, IMessageContext>? _precompiledSetter;
 
@@ -67,9 +64,6 @@ public class HandlerActivatorBenchmarks
 		// Create a manually compiled setter for baseline comparison
 		var contextProperty = _handlerType.GetProperty(nameof(TestHandlerWithContext.Context));
 		_precompiledSetter = CompilePropertySetter(_handlerType, contextProperty);
-
-		// Also cache the reflection-based approach
-		_cachedSetter = _precompiledSetter;
 	}
 
 	[GlobalCleanup]

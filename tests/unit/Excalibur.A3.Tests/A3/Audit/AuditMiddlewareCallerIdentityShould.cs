@@ -34,7 +34,7 @@ namespace Excalibur.Tests.A3.Audit;
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
 [Trait("Feature", "Audit")]
-public sealed class AuditMiddlewareCallerIdentityShould : IDisposable
+public sealed class AuditMiddlewareCallerIdentityShould : IAsyncDisposable
 {
 	private readonly RecordingAuditPublisher _publisher = new();
 	private readonly List<IOutboxMessage> _outboxed = [];
@@ -76,7 +76,13 @@ public sealed class AuditMiddlewareCallerIdentityShould : IDisposable
 			NullLogger<AuditMiddleware>.Instance);
 	}
 
-	public void Dispose() => _serviceProvider.Dispose();
+	// The fake is registered into the container but constructed here, so this class owns it.
+	// IOutboxDispatcher is IAsyncDisposable, so the class disposes asynchronously too.
+	public async ValueTask DisposeAsync()
+	{
+		await _outbox.DisposeAsync().ConfigureAwait(false);
+		await _serviceProvider.DisposeAsync().ConfigureAwait(false);
+	}
 
 	[Fact]
 	public async Task NameTheCallerWhoActedOnEachRequest()

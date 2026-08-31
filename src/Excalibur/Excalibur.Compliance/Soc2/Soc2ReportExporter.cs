@@ -705,13 +705,12 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return output.ToArray();
 	}
 
-#pragma warning disable CA1308 // Normalize strings to uppercase - checksums conventionally use lowercase
+	// Lowercase hex is the sha256sum convention the emitted checksums.sha256 file follows.
 	private static string ComputeChecksum(byte[] data)
 	{
 		var hash = SHA256.HashData(data);
-		return Convert.ToHexString(hash).ToLowerInvariant();
+		return Convert.ToHexStringLower(hash);
 	}
-#pragma warning restore CA1308
 
 	private static string GenerateFileName(Soc2Report report, ExportFormat format, bool compressed)
 	{

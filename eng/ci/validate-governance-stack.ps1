@@ -12,8 +12,8 @@
 #>
 param(
     [string]$SolutionFilter = 'eng/ci/shards/ShippingOnly.slnf',
-    [string]$MatrixPath = 'management/governance/framework-governance.json',
-    [string]$ReportsRoot = 'management/reports',
+    [string]$MatrixPath = 'eng/governance/framework-governance.json',
+    [string]$ReportsRoot = 'artifacts/reports',
     [switch]$Enforce = $true
 )
 

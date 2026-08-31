@@ -9,7 +9,7 @@
 param(
     [string]$SolutionFilter = "eng/ci/shards/ShippingOnly.slnf",
     [string]$SourceRoot = "src",
-    [string]$OutDir = "management/reports/SolutionGovernanceReport",
+    [string]$OutDir = "artifacts/reports/SolutionGovernanceReport",
     [switch]$Enforce = $true
 )
 

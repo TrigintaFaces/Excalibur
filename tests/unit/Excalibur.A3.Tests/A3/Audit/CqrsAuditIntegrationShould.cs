@@ -23,7 +23,7 @@ namespace Excalibur.Tests.A3.Audit;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
-public sealed class CqrsAuditIntegrationShould : IDisposable
+public sealed class CqrsAuditIntegrationShould : IAsyncDisposable
 {
 	private readonly IActivityContext _activityContext;
 	private readonly IAuditMessagePublisher _auditPublisher;
@@ -50,7 +50,13 @@ public sealed class CqrsAuditIntegrationShould : IDisposable
 			NullLogger<AuditMiddleware>.Instance);
 	}
 
-	public void Dispose() => _serviceProvider.Dispose();
+	// The fake is registered into the container but constructed here, so this class owns it.
+	// IOutboxDispatcher is IAsyncDisposable, so the class disposes asynchronously too.
+	public async ValueTask DisposeAsync()
+	{
+		await _outbox.DisposeAsync().ConfigureAwait(false);
+		await _serviceProvider.DisposeAsync().ConfigureAwait(false);
+	}
 
 	// ========================================
 	// CQRS Command + Auditable — Happy Path

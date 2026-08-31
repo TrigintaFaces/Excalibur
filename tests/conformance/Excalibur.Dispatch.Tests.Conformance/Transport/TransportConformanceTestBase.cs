@@ -30,9 +30,26 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	private static readonly TimeSpan ReceiveTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60));
 
 	/// <summary>
+	/// Wall-clock budget for <see cref="InitializeTransportAsync" />, which for a container-backed
+	/// transport covers the docker image PULL as well as the container start and broker readiness.
+	/// </summary>
+	/// <remarks>
+	/// Was a hard-coded 30 seconds, which a cold runner cannot meet: the Pub/Sub emulator and RabbitMQ
+	/// images are pulled on first use, and the whole GooglePubSub and RabbitMQ suites failed on the bound
+	/// rather than on the transport. Two suites had already worked around it by moving container start
+	/// into an <c>IClassFixture</c>, which has no such cap -- evidence the bound, not the transport, was
+	/// wrong. <see cref="Tests.Shared.Infrastructure.TestTimeouts.ContainerInitBudget" /> is the constant
+	/// that already encodes this: 240s, deliberately unscaled, and held below the SHORTEST
+	/// <c>--blame-hang-timeout</c> in use (5m) so a container failure still surfaces as a diagnosable
+	/// error instead of a killed host that reports Failed: 0.
+	/// </remarks>
+	private static readonly TimeSpan InitializationBudget =
+		global::Tests.Shared.Infrastructure.TestTimeouts.ContainerInitBudget;
+
+	/// <summary>
 	/// Caches the transport-initialization outcome per closed generic type (e.g., Kafka, RabbitMQ).
 	/// Once init fails for a transport, all remaining tests in that class skip immediately
-	/// instead of each waiting for a 30-second timeout. null = not yet checked.
+	/// instead of each waiting out the full initialization budget. null = not yet checked.
 	/// </summary>
 	private static bool? s_transportInitialized;
 
@@ -136,11 +153,12 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 		{
 			// Timeout initialization to prevent indefinite hangs when Docker is unavailable
 			var initTask = InitializeTransportAsync();
-			var completedTask = await Task.WhenAny(initTask, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+			var completedTask = await Task.WhenAny(initTask, Task.Delay(InitializationBudget)).ConfigureAwait(false);
 
 			if (completedTask != initTask)
 			{
-				RecordInitializationFailure("transport initialization did not complete within 30 seconds");
+				RecordInitializationFailure(
+					FormattableString.Invariant($"transport initialization did not complete within {InitializationBudget.TotalSeconds:0} seconds"));
 			}
 			else
 			{

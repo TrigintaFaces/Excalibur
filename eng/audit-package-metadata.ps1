@@ -194,7 +194,7 @@ projects:
         }
     }
 
-    $fixPlanPath = Join-Path $Path "management/governance/package-metadata-fixplan.yaml"
+    $fixPlanPath = Join-Path $Path "artifacts/reports/package-metadata-fixplan.yaml"
     $fixPlan | Out-File -FilePath $fixPlanPath -Encoding utf8
     Write-Host "`nFix plan written to: $fixPlanPath" -ForegroundColor Green
 }

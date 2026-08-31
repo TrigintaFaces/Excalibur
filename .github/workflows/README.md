@@ -8,7 +8,7 @@ This directory holds the CI/CD configuration for Excalibur.
 are, every job, its triggers, its wall-clock budget, whether it builds or tests, whether it inherits
 token permissions, whether it is soft — is generated directly from the workflow files into:
 
-> **`management/reports/ci-workflow-inventory.md`**
+> **`eng/reports/ci-workflow-inventory.md`**
 
 Regenerate it with `python3 eng/ci/generate-workflow-inventory.py`. A CI gate runs that script with
 `--check` and fails when the committed document no longer matches the workflows it describes.

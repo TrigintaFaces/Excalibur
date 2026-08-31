@@ -6,7 +6,7 @@ Supports both individual test entries (fullyQualifiedName) and fixture-level ent
 #>
 param(
     [string]$QuarantineFile = 'eng/ci/flaky-tests-quarantine.json',
-    [string]$OutDir = 'management/reports/FlakyQuarantineReport',
+    [string]$OutDir = 'artifacts/reports/FlakyQuarantineReport',
     [switch]$Enforce = $true
 )
 

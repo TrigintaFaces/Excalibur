@@ -273,7 +273,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: src/Excalibur/Excalibur.Operations.Dashboard.Spa/ClientApp/package-lock.json
 
@@ -307,7 +307,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: docs-site/package-lock.json
 
@@ -456,14 +456,14 @@ jobs:
       - name: Validate unit-test shard coverage
         shell: pwsh
         run: |
-          ./eng/ci/validate-unit-shards.ps1 -OutDir management/reports/UnitShardReport -Enforce $true
+          ./eng/ci/validate-unit-shards.ps1 -OutDir artifacts/reports/UnitShardReport -Enforce $true
 
       - name: Upload shard coverage report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unit-shard-coverage-report
-          path: management/reports/UnitShardReport
+          path: artifacts/reports/UnitShardReport
           retention-days: 14
 
   # ── Unit tests -- 4 deterministic shards, self-contained build per shard ──
@@ -630,13 +630,13 @@ jobs:
           # Non-vacuity floor: if the slnf derivation ever yields far fewer than the tier really holds,
           # the gate must refuse (exit 2) rather than pass a shrunken set (the vacuous-pass trap). 40 is a
           # conservative floor well below the current ~53 blocking-tier assemblies.
-          ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir management/reports/ShardAggregation
+          ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir artifacts/reports/ShardAggregation
       - name: Upload aggregation report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unit-shard-aggregation-report
-          path: management/reports/ShardAggregation/*.json
+          path: artifacts/reports/ShardAggregation/*.json
           if-no-files-found: warn
           retention-days: 30
 
@@ -702,7 +702,7 @@ jobs:
             -ExpectedAssemblies $expected `
             -Enforce $true `
             -MinExpectedAssemblies 40 `
-            -OutDir management/reports/WindowsShardAggregation
+            -OutDir artifacts/reports/WindowsShardAggregation
 
       - name: Upload test results
         if: always()
@@ -1452,14 +1452,14 @@ jobs:
       - name: Validate flaky quarantine policy
         shell: pwsh
         run: |
-          ./eng/ci/validate-flaky-quarantine.ps1 -OutDir management/reports/FlakyQuarantineReport -Enforce:$true
+          ./eng/ci/validate-flaky-quarantine.ps1 -OutDir artifacts/reports/FlakyQuarantineReport -Enforce:$true
 
       - name: Upload quarantine governance report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: flaky-quarantine-report
-          path: management/reports/FlakyQuarantineReport
+          path: artifacts/reports/FlakyQuarantineReport
           retention-days: 30
 
   # ── Flaky tests quarantine run (non-blocking) ──
@@ -1566,13 +1566,13 @@ jobs:
       - name: Run serialization boundary audit (extended report)
         shell: pwsh
         run: |
-          ./eng/ci/serialization-boundary-audit.ps1 -OutDir management/reports/SerializationBoundaryReport
+          ./eng/ci/serialization-boundary-audit.ps1 -OutDir artifacts/reports/SerializationBoundaryReport
       - name: Upload serialization boundary report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: serialization-boundary-report
-          path: management/reports/SerializationBoundaryReport
+          path: artifacts/reports/SerializationBoundaryReport
 
   # ── AOT build analysis (report-only) ──
   aot-build-analysis:
@@ -1593,7 +1593,7 @@ jobs:
       - name: Run trim/AOT audit (report-only)
         shell: pwsh
         run: |
-          pwsh -File ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath management/reports/AotBuildAnalysis
+          pwsh -File ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath artifacts/reports/AotBuildAnalysis
           $exitCode = $LASTEXITCODE
           Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
       - name: Upload trim/AOT audit
@@ -1601,7 +1601,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: aot-build-analysis
-          path: management/reports/AotBuildAnalysis
+          path: artifacts/reports/AotBuildAnalysis
 
   # ── Coverage analysis (reusable workflow) ──
   call-coverage:
@@ -1734,7 +1734,7 @@ jobs:
       - name: Generate transport parity dashboard
         shell: pwsh
         run: |
-          ./eng/ci/validate-framework-governance.ps1 -Mode TransportParity -MatrixPath management/governance/framework-governance.json -OutDir management/reports/TransportParityReport -Enforce:$true
+          ./eng/ci/validate-framework-governance.ps1 -Mode TransportParity -MatrixPath eng/governance/framework-governance.json -OutDir artifacts/reports/TransportParityReport -Enforce:$true
 
       - name: Upload conformance results
         if: always()
@@ -1743,7 +1743,7 @@ jobs:
           name: transport-conformance-results
           path: |
             TestResults/*.trx
-            management/reports/TransportParityReport
+            artifacts/reports/TransportParityReport
 
   # ── Release-blocking test governance ──
   release-blocking-tests:
@@ -1914,12 +1914,12 @@ jobs:
       - name: Generate pack quality report
         shell: pwsh
         run: |
-          ./eng/ci/pack-report.ps1 -OutDir management/reports/PackReport
+          ./eng/ci/pack-report.ps1 -OutDir artifacts/reports/PackReport
       - name: Upload pack report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pack-report
-          path: management/reports/PackReport
+          path: artifacts/reports/PackReport
 
   # ── Packaging smoke tests ──
   packaging-smoke-tests:
@@ -2087,7 +2087,7 @@ jobs:
           echo "## Sample Certification Validation (T3.4)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Purpose:** Validate certified samples from governance matrix with build + smoke profiles" >> $GITHUB_STEP_SUMMARY
-          echo "**Source of truth:** management/governance/framework-governance.json (sampleFitness)" >> $GITHUB_STEP_SUMMARY
+          echo "**Source of truth:** eng/governance/framework-governance.json (sampleFitness)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
             echo "**Status:** Certified sample set build/smoke validation passed" >> $GITHUB_STEP_SUMMARY

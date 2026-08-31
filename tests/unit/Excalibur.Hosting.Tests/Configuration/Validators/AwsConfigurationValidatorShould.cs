@@ -63,7 +63,7 @@ public sealed class AwsConfigurationValidatorShould : UnitTestBase
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
 				["AWS:Region"] = region,
-				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",
+				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",  // pragma: allowlist secret
 				["AWS:SecretAccessKey"] = "secret"
 			})
 			.Build();
@@ -85,7 +85,7 @@ public sealed class AwsConfigurationValidatorShould : UnitTestBase
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
 				["AWS:DefaultRegion"] = "us-east-1",
-				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",
+				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",  // pragma: allowlist secret
 				["AWS:SecretAccessKey"] = "secret"
 			})
 			.Build();
@@ -107,7 +107,7 @@ public sealed class AwsConfigurationValidatorShould : UnitTestBase
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
 				["AWS:Region"] = "invalid-region",
-				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",
+				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",  // pragma: allowlist secret
 				["AWS:SecretAccessKey"] = "secret"
 			})
 			.Build();
@@ -129,7 +129,7 @@ public sealed class AwsConfigurationValidatorShould : UnitTestBase
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",
+				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",  // pragma: allowlist secret
 				["AWS:SecretAccessKey"] = "secret"
 			})
 			.Build();
@@ -156,7 +156,7 @@ public sealed class AwsConfigurationValidatorShould : UnitTestBase
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
 				["AWS:Region"] = "us-east-1",
-				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",
+				["AWS:AccessKeyId"] = "AKIAIOSFODNN7EXAMPLE",  // pragma: allowlist secret
 				["AWS:SecretAccessKey"] = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 			})
 			.Build();
@@ -234,8 +234,8 @@ public sealed class AwsConfigurationValidatorShould : UnitTestBase
 	}
 
 	[Theory]
-	[InlineData("AKIAIOSFODNN7EXAMPLE")] // 20 chars, starts with AKIA
-	[InlineData("ASIAIOSFODNN7EXAMPLE")] // Temporary credentials
+	[InlineData("AKIAIOSFODNN7EXAMPLE")] // 20 chars, starts with AKIA  // pragma: allowlist secret
+	[InlineData("ASIAIOSFODNN7EXAMPLE")] // Temporary credentials  // pragma: allowlist secret
 	[InlineData("AIDAIOSFODNN7EXAMPLE")] // IAM user
 	public async Task ReturnSuccess_WhenAccessKeyIdIsValidFormat(string accessKeyId)
 	{

@@ -57,8 +57,8 @@ jobs:
         with:
           name: solution-governance-report
           path: |
-            management/reports/SolutionGovernanceReport
-            management/reports/FrameworkGovernanceReport
+            artifacts/reports/SolutionGovernanceReport
+            artifacts/reports/FrameworkGovernanceReport
           retention-days: 14
 
   package-dependency-graph:
@@ -82,14 +82,14 @@ jobs:
       - name: Validate nuspec dependency graph (blocking)
         shell: pwsh
         run: |
-          ./eng/ci/validate-nuspec-dependencies.ps1 -SolutionFilter eng/ci/shards/ShippingOnly.slnf -OutDir management/reports/PackageDependencyReport -Version "0.0.0-ci-${{ github.run_number }}" -Enforce:$true
+          ./eng/ci/validate-nuspec-dependencies.ps1 -SolutionFilter eng/ci/shards/ShippingOnly.slnf -OutDir artifacts/reports/PackageDependencyReport -Version "0.0.0-ci-${{ github.run_number }}" -Enforce:$true
 
       - name: Upload dependency graph report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: package-dependency-report
-          path: management/reports/PackageDependencyReport
+          path: artifacts/reports/PackageDependencyReport
           retention-days: 14
 
   package-composition:
@@ -179,14 +179,14 @@ jobs:
       - name: Run PublicAPI baseline audit
         shell: pwsh
         run: |
-          ./eng/ci/public-api-baseline-audit.ps1 -OutDir management/reports/PublicApiBaselineReport -Enforce $true
+          ./eng/ci/public-api-baseline-audit.ps1 -OutDir artifacts/reports/PublicApiBaselineReport -Enforce $true
 
       - name: Upload PublicAPI baseline report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: public-api-baseline-report
-          path: management/reports/PublicApiBaselineReport
+          path: artifacts/reports/PublicApiBaselineReport
           retention-days: 14
 
   transitive-bloat:
@@ -214,14 +214,14 @@ jobs:
         env:
           PACK_ENFORCE: 'true'
         run: |
-          ./eng/ci/transitive-bloat-report.ps1 -OutputDir management/reports/TransitiveBloatReport
+          ./eng/ci/transitive-bloat-report.ps1 -OutputDir artifacts/reports/TransitiveBloatReport
 
       - name: Upload transitive bloat report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: transitive-bloat-report
-          path: management/reports/TransitiveBloatReport
+          path: artifacts/reports/TransitiveBloatReport
           retention-days: 14
 
   repo-inventory:
@@ -262,7 +262,7 @@ jobs:
           # Pinning it at 45 in this file overrode the default and made correcting the default inert --
           # the same trap that hid the performance gate's stale row count.
           ./eng/ci/repo-inventory.ps1 `
-            -Output "management/reports/dependency-inventory.md" `
+            -Output "artifacts/reports/dependency-inventory.md" `
             -ProjectRoot "src" `
             -TotalBudgetMinutes 12 `
             -MaxDependencyProjects 180
@@ -271,7 +271,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dependency-inventory
-          path: management/reports/dependency-inventory.md
+          path: artifacts/reports/dependency-inventory.md
 
   specs-location-lint:
     name: Specs Location Guard
@@ -288,8 +288,8 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          mkdir -p management/reports
-          report="management/reports/specs-location-violations-${GITHUB_RUN_ID}.md"
+          mkdir -p artifacts/reports
+          report="artifacts/reports/specs-location-violations-${GITHUB_RUN_ID}.md"
           echo "# Specs Location Violations" > "$report"
           echo "Run: ${GITHUB_RUN_ID}" >> "$report"
           echo "" >> "$report"
@@ -308,4 +308,4 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: specs-location-violations
-          path: management/reports/specs-location-violations-${{ github.run_id }}.md
+          path: artifacts/reports/specs-location-violations-${{ github.run_id }}.md

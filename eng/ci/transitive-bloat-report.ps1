@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 param(
     [string]$SrcDir = "src",
-    [string]$PackageMap = "management/package-map.yaml",
+    [string]$PackageMap = "eng/governance/package-map.yaml",
     [string]$OutputDir = "TransitiveBloatReport"
 )
 

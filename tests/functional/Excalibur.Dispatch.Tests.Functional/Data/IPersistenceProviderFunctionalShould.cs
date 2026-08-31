@@ -79,9 +79,13 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 			await DropTestTableAsync();
 		}
 
+		// The container owns the provider singleton and disposes it too; IDisposable.Dispose is
+		// required to be idempotent, so releasing it here as well is safe and keeps the ownership
+		// of every field this class holds visible at the disposal site.
+		_provider?.Dispose();
+
 		if (_services != null)
 		{
-			// The container owns the provider singleton, so disposing it disposes the provider.
 			await _services.DisposeAsync();
 		}
 	}

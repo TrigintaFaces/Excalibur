@@ -10,7 +10,7 @@
 .PARAMETER CheckTransitive
     Analyze transitive dependencies for violations
 .PARAMETER ExportReport
-    Export detailed report to management/reports/
+    Export detailed report to artifacts/reports/
 .EXAMPLE
     .\eng\verify-providers.ps1 -Detailed -CheckTransitive -ExportReport
 #>
@@ -295,7 +295,7 @@ foreach ($provider1 in $providerProjects.Keys) {
 # Generate report
 if ($ExportReport) {
     Write-Host "📊 Generating provider isolation report..." -ForegroundColor Yellow
-    $reportDir = Join-Path $repoRoot "management/reports"
+    $reportDir = Join-Path $repoRoot "artifacts/reports"
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
     
     $report = @{

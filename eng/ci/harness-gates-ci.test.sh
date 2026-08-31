@@ -64,6 +64,38 @@ fi
 rc="$(run_orch 'false')"
 if [ "$rc" -eq 1 ]; then echo "  [PASS] E masking-resistance: a bare failing command -> orchestrator exit 1"; else echo "  [FAIL] E masking-resistance: failing command masked -> exit $rc"; pass=0; fi
 
+# H development-only gating: the NOT-APPLICABLE state must be reachable ONLY outside the development
+#   repository. The discriminator is the origin remote, deliberately, so that a gate cannot go quietly
+#   not-applicable HERE the day someone rewrites history and orphans an anchor commit. Both arms:
+#   in the development repo it must RUN, and the skip path must be genuinely reachable elsewhere.
+if grep -q 'run_development_only' "$ORCH" && grep -q 'is_development_repo' "$ORCH"; then
+    # SAFETY — in THIS repository (the development one) the guarded gate must not report NOT APPLICABLE.
+    dev_out="$(HGCI_TEST_GATE='true' bash "$ORCH" 2>&1)"
+    # Match the PER-GATE skip line ('   NOT APPLICABLE: <label>'), not the summary counter, which now
+    # contains those words on every run and would make this arm pass or fail for the wrong reason.
+    if printf '%s' "$dev_out" | grep -q 'NOT APPLICABLE:'; then
+        echo "  [FAIL] H development-only gating: a gate reported NOT APPLICABLE inside the development repository"
+        pass=0
+    else
+        echo "  [PASS] H development-only gating: nothing is skipped inside the development repository"
+    fi
+
+    # LIVENESS — the predicate must actually discriminate. A predicate that answers "yes, development"
+    # for every remote would satisfy the arm above while never skipping anything, anywhere.
+    probe="$(mktemp -d)"; git -C "$probe" init -q 2>/dev/null
+    git -C "$probe" remote add origin https://github.com/Example/NotTheDevelopmentRepo.git 2>/dev/null
+    if ( cd "$probe" && . <(sed -n '/^is_development_repo()/,/^}/p' "$ORCH") && is_development_repo ); then
+        echo "  [FAIL] H liveness: is_development_repo answered YES for a foreign remote — it cannot discriminate"
+        pass=0
+    else
+        echo "  [PASS] H liveness: is_development_repo answers NO for a foreign remote"
+    fi
+    rm -rf "$probe"
+else
+    echo "  [FAIL] H development-only gating: the orchestrator no longer defines the guarded-run helper"
+    pass=0
+fi
+
 echo
 if [ "$pass" -eq 1 ]; then echo "✅ harness-gates-ci.test.sh: ALL GREEN"; else echo "❌ harness-gates-ci.test.sh: FAIL"; fi
 [ "$pass" -eq 1 ]

@@ -9,7 +9,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - 'docs/api/**'
+      - 'eng/docs/api/**'
       - 'Directory.Build.props'
   workflow_dispatch:
 
@@ -65,7 +65,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Generate API metadata and build site
-        working-directory: docs/api
+        working-directory: eng/docs/api
         run: |
           echo "Generating API metadata..."
           dotnet docfx metadata docfx.json
@@ -76,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: api-reference-docs
-          path: docs/api/_site/
+          path: eng/docs/api/_site/
           retention-days: 30
 
       - name: API docs summary
@@ -84,8 +84,8 @@ jobs:
         run: |
           echo "# API Reference Documentation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -d "docs/api/_site" ]; then
-            page_count=$(find docs/api/_site -name "*.html" | wc -l)
+          if [ -d "eng/docs/api/_site" ]; then
+            page_count=$(find eng/docs/api/_site -name "*.html" | wc -l)
             echo "Generated **${page_count}** API reference pages." >> $GITHUB_STEP_SUMMARY
           else
             echo "API docs generation failed." >> $GITHUB_STEP_SUMMARY

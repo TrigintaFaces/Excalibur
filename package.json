@@ -1,4 +1,9 @@
 {
+  "name": "excalibur-dispatch-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository-root tooling dependencies. Not published; see the docs-site and dashboard client packages for their own manifests.",
+  "license": "LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0",
   "devDependencies": {
     "sharp": "^0.35.3"
   }

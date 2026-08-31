@@ -15,13 +15,18 @@ namespace Excalibur.Data.Tests.ElasticSearch.Security.KeyManagement;
 [Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class CloudKeyProviderRegistrationShould
 {
-	public static TheoryData<string, Func<IServiceCollection, IConfiguration, IServiceCollection>> UnimplementedProviders =>
-		new()
+	// Rows carry the provider NAME, not the registration delegate: a delegate is not serializable, so
+	// a theory keyed on one collapses to a single unnamed row in the runner instead of one row per
+	// provider -- and a provider that stops being covered would not be visible in the results.
+	private static readonly Dictionary<string, Func<IServiceCollection, IConfiguration, IServiceCollection>> Registrations =
+		new(StringComparer.Ordinal)
 		{
-			{ "AWS KMS", static (s, c) => s.AddAwsKms(c) },
-			{ "Google Cloud KMS", static (s, c) => s.AddGoogleCloudKms(c) },
-			{ "HashiCorp Vault", static (s, c) => s.AddHashiCorpVault(c) },
+			["AWS KMS"] = static (s, c) => s.AddAwsKms(c),
+			["Google Cloud KMS"] = static (s, c) => s.AddGoogleCloudKms(c),
+			["HashiCorp Vault"] = static (s, c) => s.AddHashiCorpVault(c),
 		};
+
+	public static TheoryData<string> UnimplementedProviders => [.. Registrations.Keys];
 
 	private static IConfiguration EmptyConfiguration() =>
 		new ConfigurationBuilder().AddInMemoryCollection([]).Build();
@@ -30,10 +35,9 @@ public sealed class CloudKeyProviderRegistrationShould
 	// caller's back. RED against a stub that quietly registers the development provider.
 	[Theory]
 	[MemberData(nameof(UnimplementedProviders))]
-	public void RefuseAnUnimplementedCloudProviderRatherThanSubstituteTheDevelopmentProvider(
-		string providerName,
-		Func<IServiceCollection, IConfiguration, IServiceCollection> register)
+	public void RefuseAnUnimplementedCloudProviderRatherThanSubstituteTheDevelopmentProvider(string providerName)
 	{
+		var register = Registrations[providerName];
 		var services = new ServiceCollection();
 
 		var ex = Should.Throw<NotSupportedException>(() => register(services, EmptyConfiguration()));
@@ -46,11 +50,9 @@ public sealed class CloudKeyProviderRegistrationShould
 	// safety arm above would be satisfied by an entry point that refuses unconditionally.
 	[Theory]
 	[MemberData(nameof(UnimplementedProviders))]
-	public void HonourAConsumerSuppliedKeyProviderInsteadOfRefusing(
-		string providerName,
-		Func<IServiceCollection, IConfiguration, IServiceCollection> register)
+	public void HonourAConsumerSuppliedKeyProviderInsteadOfRefusing(string providerName)
 	{
-		_ = providerName;
+		var register = Registrations[providerName];
 		var consumerProvider = A.Fake<IElasticsearchKeyProvider>();
 		var services = new ServiceCollection();
 		services.TryAddSingleton(consumerProvider);

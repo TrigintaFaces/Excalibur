@@ -509,18 +509,18 @@ jobs:
             # it emits an unmistakably non-numeric marker instead. Nothing can parse a percentage out
             # of it, which is the entire point.
             echo "::warning::No coverage reports found. Emitting a NO DATA marker, NOT a zero."
-            mkdir -p management/reports/CoverageReport
+            mkdir -p artifacts/reports/CoverageReport
             {
               echo "Coverage Summary"
               echo "Line coverage: NO DATA -- no cobertura reports reached this job."
               echo "This is not 0%. A missing measurement and a measured zero are different facts."
-            } > management/reports/CoverageReport/Summary.txt
+            } > artifacts/reports/CoverageReport/Summary.txt
             exit 0
           fi
 
           dotnet reportgenerator \
             -reports:"coverage/**/coverage.cobertura.xml" \
-            -targetdir:"management/reports/CoverageReport" \
+            -targetdir:"artifacts/reports/CoverageReport" \
             -reporttypes:"Html;Cobertura;TextSummary;Badges" \
             -assemblyfilters:"-*.Tests*;-Tests.Shared;-*.Testing*;-*Benchmarks*;-*Examples*" \
             -classfilters:"-*.Migrations.*;-*.Generated.*" \
@@ -528,11 +528,11 @@ jobs:
 
       - name: Coverage validation
         run: |
-          if [ -f "management/reports/CoverageReport/Summary.txt" ]; then
-            cat management/reports/CoverageReport/Summary.txt
+          if [ -f "artifacts/reports/CoverageReport/Summary.txt" ]; then
+            cat artifacts/reports/CoverageReport/Summary.txt
 
             # Extract line coverage percentage
-            line_coverage=$(grep -oP 'Line coverage: \K[0-9.]+' management/reports/CoverageReport/Summary.txt || echo "0")
+            line_coverage=$(grep -oP 'Line coverage: \K[0-9.]+' artifacts/reports/CoverageReport/Summary.txt || echo "0")
 
             echo "Line coverage: ${line_coverage}%"
             echo "COVERAGE_PERCENTAGE=${line_coverage}" >> $GITHUB_ENV
@@ -555,7 +555,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
-          path: management/reports/CoverageReport
+          path: artifacts/reports/CoverageReport
           retention-days: 30
 
       - name: Coverage summary
@@ -585,8 +585,8 @@ jobs:
       - name: Create coverage baseline markdown
         shell: bash
         run: |
-          mkdir -p management/reports
-          f="management/reports/coverage-${GITHUB_RUN_ID}.md"
+          mkdir -p artifacts/reports
+          f="artifacts/reports/coverage-${GITHUB_RUN_ID}.md"
           echo "# Coverage Baseline" > "$f"
           echo "Run: ${GITHUB_RUN_ID}" >> "$f"
           echo "Workflow: ${GITHUB_WORKFLOW}" >> "$f"
@@ -596,4 +596,4 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-baseline
-          path: management/reports/coverage-${{ github.run_id }}.md
+          path: artifacts/reports/coverage-${{ github.run_id }}.md

@@ -7,7 +7,7 @@
 #
 # Enforces the determinism standard in .claude/rules/quality/testing-patterns.md
 # ("Tests MUST be deterministic ... Never depend on wall-clock timing. Poll for a
-# condition with a bounded timeout") and docs/testing/async-test-standards.md:
+# condition with a bounded timeout") and eng/docs/async-test-standards.md:
 # a test that waits for a background/async condition MUST poll it via
 #   tests/Shared/Tests.Shared/Infrastructure/WaitHelpers.cs (WaitUntilAsync / AwaitSignalAsync)
 # rather than a fixed `await Task.Delay(N)` followed by an assertion.
@@ -225,7 +225,7 @@ run_gate() {
         echo "Tests MUST NOT synchronize on a fixed wall-clock delay before asserting a background"
         echo "condition (flaky under CI thread-pool starvation). Poll the real condition via"
         echo "  Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync / AwaitSignalAsync"
-        echo "with a generous bounded timeout. See docs/testing/async-test-standards.md."
+        echo "with a generous bounded timeout. See eng/docs/async-test-standards.md."
         echo ""
         echo "A CancellationTokenSource hit is a deadline the test must finish inside. Prefer a"
         echo "generous bound (30s is the shape most of this repo uses) or, better, cancel on the EVENT"

@@ -340,7 +340,7 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 			"this lock asserts a property of the SHIPPED SCHEMA and SQL and is deliberately never skipped — "
 			+ "a green run that never reached a database would certify nothing.");
 
-	private Task<string> StoredTenantOfAsync(string messageId) =>
+	private Task<string?> StoredTenantOfAsync(string messageId) =>
 		ScalarAsync<string>(
 			$"SELECT tenant_id FROM public.outbox_dead_letters WHERE message_id = '{messageId}';");
 
@@ -378,7 +378,7 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 		_ = await connection.ExecuteAsync(sql);
 	}
 
-	private async Task<T> ScalarAsync<T>(string sql)
+	private async Task<T?> ScalarAsync<T>(string sql)
 	{
 		await using var connection = new NpgsqlConnection(ConnectionString);
 		await connection.OpenAsync(Ct);

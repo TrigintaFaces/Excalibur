@@ -452,7 +452,7 @@ public sealed class Soc2ReportExporterShould
 			using var entryStream = entry.Open();
 			using var buffer = new MemoryStream();
 			await entryStream.CopyToAsync(buffer);
-			var expected = Convert.ToHexString(SHA256.HashData(buffer.ToArray())).ToLowerInvariant();
+			var expected = Convert.ToHexStringLower(SHA256.HashData(buffer.ToArray()));
 
 			listed.ShouldContain(
 				$"{expected}  {entry.FullName}",

@@ -35,12 +35,17 @@ namespace Excalibur.Data.Tests.InboxProtocol;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class LeaseClaimProtocolSupportShould : UnitTestBase
 {
-	public static TheoryData<string, IInboxStore> StoresWithoutALeasePath() => new()
+	// Rows carry the provider NAME only, and the store is constructed inside the fact. A store is not
+	// serializable, so a theory keyed on one collapses to a single unnamed row in the runner instead of
+	// one row per provider -- and a provider that stopped being covered would not show in the results.
+	private static readonly Dictionary<string, Func<IInboxStore>> StoreFactories = new(StringComparer.Ordinal)
 	{
-		{ "DynamoDb", CreateDynamoDbStore() },
-		{ "Elasticsearch", CreateElasticsearchStore() },
-		{ "Firestore", CreateFirestoreStore() },
+		{ "DynamoDb", CreateDynamoDbStore },
+		{ "Elasticsearch", CreateElasticsearchStore },
+		{ "Firestore", CreateFirestoreStore },
 	};
+
+	public static TheoryData<string> StoresWithoutALeasePath() => [.. StoreFactories.Keys];
 
 	/// <summary>
 	/// The three stores offer the caller-governed claim and no lease. This pins the shape that
@@ -49,8 +54,9 @@ public sealed class LeaseClaimProtocolSupportShould : UnitTestBase
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(StoresWithoutALeasePath))]
-	public void OfferTheClaimProtocolAndNoLease(string provider, IInboxStore store)
+	public void OfferTheClaimProtocolAndNoLease(string provider)
 	{
+		var store = StoreFactories[provider]();
 		store.ShouldBeAssignableTo<IClaimableInboxStore>(
 			$"{provider} is reached through the claim protocol.");
 

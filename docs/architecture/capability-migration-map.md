@@ -6,7 +6,7 @@ Use this together with:
 
 - `docs/architecture/dispatch-excalibur-boundary.md`
 - `docs/architecture/capability-ownership-matrix.md`
-- `management/governance/framework-governance.json`
+- `eng/governance/framework-governance.json`
 
 ## Migration Table
 

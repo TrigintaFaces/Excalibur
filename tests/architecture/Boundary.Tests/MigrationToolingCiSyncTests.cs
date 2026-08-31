@@ -105,7 +105,7 @@ public sealed class MigrationToolingCiSyncTests
         // Governance tracks ALL build targets (packable + the non-packable generator).
         AssertEnumerated(
             names: DiscoverMigrationToolingProjects().Select(p => p.Name).ToList(),
-            relativeFile: "management/governance/project-manifest.yaml",
+            relativeFile: "eng/governance/project-manifest.yaml",
             siteDescription: "the governance manifest (project-manifest.yaml)");
     }
 

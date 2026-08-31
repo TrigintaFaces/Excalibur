@@ -121,13 +121,24 @@ public sealed class MiddlewareInvokerInterceptorGenerator : IIncrementalGenerato
 
 		// Check if the type has a public InvokeAsync method (not just explicit interface implementation)
 		// This is required because the generated code uses direct type cast and method call
-		var hasPublicInvokeAsync = typeSymbol.GetMembers("InvokeAsync")
+		var invokeAsync = typeSymbol.GetMembers("InvokeAsync")
 			.OfType<IMethodSymbol>()
-			.Any(m => m.DeclaredAccessibility == Accessibility.Public &&
+			.FirstOrDefault(m => m.DeclaredAccessibility == Accessibility.Public &&
 					  !m.IsStatic &&
 					  m.Parameters.Length == 4);
 
-		if (!hasPublicInvokeAsync)
+		if (invokeAsync is null)
+		{
+			return null;
+		}
+
+		// Skip middleware whose InvokeAsync declares a trimming or AOT requirement. This registry is a
+		// perf optimization over interface dispatch; a direct call to an annotated method reports IL2026 /
+		// IL3050 at the generated call site, in the consumer's assembly, where the interface dispatch it
+		// replaces reports nothing. Falling back to interface dispatch for these types keeps the
+		// consumer's build clean without suppressing a warning the middleware genuinely declares.
+		if (invokeAsync.GetAttributes().Any(a =>
+				a.AttributeClass is { Name: "RequiresUnreferencedCodeAttribute" or "RequiresDynamicCodeAttribute" }))
 		{
 			return null;
 		}

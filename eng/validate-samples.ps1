@@ -4,7 +4,7 @@
     Validates certified sample projects using governance-defined smoke profiles.
 
 .DESCRIPTION
-    Uses management/governance/framework-governance.json sampleFitness classification.
+    Uses eng/governance/framework-governance.json sampleFitness classification.
     - Builds all certified samples
     - Executes smoke profiles (mode=build or mode=run)
     - Reports quarantined samples
@@ -20,7 +20,7 @@
     Skip dotnet restore step (faster if already restored)
 
 .PARAMETER GovernanceMatrixPath
-    Path to governance matrix file (default: management/governance/framework-governance.json)
+    Path to governance matrix file (default: eng/governance/framework-governance.json)
 #>
 
 [CmdletBinding()]
@@ -32,7 +32,7 @@ param(
 
     [switch]$SkipRestore,
 
-    [string]$GovernanceMatrixPath = 'management/governance/framework-governance.json'
+    [string]$GovernanceMatrixPath = 'eng/governance/framework-governance.json'
 )
 
 Set-StrictMode -Version Latest

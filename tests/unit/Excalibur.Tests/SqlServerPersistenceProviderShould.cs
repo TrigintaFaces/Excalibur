@@ -197,5 +197,11 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 	}
 
 	/// <inheritdoc/>
-	public void Dispose() => _services.Dispose();
+	// The container owns the provider singleton and disposes it too; Dispose is idempotent, so
+	// releasing it here as well is safe and keeps this class's own field ownership explicit.
+	public void Dispose()
+	{
+		_provider.Dispose();
+		_services.Dispose();
+	}
 }

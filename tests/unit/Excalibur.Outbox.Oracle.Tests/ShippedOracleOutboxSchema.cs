@@ -202,7 +202,7 @@ internal static class ShippedOracleOutboxSchema
 
 			_ = buffer.Append(line).Append('\n');
 
-			if (!inPlSqlBlock && trimmed.EndsWith(";", StringComparison.Ordinal))
+			if (!inPlSqlBlock && trimmed.EndsWith(';'))
 			{
 				var statement = buffer.ToString().Trim().TrimEnd(';').Trim();
 				buffer.Clear();

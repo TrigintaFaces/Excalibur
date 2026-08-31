@@ -7,10 +7,10 @@
     Excalibur.sln, and .sln project paths use the exact repository casing.
     Designed for CI enforcement (exit 1 on failure).
 .PARAMETER ManifestPath
-    Path to project-manifest.yaml (default: management/governance/project-manifest.yaml)
+    Path to project-manifest.yaml (default: eng/governance/project-manifest.yaml)
 #>
 param(
-    [string]$ManifestPath = "management/governance/project-manifest.yaml"
+    [string]$ManifestPath = "eng/governance/project-manifest.yaml"
 )
 
 $ErrorActionPreference = "Stop"
@@ -365,7 +365,7 @@ Write-Host "`n[7/7] Checking framework ownership metadata..." -ForegroundColor Y
 
 $hasOwnershipMetadata = (@($manifestProjects.Values | Where-Object { -not [string]::IsNullOrWhiteSpace($_.framework_owner) })).Count -gt 0
 if (-not $hasOwnershipMetadata) {
-    $governanceMatrixPath = Join-Path $repoRoot "management/governance/framework-governance.json"
+    $governanceMatrixPath = Join-Path $repoRoot "eng/governance/framework-governance.json"
     if (Test-Path $governanceMatrixPath) {
         Write-Host "  framework_owner metadata not present in manifest; ownership governed by framework-governance.json" -ForegroundColor Green
     }

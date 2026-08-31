@@ -33,6 +33,14 @@ namespace Excalibur.Integration.Tests.Data;
 [Trait("Component", "Core")]
 public sealed class ShippedSchemaScriptShould
 {
+	/// <summary>The shipped Oracle outbox scripts, in apply order.</summary>
+	private static readonly string[] OracleScriptPaths =
+	[
+		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/001_CreateOutboxSchema.sql",
+		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/002_MakeOutboxTenantTotal.sql",
+		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/003_CarryTenantOnDeadLetters.sql",
+	];
+
 	/// <summary>
 	/// Gets every SQL script the packages ship, as repository-relative paths.
 	/// </summary>
@@ -261,12 +269,7 @@ public sealed class ShippedSchemaScriptShould
 		// LIVENESS against the REAL shipped scripts, not a fixture: the helper exists so the Oracle
 		// outbox fixture can provision from them, and a splitter that works only on a hand-written
 		// example is no use. These scripts carry both plain DDL and PL/SQL blocks.
-		var units = new[]
-		{
-			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/001_CreateOutboxSchema.sql",
-			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/002_MakeOutboxTenantTotal.sql",
-			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/003_CarryTenantOnDeadLetters.sql",
-		}.SelectMany(ShippedSchemaScript.ReadOracleUnits).ToList();
+		var units = OracleScriptPaths.SelectMany(ShippedSchemaScript.ReadOracleUnits).ToList();
 
 		units.ShouldNotBeEmpty();
 

@@ -142,8 +142,9 @@ For each concrete type implementing `IDispatchAction<TResponse>`, the generator 
 ```csharp
 // TypedDispatchExtensions.g.cs
 // The class name carries the assembly name, so two assemblies generating these
-// extensions cannot collide.
-public static class TypedDispatchExtensions_MyAssembly
+// extensions cannot collide. The class is internal: it is generated into your own
+// assembly for your own call sites, and does not widen your public API surface.
+internal static class TypedDispatchExtensions_MyAssembly
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task<IMessageResult<OrderDto>> DispatchAsync(

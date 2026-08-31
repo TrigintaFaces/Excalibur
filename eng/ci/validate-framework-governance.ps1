@@ -3,7 +3,7 @@
 .SYNOPSIS
     Validates consolidated framework governance contracts.
 .DESCRIPTION
-    Enforces governance rules from management/governance/framework-governance.json:
+    Enforces governance rules from eng/governance/framework-governance.json:
       - Capability ownership matrix integrity
       - Critical package test matrix completeness
       - Full shipping package -> test mapping rule coverage
@@ -15,8 +15,8 @@
 param(
     [ValidateSet('Governance','TransportParity')]
     [string]$Mode = 'Governance',
-    [string]$MatrixPath = 'management/governance/framework-governance.json',
-    [string]$OutDir = 'management/reports/FrameworkGovernanceReport',
+    [string]$MatrixPath = 'eng/governance/framework-governance.json',
+    [string]$OutDir = 'artifacts/reports/FrameworkGovernanceReport',
     [switch]$Enforce = $true,
     [switch]$FixGeneratedDocs
 )
@@ -174,7 +174,7 @@ function Get-CapabilityMatrixLines {
 
     $lines += '# Capability Ownership Matrix'
     $lines += ''
-    $lines += '> Auto-generated from `management/governance/framework-governance.json`.'
+    $lines += '> Auto-generated from `eng/governance/framework-governance.json`.'
     $lines += ''
     $lines += '| Capability | Owner | Dispatch Packages | Excalibur Packages | Rationale |'
     $lines += '|---|---|---|---|---|'

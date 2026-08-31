@@ -40,6 +40,7 @@ namespace Excalibur.Integration.Tests.Data.Persistence;
 [Collection(CosmosDbPersistenceProviderTestCollection.CollectionName)]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 [Trait("Pattern", "PROVIDER")]
 public sealed class CosmosDbPersistenceProviderConformanceShould

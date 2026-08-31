@@ -563,3 +563,10 @@ eng/ci/ci-sli-history.jsonl
 # Throwaway AOT coverage harness (eng/ci/Invoke-AotCoverageGate.ps1) — regenerated every run
 # from the current IsAotCompatible=true declaring set, never committed.
 eng/ci/.aot-coverage-harness/
+
+# DocFX API-reference output (generated in place by the api-docs workflow).
+# eng/ is published to the public mirror, so generated output must never be committed here.
+eng/docs/api/_site/
+eng/docs/api/api-dispatch/
+eng/docs/api/api-excalibur/
+eng/docs/api/obj/

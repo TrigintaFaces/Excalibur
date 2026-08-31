@@ -103,7 +103,11 @@ public sealed class SqlServerKeyEscrowTenantTotalityShould : IAsyncLifetime, IDi
 		return default;
 	}
 
-	public void Dispose() => _service?.Dispose();
+	public void Dispose()
+	{
+		_service?.Dispose();
+		_keyManagement?.Dispose();
+	}
 
 	/// <summary>
 	/// THE ARM THAT MATTERS: a key escrowed with no tenant still recovers, byte for byte, now that the
@@ -327,7 +331,7 @@ public sealed class SqlServerKeyEscrowTenantTotalityShould : IAsyncLifetime, IDi
 		EscrowedAt = DateTimeOffset.UtcNow,
 	};
 
-	private async Task<T> ScalarAsync<T>(string sql, object? parameters)
+	private async Task<T?> ScalarAsync<T>(string sql, object? parameters)
 	{
 		await using var connection = new SqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync(CancellationToken.None);

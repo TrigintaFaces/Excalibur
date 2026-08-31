@@ -92,9 +92,9 @@ public sealed class AddMessageSigningKeyProviderShould
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(SigningEntryPoints))]
-	public void RegisterNoKeyProviderOfItsOwn(string entryPoint, Action<IServiceCollection> compose)
+	public void RegisterNoKeyProviderOfItsOwn(string entryPoint)
 	{
-		_ = entryPoint;
+		var compose = EntryPoints[entryPoint];
 
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
@@ -111,11 +111,9 @@ public sealed class AddMessageSigningKeyProviderShould
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(SigningEntryPoints))]
-	public void FailLoudlyAtStartup_WhenSigningIsEnabledWithNoKeyProvider(
-		string entryPoint,
-		Action<IServiceCollection> compose)
+	public void FailLoudlyAtStartup_WhenSigningIsEnabledWithNoKeyProvider(string entryPoint)
 	{
-		_ = entryPoint;
+		var compose = EntryPoints[entryPoint];
 
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
@@ -152,11 +150,9 @@ public sealed class AddMessageSigningKeyProviderShould
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(SigningEntryPoints))]
-	public async Task BuildAWorkingSigner_WhenTheHostSuppliesAKeyProvider(
-		string entryPoint,
-		Action<IServiceCollection> compose)
+	public async Task BuildAWorkingSigner_WhenTheHostSuppliesAKeyProvider(string entryPoint)
 	{
-		_ = entryPoint;
+		var compose = EntryPoints[entryPoint];
 
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
@@ -197,7 +193,11 @@ public sealed class AddMessageSigningKeyProviderShould
 	public Task UseTheHostsKeyProvider_WhenItIsRegisteredLast() =>
 		AssertHostKeyProviderIsUsed(registerHostProviderFirst: false);
 
-	public static TheoryData<string, Action<IServiceCollection>> SigningEntryPoints() => new()
+	// Rows carry the entry-point NAME only; the compose delegate is looked up inside the fact. A
+	// delegate is not serializable, so a theory keyed on one collapses to a single unnamed row in the
+	// runner instead of one row per entry point -- and an entry point that stopped being covered would
+	// not show in the results.
+	private static readonly Dictionary<string, Action<IServiceCollection>> EntryPoints = new(StringComparer.Ordinal)
 	{
 		{ "AddMessageSigning()", static services => services.AddMessageSigning() },
 		{
@@ -233,6 +233,8 @@ public sealed class AddMessageSigningKeyProviderShould
 			static services => services.AddDispatchSecurityMiddleware(EnabledSigningConfiguration())
 		},
 	};
+
+	public static TheoryData<string> SigningEntryPoints() => [.. EntryPoints.Keys];
 
 	private static IKeyProvider StableKeyProvider()
 	{

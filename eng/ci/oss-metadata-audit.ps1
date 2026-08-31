@@ -1,6 +1,6 @@
 param(
   [string]$OutDir = "OssMetadataReport",
-  [string]$Catalog = "management/package-ids.yaml"
+  [string]$Catalog = "eng/governance/package-ids.yaml"
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

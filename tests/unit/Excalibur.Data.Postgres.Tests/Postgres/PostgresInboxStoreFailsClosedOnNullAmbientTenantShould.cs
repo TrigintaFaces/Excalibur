@@ -63,7 +63,12 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 	/// its correctness rested entirely on sitting above the first connection open, and one operation had it
 	/// below.
 	/// </summary>
-	public static TheoryData<string, Func<PostgresInboxStore, ValueTask>> TenantFacingOperations() => new()
+	/// <remarks>
+	/// Rows carry the operation NAME only. A delegate is not serializable, so a theory keyed on one
+	/// collapses to a single unnamed row in the runner instead of one row per operation -- and an
+	/// operation that stopped being covered would not be visible in the results.
+	/// </remarks>
+	private static readonly Dictionary<string, Func<PostgresInboxStore, ValueTask>> Operations = new(StringComparer.Ordinal)
 	{
 		{ "CreateEntryAsync", static s => new ValueTask(s.CreateEntryAsync("m", "h", "t", [1], new Dictionary<string, object>(StringComparer.Ordinal), CancellationToken.None).AsTask()) },
 		{ "MarkProcessedAsync", static s => s.MarkProcessedAsync("m", "h", CancellationToken.None) },
@@ -81,12 +86,13 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 		{ "MarkFailedAsync(retryCount)", static s => s.MarkFailedAsync("m", "h", "boom", 3, CancellationToken.None) },
 	};
 
+	public static TheoryData<string> TenantFacingOperations() => [.. Operations.Keys];
+
 	[Theory]
 	[MemberData(nameof(TenantFacingOperations))]
-	public async Task FailClosed_BeforeTouchingSql_WhenMultiTenantAndAmbientTenantIsNull(
-		string operationName,
-		Func<PostgresInboxStore, ValueTask> operation)
+	public async Task FailClosed_BeforeTouchingSql_WhenMultiTenantAndAmbientTenantIsNull(string operationName)
 	{
+		var operation = Operations[operationName];
 		// SAFETY — the regression arm. RED against the fail-open ternary (reaches the sentinel factory → throws
 		// SentinelConnectionReached, NOT ArgumentException). GREEN once the op guards fail-closed pre-SQL.
 		var store = CreateStore(tenantContext: new AmbientTenantContext(tenantId: null));
@@ -124,10 +130,9 @@ public sealed class PostgresInboxStoreFailsClosedOnNullAmbientTenantShould
 
 	[Theory]
 	[MemberData(nameof(TenantFacingOperations))]
-	public async Task ReachSql_WhenMultiTenantAndAmbientTenantIsResolved(
-		string operationName,
-		Func<PostgresInboxStore, ValueTask> operation)
+	public async Task ReachSql_WhenMultiTenantAndAmbientTenantIsResolved(string operationName)
 	{
+		var operation = Operations[operationName];
 		// LIVENESS (resolved) + non-vacuity partner of the safety arm. A resolved tenant must pass the guard and
 		// reach SQL. If a fix satisfied the safety arm by throwing whenever an ITenantContext is present, THIS arm
 		// goes RED — so the pair pins the guard to the null-ambient path precisely.

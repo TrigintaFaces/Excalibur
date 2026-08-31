@@ -402,10 +402,8 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task ExpiredLease_MustBeReclaimableByAnotherProcessor_Test() => ExpiredLease_MustBeReclaimableByAnotherProcessor();
 		public Task LiveLease_MustNotBeReclaimableByAnotherProcessor_Test() => LiveLease_MustNotBeReclaimableByAnotherProcessor();
 
-		[Fact]
 		public Task ExpiredLease_MustBeReadmittedByTheRetryDrainRead_Test() => ExpiredLease_MustBeReadmittedByTheRetryDrainRead();
 
-		[Fact]
 		public Task LiveLease_MustNotBeReadmittedByTheRetryDrainRead_Test() => LiveLease_MustNotBeReadmittedByTheRetryDrainRead();
 		public Task LeaselessClaim_MustNotBeReclaimableByTheLeasePath_Test() => LeaselessClaim_MustNotBeReclaimableByTheLeasePath();
 		public Task ReleasedClaim_MustBeReadmittedForRedelivery_Test() => ReleasedClaim_MustBeReadmittedForRedelivery();
@@ -448,10 +446,8 @@ public sealed class ConformanceKitSuiteWiringShould
 		public Task ExpiredLease_MustBeReclaimableByAnotherProcessor_Test() => ExpiredLease_MustBeReclaimableByAnotherProcessor();
 		public Task LiveLease_MustNotBeReclaimableByAnotherProcessor_Test() => LiveLease_MustNotBeReclaimableByAnotherProcessor();
 
-		[Fact]
 		public Task ExpiredLease_MustBeReadmittedByTheRetryDrainRead_Test() => ExpiredLease_MustBeReadmittedByTheRetryDrainRead();
 
-		[Fact]
 		public Task LiveLease_MustNotBeReadmittedByTheRetryDrainRead_Test() => LiveLease_MustNotBeReadmittedByTheRetryDrainRead();
 		public Task LeaselessClaim_MustNotBeReclaimableByTheLeasePath_Test() => LeaselessClaim_MustNotBeReclaimableByTheLeasePath();
 		public Task ReleasedClaim_MustBeReadmittedForRedelivery_Test() => ReleasedClaim_MustBeReadmittedForRedelivery();

@@ -174,7 +174,7 @@ public sealed class TenantIdWidthMatchesShippedDdlShould
 		var trimmed = line.TrimStart();
 		return trimmed.StartsWith("--", StringComparison.Ordinal)
 			   || trimmed.StartsWith("//", StringComparison.Ordinal)
-			   || trimmed.StartsWith("*", StringComparison.Ordinal);
+			   || trimmed.StartsWith('*');
 	}
 
 	/// <summary>

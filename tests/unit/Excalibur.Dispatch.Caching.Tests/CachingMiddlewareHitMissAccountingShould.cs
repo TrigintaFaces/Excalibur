@@ -89,6 +89,7 @@ public sealed class CachingMiddlewareHitMissAccountingShould : IDisposable
 
 		_disposed = true;
 		_listener.Dispose();
+		_meter.Dispose();
 
 		if (_meterFactory is IDisposable disposableMeterFactory)
 		{

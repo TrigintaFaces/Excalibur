@@ -42,7 +42,7 @@ internal static class ConformanceDataSubjectHasher
 
 			var digest = SHA256.HashData(Encoding.UTF8.GetBytes(dataSubjectId));
 
-			return Convert.ToHexString(digest).ToLowerInvariant();
+			return Convert.ToHexStringLower(digest);
 		}
 	}
 }

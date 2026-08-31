@@ -24,6 +24,19 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	{
 		var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
 
+		// The generator emits only when the validation package's dispatcher interface is
+		// resolvable. These tests assert emission, so the compilation must declare it.
+		var anchorTree = CSharpSyntaxTree.ParseText("""
+			namespace Excalibur.Dispatch.Validation.FluentValidation
+			{
+			    public interface IAotValidationDispatcher
+			    {
+			        Excalibur.Dispatch.Validation.IValidationResult? TryValidate(
+			            Excalibur.Dispatch.IDispatchMessage message, System.IServiceProvider provider);
+			    }
+			}
+			""");
+
 		var references = new List<MetadataReference>
 		{
 			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
@@ -57,7 +70,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 
 		return CSharpCompilation.Create(
 			"TestAssembly",
-			[syntaxTree],
+			[syntaxTree, anchorTree],
 			references,
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 	}

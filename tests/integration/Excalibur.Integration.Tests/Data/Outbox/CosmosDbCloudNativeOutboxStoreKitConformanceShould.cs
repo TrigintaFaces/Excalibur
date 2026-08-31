@@ -23,6 +23,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Outbox")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 [Trait("Pattern", "STORE")]
 public sealed class CosmosDbCloudNativeOutboxStoreKitConformanceShould

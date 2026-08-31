@@ -284,7 +284,7 @@ public sealed class OracleOutboxTenantTotalityShould(OracleOutboxStoreContainerF
 		await ShippedOracleOutboxSchema.CreateFreshAsync(ConnectionString, TestContext.Current.CancellationToken);
 	}
 
-	private Task<string> TenantOfAsync(string messageId) =>
+	private Task<string?> TenantOfAsync(string messageId) =>
 		ScalarAsync<string>($"SELECT TENANT_ID FROM OUTBOX WHERE MESSAGE_ID = '{messageId}'");
 
 	private async Task<bool> IsTenantColumnNullableAsync() =>
@@ -299,7 +299,7 @@ public sealed class OracleOutboxTenantTotalityShould(OracleOutboxStoreContainerF
 		_ = await connection.ExecuteAsync(sql);
 	}
 
-	private async Task<T> ScalarAsync<T>(string sql)
+	private async Task<T?> ScalarAsync<T>(string sql)
 	{
 		await using var connection = new OracleConnection(ConnectionString);
 		await connection.OpenAsync(TestContext.Current.CancellationToken);

@@ -25,8 +25,12 @@ public static class MediatRCompatServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Configures assembly registration, handler lifetime, and behavior order.</param>
     /// <returns>The same <see cref="IServiceCollection"/>, for chaining.</returns>
-    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+    /// <remarks>
+    /// Deliberately carries no <c>RequiresUnreferencedCode</c>/<c>RequiresDynamicCode</c> annotation: the
+    /// handlers, notifications and streams below come from <see cref="CompatGeneratedRegistrations"/>, which
+    /// the source generator emits at compile time. Nothing here scans an assembly or builds an invoker at
+    /// runtime, and the ported sample publishes AOT with trim analysis on and zero IL warnings.
+    /// </remarks>
     public static IServiceCollection AddMediatRCompat(
         this IServiceCollection services,
         Action<MediatRCompatOptions> configure)

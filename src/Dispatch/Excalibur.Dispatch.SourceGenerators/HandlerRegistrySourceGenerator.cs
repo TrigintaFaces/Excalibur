@@ -595,7 +595,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 			{
 				_ = sb.AppendLine(" var task = handler.HandleAsync(action, cancellationToken);");
 				_ = sb.AppendLine(" return task.IsCompletedSuccessfully");
-				_ = sb.AppendLine(" ? new ValueTask<object?>(task.Result)");
+				_ = sb.AppendLine(" ? PrecompiledDirectDispatchRegistry.FromCompletedResult(task)");
 				_ = sb.AppendLine(" : AwaitResultAsync(task);");
 			}
 
@@ -660,7 +660,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <c>dispatch.AddHandlersFromAssembly(typeof(Program).Assembly)</c>");
 		_ = sb.AppendLine("/// for zero-reflection, fully AOT-compatible handler registration.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class GeneratedHandlerRegistrationExtensions");
+		_ = sb.AppendLine("internal static class GeneratedHandlerRegistrationExtensions");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine("    /// <summary>");
 		_ = sb.AppendLine($"    /// Registers {handlers.Count} compile-time discovered handler(s) with the DI container (AOT-safe, zero reflection).");

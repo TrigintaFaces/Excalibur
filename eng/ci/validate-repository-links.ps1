@@ -7,7 +7,7 @@
     references to https://github.com/TrigintaFaces/Excalibur for this project.
 #>
 param(
-    [string]$OutDir = "management/reports/SolutionGovernanceReport",
+    [string]$OutDir = "artifacts/reports/SolutionGovernanceReport",
     [switch]$Enforce = $true
 )
 

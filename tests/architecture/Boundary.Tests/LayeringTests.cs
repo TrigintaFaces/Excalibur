@@ -7,7 +7,7 @@ using Xunit;
 namespace Boundary.Tests;
 
 /// <summary>
-/// Validates architectural layering boundaries per management/package-map.yaml.
+/// Validates architectural layering boundaries per eng/governance/package-map.yaml.
 /// </summary>
 /// <remarks>
 /// These guards key on ASSEMBLY IDENTITY (assembly name + referenced-assembly names), never on CLR

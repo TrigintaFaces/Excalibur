@@ -90,7 +90,7 @@ builder.Services.AddExcalibur(excalibur =>
 
 ## Capability Ownership
 
-**Authoritative source:** [`management/governance/framework-governance.json`](https://github.com/TrigintaFaces/Excalibur/blob/main/management/governance/framework-governance.json) is the single source of truth for ownership and governance mappings.
+**Authoritative source:** [`eng/governance/framework-governance.json`](https://github.com/TrigintaFaces/Excalibur/blob/main/eng/governance/framework-governance.json) is the single source of truth for ownership and governance mappings.
 **Generated ownership table:** [`capability-ownership-matrix.md`](./capability-ownership-matrix.md).
 **Migration map:** [`capability-migration-map.md`](./capability-migration-map.md).
 

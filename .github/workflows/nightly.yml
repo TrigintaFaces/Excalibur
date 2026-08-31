@@ -283,7 +283,7 @@ jobs:
         shell: pwsh
         run: |
           ./eng/ci/dependency-audit.ps1 `
-            -OutDir management/reports/DependencyAuditReport `
+            -OutDir artifacts/reports/DependencyAuditReport `
             -ProjectRoot src `
             -PerProjectTimeoutSeconds 120 `
             -TotalBudgetMinutes 15 `
@@ -295,7 +295,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: nightly-dependency-audit
-          path: management/reports/DependencyAuditReport
+          path: artifacts/reports/DependencyAuditReport
           retention-days: 14
 
   # npm audit. Deliberately nightly and not on the PR path, matching NuGetAudit's disposition in
@@ -313,7 +313,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '20'
+          node-version: '22'
 
       # The gate is only evidence if it can fail. Drives the shipped threshold and parsing functions
       # with canned audit documents -- no network, no install.

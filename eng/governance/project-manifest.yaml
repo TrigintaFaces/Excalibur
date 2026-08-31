@@ -1,0 +1,2221 @@
+# Project Manifest - Excalibur Governance
+# Generated: 2026-08-31T08:07:11-05:00
+# Schema v2.0 (extends v1.0)
+
+version: "2.0"
+generated_at: "2026-08-31T08:07:11-05:00"
+
+governance:
+  solution_file: "Excalibur.sln"
+
+governed_directories:
+  - src/**
+  - tests/**
+  - samples/**
+  - benchmarks/**
+  - load-tests/**
+
+exclusions:
+  - path: templates/**
+    reason: "dotnet new templates - isolated Directory.Build.props, separate CI (eng/test-templates.ps1)"
+  - path: labs/**
+    reason: "Experimental - not governed"
+  - path: tools/**
+    reason: "Build utilities - not packaged"
+
+projects:
+  - path: benchmarks/Excalibur.Benchmarks/Excalibur.Benchmarks.csproj
+    classification: Benchmark
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+    classification: Benchmark
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: benchmarks/Excalibur.Dispatch.Core.Tests.Performance/Excalibur.Dispatch.Core.Tests.Performance.csproj
+    classification: Benchmark
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: load-tests/Excalibur.Dispatch.LoadTests/Excalibur.Dispatch.LoadTests.csproj
+    classification: Test
+    in_solution: true
+    category: LoadTest
+    framework_owner: Excalibur
+
+  - path: samples/01-getting-started/BindConfigurationPatterns/BindConfigurationPatterns.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/01-getting-started/DataAccessIntro/DataAccessIntro.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Excalibur
+    variant: DispatchOnly
+    notes: "Proves Dispatch-only hosting works without Excalibur"
+
+  - path: samples/01-getting-started/EventSourcingIntro/EventSourcingIntro.csproj
+    classification: Sample
+    in_solution: true
+    variant: ExcaliburFull
+
+  - path: samples/01-getting-started/HelloDispatch/HelloDispatch.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Dispatch
+
+  - path: samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/01-getting-started/MetapackageQuickStart/MetapackageQuickStart.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/01-getting-started/WebApiQuickStart/WebApiQuickStart.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/Kafka/KafkaSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/MultiBusSample/MultiBusSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/MultiProviderQueueProcessor/MultiProviderQueueProcessor.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/02-messaging-transports/TransportBindings/TransportBindings.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/03-cloud-native/CloudEvents/CloudEvents.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/04-reliability/OutboxPattern/OutboxPattern.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/05-serverless/AwsLambda/AwsLambda.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/05-serverless/AzureFunctions/AzureFunctions.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/AccessReviews/AccessReviews.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/AuditLogging/AuditLogging.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/AzureKeyVault/AzureKeyVault.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/GdprCompliance/GdprCompliance.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/JitAccess/JitAccess.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/MessageEncryption/MessageEncryption.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/06-security/StandaloneA3/StandaloneA3.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/07-observability/HealthChecks/HealthChecks.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/07-observability/OpenTelemetry/OpenTelemetry.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/07-observability/OperationalDashboard/OperationalDashboard.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/08-serialization/MessagePackSample/MessagePackSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/08-serialization/Protobuf/Protobuf.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/advanced/Versioning.Examples/EventUpcasting/EventUpcasting.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/cdc/CdcAntiCorruption/CdcAntiCorruption.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/cdc/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/cdc/CdcJobQuartz/CdcJobQuartz.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/ConsumerConformanceExample/ConsumerConformanceExample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/JobWorkerSample/JobWorkerSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/LeaderElection/LeaderElection.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/ProductionPipeline/ProductionPipeline.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/deployment/Testing/Testing.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/CloudStorageSnapshots/CloudStorageSnapshots.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/CosmosDbEventStore/CosmosDbEventStore.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/InboxIdempotency/InboxIdempotency.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/MultiDatabase/MultiDatabase.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/SnapshotStrategies/SnapshotStrategies.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/SqlServerEventStore/SqlServerEventStore.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/persistence-patterns/TransactionalHandlers/TransactionalHandlers.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/CosmosDb/CosmosDb.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/DynamoDb/DynamoDb.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-GettingStarted/ElasticSearch-GettingStarted.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-InboxOutbox/ElasticSearch-InboxOutbox.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-IndexManagement/ElasticSearch-IndexManagement.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-Paging/ElasticSearch-Paging.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-Projections/ElasticSearch-Projections.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-Querying/ElasticSearch-Querying.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/ElasticSearch-Resilience/ElasticSearch-Resilience.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/Firestore/Firestore.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/FluentValidationSample/FluentValidationSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/MongoDB/MongoDB.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/MySql/MySql.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/OpenSearch/OpenSearch.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/Postgres/Postgres.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/Redis/Redis.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/09-advanced/querying/StreamingHandlers/StreamingHandlers.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: samples/11-real-world/ECommerceSample/ECommerceSample.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/11-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: samples/11-real-world/HealthcareApi/HealthcareApi.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/11-real-world/OrderProcessing/OrderProcessing.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/11-real-world/ProofOfLife/ProofOfLife.csproj
+    classification: Sample
+    in_solution: true
+
+  - path: samples/12-migration/MediatRMigration/Excalibur.MediatRMigration.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Core
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Analyzers/Excalibur.Dispatch.Analyzers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Caching/Excalibur.Dispatch.Caching.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.ClaimCheck.AwsS3/Excalibur.Dispatch.ClaimCheck.AwsS3.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Compat.MassTransit/Excalibur.Dispatch.Compat.MassTransit.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Compat.MediatR.SourceGenerators/Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Compat.MediatR/Excalibur.Dispatch.Compat.MediatR.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/Excalibur.Dispatch.Hosting.AspNetCore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/Excalibur.Dispatch.Hosting.AwsLambda.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/Excalibur.Dispatch.Hosting.AzureFunctions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Hosting.GoogleCloudFunctions/Excalibur.Dispatch.Hosting.GoogleCloudFunctions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Hosting.Serverless.Abstractions/Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.LeaderElection.Abstractions/Excalibur.Dispatch.LeaderElection.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Migration.Analyzers/Excalibur.Dispatch.Migration.Analyzers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Migration.CodeFixes/Excalibur.Dispatch.Migration.CodeFixes.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Migration/Excalibur.Dispatch.Migration.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Observability.Aws/Excalibur.Dispatch.Observability.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Observability/Excalibur.Dispatch.Observability.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Patterns.Azure/Excalibur.Dispatch.Patterns.Azure.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Patterns.Hosting.Json/Excalibur.Dispatch.Patterns.Hosting.Json.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Patterns/Excalibur.Dispatch.Patterns.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Resilience.Polly/Excalibur.Dispatch.Resilience.Polly.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Serialization.Avro/Excalibur.Dispatch.Serialization.Avro.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Serialization.MemoryPack/Excalibur.Dispatch.Serialization.MemoryPack.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Serialization.MessagePack/Excalibur.Dispatch.Serialization.MessagePack.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Serialization.Protobuf/Excalibur.Dispatch.Serialization.Protobuf.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.SourceGenerators.Analyzers/Excalibur.Dispatch.SourceGenerators.Analyzers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.SourceGenerators/Excalibur.Dispatch.SourceGenerators.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Testing.Shouldly/Excalibur.Dispatch.Testing.Shouldly.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Testing/Excalibur.Dispatch.Testing.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/Excalibur.Dispatch.Transport.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Excalibur.Dispatch.Transport.AwsSqs.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/Excalibur.Dispatch.Transport.AzureServiceBus.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/Excalibur.Dispatch.Transport.GooglePubSub.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Grpc/Excalibur.Dispatch.Transport.Grpc.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.IbmMq/Excalibur.Dispatch.Transport.IbmMq.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Kafka/Excalibur.Dispatch.Transport.Kafka.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Mqtt/Excalibur.Dispatch.Transport.Mqtt.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Pulsar/Excalibur.Dispatch.Transport.Pulsar.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Excalibur.Dispatch.Transport.RabbitMQ.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/Excalibur.Dispatch.Validation.FluentValidation.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Core
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.Abstractions/Excalibur.A3.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.Core/Excalibur.A3.Core.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.Governance.Abstractions/Excalibur.A3.Governance.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.Governance/Excalibur.A3.Governance.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.Policy.Cedar/Excalibur.A3.Policy.Cedar.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3.Policy.Opa/Excalibur.A3.Policy.Opa.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.A3/Excalibur.A3.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Application/Excalibur.Application.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Abstractions/Excalibur.AuditLogging.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Aws/Excalibur.AuditLogging.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Datadog/Excalibur.AuditLogging.Datadog.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Elasticsearch/Excalibur.AuditLogging.Elasticsearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.GoogleCloud/Excalibur.AuditLogging.GoogleCloud.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.OpenSearch/Excalibur.AuditLogging.OpenSearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Postgres/Excalibur.AuditLogging.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Sentinel/Excalibur.AuditLogging.Sentinel.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.Splunk/Excalibur.AuditLogging.Splunk.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging.SqlServer/Excalibur.AuditLogging.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.AuditLogging/Excalibur.AuditLogging.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Caching/Excalibur.Caching.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc.CosmosDb/Excalibur.Cdc.CosmosDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc.DynamoDb/Excalibur.Cdc.DynamoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc.Firestore/Excalibur.Cdc.Firestore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc.MongoDB/Excalibur.Cdc.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc.Postgres/Excalibur.Cdc.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc.SqlServer/Excalibur.Cdc.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Cdc/Excalibur.Cdc.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.Abstractions/Excalibur.Compliance.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.Aws/Excalibur.Compliance.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.Azure/Excalibur.Compliance.Azure.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.MongoDb/Excalibur.Compliance.MongoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.Pdf/Excalibur.Compliance.Pdf.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.Postgres/Excalibur.Compliance.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.SqlServer/Excalibur.Compliance.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance.Vault/Excalibur.Compliance.Vault.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Compliance/Excalibur.Compliance.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.Abstractions/Excalibur.Data.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Core
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.Analyzers/Excalibur.Data.Analyzers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.CosmosDb/Excalibur.Data.CosmosDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.DataProcessing/Excalibur.Data.DataProcessing.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.DynamoDb/Excalibur.Data.DynamoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.ElasticSearch/Excalibur.Data.ElasticSearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.Firestore/Excalibur.Data.Firestore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.IdentityMap.SqlServer/Excalibur.Data.IdentityMap.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.IdentityMap/Excalibur.Data.IdentityMap.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.InMemory/Excalibur.Data.InMemory.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.MongoDB/Excalibur.Data.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.MySql/Excalibur.Data.MySql.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.OpenSearch/Excalibur.Data.OpenSearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.Postgres/Excalibur.Data.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.Redis/Excalibur.Data.Redis.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.Spanner/Excalibur.Data.Spanner.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data.SqlServer/Excalibur.Data.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Data/Excalibur.Data.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Domain/Excalibur.Domain.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Core
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Abstractions/Excalibur.EventSourcing.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.AwsS3/Excalibur.EventSourcing.AwsS3.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.AzureBlob/Excalibur.EventSourcing.AzureBlob.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.CosmosDb/Excalibur.EventSourcing.CosmosDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.DynamoDb/Excalibur.EventSourcing.DynamoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Firestore/Excalibur.EventSourcing.Firestore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Gcs/Excalibur.EventSourcing.Gcs.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Handlers/Excalibur.EventSourcing.Handlers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.InMemory/Excalibur.EventSourcing.InMemory.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.MongoDB/Excalibur.EventSourcing.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Oracle/Excalibur.EventSourcing.Oracle.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Postgres/Excalibur.EventSourcing.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Redis/Excalibur.EventSourcing.Redis.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.Sqlite/Excalibur.EventSourcing.Sqlite.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing.SqlServer/Excalibur.EventSourcing.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.EventSourcing/Excalibur.EventSourcing.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.Aws/Excalibur.Hosting.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.AwsLambda/Excalibur.Hosting.AwsLambda.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.AzureFunctions/Excalibur.Hosting.AzureFunctions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.Compliance/Excalibur.Hosting.Compliance.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/Excalibur.Hosting.GoogleCloudFunctions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.HealthChecks/Excalibur.Hosting.HealthChecks.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.Jobs/Excalibur.Hosting.Jobs.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.Logging.Serilog/Excalibur.Hosting.Logging.Serilog.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.Observability/Excalibur.Hosting.Observability.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Hosting
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.CosmosDb/Excalibur.Inbox.CosmosDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.DynamoDb/Excalibur.Inbox.DynamoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.ElasticSearch/Excalibur.Inbox.ElasticSearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.Firestore/Excalibur.Inbox.Firestore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.InMemory/Excalibur.Inbox.InMemory.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.MongoDB/Excalibur.Inbox.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.Oracle/Excalibur.Inbox.Oracle.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.Postgres/Excalibur.Inbox.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.Redis/Excalibur.Inbox.Redis.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox.SqlServer/Excalibur.Inbox.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Inbox/Excalibur.Inbox.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.Abstractions/Excalibur.Jobs.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.Aws/Excalibur.Jobs.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.Azure/Excalibur.Jobs.Azure.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.Cdc/Excalibur.Jobs.Cdc.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.DataProcessing/Excalibur.Jobs.DataProcessing.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.GoogleCloud/Excalibur.Jobs.GoogleCloud.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.Redis/Excalibur.Jobs.Redis.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs.SqlServer/Excalibur.Jobs.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Jobs/Excalibur.Jobs.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.Consul/Excalibur.LeaderElection.Consul.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.InMemory/Excalibur.LeaderElection.InMemory.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.Kubernetes/Excalibur.LeaderElection.Kubernetes.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.MongoDB/Excalibur.LeaderElection.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.Postgres/Excalibur.LeaderElection.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.Redis/Excalibur.LeaderElection.Redis.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection.SqlServer/Excalibur.LeaderElection.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.LeaderElection/Excalibur.LeaderElection.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Migrate.Tool/Excalibur.Migrate.Tool.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.MultiTenancy/Excalibur.MultiTenancy.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Operations.Dashboard.EventSourcing/Excalibur.Operations.Dashboard.EventSourcing.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Operations.Dashboard.Spa/Excalibur.Operations.Dashboard.Spa.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Operations.Dashboard/Excalibur.Operations.Dashboard.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.CosmosDb/Excalibur.Outbox.CosmosDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.DynamoDb/Excalibur.Outbox.DynamoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.ElasticSearch/Excalibur.Outbox.ElasticSearch.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.Firestore/Excalibur.Outbox.Firestore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.InMemory/Excalibur.Outbox.InMemory.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.Marten/Excalibur.Outbox.Marten.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.MongoDB/Excalibur.Outbox.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.Oracle/Excalibur.Outbox.Oracle.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.Postgres/Excalibur.Outbox.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.Redis/Excalibur.Outbox.Redis.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox.SqlServer/Excalibur.Outbox.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Outbox/Excalibur.Outbox.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.CosmosDb/Excalibur.Saga.CosmosDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.DynamoDb/Excalibur.Saga.DynamoDb.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.Firestore/Excalibur.Saga.Firestore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.MongoDB/Excalibur.Saga.MongoDB.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.Oracle/Excalibur.Saga.Oracle.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.Postgres/Excalibur.Saga.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga.SqlServer/Excalibur.Saga.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Saga/Excalibur.Saga.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Security.Abstractions/Excalibur.Security.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Security.AuditLogging/Excalibur.Security.AuditLogging.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Security.Aws/Excalibur.Security.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Security.Azure/Excalibur.Security.Azure.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Security/Excalibur.Security.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Testing.Conformance/Excalibur.Testing.Conformance.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Testing.Containers/Excalibur.Testing.Containers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Testing/Excalibur.Testing.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Workflows.Abstractions/Excalibur.Workflows.Abstractions.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Workflows.Analyzers/Excalibur.Workflows.Analyzers.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Workflows.CodeFixes/Excalibur.Workflows.CodeFixes.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Workflows.SqlServer/Excalibur.Workflows.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/Excalibur/Excalibur.Workflows/Excalibur.Workflows.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.AspNetCore/Excalibur.Dispatch.AspNetCore.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Extension
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.Postgres/Excalibur.Dispatch.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.RabbitMQ/Excalibur.Dispatch.RabbitMQ.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.Postgres/Excalibur.Postgres.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: src/metapackages/Excalibur.SqlServer/Excalibur.SqlServer.csproj
+    classification: Shipping
+    in_solution: true
+    tier: Provider
+    framework_owner: Excalibur
+
+  - path: tests/architecture/Boundary.Tests/Boundary.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Architecture
+
+  - path: tests/benchmarks/Excalibur.Compliance.Benchmarks/Excalibur.Compliance.Benchmarks.csproj
+    classification: Benchmark
+    in_solution: true
+    category: Benchmark
+    framework_owner: Excalibur
+
+  - path: tests/benchmarks/Excalibur.Dispatch.Performance.Benchmarks/Excalibur.Dispatch.Performance.Benchmarks.csproj
+    classification: Benchmark
+    in_solution: true
+    category: Benchmark
+    framework_owner: Excalibur
+
+  - path: tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj
+    classification: Test
+    in_solution: true
+    category: Conformance
+    framework_owner: Excalibur
+
+  - path: tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj
+    classification: Test
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: tests/functional/Excalibur.Dispatch.Tests.Functional/Excalibur.Dispatch.Tests.Functional.csproj
+    classification: Test
+    in_solution: true
+    category: Functional
+    framework_owner: Excalibur
+
+  - path: tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Integration
+    framework_owner: Excalibur
+
+  - path: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Integration
+    framework_owner: Excalibur
+
+  - path: tests/performance/Excalibur.Dispatch.Messaging.Performance.Tests/Excalibur.Dispatch.Messaging.Performance.Tests.csproj
+    classification: Test
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: tests/performance/Excalibur.Dispatch.Performance.Tests/Excalibur.Dispatch.Performance.Tests.csproj
+    classification: Test
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: tests/Shared/Excalibur.Dispatch.Testing/Excalibur.Dispatch.Testing.csproj
+    classification: Test
+    in_solution: true
+    category: Shared
+    framework_owner: Excalibur
+
+  - path: tests/Shared/Tests.Shared/Tests.Shared.csproj
+    classification: Test
+    in_solution: true
+    category: Shared
+
+  - path: tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj
+    classification: Test
+    in_solution: true
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.A3.Governance.Tests/Excalibur.A3.Governance.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.A3.Tests/Excalibur.A3.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Application.Tests/Excalibur.Application.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Abstractions.Tests/Excalibur.AuditLogging.Abstractions.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Aws.Tests/Excalibur.AuditLogging.Aws.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Datadog.Tests/Excalibur.AuditLogging.Datadog.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Elasticsearch.Tests/Excalibur.AuditLogging.Elasticsearch.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.GoogleCloud.Tests/Excalibur.AuditLogging.GoogleCloud.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Postgres.Tests/Excalibur.AuditLogging.Postgres.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Sentinel.Tests/Excalibur.AuditLogging.Sentinel.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Splunk.Tests/Excalibur.AuditLogging.Splunk.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.SqlServer.Tests/Excalibur.AuditLogging.SqlServer.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.AuditLogging.Tests/Excalibur.AuditLogging.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Caching.Tests/Excalibur.Caching.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Cdc.Tests/Excalibur.Cdc.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Compliance.Tests/Excalibur.Compliance.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Abstractions.Tests/Excalibur.Data.Abstractions.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Analyzers.Tests/Excalibur.Data.Analyzers.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.CosmosDb.Tests/Excalibur.Data.CosmosDb.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.DataProcessing.Tests/Excalibur.Data.DataProcessing.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.DynamoDb.Tests/Excalibur.Data.DynamoDb.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.ElasticSearch.Tests/Excalibur.Data.ElasticSearch.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Firestore.Tests/Excalibur.Data.Firestore.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.IdentityMap.Tests/Excalibur.Data.IdentityMap.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.InMemory.Tests/Excalibur.Data.InMemory.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.MongoDB.Tests/Excalibur.Data.MongoDB.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.MySql.Tests/Excalibur.Data.MySql.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Postgres.Tests/Excalibur.Data.Postgres.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Redis.Tests/Excalibur.Data.Redis.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Spanner.Tests/Excalibur.Data.Spanner.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.SqlServer.Tests/Excalibur.Data.SqlServer.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Data.Tests/Excalibur.Data.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Abstractions.Tests/Excalibur.Dispatch.Abstractions.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Analyzers.Tests/Excalibur.Dispatch.Analyzers.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Caching.Tests/Excalibur.Dispatch.Caching.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.ClaimCheck.AwsS3.Tests/Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Compat.MassTransit.Tests/Excalibur.Dispatch.Compat.MassTransit.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures/Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Compat.MediatR.Tests/Excalibur.Dispatch.Compat.MediatR.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Configuration.Tests/Excalibur.Dispatch.Configuration.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.DependencyInjection.Tests/Excalibur.Dispatch.DependencyInjection.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Diagnostics.Tests/Excalibur.Dispatch.Diagnostics.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Hosting.AspNetCore.Tests/Excalibur.Dispatch.Hosting.AspNetCore.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Hosting.Serverless.Tests/Excalibur.Dispatch.Hosting.Serverless.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Hosting.Tests/Excalibur.Dispatch.Hosting.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.LeaderElection.Abstractions.Tests/Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Messaging.Tests/Excalibur.Dispatch.Messaging.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Middleware.Tests/Excalibur.Dispatch.Middleware.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Migration.Tests/Excalibur.Dispatch.Migration.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Observability.Tests/Excalibur.Dispatch.Observability.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Options.Tests/Excalibur.Dispatch.Options.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Patterns.Tests/Excalibur.Dispatch.Patterns.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Security.Tests/Excalibur.Dispatch.Security.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Serialization.Tests/Excalibur.Dispatch.Serialization.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Excalibur.Dispatch.SourceGenerators.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Testing.Shouldly.Tests/Excalibur.Dispatch.Testing.Shouldly.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Tests/Excalibur.Dispatch.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Transport.Abstractions.Tests/Excalibur.Dispatch.Transport.Abstractions.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Validation.FluentValidation.Tests/Excalibur.Dispatch.Validation.FluentValidation.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Dispatch.Workflows.Tests/Excalibur.Dispatch.Workflows.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Domain.Tests/Excalibur.Domain.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.EventSourcing.Handlers.Tests/Excalibur.EventSourcing.Handlers.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Hosting.Tests/Excalibur.Hosting.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Inbox.Oracle.Tests/Excalibur.Inbox.Oracle.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Jobs.Tests/Excalibur.Jobs.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.LeaderElection.Tests/Excalibur.LeaderElection.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.MediatRMigration.Tests/Excalibur.MediatRMigration.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Metapackages.Tests/Excalibur.Metapackages.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.MultiTenancy.Tests/Excalibur.MultiTenancy.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Operations.Dashboard.Tests/Excalibur.Operations.Dashboard.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Outbox.Oracle.Tests/Excalibur.Outbox.Oracle.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Postgres.Tests/Excalibur.Postgres.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Saga.Tests/Excalibur.Saga.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Security.Tests/Excalibur.Security.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.SqlServer.Tests/Excalibur.SqlServer.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Tests/Excalibur.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Workflows.Abstractions.Tests/Excalibur.Workflows.Abstractions.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Workflows.Analyzers.Tests/Excalibur.Workflows.Analyzers.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Workflows.SqlServer.Tests/Excalibur.Workflows.SqlServer.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/unit/Excalibur.Workflows.Tests/Excalibur.Workflows.Tests.csproj
+    classification: Test
+    in_solution: true
+    category: Unit
+    framework_owner: Excalibur
+

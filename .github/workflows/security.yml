@@ -331,7 +331,7 @@ jobs:
           # src/ held 201 when this went red at 200. nightly.yml already used 400; this is the
           # sibling that was not updated with it.
           ./eng/ci/dependency-audit.ps1 `
-            -OutDir management/reports/DependencyAuditReport `
+            -OutDir artifacts/reports/DependencyAuditReport `
             -ProjectRoot src `
             -PerProjectTimeoutSeconds 120 `
             -TotalBudgetMinutes 30 `
@@ -341,7 +341,7 @@ jobs:
       - name: Enforce vulnerability policy (allowlist optional)
         shell: pwsh
         run: |
-          $json = @(Get-Content 'management/reports/DependencyAuditReport/vulnerabilities.json' | ConvertFrom-Json)
+          $json = @(Get-Content 'artifacts/reports/DependencyAuditReport/vulnerabilities.json' | ConvertFrom-Json)
           $vulnRecords = @(
             $json | Where-Object {
               if ($_.PSObject.Properties.Name -contains 'HasVulnerabilities') {
@@ -368,7 +368,7 @@ jobs:
               | Sort-Object -Unique
             )
 
-            $allowlistPath = 'management/security/cve-allowlist.yaml'
+            $allowlistPath = 'eng/governance/cve-allowlist.yaml'
             $allowedIds = @()
             if (Test-Path $allowlistPath) {
               try {
@@ -407,7 +407,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dependency-audit
-          path: management/reports/DependencyAuditReport
+          path: artifacts/reports/DependencyAuditReport
 
   notices-lint:
     name: Notices & License Headers
@@ -466,11 +466,11 @@ jobs:
       - name: Run OSS metadata audit
         shell: pwsh
         run: |
-          ./eng/ci/oss-metadata-audit.ps1 -OutDir management/reports/OssMetadataReport -Catalog management/package-ids.yaml
+          ./eng/ci/oss-metadata-audit.ps1 -OutDir artifacts/reports/OssMetadataReport -Catalog eng/governance/package-ids.yaml
 
       - name: Upload OSS metadata report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: oss-metadata-report
-          path: management/reports/OssMetadataReport/oss-metadata.json
+          path: artifacts/reports/OssMetadataReport/oss-metadata.json

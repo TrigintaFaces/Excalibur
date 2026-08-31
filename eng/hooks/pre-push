@@ -97,7 +97,7 @@ ZERO="0000000000000000000000000000000000000000"
 # behaviour necessarily touches src/ too, and is caught by the src/ term.
 SIG_RE='^(src/|\.github/workflows/|Directory\.Packages\.props|Directory\.Build\.(props|targets)|templates/|\.editorconfig|RELEASE\.md|CONTRIBUTING\.md)'
 # Paths excluded from significance (point-in-time / template-config / governance artifacts)
-EXCL_RE='(/sprints/|management/governance/framework-governance\.json|/reports/|/\.template\.config/|\.test\.sh$|PublicAPI\.Shipped\.txt$|PublicAPI\.Unshipped\.txt$)'
+EXCL_RE='(/sprints/|eng/governance/framework-governance\.json|/reports/|/\.template\.config/|\.test\.sh$|PublicAPI\.Shipped\.txt$|PublicAPI\.Unshipped\.txt$)'
 
 violation=0
 

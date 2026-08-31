@@ -65,6 +65,46 @@ run() {  # run <label> <command...> — captures the REAL exit (no pipe/;-mask),
     esac
 }
 
+# A FOURTH state, and the narrowest one: a gate whose INPUT does not exist in this repository at all.
+#
+# ddl-migration-completeness walks committed history from an anchor commit. That anchor is a commit in
+# the DEVELOPMENT repository. The public mirror receives one squashed commit per release, with entirely
+# different SHAs, so the anchor cannot resolve there and the gate REFUSEs on every mirror run --
+# correctly, since it did not evaluate, but permanently. A gate that is red forever teaches the team to
+# stop reading the battery, which costs more than the gate is worth.
+#
+# The discriminator is REPOSITORY IDENTITY, deliberately, and NOT "the anchor failed to resolve". Those
+# two are easy to confuse and only one is safe. If an unresolvable anchor were the trigger, then the day
+# someone rewrites development history and orphans the anchor, this gate would go quietly not-applicable
+# in the very repository it exists to protect -- a silent skip is exactly the false safety the rest of
+# this file is built to prevent. Repository identity cannot be satisfied by accident: in development the
+# origin remote is the source repository, and no history edit changes that.
+#
+# So: in the development repository the gate RUNS, and an unresolvable anchor there is a real failure
+# that must be loud. Anywhere else it is NOT APPLICABLE, reported as its own state, counted separately,
+# and excluded from the verdict count so the denominator stays honest about what was measured.
+skipped=0
+is_development_repo() {
+    local url
+    url="$(git remote get-url origin 2>/dev/null)" || return 1
+    case "$url" in
+        *Excalibur.Dispatch.git|*Excalibur.Dispatch|*Excalibur.Dispatch/) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+run_development_only() {  # run_development_only <why> <label> <command...>
+    local why="$1" label="$2"; shift 2
+    if is_development_repo; then
+        run "$label" "$@"
+        return
+    fi
+    echo "── $label"
+    echo "   NOT APPLICABLE: $label — $why"
+    echo "   origin is '$(git remote get-url origin 2>/dev/null || echo unknown)', which is not the development repository."
+    skipped=$((skipped + 1))
+}
+
 echo "==== harness-gates-ci: CI-authoritative gate wiring ===="
 
 # SELF-TEST SEAM (guard 3): when HGCI_TEST_GATE is set, run ONLY that one controllable command as the
@@ -74,7 +114,7 @@ echo "==== harness-gates-ci: CI-authoritative gate wiring ===="
 # enforced by gate-wiring's caller-of-record ARM (guard 2); its correctness by the dogfood full run.
 if [ -n "${HGCI_TEST_GATE:-}" ]; then
     run "self-test gate" bash -c "$HGCI_TEST_GATE"
-    echo "==== harness-gates-ci (test mode): $ran check(s) EXECUTED, $((ran - refused)) reached a VERDICT, $fails FAILED, $refused REFUSED ===="
+    echo "==== harness-gates-ci (test mode): $ran check(s) EXECUTED, $((ran - refused)) reached a VERDICT, $fails FAILED, $refused REFUSED, $skipped NOT APPLICABLE ===="
     # REFUSE must be checked HERE too, not only in the production summary below. When three-state
     # reporting was added, this branch still tested `$fails` alone — and because a REFUSE no longer
     # increments `fails`, a refusing gate exited 0 through this path. That is precisely the
@@ -384,13 +424,13 @@ run "ddl-pack-completeness (real repo)" python3 eng/ci/ddl-pack-completeness.py
 # report before the verdict is believed. Keep this above the real-repo run.
 run "self-test: ddl-migration-completeness" python3 eng/ci/ddl-migration-completeness.py --self-test
 
-run "ddl-migration-completeness (real repo)" python3 eng/ci/ddl-migration-completeness.py
+run_development_only \n    "it walks committed history from an anchor commit that exists only in the development repository" \n    "ddl-migration-completeness (real repo)" python3 eng/ci/ddl-migration-completeness.py
 
 # Report what EXECUTED, not what is configured. A battery that reaches green by dropping entries
 # prints the same "0 failures" as a healthy one, so the failure count alone cannot distinguish a
 # passing suite from an empty one. The executed count is what makes this line falsifiable: if a
 # future edit silently shrinks the enumeration, this number drops and the drop is visible in the log.
-echo "==== harness-gates-ci: $ran check(s) EXECUTED, $((ran - refused)) reached a VERDICT, $fails FAILED, $refused REFUSED ===="
+echo "==== harness-gates-ci: $ran check(s) EXECUTED, $((ran - refused)) reached a VERDICT, $fails FAILED, $refused REFUSED, $skipped NOT APPLICABLE ===="
 [ "$ran" -gt 0 ] || { echo "::error::harness-gates-ci: 0 checks executed — an empty battery is not a pass"; exit 1; }
 # REFUSED is reported separately from FAILED so a run where several gates could not
 # evaluate is visible as such, rather than reading as several discovered defects. It is still non-zero:

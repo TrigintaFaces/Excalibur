@@ -281,7 +281,7 @@ jobs:
       - name: Validate flaky quarantine policy
         shell: pwsh
         run: |
-          ./eng/ci/validate-flaky-quarantine.ps1 -OutDir management/reports/FlakyQuarantineReport -Enforce:$true
+          ./eng/ci/validate-flaky-quarantine.ps1 -OutDir artifacts/reports/FlakyQuarantineReport -Enforce:$true
 
       - name: Compose release-blocking unit filter
         shell: pwsh
@@ -348,7 +348,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-flaky-quarantine-report
-          path: management/reports/FlakyQuarantineReport
+          path: artifacts/reports/FlakyQuarantineReport
           if-no-files-found: warn
           retention-days: 30
 

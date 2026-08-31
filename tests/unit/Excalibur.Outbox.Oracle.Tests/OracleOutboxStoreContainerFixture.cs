@@ -29,6 +29,14 @@ namespace Excalibur.Outbox.Oracle.Tests;
 /// </remarks>
 public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 {
+	/// <summary>The shipped Oracle outbox scripts, in apply order.</summary>
+	private static readonly string[] OracleScriptPaths =
+	[
+		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/001_CreateOutboxSchema.sql",
+		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/002_MakeOutboxTenantTotal.sql",
+		"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/003_CarryTenantOnDeadLetters.sql",
+	];
+
 	private OracleContainer? _container;
 	private readonly OneTimeInitializer _initializer = new();
 
@@ -89,12 +97,7 @@ public sealed class OracleOutboxStoreContainerFixture : ContainerFixtureBase
 		// drift later: provisioning from the script is the only thing standing in for it.
 		//
 		// The table names below are the script defaults, which is why it can be applied unmodified.
-		var units = new[]
-		{
-			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/001_CreateOutboxSchema.sql",
-			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/002_MakeOutboxTenantTotal.sql",
-			"src/Excalibur/Excalibur.Outbox.Oracle/Scripts/003_CarryTenantOnDeadLetters.sql",
-		}.SelectMany(ShippedSchemaScript.ReadOracleUnits);
+		var units = OracleScriptPaths.SelectMany(ShippedSchemaScript.ReadOracleUnits);
 
 		foreach (var unit in units)
 		{

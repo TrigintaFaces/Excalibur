@@ -5,7 +5,7 @@ description: Canonical package family ownership matrix generated from governance
 
 # Capability Ownership Matrix
 
-> Auto-generated from `management/governance/framework-governance.json`.
+> Auto-generated from `eng/governance/framework-governance.json`.
 
 | Capability | Owner | Dispatch Packages | Excalibur Packages | Rationale |
 |---|---|---|---|---|

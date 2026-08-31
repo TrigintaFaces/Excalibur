@@ -71,6 +71,7 @@ public sealed class MongoDbLeaderElectionKitConformanceShould : LeaderElectionCo
 		}
 
 		_created.Clear();
+		_client?.Dispose();
 	}
 
 	/// <inheritdoc/>

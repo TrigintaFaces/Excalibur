@@ -28,6 +28,7 @@ namespace Excalibur.Integration.Tests.Data.Workflows;
 // The only Cosmos-backed suite that lacked this trait. Every other Cosmos class carries it, and CI selects
 // on it to exclude the provider wholesale where no emulator exists — so without it this suite is invisible
 // to that rule and would have to be tracked by name instead.
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 public sealed class CosmosDbWorkflowConformanceTests
     : WorkflowConformanceTestKit, IClassFixture<CosmosDbEventStoreContainerFixture>

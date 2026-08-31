@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate management/reports/ci-workflow-inventory.md from the workflows themselves.
+"""Regenerate eng/reports/ci-workflow-inventory.md from the workflows themselves.
 
 This exists because nothing described what CI actually runs, so "which checks are required"
 had no answer anyone could read, and 21 workflows could overlap without it being visible.
@@ -48,7 +48,7 @@ def build():
                    f"{'yes' if r['coe'] else ''} |")
     return '\n'.join(out) + '\n'
 
-DOC = 'management/reports/ci-workflow-inventory.md'
+DOC = 'eng/reports/ci-workflow-inventory.md'
 try:
     content = build()
 except ImportError:

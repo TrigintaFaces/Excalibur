@@ -80,8 +80,8 @@ public sealed class DashboardSpaAssetsShould
 
 		await assets.ServeAssetAsync(context, "app-abc123.css");
 
-		context.Response.Headers["Content-Security-Policy"].ToString().ShouldBe(ExpectedCsp);
-		context.Response.Headers["X-Content-Type-Options"].ToString().ShouldBe("nosniff");
+		context.Response.Headers.ContentSecurityPolicy.ToString().ShouldBe(ExpectedCsp);
+		context.Response.Headers.XContentTypeOptions.ToString().ShouldBe("nosniff");
 		context.Response.Headers["Referrer-Policy"].ToString().ShouldBe("no-referrer");
 	}
 
@@ -97,7 +97,7 @@ public sealed class DashboardSpaAssetsShould
 
 		await assets.ServeIndexAsync(context);
 
-		var csp = context.Response.Headers["Content-Security-Policy"].ToString();
+		var csp = context.Response.Headers.ContentSecurityPolicy.ToString();
 		csp.ShouldNotContain("unsafe-inline");
 		csp.ShouldNotContain("unsafe-eval");
 		csp.ShouldContain("frame-ancestors 'none'");

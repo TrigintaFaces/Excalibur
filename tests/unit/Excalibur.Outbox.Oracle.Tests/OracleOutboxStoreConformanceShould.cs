@@ -403,7 +403,7 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 	[Fact]
 	public Task StageMessageAsync_NullMessage_ShouldThrowArgumentNullException_Test() => StageMessageAsync_NullMessage_ShouldThrowArgumentNullException();
 
-	[Fact(Skip = "y5tn3e - Oracle does not persist Priority or the four multi-transport routing fields yet; correlation/causation are covered by the Oracle-local arm above")]
+	[Fact]
 	public Task StageMessageAsync_ShouldRoundTripEveryCallerSuppliedField_Test() => StageMessageAsync_ShouldRoundTripEveryCallerSuppliedField();
 
 	[Fact]

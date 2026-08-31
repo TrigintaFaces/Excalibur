@@ -147,6 +147,7 @@ public sealed class CosmosDbCdcContainerFixture : ContainerFixtureBase
 /// </para>
 /// </remarks>
 [IntegrationTest]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Infrastructure", TestInfrastructure.CosmosDb)]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]

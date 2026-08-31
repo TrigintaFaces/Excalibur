@@ -108,6 +108,7 @@ public sealed class SqlServerKeyEscrowUpgradeShould : IAsyncLifetime, IDisposabl
 	{
 		_service?.Dispose();
 		_encryptionProvider?.Dispose();
+		_keyManagement?.Dispose();
 	}
 
 	/// <summary>
@@ -490,7 +491,7 @@ public sealed class SqlServerKeyEscrowUpgradeShould : IAsyncLifetime, IDisposabl
 		_ = await connection.ExecuteAsync(sql, parameters);
 	}
 
-	private async Task<T> ScalarAsync<T>(string sql, object? parameters)
+	private async Task<T?> ScalarAsync<T>(string sql, object? parameters)
 	{
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync(CancellationToken.None);

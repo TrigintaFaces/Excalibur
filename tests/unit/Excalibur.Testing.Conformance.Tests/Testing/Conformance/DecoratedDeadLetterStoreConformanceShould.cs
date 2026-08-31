@@ -176,9 +176,11 @@ public sealed class DecoratedDeadLetterStoreConformanceShould
 		(inner is IDeadLetterStoreAdmin).ShouldBeTrue(
 			"the wrapped store must provide the facet, or the arms would skip for want of one rather than "
 			+ "for want of a way to reach it");
-		(wrapped is IDeadLetterStoreAdmin).ShouldBeFalse(
+		// Asked of the runtime type: a direct `is` is statically known false here (CS0184), which would
+		// make the guard vanish at compile time instead of failing if the wrapper ever gained the facet.
+		wrapped.GetType().IsAssignableTo(typeof(IDeadLetterStoreAdmin)).ShouldBeFalse(
 			"a cast that succeeds through the wrapper would make the skip arm prove nothing");
-		(decorated is IDeadLetterStoreAdmin).ShouldBeFalse(
+		decorated.GetType().IsAssignableTo(typeof(IDeadLetterStoreAdmin)).ShouldBeFalse(
 			"a cast that succeeds through the decorator would make the first arm pass without the deferral "
 			+ "under test");
 		((IDeadLetterStore)decorated).GetService(typeof(IDeadLetterStoreAdmin)).ShouldBeSameAs(

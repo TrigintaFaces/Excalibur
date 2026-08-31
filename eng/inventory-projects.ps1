@@ -6,7 +6,7 @@
     Scans governed directories for .csproj files, compares against Excalibur.sln,
     and generates project-manifest.yaml with v2.0 schema (framework_owner, reason fields).
 .PARAMETER ManifestPath
-    Output path for the YAML manifest (default: management/governance/project-manifest.yaml)
+    Output path for the YAML manifest (default: eng/governance/project-manifest.yaml)
 .PARAMETER Strict
     If true, exit with error code on any governance violations
 .NOTES
@@ -14,7 +14,7 @@
     Manifest schema v2.0 adds framework_owner, reason, and load-tests governance.
 #>
 param(
-    [string]$ManifestPath = "management/governance/project-manifest.yaml",
+    [string]$ManifestPath = "eng/governance/project-manifest.yaml",
     [switch]$Strict
 )
 

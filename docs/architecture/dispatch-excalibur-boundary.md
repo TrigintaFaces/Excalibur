@@ -22,7 +22,7 @@ This document describes where capabilities belong between the two frameworks.
 
 ## Capability Ownership
 
-**Authoritative source:** `management/governance/framework-governance.json` is the single source of truth for capability ownership, package naming policy, critical test mapping, and sample fitness classification.
+**Authoritative source:** `eng/governance/framework-governance.json` is the single source of truth for capability ownership, package naming policy, critical test mapping, and sample fitness classification.
 **Generated ownership table:** `docs/architecture/capability-ownership-matrix.md`.
 **Migration reference:** `docs/architecture/capability-migration-map.md`.
 
