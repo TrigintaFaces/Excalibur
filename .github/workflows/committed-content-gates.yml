@@ -388,8 +388,15 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
-      - name: Restore (writes lock files if the committed ones are stale)
-        run: bash ./build.sh --restore --verbosity quiet
+      # --force-evaluate is what makes this restore a MEASUREMENT rather than a formality. A plain
+      # restore rewrites a lock file only when the committed graph is UNSATISFIABLE; a lock listing a
+      # package the project no longer references is still satisfiable, so restore leaves it untouched
+      # and the gate downstream sees nothing. Measured: a plain restore reported "All projects are
+      # up-to-date" over twenty lock files that still named a removed dependency, and reported two --
+      # the only two whose graph had become unsatisfiable. Forcing re-evaluation resolves from
+      # scratch, so staleness that is merely satisfiable is visible too.
+      - name: Restore (re-evaluates the graph, rewriting any lock file that no longer matches it)
+        run: dotnet restore Excalibur.sln --force-evaluate --verbosity quiet
 
       # BLOCKING. The restore-verification this step waited for has been performed: a locked-mode
       # restore of the whole solution resolves the committed lock files exactly, so a rewritten lock

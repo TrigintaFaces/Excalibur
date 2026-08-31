@@ -90,7 +90,6 @@
 		<PackageVersion Include="Bogus" Version="35.6.5" />
 		<!-- Benchmarks -->
 		<PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-		<PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
 		<PackageVersion Include="System.Threading.Channels" Version="10.0.7" />
 		<!-- Load Testing -->
 		<PackageVersion Include="NBomber" Version="6.3.0" />

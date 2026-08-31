@@ -20,16 +20,6 @@
           "System.Management": "9.0.5"
         }
       },
-      "BenchmarkDotNet.Diagnostics.Windows": {
-        "type": "Direct",
-        "requested": "[0.15.8, )",
-        "resolved": "0.15.8",
-        "contentHash": "XI3wyymiXAd/BW8NTmiX7jaT38vQy/q3odiQ6LQnhZSN+qcqXYgeH+xT1bgnhkvWq6f2zHKePqeBHPpi0lx5hw==",
-        "dependencies": {
-          "BenchmarkDotNet": "0.15.8",
-          "Microsoft.Diagnostics.Tracing.TraceEvent": "3.1.21"
-        }
-      },
       "MassTransit": {
         "type": "Direct",
         "requested": "[8.5.9, )",

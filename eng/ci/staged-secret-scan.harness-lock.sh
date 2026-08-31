@@ -52,6 +52,7 @@ bad() { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n     -> %s\n' "$1" "$2" >&2; }
 # Assemble example tokens WITHOUT a contiguous literal in this source file.
 AWS_P="AKIA"                                                          # pragma: allowlist secret
 AWS_TOKEN="${AWS_P}IOSFODNN7EXAMPLE"                                  # pragma: allowlist secret  (AKIA + 16)
+ANT_P="sk-"; ANT_TOKEN="${ANT_P}ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123"   # pragma: allowlist secret  (sk- + 20+)
 GH_P="ghp_"                                                           # pragma: allowlist secret
 GH_TOKEN="${GH_P}0123456789abcdefghij0123456789abcdef"               # pragma: allowlist secret  (ghp_ + 36)
 PEM_TOKEN="-----BEGIN RSA PRIVATE ""KEY-----"                        # pragma: allowlist secret
@@ -95,6 +96,19 @@ rc="$(run_scan "$PEM_TOKEN")"
 rc="$(run_scan "public sealed class Foo { public int Bar => 42; }")"
 [ "$rc" = "0" ] && ok "LIVENESS: clean staged tree → scanner exits 0 (commit allowed)" \
                 || bad "LIVENESS: a clean commit MUST be allowed (inert block-all scanner?)" "scanner exit $rc"
+
+# SAFETY — the Anthropic/OpenAI key shape is blocked. This pattern requires a leading token boundary,
+# so it needs its own arm: the three arms above all use prefixes that cannot occur inside a word, and
+# a control on those cannot say whether THIS one still fires.
+rc="$(run_scan "var key = \"${ANT_TOKEN}\";")"
+[ "$rc" = "1" ] && ok "SAFETY: staged Anthropic/OpenAI key -> scanner exits 1 (blocked)"                 || bad "SAFETY: an Anthropic/OpenAI key MUST be blocked" "scanner exit $rc"
+
+# LIVENESS — a hyphenated identifier CONTAINING 'sk-' is not a key and must not block a commit.
+# 'task-delay-syncwait-baseline' puts twenty-three word characters after 'sk-', and without the
+# boundary it matched: a gate artifact named after a task was rejected as an Anthropic key. This arm
+# fails against the unbounded pattern, which is what makes it a real check rather than a restatement.
+rc="$(run_scan "BASELINE=eng/ci/task-delay-syncwait-baseline.txt")"
+[ "$rc" = "0" ] && ok "LIVENESS: 'sk-' inside a word (task-delay-...) -> scanner exits 0 (not a key)"                 || bad "LIVENESS: an identifier containing 'sk-' MUST NOT be read as a key" "scanner exit $rc"
 
 # ALLOWLIST — a real secret on a pragma-marked line → exempted (scanner not weakened; SAFETY arms hold).
 rc="$(run_scan "aws_key = ${AWS_TOKEN}   # pragma: allowlist secret")"

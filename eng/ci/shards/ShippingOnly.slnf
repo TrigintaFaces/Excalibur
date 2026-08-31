@@ -27,7 +27,6 @@
       "src\\Dispatch\\Excalibur.Dispatch.Serialization.MemoryPack\\Excalibur.Dispatch.Serialization.MemoryPack.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Serialization.MessagePack\\Excalibur.Dispatch.Serialization.MessagePack.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Serialization.Protobuf\\Excalibur.Dispatch.Serialization.Protobuf.csproj",
-      "src\\Dispatch\\Excalibur.Dispatch.SourceGenerators\\Excalibur.Dispatch.SourceGenerators.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Testing.Shouldly\\Excalibur.Dispatch.Testing.Shouldly.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Transport.Abstractions\\Excalibur.Dispatch.Transport.Abstractions.csproj",

@@ -35,14 +35,29 @@ set -uo pipefail
 # Secret-pattern corpus. Each entry "Label|ERE", length-bounded/anchored to stay high-confidence and
 # avoid false-positive wedging. The `# pragma` on each line exempts these REGEX definitions from the
 # scanner when this file is itself committed (they are patterns, not secrets).
+# WHY THE TWO 'sk' PATTERNS REQUIRE A LEADING TOKEN BOUNDARY
+#
+# 'sk-' and 'sk_' are two characters long and both occur INSIDE ordinary words. Without a boundary
+# the Anthropic pattern matches 'ta[sk-]delay-syncwait-baseline' -- the tail is twenty-three word
+# characters, so a gate artifact named after a task tripped a rule about API keys, and the rejection
+# named an Anthropic key. That happened here, to this repository's own file.
+#
+# The boundary is a TIGHTENING, not a relaxation, and the distinction matters because the rule below
+# forbids the relaxation. A real key is always preceded by a delimiter -- start of line, whitespace,
+# quote, '=', ':', '_' -- all of which are non-alphanumeric and still match. What no longer matches
+# is a key-shaped run buried inside a longer word, which is not a key. The length bound is untouched;
+# loosening THAT to clear a filename would have opened a hole for real keys of that length.
+#
+# Anything else added here should be read the same way: prefer a boundary or a more specific prefix
+# over a shorter tail.
 PATTERNS=(
   "AWS access key id|AKIA[0-9A-Z]{16}"                       # pragma: allowlist secret
   "AWS temporary key id|ASIA[0-9A-Z]{16}"                    # pragma: allowlist secret
   "GitHub PAT (classic)|ghp_[A-Za-z0-9]{36,}"                # pragma: allowlist secret
   "GitHub OAuth token|gho_[A-Za-z0-9]{36,}"                  # pragma: allowlist secret
   "GitHub fine-grained PAT|github_pat_[A-Za-z0-9_]{30,}"     # pragma: allowlist secret
-  "OpenAI/Anthropic API key|sk-(ant-)?[A-Za-z0-9_-]{20,}"    # pragma: allowlist secret
-  "Stripe live secret key|sk_live_[A-Za-z0-9]{20,}"          # pragma: allowlist secret
+  "OpenAI/Anthropic API key|(^|[^A-Za-z0-9])sk-(ant-)?[A-Za-z0-9_-]{20,}"    # pragma: allowlist secret
+  "Stripe live secret key|(^|[^A-Za-z0-9])sk_live_[A-Za-z0-9]{20,}"          # pragma: allowlist secret
   "Slack token|xox[baprs]-[A-Za-z0-9-]{10,}"                 # pragma: allowlist secret
   "Private key (PEM)|-----BEGIN [A-Z ]*PRIVATE KEY-----"     # pragma: allowlist secret
   "Azure storage AccountKey|AccountKey=[A-Za-z0-9+/=]{40,}"  # pragma: allowlist secret
