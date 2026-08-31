@@ -22,6 +22,14 @@ namespace Excalibur.Dispatch.SourceGenerators;
 public sealed class FluentValidationGenerator : IIncrementalGenerator
 {
 	/// <summary>
+	/// The interface the generated dispatcher implements. It lives in the
+	/// <c>Excalibur.Dispatch.Validation.FluentValidation</c> package, which a consumer of
+	/// <c>Excalibur.Dispatch</c> need not reference. Emission is guarded on it being resolvable.
+	/// </summary>
+	private const string DispatcherInterfaceMetadataName =
+		"Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher";
+
+	/// <summary>
 	/// Initializes the incremental generator pipeline.
 	/// </summary>
 	/// <param name="context">The generator initialization context.</param>
@@ -35,8 +43,20 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 			.Where(static v => v is not null)
 			.Collect();
 
-		context.RegisterSourceOutput(validatorProvider,
-			static (spc, validators) => GenerateDispatcher(spc, validators!));
+		// The validation package may be absent from this compilation (the generators ship with
+		// Excalibur.Dispatch, which does not depend on it). Emit nothing when it is.
+		var hasDispatcherInterface = context.CompilationProvider.Select(
+			static (compilation, _) =>
+				compilation.GetTypeByMetadataName(DispatcherInterfaceMetadataName) is not null);
+
+		context.RegisterSourceOutput(validatorProvider.Combine(hasDispatcherInterface),
+			static (spc, source) =>
+			{
+				if (source.Right)
+				{
+					GenerateDispatcher(spc, source.Left!);
+				}
+			});
 	}
 
 	/// <summary>

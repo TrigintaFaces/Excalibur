@@ -46,11 +46,6 @@
           "OpenTelemetry.PersistentStorage.FileSystem": "1.0.2"
         }
       },
-      "DnsClient": {
-        "type": "Transitive",
-        "resolved": "1.6.1",
-        "contentHash": "4H/f2uYJOZ+YObZjpY9ABrKZI+JNw3uizp6oMzTXwDw6F+2qIPhpRl/1t68O/6e98+vqNiYGu+lswmwdYUy3gg=="
-      },
       "MemoryPack.Core": {
         "type": "Transitive",
         "resolved": "1.21.4",
@@ -86,11 +81,6 @@
         "dependencies": {
           "Microsoft.IdentityModel.Abstractions": "8.17.0"
         }
-      },
-      "MongoDB.Bson": {
-        "type": "Transitive",
-        "resolved": "3.8.0",
-        "contentHash": "HeiOJUylam5nIB7b1EfzlnJbf6A9te79WO6CtsKfp8M/2EeL4SoSQFjmUpJ6/vvuaNKGENXMaX9oUJp9KpHlqw=="
       },
       "Newtonsoft.Json": {
         "type": "Transitive",
@@ -141,11 +131,6 @@
         "resolved": "4.5.1",
         "contentHash": "fO8GMEkgoKioJ7cglZbhcnBgkCWWn9poS3G2jevS+fuwW9xJXMx7/1kr7dkwOJfo0pWqxLFWVcxlOr+WeK5ipA=="
       },
-      "ZstdSharp.Port": {
-        "type": "Transitive",
-        "resolved": "0.7.3",
-        "contentHash": "U9Ix4l4cl58Kzz1rJzj5hoVTjmbx1qGMwzAcbv1j/d3NzrFaESIurQyg+ow4mivCgkE3S413y+U9k4WdnEIkRA=="
-      },
       "excalibur.application": {
         "type": "Project",
         "dependencies": {
@@ -163,9 +148,7 @@
         "dependencies": {
           "Dapper": "[2.1.72, )",
           "Excalibur.Compliance.Abstractions": "[1.0.0, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "MongoDB.Driver": "[3.8.0, )",
-          "Npgsql": "[10.0.2, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.compliance.abstractions": {
@@ -202,8 +185,7 @@
         "dependencies": {
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.12.0, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.dispatch.abstractions": {
@@ -239,8 +221,7 @@
         "type": "Project",
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.eventsourcing": {
@@ -409,30 +390,11 @@
           "Microsoft.IdentityModel.Logging": "8.17.0"
         }
       },
-      "MongoDB.Driver": {
-        "type": "CentralTransitive",
-        "requested": "[3.8.0, )",
-        "resolved": "3.8.0",
-        "contentHash": "BQ6bTaZCuSThmxS4vXu71a1jFGNMht2/+rjx2Uaw3AweIqRKFbPuyFoVsDnoLN935tvdC5OxwwAqrMY9eWBUng==",
-        "dependencies": {
-          "DnsClient": "1.6.1",
-          "MongoDB.Bson": "3.8.0",
-          "SharpCompress": "0.30.1",
-          "Snappier": "1.0.0",
-          "ZstdSharp.Port": "0.7.3"
-        }
-      },
       "NCrontab": {
         "type": "CentralTransitive",
         "requested": "[3.4.0, )",
         "resolved": "3.4.0",
         "contentHash": "t3okCB6odi64mZvhetBPSR/ejKib3uSnmyCqj8M0mf2S3yFxbDFZLjxfWqcwvmS3zzgXR6LAIi0XlBU4oqxTlg=="
-      },
-      "Npgsql": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.2, )",
-        "resolved": "10.0.2",
-        "contentHash": "q5RfBI+wywJSFUNDE1L4ZbHEHCFTblo8Uf6A6oe4feOUFYiUQXyAf9GBh5qEZpvJaHiEbpBPkQumjEhXCJxdrg=="
       },
       "OpenTelemetry": {
         "type": "CentralTransitive",
@@ -466,18 +428,6 @@
         "dependencies": {
           "Polly.Core": "8.6.6"
         }
-      },
-      "SharpCompress": {
-        "type": "CentralTransitive",
-        "requested": "[0.48.0, )",
-        "resolved": "0.48.0",
-        "contentHash": "6k0Sa9gf85Sz9Npy7jnn5UPerejrAa3FxU9Gq5T6PwFWHUhUIdF903TjPiJtrYjXFJsXbnccaWSNMHzEg27DwQ=="
-      },
-      "Snappier": {
-        "type": "CentralTransitive",
-        "requested": "[1.3.1, )",
-        "resolved": "1.3.1",
-        "contentHash": "DOdDQiO8YZ5rBtVLY+6CmR1yp9WYoJRgEEktPBrR0tEj9QO2djA/zv0O3DX0OZpEAfosbY8pytQ9tQUogwQsEA=="
       },
       "System.IdentityModel.Tokens.Jwt": {
         "type": "CentralTransitive",

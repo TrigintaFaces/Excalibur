@@ -191,8 +191,7 @@
         "dependencies": {
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.12.0, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.dispatch.abstractions": {
@@ -222,8 +221,7 @@
         "type": "Project",
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.hosting": {

@@ -131,11 +131,6 @@
         "resolved": "10.0.7",
         "contentHash": "F8Pu2QLUMeniVbtiyk7n7LCfFYxlcJ8ASaSwglJyq6dxa34iCQrikQszsgJClIJWuSWjcyhKkV7daAzYJqeVwA=="
       },
-      "AspNetCore.HealthChecks.UI.Core": {
-        "type": "Transitive",
-        "resolved": "9.0.0",
-        "contentHash": "TVriy4hgYnhfqz6NAzv8qe62Q8wf82iKUL6WV9selqeFZTq1ILi39Sic6sFQegRysvAVcnxKP/vY8z9Fk8x6XQ=="
-      },
       "Azure.Core": {
         "type": "Transitive",
         "resolved": "1.52.0",
@@ -294,8 +289,7 @@
         "dependencies": {
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.12.0, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.dispatch.abstractions": {
@@ -325,8 +319,7 @@
         "type": "Project",
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
-          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )"
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
       },
       "excalibur.eventsourcing.abstractions": {
@@ -349,8 +342,6 @@
         "type": "Project",
         "dependencies": {
           "AspNetCore.HealthChecks.System": "[9.0.0, )",
-          "AspNetCore.HealthChecks.UI.Client": "[9.0.0, )",
-          "AspNetCore.HealthChecks.Uris": "[9.0.0, )",
           "Excalibur.Hosting": "[1.0.0, )"
         }
       },
@@ -365,21 +356,6 @@
         "dependencies": {
           "System.ServiceProcess.ServiceController": "8.0.0"
         }
-      },
-      "AspNetCore.HealthChecks.UI.Client": {
-        "type": "CentralTransitive",
-        "requested": "[9.0.0, )",
-        "resolved": "9.0.0",
-        "contentHash": "1Ub3Wvvbz7CMuFNWgLEc9qqQibiMoovDML/WHrwr5J83RPgtI20giCR92s/ipLgu7IIuqw+W/y7WpIeHqAICxg==",
-        "dependencies": {
-          "AspNetCore.HealthChecks.UI.Core": "9.0.0"
-        }
-      },
-      "AspNetCore.HealthChecks.Uris": {
-        "type": "CentralTransitive",
-        "requested": "[9.0.0, )",
-        "resolved": "9.0.0",
-        "contentHash": "XYdNlA437KeF8p9qOpZFyNqAN+c0FXt/JjTvzH/Qans0q0O3pPE8KPnn39ucQQjR/Roum1vLTP3kXiUs8VHyuA=="
       },
       "Ben.Demystifier": {
         "type": "CentralTransitive",

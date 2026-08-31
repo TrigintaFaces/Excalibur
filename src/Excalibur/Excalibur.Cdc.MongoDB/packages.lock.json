@@ -397,9 +397,7 @@
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Options": "[10.0.10, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.10, )",
-          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )",
-          "MongoDB.Driver": "[3.8.0, )",
-          "Npgsql": "[10.0.2, )"
+          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.10, )"
         }
       },
       "excalibur.compliance.abstractions": {
@@ -469,7 +467,6 @@
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.12.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.10, )",
@@ -543,7 +540,6 @@
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
-          "Medo.Uuid7": "[3.2.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
@@ -922,15 +918,6 @@
         "requested": "[3.4.0, )",
         "resolved": "3.4.0",
         "contentHash": "t3okCB6odi64mZvhetBPSR/ejKib3uSnmyCqj8M0mf2S3yFxbDFZLjxfWqcwvmS3zzgXR6LAIi0XlBU4oqxTlg=="
-      },
-      "Npgsql": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.2, )",
-        "resolved": "10.0.2",
-        "contentHash": "q5RfBI+wywJSFUNDE1L4ZbHEHCFTblo8Uf6A6oe4feOUFYiUQXyAf9GBh5qEZpvJaHiEbpBPkQumjEhXCJxdrg==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
-        }
       },
       "OpenTelemetry": {
         "type": "CentralTransitive",
