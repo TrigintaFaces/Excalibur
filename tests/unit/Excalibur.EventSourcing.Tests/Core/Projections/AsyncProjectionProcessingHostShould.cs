@@ -647,13 +647,18 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		// Bounds are SCALED for CI. The host re-applies within milliseconds locally (this test runs in
-		// ~0.3s), but on a loaded runner the same test has taken ~10s, and an unscaled 4s window expired
-		// after a single apply -- reporting applyCount == 1 as though the host had advanced past a failed
-		// batch. The failure looked exactly like the data-loss defect this test exists to catch, which is
-		// the worst kind of flake: it accuses the very invariant it guards. Scaling keeps the assertion
-		// intact and only widens the window the runner is given to satisfy it.
-		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+		// Bounds are SCALED for CI, and then widened again because scaling alone was not enough. The host
+		// re-applies within milliseconds locally (this test runs in ~0.3s, 3 for 3), but on a loaded runner
+		// it has now twice exceeded its window: first an unscaled 4s, and then the SCALED 4s window, which
+		// expired after a single apply at ~13s. Both times it reported applyCount == 1 as though the host
+		// had advanced past a failed batch -- the failure looks exactly like the data-loss defect this test
+		// exists to catch, which is the worst kind of flake because it accuses the very invariant it guards.
+		//
+		// So the window is generous rather than tight, which costs nothing when the host is healthy (it
+		// returns in a third of a second) and costs a false accusation when it is not. The two bounds are
+		// COUPLED and must stay ordered: the host runs under the token below, so a wait longer than the
+		// token is inert -- the host would be cancelled before it could satisfy it.
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -664,7 +669,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 		await WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref applyCount) >= 2,
-			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(20)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
