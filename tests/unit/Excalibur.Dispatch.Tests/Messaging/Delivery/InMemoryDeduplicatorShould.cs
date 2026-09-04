@@ -131,14 +131,24 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _deduplicator.MarkProcessedAsync(
 			"msg-1", ShortExpiry, CancellationToken.None);
 
+		// The poll condition MUTATES: it runs the cleanup on every attempt. Assigning the latest
+		// call's return meant `== 1` was observable on exactly one attempt -- the one that performed
+		// the removal -- and every later attempt overwrote it with 0, so a single unlucky interleaving
+		// made the condition unsatisfiable for the remaining ten seconds. Accumulating instead means
+		// whichever attempt does the removal contributes its 1 and the condition stays true.
 		var removedCount = 0;
 		await AwaitCleanupResultAsync(async () =>
 		{
-			removedCount = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
+			removedCount += await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
 			return removedCount == 1;
 		}, TimeSpan.FromSeconds(10));
 
-		removedCount.ShouldBe(1);
+		removedCount.ShouldBe(1, "the expired entry must be removed exactly once");
+
+		// The outcome, not just the return value: nothing expired is still tracked. A cleanup that
+		// reported 1 while leaving the entry behind would satisfy the assertion above on its own.
+		var stats = _deduplicator.GetStatistics();
+		stats.TrackedMessageCount.ShouldBe(0, "the expired entry must no longer be tracked");
 	}
 
 	[Fact]
