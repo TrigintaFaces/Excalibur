@@ -101,8 +101,10 @@ public sealed class AotJsonEventSerializerTypeNameRoundTripShould : EventSeriali
 		var registry = new ConformanceTypeRegistry();
 		foreach (var type in resolvableTypes)
 		{
-			// Register under the canonical persisted name so GetTypeName (registry hit) and ResolveType agree.
-			registry.Register(type.FullName!, type);
+			// Register under the canonical persisted name so GetTypeName and ResolveType agree. That name
+			// is the type's DECLARED name, not its CLR full name -- the whole point of declared identity
+			// is that the persisted name owes nothing to where the class lives.
+			registry.Register(MessageNameHelper.GetName(type), type);
 		}
 
 		return new AotJsonEventSerializer(registry, ConformanceJsonContext.Default);
@@ -185,7 +187,7 @@ internal sealed class CasingCorruptingEventSerializer : IEventSerializer
 {
 	private static readonly IReadOnlyDictionary<string, Type> AllowList = new Dictionary<string, Type>(StringComparer.Ordinal)
 	{
-		[EventTypeNameHelper.GetEventTypeName(typeof(ConformanceOrderPlaced))] =
+		[MessageNameHelper.GetName(typeof(ConformanceOrderPlaced))] =
 			typeof(ConformanceOrderPlaced),
 	};
 
@@ -195,7 +197,7 @@ internal sealed class CasingCorruptingEventSerializer : IEventSerializer
 
 	// Corruption: produces an UPPER-CASED name that the allow-list (exact-cased) can never match.
 	public string GetTypeName(Type type) =>
-		EventTypeNameHelper.GetEventTypeName(type).ToUpperInvariant();
+		MessageNameHelper.GetName(type).ToUpperInvariant();
 
 	public Type ResolveType(string typeName) =>
 		AllowList.TryGetValue(typeName, out var type)
@@ -211,7 +213,7 @@ internal sealed class IdentityEventSerializer : IEventSerializer
 {
 	private static readonly IReadOnlyDictionary<string, Type> AllowList = new Dictionary<string, Type>(StringComparer.Ordinal)
 	{
-		[EventTypeNameHelper.GetEventTypeName(typeof(ConformancePaymentReceived))] =
+		[MessageNameHelper.GetName(typeof(ConformancePaymentReceived))] =
 			typeof(ConformancePaymentReceived),
 	};
 
@@ -219,7 +221,7 @@ internal sealed class IdentityEventSerializer : IEventSerializer
 
 	public IDomainEvent DeserializeEvent(byte[] data, Type eventType) => throw new NotSupportedException();
 
-	public string GetTypeName(Type type) => EventTypeNameHelper.GetEventTypeName(type);
+	public string GetTypeName(Type type) => MessageNameHelper.GetName(type);
 
 	public Type ResolveType(string typeName) =>
 		AllowList.TryGetValue(typeName, out var type)
@@ -228,6 +230,7 @@ internal sealed class IdentityEventSerializer : IEventSerializer
 }
 
 /// <summary>Representative domain event for the type-name round-trip conformance suite.</summary>
+[MessageName("Test.Conformance.OrderPlaced")]
 internal sealed class ConformanceOrderPlaced : IDomainEvent
 {
 	public string OrderId { get; set; } = string.Empty;
@@ -236,12 +239,12 @@ internal sealed class ConformanceOrderPlaced : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(ConformanceOrderPlaced);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
 /// <summary>Second representative domain event for the type-name round-trip conformance suite.</summary>
+[MessageName("Test.Conformance.PaymentReceived")]
 internal sealed class ConformancePaymentReceived : IDomainEvent
 {
 	public decimal Amount { get; set; }
@@ -250,7 +253,6 @@ internal sealed class ConformancePaymentReceived : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(ConformancePaymentReceived);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

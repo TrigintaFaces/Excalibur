@@ -256,21 +256,63 @@ SNIPPET_TYPE_DECL_RE = re.compile(
 GENERIC_PARAM_RE = re.compile(r"^T[A-Z]")
 
 
+# A string literal is DATA, never an API reference. Without this, any dotted text inside quotes is
+# read as a qualified type: a declared message name like [MessageName("Contoso.Sales.OrderPlaced")]
+# reported "Contoso" as a phantom API, as would a connection string, a URL, a topic name or a JSON
+# path. The candidate patterns below are deliberately loose because real code is loose; the fix is to
+# stop feeding them text that cannot contain a type reference in the first place.
+# Raw string literals first: """...""" spans lines and is exactly how SQL gets embedded in C#,
+# so without it every SELECT/WHERE/AND reads as a phantom type.
+RAW_STRING_RE = re.compile(r'"{3,}.*?"{3,}', re.DOTALL)
+STRING_LITERAL_RE = re.compile(
+    r'@?"(?:[^"\
+]|\.)*"'   # "..." and @"..."
+    r"|'(?:[^'\
+]|\.)*'"  # 'c'
+)
+
+
+# Comments, like string literals, cannot contain a live type reference. Without this, a filename in
+# a comment ("defined in Messages/OrderActions.cs below") is read as a qualified type and reported
+# as a missing framework API. Stripped after raw strings and before literals so a // inside a string
+# is not mistaken for a comment.
+LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+
+
+def _strip_string_literals(code: str) -> str:
+    """Blank out literals and comments, preserving newlines so line numbers stay accurate."""
+    def blank(m):
+        return "".join(ch if ch == chr(10) else " " for ch in m.group(0))
+
+    code = RAW_STRING_RE.sub(blank, code)
+    code = STRING_LITERAL_RE.sub(blank, code)
+    code = BLOCK_COMMENT_RE.sub(blank, code)
+    return LINE_COMMENT_RE.sub(blank, code)
+
+
 def _referenced_candidates(code: str):
     cands = set()
+    code = _strip_string_literals(code)
     for pat in CANDIDATE_PATTERNS:
         for name in pat.findall(code):
             cands.add(name)
     return cands
 
 
-def scan_block_for_phantoms(block: dict, real_symbols: set):
+def scan_block_for_phantoms(block: dict, real_symbols: set, file_declared: set | None = None):
     """Return list of (name,) phantom type names in a single tier-1 block, or []."""
     code = block["code"]
     if not FRAMEWORK_USING_RE.search(code):
         return []  # no framework context established -> do not scan (low-FP policy)
-    # Types the snippet itself declares are local example definitions, not phantoms.
+    # Types declared ANYWHERE in the same document count as declared here. A tutorial is one
+    # continuous narrative: a record introduced in "Step 2: Define the events" is plainly in scope
+    # for "Step 3: Build the aggregate", and a reader following along has it. Scoping declarations
+    # to a single fence reported every such type as a missing framework API -- six of them in one
+    # tutorial -- which is a property of how documentation is written, not a defect in the docs.
     defined = set(SNIPPET_TYPE_DECL_RE.findall(code))
+    if file_declared:
+        defined |= file_declared
     phantoms = []
     for name in sorted(_referenced_candidates(code)):
         if name in real_symbols:
@@ -379,11 +421,18 @@ def main(argv=None):
     t2 = [b for b in blocks if b["tier"] == "compile"]
     ignored = [b for b in blocks if b["tier"] == "ignore"]
 
+    # Declarations are file-scoped: gather every type any snippet in a document declares, then let
+    # each block in that document see them. Cross-block references are how tutorials read.
+    declared_by_file: dict = {}
+    for b in blocks:
+        declared_by_file.setdefault(b["file"], set()).update(
+            SNIPPET_TYPE_DECL_RE.findall(b["code"]))
+
     phantom_count = 0
     for b in t1:
         if not in_scope(b):
             continue
-        for name in scan_block_for_phantoms(b, real_symbols):
+        for name in scan_block_for_phantoms(b, real_symbols, declared_by_file.get(b["file"])):
             phantom_count += 1
             print(f"{b['file']}:{b['startLine']}: phantom API '{name}' "
                   f"— not found in public surface")

@@ -201,12 +201,12 @@ public sealed class ObservabilityIntegrationShould : IntegrationTestBase
 		}
 	}
 
-	private sealed record TestDomainEvent(string AggregateId, string Data) : IDomainEvent
+[MessageName("Test.ObservabilityIntegration.TestDomainEvent")]
+private sealed record TestDomainEvent(string AggregateId, string Data) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 		public long Version { get; init; }
-		public string EventType => GetType().Name;
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

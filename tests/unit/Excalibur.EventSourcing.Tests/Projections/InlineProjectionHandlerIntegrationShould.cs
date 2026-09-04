@@ -341,13 +341,13 @@ public sealed class InlineProjectionHandlerIntegrationShould
 /// <summary>
 /// Test event used exclusively by ContextCapturingHandler to avoid duplicate detection.
 /// </summary>
+[MessageName("Test.TestOrderRefunded")]
 public sealed class TestOrderRefunded : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = "order-1";
 	public long Version { get; init; } = 5;
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(TestOrderRefunded);
 	public IDictionary<string, object>? Metadata { get; init; }
 	public decimal RefundAmount { get; init; } = 50m;
 }

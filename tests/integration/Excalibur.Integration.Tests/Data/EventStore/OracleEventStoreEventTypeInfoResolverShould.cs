@@ -8,6 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Oracle;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -180,6 +182,7 @@ internal enum OraResolverTestShade
 	Green,
 }
 
+[MessageName("Test.OraResolverTestEvent")]
 internal sealed class OraResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -188,7 +191,6 @@ internal sealed class OraResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(OraResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -197,6 +199,7 @@ internal sealed class OraResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredOraTestEvent")]
 internal sealed class UndeclaredOraTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -205,7 +208,6 @@ internal sealed class UndeclaredOraTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredOraTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

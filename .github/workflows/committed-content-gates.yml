@@ -365,6 +365,20 @@ jobs:
       - name: task-delay-syncwait-gate
         run: bash eng/ci/task-delay-syncwait-gate.sh
 
+      # A message's stored identity must come from its declared [MessageName] and nothing else. A name
+      # taken from the CLR type embeds the namespace, assembly and assembly version, so a refactor
+      # silently changes the identity of data already written and everything stored under the old name
+      # becomes unreadable. Four such derivations were found by inventory and unified; a reviewer found
+      # a fifth, and this gate found three more, two of them putting a CLR type name on the wire. An
+      # inventory measures the past -- this measures every commit. Shrink-only baseline.
+      - name: message-identity-single-source
+        run: bash eng/ci/message-identity-single-source-gate.sh
+
+      # The gate above is only worth having if it can still fail. Its self-test plants a violation and
+      # asserts detection, plus safety, baseline-honouring, and REFUSE-not-pass on an unsearchable tree.
+      - name: message-identity-single-source self-test
+        run: bash eng/ci/message-identity-single-source-gate.test.sh
+
       # ADVISORY pending cleanup — a .ValidateOnStart() with no IValidateOptions<T>/ValidateDataAnnotations
       # validator validates nothing (false-safety). There are pre-existing chains in src/ tracked for fix;
       # this step flips to blocking (drop the `|| true`) once the gate exits 0 on committed src/.

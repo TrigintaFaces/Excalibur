@@ -12,6 +12,8 @@ using Excalibur.EventSourcing.Implementation;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Options;
+
 using Shouldly;
 
 using Xunit;
@@ -37,6 +39,7 @@ namespace Excalibur.EventSourcing.Tests.Implementation;
 [Trait("Component", "EventSourcing")]
 public sealed class EventSourcedRepositoryOutboxSerializerShould
 {
+	[MessageName("Test.Es.OutboxSerializerIntegrationEvent")]
 	internal sealed record OutboxIntegrationEvent : DomainEvent, IIntegrationEvent
 	{
 		public string Payload { get; init; } = string.Empty;
@@ -83,8 +86,8 @@ public sealed class EventSourcedRepositoryOutboxSerializerShould
 			eventStore,
 			serializer,
 			id => new OutboxSerializerAggregate(id),
-			outboxStore: outboxStore,
-			outboxStagingStrategy: OutboxStagingStrategy.EventuallyConsistent);
+			Options.Create(new EventSourcedRepositoryOptions { OutboxStagingStrategy = OutboxStagingStrategy.EventuallyConsistent }),
+			outboxStore: outboxStore);
 
 		// Act
 		await repository.SaveAsync(aggregate, CancellationToken.None).ConfigureAwait(false);

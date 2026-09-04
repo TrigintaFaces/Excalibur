@@ -24,7 +24,7 @@ docker run -d --name es -p 9200:9200 \
 ## What This Sample Shows
 
 1. **Transparent resilience** -- Repository CRUD operations work identically across all tiers. Retry and circuit breaker logic is applied automatically by the resilient client wrapper.
-2. **Circuit breaker inspection** -- Resolve `IResilientElasticsearchClient` or `IElasticsearchCircuitBreaker` to check whether the circuit is open, the current failure rate, and consecutive failure count.
+2. **Circuit breaker inspection** -- Resolve `IResilientElasticsearchClient` or `IElasticsearchCircuitBreaker` to read the circuit's state -- closed, open, or half-open. The state comes from the resilience pipeline that rejects the calls, so it is the same state a rejected request saw rather than a second count kept alongside it.
 3. **Health checks** -- `AddElasticHealthCheck` registers a standard ASP.NET Core health check that reports cluster reachability.
 4. **Monitoring** -- `AddElasticsearchMonitoring` registers metrics, tracing, request logging, and a background health monitor.
 

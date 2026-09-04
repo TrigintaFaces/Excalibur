@@ -409,14 +409,8 @@ internal static class SagaEventId
 	// 122300-122399: Saga Outbox
 	// ========================================
 
-	/// <summary>Publishing events through outbox for saga.</summary>
-	public const int SagaOutboxPublishing = 122300;
 
-	/// <summary>Events published through outbox for saga.</summary>
-	public const int SagaOutboxPublished = 122301;
 
-	/// <summary>Saga outbox publish delegate is not configured.</summary>
-	public const int SagaOutboxDelegateNotConfigured = 122302;
 
 	// ========================================
 	// 122400-122499: Saga Automatic Cleanup

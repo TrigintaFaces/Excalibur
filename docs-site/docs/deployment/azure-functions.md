@@ -408,17 +408,23 @@ services.AddSingleton<IEventStore>(sp =>
     var cosmosClient = new CosmosClient(
         Environment.GetEnvironmentVariable("CosmosDbConnectionString"));
 
-    return new CosmosDbEventStore(cosmosClient, "EventStore", "Events");
+    return new CosmosDbEventStore(
+        cosmosClient, "EventStore", "Events", sp.GetRequiredService<IEventTypeRegistry>());
 });
 
 // CosmosDbEventStore.cs
+// The stored EventType holds the event's declared [MessageName] -- the same name used by the outbox
+// MessageType and the CloudEvents type. See ../event-sourcing/domain-events.md#stable-message-names.
 public class CosmosDbEventStore : IEventStore
 {
     private readonly Container _container;
+    private readonly IEventTypeRegistry _eventTypes;
 
-    public CosmosDbEventStore(CosmosClient client, string databaseName, string containerName)
+    public CosmosDbEventStore(
+        CosmosClient client, string databaseName, string containerName, IEventTypeRegistry eventTypes)
     {
         _container = client.GetContainer(databaseName, containerName);
+        _eventTypes = eventTypes;
     }
 
     public async Task AppendAsync(
@@ -437,7 +443,7 @@ public class CosmosDbEventStore : IEventStore
             {
                 Id = Guid.NewGuid().ToString(),
                 AggregateId = aggregateId,
-                EventType = @event.EventType,
+                EventType = MessageNameHelper.GetName(@event.GetType()),
                 EventData = JsonSerializer.SerializeToUtf8Bytes(@event),
                 Version = ++version,
                 Timestamp = @event.OccurredAt
@@ -468,7 +474,7 @@ public class CosmosDbEventStore : IEventStore
             var response = await query.ReadNextAsync(cancellationToken);
             foreach (var doc in response)
             {
-                var eventType = Type.GetType(doc.EventType);
+                var eventType = _eventTypes.ResolveType(doc.EventType);
                 var @event = JsonSerializer.Deserialize(doc.EventData, eventType) as IDomainEvent;
                 events.Add(@event);
             }
@@ -488,10 +494,12 @@ using Microsoft.Azure.Functions.Worker;
 public class ProjectionFunction
 {
     private readonly IProjectionService _projectionService;
+    private readonly IEventTypeRegistry _eventTypes;
 
-    public ProjectionFunction(IProjectionService projectionService)
+    public ProjectionFunction(IProjectionService projectionService, IEventTypeRegistry eventTypes)
     {
         _projectionService = projectionService;
+        _eventTypes = eventTypes;
     }
 
     [Function("ProcessProjections")]
@@ -510,7 +518,7 @@ public class ProjectionFunction
 
         foreach (var eventDoc in input)
         {
-            var eventType = Type.GetType(eventDoc.EventType);
+            var eventType = _eventTypes.ResolveType(eventDoc.EventType);
             var @event = JsonSerializer.Deserialize(eventDoc.EventData, eventType) as IDomainEvent;
 
             await _projectionService.ProjectAsync(@event, context.CancellationToken);

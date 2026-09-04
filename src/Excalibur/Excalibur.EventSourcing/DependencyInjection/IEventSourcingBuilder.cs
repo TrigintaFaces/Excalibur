@@ -111,6 +111,22 @@ public interface IEventSourcingBuilder
 	IEventSourcingBuilder RegisterEventTypes(params Type[] eventTypes);
 
 	/// <summary>
+	/// Registers a stored type name that an event type used to be written under, so events already in
+	/// the store keep resolving after the type moves namespace or assembly.
+	/// </summary>
+	/// <param name="storedTypeName">
+	/// The type name exactly as it appears in the store's event-type column, including the assembly,
+	/// version, culture and public key token if they were recorded.
+	/// </param>
+	/// <param name="eventType"> The type that name should now resolve to. </param>
+	/// <returns> The builder for fluent configuration. </returns>
+	/// <remarks>
+	/// Affects resolution only: new events are still written under the type's current name. Register an
+	/// upcaster as well if the event's shape changed and not just its name.
+	/// </remarks>
+	IEventSourcingBuilder RegisterEventTypeAlias(string storedTypeName, Type eventType);
+
+	/// <summary>
 	/// Registers every <see cref="Excalibur.Dispatch.IDomainEvent"/> type in <paramref name="assembly"/>
 	/// in the secure event-type allow-list.
 	/// </summary>

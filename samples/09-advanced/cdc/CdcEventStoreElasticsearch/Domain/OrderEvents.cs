@@ -8,6 +8,7 @@ namespace CdcEventStoreElasticsearch.Domain;
 /// <summary>
 /// Event raised when an order is created.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreated(
 	Guid OrderId,
 	string ExternalOrderId,
@@ -18,6 +19,7 @@ public sealed record OrderCreated(
 /// <summary>
 /// Event raised when a line item is added to an order.
 /// </summary>
+[MessageName("Contoso.Orders.OrderLineItemAdded")]
 public sealed record OrderLineItemAdded(
 	Guid OrderId,
 	Guid ItemId,
@@ -33,6 +35,7 @@ public sealed record OrderLineItemAdded(
 /// <summary>
 /// Event raised when a line item quantity is updated.
 /// </summary>
+[MessageName("Contoso.Orders.OrderLineItemUpdated")]
 public sealed record OrderLineItemUpdated(
 	Guid OrderId,
 	Guid ItemId,
@@ -42,6 +45,7 @@ public sealed record OrderLineItemUpdated(
 /// <summary>
 /// Event raised when a line item is removed from an order.
 /// </summary>
+[MessageName("Contoso.Orders.OrderLineItemRemoved")]
 public sealed record OrderLineItemRemoved(
 	Guid OrderId,
 	Guid ItemId,
@@ -52,6 +56,7 @@ public sealed record OrderLineItemRemoved(
 /// <summary>
 /// Event raised when an order status is updated.
 /// </summary>
+[MessageName("Contoso.Orders.OrderStatusUpdated")]
 public sealed record OrderStatusUpdated(
 	Guid OrderId,
 	OrderStatus OldStatus,
@@ -60,14 +65,17 @@ public sealed record OrderStatusUpdated(
 /// <summary>
 /// Event raised when an order is shipped.
 /// </summary>
+[MessageName("Contoso.Orders.OrderShipped")]
 public sealed record OrderShipped(Guid OrderId, DateTime ShippedDate) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order is delivered.
 /// </summary>
+[MessageName("Contoso.Orders.OrderDelivered")]
 public sealed record OrderDelivered(Guid OrderId, DateTime DeliveredDate) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order is cancelled.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCancelled")]
 public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;

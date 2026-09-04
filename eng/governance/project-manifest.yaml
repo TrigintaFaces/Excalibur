@@ -1133,7 +1133,6 @@ projects:
     tier: Hosting
     framework_owner: Excalibur
 
-  - path: src/Excalibur/Excalibur.Hosting.Compliance/Excalibur.Hosting.Compliance.csproj
     classification: Shipping
     in_solution: true
     tier: Hosting

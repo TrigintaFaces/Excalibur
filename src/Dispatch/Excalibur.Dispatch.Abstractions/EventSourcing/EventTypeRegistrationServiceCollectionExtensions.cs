@@ -6,6 +6,8 @@ using System.Reflection;
 
 using Excalibur.Dispatch;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -70,6 +72,48 @@ public static class EventTypeRegistrationServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Registers a stored type name that an event type used to be written under, so events already in
+	/// the store keep resolving after the type moves namespace or assembly.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="storedTypeName">
+	/// The type name exactly as it appears in the store's event-type column, including the assembly,
+	/// version, culture and public key token if they were recorded.
+	/// </param>
+	/// <param name="eventType">The type that name should now resolve to.</param>
+	/// <returns>The service collection, for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Moving an event type between namespaces or assemblies changes the name it is written under, and
+	/// every event already stored keeps the old one. Resolution is by exact name, so those events stop
+	/// deserializing -- a replay or a projection rebuild fails on data that was written correctly.
+	/// </para>
+	/// <para>
+	/// An alias affects RESOLUTION ONLY: new events are still written under the type's current name, so
+	/// the retired name stops spreading and the store converges as new events arrive. Registering the
+	/// same stored name twice replaces the earlier mapping.
+	/// </para>
+	/// <para>
+	/// This maps one name to one type. It does not change an event's shape -- if the payload also changed,
+	/// register an upcaster as well.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="services"/> or <paramref name="eventType"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException"><paramref name="storedTypeName"/> is null or whitespace.</exception>
+	public static IServiceCollection AddEventTypeAlias(
+		this IServiceCollection services, string storedTypeName, Type eventType)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(storedTypeName);
+		ArgumentNullException.ThrowIfNull(eventType);
+
+		var registry = GetOrAddRegistry(services);
+		registry.RegisterAlias(storedTypeName, eventType);
+
+		return services;
+	}
+
+	/// <summary>
 	/// Registers every <see cref="IDomainEvent"/> type defined in <paramref name="assembly"/> for secure
 	/// name-based event-type resolution.
 	/// </summary>
@@ -118,6 +162,13 @@ public static class EventTypeRegistrationServiceCollectionExtensions
 
 		var registry = new EventTypeRegistry();
 		services.Add(ServiceDescriptor.Singleton<IEventTypeRegistry>(registry));
+
+		// Registered here rather than at an opt-in call site: an event that declares no name is a
+		// startup failure for every host that registers any event, and a guard the consumer has to
+		// remember to switch on is not a guard for the consumer who forgot the attribute.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, UndeclaredEventNameStartupValidator>());
+
 		return registry;
 	}
 }

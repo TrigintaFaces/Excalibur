@@ -8,6 +8,7 @@ namespace Excalibur.A3.Authorization.Roles.Events;
 /// <summary>
 /// Raised when a role's name or description is modified.
 /// </summary>
+[MessageName("Excalibur.A3.RoleModified")]
 internal sealed class RoleModified : IDomainEvent
 {
 	public required string RoleId { get; init; }
@@ -16,6 +17,5 @@ internal sealed class RoleModified : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(RoleModified);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

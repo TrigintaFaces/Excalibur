@@ -15,11 +15,6 @@ public sealed class CircuitBreakerOptions
 	/// <value> A <see cref="bool" /> indicating whether circuit breaker is active. Defaults to <c> true </c>. </value>
 	public bool Enabled { get; init; } = true;
 
-	/// <summary>
-	/// Gets the failure threshold before opening the circuit.
-	/// </summary>
-	/// <value> An <see cref="int" /> representing the consecutive failure count to trigger circuit opening. Defaults to 5. </value>
-	public int FailureThreshold { get; init; } = 5;
 
 	/// <summary>
 	/// Gets the minimum throughput before circuit breaker evaluation.

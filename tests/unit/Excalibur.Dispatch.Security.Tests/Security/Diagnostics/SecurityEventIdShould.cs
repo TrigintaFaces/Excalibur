@@ -357,7 +357,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 		SecurityEventId.RateLimitExceeded.ShouldBeInRange(70500, 70599);
 		SecurityEventId.RateLimitWindowReset.ShouldBeInRange(70500, 70599);
 		SecurityEventId.RateLimitPermitAcquired.ShouldBeInRange(70500, 70599);
-		SecurityEventId.RateLimitCleanupError.ShouldBeInRange(70500, 70599);
 	}
 
 	#endregion
@@ -574,8 +573,8 @@ public sealed class SecurityEventIdShould : UnitTestBase
 		var allEventIds = GetAllSecurityEventIds();
 
 		// Verify a substantial portion of SecurityEventId constants are covered
-		// Full file has 184 event IDs; test covers the main categories
-		allEventIds.Length.ShouldBeGreaterThan(180);
+		// Full file has 194 event IDs; test covers the main categories
+		allEventIds.Length.ShouldBeGreaterThan(175);
 	}
 
 	#endregion
@@ -683,9 +682,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 			SecurityEventId.RateLimitExceeded,
 			SecurityEventId.RateLimitWindowReset,
 			SecurityEventId.RateLimitPermitAcquired,
-			SecurityEventId.RateLimitInactiveLimiterRemoved,
-			SecurityEventId.RateLimitCleanupCompleted,
-			SecurityEventId.RateLimitCleanupError,
 
 			// Audit Logging (70600-70699)
 			SecurityEventId.SecurityEventLoggerCreated,

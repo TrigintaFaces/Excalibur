@@ -17,24 +17,6 @@ public sealed class GooglePubSubDisposalShould
 	[UnitTest]
 	[Trait(TraitNames.Component, TestComponents.Transport)]
 	[Trait("Pattern", "TRANSPORT")]
-	public void DisposeBatchProcessorWithoutThrowing()
-	{
-		var options = OptionsFactory.Create(new BatchOptions());
-		var metrics = new BatchMetricsCollector();
-		var processor = new ParallelBatchProcessor(
-				options,
-				static (_, _) => Task.FromResult(new object()),
-				NullLogger<ParallelBatchProcessor>.Instance,
-				metrics);
-
-		processor.Dispose();
-		metrics.Dispose();
-	}
-
-	[Fact]
-	[UnitTest]
-	[Trait(TraitNames.Component, TestComponents.Transport)]
-	[Trait("Pattern", "TRANSPORT")]
 	public void DisposeMetricsWithoutThrowing()
 	{
 		var metrics = new GooglePubSubMetrics();

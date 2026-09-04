@@ -105,7 +105,9 @@ public sealed partial class InputSanitizationMiddleware : IDispatchMiddleware
 		}
 
 		// Set up activity tags
-		using var activity = Activity.Current;
+		// Read-only: this activity belongs to the caller. Disposing it would call Stop(),
+		// ending the caller's span here and reparenting everything downstream.
+		var activity = Activity.Current;
 		_ = activity?.SetTag("sanitization.enabled", value: true);
 		_ = activity?.SetTag("sanitization.message_type", message.GetType().Name);
 

@@ -224,7 +224,7 @@ internal sealed class ElasticsearchRequestLogger
 		int attemptNumber,
 		int maxAttempts,
 		TimeSpan delay,
-		Exception exception,
+		Exception? exception,
 		string? indexName = null)
 	{
 		if (!_settings.Enabled)

@@ -349,7 +349,6 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		_ = builder.UseResilience();
 
 		// Assert - Core services should be registered
-		services.Any(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(ITimeoutManager)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(IGracefulDegradationService)).ShouldBeTrue();
 	}
@@ -396,7 +395,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		_ = builder.UseResilience(null);
 
 		// Assert - Core services should be registered
-		services.Any(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ShouldBeTrue();
+		services.Any(d => d.ServiceType == typeof(ITimeoutManager)).ShouldBeTrue();
 	}
 
 	[Fact]

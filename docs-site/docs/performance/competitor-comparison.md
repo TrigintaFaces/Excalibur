@@ -21,7 +21,8 @@ Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
 Runtime: .NET 10.0.6 (10.0.626.17701), X64 RyuJIT x86-64-v3
 ```
 
-**Current baseline:** `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/` (April 20, 2026 epoch).
+**Current baseline:** full WarmPath run of 2026-09-03. The prior epoch is
+`benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/` (April 20, 2026).
 **Prior baselines** (superseded, not cross-diffable due to BDN 0.15.4 → 0.15.8 InvocationCount semantic shift): `dispatch-comparative-20260302/`, `dispatch-all/` (2026-04-13). Ratios within each report remain apples-to-apples; **do not cross-diff individual Mean values** across epoch boundaries.
 
 :::info Scope
@@ -48,54 +49,56 @@ WarmPath numbers reflect what users experience in production; ColdPath numbers c
 
 | Track | Summary |
 |------|---------|
-| In-process parity (MediatR) | MediatR ~1.6x faster on standard; **Dispatch ultra-local ~1.21x faster with 6.3x less memory**; **Dispatch allocates 2.57x less on notifications** |
-| In-process parity (Wolverine InvokeAsync) | **Dispatch ~2.45x faster on command, ~3.00x on query, ~1.52x on notification fan-out** |
-| In-process parity (MassTransit Mediator) | **Dispatch leads on every tier** — 13.4x on single command against MassTransit's ambient-scope mediator, 17.6x against its scope-per-message mediator |
-| Pipeline parity (3 middleware each) | See `PipelineComparisonBenchmarks` for current ratios (μs scale, 20260420 epoch) |
+| In-process parity (MediatR) | **Dispatch ~1.42x faster on single command with 6.3x less memory**; parity on query and concurrent tiers; MediatR ~1.44x faster on notification latency while **Dispatch allocates 6.4x less** there |
+| In-process parity (Wolverine InvokeAsync) | **Dispatch ~5.64x faster on command, ~5.61x on query, ~1.69x on notification fan-out**, allocating 3.6-24x less |
+| In-process parity (MassTransit Mediator) | **Dispatch leads on every tier** — 42x on single command against MassTransit's ambient-scope mediator, 55x against its scope-per-message mediator |
+| Pipeline parity (3 middleware each) | **Dispatch leads every framework measured** — ~3.2x faster than MediatR, ~4.7x than Wolverine, ~44x than MassTransit, allocating 4.4x, 4.0x and 27x less |
 
-:::note April 20, 2026 Epoch
+:::note September 3, 2026 run
 
-Ultra-local dispatch remains the standout path: **34.0 ns / 24 B** — about 1.21x faster than MediatR with 6.3x less memory. Numbers below are from a full WarmPath run on an idle machine, with logging providers cleared on both sides of every comparison so neither framework's logging is inside the measured region.
+The standard dispatch path now matches the ultra-local one: **30.5 ns / 24 B** on a single command, about 1.42x faster than MediatR with 6.3x less memory. It used to cost 66.8 ns / 240 B, and the difference is a message context that is no longer published to handlers which never asked for one — see [how `DispatchAsync` behaves by context](../handlers.md#how-dispatchasync-behaves-by-context). Numbers below are from a full WarmPath run on an idle machine, with logging providers cleared on both sides of every comparison so neither framework's logging is inside the measured region.
 
 :::caution Read the latency figures as indicative, the allocation figures as exact
 Allocation is reproducible and was byte-identical across every run we have taken, including runs months apart and across a change of handler registration default. Latency is not: the same benchmark has varied 6-10% run to run for Dispatch and 15-22% for MediatR, which is several times BenchmarkDotNet's reported error — that error measures spread *within* one process, not reproducibility *between* processes. Treat a latency ratio under about 1.2x as parity rather than a lead, in either direction, and do not read a single run of your own as contradicting these. The allocation columns are the ones to hold us to.
 ::: LightMode opt-in disables correlation ID generation for workloads that don't need it. Hot-path breakdown (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13 — not in current epoch): handler activation 24.4 ns / 0 B, handler invocation 6.0 ns / 0 B — all zero-allocation internals. See `benchmarks/experiments/` for optimization experiment details.
 
-One WarmPath row under investigation: `Dispatch: 100 concurrent commands` allocation vs MediatR — a methodology-matched rerun is queued for a future sprint. No claim is made on this tier until that rerun completes.
+The `100 concurrent commands` allocation row that was previously held back is resolved by this run: Dispatch allocates 4,960 B against MediatR's 17,064 B on that tier, having previously allocated 19,360 B. The claim is no longer withheld.
 :::
 
 ## Track A: In-Process Parity
 
 ### Dispatch vs MediatR
 
-Source: `MediatRWarmPathComparisonBenchmarks-report-github.md` (20260420 baseline, ns scale)
+Source: `MediatRWarmPathComparisonBenchmarks`, full WarmPath run 2026-09-03 (ns scale)
 
 | Scenario | Dispatch | MediatR | Relative Result |
 |----------|----------|---------|-----------------|
-| Single command handler | 66.8 ns / 240 B | 41.0 ns / 152 B | MediatR ~1.63x faster |
-| Single command direct-local | 65.8 ns / 240 B | 41.0 ns / 152 B | MediatR ~1.61x faster |
-| Single command ultra-local | 34.0 ns / 24 B | 41.0 ns / 152 B | **Dispatch ~1.21x faster**; Dispatch allocates ~6.3x less |
-| Singleton-promoted command | 34.2 ns / 24 B | 41.0 ns / 152 B | **Dispatch ~1.20x faster**; Dispatch allocates ~6.3x less |
-| Notification to 3 handlers | 144.8 ns / 240 B | 97.2 ns / 616 B | MediatR ~1.49x faster; **Dispatch allocates ~2.57x less** |
-| Query with return value | 79.8 ns / 336 B | 43.8 ns / 296 B | MediatR ~1.82x faster |
-| Query with return (typed API) | 86.5 ns / 432 B | 43.8 ns / 296 B | MediatR ~1.98x faster |
-| Query ultra-local | 58.3 ns / 192 B | 43.8 ns / 296 B | MediatR ~1.33x faster; **Dispatch allocates ~1.54x less** |
-| Query singleton-promoted | 58.2 ns / 192 B | 43.8 ns / 296 B | MediatR ~1.33x faster; **Dispatch allocates ~1.54x less** |
-| 10 concurrent commands | 829.0 ns / 2,080 B | 508.4 ns / 1,856 B | MediatR ~1.63x faster |
-| 100 concurrent commands | 7,242.8 ns / 19,360 B | 4,741.4 ns / 17,064 B | MediatR ~1.53x faster |
+| Single command handler | 30.5 ns / 24 B | 43.4 ns / 152 B | **Dispatch ~1.42x faster**; Dispatch allocates ~6.3x less |
+| Single command direct-local | 30.2 ns / 24 B | 43.4 ns / 152 B | **Dispatch ~1.43x faster**; Dispatch allocates ~6.3x less |
+| Single command ultra-local | 33.2 ns / 24 B | 43.4 ns / 152 B | **Dispatch ~1.31x faster**; Dispatch allocates ~6.3x less |
+| Singleton-promoted command | 33.2 ns / 24 B | 43.4 ns / 152 B | **Dispatch ~1.31x faster**; Dispatch allocates ~6.3x less |
+| Notification to 3 handlers | 140.8 ns / 96 B | 97.6 ns / 616 B | MediatR ~1.44x faster; **Dispatch allocates ~6.4x less** |
+| Query with return value | 43.0 ns / 120 B | 39.3 ns / 224 B | Parity (MediatR ~1.09x); **Dispatch allocates ~1.9x less** |
+| Query with return (typed API) | 43.3 ns / 216 B | 39.3 ns / 224 B | Parity (MediatR ~1.10x) |
+| Query ultra-local | 45.1 ns / 120 B | 39.3 ns / 224 B | MediatR ~1.15x faster; **Dispatch allocates ~1.9x less** |
+| Query singleton-promoted | 44.8 ns / 120 B | 39.3 ns / 224 B | MediatR ~1.14x faster; **Dispatch allocates ~1.9x less** |
+| 10 concurrent commands | 491.7 ns / 640 B | 546.7 ns / 1,856 B | Parity (Dispatch ~1.11x); **Dispatch allocates ~2.9x less** |
+| 100 concurrent commands | 4,484.1 ns / 4,960 B | 5,203.0 ns / 17,064 B | Parity (Dispatch ~1.16x); **Dispatch allocates ~3.4x less** |
+
+Applying this page's own parity rule — treat a latency ratio under about 1.2x as parity — Dispatch **leads** on every single-command tier, is at **parity** on query and concurrent tiers, and **trails only on notification latency**, where it allocates 6.4x less. Every allocation column favours Dispatch.
 
 ### Dispatch vs Wolverine (InvokeAsync parity)
 
-Source: `WolverineInProcessWarmPathComparisonBenchmarks-report-github.md` (20260420 baseline, ns scale)
+Source: `WolverineInProcessWarmPathComparisonBenchmarks`, full WarmPath run 2026-09-03 (ns scale)
 
 | Scenario | Dispatch | Wolverine (InvokeAsync) | Relative Result |
 |----------|----------|--------------------------|-----------------|
-| Single command (local) | 75.4 ns / 264 B | 185.0 ns / 584 B | **Dispatch 2.45x faster** |
-| Single command (ultra-local) | 36.6 ns / 24 B | 185.0 ns / 584 B | **Dispatch 5.06x faster** |
-| Notification to 2 handlers | 143.1 ns / 288 B | 217.8 ns / 600 B | **Dispatch 1.52x faster**; Dispatch allocates ~2.08x less |
-| Query with return | 86.7 ns / 456 B | 259.8 ns / 848 B | **Dispatch 3.00x faster** |
-| 10 concurrent commands | 889.2 ns / 2,320 B | 2,010.1 ns / 6,048 B | **Dispatch 2.26x faster** |
-| 100 concurrent commands | 7,794.5 ns / 21,760 B | 19,435.8 ns / 59,328 B | **Dispatch 2.49x faster** |
+| Single command (local) | 33.1 ns / 24 B | 186.5 ns / 584 B | **Dispatch 5.64x faster**; allocates ~24x less |
+| Single command (ultra-local) | 33.4 ns / 24 B | 186.5 ns / 584 B | **Dispatch 5.58x faster**; allocates ~24x less |
+| Notification to 2 handlers | 120.0 ns / 96 B | 202.6 ns / 600 B | **Dispatch 1.69x faster**; allocates ~6.2x less |
+| Query with return | 45.0 ns / 216 B | 252.6 ns / 776 B | **Dispatch 5.61x faster**; allocates ~3.6x less |
+| 10 concurrent commands | 463.5 ns / 640 B | 2,014.2 ns / 6,048 B | **Dispatch 4.35x faster**; allocates ~9.4x less |
+| 100 concurrent commands | 4,416.9 ns / 4,960 B | 20,048.5 ns / 59,328 B | **Dispatch 4.54x faster**; allocates ~12x less |
 
 :::note Both sides log nothing
 
@@ -123,12 +126,12 @@ made MassTransit look faster than a default consumer will find it.
 
 | Scenario | Dispatch | MassTransit Mediator | Relative Result |
 |----------|----------|----------------------|-----------------|
-| Single command — standard vs ambient scope | 91.1 ns / 352 B | 1,221.2 ns / 3,544 B | **Dispatch 13.4x faster**, ~10.1x less memory |
-| Single command — standard vs scope per message | 91.1 ns / 352 B | 1,600.7 ns / 4,336 B | **Dispatch 17.6x faster**, ~12.3x less memory |
-| Single command — tuned direct-local vs ambient scope | 33.5 ns / 24 B | 1,221.2 ns / 3,544 B | **Dispatch 36.5x faster**, ~148x less memory |
-| Notification to 2 handlers | 163.0 ns / 376 B | 1,719.3 ns / 4,176 B | **Dispatch 10.5x faster**, ~11.1x less memory |
-| Query with return | 100.8 ns / 544 B | 14,724.7 ns / 11,650 B | **Dispatch 146x faster** |
-| 10 concurrent commands | 1,114.5 ns / 3,200 B | 12,271.8 ns / 35,648 B | **Dispatch 11.0x faster** |
+| Single command — standard vs ambient scope | 28.6 ns / 24 B | 1,207.9 ns / 3,544 B | **Dispatch 42.3x faster**, ~148x less memory |
+| Single command — standard vs scope per message | 28.6 ns / 24 B | 1,570.6 ns / 4,336 B | **Dispatch 55.0x faster**, ~181x less memory |
+| Single command — tuned direct-local vs ambient scope | 31.8 ns / 24 B | 1,207.9 ns / 3,544 B | **Dispatch 38.0x faster**, ~148x less memory |
+| Notification to 2 handlers | 139.2 ns / 184 B | 1,741.1 ns / 4,176 B | **Dispatch 12.5x faster**, ~22.7x less memory |
+| Query with return | 41.6 ns / 216 B | 12,377.0 ns / 11,637 B | **Dispatch 298x faster**, ~54x less memory |
+| 10 concurrent commands | 434.5 ns / 640 B | 12,303.2 ns / 35,648 B | **Dispatch 28.3x faster**, ~56x less memory |
 
 MassTransit's per-message scope costs **379 ns and 792 B** on this workload — the gap between its two tiers.
 That is the price of the scope isolation its consumer model provides, and it is real work rather than
@@ -143,7 +146,15 @@ Each framework configured with 3 passthrough middleware/behaviors that mirror ea
 - **Wolverine**: 3 convention-based middleware with `BeforeAsync`/`AfterAsync`
 - **MassTransit**: 3 `IFilter<ConsumeContext<T>>` (logging, validation, timing)
 
-Source: `PipelineComparisonBenchmarks-report-github.md` (20260420 baseline, μs scale — literal `InvocationCount=1`). See the report directly for the full table; headline relative ordering preserved from prior baseline: Dispatch leads MassTransit significantly, trades with MediatR/Wolverine on absolute latency, leads both on pure allocation footprint for the standard pipeline.
+Source: `PipelineWarmPathComparisonBenchmarks`, full WarmPath run 2026-09-03 (ns scale).
+
+| Scenario | Dispatch | MediatR | Wolverine | MassTransit |
+|----------|----------|---------|-----------|-------------|
+| 3 middleware / behaviors | **49.9 ns / 168 B** | 161.0 ns / 744 B | 235.3 ns / 680 B | 2,195.9 ns / 4,568 B |
+| 10 concurrent + 3 behaviors | **678.5 ns / 1,392 B** | 1,724.6 ns / 7,808 B | 2,423.2 ns / 7,008 B | 22,201.4 ns / 45,888 B |
+
+Dispatch leads on both latency and allocation against every framework measured, which is a change
+from the previous baseline where it traded with MediatR and Wolverine on latency.
 
 ## Track C: Queued/Bus End-to-End Parity
 
@@ -163,17 +174,17 @@ Excalibur.Dispatch offers multiple dispatch paths with different allocation char
 
 | Profile | Allocation | Latency | When to Use |
 |---------|-----------|---------|-------------|
-| Standard dispatch | **240 B** | ~71 ns | Default path for all message types (April 20, 2026 WarmPath) |
-| Ultra-local dispatch | **24 B** | ~35 ns | Lowest-overhead local path, near-zero allocation |
-| Singleton-promoted | **24 B** | ~34 ns | Handlers registered as singletons via promotion |
-| Query with response | **336 B** | ~77 ns | Typed query responses |
-| Query ultra-local | **192 B** | ~57 ns | Ultra-local query path |
+| Standard dispatch | **24 B** | ~30 ns | Default path for a handler that takes no message context (2026-09-03 WarmPath) |
+| Ultra-local dispatch | **24 B** | ~33 ns | Explicit lowest-overhead local API |
+| Singleton-promoted | **24 B** | ~33 ns | Handlers registered as singletons via promotion |
+| Query with response | **120 B** | ~43 ns | Typed query responses |
+| Query ultra-local | **120 B** | ~45 ns | Ultra-local query path |
 | MessageContext pool rent+return | **0 B** | ~9 ns | Pool infrastructure cost only (not refreshed in 20260420 — see `DispatchHotPathBreakdownBenchmarks` 2026-04-13) |
 
 :::tip Allocation Guidance
 
-- **"Near-zero allocation"**: Ultra-local and singleton-promoted paths (24 B per dispatch)
-- **"Low-allocation"**: Standard path (240 B -- context + routing metadata + ambient context flow)
+- **"Near-zero allocation"**: the standard path for a handler that takes no message context, plus the ultra-local and singleton-promoted paths (24 B per dispatch)
+- **"Low-allocation"**: a handler that declares it reads the message context, which reinstates the context flow it asked for
 - **"Zero-allocation internals"**: Handler activation (24.4 ns / 0 B), invocation (6.0 ns / 0 B)
 :::
 
@@ -181,21 +192,29 @@ Excalibur.Dispatch offers multiple dispatch paths with different allocation char
 
 :::note
 
-Routing-first numbers below are from the April 20, 2026 baseline (`RoutingFirstParityBenchmarks-report-github.md`). These paths were not affected by recent dependency bumps since routing occurs before the dispatch fast path.
+Routing-first numbers below are from the full WarmPath run of 2026-09-03.
+
+**These paths regressed against the April 20 baseline and the regression is not yet explained.**
+Latency is up 22-36% and every remote row allocates 72 B more than it did (232 B to 304 B). A
+pre-routed message carries a routing decision, so it does not take the fast path that was changed
+in this release — these paths still publish an ambient context, and the change that removed that
+publication elsewhere cannot account for an increase here. The cause is somewhere in the five
+months between the two runs and is being investigated; the numbers are published as measured
+rather than held back.
 :::
 
 | Scenario | Mean | Allocated | Relative to local command |
 |----------|------|-----------|---------------------------|
-| Pre-routed local command | 75.42 ns | 232 B | baseline |
-| Pre-routed local query | 86.58 ns | 424 B | +14.8% |
-| Pre-routed remote event (AWS SQS) | 134.53 ns | 232 B | +78.4% |
-| Pre-routed remote event (Azure Service Bus) | 138.17 ns | 232 B | +83.2% |
-| Pre-routed remote event (AWS SNS) | 133.72 ns | 232 B | +77.3% |
-| Pre-routed remote event (AWS EventBridge) | 139.65 ns | 232 B | +85.2% |
-| Pre-routed remote event (Azure Event Hubs) | 136.87 ns | 232 B | +81.5% |
-| Pre-routed remote event (gRPC) | 128.99 ns | 232 B | +71.0% |
-| Pre-routed remote event (Kafka) | 132.57 ns | 232 B | +75.8% |
-| Pre-routed remote event (RabbitMQ) | 131.23 ns | 232 B | +74.0% |
+| Pre-routed local command | 91.77 ns | 208 B | baseline |
+| Pre-routed local query | 117.61 ns | 400 B | +28.2% |
+| Pre-routed remote event (AWS SQS) | 181.60 ns | 304 B | +97.9% |
+| Pre-routed remote event (Azure Service Bus) | 189.39 ns | 304 B | +106.4% |
+| Pre-routed remote event (AWS SNS) | 181.92 ns | 304 B | +98.2% |
+| Pre-routed remote event (AWS EventBridge) | 186.56 ns | 304 B | +103.3% |
+| Pre-routed remote event (Azure Event Hubs) | 186.88 ns | 304 B | +103.6% |
+| Pre-routed remote event (gRPC) | 183.03 ns | 304 B | +99.4% |
+| Pre-routed remote event (Kafka) | 185.42 ns | 304 B | +102.0% |
+| Pre-routed remote event (RabbitMQ) | 183.52 ns | 304 B | +100.0% |
 
 ### Provider Profile Extensions
 

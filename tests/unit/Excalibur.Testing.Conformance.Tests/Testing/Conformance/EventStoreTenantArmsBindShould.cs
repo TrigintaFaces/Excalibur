@@ -444,7 +444,7 @@ public sealed class EventStoreTenantArmsBindShould
 						domainEvent.EventId,
 						aggregateId,
 						aggregateType,
-						domainEvent.EventType,
+						MessageNameHelper.GetName(domainEvent.GetType()),
 						Encoding.UTF8.GetBytes(domainEvent.EventId),
 						null,
 						current,

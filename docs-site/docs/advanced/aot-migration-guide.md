@@ -112,6 +112,15 @@ services.AddAotEventSerializer(AppJsonSerializerContext.Default);
 
 `AddAotEventSerializer` replaces the default reflection-based event serializer, so call order relative to `AddDispatch()` does not matter. Event types resolve through the allow-list `AddEventTypes` populates — there is no assembly-scan fallback — and payloads are read and written entirely through your context.
 
+Each registered event type must declare its stable name with `[MessageName]`; registering one that does not throws `InvalidOperationException` naming the type. Nothing is derived from the CLR type, so trimming and single-file publishing cannot change the name an event is stored under:
+
+```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
+public sealed record OrderCreatedEvent(Guid OrderId, string CustomerId) : DomainEvent;
+```
+
+See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
+
 Pass the generated `Default` instance, not `new AppJsonSerializerContext()`: the `[JsonSourceGenerationOptions]` settings are applied to `Default` only, and a freshly constructed context carries default PascalCase, null-writing options.
 
 :::warning `OrderCreatedEvent` crosses the wire — options must match the reflection path

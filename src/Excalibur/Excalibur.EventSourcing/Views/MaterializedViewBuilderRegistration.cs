@@ -29,4 +29,19 @@ internal sealed record MaterializedViewBuilderRegistration(
 	Type BuilderType,
 	object BuilderInstance,
 	ViewStoreAccessor Accessor,
-	ViewDeliverySemantics Semantics);
+	ViewDeliverySemantics Semantics)
+{
+	/// <summary>
+	/// Gets the builder's declared view name -- the key used for routing and position tracking.
+	/// </summary>
+	/// <remarks>
+	/// This is the builder's <see cref="IMaterializedViewBuilder{TView}.ViewName"/>, which is NOT
+	/// interchangeable with <c>ViewType.Name</c>: a builder is free to declare any name, and by
+	/// convention declares a slug rather than its class name. Every caller that needs a routing or
+	/// position key MUST come through here, or it will silently address a view that does not exist.
+	/// </remarks>
+	internal string GetViewName() =>
+		(string)BuilderType
+			.GetProperty(nameof(IMaterializedViewBuilder<>.ViewName))!
+			.GetValue(BuilderInstance)!;
+}

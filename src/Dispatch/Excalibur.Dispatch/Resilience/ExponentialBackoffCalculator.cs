@@ -67,14 +67,14 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 		double jitterFactor = 0.1,
 		Func<double>? jitterSource = null)
 	{
-		if (baseDelay <= TimeSpan.Zero)
+		if (baseDelay < TimeSpan.Zero)
 		{
-			throw new ArgumentOutOfRangeException(nameof(baseDelay), Resources.ExponentialBackoffCalculator_BaseDelayMustBePositive);
+			throw new ArgumentOutOfRangeException(nameof(baseDelay), Resources.ExponentialBackoffCalculator_BaseDelayCannotBeNegative);
 		}
 
-		if (maxDelay <= TimeSpan.Zero)
+		if (maxDelay < TimeSpan.Zero)
 		{
-			throw new ArgumentOutOfRangeException(nameof(maxDelay), Resources.ExponentialBackoffCalculator_MaxDelayMustBePositive);
+			throw new ArgumentOutOfRangeException(nameof(maxDelay), Resources.ExponentialBackoffCalculator_MaxDelayCannotBeNegative);
 		}
 
 		if (multiplier < 1.0)

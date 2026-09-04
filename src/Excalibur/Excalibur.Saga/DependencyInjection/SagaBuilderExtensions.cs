@@ -4,7 +4,6 @@
 using Excalibur.Saga;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Orchestration;
-using Excalibur.Saga.Outbox;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -114,47 +113,4 @@ public static class SagaBuilderExtensions
 		return builder;
 	}
 
-	/// <summary>
-	/// Adds saga outbox integration for reliable event publishing.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Optional action to configure outbox options including the publish delegate.</param>
-	/// <returns>The saga builder for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// The outbox mediator ensures that events produced by saga steps are published
-	/// reliably through a host-configured outbox implementation.
-	/// </para>
-	/// <para>
-	/// The host must configure the <see cref="SagaOutboxOptions.PublishDelegate"/>
-	/// to integrate with their chosen outbox store.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddExcalibur(x => x.AddSagas(saga => saga
-	///     .WithOutbox(options =>
-	///     {
-	///         options.PublishDelegate = async (events, sagaId, ct) =>
-	///         {
-	///             // publish events through outbox store
-	///         };
-	///     })));
-	/// </code>
-	/// </example>
-	public static ISagaBuilder WithOutbox(
-		this ISagaBuilder builder,
-		Action<SagaOutboxOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		builder.Services.TryAddSingleton<ISagaOutboxMediator, SagaOutboxMediator>();
-
-		if (configure is not null)
-		{
-			_ = builder.Services.Configure(configure);
-		}
-
-		return builder;
-	}
 }

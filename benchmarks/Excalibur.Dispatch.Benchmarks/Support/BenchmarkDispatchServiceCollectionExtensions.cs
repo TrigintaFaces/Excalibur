@@ -16,6 +16,10 @@ internal static class BenchmarkDispatchServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// FinalDispatchHandler takes an ILogger<T>; without a logging registration every benchmark using this
+		// helper fails to activate the pipeline and BenchmarkDotNet reports NA rather than a number.
+		_ = services.AddLogging();
+
 		return services.AddDispatch(builder =>
 		{
 			_ = builder.WithOptions(options =>

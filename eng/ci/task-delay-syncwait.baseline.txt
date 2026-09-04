@@ -156,7 +156,6 @@ tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|await Task.Dela
 tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|await Task.Delay(50);
 tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|await Task.Delay(500); // Give waiter time to enter WaitAsync on loaded CI runners
 tests/unit/Excalibur.Dispatch.Tests/Threading/KeyedLockShould.cs|using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-tests/unit/Excalibur.Dispatch.Transport.Tests/GooglePubSub/BatchReceiving/ParallelBatchProcessorConcurrencyShould.cs|await Task.Delay(25, ct).ConfigureAwait(false);
 tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/AsyncProjectionProcessingHostShould.cs|await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
 tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/ErasedEventProjectionHostShould.cs|await Task.Delay(TestTimeouts.Scale(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
 tests/unit/Excalibur.EventSourcing.Tests/Core/Projections/GlobalStreamProjectionHostAtomicCheckpointShould.cs|await Task.Delay(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)))

@@ -8,12 +8,12 @@ namespace Excalibur.A3.Governance.Events;
 /// <summary>
 /// Raised when an access review campaign is completed (all items reviewed).
 /// </summary>
+[MessageName("Excalibur.A3.AccessReviewCampaignCompleted")]
 internal sealed class AccessReviewCampaignCompleted : IDomainEvent
 {
 	public required string CampaignId { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(AccessReviewCampaignCompleted);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

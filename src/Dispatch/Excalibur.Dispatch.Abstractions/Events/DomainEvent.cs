@@ -24,7 +24,6 @@ namespace Excalibur.Dispatch;
 /// <list type="bullet">
 /// <item><description><see cref="EventId"/>: Auto-generated UUID v7 string for time-ordered uniqueness</description></item>
 /// <item><description><see cref="OccurredAt"/>: UTC timestamp at construction time</description></item>
-/// <item><description><see cref="EventType"/>: Derived type name</description></item>
 /// <item><description><see cref="Metadata"/>: Null (attach via fluent API or infrastructure)</description></item>
 /// </list>
 /// </para>
@@ -37,8 +36,6 @@ public abstract record DomainEvent : IDomainEvent
 	/// <inheritdoc/>
 	public virtual DateTimeOffset OccurredAt { get; init; } = TimeProvider.System.GetUtcNow();
 
-	/// <inheritdoc/>
-	public virtual string EventType => GetType().Name;
 
 	/// <inheritdoc/>
 	public virtual IDictionary<string, object>? Metadata { get; init; }

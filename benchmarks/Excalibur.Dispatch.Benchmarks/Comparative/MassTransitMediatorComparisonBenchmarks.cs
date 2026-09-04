@@ -177,21 +177,21 @@ public class MassTransitMediatorComparisonBenchmarks
 	// ============================================================================
 
 	[Benchmark(Baseline = true, Description = "Dispatch (local): Single command")]
-	public async Task<IMessageResult> Dispatch_SingleCommand()
+	public Task<IMessageResult> Dispatch_SingleCommand()
 	{
 		var command = new MassTransitMediatorDispatchCommand { Value = 42 };
-		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(command);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (ambient scope): Single command")]
-	public async Task MassTransitMediator_SingleCommand()
+	public Task MassTransitMediator_SingleCommand()
 	{
 		var command = new MassTransitMediatorCommandMessage
 		{
 			Value = 42,
 		};
 
-		await _mediator.Publish(command, CancellationToken.None).ConfigureAwait(false);
+		return _mediator.Publish(command, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -205,14 +205,14 @@ public class MassTransitMediatorComparisonBenchmarks
 	/// would understate what a default consumer pays.
 	/// </remarks>
 	[Benchmark(Description = "MassTransit Mediator (scope per message): Single command")]
-	public async Task MassTransitMediator_SingleCommand_ScopePerMessage()
+	public Task MassTransitMediator_SingleCommand_ScopePerMessage()
 	{
 		var command = new MassTransitMediatorCommandMessage
 		{
 			Value = 42,
 		};
 
-		await _scopePerMessageMediator!.Publish(command, CancellationToken.None).ConfigureAwait(false);
+		return _scopePerMessageMediator!.Publish(command, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -225,10 +225,10 @@ public class MassTransitMediatorComparisonBenchmarks
 	/// wrong, but it was undeclared and not comparable across pairings.
 	/// </remarks>
 	[Benchmark(Description = "Dispatch (tuned direct-local): Single command")]
-	public async Task Dispatch_SingleCommand_DirectLocal()
+	public ValueTask Dispatch_SingleCommand_DirectLocal()
 	{
 		var command = new MassTransitMediatorDispatchCommand { Value = 42 };
-		await _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None).ConfigureAwait(false);
+		return _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None);
 	}
 
 	// ============================================================================
@@ -236,21 +236,21 @@ public class MassTransitMediatorComparisonBenchmarks
 	// ============================================================================
 
 	[Benchmark(Description = "Dispatch (local): Notification to 2 handlers")]
-	public async Task<IMessageResult> Dispatch_NotificationTwoHandlers()
+	public Task<IMessageResult> Dispatch_NotificationTwoHandlers()
 	{
 		var evt = new MassTransitMediatorDispatchEvent { Message = "test" };
-		return await DispatchWithFreshContextAsync(evt).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(evt);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): Notification to 2 consumers")]
-	public async Task MassTransitMediator_NotificationTwoConsumers()
+	public Task MassTransitMediator_NotificationTwoConsumers()
 	{
 		var evt = new MassTransitMediatorEventMessage
 		{
 			Message = "test",
 		};
 
-		await _mediator.Publish(evt, CancellationToken.None).ConfigureAwait(false);
+		return _mediator.Publish(evt, CancellationToken.None);
 	}
 
 	// ============================================================================
@@ -258,10 +258,10 @@ public class MassTransitMediatorComparisonBenchmarks
 	// ============================================================================
 
 	[Benchmark(Description = "Dispatch (local): Query with return")]
-	public async Task<IMessageResult<int>> Dispatch_QueryWithReturn()
+	public Task<IMessageResult<int>> Dispatch_QueryWithReturn()
 	{
 		var query = new MassTransitMediatorDispatchQuery { Id = 123 };
-		return await DispatchWithFreshContextTypedAsync<MassTransitMediatorDispatchQuery, int>(query).ConfigureAwait(false);
+		return DispatchWithFreshContextTypedAsync<MassTransitMediatorDispatchQuery, int>(query);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): Query with return")]
@@ -280,7 +280,7 @@ public class MassTransitMediatorComparisonBenchmarks
 	// ============================================================================
 
 	[Benchmark(Description = "Dispatch (local): 10 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands10()
+	public Task Dispatch_ConcurrentCommands10()
 	{
 		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
@@ -289,11 +289,11 @@ public class MassTransitMediatorComparisonBenchmarks
 				new MassTransitMediatorDispatchCommand { Value = i });
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): 10 concurrent commands")]
-	public async Task MassTransitMediator_ConcurrentCommands10()
+	public Task MassTransitMediator_ConcurrentCommands10()
 	{
 		var publishTasks = new List<Task>(10);
 		for (int i = 0; i < 10; i++)
@@ -303,11 +303,11 @@ public class MassTransitMediatorComparisonBenchmarks
 				CancellationToken.None));
 		}
 
-		await Task.WhenAll(publishTasks).ConfigureAwait(false);
+		return Task.WhenAll(publishTasks);
 	}
 
 	[Benchmark(Description = "Dispatch (local): 100 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands100()
+	public Task Dispatch_ConcurrentCommands100()
 	{
 		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
@@ -316,11 +316,11 @@ public class MassTransitMediatorComparisonBenchmarks
 				new MassTransitMediatorDispatchCommand { Value = i });
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): 100 concurrent commands")]
-	public async Task MassTransitMediator_ConcurrentCommands100()
+	public Task MassTransitMediator_ConcurrentCommands100()
 	{
 		var publishTasks = new List<Task>(100);
 		for (int i = 0; i < 100; i++)
@@ -330,7 +330,7 @@ public class MassTransitMediatorComparisonBenchmarks
 				CancellationToken.None));
 		}
 
-		await Task.WhenAll(publishTasks).ConfigureAwait(false);
+		return Task.WhenAll(publishTasks);
 	}
 
 	// ============================================================================
@@ -350,7 +350,13 @@ public class MassTransitMediatorComparisonBenchmarks
 		FinalDispatchHandler.FreezeResultFactoryCache();
 	}
 
-	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
+	// Deliberately NOT async, and neither are the single-call benchmark methods that use it. An async
+	// frame whose result is a non-null reference allocates a Task<T> (AsyncTaskMethodBuilder<T> only
+	// caches the default-result task), so an async helper plus an async benchmark body charged the
+	// Dispatch arm ~144 B that a competitor arm returning its own library Task never paid. Returning
+	// the dispatcher's own Task preserves fresh-context-per-invocation while keeping the harness frame
+	// count at zero for every arm, so the allocation column measures the library, not the harness.
+	private Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
 		where TMessage : IDispatchMessage
 	{
 		ArgumentNullException.ThrowIfNull(_dispatcher);
@@ -360,27 +366,35 @@ public class MassTransitMediatorComparisonBenchmarks
 		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_dispatchContextFactory.Return(context);
-			}
+			_dispatchContextFactory.Return(context);
+			return dispatchTask;
 		}
 
+		return AwaitAndReturnContextAsync(dispatchTask, _dispatchContextFactory, context);
+	}
+
+	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
+		Task<IMessageResult> dispatchTask,
+		IMessageContextFactory contextFactory,
+		IMessageContext context)
+	{
 		try
 		{
 			return await dispatchTask.ConfigureAwait(false);
 		}
 		finally
 		{
-			_dispatchContextFactory.Return(context);
+			contextFactory.Return(context);
 		}
 	}
 
-	private async Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
+	// Deliberately NOT async, and neither are the single-call benchmark methods that use it. An async
+	// frame whose result is a non-null reference allocates a Task<T> (AsyncTaskMethodBuilder<T> only
+	// caches the default-result task), so an async helper plus an async benchmark body charged the
+	// Dispatch arm ~144 B that a competitor arm returning its own library Task never paid. Returning
+	// the dispatcher's own Task preserves fresh-context-per-invocation while keeping the harness frame
+	// count at zero for every arm, so the allocation column measures the library, not the harness.
+	private Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
 		where TMessage : IDispatchAction<TResponse>
 	{
 		ArgumentNullException.ThrowIfNull(_dispatcher);
@@ -390,23 +404,25 @@ public class MassTransitMediatorComparisonBenchmarks
 		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_dispatchContextFactory.Return(context);
-			}
+			_dispatchContextFactory.Return(context);
+			return dispatchTask;
 		}
 
+		return AwaitAndReturnTypedContextAsync(dispatchTask, _dispatchContextFactory, context);
+	}
+
+	private static async Task<IMessageResult<TResponse>> AwaitAndReturnTypedContextAsync<TResponse>(
+		Task<IMessageResult<TResponse>> dispatchTask,
+		IMessageContextFactory contextFactory,
+		IMessageContext context)
+	{
 		try
 		{
 			return await dispatchTask.ConfigureAwait(false);
 		}
 		finally
 		{
-			_dispatchContextFactory.Return(context);
+			contextFactory.Return(context);
 		}
 	}
 }

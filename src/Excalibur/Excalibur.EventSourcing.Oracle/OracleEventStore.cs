@@ -464,14 +464,13 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		var version = currentVersion;
 
 		var rows = new List<EventInsertRow>(eventList.Count);
-		foreach (var @event in eventList)
+		foreach (var (@event, eventTypeName) in eventList.AsNamedEvents())
 		{
 			version++;
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			var eventData = SerializeEvent(@event, aggregateId, aggregateType);
 			var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
 #pragma warning restore IL2026, IL3050
-			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
 			rows.Add(new EventInsertRow(
 				@event.EventId,

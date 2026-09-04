@@ -199,6 +199,7 @@ internal enum ResolverTestShade
 	Green,
 }
 
+[MessageName("Test.Es.ResolverTestEvent")]
 internal sealed class ResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -207,7 +208,6 @@ internal sealed class ResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(ResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -216,6 +216,7 @@ internal sealed class ResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.Es.UndeclaredTestEvent")]
 internal sealed class UndeclaredTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -224,7 +225,6 @@ internal sealed class UndeclaredTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

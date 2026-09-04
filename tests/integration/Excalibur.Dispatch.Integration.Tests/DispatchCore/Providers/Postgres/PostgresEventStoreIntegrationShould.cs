@@ -178,7 +178,6 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 		{
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = aggregateId,
-			EventType = "TestEvent",
 			OccurredAt = DateTimeOffset.UtcNow,
 			Version = sequence,
 			Sequence = sequence,
@@ -225,11 +224,11 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 	/// <summary>
 	/// Test domain event for integration testing.
 	/// </summary>
-	private sealed class TestDomainEvent : IDomainEvent
+[MessageName("Test.PostgresEventStoreIntegration.TestDomainEvent")]
+private sealed class TestDomainEvent : IDomainEvent
 	{
 		public required string EventId { get; init; }
 		public required string AggregateId { get; init; }
-		public required string EventType { get; init; }
 		public required DateTimeOffset OccurredAt { get; init; }
 		public required long Version { get; init; }
 		public required int Sequence { get; init; }

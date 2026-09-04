@@ -31,6 +31,7 @@ namespace EventUpcasting.Events;
 /// This was the original event format with basic user info.
 /// Still exists in the event store from older users.
 /// </remarks>
+[MessageName("Contoso.Identity.UserCreatedV1")]
 public sealed record UserCreatedV1(
 	string UserId,
 	string Name,
@@ -43,6 +44,7 @@ public sealed record UserCreatedV1(
 /// <summary>
 /// V1: Original email changed event.
 /// </summary>
+[MessageName("Contoso.Identity.UserEmailChangedV1")]
 public sealed record UserEmailChangedV1(
 	string UserId,
 	string OldEmail,
@@ -63,6 +65,7 @@ public sealed record UserEmailChangedV1(
 /// Business requirement: We need to store user addresses.
 /// Decision: Add a single "Address" string field.
 /// </remarks>
+[MessageName("Contoso.Identity.UserCreatedV2")]
 public sealed record UserCreatedV2(
 	string UserId,
 	string Name,
@@ -76,6 +79,7 @@ public sealed record UserCreatedV2(
 /// <summary>
 /// V2: User address changed event.
 /// </summary>
+[MessageName("Contoso.Identity.UserAddressChangedV2")]
 public sealed record UserAddressChangedV2(
 	string UserId,
 	string? OldAddress,
@@ -96,6 +100,7 @@ public sealed record UserAddressChangedV2(
 /// Business requirement: International shipping needs structured addresses.
 /// Decision: Split Address into Street, City, PostalCode, Country.
 /// </remarks>
+[MessageName("Contoso.Identity.UserCreatedV3")]
 public sealed record UserCreatedV3(
 	string UserId,
 	string Name,
@@ -112,6 +117,7 @@ public sealed record UserCreatedV3(
 /// <summary>
 /// V3: User address changed with structured address (current version).
 /// </summary>
+[MessageName("Contoso.Identity.UserAddressChangedV3")]
 public sealed record UserAddressChangedV3(
 	string UserId,
 	string? OldStreet,
@@ -130,6 +136,7 @@ public sealed record UserAddressChangedV3(
 /// <summary>
 /// V3: User name changed event (unchanged from V1, but explicitly versioned).
 /// </summary>
+[MessageName("Contoso.Identity.UserNameChangedV3")]
 public sealed record UserNameChangedV3(
 	string UserId,
 	string OldName,

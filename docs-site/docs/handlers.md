@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 1
 title: Handlers
 description: Action handlers for commands and queries, plus event handlers for pub-sub
@@ -300,7 +300,44 @@ There is a single `DispatchAsync` method whose behavior depends on whether an am
 | Call Site | Behavior |
 |-----------|----------|
 | Top level (no ambient context) | Creates a fresh root context |
-| Within a handler (ambient context exists) | Dispatches a child message — fresh `MessageId`, `CausationId` set to the parent's `MessageId`, propagating correlation/tenant/identity |
+| Within a handler that takes a context (ambient context exists) | Dispatches a child message — fresh `MessageId`, `CausationId` set to the parent's `MessageId`, propagating correlation/tenant/identity |
+| Within a handler that does **not** take a context | Creates a fresh root context — see below |
+
+:::caution A nested dispatch only childs if your handler asked for the context
+
+Childing needs a parent to child *from*, and the dispatcher only makes one available to
+handlers that declared they want it. A handler declares that by taking `IMessageContext`
+as a settable property, or by injecting `IMessageContextAccessor`.
+
+A handler that declares neither runs on a faster path that establishes no ambient context
+at all — so a nested `DispatchAsync(message, ct)` from inside it starts a **new root**, and
+the causal chain stops there. Nothing throws; you simply get a root where you expected a
+child.
+
+If a handler dispatches follow-up messages and you want the causal chain, declare the
+context:
+
+```csharp
+// Chain preserved: this handler asked for the context, so nested dispatches child from it.
+public sealed class PlaceOrderHandler(IMessageContextAccessor context, IDispatcher dispatcher)
+    : IActionHandler<PlaceOrder>
+{
+    public async Task HandleAsync(PlaceOrder action, CancellationToken cancellationToken)
+    {
+        await dispatcher.DispatchAsync(new ReserveStock(action.Sku), cancellationToken);
+    }
+}
+```
+
+Or pass the parent explicitly, which works from any handler:
+
+```csharp
+await dispatcher.DispatchAsync(childAction, parentContext, cancellationToken);
+```
+
+This is the trade that keeps the common path fast: a handler that never touches the
+context does not pay for one being published.
+:::
 
 To deliberately reuse the parent context instead of childing, pass it explicitly to the `DispatchAsync(message, context, ct)` overload.
 

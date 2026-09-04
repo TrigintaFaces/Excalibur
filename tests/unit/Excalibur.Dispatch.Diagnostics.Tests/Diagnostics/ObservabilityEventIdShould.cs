@@ -46,7 +46,6 @@ public sealed class ObservabilityEventIdShould : UnitTestBase
 		ObservabilityEventId.ContextFlowTrackerCreated.ShouldBeInRange(80000, 80099);
 		ObservabilityEventId.ContextFlowStarted.ShouldBeInRange(80000, 80099);
 		ObservabilityEventId.ContextFlowCompleted.ShouldBeInRange(80000, 80099);
-		ObservabilityEventId.ContextFlowDiagnosticsCollected.ShouldBeInRange(80000, 80099);
 		ObservabilityEventId.ContextPropagated.ShouldBeInRange(80000, 80099);
 		ObservabilityEventId.ContextCorrelationEstablished.ShouldBeInRange(80000, 80099);
 		ObservabilityEventId.CorrelateBoundaryInvalidOperation.ShouldBeInRange(80000, 80099);
@@ -88,7 +87,6 @@ public sealed class ObservabilityEventIdShould : UnitTestBase
 		ObservabilityEventId.ContextSnapshotCaptured.ShouldBeInRange(80100, 80199);
 		ObservabilityEventId.ContextAnomalyDetected.ShouldBeInRange(80100, 80199);
 		ObservabilityEventId.ContextIntegrityValidationFailed.ShouldBeInRange(80100, 80199);
-		ObservabilityEventId.ContextAnomalyLogged.ShouldBeInRange(80100, 80199);
 	}
 
 	#endregion
@@ -274,7 +272,6 @@ public sealed class ObservabilityEventIdShould : UnitTestBase
 			ObservabilityEventId.ContextFlowTrackerCreated,
 			ObservabilityEventId.ContextFlowStarted,
 			ObservabilityEventId.ContextFlowCompleted,
-			ObservabilityEventId.ContextFlowDiagnosticsCollected,
 			ObservabilityEventId.ContextPropagated,
 			ObservabilityEventId.ContextCorrelationEstablished,
 			ObservabilityEventId.NullContextAttempted,
@@ -308,8 +305,6 @@ public sealed class ObservabilityEventIdShould : UnitTestBase
 			ObservabilityEventId.TrackedFieldModified,
 			ObservabilityEventId.ContextSizeExceeded,
 			ObservabilityEventId.ContextFlowDiagnostic,
-			ObservabilityEventId.HistoryEvent,
-			ObservabilityEventId.ContextAnomalyLogged,
 
 			// Context Enrichment (80200-80299)
 			ObservabilityEventId.ContextTraceEnricherCreated,

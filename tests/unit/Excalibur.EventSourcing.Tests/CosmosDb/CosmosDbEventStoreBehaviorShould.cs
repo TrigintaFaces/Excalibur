@@ -138,12 +138,12 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 		field!.SetValue(instance, value);
 	}
 
+	[MessageName("Test.Es.CosmosBehaviorTestDomainEvent")]
 	private sealed record TestDomainEvent(string EventId) : IDomainEvent
 	{
 		public string AggregateId => "agg-1";
 		public long Version => 1;
 		public DateTimeOffset OccurredAt => DateTimeOffset.UtcNow;
-		public string EventType => "TestDomainEvent";
 		public IDictionary<string, object>? Metadata => null;
 	}
 }

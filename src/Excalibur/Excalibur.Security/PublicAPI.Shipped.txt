@@ -194,6 +194,7 @@ Excalibur.Security.InputValidationException.InputValidationException(string! mes
 Excalibur.Security.InputValidationException.InputValidationException(string! message, System.Exception! innerException) -> void
 Excalibur.Security.InputValidationException.ValidationErrors.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Excalibur.Security.InputValidationMiddleware
+Excalibur.Security.InputValidationMiddleware.InputValidationMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Security.InputValidationMiddleware!>! logger, Excalibur.Security.InputValidationOptions! options, System.Collections.Generic.IEnumerable<Excalibur.Security.IInputValidator!>! validators, Excalibur.Security.ISecurityEventLogger? securityEventLogger = null) -> void
 Excalibur.Security.InputValidationMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Security.InputValidationMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Security.InputValidationOptions
@@ -340,16 +341,12 @@ Excalibur.Security.RateLimitingMiddleware.Stage.get -> Excalibur.Dispatch.Dispat
 Excalibur.Security.RateLimitingOptions
 Excalibur.Security.RateLimitingOptions.Algorithm.get -> Excalibur.Security.RateLimitAlgorithm
 Excalibur.Security.RateLimitingOptions.Algorithm.set -> void
-Excalibur.Security.RateLimitingOptions.CleanupIntervalMinutes.get -> int
-Excalibur.Security.RateLimitingOptions.CleanupIntervalMinutes.set -> void
 Excalibur.Security.RateLimitingOptions.DefaultLimits.get -> Excalibur.Security.RateLimits!
 Excalibur.Security.RateLimitingOptions.DefaultLimits.set -> void
 Excalibur.Security.RateLimitingOptions.DefaultRetryAfterMilliseconds.get -> int
 Excalibur.Security.RateLimitingOptions.DefaultRetryAfterMilliseconds.set -> void
 Excalibur.Security.RateLimitingOptions.Enabled.get -> bool
 Excalibur.Security.RateLimitingOptions.Enabled.set -> void
-Excalibur.Security.RateLimitingOptions.InactivityTimeoutMinutes.get -> int
-Excalibur.Security.RateLimitingOptions.InactivityTimeoutMinutes.set -> void
 Excalibur.Security.RateLimitingOptions.RateLimitingOptions() -> void
 Excalibur.Security.RateLimitingOptions.TenantLimits.get -> System.Collections.Generic.IDictionary<string!, Excalibur.Security.RateLimits!>!
 Excalibur.Security.RateLimitingOptions.TenantLimits.init -> void
@@ -596,9 +593,8 @@ static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.Add
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Security.RateLimitingOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddDispatchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddEncryptionMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddInputValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecureCredentialManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityAuditing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.UseSecurityMiddleware(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-Excalibur.Security.InputValidationMiddleware.InputValidationMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Security.InputValidationMiddleware!>! logger, Excalibur.Security.InputValidationOptions! options, System.Collections.Generic.IEnumerable<Excalibur.Security.IInputValidator!>! validators, Excalibur.Security.ISecurityEventLogger? securityEventLogger = null) -> void
-static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddEncryptionMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -175,8 +175,9 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 		// Act
 		var name = serializer.GetTypeName(typeof(TestDomainEvent));
 
-		// Assert
-		name.ShouldNotBeNullOrEmpty();
+		// Assert -- the DECLARED name exactly. "not empty" also passed for the derived
+		// assembly-qualified name this change removed, so it could not tell the two apart.
+		name.ShouldBe("Test.Json.TestDomainEvent");
 	}
 
 	[Fact]
@@ -287,6 +288,7 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 	}
 
 	// Test helper types - internal to avoid CA1034
+	[MessageName("Test.Json.TestDomainEvent")]
 	internal sealed class TestDomainEvent : IDomainEvent
 	{
 		public string Name { get; set; } = string.Empty;
@@ -294,7 +296,6 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 		public string AggregateId { get; set; } = string.Empty;
 		public long Version { get; set; }
 		public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
-		public string EventType { get; set; } = nameof(TestDomainEvent);
 		public IDictionary<string, object>? Metadata { get; set; }
 	}
 

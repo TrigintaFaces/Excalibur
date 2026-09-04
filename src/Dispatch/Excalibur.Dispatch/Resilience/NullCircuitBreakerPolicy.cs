@@ -45,21 +45,19 @@ internal sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuit
 	/// <inheritdoc />
 	public async Task<TResult> ExecuteAsync<TResult>(
 		Func<CancellationToken, Task<TResult>> action,
+		Func<TResult, bool> isFailure,
 		CancellationToken cancellationToken)
 	{
+		// A circuit that never opens does not care which outcomes are failures.
 		return await action(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public void RecordSuccess()
+	public async Task<TResult> ExecuteAsync<TResult>(
+		Func<CancellationToken, Task<TResult>> action,
+		CancellationToken cancellationToken)
 	{
-		// No-op
-	}
-
-	/// <inheritdoc />
-	public void RecordFailure(Exception? exception = null)
-	{
-		// No-op
+		return await action(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />

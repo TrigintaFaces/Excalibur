@@ -151,7 +151,6 @@ public sealed class SqlServerCoLocatedTenantIsolationShould : IAsyncLifetime
 			Version = 0,
 			EventId = Guid.NewGuid().ToString(),
 			OccurredAt = DateTimeOffset.UtcNow,
-			EventType = marker,
 		};
 
 	private async Task InitializeTenantColumnedSchemaAsync()
@@ -191,13 +190,13 @@ public sealed class SqlServerCoLocatedTenantIsolationShould : IAsyncLifetime
 		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 
-	private sealed class CoLocatedTenantEvent : IDomainEvent
+[MessageName("Test.CoLocatedTenantEvent")]
+private sealed class CoLocatedTenantEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(CoLocatedTenantEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 }

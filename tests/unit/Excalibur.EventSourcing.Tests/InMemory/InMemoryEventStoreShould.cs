@@ -731,7 +731,7 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 		var loaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert - EventType should be set from EventTypeNameHelper
+		// Assert - EventType should be set from MessageNameHelper
 		loaded.Count.ShouldBe(1);
 		loaded[0].EventType.ShouldNotBeNullOrWhiteSpace();
 	}

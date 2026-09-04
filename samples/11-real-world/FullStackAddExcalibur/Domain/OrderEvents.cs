@@ -8,6 +8,7 @@ namespace FullStackAddExcalibur.Domain;
 /// <summary>
 /// Domain event raised when a new order is created.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreated(
 	Guid OrderId,
 	string ExternalOrderId,
@@ -18,6 +19,7 @@ public sealed record OrderCreated(
 /// <summary>
 /// Domain event raised when a line item is added to an order.
 /// </summary>
+[MessageName("Contoso.Orders.OrderLineItemAdded")]
 public sealed record OrderLineItemAdded(
 	Guid OrderId,
 	Guid ItemId,
@@ -28,6 +30,7 @@ public sealed record OrderLineItemAdded(
 /// <summary>
 /// Domain event raised when an order is shipped.
 /// </summary>
+[MessageName("Contoso.Orders.OrderShipped")]
 public sealed record OrderShipped(
 	Guid OrderId,
 	DateTime ShippedDate) : DomainEvent;
@@ -35,6 +38,7 @@ public sealed record OrderShipped(
 /// <summary>
 /// Domain event raised when an order is cancelled.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCancelled")]
 public sealed record OrderCancelled(
 	Guid OrderId,
 	string Reason) : DomainEvent;

@@ -201,6 +201,7 @@ public enum CustomerTier
 /// <summary>
 /// Event raised when a customer is created.
 /// </summary>
+[MessageName("Contoso.Customers.CustomerCreated")]
 public sealed record CustomerCreated(
 	Guid CustomerId,
 	string ExternalId,
@@ -211,6 +212,7 @@ public sealed record CustomerCreated(
 /// <summary>
 /// Event raised when customer information is updated.
 /// </summary>
+[MessageName("Contoso.Customers.CustomerInfoUpdated")]
 public sealed record CustomerInfoUpdated(
 	Guid CustomerId,
 	string Name,
@@ -220,6 +222,7 @@ public sealed record CustomerInfoUpdated(
 /// <summary>
 /// Event raised when a customer places an order.
 /// </summary>
+[MessageName("Contoso.Customers.CustomerOrderPlaced")]
 public sealed record CustomerOrderPlaced(
 	Guid CustomerId,
 	Guid OrderId,
@@ -228,6 +231,7 @@ public sealed record CustomerOrderPlaced(
 /// <summary>
 /// Event raised when a customer is deactivated.
 /// </summary>
+[MessageName("Contoso.Customers.CustomerDeactivated")]
 public sealed record CustomerDeactivated(
 	Guid CustomerId,
 	string Reason) : DomainEvent;

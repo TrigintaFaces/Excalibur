@@ -46,4 +46,5 @@ public sealed class TenantScopedOrder : AggregateRoot<Guid>
 }
 
 /// <summary>Order created event.</summary>
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreated(Guid OrderId, decimal Total) : DomainEvent;

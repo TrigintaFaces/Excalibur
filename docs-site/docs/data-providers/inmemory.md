@@ -8,6 +8,8 @@ description: In-memory data provider for unit testing and local development.
 
 The In-Memory provider implements `IPersistenceProvider` for unit testing and local development. It stores data in memory with optional transaction support, allowing tests to run without external database dependencies.
 
+The event store writes each event's declared `[MessageName]` -- not its CLR type name -- to the stored event-type field, and resolves that name back to a CLR type through the registered event-type registry on read. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
+
 ## Before You Start
 
 - **.NET 10.0**

@@ -62,15 +62,10 @@ public sealed class TestDomainEventShould
 		evt.OccurredAt.ShouldBeLessThanOrEqualTo(after);
 	}
 
-	[Fact]
-	public void Have_EventType_As_TypeName()
-	{
-		// Arrange & Act
-		var evt = new TestDomainEvent();
-
-		// Assert
-		evt.EventType.ShouldBe(nameof(TestDomainEvent));
-	}
+	// TestDomainEvent no longer carries an EventType: identity is declared per-type via
+	// [MessageName], so no instance member can disagree with it and no class rename can silently
+	// rebind stored data. Guarded by
+	// IDomainEventContractShould.NotDefine_EventType_OnTheMessagingContract.
 
 	[Fact]
 	public void Have_Default_Metadata_As_Null()

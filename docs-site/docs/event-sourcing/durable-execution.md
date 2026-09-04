@@ -132,6 +132,34 @@ The engine records each step to an append-only journal and reconstructs instance
 
 An activity that throws is journaled as failed and surfaces to the workflow body as `WorkflowActivityException` (carrying the activity name and step ordinal). `IWorkflowExecutor.GetStatusAsync` reports a `WorkflowStatus` of `Running`, `Completed`, or `Faulted` for an instance; `GetStateAsync` returns the fuller `WorkflowState?` snapshot.
 
+## Journal event names
+
+Each journal entry type declares the permanent name it is stored and transmitted under with
+`[MessageName]`, exactly as any other domain event does — see
+[Stable Message Names](domain-events.md#stable-message-names). The declared name, not the CLR type
+name, is what the event store writes to its event-type column, so it is the wire and storage
+identity of every workflow journal entry:
+
+| Journal entry type | Declared name |
+|--------------------|---------------|
+| `WorkflowStarted` | `Excalibur.Workflows.WorkflowStarted` |
+| `ActivityScheduled` | `Excalibur.Workflows.ActivityScheduled` |
+| `ActivityCompleted` | `Excalibur.Workflows.ActivityCompleted` |
+| `ActivityFailed` | `Excalibur.Workflows.ActivityFailed` |
+| `TimerCreated` | `Excalibur.Workflows.TimerCreated` |
+| `TimerFired` | `Excalibur.Workflows.TimerFired` |
+| `WorkflowTimeRead` | `Excalibur.Workflows.WorkflowTimeRead` |
+| `WorkflowGuidCreated` | `Excalibur.Workflows.WorkflowGuidCreated` |
+| `SignalReceived` | `Excalibur.Workflows.SignalReceived` |
+| `WorkflowCompleted` | `Excalibur.Workflows.WorkflowCompleted` |
+
+:::warning These names are permanent
+They are the identity of already-journaled data. Do not redeclare them with a different
+`[MessageName]` in your own build: a renamed journal entry can no longer be resolved on replay, and
+every in-flight workflow instance whose journal contains the old name becomes unreadable. Renaming
+the C# types is safe — the declared name is what must not change.
+:::
+
 ## External signals
 
 A workflow body can suspend on `context.WaitForSignalAsync<TPayload>("approval", cancellationToken)` and resume when a producer delivers that signal:

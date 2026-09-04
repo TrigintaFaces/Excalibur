@@ -299,6 +299,7 @@ public sealed class AggregateRootExtendedCoverageShould
             LastValue = $"snapshot:{snapshot.SnapshotId}";
     }
 
+    [MessageName("Test.AggregateRootExtendedCoverage.TestEvent")]
     private sealed record TestEvent : DomainEvent
     {
         public string Value { get; init; } = string.Empty;

@@ -149,14 +149,37 @@ Median of 7 WarmPath runs on one idle machine (BenchmarkDotNet 0.15.8, .NET 10.0
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Standard dispatch** | 67.7 ns / 240 B | Full pipeline with context, routing, and correlation (`MediatRWarmPathComparisonBenchmarks`) |
-| **Ultra-local dispatch** | 34.8 ns / 24 B | Lowest-overhead path, near-zero allocation |
-| **Singleton-promoted** | 34.5 ns / 24 B | Cached direct handler path |
+| **Standard dispatch** | 30.5 ns / 24 B | Default path for a handler that takes no message context (`MediatRWarmPathComparisonBenchmarks`) |
+| **Ultra-local dispatch** | 33.2 ns / 24 B | Explicit lowest-overhead API |
+| **Singleton-promoted** | 33.2 ns / 24 B | Cached direct handler path |
 | **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
 | **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
-| **100 concurrent commands** | 7,476.0 ns / 19,360 B | Scales linearly (WarmPath) |
+| **100 concurrent commands** | 4,484.1 ns / 4,960 B | Scales linearly (WarmPath) |
 
-**Competitor comparisons** (ns, WarmPath): Dispatch ultra-local **1.28× faster than MediatR** with 6.3× less memory; Dispatch **2.64× faster than Wolverine** on InvokeAsync; Dispatch **leads MassTransit Mediator** on every in-process tier.
+**Competitor comparisons** (WarmPath, 2026-09-03). Against **Wolverine** we are **5.6× faster** on `InvokeAsync` (33.1 ns vs 186.5 ns) at 24× less memory, and against **MassTransit Mediator** **42× faster** (28.6 ns vs 1,208 ns) at 148× less memory. On a three-middleware pipeline we are **3.2× faster than MediatR** (49.9 ns vs 161.0 ns) at 4.4× less memory.
+
+Against **MediatR** the answer splits, and both halves are worth knowing:
+
+| | Dispatch | MediatR | |
+|---|---|---|---|
+| Standard dispatch | **30.5 ns / 24 B** | 43.4 ns / 152 B | we are 1.42× faster, 6.3× less memory |
+| Ultra-local dispatch | **33.2 ns / 24 B** | 43.4 ns / 152 B | we are 1.31× faster, 6.3× less memory |
+| Query with return | 43.0 ns / **120 B** | 39.3 ns / 224 B | parity on time; we allocate 1.9× less |
+| Notification → 3 handlers | 140.8 ns / **96 B** | 97.6 ns / 616 B | MediatR is 1.44× faster; we allocate 6.4× less |
+| 100 concurrent commands | **4,484 ns / 4.9 KB** | 5,203 ns / 17.1 KB | we are 1.16× faster; we allocate 3.4× less |
+
+So: **we allocate less than MediatR on every scenario, and the standard path is now the fast one.**
+It used to cost 66.8 ns and 240 B because it published a message context to every handler, including
+the ones that never read it. It no longer does that — a handler receives a context when it declares
+it wants one, and pays for it only then. Notification fan-out is the one tier where MediatR is still
+ahead on time, and it allocates 6.4× more to get there.
+
+The standard path measuring slightly *faster* than the explicit ultra-local API is not a mistake:
+the standard path uses a per-type cached invoker, while the ultra-local entry point re-resolves its
+dispatch plan on every call. Reach for the ultra-local API when you want the guarantee, not because
+it is quicker.
+
+> **Reading these numbers.** They come from BenchmarkDotNet's warm job (`WarmPathBenchmarkConfig`), which is the configuration used for published comparisons; the cold job is a CI latency gate and does not report allocation. Every arm calls its library directly from the benchmark method with no intermediate `async` frame, so the allocation column compares libraries rather than harness — an extra `async` frame returning a reference costs ~72 bytes on x64 and would silently charge one side for the measurement itself. Your own call site adds whatever your `await` costs on top of the figures above.
 
 ### Optimizations Included
 

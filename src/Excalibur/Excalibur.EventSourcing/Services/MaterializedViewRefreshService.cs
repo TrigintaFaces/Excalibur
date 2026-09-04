@@ -209,8 +209,15 @@ internal sealed partial class MaterializedViewRefreshService : BackgroundService
 
 			try
 			{
-				LogRefreshingView(registration.ViewType.Name);
-				await processor.CatchUpAsync(registration.ViewType.Name, cancellationToken).ConfigureAwait(false);
+				// The processor routes by the builder's DECLARED ViewName, not by the view type name.
+				// Passing ViewType.Name here matches only when a builder happens to name itself after
+				// its class, so every conventionally-named view silently caught up nothing at all.
+				// Resolved inside the try: a malformed registration is a refresh failure like any
+				// other, and must not escape and abandon the remaining views.
+				var viewName = registration.GetViewName();
+
+				LogRefreshingView(viewName);
+				await processor.CatchUpAsync(viewName, cancellationToken).ConfigureAwait(false);
 				viewCount++;
 			}
 			catch (Exception ex)

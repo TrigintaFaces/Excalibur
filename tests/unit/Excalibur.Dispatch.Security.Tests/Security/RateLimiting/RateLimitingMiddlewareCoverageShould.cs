@@ -32,7 +32,6 @@ public sealed class RateLimitingMiddlewareCoverageShould : IDisposable
                 TokensPerPeriod = 100,
                 ReplenishmentPeriodSeconds = 1,
             },
-            CleanupIntervalMinutes = 60, // Long interval to avoid timer effects
         });
         using var sut = new RateLimitingMiddleware(options, NullLogger<RateLimitingMiddleware>.Instance);
 

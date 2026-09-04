@@ -30,36 +30,36 @@ public sealed class MultiStreamProjectionCrossAggregateShould
 		public int EventsProcessed { get; set; }
 	}
 
+	[MessageName("Test.MultiStreamProjectionCrossAggregate.OrderCreatedEvent")]
 	private sealed record OrderCreatedEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "order-123";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(OrderCreatedEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 		public string CustomerId { get; init; } = "cust-1";
 	}
 
+	[MessageName("Test.PaymentReceivedEvent")]
 	private sealed record PaymentReceivedEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "payment-456";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(PaymentReceivedEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 		public string CustomerId { get; init; } = "cust-1";
 		public decimal Amount { get; init; }
 	}
 
+	[MessageName("Test.ShipmentDispatchedEvent")]
 	private sealed record ShipmentDispatchedEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "shipment-789";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(ShipmentDispatchedEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

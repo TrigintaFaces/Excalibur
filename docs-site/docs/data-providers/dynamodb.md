@@ -63,6 +63,8 @@ services.AddExcaliburDynamoDb(dynamo =>
 
 All registrations include `ValidateOnStart` for options validation.
 
+The event store writes each event's declared `[MessageName]` -- not its CLR type name -- to the stored event-type field, and resolves that name back to a CLR type through the registered event-type registry on read. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
+
 ### Projection Store
 
 Projections are stored flat at the document root. Framework metadata is isolated under a `_projection` nested object to avoid collisions with your projection properties. See [Projections — Document Storage Format](../event-sourcing/projections.md#document-storage-format) for details.

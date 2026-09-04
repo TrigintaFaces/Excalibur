@@ -21,21 +21,21 @@ internal sealed class LinearBackoffCalculator : IBackoffCalculator
 	/// <param name="maxDelay"> The maximum delay cap. </param>
 	public LinearBackoffCalculator(TimeSpan baseDelay, TimeSpan? maxDelay = null)
 	{
-		if (baseDelay <= TimeSpan.Zero)
+		if (baseDelay < TimeSpan.Zero)
 		{
 			throw new ArgumentOutOfRangeException(
 				nameof(baseDelay),
-				Resources.LinearBackoffCalculator_BaseDelayMustBePositive);
+				Resources.LinearBackoffCalculator_BaseDelayCannotBeNegative);
 		}
 
 		_baseDelay = baseDelay;
 		_maxDelay = maxDelay ?? TimeSpan.FromMinutes(30);
 
-		if (_maxDelay <= TimeSpan.Zero)
+		if (_maxDelay < TimeSpan.Zero)
 		{
 			throw new ArgumentOutOfRangeException(
 				nameof(maxDelay),
-				Resources.LinearBackoffCalculator_MaxDelayMustBePositive);
+				Resources.LinearBackoffCalculator_MaxDelayCannotBeNegative);
 		}
 	}
 

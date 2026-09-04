@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Telemetry;
@@ -61,7 +62,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new CircuitBreakerMiddleware(null!, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger));
+			new CircuitBreakerMiddleware(null!, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger));
 	}
 
 	[Fact]
@@ -72,7 +73,7 @@ public sealed class CircuitBreakerMiddlewareShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, null!));
+			new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, null!));
 	}
 
 	#endregion
@@ -84,7 +85,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Assert
 		middleware.Stage.ShouldBe(DispatchMiddlewareStage.ErrorHandling);
@@ -99,7 +100,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -111,7 +112,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -123,7 +124,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -139,7 +140,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act
 		var result = await middleware.InvokeAsync(_message, _context, _successDelegate, CancellationToken.None);
@@ -153,7 +154,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 5 });
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act
 		var result = await middleware.InvokeAsync(_message, _context, _failureDelegate, CancellationToken.None);
@@ -167,7 +168,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 5 });
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act — the breaker observes the fault and lets it through; it does not restate somebody else's
 		// fault as an outcome of its own. The failure IS recorded, which the threshold arm below proves.
@@ -191,7 +192,7 @@ public sealed class CircuitBreakerMiddlewareShould
 			FailureThreshold = 3,
 			OpenDuration = TimeSpan.FromSeconds(30)
 		});
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Cause failures to reach threshold
 		for (var i = 0; i < 3; i++)
@@ -218,7 +219,7 @@ public sealed class CircuitBreakerMiddlewareShould
 			FailureThreshold = 3,
 			OpenDuration = TimeSpan.FromSeconds(30)
 		});
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Cause exceptions to reach threshold. Each one propagates, and each one is still recorded:
 		// that the circuit opens below is what proves the recording survived the rethrow.
@@ -251,7 +252,7 @@ public sealed class CircuitBreakerMiddlewareShould
 			// Use a custom key selector that assigns different circuit keys
 			CircuitKeySelector = _ => counter < 3 ? "circuit1" : "circuit2"
 		});
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Fail 3 times on circuit1 to open it
 		for (var i = 0; i < 3; i++)
@@ -278,7 +279,7 @@ public sealed class CircuitBreakerMiddlewareShould
 			FailureThreshold = 3,
 			CircuitKeySelector = msg => "shared-circuit"
 		});
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		var message1 = A.Fake<IDispatchMessage>();
 		var message2 = A.Fake<IDispatchMessage>();
@@ -306,7 +307,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 3 });
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Cause 2 failures then 1 success
 		_ = await middleware.InvokeAsync(_message, _context, _failureDelegate, CancellationToken.None);
@@ -333,7 +334,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 1 });
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Open the circuit
 		_ = await middleware.InvokeAsync(_message, _context, _failureDelegate, CancellationToken.None);
@@ -356,7 +357,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions());
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act
 		var thrown = await Should.ThrowAsync<InvalidOperationException>(
@@ -378,7 +379,7 @@ public sealed class CircuitBreakerMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new CircuitBreakerOptions { FailureThreshold = 10 });
-		var middleware = new CircuitBreakerMiddleware(options, NullTelemetrySanitizer.Instance, TimeProvider.System, _logger);
+		var middleware = new CircuitBreakerMiddleware(options, new TransportCircuitBreakerRegistry(), NullTelemetrySanitizer.Instance, _logger);
 
 		// Act - Cause 9 failures (one less than threshold)
 		for (var i = 0; i < 9; i++)

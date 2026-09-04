@@ -234,6 +234,7 @@ public sealed record PipelineOrderLineItem(
 /// <summary>
 /// Domain events for the pipeline test aggregate.
 /// </summary>
+[MessageName("Test.PipelineOrderCreated")]
 public sealed record PipelineOrderCreated(
 	Guid OrderId,
 	Guid CustomerId,
@@ -241,6 +242,7 @@ public sealed record PipelineOrderCreated(
 {
 }
 
+[MessageName("Test.PipelineOrderLineAdded")]
 public sealed record PipelineOrderLineAdded(
 	Guid OrderId,
 	string ProductId,
@@ -249,6 +251,7 @@ public sealed record PipelineOrderLineAdded(
 {
 }
 
+[MessageName("Test.PipelineOrderSubmitted")]
 public sealed record PipelineOrderSubmitted(Guid OrderId) : DomainEvent
 {
 }

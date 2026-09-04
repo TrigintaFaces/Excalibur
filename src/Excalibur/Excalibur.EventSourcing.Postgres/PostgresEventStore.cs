@@ -504,14 +504,14 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		// per-event round-trip loop. The whole append remains atomic (single transaction), now with far
 		// fewer round-trips.
 		var rows = new List<EventInsertRow>(eventList.Count);
-		foreach (var @event in eventList)
+		foreach (var named in eventList.AsNamedEvents())
 		{
+			var (@event, eventTypeName) = named;
 			version++;
-			var eventData = SerializeEventWithEnvelopeSupport(@event, aggregateId, aggregateType, version);
+			var eventData = SerializeEventWithEnvelopeSupport(named, aggregateId, aggregateType, version);
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
 #pragma warning restore IL2026, IL3050
-			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
 			rows.Add(new EventInsertRow(
 				@event.EventId,
@@ -674,12 +674,12 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// Falls back to JSON serialization if serializer is not configured.
 	/// </summary>
 	private byte[] SerializeEventWithEnvelopeSupport(
-		IDomainEvent @event,
+		NamedEvent named,
 		string aggregateId,
 		string aggregateType,
 		long version)
 	{
-		var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
+		var (@event, eventTypeName) = named;
 
 		if (_internalSerializer is null)
 		{

@@ -42,20 +42,4 @@ public sealed class GooglePubSubEnumsShould
 	{
 		Enum.GetValues<PoisonReason>().Length.ShouldBe(6);
 	}
-
-	[Theory]
-	[InlineData(RecommendedAction.Retry, 0)]
-	[InlineData(RecommendedAction.DeadLetter, 1)]
-	[InlineData(RecommendedAction.Quarantine, 2)]
-	[InlineData(RecommendedAction.Skip, 3)]
-	public void HaveCorrectRecommendedActionValues(RecommendedAction action, int expected)
-	{
-		((int)action).ShouldBe(expected);
-	}
-
-	[Fact]
-	public void HaveAllRecommendedActionMembers()
-	{
-		Enum.GetValues<RecommendedAction>().Length.ShouldBe(4);
-	}
 }

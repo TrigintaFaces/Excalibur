@@ -56,7 +56,8 @@ public sealed class GrantRevokedShould
 		grantRevoked.ShouldBeAssignableTo<DomainEvent>();
 		grantRevoked.ShouldBeAssignableTo<IDomainEvent>();
 		grantRevoked.EventId.ShouldNotBeNullOrWhiteSpace();
-		grantRevoked.EventType.ShouldBe(nameof(GrantRevoked));
+		// The stored name is DECLARED, so it survives renaming the class or moving the assembly.
+		MessageNameHelper.GetName(typeof(GrantRevoked)).ShouldBe("Excalibur.A3.GrantRevoked");
 	}
 
 	[Fact]

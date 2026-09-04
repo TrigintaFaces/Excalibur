@@ -16,13 +16,13 @@ internal sealed class MultiStreamTestState
 /// FakeItEasy proxies have different GetType() than the registered interface,
 /// so we need a concrete type whose GetType() matches the handler registration key.
 /// </summary>
+[MessageName("Test.MultiStreamConcreteTestEvent")]
 public sealed class MultiStreamConcreteTestEvent : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = "test-agg";
 	public long Version { get; init; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(MultiStreamConcreteTestEvent);
 	public IDictionary<string, object>? Metadata { get; init; }
 }
 

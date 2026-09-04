@@ -10,6 +10,7 @@ namespace Excalibur.Tests.Testing;
 /// <summary>
 /// Test domain event representing a counter increment.
 /// </summary>
+[MessageName("Test.TestAggregate.CounterIncremented")]
 internal sealed record CounterIncremented : DomainEvent
 {
 
@@ -18,6 +19,7 @@ internal sealed record CounterIncremented : DomainEvent
 /// <summary>
 /// Test domain event representing a counter increment by a specific amount.
 /// </summary>
+[MessageName("Test.CounterIncrementedBy")]
 internal sealed record CounterIncrementedBy : DomainEvent
 {
 	public int Amount { get; init; }
@@ -27,6 +29,7 @@ internal sealed record CounterIncrementedBy : DomainEvent
 /// <summary>
 /// Test domain event representing aggregate initialization.
 /// </summary>
+[MessageName("Test.AggregateInitialized")]
 internal sealed record AggregateInitialized : DomainEvent
 {
 	public string Name { get; init; } = string.Empty;

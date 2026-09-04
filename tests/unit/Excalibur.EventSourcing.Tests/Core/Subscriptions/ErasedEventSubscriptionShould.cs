@@ -47,6 +47,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Subscriptions;
 [Trait("Component", "EventSourcing")]
 public sealed class ErasedEventSubscriptionShould
 {
+	[MessageName("Test.Es.SubscriptionTestEvent")]
 	private sealed class SubscriptionTestEvent : IDomainEvent
 	{
 		public required string EventId { get; init; }
@@ -57,7 +58,6 @@ public sealed class ErasedEventSubscriptionShould
 
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-		public string EventType { get; init; } = nameof(SubscriptionTestEvent);
 
 		public IDictionary<string, object>? Metadata { get; init; }
 	}

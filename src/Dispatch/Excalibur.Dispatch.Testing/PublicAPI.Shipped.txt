@@ -17,7 +17,6 @@ Excalibur.Dispatch.Testing.Builders.EventBuilder.EventBuilder() -> void
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithAggregateId(string! aggregateId) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithData(string! data) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithEventId(string! eventId) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
-Excalibur.Dispatch.Testing.Builders.EventBuilder.WithEventType(string! eventType) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(System.Collections.Generic.IDictionary<string!, object!>! metadata) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(string! key, object! value) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithOccurredAt(System.DateTimeOffset occurredAt) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
@@ -55,8 +54,6 @@ Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Data.get -> string!
 Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Data.set -> void
 Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventId.get -> string!
 Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventId.set -> void
-Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventType.get -> string!
-Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventType.set -> void
 Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Metadata.set -> void
 Excalibur.Dispatch.Testing.Builders.TestDomainEvent.OccurredAt.get -> System.DateTimeOffset

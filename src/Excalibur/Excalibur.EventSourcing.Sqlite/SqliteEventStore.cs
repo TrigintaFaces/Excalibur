@@ -222,7 +222,7 @@ public sealed class SqliteEventStore : IEventStore
 			var version = currentVersion;
 			long firstPosition = 0;
 
-			foreach (var @event in eventList)
+			foreach (var (@event, eventTypeName) in eventList.AsNamedEvents())
 			{
 				version++;
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
@@ -246,7 +246,7 @@ public sealed class SqliteEventStore : IEventStore
 							@event.EventId,
 							AggregateId = aggregateId,
 							AggregateType = aggregateType,
-							EventType = EventTypeNameHelper.GetEventTypeName(@event.GetType()),
+							EventType = eventTypeName,
 							EventData = eventData,
 							Metadata = metadata,
 							Version = version,

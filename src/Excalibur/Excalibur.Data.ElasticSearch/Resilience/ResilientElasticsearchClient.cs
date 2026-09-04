@@ -10,6 +10,8 @@ using Excalibur.Data.ElasticSearch.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Polly.CircuitBreaker;
+
 namespace Excalibur.Data.ElasticSearch.Resilience;
 
 /// <summary>
@@ -19,7 +21,7 @@ namespace Excalibur.Data.ElasticSearch.Resilience;
 /// Initializes a new instance of the <see cref="ResilientElasticsearchClient" /> class.
 /// </remarks>
 /// <param name="client"> The underlying Elasticsearch client. </param>
-/// <param name="retryPolicy"> The retry policy for handling transient failures. </param>
+/// <param name="pipeline"> The retry and circuit-breaker pipeline every call runs through. </param>
 /// <param name="circuitBreaker"> The circuit breaker for preventing cascading failures. </param>
 /// <param name="options"> The resilience configuration options. </param>
 /// <param name="logger"> The logger for diagnostic information. </param>
@@ -30,7 +32,7 @@ namespace Excalibur.Data.ElasticSearch.Resilience;
 /// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 internal sealed class ResilientElasticsearchClient(
 	ElasticsearchClient client,
-	IElasticsearchRetryPolicy retryPolicy,
+	ElasticsearchResiliencePipeline pipeline,
 	IElasticsearchCircuitBreaker circuitBreaker,
 	IOptions<ElasticsearchConfigurationOptions> options,
 	ILogger<ResilientElasticsearchClient> logger,
@@ -39,7 +41,7 @@ internal sealed class ResilientElasticsearchClient(
 	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	private readonly ElasticsearchClient _client = client ?? throw new ArgumentNullException(nameof(client));
-	private readonly IElasticsearchRetryPolicy _retryPolicy = retryPolicy ?? throw new ArgumentNullException(nameof(retryPolicy));
+	private readonly ElasticsearchResiliencePipeline _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
 
 	private readonly IElasticsearchCircuitBreaker _circuitBreaker =
 		circuitBreaker ?? throw new ArgumentNullException(nameof(circuitBreaker));
@@ -235,33 +237,6 @@ internal sealed class ResilientElasticsearchClient(
 	}
 
 	/// <summary>
-	/// Determines whether an exception represents a transient failure that may succeed on retry.
-	/// </summary>
-	/// <param name="exception"> The exception to evaluate. </param>
-	/// <returns> True if the exception is considered transient, false otherwise. </returns>
-	private static bool IsTransientException(Exception exception) =>
-		exception switch
-		{
-			// Network-related exceptions are generally transient
-			HttpRequestException => true,
-			TaskCanceledException => true,
-			TimeoutException => true,
-
-			// Elasticsearch transport exceptions may be transient
-			TransportException te => te.ApiCallDetails?.HttpStatusCode switch
-			{
-				429 => true, // Too Many Requests
-				502 => true, // Bad Gateway
-				503 => true, // Service Unavailable
-				504 => true, // Gateway Timeout
-				_ => false,
-			},
-
-			// Default case - don't retry unless we know it's transient
-			_ => false,
-		};
-
-	/// <summary>
 	/// Builds the exception reported when the operation's own timeout budget elapses, as opposed to the caller
 	/// cancelling. The <see cref="TimeoutException" /> is carried as the inner exception so callers can
 	/// distinguish "it timed out" from "it failed", mirroring how <c>HttpClient</c> reports its own timeout.
@@ -302,178 +277,61 @@ internal sealed class ResilientElasticsearchClient(
 		CancellationToken callerToken)
 		where TResponse : TransportResponse
 	{
-		// Check circuit breaker state first
-		if (_settings.CircuitBreaker.Enabled && _circuitBreaker.IsOpen)
+		var attempts = 0;
+
+		try
+		{
+			return await _pipeline.ExecuteAsync(
+				async _ =>
+				{
+					attempts++;
+
+					// The Elasticsearch client does not reliably surface a cancelled token as an
+					// OperationCanceledException; it can return an invalid response instead. The tokens
+					// are inspected directly so a cancellation is not mistaken for a retryable failure.
+					// Throwing (rather than pre-checking and building the final exception here) lets this
+					// join the SAME catch clause below as a mid-flight cancellation, so it is wrapped
+					// exactly once instead of twice.
+					callerToken.ThrowIfCancellationRequested();
+					cancellationToken.ThrowIfCancellationRequested();
+
+					var result = await operation().ConfigureAwait(false);
+
+					var isValid = result is Elastic.Transport.Products.Elasticsearch.ElasticsearchResponse esResponse
+						? esResponse.IsValidResponse
+						: result.ApiCallDetails?.HasSuccessfulStatusCode == true;
+
+					if (!isValid)
+					{
+						// An unsuccessful response is a failure the pipeline must see. Returning it
+						// would hide the outcome from both the retry and the breaker, so the call
+						// would neither be retried nor counted.
+						throw new ElasticsearchInvalidResponseException(operationType, result.ApiCallDetails?.HttpStatusCode);
+					}
+
+					_logger.LogDebug(
+						"{OperationType} operation succeeded on attempt {Attempt}",
+						operationType, attempts);
+
+					return result;
+				},
+				callerToken).ConfigureAwait(false);
+		}
+		catch (BrokenCircuitException)
 		{
 			_logger.LogWarning("Circuit breaker is open for {OperationType} operations", operationType);
 			throw new InvalidOperationException($"Circuit breaker is open for {operationType} operations");
 		}
-
-		var attempts = 0;
-		Exception? lastException = null;
-
-		while (attempts < _settings.Retry.MaxAttempts + 1) // +1 for initial attempt
-		{
-			attempts++;
-
-			// The Elasticsearch client does not reliably surface a cancelled token as an
-			// OperationCanceledException - it can return an *invalid response* instead. Inspect the tokens
-			// directly so cancellation and timeout are attributed correctly rather than being reported as a
-			// generic "returned invalid response" failure. Caller cancellation is checked first: it is the
-			// caller's explicit intent and is never reported as a timeout.
-			callerToken.ThrowIfCancellationRequested();
-
-			if (cancellationToken.IsCancellationRequested)
-			{
-				throw CreateTimeoutException(createException, operationType, attempts);
-			}
-
-			try
-			{
-				var result = await operation().ConfigureAwait(false);
-
-				// Record successful operation with circuit breaker
-				if (_settings.CircuitBreaker.Enabled)
-				{
-					await _circuitBreaker.RecordSuccessAsync().ConfigureAwait(false);
-				}
-
-				// Check if response indicates a successful operation.
-				// Cast to ElasticsearchResponse for the full IsValidResponse check (handles 404 etc.),
-				// fall back to Transport-level HasSuccessfulStatusCode for raw TransportResponse.
-				var isValid = result is Elastic.Transport.Products.Elasticsearch.ElasticsearchResponse esResponse
-					? esResponse.IsValidResponse
-					: result.ApiCallDetails?.HasSuccessfulStatusCode == true;
-				if (isValid)
-				{
-					_logger.LogDebug(
-						"{OperationType} operation succeeded on attempt {Attempt}",
-						operationType, attempts);
-					return result;
-				}
-
-				// Response is not valid - treat as failure for retry logic
-				var responseException = new InvalidOperationException($"{operationType} operation returned invalid response");
-				lastException = responseException;
-
-				// Record failure with circuit breaker
-				if (_settings.CircuitBreaker.Enabled)
-				{
-					await _circuitBreaker.RecordFailureAsync().ConfigureAwait(false);
-				}
-
-				// Check if we should retry
-				if (!ShouldRetry(responseException, attempts))
-				{
-					break;
-				}
-			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
-			{
-				lastException = ex;
-
-				// Record failure with circuit breaker
-				if (_settings.CircuitBreaker.Enabled)
-				{
-					await _circuitBreaker.RecordFailureAsync().ConfigureAwait(false);
-				}
-
-				_logger.LogWarning(ex, "{OperationType} operation failed on attempt {Attempt}",
-					operationType, attempts);
-
-				// Check if we should retry
-				if (!ShouldRetry(ex, attempts))
-				{
-					break;
-				}
-
-				// Apply retry delay with exponential backoff and jitter
-				if (attempts <= _settings.Retry.MaxAttempts)
-				{
-					var delay = _retryPolicy.GetRetryDelay(attempts - 1);
-					_logger.LogDebug(
-						"Retrying {OperationType} operation in {Delay}ms",
-						operationType, delay.TotalMilliseconds);
-
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
-			{
-				// The CALLER asked to stop. Honor it verbatim: cancellation is not a failure, so it is
-				// neither recorded against the circuit breaker nor wrapped in a domain exception.
-				_logger.LogInformation("{OperationType} operation was cancelled by the caller", operationType);
-				throw;
-			}
-			catch (OperationCanceledException ex)
-			{
-				// The caller did NOT cancel, so this is our own configured timeout elapsing. Surface it as a
-				// timeout — distinct from caller cancellation, the same distinction HttpClient draws — rather
-				// than rethrowing an OperationCanceledException the caller cannot attribute. The elapsed budget
-				// covers every attempt, so retrying here would have no time left to succeed.
-				_logger.LogWarning(ex, "{OperationType} operation timed out on attempt {Attempt}", operationType, attempts);
-
-				if (_settings.CircuitBreaker.Enabled)
-				{
-					await _circuitBreaker.RecordFailureAsync().ConfigureAwait(false);
-				}
-
-				throw CreateTimeoutException(createException, operationType, attempts, ex);
-			}
-		}
-
-		// A timeout may have elapsed part-way through the final attempt, in which case the client can report it
-		// as an ordinary invalid response. Re-check before reporting so the caller still sees a timeout rather
-		// than a misleading generic failure. Caller cancellation again takes precedence.
-		callerToken.ThrowIfCancellationRequested();
-
-		if (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (!callerToken.IsCancellationRequested)
 		{
 			throw CreateTimeoutException(createException, operationType, attempts);
 		}
-
-		// All retries exhausted - log the failure
-		if (lastException is not null)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
-			_logger.LogError(
-				lastException,
-				"{OperationType} operation permanently failed after {Attempts} attempts",
+			_logger.LogWarning(ex, "{OperationType} operation failed after {Attempts} attempt(s)",
 				operationType, attempts);
+			throw createException(ex, attempts);
 		}
-
-		// Create and throw appropriate exception
-		var finalException = lastException is not null
-			? createException(lastException, attempts)
-			: new InvalidOperationException($"{operationType} operation failed without exception details");
-
-		_logger.LogError(finalException, "{OperationType} operation failed after {Attempts} attempts",
-			operationType, attempts);
-
-		throw finalException;
-	}
-
-	/// <summary>
-	/// Determines whether an operation should be retried based on the exception and attempt count.
-	/// </summary>
-	/// <param name="exception"> The exception that occurred. </param>
-	/// <param name="attemptNumber"> The current attempt number (1-based). </param>
-	/// <returns> True if the operation should be retried, false otherwise. </returns>
-	private bool ShouldRetry(Exception exception, int attemptNumber)
-	{
-		// Don't retry if retries are disabled
-		if (!_settings.Retry.Enabled)
-		{
-			return false;
-		}
-
-		// Don't retry if we've reached max attempts
-		if (attemptNumber >= _settings.Retry.MaxAttempts + 1)
-		{
-			return false;
-		}
-
-		// Don't retry certain non-transient errors
-		return IsTransientException(exception);
 	}
 
 	/// <summary>

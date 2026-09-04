@@ -291,46 +291,6 @@ public class TestTelemetryChannel
 }
 
 /// <summary>
-/// Configuration validation error for hosting tests.
-/// </summary>
-public class ConfigurationValidationError(string propertyPath, string message, object? value = null)
-{
-	public string PropertyPath { get; set; } = propertyPath;
-
-	public string Message { get; set; } = message;
-
-	public object? Value { get; set; } = value;
-}
-
-/// <summary>
-/// Configuration validation exception for hosting tests.
-/// </summary>
-public class ConfigurationValidationException : Exception
-{
-	public ConfigurationValidationException(IReadOnlyList<ConfigurationValidationError> errors)
-		: base($"Configuration validation failed with {(errors ?? throw new ArgumentNullException(nameof(errors))).Count} error(s)") =>
-		Errors = errors;
-
-	public ConfigurationValidationException(string message) : base(message) => Errors = new List<ConfigurationValidationError>();
-
-	public IReadOnlyList<ConfigurationValidationError> Errors { get; }
-}
-
-/// <summary>
-/// Configuration validation result for hosting tests.
-/// </summary>
-public class ConfigurationValidationResult(bool isValid, IReadOnlyList<ConfigurationValidationError> errors)
-{
-	public bool IsValid { get; } = isValid;
-
-	public IReadOnlyList<ConfigurationValidationError> Errors { get; } = errors;
-
-	public static ConfigurationValidationResult Success() => new(true, new List<ConfigurationValidationError>());
-
-	public static ConfigurationValidationResult Failure(params ConfigurationValidationError[] errors) => new(false, errors.ToList());
-}
-
-/// <summary>
 /// Elasticsearch bulk response item stub.
 /// </summary>
 public class BulkResponseItem

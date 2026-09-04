@@ -86,7 +86,8 @@ public sealed class AccessReviewCampaignShould : UnitTestBase
 		created.Scope.ShouldBe(DefaultScope);
 		created.CreatedBy.ShouldBe("admin");
 		created.Items.Count.ShouldBe(2);
-		created.EventType.ShouldBe("AccessReviewCampaignCreated");
+		// The stored name is DECLARED, so it survives renaming the class or moving the assembly.
+		MessageNameHelper.GetName(typeof(AccessReviewCampaignCreated)).ShouldBe("Excalibur.A3.AccessReviewCampaignCreated");
 	}
 
 	[Fact]

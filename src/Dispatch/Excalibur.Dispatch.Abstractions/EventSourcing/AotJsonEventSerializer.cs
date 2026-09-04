@@ -209,8 +209,13 @@ public sealed class AotJsonEventSerializer : IEventSerializer
 	{
 		ArgumentNullException.ThrowIfNull(type);
 
-		return _typeRegistry.GetTypeName(type)
-			?? EventTypeNameHelper.GetEventTypeName(type);
+		// The declared name, and only the declared name -- the same derivation the other serializer
+		// uses. This previously consulted the registry first and fell back to the helper, which made
+		// two serializers answer one contract two different ways. The registry's type-to-name map is
+		// populated from exactly this helper and never from an alias, so the lookup could only ever
+		// return the same string or nothing; what it actually bought was an unspecified difference a
+		// caller could observe between two implementations of IEventSerializer.
+		return MessageNameHelper.GetName(type);
 	}
 
 	/// <inheritdoc />
@@ -223,7 +228,9 @@ public sealed class AotJsonEventSerializer : IEventSerializer
 
 		return _typeRegistry.ResolveType(typeName)
 			?? throw new UnknownEventTypeException(
-				$"Cannot resolve event type '{typeName}'. Ensure the type is registered in your " +
-				"EventStoreTypeMap via the [DomainEvent] attribute or explicit registration.");
+				$"Cannot resolve event type '{typeName}'. No registered type declares that name. " +
+				"Register the type with AddEventTypes<T>(), and check that its [MessageName] matches " +
+				"the stored name -- if the name changed, the old one has to be kept with " +
+				"[MessageNameAlias] for data written under it to stay readable.");
 	}
 }

@@ -203,7 +203,7 @@ FIELD_RE = re.compile(
 # extension classes -- 15 false phantoms across the testing docs.
 EXT_METHOD_RE = re.compile(
     r"^\s*(?:\[[^\]]*\]\s*)*"
-    r"(?:(?:public|internal)\s+)(?:(?:static|unsafe|partial)\s+)+"
+    r"(?:(?:public|internal)\s+)(?:(?:static|unsafe|partial|async)\s+)+"
     r"(" + _TYPE_TOK + r")\s+"
     r"([A-Za-z_]\w*)\s*(?:<[^>()]*>)?\s*\(\s*this\s+"
     r"(?:(?:ref|in|scoped)\s+)*"
@@ -313,6 +313,8 @@ def build_symbol_table(repo):
         if info is not None:
             info.members.add(member)
             info.member_types.setdefault(member, decl_type)
+        elif TYPE_PARAM_RE.match(recv):
+            UNIVERSAL_EXT_MEMBERS.add(member)
     return types, files
 
 
@@ -426,6 +428,20 @@ def _record_member(info, line):
         return
 
 
+# Every C# type inherits System.Object, whose public members are callable on any receiver --
+# including an interface reference, which implicitly derives from object. Without this the gate
+# reports a correct `message.GetType()` as an unresolved member, because object is not declared
+# in src/ and so never appears in any type's base chain.
+OBJECT_MEMBERS = {"GetType", "ToString", "Equals", "GetHashCode"}
+
+# An extension method whose receiver is an unconstrained TYPE PARAMETER -- `AsSingleChunk<T>(this T
+# data)` -- is callable on every receiver, so it cannot be attached to any one declared type. The
+# attach loop below drops it (the receiver resolves to no type), and every documented call then reads
+# as a phantom member of whatever the local happened to be.
+TYPE_PARAM_RE = re.compile(r"^T[A-Z0-9]*$")
+UNIVERSAL_EXT_MEMBERS = set()
+
+
 def resolve_member(types, type_name, member, _seen=None):
     """(status, declaring_type, member_type) where status is found|missing|open.
 
@@ -437,6 +453,8 @@ def resolve_member(types, type_name, member, _seen=None):
     if type_name in _seen:
         return "missing", None, None
     _seen.add(type_name)
+    if member in OBJECT_MEMBERS or member in UNIVERSAL_EXT_MEMBERS:
+        return "open", None, None
     info = types.get(type_name)
     if info is None:
         return "open", None, None

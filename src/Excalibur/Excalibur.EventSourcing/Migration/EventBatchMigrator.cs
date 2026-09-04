@@ -236,6 +236,7 @@ public sealed partial class EventBatchMigrator : IEventBatchMigrator
 	/// <summary>
 	/// Internal domain event wrapper for stored events during migration.
 	/// </summary>
+	[MessageName("Excalibur.EventSourcing.MigrationDomainEvent")]
 	private sealed class MigrationDomainEvent : IDomainEvent
 	{
 		private readonly StoredEvent _storedEvent;
@@ -246,7 +247,6 @@ public sealed partial class EventBatchMigrator : IEventBatchMigrator
 		public string AggregateId => _storedEvent.AggregateId;
 		public long Version => _storedEvent.Version;
 		public DateTimeOffset OccurredAt => _storedEvent.Timestamp;
-		public string EventType => _storedEvent.EventType;
 		public IDictionary<string, object>? Metadata => null;
 	}
 }

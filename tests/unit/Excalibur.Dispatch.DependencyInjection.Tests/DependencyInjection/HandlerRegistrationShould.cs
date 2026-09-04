@@ -438,13 +438,13 @@ public sealed class HandlerRegistrationShould : UnitTestBase
 	private sealed class TestQuery : IDispatchAction<TestQueryResult>
 	{ }
 
+	[MessageName("Test.HandlerRegistration.TestEvent")]
 	private sealed class TestEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TestEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

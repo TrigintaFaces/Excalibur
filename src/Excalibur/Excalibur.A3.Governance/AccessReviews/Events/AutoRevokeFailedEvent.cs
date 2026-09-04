@@ -8,6 +8,7 @@ namespace Excalibur.A3.Governance.Events;
 /// <summary>
 /// Raised when auto-revoke of an unreviewed grant fails after exhausting all retry attempts.
 /// </summary>
+[MessageName("Excalibur.A3.AutoRevokeFailed")]
 internal sealed class AutoRevokeFailedEvent : IDomainEvent
 {
 	public required string CampaignId { get; init; }
@@ -18,6 +19,5 @@ internal sealed class AutoRevokeFailedEvent : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(AutoRevokeFailedEvent);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

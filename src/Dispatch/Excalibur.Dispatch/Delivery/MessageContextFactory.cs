@@ -36,7 +36,7 @@ internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : 
 	/// <returns> A new or recycled message context. </returns>
 	/// <remarks>
 	/// This is the root-context path: <c>DispatcherContextExtensions.GetOrCreateChildContext</c> calls it
-	/// only when there is no ambient <see cref="Excalibur.Dispatch.Messaging.MessageContextHolder"/> context
+	/// only when no message context is already flowing
 	/// to child from -- a top-level dispatch with no causal parent. Applies the same ambient-tenant
 	/// fallback <see cref="DispatchContextInitializer"/> applies
 	/// (<see cref="MessageContextTenantFallbackExtensions.ApplyAmbientTenantFallback"/>), so a root

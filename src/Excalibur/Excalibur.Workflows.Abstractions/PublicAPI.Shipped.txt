@@ -159,15 +159,4 @@ Excalibur.Workflows.WorkflowStoreStatistics.Total.init -> void
 Excalibur.Workflows.WorkflowTimeRead
 Excalibur.Workflows.WorkflowTimeRead.StepOrdinal.get -> int
 Excalibur.Workflows.WorkflowTimeRead.StepOrdinal.init -> void
-abstract Excalibur.Workflows.WorkflowJournalEvent.EventType.get -> string!
 const Excalibur.Workflows.WorkflowDiagnostics.ActivitySourceName = "Excalibur.Workflows" -> string!
-override Excalibur.Workflows.ActivityCompleted.EventType.get -> string!
-override Excalibur.Workflows.ActivityFailed.EventType.get -> string!
-override Excalibur.Workflows.ActivityScheduled.EventType.get -> string!
-override Excalibur.Workflows.SignalReceived.EventType.get -> string!
-override Excalibur.Workflows.TimerCreated.EventType.get -> string!
-override Excalibur.Workflows.TimerFired.EventType.get -> string!
-override Excalibur.Workflows.WorkflowCompleted.EventType.get -> string!
-override Excalibur.Workflows.WorkflowGuidCreated.EventType.get -> string!
-override Excalibur.Workflows.WorkflowStarted.EventType.get -> string!
-override Excalibur.Workflows.WorkflowTimeRead.EventType.get -> string!

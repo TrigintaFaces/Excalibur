@@ -91,7 +91,9 @@ public sealed class EventTypeRegistrationValidatorShould
 		await validator.StartAsync(CancellationToken.None);
 	}
 
+	[MessageName("Test.Es.ValidatorTestEvent")]
 	private sealed record TestEvent;
 
+	[MessageName("Test.Es.ValidatorOtherTestEvent")]
 	private sealed record OtherTestEvent;
 }

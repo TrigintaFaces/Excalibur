@@ -466,13 +466,17 @@ aws stepfunctions start-execution \
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 
+// The stored EventType column holds the event's declared [MessageName] -- the same name used by the
+// outbox MessageType and the CloudEvents type. See ../event-sourcing/domain-events.md#stable-message-names.
 public class DynamoDbEventStore : IEventStore
 {
     private readonly Table _table;
+    private readonly IEventTypeRegistry _eventTypes;
 
-    public DynamoDbEventStore(IAmazonDynamoDB client, string tableName)
+    public DynamoDbEventStore(IAmazonDynamoDB client, string tableName, IEventTypeRegistry eventTypes)
     {
         _table = Table.LoadTable(client, tableName);
+        _eventTypes = eventTypes;
     }
 
     public async Task AppendAsync(
@@ -491,7 +495,7 @@ public class DynamoDbEventStore : IEventStore
             {
                 ["AggregateId"] = aggregateId,
                 ["Version"] = ++version,
-                ["EventType"] = @event.EventType,
+                ["EventType"] = MessageNameHelper.GetName(@event.GetType()),
                 ["EventData"] = JsonSerializer.Serialize(@event),
                 ["OccurredAt"] = @event.OccurredAt.ToString("o")
             };
@@ -528,7 +532,7 @@ public class DynamoDbEventStore : IEventStore
         var events = new List<IDomainEvent>();
         foreach (var doc in documents.OrderBy(d => (int)d["Version"]))
         {
-            var eventType = Type.GetType((string)doc["EventType"]);
+            var eventType = _eventTypes.ResolveType((string)doc["EventType"]);
             var eventData = (string)doc["EventData"];
             var @event = JsonSerializer.Deserialize(eventData, eventType) as IDomainEvent;
             events.Add(@event);
@@ -563,6 +567,7 @@ using Amazon.Lambda.DynamoDBEvents;
 public class ProjectionFunction
 {
     private readonly IProjectionService _projectionService;
+    private readonly IEventTypeRegistry _eventTypes;
 
     public async Task FunctionHandler(DynamoDBEvent dynamoEvent, ILambdaContext context)
     {
@@ -573,7 +578,8 @@ public class ProjectionFunction
                 var eventType = record.Dynamodb.NewImage["EventType"].S;
                 var eventData = record.Dynamodb.NewImage["EventData"].S;
 
-                var type = Type.GetType(eventType);
+                // EventType is the declared [MessageName]; resolve it through the registry.
+                var type = _eventTypes.ResolveType(eventType);
                 var @event = JsonSerializer.Deserialize(eventData, type) as IDomainEvent;
 
                 await _projectionService.ProjectAsync(@event, CancellationToken.None);

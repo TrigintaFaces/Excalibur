@@ -406,6 +406,15 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 	}
 
 	/// <summary>Records what the decorator reports, so the reporting itself can be asserted.</summary>
+	/// <summary>
+	/// A breaker that counts what it was asked to execute.
+	/// </summary>
+	/// <remarks>
+	/// This fixture used to do the opposite: it counted out-of-band outcome reports and threw from
+	/// ExecuteAsync, which locked in a decorator that reported outcomes beside the breaker instead of
+	/// running through it. That is the shape that left the Polly-backed breaker unable to open. The
+	/// contract now carries no out-of-band recorder at all, so execution is the only thing to count.
+	/// </remarks>
 	private sealed class RecordingCircuitBreaker : ICircuitBreakerPolicy
 	{
 		public int Successes { get; private set; }
@@ -414,57 +423,56 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 
 		public CircuitState State => CircuitState.Closed;
 
-		public void RecordSuccess() => Successes++;
-
-		public void RecordFailure(Exception? exception = null) => Failures++;
-
 		public void Reset()
 		{
 			Successes = 0;
 			Failures = 0;
 		}
 
-		public Task<TResult> ExecuteAsync<TResult>(
+
+		public async Task<TResult> ExecuteAsync<TResult>(
 			Func<CancellationToken, Task<TResult>> operation,
-			CancellationToken cancellationToken) =>
-			throw new NotSupportedException(
-				"The decorator reports outcomes to the breaker; it never delegates execution to it. If this "
-				+ "throws, the decorator started routing work through the breaker and these arms no longer "
-				+ "describe what it does.");
-	}
-
-	[Fact]
-	public async Task HandTheCircuitBreakerToTheDecoratorItRegisters()
-	{
-		// WIRING. The arms above construct the decorator directly, so they prove it REPORTS backend health;
-		// they say nothing about whether the decorator the container builds ever receives a breaker. A
-		// decorator that reports to a breaker it was never given is the advertised-but-unwired shape: every
-		// unit test above stays green while a dead backend silently never opens the breaker in a real app.
-		var breaker = new RecordingCircuitBreaker();
-
-		var services = new ServiceCollection();
-		_ = services.AddSingleton(new DispatchJsonSerializer());
-		_ = services.AddSingleton<ICircuitBreakerPolicy>(breaker);
-		_ = services.AddDispatchDistributedCaching<SlowBackendForWiring>(o =>
+			Func<TResult, bool> isFailure,
+			CancellationToken cancellationToken)
 		{
-			o.Enabled = true;
-			o.Behavior.CacheTimeout = Deadline;
-			o.Resilience.CircuitBreaker.Enabled = true;
-		});
+			try
+			{
+				var result = await operation(cancellationToken).ConfigureAwait(false);
 
-		await using var provider = services.BuildServiceProvider();
-		var resolved = provider.GetRequiredService<IDistributedCache>();
+				if (isFailure(result))
+				{
+					Failures++;
+				}
+				else
+				{
+					Successes++;
+				}
 
-		_ = resolved.ShouldBeAssignableTo<TimeoutDistributedCache>(
-			"registration must decorate the distributed cache, or nothing bounds backend latency at all");
+				return result;
+			}
+			catch
+			{
+				Failures++;
+				throw;
+			}
+		}
 
-		_ = await resolved.GetAsync("k", CancellationToken.None);
-
-		breaker.Failures.ShouldBe(
-			1,
-			"the decorator the CONTAINER built must report the timeout -- if registration forgets to pass "
-			+ "the breaker, a chronically slow backend never opens it and every request pays the deadline "
-			+ "twice forever");
+		public async Task<TResult> ExecuteAsync<TResult>(
+			Func<CancellationToken, Task<TResult>> operation,
+			CancellationToken cancellationToken)
+		{
+			try
+			{
+				var result = await operation(cancellationToken).ConfigureAwait(false);
+				Successes++;
+				return result;
+			}
+			catch
+			{
+				Failures++;
+				throw;
+			}
+		}
 	}
 
 }

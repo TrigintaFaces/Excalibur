@@ -60,7 +60,6 @@ public sealed class SerializationShould : UnitTestBase
 		deserialized.EventId.ShouldBe(originalEvent.EventId);
 		deserialized.AggregateId.ShouldBe(originalEvent.AggregateId);
 		deserialized.Version.ShouldBe(originalEvent.Version);
-		deserialized.EventType.ShouldBe(originalEvent.EventType);
 		deserialized.OccurredAt.ShouldBeInRange(
 			originalEvent.OccurredAt.AddMilliseconds(-1),
 			originalEvent.OccurredAt.AddMilliseconds(1));
@@ -277,8 +276,11 @@ public sealed class SerializationShould : UnitTestBase
 		var deserialized = JsonSerializer.Deserialize<TestDomainEvent>(serialized, _jsonOptions);
 		;
 
-		// Assert
-		deserialized!.EventType.ShouldBe(nameof(TestDomainEvent));
+		// Assert -- identity is declared on the type, not carried in the payload, so it is the
+		// registry/declared name that must survive a round trip, not a serialized member.
+		deserialized.ShouldNotBeNull();
+		MessageNameHelper.GetName(deserialized.GetType())
+			.ShouldBe(MessageNameHelper.GetName(typeof(TestDomainEvent)));
 	}
 
 	[Fact]
@@ -467,6 +469,7 @@ public sealed class SerializationShould : UnitTestBase
 	/// <summary>
 	/// Test implementation of IDomainEvent for serialization testing.
 	/// </summary>
+	[MessageName("Test.Serialization.TestDomainEvent")]
 	private sealed class TestDomainEvent : IDomainEvent
 	{
 		public TestDomainEvent()
@@ -478,14 +481,12 @@ public sealed class SerializationShould : UnitTestBase
 			AggregateId = aggregateId;
 			Version = version;
 			OccurredAt = DateTimeOffset.UtcNow;
-			EventType = nameof(TestDomainEvent);
 		}
 
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TestDomainEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

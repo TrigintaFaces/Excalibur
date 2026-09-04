@@ -439,31 +439,6 @@ internal static class AwsSqsEventId
 	/// <summary>Throughput metrics collected.</summary>
 	public const int ThroughputMetrics = 25504;
 
-	// HighThroughputSqsChannelProcessor
-	/// <summary>High throughput processor starting.</summary>
-	public const int HighThroughputProcessorStarting = 25510;
-
-	/// <summary>High throughput poller started.</summary>
-	public const int HighThroughputPollerStarted = 25511;
-
-	/// <summary>High throughput poller error.</summary>
-	public const int HighThroughputPollerError = 25512;
-
-	/// <summary>High throughput poller stopped.</summary>
-	public const int HighThroughputPollerStopped = 25513;
-
-	/// <summary>High throughput batch delete error.</summary>
-	public const int HighThroughputBatchDeleteError = 25514;
-
-	/// <summary>High throughput batch delete partial failure for individual entry.</summary>
-	public const int HighThroughputBatchDeletePartialFailure = 25515;
-
-	/// <summary>High throughput visibility extension failed for individual entry.</summary>
-	public const int HighThroughputVisibilityExtensionFailed = 25516;
-
-	/// <summary>High throughput visibility extension batch error.</summary>
-	public const int HighThroughputVisibilityExtensionError = 25517;
-
 	// SqsChannelProcessorHostedService
 	/// <summary>Channel processor hosted service starting.</summary>
 	public const int HostedServiceStarting = 25520;
@@ -517,53 +492,6 @@ internal static class AwsSqsEventId
 
 	/// <summary>Adaptive polling error.</summary>
 	public const int AdaptivePollingError = 25617;
-
-	// SqsLongPollingReceiver
-	/// <summary>Receiving messages from SQS.</summary>
-	public const int LongPollingReceivingMessages = 25620;
-
-	/// <summary>Received messages from SQS.</summary>
-	public const int LongPollingReceivedMessages = 25621;
-
-	/// <summary>Error receiving messages.</summary>
-	public const int LongPollingReceiveError = 25622;
-
-	/// <summary>Message processing error.</summary>
-	public const int LongPollingMessageProcessingError = 25623;
-
-	/// <summary>Polling started for queue.</summary>
-	public const int LongPollingPollingStarted = 25624;
-
-	/// <summary>Polling error for queue.</summary>
-	public const int LongPollingPollingError = 25625;
-
-	/// <summary>Polling stopped for queue.</summary>
-	public const int LongPollingPollingStopped = 25626;
-
-	/// <summary>Visibility timeout optimized.</summary>
-	public const int LongPollingVisibilityTimeoutOptimized = 25627;
-
-	/// <summary>Visibility timeout optimization failed.</summary>
-	public const int LongPollingVisibilityTimeoutOptimizationFailed = 25628;
-
-	/// <summary>Delete message failed.</summary>
-	public const int LongPollingDeleteMessageFailed = 25629;
-
-	/// <summary>Batch delete failed.</summary>
-	public const int LongPollingBatchDeleteFailed = 25630;
-
-	/// <summary>Batch delete error.</summary>
-	public const int LongPollingBatchDeleteError = 25631;
-
-	/// <summary>Receiver started.</summary>
-	public const int LongPollingReceiverStarted = 25632;
-
-	/// <summary>Receiver stopped.</summary>
-	public const int LongPollingReceiverStopped = 25633;
-
-	// LongPollingOptimizer
-	/// <summary>Health status error.</summary>
-	public const int LongPollingHealthStatusError = 25640;
 
 	// ========================================
 	// 25700-25799: SNS

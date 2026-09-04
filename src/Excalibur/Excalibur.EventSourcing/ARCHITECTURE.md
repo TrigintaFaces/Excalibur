@@ -526,3 +526,101 @@ runs can.
   through *can* leave a partial stream. This is the consumer's explicit trade, made by configuration, and
   the limit is not enforced there. The guarantee above describes the default, atomic configuration, which
   is what the conformance suites register. Firestore offers no such opt-out.
+
+# Architecture — Stored Message Identity
+
+## Guarantee
+
+**One identity, stated once, used by every path that names the message.** A message type declares its
+name with `[MessageName("...")]`, and that declared name is the only identity written anywhere: the
+event store's event-type column, the outbox `MessageType` a consumer routes on, and the CloudEvents
+`type` an external subscriber filters on. In falsifiable terms:
+
+- **A stored event resolves if and only if its type declares the same name, or declares an alias for
+  the stored name, AND that type was registered.** Resolution is over the registered set; declaring a
+  name is necessary but not sufficient. Namespace, assembly and assembly-version changes are *not observable* in stored
+  identity, so none of them can make previously-written data unreadable.
+- **A name identifies exactly one type WITHIN THE REGISTERED SET.** Two *registered* types claiming one
+  name is refused at registration. This is weaker than it sounds and the difference matters: the write
+  path does not consult the registry at all -- every store asks the type for its declared name directly
+  -- so two types declaring the same name, where only one is registered, write identical bytes and both
+  read back as the registered one. Nothing currently detects that. Uniqueness is a property of the
+  registered set, not yet of the type universe, and making it the latter needs enforcement over all
+  declaring types rather than over the ones a consumer remembered to register.
+- **A message type with no declared name cannot be registered.** There is no derived fallback, so a
+  message can never acquire an identity its author did not choose.
+
+The name is permanent. Renaming is a **two-phase deployment**, and doing it in one phase corrupts
+readability permanently -- see *Renaming a message* under consumer obligations below.
+
+## Fault model
+
+Crash-stop processes; N concurrent instances at **mixed build versions**; one shared durable store; no
+coordination between instances. Every clause above is quantified over *every reader at every build
+version currently or recently deployed* -- not over one process. The mixed-version reader is always
+reachable, which is what makes the rename protocol below a two-phase one.
+
+## How it is achieved (the seam)
+
+- `MessageNameHelper.GetName(Type)` — the single source of the declared name; throws when a type
+  declares none. Every writer goes through it.
+  (`src/Dispatch/Excalibur.Dispatch.Abstractions/MessageNameHelper.cs`)
+- `EventTypeRegistry.Register(Type)` — requires the declared name, and indexes it through a guard that
+  refuses a second type claiming a name already taken. Aliases are indexed for reading only; the
+  type→name map keeps the canonical name, so writes always use it.
+  (`src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/EventTypeRegistry.cs`)
+- `EventTypeRegistry.ResolveType(string)` — an exact lookup. There is no normalizing or fuzzy match: a
+  declared name has no version, culture or assembly in it to differ on.
+- CloudEvents `type` is the declared name at emit
+  (`src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventExtensions.cs`), **except** on a
+  receive-then-re-emit round trip, where the inbound envelope's type is preserved — it belongs to the
+  originating publisher and is not ours to rewrite
+  (`src/Dispatch/Excalibur.Dispatch/CloudEvents/CloudEventEnvelopeConverter.cs`).
+
+## Consumer obligations
+
+- **Declare a name on every event type you register**, and choose it once — it is permanent, and it is
+  the identifier other organisations write subscription filters against. Recommended shape:
+  `<Publisher>.<BoundedContext>.<EventName>`, e.g. `Contoso.Sales.CustomerCreated`.
+- **Never put a version in the name.** Schema evolution is an upcaster's job; a version in the identity
+  orphans stored data on every change.
+- **Renaming a message takes TWO deployments, in this order.** The governing invariant is: *never write
+  a name that some live reader cannot resolve.* A one-step rename violates it.
+
+  ```
+  Phase 1   [MessageName("old")]  [MessageNameAlias("new")]     deploy to every instance, wait for full rollout
+            every instance can now READ "new"; none writes it yet
+
+  Phase 2   [MessageName("new")]  [MessageNameAlias("old")]     now safe: every reader already resolves "new"
+  ```
+
+  Doing it in one step -- declaring the new name while the old build is still running -- means the new
+  instances write a name the old ones cannot resolve. Those events are durable, so the old build fails
+  on that aggregate permanently, and every projection rebuild it attempts fails at the same offset.
+  **Rolling back is worse than a failed rollout:** roll the new build back and everything it wrote is
+  unreadable by the build you rolled back to. Wait for phase 1 to reach every instance before starting
+  phase 2.
+
+- **Keep every retired name as an alias, forever.** Deleting one makes every event still stored under
+  it unreadable.
+- **Do not reuse a name across two types**, including across packages — names share one namespace.
+
+## Evidence (conformance)
+
+`tests/unit/Excalibur.Dispatch.Abstractions.Tests/EventSourcing/StableEventTypeIdentityShould.cs` —
+RED-detects a violation of each clause above: a type registered without a declared name, two types
+claiming one name, an alias leaking into the write path, and a name shape that would need escaping
+where it is stored. The suite also holds the security property that widening identity did not widen
+the registry's allow-list: an unregistered type is still refused with the assembly scan off.
+
+## Known gaps
+
+- **A3's audit label is not held to this guarantee.** `ActivityAudit` uses the declared name when the
+  request type has one and falls back to the type's simple name otherwise, because an audited request
+  passes through no registration seam at which a missing name could be refused. The consequence is a
+  recoverable one — an audit trail that renames a request type mid-life records two labels for it — not
+  an unreadable record. Declare a name on request types whose audit history must stay queryable across
+  a rename.
+- **An event whose type cannot be resolved halts the projection that reads it**, rather than being
+  skipped or quarantined. Skipping would silently corrupt an accumulating view, so halting is the safe
+  direction, but the diagnostics for it are poor and it does not stop retrying.

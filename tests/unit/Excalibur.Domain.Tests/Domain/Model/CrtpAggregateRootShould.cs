@@ -480,12 +480,12 @@ public sealed class CrtpAggregateRootShould
 
     #region Test Events
 
+    [MessageName("Test.TestCrtpEvent")]
     private sealed record TestCrtpEvent(string AggregateId, string Value) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
         public long Version { get; init; }
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-        public string EventType => nameof(TestCrtpEvent);
         public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
     }
 

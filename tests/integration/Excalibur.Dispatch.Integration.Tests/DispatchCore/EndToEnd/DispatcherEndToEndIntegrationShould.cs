@@ -291,7 +291,7 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 	public sealed record CountingCommand : IDispatchAction;
 
 	// Test Handlers
-	public sealed class TestCommandHandler : IActionHandler<TestCommand>
+	public sealed class TestCommandHandler(IMessageContextAccessor contextAccessor) : IActionHandler<TestCommand>
 	{
 		public static ConcurrentBag<Guid> ProcessedCommands { get; } = [];
 		public static IMessageContext? LastContext { get; private set; }
@@ -304,7 +304,7 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 			}
 
 			ProcessedCommands.Add(action.Id);
-			LastContext = MessageContextHolder.Current;
+			LastContext = contextAccessor.MessageContext;
 			return Task.CompletedTask;
 		}
 	}

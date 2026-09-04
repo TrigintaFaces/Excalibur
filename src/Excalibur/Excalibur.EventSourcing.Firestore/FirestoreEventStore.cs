@@ -463,10 +463,9 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 				// Append events
 				var version = expectedVersion;
-				foreach (var evt in eventsList)
+				foreach (var (evt, eventTypeName) in eventsList.AsNamedEvents())
 				{
 					version++;
-					var eventTypeName = EventTypeNameHelper.GetEventTypeName(evt.GetType());
 					var docId = $"{streamId}:{version}";
 					var docRef = _db!.Collection(_options.EventsCollectionName).Document(docId);
 

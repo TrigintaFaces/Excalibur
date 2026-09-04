@@ -117,9 +117,9 @@ Console.WriteLine("3. IElasticsearchCircuitBreaker -- detailed state");
 Console.WriteLine("-------------------------------------------------");
 
 var circuitBreaker = app.Services.GetRequiredService<IElasticsearchCircuitBreaker>();
-Console.WriteLine($"   State:               {circuitBreaker.State}");
-Console.WriteLine($"   FailureRate:          {circuitBreaker.FailureRate:P1}");
-Console.WriteLine($"   ConsecutiveFailures:  {circuitBreaker.ConsecutiveFailures}");
+Console.WriteLine($"   State:      {circuitBreaker.State}");
+Console.WriteLine($"   IsOpen:     {circuitBreaker.IsOpen}");
+Console.WriteLine($"   IsHalfOpen: {circuitBreaker.IsHalfOpen}");
 Console.WriteLine();
 
 // -------------------------------------------------------------------------

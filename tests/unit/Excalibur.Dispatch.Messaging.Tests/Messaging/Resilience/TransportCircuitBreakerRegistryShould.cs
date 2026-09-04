@@ -102,7 +102,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	}
 
 	[Fact]
-	public void UseProvidedOptionsForNewBreaker()
+	public async Task UseProvidedOptionsForNewBreaker()
 	{
 		// Arrange
 		var registry = new TransportCircuitBreakerRegistry();
@@ -118,17 +118,17 @@ public sealed class TransportCircuitBreakerRegistryShould
 		// Assert - Verify it uses the provided options by testing behavior
 		for (var i = 0; i < 9; i++)
 		{
-			breaker.RecordFailure();
+			await breaker.FailAsync().ConfigureAwait(false);
 		}
 
 		breaker.State.ShouldBe(CircuitState.Closed); // Still closed (threshold is 10)
 
-		breaker.RecordFailure(); // 10th failure
+		await breaker.FailAsync(); // 10th failure
 		breaker.State.ShouldBe(CircuitState.Open); // Now open
 	}
 
 	[Fact]
-	public void UseDefaultOptionsWhenNotProvided()
+	public async Task UseDefaultOptionsWhenNotProvided()
 	{
 		// Arrange
 		var defaultOptions = new CircuitBreakerOptions { FailureThreshold = 2 };
@@ -138,10 +138,10 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var breaker = registry.GetOrCreate("rabbitmq");
 
 		// Assert - Verify it uses default options
-		breaker.RecordFailure();
+		await breaker.FailAsync().ConfigureAwait(false);
 		breaker.State.ShouldBe(CircuitState.Closed);
 
-		breaker.RecordFailure(); // 2nd failure (threshold is 2)
+		await breaker.FailAsync(); // 2nd failure (threshold is 2)
 		breaker.State.ShouldBe(CircuitState.Open);
 	}
 
@@ -226,7 +226,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	#region Per-Transport Isolation Tests
 
 	[Fact]
-	public void IsolateFailuresBetweenTransports()
+	public async Task IsolateFailuresBetweenTransports()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
@@ -236,8 +236,8 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var kafkaBreaker = registry.GetOrCreate("kafka");
 
 		// Act - Open rabbit circuit
-		rabbitBreaker.RecordFailure();
-		rabbitBreaker.RecordFailure();
+		await rabbitBreaker.FailAsync().ConfigureAwait(false);
+		await rabbitBreaker.FailAsync().ConfigureAwait(false);
 
 		// Assert - Kafka should still be closed
 		rabbitBreaker.State.ShouldBe(CircuitState.Open);
@@ -259,18 +259,18 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var kafkaBreaker = registry.GetOrCreate("kafka");
 
 		// Open rabbit, leave kafka closed
-		rabbitBreaker.RecordFailure();
+		await rabbitBreaker.FailAsync().ConfigureAwait(false);
 		rabbitBreaker.State.ShouldBe(CircuitState.Open);
 
 		// Wait for half-open
 		await WaitForStateAsync(rabbitBreaker, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - Kafka still works, rabbit is half-open
-		kafkaBreaker.RecordSuccess();
+		await kafkaBreaker.SucceedAsync().ConfigureAwait(false);
 		rabbitBreaker.State.ShouldBe(CircuitState.HalfOpen);
 
 		// Close rabbit
-		rabbitBreaker.RecordSuccess();
+		await rabbitBreaker.SucceedAsync().ConfigureAwait(false);
 
 		// Assert - Both now closed but independent
 		rabbitBreaker.State.ShouldBe(CircuitState.Closed);
@@ -329,7 +329,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	#region ResetAll Tests
 
 	[Fact]
-	public void ResetAllBreakers()
+	public async Task ResetAllBreakers()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
@@ -339,8 +339,8 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var kafkaBreaker = registry.GetOrCreate("kafka");
 
 		// Open both
-		rabbitBreaker.RecordFailure();
-		kafkaBreaker.RecordFailure();
+		await rabbitBreaker.FailAsync().ConfigureAwait(false);
+		await kafkaBreaker.FailAsync().ConfigureAwait(false);
 
 		// Act
 		registry.ResetAll();
@@ -355,7 +355,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	#region GetAllStates Tests
 
 	[Fact]
-	public void ReturnAllTransportStates()
+	public async Task ReturnAllTransportStates()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
@@ -364,7 +364,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 		var rabbitBreaker = registry.GetOrCreate("rabbitmq");
 		var kafkaBreaker = registry.GetOrCreate("kafka");
 
-		rabbitBreaker.RecordFailure(); // Open rabbit
+		await rabbitBreaker.FailAsync(); // Open rabbit
 
 		// Act
 		var states = registry.GetAllStates();
@@ -455,5 +455,56 @@ public sealed class TransportCircuitBreakerRegistryShould
 	}
 
 	#endregion Logger Factory Tests
+
+	#region Bounded Registry Tests
+
+	// The circuit key reaches GetOrCreate from CircuitBreakerOptions.CircuitKeySelector, which is
+	// consumer-supplied and may be derived from message content. An unbounded map would therefore
+	// grow with traffic. Safety arm: the map stops growing at the cap. Liveness arm: below the cap
+	// distinct keys still get distinct circuits, so the safety arm cannot pass by capping at one.
+
+	[Fact]
+	public void StopGrowingOnceTheCircuitCapIsReached()
+	{
+		var registry = new TransportCircuitBreakerRegistry();
+
+		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers + 500; i++)
+		{
+			_ = registry.GetOrCreate($"key-{i}");
+		}
+
+		registry.Count.ShouldBeLessThanOrEqualTo(TransportCircuitBreakerRegistry.MaxBreakers + 1);
+		registry.GetTransportNames().ShouldContain(TransportCircuitBreakerRegistry.OverflowKey);
+	}
+
+	[Fact]
+	public void ShareTheOverflowCircuitForKeysPastTheCap()
+	{
+		var registry = new TransportCircuitBreakerRegistry();
+
+		for (var i = 0; i < TransportCircuitBreakerRegistry.MaxBreakers; i++)
+		{
+			_ = registry.GetOrCreate($"key-{i}");
+		}
+
+		var first = registry.GetOrCreate("overflowed-a");
+		var second = registry.GetOrCreate("overflowed-b");
+
+		first.ShouldBeSameAs(second);
+	}
+
+	[Fact]
+	public void GiveDistinctCircuitsToDistinctKeysBelowTheCap()
+	{
+		var registry = new TransportCircuitBreakerRegistry();
+
+		var a = registry.GetOrCreate("rabbitmq");
+		var b = registry.GetOrCreate("kafka");
+
+		a.ShouldNotBeSameAs(b);
+		registry.Count.ShouldBe(2);
+	}
+
+	#endregion Bounded Registry Tests
 }
 

@@ -50,7 +50,6 @@ public sealed partial class AotJsonEventSerializerShould
 			AggregateId = "agg-1",
 			Version = 1,
 			OccurredAt = new DateTimeOffset(2026, 4, 2, 12, 0, 0, TimeSpan.Zero),
-			EventType = "TestOrderCreated",
 		};
 
 		var bytes = sut.SerializeEvent(original);
@@ -147,25 +146,31 @@ public sealed partial class AotJsonEventSerializerShould
 	}
 
 	[Fact]
-	public void GetTypeNameFromRegistry()
+	public void WriteTheDeclaredNameEvenWhenTheRegistryHoldsAnother()
 	{
-		_registry.Register<TestOrderCreated>("TestOrderCreated");
+		// Identity is DECLARED, not configured. A registry entry maps a stored name back to a type; it
+		// does not get to decide what a type is written as. If it did, two hosts with different
+		// registrations would write the same event under different names and neither could read the
+		// other's data. This previously consulted the registry first, which is also why the two
+		// serializers disagreed about the write name.
+		_registry.Register<TestOrderCreated>("some.other.name");
 		var sut = new AotJsonEventSerializer(_registry, _jsonContext);
 
-		var name = sut.GetTypeName(typeof(TestOrderCreated));
-		name.ShouldBe("TestOrderCreated");
+		sut.GetTypeName(typeof(TestOrderCreated))
+			.ShouldBe(MessageNameHelper.GetName(typeof(TestOrderCreated)));
+		sut.GetTypeName(typeof(TestOrderCreated)).ShouldNotBe("some.other.name");
 	}
 
 	[Fact]
-	public void FallBackToEventTypeNameHelperWhenNotInRegistry()
+	public void UseTheDeclaredNameWhenNotInRegistry()
 	{
-		// Don't register the type -- should fall back to EventTypeNameHelper
+		// Formerly this fell back to a name DERIVED from the type. A derived name embeds the
+		// namespace, assembly and version, so it changed under the stored data whenever the type
+		// moved. Unregistered now resolves to the type's DECLARED name -- the same name the registry
+		// would have used -- so registration cannot change what gets written.
 		var sut = new AotJsonEventSerializer(_registry, _jsonContext);
 
-		var name = sut.GetTypeName(typeof(TestOrderCreated));
-
-		// EventTypeNameHelper returns AssemblyQualifiedName or FullName
-		name.ShouldContain("TestOrderCreated");
+		sut.GetTypeName(typeof(TestOrderCreated)).ShouldBe("Test.Aot.OrderCreated");
 	}
 
 	[Fact]
@@ -178,6 +183,7 @@ public sealed partial class AotJsonEventSerializerShould
 
 	// --- Test helpers ---
 
+	[MessageName("Test.Aot.OrderCreated")]
 	internal sealed class TestOrderCreated : IDomainEvent
 	{
 		public string OrderId { get; set; } = string.Empty;
@@ -186,17 +192,16 @@ public sealed partial class AotJsonEventSerializerShould
 		public string AggregateId { get; set; } = string.Empty;
 		public long Version { get; set; }
 		public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
-		public string EventType { get; set; } = nameof(TestOrderCreated);
 		public IDictionary<string, object>? Metadata { get; set; }
 	}
 
+	[MessageName("Test.Aot.UnregisteredEvent")]
 	internal sealed class UnregisteredEvent : IDomainEvent
 	{
 		public string EventId { get; set; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; set; } = string.Empty;
 		public long Version { get; set; }
 		public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
-		public string EventType { get; set; } = "UnregisteredEvent";
 		public IDictionary<string, object>? Metadata { get; set; }
 	}
 

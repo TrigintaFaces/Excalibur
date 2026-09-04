@@ -39,14 +39,13 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		_client = new ElasticsearchClient(clientSettings);
 
 		var options = CreateResilienceSettings();
-		var retryPolicy = new ElasticsearchRetryPolicy(options);
-		var circuitBreaker = new ElasticsearchCircuitBreaker(
-			options,
-			A.Fake<ILogger<ElasticsearchCircuitBreaker>>());
+		var pipeline = new ElasticsearchResiliencePipeline(
+			Microsoft.Extensions.Options.Options.Create(options.Value.Resilience));
+		var circuitBreaker = new PollyElasticsearchCircuitBreaker(pipeline);
 
 		_resilientClient = new ResilientElasticsearchClient(
 			_client,
-			retryPolicy,
+			pipeline,
 			circuitBreaker,
 			options,
 			_logger);
@@ -102,14 +101,13 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 			retryMaxAttempts: 2,
 			searchTimeoutSeconds: 0);
 
-		var retryPolicy = new ElasticsearchRetryPolicy(settings);
-		var circuitBreaker = new ElasticsearchCircuitBreaker(
-			settings,
-			A.Fake<ILogger<ElasticsearchCircuitBreaker>>());
+		var pipeline = new ElasticsearchResiliencePipeline(
+			Microsoft.Extensions.Options.Options.Create(settings.Value.Resilience));
+		var circuitBreaker = new PollyElasticsearchCircuitBreaker(pipeline);
 
 		using var resilientClient = new ResilientElasticsearchClient(
 			_client,
-			retryPolicy,
+			pipeline,
 			circuitBreaker,
 			settings,
 			_logger);
@@ -143,14 +141,13 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		// Arrange - a generous timeout, so the only cancellation in play is the caller's own.
 		var settings = CreateResilienceSettings(retryMaxAttempts: 2, searchTimeoutSeconds: 30);
 
-		var retryPolicy = new ElasticsearchRetryPolicy(settings);
-		var circuitBreaker = new ElasticsearchCircuitBreaker(
-			settings,
-			A.Fake<ILogger<ElasticsearchCircuitBreaker>>());
+		var pipeline = new ElasticsearchResiliencePipeline(
+			Microsoft.Extensions.Options.Options.Create(settings.Value.Resilience));
+		var circuitBreaker = new PollyElasticsearchCircuitBreaker(pipeline);
 
 		using var resilientClient = new ResilientElasticsearchClient(
 			_client,
-			retryPolicy,
+			pipeline,
 			circuitBreaker,
 			settings,
 			_logger);
@@ -186,17 +183,16 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		var failingClient = new ElasticsearchClient(failingClientSettings);
 
 		var settings = CreateResilienceSettings(
-			circuitBreakerFailureThreshold: 2,
+			circuitBreakerMinimumThroughput: 2,
 			retryMaxAttempts: 1); // Minimal retries to speed up test
 
-		var retryPolicy = new ElasticsearchRetryPolicy(settings);
-		var circuitBreaker = new ElasticsearchCircuitBreaker(
-			settings,
-			A.Fake<ILogger<ElasticsearchCircuitBreaker>>());
+		var pipeline = new ElasticsearchResiliencePipeline(
+			Microsoft.Extensions.Options.Options.Create(settings.Value.Resilience));
+		var circuitBreaker = new PollyElasticsearchCircuitBreaker(pipeline);
 
 		using var resilientClient = new ResilientElasticsearchClient(
 			failingClient,
-			retryPolicy,
+			pipeline,
 			circuitBreaker,
 			settings,
 			_logger);
@@ -369,7 +365,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 	private static IOptions<ElasticsearchConfigurationOptions> CreateResilienceSettings(
 		int retryMaxAttempts = 3,
 		double searchTimeoutSeconds = 30,
-		int circuitBreakerFailureThreshold = 5)
+		int circuitBreakerMinimumThroughput = 5)
 	{
 		var config = new ElasticsearchConfigurationOptions
 		{
@@ -390,8 +386,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 					new CircuitBreakerOptions
 					{
 						Enabled = true,
-						FailureThreshold = circuitBreakerFailureThreshold,
-						MinimumThroughput = 3,
+						MinimumThroughput = circuitBreakerMinimumThroughput,
 						BreakDuration = TimeSpan.FromSeconds(5),
 						SamplingDuration = TimeSpan.FromSeconds(30),
 						FailureRateThreshold = 0.5,

@@ -215,17 +215,16 @@ public sealed class InMemoryEventStoreErasureShould
 				EventId = Guid.NewGuid().ToString(),
 				AggregateId = aggregateId,
 				Version = i,
-				EventType = "TestEvent",
 			}).ToList();
 	}
 }
 
+[MessageName("Test.Es.ErasureTestDomainEvent")]
 public sealed class ErasureTestDomainEvent : IDomainEvent
 {
 	public required string EventId { get; init; }
 	public required string AggregateId { get; init; }
 	public required long Version { get; init; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public required string EventType { get; init; }
 	public IDictionary<string, object>? Metadata { get; init; }
 }

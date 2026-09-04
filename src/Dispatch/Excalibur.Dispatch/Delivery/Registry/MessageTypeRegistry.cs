@@ -76,6 +76,10 @@ public static class MessageTypeRegistry
 	{
 		ArgumentNullException.ThrowIfNull(type);
 
+		// The declared name first: it is the name the serializers write, so a type that is not
+		// claimed under it cannot be read back at all. The CLR-derived forms stay claimed so data
+		// written before a type declared a name is still resolvable.
+		Claim(MessageNameHelper.GetDeclaredName(type), type);
 		Claim(type.AssemblyQualifiedName, type);
 		Claim(type.FullName, type);
 		Claim(type.Name, type);

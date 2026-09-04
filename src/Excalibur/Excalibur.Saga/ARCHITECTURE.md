@@ -224,3 +224,25 @@ concurrency conformance suites against real containers.
   repository, so treat any refactor of a saga write path as touching a security boundary.
 - **A populated tenant identifier is not proof of enforcement.** It records the owner; it does not describe
   which of the two forms the store implements.
+
+## Message dispatch guarantee
+
+Commands and events emitted by a saga step are dispatched **after** the saga state is committed, and
+are **not** part of that commit. The saga buffers them in memory; the coordinator saves the state and
+then flushes the buffer.
+
+A process failure between those two steps loses those messages permanently. The commit records the
+triggering event as processed, so redelivery is skipped by the deduplication check and the messages
+are never re-emitted. This is **at-most-once relative to the state commit**, and it is an accepted
+**UNVERIFIED** gap: no conformance test detects it.
+
+A failure part-way through the flush has the same shape on a smaller scale. Messages already
+dispatched stay dispatched, the remainder do not, and nothing retries them.
+
+**Consumer obligation.** Do not rely on a saga-emitted message as the sole trigger for work that must
+not be lost. Trigger such work from a durable record — the event store or an outbox written in the
+same transaction as the state — rather than from the dispatch.
+
+**Known gap.** Closing this requires the messages to be written in the same atomic unit as the saga
+state, which is a store-contract change across every provider. Until then the guarantee above is the
+one that holds.

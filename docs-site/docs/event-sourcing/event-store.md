@@ -277,14 +277,14 @@ services.AddJsonSerialization(options =>
 
 ### Type Discovery
 
-Event types are discovered automatically by the serializer based on their `EventType` property (defaults to the class name). For custom type names, override the property in your event class:
+The name an event is stored under is declared on the event type with `[MessageName]`. Nothing is derived from the CLR type, so the type is free to move namespace or assembly without changing what is already written. The `[EventType]` column above holds exactly this declared name:
 
 ```csharp
-public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
-{
-    public override string EventType => "order.created.v1";
-}
+[MessageName("Contoso.Orders.OrderCreated")]
+public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 ```
+
+The attribute is required — registering an event type that declares no name throws. To change the name later, declare the new one and keep the old as a `[MessageNameAlias]`. See [Stable Message Names](domain-events.md#stable-message-names).
 
 ## Archiving and Retention
 

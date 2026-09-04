@@ -85,17 +85,23 @@ Define events as immutable records extending `DomainEvent`:
 ```csharp
 using Excalibur.Dispatch;
 
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderLineAdded")]
 public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderSubmitted")]
 public record OrderSubmitted(Guid OrderId) : DomainEvent;
 ```
+
+`[MessageName]` declares the permanent name the event is stored and transmitted under. It is required on
+every registered event type, and it is the one identity used by the event store, the outbox `MessageType`,
+and the CloudEvents `type`. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
 
 The `DomainEvent` abstract record automatically provides:
 - `EventId` - UUID v7 for time-ordered uniqueness
 - `OccurredAt` - UTC timestamp (auto-generated)
-- `EventType` - Type name for serialization
 - `Metadata` - Dictionary for cross-cutting concerns
 
 A domain event carries only its own business data. The aggregate id is supplied to the event store when appending or loading events; the stream version is assigned by the store (`StoredEvent.Version` / `HistoricEvent`), never on the event payload.

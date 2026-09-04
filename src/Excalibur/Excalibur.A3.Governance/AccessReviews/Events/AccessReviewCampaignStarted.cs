@@ -8,12 +8,12 @@ namespace Excalibur.A3.Governance.Events;
 /// <summary>
 /// Raised when an access review campaign is started (transitions from Created to InProgress).
 /// </summary>
+[MessageName("Excalibur.A3.AccessReviewCampaignStarted")]
 internal sealed class AccessReviewCampaignStarted : IDomainEvent
 {
 	public required string CampaignId { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(AccessReviewCampaignStarted);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

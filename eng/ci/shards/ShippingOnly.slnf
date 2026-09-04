@@ -114,7 +114,6 @@
       "src\\Excalibur\\Excalibur.Hosting.AwsLambda\\Excalibur.Hosting.AwsLambda.csproj",
       "src\\Excalibur\\Excalibur.Hosting.Aws\\Excalibur.Hosting.Aws.csproj",
       "src\\Excalibur\\Excalibur.Hosting.AzureFunctions\\Excalibur.Hosting.AzureFunctions.csproj",
-      "src\\Excalibur\\Excalibur.Hosting.Compliance\\Excalibur.Hosting.Compliance.csproj",
       "src\\Excalibur\\Excalibur.Hosting.GoogleCloudFunctions\\Excalibur.Hosting.GoogleCloudFunctions.csproj",
       "src\\Excalibur\\Excalibur.Hosting.HealthChecks\\Excalibur.Hosting.HealthChecks.csproj",
       "src\\Excalibur\\Excalibur.Hosting.Jobs\\Excalibur.Hosting.Jobs.csproj",

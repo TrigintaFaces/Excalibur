@@ -6,6 +6,10 @@ using Excalibur.Dispatch.Options.Resilience;
 
 using Microsoft.Extensions.Logging;
 
+using System.Diagnostics.Metrics;
+
+using Excalibur.Dispatch.Diagnostics;
+
 namespace Excalibur.Dispatch.Resilience;
 
 /// <summary>
@@ -30,20 +34,37 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 	/// <param name="options">The circuit breaker configuration options.</param>
 	/// <param name="name">The name of the circuit breaker (e.g., transport name).</param>
 	/// <param name="logger">Optional logger instance. A non-generic <see cref="ILogger"/> is accepted so that
-	/// callers constructing a policy through <see cref="ICircuitBreakerPolicyFactory"/> may forward their own
+	/// callers constructing a policy through <see cref="ITransportCircuitBreakerRegistry"/> may forward their own
 	/// logger; the source-generated log methods take <see cref="ILogger"/> directly, so no category is lost.</param>
 	/// <param name="shouldHandle">Optional predicate to determine which exceptions should trip the circuit.</param>
+	/// <param name="timeProvider">
+	/// Clock used for the open-duration deadline. Defaults to <see cref="TimeProvider.System"/>; supply a
+	/// controllable provider to exercise recovery without sleeping.
+	/// </param>
 	public CircuitBreakerPolicy(
 		CircuitBreakerOptions options,
 		string name = "default",
 		ILogger? logger = null,
-		Func<Exception, bool>? shouldHandle = null)
+		Func<Exception, bool>? shouldHandle = null,
+		TimeProvider? timeProvider = null)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_name = name ?? throw new ArgumentNullException(nameof(name));
 		_logger = logger;
 		_shouldHandle = shouldHandle;
+
+		// The open-duration deadline is the only thing gating the half-open probe, so with a
+		// hard-coded clock the one transition worth testing is reachable only by sleeping. That is
+		// why the recovery path had no coverage.
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
+
+	private readonly TimeProvider _timeProvider;
+
+	// Half-open admits ONE trial call. Without this every request that arrives while the circuit is
+	// half-open sees HalfOpen, passes the Open check, and proceeds -- so a recovering dependency is
+	// met with a stampede at the exact moment it is least able to take one.
+	private int _halfOpenProbeInFlight;
 
 	/// <inheritdoc />
 	public CircuitState State
@@ -91,6 +112,17 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 		}
 	}
 
+	// The object that transitions is the only one that knows it transitioned. Emitting from here
+	// covers every caller of the policy, not just the middleware, and removes the before/after
+	// diffing a caller would otherwise have to do around each recorded outcome.
+	private static readonly Meter TransitionMeter =
+		new(DispatchTelemetryConstants.Meters.CircuitBreakerMiddleware, "1.0.0");
+
+	private static readonly Counter<long> TransitionsCounter = TransitionMeter.CreateCounter<long>(
+		"dispatch.circuit_breaker.transitions",
+		unit: "{transitions}",
+		description: "Number of circuit breaker state transitions, tagged with circuit.key, from_state and to_state.");
+
 	/// <summary>
 	/// Event raised when the circuit state changes.
 	/// </summary>
@@ -117,7 +149,39 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 	}
 
 	/// <inheritdoc />
-	public void RecordSuccess()
+	/// <inheritdoc />
+	public async Task<TResult> ExecuteAsync<TResult>(
+		Func<CancellationToken, Task<TResult>> action,
+		Func<TResult, bool> isFailure,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(isFailure);
+
+		EnsureCircuitAllowsExecution();
+
+		try
+		{
+			var result = await action(cancellationToken).ConfigureAwait(false);
+
+			if (isFailure(result))
+			{
+				RecordFailure();
+			}
+			else
+			{
+				RecordSuccess();
+			}
+
+			return result;
+		}
+		catch (Exception ex) when (ShouldHandleException(ex))
+		{
+			RecordFailure(ex);
+			throw;
+		}
+	}
+
+	private void RecordSuccess()
 	{
 		lock (_lock)
 		{
@@ -125,6 +189,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 
 			if (_state == CircuitState.HalfOpen)
 			{
+				_ = Interlocked.Exchange(ref _halfOpenProbeInFlight, 0);
 				_successfulProbes++;
 
 				// One successful probe closes the circuit, matching Polly.
@@ -136,8 +201,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 		}
 	}
 
-	/// <inheritdoc />
-	public void RecordFailure(Exception? exception = null)
+	private void RecordFailure(Exception? exception = null)
 	{
 		lock (_lock)
 		{
@@ -151,6 +215,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 			if (_state == CircuitState.HalfOpen)
 			{
 				// Any failure in half-open reopens the circuit
+				_ = Interlocked.Exchange(ref _halfOpenProbeInFlight, 0);
 				TransitionTo(CircuitState.Open, exception);
 			}
 			else if (_state == CircuitState.Closed && _consecutiveFailures >= _options.FailureThreshold)
@@ -185,10 +250,18 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 	{
 		var currentState = State; // This checks and potentially transitions Open -> HalfOpen
 
+		if (currentState == CircuitState.HalfOpen
+			&& Interlocked.CompareExchange(ref _halfOpenProbeInFlight, 1, 0) != 0)
+		{
+			// A probe is already running. Everyone else waits rather than piling onto a dependency
+			// that has not yet shown it recovered.
+			throw new CircuitBreakerOpenException(_name, _options.OpenDuration);
+		}
+
 		if (currentState == CircuitState.Open)
 		{
 			var retryAfter = _lastOpenedAt.HasValue
-				? _options.OpenDuration - (DateTimeOffset.UtcNow - _lastOpenedAt.Value)
+				? _options.OpenDuration - (_timeProvider.GetUtcNow() - _lastOpenedAt.Value)
 				: _options.OpenDuration;
 
 			if (retryAfter < TimeSpan.Zero)
@@ -207,7 +280,7 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 			return false;
 		}
 
-		var elapsed = DateTimeOffset.UtcNow - _lastOpenedAt.Value;
+		var elapsed = _timeProvider.GetUtcNow() - _lastOpenedAt.Value;
 		return elapsed >= _options.OpenDuration;
 	}
 
@@ -222,6 +295,16 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 		return exception is not OperationCanceledException;
 	}
 
+	private static string ToTag(CircuitState state) => state switch
+	{
+		CircuitState.Closed => "closed",
+		CircuitState.Open => "open",
+		CircuitState.HalfOpen => "half_open",
+		// Every declared state is named above; anything else is a new enum member whose tag
+		// nobody has chosen, and inventing one by casing would hide that.
+		_ => state.ToString(),
+	};
+
 	private void TransitionTo(CircuitState newState, Exception? triggeringException = null)
 	{
 		var previousState = _state;
@@ -231,11 +314,18 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 			return;
 		}
 
+		TransitionsCounter.Add(
+			1,
+			new KeyValuePair<string, object?>("circuit.key", _name),
+			new KeyValuePair<string, object?>("from_state", ToTag(previousState)),
+			new KeyValuePair<string, object?>("to_state", ToTag(newState)));
+
 		_state = newState;
 
 		if (newState == CircuitState.Open)
 		{
-			_lastOpenedAt = DateTimeOffset.UtcNow;
+			_lastOpenedAt = _timeProvider.GetUtcNow();
+			_ = Interlocked.Exchange(ref _halfOpenProbeInFlight, 0);
 			_successfulProbes = 0;
 
 			if (_logger != null)

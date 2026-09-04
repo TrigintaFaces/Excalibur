@@ -234,13 +234,13 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		public int Count { get; set; }
 	}
 
+	[MessageName("Test.RebuildTestEvent")]
 	private sealed record RebuildTestEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "agg-1";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(RebuildTestEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 }

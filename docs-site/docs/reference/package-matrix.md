@@ -84,6 +84,8 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.AuditLogging.Aws` | AWS CloudWatch audit exporter |
 | `Excalibur.AuditLogging.GoogleCloud` | Google Cloud audit exporter |
 | `Excalibur.AuditLogging.OpenSearch` | OpenSearch audit store |
+| `Excalibur.AuditLogging.Abstractions` | Audit logging interfaces |
+| `Excalibur.Security.AuditLogging` | Security-event audit store — `AddSqlSecurityEventStore()` |
 
 ## Transports
 
@@ -96,6 +98,9 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Dispatch.Transport.AwsSqs` | AWS SQS transport |
 | `Excalibur.Dispatch.Transport.GooglePubSub` | Google Cloud Pub/Sub transport |
 | `Excalibur.Dispatch.Transport.Grpc` | gRPC transport |
+| `Excalibur.Dispatch.Transport.Pulsar` | Apache Pulsar transport |
+| `Excalibur.Dispatch.Transport.Mqtt` | MQTT transport (IoT / edge brokers) |
+| `Excalibur.Dispatch.Transport.IbmMq` | IBM MQ transport |
 
 ## Serialization
 
@@ -150,6 +155,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Dispatch.Testing.Shouldly` | Shouldly assertion extensions |
 | `Excalibur.Testing` | Base testing utilities |
 | `Excalibur.Testing.Conformance` | Conformance test kits for providers |
+| `Excalibur.Testing.Containers` | TestContainers fixtures for provider integration tests |
 
 ---
 
@@ -168,6 +174,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Data.MongoDB` | MongoDB data access |
 | `Excalibur.Data.ElasticSearch` | Elasticsearch data access |
 | `Excalibur.Data.Redis` | Redis data access |
+| `Excalibur.Data.Spanner` | Google Cloud Spanner data access — `AddSpannerDataProvider()` |
 | `Excalibur.Data.Firestore` | Google Firestore data access |
 | `Excalibur.Data.InMemory` | In-memory data store (testing) |
 | `Excalibur.Data.MySql` | MySQL data access |
@@ -194,6 +201,8 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.EventSourcing.AwsS3` | AWS S3 event store (cloud object storage) |
 | `Excalibur.EventSourcing.AzureBlob` | Azure Blob Storage event store |
 | `Excalibur.EventSourcing.Gcs` | Google Cloud Storage event store |
+| `Excalibur.EventSourcing.Oracle` | Oracle event store |
+| `Excalibur.EventSourcing.Handlers` | Aggregate handler registration — `AddAggregateHandler()` |
 
 ## Outbox
 
@@ -209,6 +218,8 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Outbox.Firestore` | Firestore outbox store |
 | `Excalibur.Outbox.Redis` | Redis outbox store |
 | `Excalibur.Outbox.InMemory` | In-memory outbox store (testing) |
+| `Excalibur.Outbox.Oracle` | Oracle outbox store |
+| `Excalibur.Outbox.Marten` | Marten outbox store — `AddMartenOutboxStore()` |
 
 ## Inbox
 
@@ -224,6 +235,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Inbox.Firestore` | Firestore inbox store |
 | `Excalibur.Inbox.Redis` | Redis inbox store |
 | `Excalibur.Inbox.InMemory` | In-memory inbox store (testing) |
+| `Excalibur.Inbox.Oracle` | Oracle inbox store |
 
 ## Sagas
 
@@ -236,6 +248,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Saga.DynamoDb` | DynamoDB saga store |
 | `Excalibur.Saga.MongoDB` | MongoDB saga store |
 | `Excalibur.Saga.Firestore` | Firestore saga store |
+| `Excalibur.Saga.Oracle` | Oracle saga store |
 
 ## Leader Election
 
@@ -303,6 +316,39 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Migrate.Tool` | Database migration CLI tool |
 
 ---
+
+## Migrating from another mediator
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Dispatch.Compat.MediatR` | MediatR source and interface compatibility — `AddMediatRCompat()` |
+| `Excalibur.Dispatch.Compat.MassTransit` | MassTransit consumer compatibility — `AddMassTransitConsumer()` |
+| `Excalibur.Dispatch.Migration` | Roslyn analyzers and code fixes that rewrite call sites during a migration |
+
+## Web and Multi-Tenancy
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Dispatch.AspNetCore` | ASP.NET Core integration — `AddDispatchAspNetCore()`, result-to-HTTP mapping |
+| `Excalibur.MultiTenancy` | Tenant resolution and scoping — `AddMultiTenancy()` |
+
+## Workflows
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Workflows.Abstractions` | Workflow and activity interfaces |
+| `Excalibur.Workflows` | Durable workflow engine — `AddWorkflow()`, `AddActivity()` |
+| `Excalibur.Workflows.SqlServer` | SQL Server workflow signal inbox — `AddSqlServerWorkflowSignalInbox()` |
+| `Excalibur.Workflows.Analyzers` | Workflow analyzers. Install alongside `Excalibur.Workflows` — unlike the framework's other analyzers, these are not bundled into their parent package |
+| `Excalibur.Workflows.CodeFixes` | Code fixes for the workflow analyzers. Install alongside `Excalibur.Workflows` |
+
+## Operations Dashboard
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Operations.Dashboard` | Operational dashboard endpoints — `AddDashboard()` |
+| `Excalibur.Operations.Dashboard.EventSourcing` | Event-sourcing panels for the dashboard |
+| `Excalibur.Operations.Dashboard.Spa` | Static single-page assets for the dashboard |
 
 ## Provider Coverage Matrix
 

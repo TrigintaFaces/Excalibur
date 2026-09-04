@@ -82,18 +82,6 @@ Excalibur.Dispatch.Observability.Context.ContextFieldOptions.RequiredContextFiel
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.RequiredContextFields.set -> void
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.TrackedFields.get -> System.Collections.Generic.List<string!>?
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.TrackedFields.set -> void
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.AnalyzeContextHealth(Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextDiagnosticIssue!>!
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.ContextFlowDiagnostics(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics!>! logger, Excalibur.Dispatch.Observability.Context.IContextFlowTracker! tracker, Excalibur.Dispatch.Observability.Context.IContextFlowMetrics! metrics, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>! options) -> void
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.DetectAnomalies(Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.Dispose() -> void
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.ExportDiagnosticData(string? messageId = null) -> string!
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.GenerateCorrelationReport(string! correlationId) -> string!
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.GetContextHistory(string! messageId) -> Excalibur.Dispatch.Observability.Context.ContextHistory?
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.GetRecentAnomalies(int limit = 100) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.TrackContextHistory(Excalibur.Dispatch.IMessageContext! context, string! eventType, string? details = null) -> void
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.VisualizeContextFlow(string! messageId) -> string!
-Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions
 Excalibur.Dispatch.Observability.Context.ContextFlowMetrics
 Excalibur.Dispatch.Observability.Context.ContextFlowMetrics.ContextFlowMetrics(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>! options) -> void
 Excalibur.Dispatch.Observability.Context.ContextFlowMetrics.ContextFlowMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>! options) -> void
@@ -273,12 +261,6 @@ Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContex
 Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContextSnapshot(string! stage, int fieldCount, int sizeBytes) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContextValidationFailure(string! failureReason) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordCrossBoundaryTransition(string! serviceBoundary, bool contextPreserved) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.AnalyzeContextHealth(Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextDiagnosticIssue!>!
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.DetectAnomalies(Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.GetContextHistory(string! messageId) -> Excalibur.Dispatch.Observability.Context.ContextHistory?
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.TrackContextHistory(Excalibur.Dispatch.IMessageContext! context, string! eventType, string? details = null) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.VisualizeContextFlow(string! messageId) -> string!
 Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics
 Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics.GetMetricsSummary() -> Excalibur.Dispatch.Observability.Context.ContextMetricsSummary!
 Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics.RecordContextPreservationSuccess(string! stage) -> void
@@ -416,9 +398,6 @@ const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Ex
 const Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.MeterName = "Excalibur.Dispatch.Core" -> string!
 const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.SpanIdTag = "span_id" -> string!
 const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.TraceIdTag = "trace_id" -> string!
-static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.ExportDiagnosticData(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, string? messageId = null) -> string!
-static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.GenerateCorrelationReport(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, string! correlationId) -> string!
-static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.GetRecentAnomalies(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, int limit = 100) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartActivity(Excalibur.Dispatch.IDispatchMessage! message, string! activityName) -> System.Diagnostics.Activity?
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartHandleActivity(Excalibur.Dispatch.IDispatchMessage! message, System.Type! handlerType) -> System.Diagnostics.Activity?

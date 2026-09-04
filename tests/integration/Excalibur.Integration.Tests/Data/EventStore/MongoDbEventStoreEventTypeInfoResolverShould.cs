@@ -175,6 +175,7 @@ internal enum MongoResolverTestShade
 	Green,
 }
 
+[MessageName("Test.MongoResolverTestEvent")]
 internal sealed class MongoResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -183,7 +184,6 @@ internal sealed class MongoResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(MongoResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -192,6 +192,7 @@ internal sealed class MongoResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredMongoTestEvent")]
 internal sealed class UndeclaredMongoTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -200,7 +201,6 @@ internal sealed class UndeclaredMongoTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredMongoTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

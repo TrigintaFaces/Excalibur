@@ -21,7 +21,6 @@ public sealed class TracingMiddlewareShould : IDisposable
 {
 	private readonly ITelemetrySanitizer _fakeSanitizer = A.Fake<ITelemetrySanitizer>();
 	private readonly ActivityListener _listener;
-	private readonly List<Activity> _capturedActivities = [];
 
 	private static IOptions<ObservabilityOptions> DefaultOptions =>
 		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { IncludeSensitiveData = true });
@@ -32,19 +31,15 @@ public sealed class TracingMiddlewareShould : IDisposable
 		{
 			ShouldListenTo = source => source.Name.Contains("Dispatch", StringComparison.OrdinalIgnoreCase),
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-			ActivityStarted = activity => _capturedActivities.Add(activity),
 		};
 		ActivitySource.AddActivityListener(_listener);
 	}
 
-	public void Dispose()
-	{
-		_listener.Dispose();
-		foreach (var activity in _capturedActivities)
-		{
-			activity.Dispose();
-		}
-	}
+	// The listener is the only thing this fixture owns. Activities are owned -- and disposed --
+	// by the code that started them. This listener is process-global (it matches any source named
+	// "Dispatch"), so it also observes activities started by test classes running in parallel;
+	// disposing those would stop another test's span mid-flight.
+	public void Dispose() => _listener.Dispose();
 
 	/// <summary>
 	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary

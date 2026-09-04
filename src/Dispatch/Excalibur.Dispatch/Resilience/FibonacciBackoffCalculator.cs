@@ -28,21 +28,21 @@ internal sealed class FibonacciBackoffCalculator : IBackoffCalculator
 	/// <param name="maxDelay">The maximum delay cap.</param>
 	public FibonacciBackoffCalculator(TimeSpan baseDelay, TimeSpan? maxDelay = null)
 	{
-		if (baseDelay <= TimeSpan.Zero)
+		if (baseDelay < TimeSpan.Zero)
 		{
 			throw new ArgumentOutOfRangeException(
 				nameof(baseDelay),
-				Resources.FibonacciBackoffCalculator_BaseDelayMustBePositive);
+				Resources.FibonacciBackoffCalculator_BaseDelayCannotBeNegative);
 		}
 
 		_baseDelay = baseDelay;
 		_maxDelay = maxDelay ?? TimeSpan.FromMinutes(30);
 
-		if (_maxDelay <= TimeSpan.Zero)
+		if (_maxDelay < TimeSpan.Zero)
 		{
 			throw new ArgumentOutOfRangeException(
 				nameof(maxDelay),
-				Resources.FibonacciBackoffCalculator_MaxDelayMustBePositive);
+				Resources.FibonacciBackoffCalculator_MaxDelayCannotBeNegative);
 		}
 	}
 
@@ -72,7 +72,7 @@ internal sealed class FibonacciBackoffCalculator : IBackoffCalculator
 	/// Uses iterative computation to avoid stack overflow for large attempt values.
 	/// Fibonacci(1)=1, Fibonacci(2)=1, Fibonacci(3)=2, Fibonacci(4)=3, ...
 	/// </remarks>
-	private static long GetFibonacci(int n)
+	internal static long GetFibonacci(int n)
 	{
 		if (n <= 2)
 		{

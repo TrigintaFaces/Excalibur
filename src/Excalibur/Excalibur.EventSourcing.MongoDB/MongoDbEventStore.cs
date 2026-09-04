@@ -342,12 +342,12 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			var firstPosition = firstGlobalSequence;
 			var globalSequence = firstGlobalSequence;
 
-			foreach (var @event in eventList)
+			foreach (var named in eventList.AsNamedEvents())
 			{
+				var (@event, eventTypeName) = named;
 				version++;
-				var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
-				var eventData = SerializeEventWithEnvelopeSupport(@event, aggregateId, aggregateType, version);
+				var eventData = SerializeEventWithEnvelopeSupport(named, aggregateId, aggregateType, version);
 				var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
 
 				documents.Add(new MongoDbEventDocument
@@ -795,12 +795,12 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 #pragma warning restore IL2026, IL3050
 
 	private byte[] SerializeEventWithEnvelopeSupport(
-		IDomainEvent @event,
+		NamedEvent named,
 		string aggregateId,
 		string aggregateType,
 		long version)
 	{
-		var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
+		var (@event, eventTypeName) = named;
 
 		if (_internalSerializer is null)
 		{

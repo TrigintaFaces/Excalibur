@@ -88,7 +88,9 @@ public sealed class AggregateRootTotalityAndContiguityShould
 		}
 	}
 
+	[MessageName("Test.KnownEvent")]
 	private sealed record KnownEvent : DomainEvent;
 
+	[MessageName("Test.UnknownEvent")]
 	private sealed record UnknownEvent : DomainEvent;
 }

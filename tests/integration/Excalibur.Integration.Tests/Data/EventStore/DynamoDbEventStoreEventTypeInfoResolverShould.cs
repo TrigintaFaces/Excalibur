@@ -8,6 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DynamoDb;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -188,6 +190,7 @@ internal enum DdbResolverTestShade
 	Green,
 }
 
+[MessageName("Test.DdbResolverTestEvent")]
 internal sealed class DdbResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -196,7 +199,6 @@ internal sealed class DdbResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(DdbResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -205,6 +207,7 @@ internal sealed class DdbResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredDdbTestEvent")]
 internal sealed class UndeclaredDdbTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -213,7 +216,6 @@ internal sealed class UndeclaredDdbTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredDdbTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

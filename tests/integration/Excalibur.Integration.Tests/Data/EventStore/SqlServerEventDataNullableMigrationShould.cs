@@ -68,11 +68,11 @@ public sealed class SqlServerEventDataNullableMigrationShould
 			table: _fixture.TableName,
 			tenantContext: UntenantedTestTenantContext.Instance);
 
-	private sealed record OrderPlaced(string AggregateId, long Version, string CustomerName) : IDomainEvent
+[MessageName("Test.SqlServerEventDataNullableMigration.OrderPlaced")]
+private sealed record OrderPlaced(string AggregateId, long Version, string CustomerName) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(OrderPlaced);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

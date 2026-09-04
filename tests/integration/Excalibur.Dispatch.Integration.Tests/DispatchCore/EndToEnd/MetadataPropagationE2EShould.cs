@@ -443,7 +443,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 
 		// Assert
 		result.Succeeded.ShouldBeTrue(result.ErrorMessage);
-		// Handler captures from MessageContextHolder.Current
+		// Handler captures from contextAccessor.MessageContext
 		CapturingCommandHandler.LastCapturedContext.ShouldNotBeNull();
 		CapturingCommandHandler.LastCapturedContext.CorrelationId.ShouldBe("ambient-corr-001");
 	}
@@ -997,7 +997,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 
 	// ── Test Handlers ─────────────────────────────────────────────────
 
-	public sealed class CapturingCommandHandler : IActionHandler<MetadataCommand>
+	public sealed class CapturingCommandHandler(IMessageContextAccessor contextAccessor) : IActionHandler<MetadataCommand>
 	{
 		private static readonly ConcurrentBag<Guid> s_processedIds = [];
 		private static readonly ConcurrentBag<string> s_capturedCorrelations = [];
@@ -1022,7 +1022,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 			s_processedIds.Add(action.Id);
 			s_lastPayload = action.Payload;
 
-			var ctx = MessageContextHolder.Current;
+			var ctx = contextAccessor.MessageContext;
 			if (ctx != null)
 			{
 				s_lastContext = ctx;
@@ -1036,7 +1036,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		}
 	}
 
-	public sealed class CapturingQueryHandler : IActionHandler<MetadataQuery, MetadataQueryResult>
+	public sealed class CapturingQueryHandler(IMessageContextAccessor contextAccessor) : IActionHandler<MetadataQuery, MetadataQueryResult>
 	{
 		private static IMessageContext? s_lastContext;
 
@@ -1046,7 +1046,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 
 		public Task<MetadataQueryResult> HandleAsync(MetadataQuery action, CancellationToken cancellationToken)
 		{
-			s_lastContext = MessageContextHolder.Current;
+			s_lastContext = contextAccessor.MessageContext;
 
 			return Task.FromResult(new MetadataQueryResult
 			{
@@ -1056,7 +1056,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		}
 	}
 
-	public sealed class CapturingEventHandler : IEventHandler<MetadataEvent>
+	public sealed class CapturingEventHandler(IMessageContextAccessor contextAccessor) : IEventHandler<MetadataEvent>
 	{
 		private static readonly ConcurrentBag<Guid> s_processedEvents = [];
 		private static IMessageContext? s_lastContext;
@@ -1073,12 +1073,12 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		public Task HandleAsync(MetadataEvent eventMessage, CancellationToken cancellationToken)
 		{
 			s_processedEvents.Add(eventMessage.EventId);
-			s_lastContext = MessageContextHolder.Current;
+			s_lastContext = contextAccessor.MessageContext;
 			return Task.CompletedTask;
 		}
 	}
 
-	public sealed class FailingCommandHandler : IActionHandler<FailingMetadataCommand>
+	public sealed class FailingCommandHandler(IMessageContextAccessor contextAccessor) : IActionHandler<FailingMetadataCommand>
 	{
 		private static string? s_lastCorrelationId;
 		private static string? s_lastCausationId;
@@ -1094,7 +1094,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 
 		public Task HandleAsync(FailingMetadataCommand action, CancellationToken cancellationToken)
 		{
-			var ctx = MessageContextHolder.Current;
+			var ctx = contextAccessor.MessageContext;
 			if (ctx != null)
 			{
 				s_lastCorrelationId = ctx.CorrelationId;
@@ -1105,7 +1105,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		}
 	}
 
-	public sealed class CancellableCommandHandler : IActionHandler<CancellableCommand>
+	public sealed class CancellableCommandHandler(IMessageContextAccessor contextAccessor) : IActionHandler<CancellableCommand>
 	{
 		private static IMessageContext? s_lastContext;
 		public static IMessageContext? LastCapturedContext => s_lastContext;
@@ -1114,7 +1114,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 
 		public async Task HandleAsync(CancellableCommand action, CancellationToken cancellationToken)
 		{
-			s_lastContext = MessageContextHolder.Current;
+			s_lastContext = contextAccessor.MessageContext;
 			await Task.Delay(action.WorkDurationMs, cancellationToken);
 		}
 	}
@@ -1124,11 +1124,16 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		private static IMessageContext? s_lastContext;
 		private readonly IDispatcher _dispatcher;
 		private readonly IMessageContextFactory _contextFactory;
+		private readonly IMessageContextAccessor contextAccessor;
 
-		public ChainingCommandHandler(IDispatcher dispatcher, IMessageContextFactory contextFactory)
+		public ChainingCommandHandler(
+			IDispatcher dispatcher,
+			IMessageContextFactory contextFactory,
+			IMessageContextAccessor contextAccessor)
 		{
 			_dispatcher = dispatcher;
 			_contextFactory = contextFactory;
+			this.contextAccessor = contextAccessor;
 		}
 
 		public static IMessageContext? LastCapturedContext => s_lastContext;
@@ -1137,7 +1142,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 
 		public async Task HandleAsync(ChainingCommand action, CancellationToken cancellationToken)
 		{
-			var parentCtx = MessageContextHolder.Current;
+			var parentCtx = contextAccessor.MessageContext;
 			s_lastContext = parentCtx;
 
 			// Create child context, propagating correlation and setting causation
@@ -1159,7 +1164,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		}
 	}
 
-	public sealed class ChildCommandHandler : IActionHandler<ChildCommand>
+	public sealed class ChildCommandHandler(IMessageContextAccessor contextAccessor) : IActionHandler<ChildCommand>
 	{
 		private static readonly ConcurrentBag<Guid> s_processedParentIds = [];
 		private static IMessageContext? s_lastContext;
@@ -1176,7 +1181,7 @@ public sealed class MetadataPropagationE2EShould : IDisposable
 		public Task HandleAsync(ChildCommand action, CancellationToken cancellationToken)
 		{
 			s_processedParentIds.Add(action.ParentId);
-			s_lastContext = MessageContextHolder.Current;
+			s_lastContext = contextAccessor.MessageContext;
 			return Task.CompletedTask;
 		}
 	}

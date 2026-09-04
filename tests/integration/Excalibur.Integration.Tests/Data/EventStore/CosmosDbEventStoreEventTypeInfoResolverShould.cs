@@ -8,6 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.CosmosDb;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -196,6 +198,7 @@ internal enum CosmosResolverTestShade
 	Green,
 }
 
+[MessageName("Test.CosmosResolverTestEvent")]
 internal sealed class CosmosResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -204,7 +207,6 @@ internal sealed class CosmosResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(CosmosResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -213,6 +215,7 @@ internal sealed class CosmosResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredCosmosTestEvent")]
 internal sealed class UndeclaredCosmosTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -221,7 +224,6 @@ internal sealed class UndeclaredCosmosTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredCosmosTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

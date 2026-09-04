@@ -420,18 +420,4 @@ public sealed class DeliveryOptionsShould
 		result.ShouldContain("QueueCapacity");
 	}
 
-	// --- MessageEnvelopeOptions ---
-
-	[Fact]
-	public void MessageEnvelopeOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new MessageEnvelopeOptions();
-
-		// Assert
-		options.ThreadLocalCacheSize.ShouldBe(16);
-		options.EnableTelemetry.ShouldBeFalse();
-		options.PoolContexts.ShouldBeTrue();
-	}
-
 }

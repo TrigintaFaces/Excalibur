@@ -101,7 +101,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 			BindingFlags.Instance | BindingFlags.NonPublic);
 		method.ShouldNotBeNull();
 
-		var bytes = (byte[])method!.Invoke(sut, [new TestDomainEvent("evt-2"), "agg-1", "Order", 2L])!;
+		var bytes = (byte[])method!.Invoke(sut, [Named(new TestDomainEvent("evt-2")), "agg-1", "Order", 2L])!;
 
 		bytes.Length.ShouldBe(4);
 		bytes[0].ShouldBe((byte)0x01);
@@ -125,7 +125,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 			BindingFlags.Instance | BindingFlags.NonPublic);
 		method.ShouldNotBeNull();
 
-		var bytes = (byte[])method!.Invoke(sut, [new TestDomainEvent("evt-3"), "agg-1", "Order", 3L])!;
+		var bytes = (byte[])method!.Invoke(sut, [Named(new TestDomainEvent("evt-3")), "agg-1", "Order", 3L])!;
 
 		bytes.ShouldBe([5, 6, 7]);
 		payloadSerializer.SerializeCallCount.ShouldBe(1);
@@ -208,12 +208,12 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		connection.ConnectionString.ShouldContain("127.0.0.1");
 	}
 
+	[MessageName("Test.Es.SqlServerTestDomainEvent")]
 	private sealed record TestDomainEvent(string EventId, IDictionary<string, object>? Metadata = null) : IDomainEvent
 	{
 		public string AggregateId => "agg-1";
 		public long Version => 1;
 		public DateTimeOffset OccurredAt => DateTimeOffset.UtcNow;
-		public string EventType => "TestDomainEvent";
 	}
 
 	private sealed class StubPayloadSerializer(byte[] payload) : IPayloadSerializer
@@ -250,4 +250,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		public object DeserializeObject(ReadOnlySpan<byte> data, Type type) =>
 			throw new NotSupportedException();
 	}
+
+	private static NamedEvent Named(IDomainEvent @event) =>
+		new[] { @event }.AsNamedEvents()[0];
 }

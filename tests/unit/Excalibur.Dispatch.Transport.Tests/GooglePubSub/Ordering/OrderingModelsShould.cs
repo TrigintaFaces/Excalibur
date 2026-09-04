@@ -10,52 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Ordering;
 public sealed class OrderingModelsShould
 {
 	[Fact]
-	public void CreateOrderingKeyInfoWithAllProperties()
-	{
-		// Arrange
-		var now = DateTimeOffset.UtcNow;
-
-		// Act
-		var info = new OrderingKeyInfo
-		{
-			OrderingKey = "order-123",
-			MessageCount = 1000,
-			LastSequence = 999,
-			ExpectedSequence = 1000,
-			IsFailed = false,
-			FailureReason = null,
-			LastActivity = now,
-			OutOfSequenceCount = 5,
-		};
-
-		// Assert
-		info.OrderingKey.ShouldBe("order-123");
-		info.MessageCount.ShouldBe(1000);
-		info.LastSequence.ShouldBe(999);
-		info.ExpectedSequence.ShouldBe(1000);
-		info.IsFailed.ShouldBeFalse();
-		info.FailureReason.ShouldBeNull();
-		info.LastActivity.ShouldBe(now);
-		info.OutOfSequenceCount.ShouldBe(5);
-	}
-
-	[Fact]
-	public void CreateOrderingKeyInfoInFailedState()
-	{
-		// Arrange & Act
-		var info = new OrderingKeyInfo
-		{
-			OrderingKey = "order-456",
-			IsFailed = true,
-			FailureReason = "Persistent serialization failure",
-		};
-
-		// Assert
-		info.IsFailed.ShouldBeTrue();
-		info.FailureReason.ShouldBe("Persistent serialization failure");
-	}
-
-	[Fact]
 	public void CreateOrderingKeyStatisticsWithDefaults()
 	{
 		// Arrange & Act

@@ -196,7 +196,6 @@ packages:
     category: Hosting
   - id: Excalibur.Hosting.AzureFunctions
     category: Hosting
-  - id: Excalibur.Hosting.Compliance
     category: Hosting
   - id: Excalibur.Hosting.GoogleCloudFunctions
     category: Hosting

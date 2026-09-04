@@ -9,6 +9,7 @@ namespace Excalibur.A3.Governance.Events;
 /// <summary>
 /// Raised when an access review campaign expires (deadline passed with unreviewed items).
 /// </summary>
+[MessageName("Excalibur.A3.AccessReviewCampaignExpired")]
 internal sealed class AccessReviewCampaignExpired : IDomainEvent
 {
 	public required string CampaignId { get; init; }
@@ -16,6 +17,5 @@ internal sealed class AccessReviewCampaignExpired : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(AccessReviewCampaignExpired);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

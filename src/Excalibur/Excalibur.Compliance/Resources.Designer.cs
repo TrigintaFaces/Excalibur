@@ -61,51 +61,6 @@ namespace Excalibur.Compliance {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Error detecting FIPS compliance status.
-        /// </summary>
-        internal static string DefaultFipsDetector_ErrorDetectingStatus {
-            get {
-                return ResourceManager.GetString("DefaultFipsDetector_ErrorDetectingStatus", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Error reading Linux FIPS status.
-        /// </summary>
-        internal static string DefaultFipsDetector_ErrorReadingLinuxStatus {
-            get {
-                return ResourceManager.GetString("DefaultFipsDetector_ErrorReadingLinuxStatus", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Linux FIPS mode: {IsFipsEnabled} (value: {Value}).
-        /// </summary>
-        internal static string DefaultFipsDetector_LinuxFipsMode {
-            get {
-                return ResourceManager.GetString("DefaultFipsDetector_LinuxFipsMode", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Windows FIPS mode: {IsFipsEnabled}.
-        /// </summary>
-        internal static string DefaultFipsDetector_WindowsFipsMode {
-            get {
-                return ResourceManager.GetString("DefaultFipsDetector_WindowsFipsMode", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to DEV ENCRYPTION IS ACTIVE. In-memory key management is being used. Keys are not persisted and will be lost on restart. Do NOT use this configuration in production. Configure a production key management provider using AddEncryption()..
-        /// </summary>
-        internal static string DevEncryptionWarningLogger_Message {
-            get {
-                return ResourceManager.GetString("DevEncryptionWarningLogger_Message", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to No encryption providers were registered. Call UseInMemoryKeyManagement(), UseKeyManagement&lt;T&gt;(), or UseProvider() to register at least one provider..
         /// </summary>
         internal static string EncryptionConfigurationBuilder_NoProvidersRegistered {
@@ -160,51 +115,6 @@ namespace Excalibur.Compliance {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Created evidence package for report {ReportId}: {Size} bytes, {ItemCount} items.
-        /// </summary>
-        internal static string Soc2ReportExporter_CreatedEvidencePackage {
-            get {
-                return ResourceManager.GetString("Soc2ReportExporter_CreatedEvidencePackage", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Creating evidence package for report {ReportId} with {EvidenceCount} items.
-        /// </summary>
-        internal static string Soc2ReportExporter_CreatingEvidencePackage {
-            get {
-                return ResourceManager.GetString("Soc2ReportExporter_CreatingEvidencePackage", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Excel export is a basic Open XML implementation. For production, use ClosedXML or EPPlus for better formatting.
-        /// </summary>
-        internal static string Soc2ReportExporter_ExcelPlaceholder {
-            get {
-                return ResourceManager.GetString("Soc2ReportExporter_ExcelPlaceholder", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Exported report {ReportId} to {Format}: {Size} bytes.
-        /// </summary>
-        internal static string Soc2ReportExporter_ExportedReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportExporter_ExportedReport", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Exporting report {ReportId} to {Format}.
-        /// </summary>
-        internal static string Soc2ReportExporter_ExportingReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportExporter_ExportingReport", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Report cannot be exported: {Issues}.
         /// </summary>
         internal static string Soc2ReportExporter_ReportNotExportable {
@@ -222,149 +132,6 @@ namespace Excalibur.Compliance {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to Control validation failure: {ControlId} - {ErrorMessage} (Consecutive failures: {Failures}).
-        /// </summary>
-        internal static string ComplianceMonitoringService_ControlValidationFailure {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_ControlValidationFailure", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Completed compliance monitoring cycle. Overall level: {Level}, Gaps: {GapCount}.
-        /// </summary>
-        internal static string ComplianceMonitoringService_CycleCompleted {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_CycleCompleted", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Starting compliance monitoring cycle.
-        /// </summary>
-        internal static string ComplianceMonitoringService_CycleStarting {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_CycleStarting", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Error in compliance monitoring cycle.
-        /// </summary>
-        internal static string ComplianceMonitoringService_ErrorInCycle {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_ErrorInCycle", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Compliance gap alert: {GapId} - {Description} (Severity: {Severity}, Occurrences: {Occurrences}).
-        /// </summary>
-        internal static string ComplianceMonitoringService_GapAlert {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_GapAlert", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Continuous compliance monitoring is disabled.
-        /// </summary>
-        internal static string ComplianceMonitoringService_MonitoringDisabled {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_MonitoringDisabled", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Starting continuous compliance monitoring with interval {Interval}.
-        /// </summary>
-        internal static string ComplianceMonitoringService_MonitoringStarting {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_MonitoringStarting", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Compliance monitoring service stopped.
-        /// </summary>
-        internal static string ComplianceMonitoringService_MonitoringStopped {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_MonitoringStopped", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Compliance status change detected for {Criterion}: {PreviousStatus} -&gt; {CurrentStatus}.
-        /// </summary>
-        internal static string ComplianceMonitoringService_StatusChangeDetected {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_StatusChangeDetected", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Failed to get compliance status during monitoring cycle.
-        /// </summary>
-        internal static string ComplianceMonitoringService_StatusFetchFailed {
-            get {
-                return ResourceManager.GetString("ComplianceMonitoringService_StatusFetchFailed", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Generated Type I report {ReportId} with opinion {Opinion}.
-        /// </summary>
-        internal static string Soc2ReportGenerator_GeneratedTypeIReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportGenerator_GeneratedTypeIReport", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Generated Type II report {ReportId} with opinion {Opinion}, {ExceptionCount} exceptions.
-        /// </summary>
-        internal static string Soc2ReportGenerator_GeneratedTypeIIReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportGenerator_GeneratedTypeIIReport", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Generating Type I report as of {AsOfDate} for tenant {TenantId}.
-        /// </summary>
-        internal static string Soc2ReportGenerator_GeneratingTypeIReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportGenerator_GeneratingTypeIReport", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Generating Type II report for period {PeriodStart} to {PeriodEnd}, tenant {TenantId}.
-        /// </summary>
-        internal static string Soc2ReportGenerator_GeneratingTypeIIReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportGenerator_GeneratingTypeIIReport", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Report {ReportId} generated but not stored - no ISoc2ReportStore configured.
-        /// </summary>
-        internal static string Soc2ReportGenerator_ReportNotStored {
-            get {
-                return ResourceManager.GetString("Soc2ReportGenerator_ReportNotStored", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Stored report {ReportId}.
-        /// </summary>
-        internal static string Soc2ReportGenerator_StoredReport {
-            get {
-                return ResourceManager.GetString("Soc2ReportGenerator_StoredReport", resourceCulture);
-            }
-        }
         /// <summary>
         ///   Looks up a localized string similar to PeriodEnd is required for Type II reports.
         /// </summary>
@@ -398,105 +165,6 @@ namespace Excalibur.Compliance {
         internal static string Soc2ReportGenerator_TypeIIPeriodTooShort {
             get {
                 return ResourceManager.GetString("Soc2ReportGenerator_TypeIIPeriodTooShort", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Automatic failover blocked by cooldown. Time remaining: {RemainingSeconds}s.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_AutoFailoverCooldown {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_AutoFailoverCooldown", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to AUTOMATIC FAILOVER TRIGGERED. Primary: {PrimaryRegion} (unhealthy, {Failures} consecutive failures) -&gt; Secondary: {SecondaryRegion}.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_AutoFailoverTriggered {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_AutoFailoverTriggered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to MultiRegionKeyProvider disposed.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_Disposed {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_Disposed", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Failback completed. Secondary: {SecondaryRegion} -&gt; Primary: {PrimaryRegion}. Reason: {Reason}.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_FailbackCompleted {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_FailbackCompleted", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Error during health check cycle.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_HealthCheckError {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_HealthCheckError", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to MultiRegionKeyProvider initialized. Primary: {PrimaryRegion}, Secondary: {SecondaryRegion}, Mode: {ReplicationMode}, AutoFailover: {AutoFailover}.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_Initialized {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_Initialized", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Key replication completed. Source: {SourceRegion}, Target: {TargetRegion}, KeyId: {KeyId}.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_KeyReplicationCompleted {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_KeyReplicationCompleted", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Manual failover initiated. Primary: {PrimaryRegion} -&gt; Secondary: {SecondaryRegion}. Reason: {Reason}.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_ManualFailoverInitiated {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_ManualFailoverInitiated", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Replication already in progress, skipping.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_ReplicationAlreadyInProgress {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_ReplicationAlreadyInProgress", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to RPO threshold breached. Current lag: {LagMinutes:F1} minutes, Target: {TargetMinutes:F1} minutes.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_RpoThresholdBreached {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_RpoThresholdBreached", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Syncing keys from {Source} to {Target}. SpecificKey: {KeyId}.
-        /// </summary>
-        internal static string MultiRegionKeyProvider_SyncingKeys {
-            get {
-                return ResourceManager.GetString("MultiRegionKeyProvider_SyncingKeys", resourceCulture);
             }
         }
 
@@ -906,42 +574,6 @@ namespace Excalibur.Compliance {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Data already encrypted with active key, skipping re-encryption.
-        /// </summary>
-        internal static string RotatingEncryptionProvider_AlreadyActiveKey {
-            get {
-                return ResourceManager.GetString("RotatingEncryptionProvider_AlreadyActiveKey", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Key {KeyId} age ({KeyAgeDays:F1} days) exceeds max age ({MaxAgeDays} days), initiating rotation.
-        /// </summary>
-        internal static string RotatingEncryptionProvider_KeyAgeExceedsMax {
-            get {
-                return ResourceManager.GetString("RotatingEncryptionProvider_KeyAgeExceedsMax", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Data encrypted with old key version {KeyId} v{Version}, consider re-encryption.
-        /// </summary>
-        internal static string RotatingEncryptionProvider_OldKeyVersionReencryptionHint {
-            get {
-                return ResourceManager.GetString("RotatingEncryptionProvider_OldKeyVersionReencryptionHint", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Re-encrypted data from key {OldKeyId} v{OldVersion} to {NewKeyId} v{NewVersion}.
-        /// </summary>
-        internal static string RotatingEncryptionProvider_ReencryptedData {
-            get {
-                return ResourceManager.GetString("RotatingEncryptionProvider_ReencryptedData", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to All shares must have the same length..
         /// </summary>
         internal static string ShamirSecretSharing_AllSharesMustHaveSameLength {
@@ -983,15 +615,6 @@ namespace Excalibur.Compliance {
         internal static string ShamirSecretSharing_ShareIndexCannotBeZero {
             get {
                 return ResourceManager.GetString("ShamirSecretSharing_ShareIndexCannotBeZero", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Shares must have at least 2 bytes (index + data)..
-        /// </summary>
-        internal static string ShamirSecretSharing_SharesMustHaveAtLeastTwoBytes {
-            get {
-                return ResourceManager.GetString("ShamirSecretSharing_SharesMustHaveAtLeastTwoBytes", resourceCulture);
             }
         }
 

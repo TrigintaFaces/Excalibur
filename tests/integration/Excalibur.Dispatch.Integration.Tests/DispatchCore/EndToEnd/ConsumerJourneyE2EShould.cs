@@ -342,10 +342,12 @@ public sealed class ConsumerJourneyE2EShould : IAsyncDisposable
 		private static string? s_lastCorrelationId;
 
 		private readonly InMemoryOutboxStore _outboxStore;
+		private readonly IMessageContextAccessor contextAccessor;
 
-		public CreateOrderHandler(InMemoryOutboxStore outboxStore)
+		public CreateOrderHandler(InMemoryOutboxStore outboxStore, IMessageContextAccessor contextAccessor)
 		{
 			_outboxStore = outboxStore;
+			this.contextAccessor = contextAccessor;
 		}
 
 		public static ConcurrentBag<Guid> InvokedOrderIds => s_invokedOrderIds;
@@ -366,7 +368,7 @@ public sealed class ConsumerJourneyE2EShould : IAsyncDisposable
 			_ = Interlocked.Increment(ref s_invocationCount);
 
 			// Capture correlation ID from ambient context
-			var ctx = MessageContextHolder.Current;
+			var ctx = contextAccessor.MessageContext;
 			if (ctx != null)
 			{
 				s_lastCorrelationId = ctx.CorrelationId;

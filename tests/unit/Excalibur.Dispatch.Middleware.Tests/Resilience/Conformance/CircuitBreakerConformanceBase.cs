@@ -3,9 +3,7 @@
 
 // Behavioral conformance test suite for circuit-breaker implementations — bd-ccyett.
 //
-// Three hand-rolled state machines survive in the codebase
-// (CircuitBreakerPattern / PollyCircuitBreakerAdapter / DistributedCircuitBreaker).
-// This fixture asserts that all three honour the same contract so that
+// This fixture asserts that every circuit-breaker state machine honours the same contract so that
 // recovery-semantics drift (the root cause of bd-lpnsjb) is caught by CI
 // before it reaches production.
 //
@@ -15,19 +13,17 @@
 //   FR-116-3  State property / GetStateAsync return Excalibur.Dispatch.Resilience.CircuitState.
 //   FR-116-4  CircuitBreakerOpenException.RetryAfter is non-negative when present.
 
-using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience.Conformance;
 
 // ---------------------------------------------------------------------------
-// Thin test-internal adapter — normalises the three CB interfaces behind one seam.
+// Thin test-internal adapter — normalises the CB interfaces behind one seam.
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// Minimal test interface that unifies <see cref="IResiliencePattern"/> and
-/// <see cref="IDistributedCircuitBreaker"/> behind a single seam for the conformance suite.
+/// Minimal test interface that fronts <see cref="IDistributedCircuitBreaker"/> for the conformance suite.
 /// </summary>
 internal interface ICircuitBreakerTestSut : IAsyncDisposable
 {
@@ -42,31 +38,6 @@ internal interface ICircuitBreakerTestSut : IAsyncDisposable
 	/// Propagates whatever exception the operation (or the CB itself) throws.
 	/// </summary>
 	Task ExecuteAsync(Func<Task> operation, CancellationToken ct);
-}
-
-/// <summary>
-/// Wraps <see cref="IResiliencePattern"/> implementations
-/// (<see cref="CircuitBreakerPattern"/>, <see cref="PollyCircuitBreakerAdapter"/>).
-/// </summary>
-internal sealed class ResiliencePatternSut(IResiliencePattern pattern, string name) : ICircuitBreakerTestSut
-{
-	public string Name => name;
-
-	public ValueTask<CircuitState> GetStateAsync(CancellationToken ct) =>
-		ValueTask.FromResult(pattern.State);
-
-	public async Task ExecuteAsync(Func<Task> operation, CancellationToken ct) =>
-		await pattern.ExecuteAsync<bool>(
-			async () => { await operation().ConfigureAwait(false); return true; },
-			ct).ConfigureAwait(false);
-
-	public async ValueTask DisposeAsync()
-	{
-		if (pattern is IAsyncDisposable d)
-		{
-			await d.DisposeAsync().ConfigureAwait(false);
-		}
-	}
 }
 
 /// <summary>
@@ -297,11 +268,9 @@ public abstract class CircuitBreakerConformanceBase : IAsyncLifetime
 				.ConfigureAwait(false);
 		}
 
-		// For PollyCircuitBreakerAdapter the State property only updates reactively
-		// (when a BrokenCircuitException is caught).  Fire one more request so that
-		// Polly's already-open CB emits the BrokenCircuitException, which the adapter
-		// translates to CircuitBreakerOpenException and sets State = Open.
-		// For CBs that are already in Open state this is a no-op (they throw CBOE immediately).
+		// Some adapters only surface Open reactively (when the underlying already-open circuit
+		// rejects a call). Fire one more request so those observe the rejection and publish the
+		// state. For CBs already reporting Open this is a no-op (they throw CBOE immediately).
 		_ = await Record.ExceptionAsync(
 			() => sut.ExecuteAsync(
 				static () => throw new InvalidOperationException("conformance-probe"),

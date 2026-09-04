@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
@@ -204,8 +204,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 			AggregateId = aggregateId,
 			Version = version,
 			EventId = Guid.NewGuid().ToString(),
-			OccurredAt = DateTimeOffset.UtcNow,
-			EventType = "TestShardEvent"
+			OccurredAt = DateTimeOffset.UtcNow
 		};
 
 	private string GetShardConnectionString(string databaseName)
@@ -259,13 +258,13 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 
 	#region Test Fixtures
 
-	internal sealed class TestShardEvent : IDomainEvent
+[MessageName("Test.TestShardEvent")]
+internal sealed class TestShardEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TestShardEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

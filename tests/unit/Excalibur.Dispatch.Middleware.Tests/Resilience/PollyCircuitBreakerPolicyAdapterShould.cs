@@ -100,41 +100,41 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	#region Failure Recording Tests
 
 	[Fact]
-	public void IncrementConsecutiveFailuresOnRecordFailure()
+	public async Task IncrementConsecutiveFailuresOnFailedExecution()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
 
 		// Act
-		adapter.RecordFailure(new InvalidOperationException("Error 1"));
+		await adapter.FailAsync(new InvalidOperationException("Error 1"));
 
 		// Assert
 		adapter.ConsecutiveFailures.ShouldBe(1);
 	}
 
 	[Fact]
-	public void TrackMultipleConsecutiveFailures()
+	public async Task TrackMultipleConsecutiveFailures()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
 
 		// Act
-		adapter.RecordFailure(new InvalidOperationException("Error 1"));
-		adapter.RecordFailure(new InvalidOperationException("Error 2"));
-		adapter.RecordFailure(new InvalidOperationException("Error 3"));
+		await adapter.FailAsync(new InvalidOperationException("Error 1"));
+		await adapter.FailAsync(new InvalidOperationException("Error 2"));
+		await adapter.FailAsync(new InvalidOperationException("Error 3"));
 
 		// Assert
 		adapter.ConsecutiveFailures.ShouldBe(3);
 	}
 
 	[Fact]
-	public void AcceptNullExceptionInRecordFailure()
+	public async Task CountAFailedExecutionWithoutAnExplicitException()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
 
 		// Act
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
 
 		// Assert
 		adapter.ConsecutiveFailures.ShouldBe(1);
@@ -145,29 +145,29 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	#region Success Recording Tests
 
 	[Fact]
-	public void ResetConsecutiveFailuresOnRecordSuccess()
+	public async Task ResetConsecutiveFailuresOnSuccessfulExecution()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		adapter.RecordFailure();
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
+		await adapter.FailAsync().ConfigureAwait(false);
 		adapter.ConsecutiveFailures.ShouldBe(2);
 
 		// Act
-		adapter.RecordSuccess();
+		await adapter.SucceedAsync().ConfigureAwait(false);
 
 		// Assert
 		adapter.ConsecutiveFailures.ShouldBe(0);
 	}
 
 	[Fact]
-	public void HandleRecordSuccessWhenNoFailures()
+	public async Task HandleSuccessfulExecutionWhenNoFailures()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
 
 		// Act - should not throw
-		adapter.RecordSuccess();
+		await adapter.SucceedAsync().ConfigureAwait(false);
 
 		// Assert
 		adapter.ConsecutiveFailures.ShouldBe(0);
@@ -178,12 +178,12 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	#region Reset Tests
 
 	[Fact]
-	public void ResetToClosedState()
+	public async Task ResetToClosedState()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		adapter.RecordFailure();
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
+		await adapter.FailAsync().ConfigureAwait(false);
 
 		// Act
 		adapter.Reset();
@@ -194,7 +194,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	}
 
 	[Fact]
-	public void RaiseStateChangedEventOnResetFromNonClosedState()
+	public async Task RaiseStateChangedEventOnResetFromNonClosedState()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -214,8 +214,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 
 		// Open the circuit first by executing failures through the pipeline
 		// Note: Since Polly controls state transitions, we verify reset behavior
-		adapter.RecordFailure();
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
+		await adapter.FailAsync().ConfigureAwait(false);
 
 		eventCount = 0; // Reset count before our test
 
@@ -223,7 +223,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		adapter.Reset();
 
 		// Assert
-		((int)adapter.State).ShouldBe((int)CircuitState.Closed);
+		((int)await adapter.WaitForStateAsync(CircuitState.Closed).ConfigureAwait(false))
+			.ShouldBe((int)CircuitState.Closed);
 	}
 
 	[Fact]
@@ -358,8 +359,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		adapter.RecordFailure();
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
+		await adapter.FailAsync().ConfigureAwait(false);
 		adapter.ConsecutiveFailures.ShouldBe(2);
 
 		// Act
@@ -495,7 +496,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	#region StateChanged Event Tests
 
 	[Fact]
-	public void RaiseStateChangedEventOnTransition()
+	public async Task RaiseStateChangedEventOnTransition()
 	{
 		// Arrange - Polly v8 requires MinimumThroughput >= 2 and BreakDuration >= 500ms
 		var options = new CircuitBreakerOptions
@@ -510,7 +511,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 
 		// Act - force a reset from an Open state by first recording many failures
 		// then resetting (since Polly controls actual open state)
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
 
 		// Reset to get a state change event (if state was different)
 		// Note: Polly internally manages state, so we test what we can control
@@ -523,7 +524,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	}
 
 	[Fact]
-	public void IncludeTimestampInStateChangedEvent()
+	public async Task IncludeTimestampInStateChangedEvent()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
@@ -534,8 +535,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 
 		// Force a state change through Polly
 		// Since we can't easily force Polly to change state, verify handler attachment
-		adapter.RecordFailure();
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
+		await adapter.FailAsync().ConfigureAwait(false);
 
 		// Assert - at minimum, verify handler was attached
 		adapter.ConsecutiveFailures.ShouldBe(2);
@@ -624,8 +625,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		adapter.RecordFailure();
-		adapter.RecordFailure();
+		await adapter.FailAsync().ConfigureAwait(false);
+		await adapter.FailAsync().ConfigureAwait(false);
 		adapter.ConsecutiveFailures.ShouldBe(2);
 
 		// Act
@@ -658,17 +659,28 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Arrange
 		var adapter = CreateAdapter();
 		using var cts = new CancellationTokenSource();
-		CancellationToken receivedToken = default;
+		var callerCancellationReachedTheOperation = false;
 
-		// Act
-		await adapter.ExecuteAsync(ct =>
+		// Act -- the operation timeout links the caller's token with its own, so the callback
+		// receives a LINKED token rather than the caller's instance. Reference equality was only
+		// ever true while no timeout existed; what the caller actually relies on is that
+		// cancelling their token cancels the operation. Assert that instead.
+		try
 		{
-			receivedToken = ct;
-			return Task.CompletedTask;
-		}, cts.Token).ConfigureAwait(false);
+			await adapter.ExecuteAsync(ct =>
+			{
+				cts.Cancel();
+				callerCancellationReachedTheOperation = ct.IsCancellationRequested;
+				return Task.CompletedTask;
+			}, cts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			// Cancelling mid-flight may surface here; the linkage is what is under test.
+		}
 
-		// Assert - token should have been passed through
-		receivedToken.ShouldBe(cts.Token);
+		// Assert
+		callerCancellationReachedTheOperation.ShouldBeTrue();
 	}
 
 	#endregion ExecuteAsync Void Overload Tests
@@ -676,22 +688,26 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 	#region Thread Safety Tests
 
 	[Fact]
-	public async Task HandleConcurrentRecordFailureCalls()
+	public async Task HandleConcurrentFailedExecutions()
 	{
 		// Arrange
 		var adapter = CreateAdapter();
 		var tasks = new List<Task>();
 
-		// Act - simulate concurrent failure recording
+		// Act - drive 100 failing executions through the pipeline concurrently
 		for (var i = 0; i < 100; i++)
 		{
-			tasks.Add(Task.Run(() => adapter.RecordFailure(new InvalidOperationException("Concurrent error"))));
+			tasks.Add(Task.Run(() => adapter.FailAsync(new InvalidOperationException("Concurrent error"))));
 		}
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		// Assert - all failures should be recorded
-		adapter.ConsecutiveFailures.ShouldBe(100);
+		// Assert - the circuit trips and its counter is intact. An exact count is not assertable
+		// here: once the circuit opens it rejects the remaining calls, and a rejected call is not
+		// a recorded failure.
+		adapter.ConsecutiveFailures.ShouldBeGreaterThan(0);
+		((int)await adapter.WaitForStateAsync(CircuitState.Open).ConfigureAwait(false))
+			.ShouldBe((int)CircuitState.Open);
 	}
 
 	[Fact]
@@ -704,8 +720,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act - simulate concurrent mixed calls
 		for (var i = 0; i < 50; i++)
 		{
-			tasks.Add(Task.Run(() => adapter.RecordFailure()));
-			tasks.Add(Task.Run(() => adapter.RecordSuccess()));
+			tasks.Add(Task.Run(() => adapter.FailAsync()));
+			tasks.Add(Task.Run(() => adapter.SucceedAsync()));
 		}
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);

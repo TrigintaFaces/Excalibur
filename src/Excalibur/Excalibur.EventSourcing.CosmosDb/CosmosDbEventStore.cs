@@ -585,10 +585,10 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		string streamId,
 		string aggregateId,
 		string aggregateType,
-		IDomainEvent evt,
+		NamedEvent named,
 		long version)
 	{
-		var eventTypeName = EventTypeNameHelper.GetEventTypeName(evt.GetType());
+		var (evt, eventTypeName) = named;
 
 		return new EventDocument
 		{
@@ -867,10 +867,11 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		var version = expectedVersion;
 		var batch = _container!.CreateTransactionalBatch(pk);
 
-		foreach (var evt in events)
+		foreach (var named in events.AsNamedEvents())
 		{
+			var evt = named.Event;
 			version++;
-			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
+			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, named, version);
 			_ = batch.CreateItem(doc);
 		}
 
@@ -1011,10 +1012,11 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		double totalRu = 0;
 		string? sessionToken = null;
 
-		foreach (var evt in events)
+		foreach (var named in events.AsNamedEvents())
 		{
+			var evt = named.Event;
 			version++;
-			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
+			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, named, version);
 
 			var response = await _container!.CreateItemAsync(
 				doc,

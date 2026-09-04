@@ -330,8 +330,8 @@ public sealed class OutboxStagedPayloadDrainShould : UnitTestBase
 	/// <remarks>
 	/// <see cref="ExecuteAsync"/> counts an escaping exception because the real
 	/// <c>CircuitBreakerPolicy.ExecuteAsync</c> records one itself for anything its filter handles --
-	/// counting only explicit <see cref="RecordFailure"/> calls would miss half of what the production
-	/// breaker actually sees, and would read as a pass while the circuit still tripped.
+	/// a double that counted nothing there would miss everything the production breaker actually
+	/// sees, and would read as a pass while the circuit still tripped.
 	/// </remarks>
 	private sealed class RecordingCircuitBreaker : ICircuitBreakerPolicy
 	{
@@ -343,6 +343,34 @@ public sealed class OutboxStagedPayloadDrainShould : UnitTestBase
 		public int FailuresObserved => Volatile.Read(ref _failuresObserved);
 
 		public CircuitState State => CircuitState.Closed;
+
+
+		public async Task<TResult> ExecuteAsync<TResult>(
+			Func<CancellationToken, Task<TResult>> operation,
+			Func<TResult, bool> isFailure,
+			CancellationToken cancellationToken)
+		{
+			try
+			{
+				var result = await operation(cancellationToken).ConfigureAwait(false);
+
+				if (isFailure(result))
+				{
+					_ = Interlocked.Increment(ref _failuresObserved);
+				}
+				else
+				{
+					_ = Interlocked.Increment(ref _executionsEntered);
+				}
+
+				return result;
+			}
+			catch
+			{
+				_ = Interlocked.Increment(ref _failuresObserved);
+				throw;
+			}
+		}
 
 		public async Task<TResult> ExecuteAsync<TResult>(
 			Func<CancellationToken, Task<TResult>> action,
@@ -364,12 +392,6 @@ public sealed class OutboxStagedPayloadDrainShould : UnitTestBase
 			}
 #pragma warning restore CA1031
 		}
-
-		public void RecordSuccess()
-		{
-		}
-
-		public void RecordFailure(Exception? exception = null) => Interlocked.Increment(ref _failuresObserved);
 
 		public void Reset()
 		{

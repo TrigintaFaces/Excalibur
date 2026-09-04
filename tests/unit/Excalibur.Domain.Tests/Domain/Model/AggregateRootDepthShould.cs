@@ -240,12 +240,12 @@ public sealed class AggregateRootDepthShould
 		}
 	}
 
+	[MessageName("Test.AggregateRootDepth.TestEvent")]
 	private sealed record TestEvent(string AggregateId, string Value) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(TestEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

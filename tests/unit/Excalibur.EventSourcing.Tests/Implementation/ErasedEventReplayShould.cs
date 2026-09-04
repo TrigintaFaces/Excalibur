@@ -9,6 +9,8 @@ using Excalibur.EventSourcing.InMemory;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Options;
+
 using Shouldly;
 
 using Xunit;
@@ -68,13 +70,13 @@ public sealed class ErasedEventReplayShould
 		}
 	}
 
+	[MessageName("Test.Es.ReplayTestEvent")]
 	private sealed class ReplayTestEvent : IDomainEvent
 	{
 		public required string EventId { get; init; }
 		public required string AggregateId { get; init; }
 		public required long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(ReplayTestEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
@@ -108,7 +110,8 @@ public sealed class ErasedEventReplayShould
 		var repository = new EventSourcedRepository<ErasedReplayAggregate>(
 			store,
 			serializer,
-			id => new ErasedReplayAggregate(id));
+			id => new ErasedReplayAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act — reload the erased aggregate.
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None).ConfigureAwait(false);
@@ -145,7 +148,8 @@ public sealed class ErasedEventReplayShould
 		var repository = new EventSourcedRepository<ErasedReplayAggregate>(
 			store,
 			serializer,
-			id => new ErasedReplayAggregate(id));
+			id => new ErasedReplayAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert — strict no-skip integrity is preserved: genuine corruption still fails loud.
 		_ = await Should.ThrowAsync<InvalidOperationException>(

@@ -174,8 +174,8 @@ public static class ElasticSearchServiceCollectionExtensions
 		_ = services.AddElasticsearchServices(configuration, registry, configureSettings);
 
 		// Register resilience components
-		services.TryAddSingleton<IElasticsearchRetryPolicy, ElasticsearchRetryPolicy>();
-		services.TryAddSingleton<IElasticsearchCircuitBreaker, ElasticsearchCircuitBreaker>();
+		services.TryAddSingleton<ElasticsearchResiliencePipeline>();
+		services.TryAddSingleton<IElasticsearchCircuitBreaker, PollyElasticsearchCircuitBreaker>();
 
 		// Register resilient client as primary client interface
 		services.TryAddSingleton<IResilientElasticsearchClient, ResilientElasticsearchClient>();
@@ -266,8 +266,8 @@ public static class ElasticSearchServiceCollectionExtensions
 		_ = services.AddElasticsearchMonitoring(configuration);
 
 		// Register resilience components
-		services.TryAddSingleton<IElasticsearchRetryPolicy, ElasticsearchRetryPolicy>();
-		services.TryAddSingleton<IElasticsearchCircuitBreaker, ElasticsearchCircuitBreaker>();
+		services.TryAddSingleton<ElasticsearchResiliencePipeline>();
+		services.TryAddSingleton<IElasticsearchCircuitBreaker, PollyElasticsearchCircuitBreaker>();
 
 		// Register monitored resilient client as primary client interface
 		services.TryAddSingleton<IResilientElasticsearchClient, MonitoredResilientElasticsearchClient>();
@@ -305,8 +305,8 @@ public static class ElasticSearchServiceCollectionExtensions
 				sp.GetService<ILogger<ElasticsearchConfigurationOptions>>()));
 
 		// Register resilience components
-		services.TryAddSingleton<IElasticsearchRetryPolicy, ElasticsearchRetryPolicy>();
-		services.TryAddSingleton<IElasticsearchCircuitBreaker, ElasticsearchCircuitBreaker>();
+		services.TryAddSingleton<ElasticsearchResiliencePipeline>();
+		services.TryAddSingleton<IElasticsearchCircuitBreaker, PollyElasticsearchCircuitBreaker>();
 
 		// Register resilient client as primary client interface
 		services.TryAddSingleton<IResilientElasticsearchClient, ResilientElasticsearchClient>();

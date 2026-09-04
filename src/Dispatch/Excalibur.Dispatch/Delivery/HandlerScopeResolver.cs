@@ -155,11 +155,17 @@ internal sealed class HandlerScopeResolver
     /// non-<see langword="null"/> it is used directly so the handler shares the caller's request scope; the
     /// caller is responsible for filtering out the root provider before passing it.
     /// </param>
-    /// <param name="invoke">The handler invocation, given the resolved scope's service provider.</param>
-    public async ValueTask<T> RunAsync<T>(
+    /// <param name="state">
+    /// Caller state handed back to <paramref name="invoke"/>. It exists so callers can pass a
+    /// <see langword="static"/> (non-capturing) lambda: a capturing lambda allocates a closure object and a
+    /// fresh delegate on every dispatch, and this method is the seam every scoped dispatch funnels through.
+    /// </param>
+    /// <param name="invoke">The handler invocation, given the resolved scope's service provider and <paramref name="state"/>.</param>
+    public async ValueTask<T> RunAsync<TState, T>(
         Type handlerType,
         IServiceProvider? preferredScope,
-        Func<IServiceProvider, ValueTask<T>> invoke)
+        TState state,
+        Func<IServiceProvider, TState, ValueTask<T>> invoke)
     {
         ArgumentNullException.ThrowIfNull(invoke);
 
@@ -168,13 +174,13 @@ internal sealed class HandlerScopeResolver
         //    handler's IMessageContext.RequestServices is the same instance the caller is using.
         if (preferredScope is not null)
         {
-            return await invoke(preferredScope).ConfigureAwait(false);
+            return await invoke(preferredScope, state).ConfigureAwait(false);
         }
 
         var ambient = _ambientScope?.CurrentServiceProvider;
         if (ambient is not null)
         {
-            return await invoke(ambient).ConfigureAwait(false);
+            return await invoke(ambient, state).ConfigureAwait(false);
         }
 
         if (_scopeFactory is not null)
@@ -182,7 +188,7 @@ internal sealed class HandlerScopeResolver
             var scope = _scopeFactory.CreateAsyncScope();
             try
             {
-                return await invoke(scope.ServiceProvider).ConfigureAwait(false);
+                return await invoke(scope.ServiceProvider, state).ConfigureAwait(false);
             }
             finally
             {

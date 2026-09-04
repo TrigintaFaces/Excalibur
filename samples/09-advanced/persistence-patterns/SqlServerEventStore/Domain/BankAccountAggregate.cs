@@ -196,11 +196,13 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 /// <summary>
 /// Event raised when a bank account is opened.
 /// </summary>
+[MessageName("Contoso.Banking.AccountOpened")]
 public sealed record AccountOpened(Guid AccountId, string HolderName, decimal InitialDeposit) : DomainEvent;
 
 /// <summary>
 /// Event raised when money is deposited.
 /// </summary>
+[MessageName("Contoso.Banking.MoneyDeposited")]
 public sealed record MoneyDeposited(
 	Guid AccountId,
 	decimal Amount,
@@ -210,6 +212,7 @@ public sealed record MoneyDeposited(
 /// <summary>
 /// Event raised when money is withdrawn.
 /// </summary>
+[MessageName("Contoso.Banking.MoneyWithdrawn")]
 public sealed record MoneyWithdrawn(
 	Guid AccountId,
 	decimal Amount,
@@ -219,6 +222,7 @@ public sealed record MoneyWithdrawn(
 /// <summary>
 /// Event raised when an account is closed.
 /// </summary>
+[MessageName("Contoso.Banking.AccountClosed")]
 public sealed record AccountClosed(Guid AccountId, string Reason) : DomainEvent;
 
 #endregion

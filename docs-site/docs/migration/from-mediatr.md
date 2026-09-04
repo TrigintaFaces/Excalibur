@@ -269,17 +269,15 @@ await _mediator.Publish(new OrderCreatedNotification(orderId, total));
 **Excalibur.Dispatch:**
 ```csharp
 // Domain Event
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(
     string OrderId,
     decimal TotalValue,
     string CustomerId) : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public string AggregateId { get; init; } = OrderId;
-    public long Version { get; init; } = 1;
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType { get; init; } = nameof(OrderCreatedEvent);
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public IDictionary<string, object>? Metadata { get; init; }
 }
 
 // Handler
@@ -303,7 +301,8 @@ await _dispatcher.DispatchAsync(
 **Key Changes:**
 - `INotification` → `IDomainEvent` (richer interface with metadata)
 - `INotificationHandler<T>` → `IEventHandler<T>`
-- Events include: `EventId`, `OccurredAt`, `EventType`, `Metadata`, `CorrelationId`, `CausationId` (aggregate id and stream version are owned by the event store, not the event)
+- Events include: `EventId`, `OccurredAt`, `Metadata`, `CorrelationId`, `CausationId` (aggregate id and stream version are owned by the event store, not the event)
+- Every event declares its stable name with `[MessageName]` — see [stable message names](../event-sourcing/domain-events.md#stable-message-names)
 - Better support for event sourcing and auditing
 
 ### Pipeline Behaviors
@@ -525,14 +524,12 @@ public class OrderPlacedHandler : INotificationHandler<OrderPlacedNotification>
 
 **After:**
 ```csharp
+[MessageName("Contoso.Orders.OrderPlaced")]
 public record OrderPlacedEvent(string OrderId) : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public string AggregateId { get; init; } = OrderId;
-    public long Version { get; init; } = 1;
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType { get; init; } = nameof(OrderPlacedEvent);
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public IDictionary<string, object>? Metadata { get; init; }
 }
 
 public class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
@@ -550,6 +547,7 @@ public class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
 - `INotification` → `IDomainEvent` (with required properties)
 - `INotificationHandler<T>` → `IEventHandler<T>`
 - Add event metadata properties
+- Declare a [stable message name](../event-sourcing/domain-events.md#stable-message-names) with `[MessageName]`
 
 ### Step 6: Update Pipeline Behaviors
 

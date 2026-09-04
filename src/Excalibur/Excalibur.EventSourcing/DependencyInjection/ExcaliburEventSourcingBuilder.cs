@@ -195,6 +195,13 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	}
 
 	/// <inheritdoc />
+	public IEventSourcingBuilder RegisterEventTypeAlias(string storedTypeName, Type eventType)
+	{
+		_ = Services.AddEventTypeAlias(storedTypeName, eventType);
+		return this;
+	}
+
+	/// <inheritdoc />
 	[RequiresUnreferencedCode("Scans the assembly for IDomainEvent types via reflection, which is not trim-safe. Use RegisterEventTypes<TEvent>() or RegisterEventTypes(params Type[]) for a trim/AOT-safe path.")]
 	public IEventSourcingBuilder RegisterEventTypesFromAssembly(System.Reflection.Assembly assembly)
 	{

@@ -69,15 +69,17 @@ public sealed class N00ucuLiveTenantBridgeProof
 	// IActionHandler<>/IActionHandler<,>/IEventHandler<>/IDocumentHandler<> specifically -- confirmed
 	// by reading DispatchServiceCollectionExtensions.cs directly after IDispatchHandler<T> silently
 	// produced a "succeeded, zero handlers invoked" no-op). IEventHandler<T> has no context parameter,
-	// so the handler reads the ambient MessageContextHolder.Current -- exactly the real mechanism a
-	// saga handler would use, and exactly what n00ucu is about.
-	private sealed class TimeoutFiredHandler(Capture capture, IDispatcher dispatcher) : IEventHandler<TimeoutFiredEvent>
+	// so the handler reads the context through IMessageContextAccessor -- exactly the real mechanism a
+	// saga handler would use, and exactly what n00ucu is about. (Injecting the accessor is also the
+	// handler declaring it reads the context, which keeps it off the no-ambient fast path.)
+	private sealed class TimeoutFiredHandler(Capture capture, IDispatcher dispatcher, IMessageContextAccessor contextAccessor)
+		: IEventHandler<TimeoutFiredEvent>
 	{
 		public async Task HandleAsync(TimeoutFiredEvent eventMessage, CancellationToken cancellationToken)
 		{
 			capture.TimeoutHandlerInvoked = true;
 
-			var context = MessageContextHolder.Current;
+			var context = contextAccessor.MessageContext;
 
 			// Channel A: what SagaTimeoutDeliveryService.DeliverTimeoutAsync correctly re-establishes
 			// via `using var tenantScope = TenantContextHolder.BeginScope(partition.TenantId);` around
@@ -96,13 +98,14 @@ public sealed class N00ucuLiveTenantBridgeProof
 		}
 	}
 
-	private sealed class FollowUpHandler(Capture capture) : IEventHandler<FollowUpEvent>
+	private sealed class FollowUpHandler(Capture capture, IMessageContextAccessor contextAccessor)
+		: IEventHandler<FollowUpEvent>
 	{
 		public Task HandleAsync(FollowUpEvent eventMessage, CancellationToken cancellationToken)
 		{
 			capture.FollowUpHandlerInvoked = true;
 
-			var context = MessageContextHolder.Current;
+			var context = contextAccessor.MessageContext;
 			capture.FollowUpContextTenantId = context?.GetTenantId();
 
 			if (context is not null)

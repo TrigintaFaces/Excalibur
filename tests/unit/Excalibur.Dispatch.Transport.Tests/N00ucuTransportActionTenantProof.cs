@@ -46,12 +46,18 @@ public sealed class N00ucuTransportActionTenantProof
 		public string? ContextTenantId { get; set; }
 	}
 
-	private sealed class PlainCommandHandler(Capture capture) : IActionHandler<PlainCommand>
+	// Reads the context through IMessageContextAccessor -- the supported public seam for code that
+	// cannot take a dispatch-time parameter. IActionHandler<T> has no context parameter, so this is
+	// exactly the mechanism real consumer code uses. Injecting the accessor is also the handler
+	// DECLARING that it reads the context, which keeps it off the ultra-local fast path (that path
+	// publishes no ambient context) and routes it to the context-aware path instead.
+	private sealed class PlainCommandHandler(Capture capture, IMessageContextAccessor contextAccessor)
+		: IActionHandler<PlainCommand>
 	{
 		public Task HandleAsync(PlainCommand action, CancellationToken cancellationToken)
 		{
 			capture.HandlerInvoked = true;
-			capture.ContextTenantId = MessageContextHolder.Current?.GetTenantId();
+			capture.ContextTenantId = contextAccessor.MessageContext?.GetTenantId();
 			return Task.CompletedTask;
 		}
 	}
@@ -193,20 +199,21 @@ public sealed class N00ucuTransportActionTenantProof
 		capture.ContextTenantId.ShouldBe("tenant-explicit");
 	}
 
+	[MessageName("Test.TenantMetadataDomainEvent")]
 	private sealed class TenantMetadataDomainEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TenantMetadataDomainEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
-	private sealed class TenantMetadataDomainEventHandler(Capture capture) : IEventHandler<TenantMetadataDomainEvent>
+	private sealed class TenantMetadataDomainEventHandler(Capture capture, IMessageContextAccessor contextAccessor)
+		: IEventHandler<TenantMetadataDomainEvent>
 	{
 		public Task HandleAsync(TenantMetadataDomainEvent eventMessage, CancellationToken cancellationToken)
 		{
 			capture.HandlerInvoked = true;
-			capture.ContextTenantId = MessageContextHolder.Current?.GetTenantId();
+			capture.ContextTenantId = contextAccessor.MessageContext?.GetTenantId();
 			return Task.CompletedTask;
 		}
 	}

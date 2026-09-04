@@ -3,6 +3,7 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly - FakeItEasy .Returns() stores ValueTask
 
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Telemetry;
@@ -23,6 +24,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 [Trait("Component", "Dispatch.Core")]
 public sealed class CircuitBreakerMiddlewareShould
 {
+
+    // A registry per middleware, deliberately. GetOrCreate honours the options it is given only
+    // when it FIRST creates a circuit for that key, so a shared registry would hand every test the
+    // thresholds of whichever test ran first.
+    private static ITransportCircuitBreakerRegistry NewRegistry() => new TransportCircuitBreakerRegistry();
+
     private static readonly ITelemetrySanitizer Sanitizer = A.Fake<ITelemetrySanitizer>();
 
     private static CircuitBreakerMiddleware CreateSut(CircuitBreakerOptions? options = null)
@@ -32,8 +39,8 @@ public sealed class CircuitBreakerMiddlewareShould
             .ReturnsLazily(call => call.GetArgument<string?>(1));
         return new CircuitBreakerMiddleware(
             Microsoft.Extensions.Options.Options.Create(opts),
+            NewRegistry(),
             Sanitizer,
-            TimeProvider.System,
             NullLogger<CircuitBreakerMiddleware>.Instance);
     }
 

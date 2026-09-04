@@ -250,12 +250,15 @@ public sealed class ExponentialBackoffCalculatorShould
 	}
 
 	[Fact]
-	public void ThrowOnZeroBaseDelay()
+	public void AcceptZeroBaseDelay()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() => new ExponentialBackoffCalculator(
+		// Zero means "retry immediately" -- a legal configuration, not an error.
+		var calculator = new ExponentialBackoffCalculator(
 			baseDelay: TimeSpan.Zero,
-			maxDelay: TimeSpan.FromSeconds(30)));
+			maxDelay: TimeSpan.FromSeconds(30));
+
+		calculator.CalculateDelay(1).ShouldBe(TimeSpan.Zero);
+		calculator.CalculateDelay(4).ShouldBe(TimeSpan.Zero);
 	}
 
 	[Fact]
@@ -268,12 +271,14 @@ public sealed class ExponentialBackoffCalculatorShould
 	}
 
 	[Fact]
-	public void ThrowOnZeroMaxDelay()
+	public void ClampToZeroWhenMaxDelayIsZero()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() => new ExponentialBackoffCalculator(
+		// Zero means "retry immediately" -- a legal configuration, not an error.
+		var calculator = new ExponentialBackoffCalculator(
 			baseDelay: TimeSpan.FromSeconds(1),
-			maxDelay: TimeSpan.Zero));
+			maxDelay: TimeSpan.Zero);
+
+		calculator.CalculateDelay(1).ShouldBe(TimeSpan.Zero);
 	}
 
 	[Fact]

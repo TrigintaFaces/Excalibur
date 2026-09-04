@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch.Transport.Aws;
 
-using AwsPollingStatus = Excalibur.Dispatch.Transport.Aws.SqsPollingStatus;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Core;
 
@@ -30,20 +29,6 @@ public sealed class AwsEnumsShould
 		((int)unit).ShouldBe(expected);
 	}
 
-	[Theory]
-	[InlineData(AwsPollingStatus.Inactive, 0)]
-	[InlineData(AwsPollingStatus.Active, 1)]
-	[InlineData(AwsPollingStatus.Stopping, 2)]
-	[InlineData(AwsPollingStatus.Error, 3)]
-	public void HaveCorrectPollingStatusValues(AwsPollingStatus status, int expected)
-	{
-		((int)status).ShouldBe(expected);
-	}
 
-	[Fact]
-	public void HaveAllPollingStatusMembers()
-	{
-		Enum.GetValues<AwsPollingStatus>().Length.ShouldBe(4);
-	}
 
 }

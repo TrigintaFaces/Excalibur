@@ -234,7 +234,6 @@ Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::CleanupInterval
 Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::EnableAutomaticCleanup
 Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::MaxEntries
 Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions::RetentionPeriod
-Excalibur.Dispatch.Options.Delivery.MessageEnvelopeOptions::PoolContexts
 Excalibur.Dispatch.Options.Middleware.AuthenticationOptions::DefaultScheme
 Excalibur.Dispatch.Options.Middleware.AuthenticationOptions::MaxCacheSize
 Excalibur.Dispatch.Options.Middleware.AuthenticationOptions::TokenHeader
@@ -246,7 +245,6 @@ Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::CompressMessageData
 Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions::MaxOutboundMessagesPerOperation
 Excalibur.Dispatch.Options.Middleware.ValidationOptions::BypassValidationForTypes
 Excalibur.Dispatch.Options.Resilience.RetryCircuitBreakerOptions::EnableCircuitBreaker
-Excalibur.Dispatch.Options.Resilience.RetryOptions::UseJitter
 Excalibur.Dispatch.Options.Resilience.RetryPolicyOptions::RetryStrategy
 Excalibur.Dispatch.Options.TransportBindingOptions::Enabled
 Excalibur.Dispatch.Options.TransportBindingOptions::MaxConcurrency
@@ -262,7 +260,6 @@ Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions::RetentionPeriod
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions::Operations
 Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions::SerializerContext
 Excalibur.Dispatch.Pooling.ContextPoolingOptions::Enabled
-Excalibur.Dispatch.Resilience.Polly.BulkheadOptions::AllowQueueing
 Excalibur.Dispatch.Resilience.Polly.BulkheadOptions::PrioritySelector
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions::Levels
 Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions::MinimumLevelDuration
@@ -273,9 +270,6 @@ Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::DefaultTimeoutSeconds
 Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::EnableCircuitBreaker
 Excalibur.Dispatch.Resilience.Polly.ResilienceOptions::Enabled
 Excalibur.Dispatch.Resilience.Polly.RetryOptions::EnableDetailedLogging
-Excalibur.Dispatch.Routing.LoadBalancing.RouteHealthMonitorOptions::HealthyThreshold
-Excalibur.Dispatch.Routing.LoadBalancing.RouteHealthMonitorOptions::UnhealthyThreshold
-Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions::MinWaitTimeSeconds
 Excalibur.Dispatch.Transport.BatchCollectionOptions::CollectionTimeout
 Excalibur.Dispatch.Transport.BatchCollectionOptions::MaxBatchSize
 Excalibur.Dispatch.Transport.BatchCollectionOptions::MinBatchSize
@@ -432,7 +426,6 @@ Excalibur.EventSourcing.EventNotificationOptions::InlineProjectionWarningThresho
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions::DefaultBatchSize
 Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions::ConnectionString
 Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions::BatchSize
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions::ValidationTimeout
 Excalibur.Inbox.Oracle.OracleInboxOptions::MaxRetryCount
 Excalibur.Inbox.Oracle.OracleInboxOptions::SchemaName
 Excalibur.Outbox.Marten.MartenOutboxStoreOptions::DefaultRetentionPeriod
@@ -440,7 +433,6 @@ Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions::SchemaName
 Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions::SchemaName
 Excalibur.Saga.SagaTimeoutOptions::ShutdownTimeout
 Excalibur.Saga.SqlServer.SqlServerSagaTimeoutStoreOptions::SchemaName
-Excalibur.Security.RateLimitingOptions::InactivityTimeoutMinutes
 Excalibur.Security.SigningOptions::KeyRotationIntervalDays
 #
 # --- ACCEPTED: genuinely un-observable-from-IL cases. Each carries its own rationale above it. ---

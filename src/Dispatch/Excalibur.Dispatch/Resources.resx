@@ -129,12 +129,6 @@
   <data name="TransportAdapterRouter_RoutingFailureType" xml:space="preserve">
     <value>urn:dispatch:error:transport</value>
   </data>
-  <data name="MessageBufferPool_MinimumLengthNonNegative" xml:space="preserve">
-    <value>Minimum length must be non-negative.</value>
-  </data>
-  <data name="MessageBufferPool_RequestExceedsMaxArrayLength" xml:space="preserve">
-    <value>Requested size {0} exceeds maximum allowed size {1}.</value>
-  </data>
   <data name="PooledBufferWriter_CannotAdvancePastEnd" xml:space="preserve">
     <value>Cannot advance past the end of the buffer.</value>
   </data>
@@ -228,11 +222,11 @@
   <data name="ExponentialBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
     <value>Attempt must be at least 1.</value>
   </data>
-  <data name="ExponentialBackoffCalculator_BaseDelayMustBePositive" xml:space="preserve">
-    <value>Base delay must be positive.</value>
+  <data name="ExponentialBackoffCalculator_BaseDelayCannotBeNegative" xml:space="preserve">
+    <value>Base delay cannot be negative.</value>
   </data>
-  <data name="ExponentialBackoffCalculator_MaxDelayMustBePositive" xml:space="preserve">
-    <value>Max delay must be positive.</value>
+  <data name="ExponentialBackoffCalculator_MaxDelayCannotBeNegative" xml:space="preserve">
+    <value>Max delay cannot be negative.</value>
   </data>
   <data name="ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne" xml:space="preserve">
     <value>Multiplier must be at least 1.0.</value>
@@ -240,14 +234,14 @@
   <data name="ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne" xml:space="preserve">
     <value>Jitter factor must be between 0.0 and 1.0.</value>
   </data>
-  <data name="LinearBackoffCalculator_MaxDelayMustBePositive" xml:space="preserve">
-    <value>Max delay must be positive.</value>
+  <data name="LinearBackoffCalculator_MaxDelayCannotBeNegative" xml:space="preserve">
+    <value>Max delay cannot be negative.</value>
   </data>
   <data name="LinearBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
     <value>Attempt must be at least 1.</value>
   </data>
-  <data name="LinearBackoffCalculator_BaseDelayMustBePositive" xml:space="preserve">
-    <value>Base delay must be positive.</value>
+  <data name="LinearBackoffCalculator_BaseDelayCannotBeNegative" xml:space="preserve">
+    <value>Base delay cannot be negative.</value>
   </data>
   <data name="FixedBackoffCalculator_DelayCannotBeNegative" xml:space="preserve">
     <value>Delay cannot be negative.</value>
@@ -255,11 +249,11 @@
   <data name="FixedBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
     <value>Attempt must be at least 1.</value>
   </data>
-  <data name="FibonacciBackoffCalculator_BaseDelayMustBePositive" xml:space="preserve">
-    <value>Base delay must be positive.</value>
+  <data name="FibonacciBackoffCalculator_BaseDelayCannotBeNegative" xml:space="preserve">
+    <value>Base delay cannot be negative.</value>
   </data>
-  <data name="FibonacciBackoffCalculator_MaxDelayMustBePositive" xml:space="preserve">
-    <value>Max delay must be positive.</value>
+  <data name="FibonacciBackoffCalculator_MaxDelayCannotBeNegative" xml:space="preserve">
+    <value>Max delay cannot be negative.</value>
   </data>
   <data name="FibonacciBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
     <value>Attempt must be at least 1.</value>

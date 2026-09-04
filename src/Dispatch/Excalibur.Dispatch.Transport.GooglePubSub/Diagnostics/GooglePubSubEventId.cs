@@ -204,22 +204,6 @@ internal static class GooglePubSubEventId
 	/// <summary>Error processing orphaned work item during OrderingKeyProcessor shutdown drain.</summary>
 	public const int OrphanedWorkProcessingError = 23928;
 
-	// OrderingKeyManager
-	/// <summary>Ordering key manager initialized.</summary>
-	public const int OrderingManagerInitialized = 23320;
-
-	/// <summary>Out-of-sequence message detected.</summary>
-	public const int OutOfSequenceMessage = 23321;
-
-	/// <summary>Ordering key marked as failed.</summary>
-	public const int OrderingKeyFailed = 23322;
-
-	/// <summary>Ordering key reset.</summary>
-	public const int OrderingKeyReset = 23323;
-
-	/// <summary>Ordering key cleanup completed.</summary>
-	public const int OrderingKeyCleanupCompleted = 23324;
-
 	// ========================================
 	// 23400-23499: Batch Receiving
 	// ========================================
@@ -236,41 +220,9 @@ internal static class GooglePubSubEventId
 	/// <summary>Batch size adjusted.</summary>
 	public const int BatchSizeAdjusted = 23403;
 
-	// PubSubBatchReceiver
-	/// <summary>Flow control prevented batch receive.</summary>
-	public const int FlowControlPreventedReceive = 23410;
-
-	/// <summary>Batch acknowledged.</summary>
-	public const int BatchAcknowledged = 23411;
-
-	/// <summary>Acknowledgments failed.</summary>
-	public const int BatchAcknowledgmentsFailed = 23412;
-
-	/// <summary>Ack deadline modified.</summary>
-	public const int BatchAckDeadlineModified = 23413;
-
-	// AdaptiveBatchingStrategy
-	/// <summary>Flow control limiting batch size.</summary>
-	public const int AdaptiveFlowControlLimit = 23420;
-
-	/// <summary>High memory pressure detected.</summary>
-	public const int AdaptiveMemoryPressure = 23421;
-
-	/// <summary>Batch result recorded.</summary>
-	public const int AdaptiveBatchResult = 23422;
-
-	/// <summary>Adaptive batching strategy reset.</summary>
-	public const int AdaptiveStrategyReset = 23423;
-
-	/// <summary>Batch size adjusted by adaptive strategy.</summary>
-	public const int AdaptiveBatchSizeAdjusted = 23424;
-
 	// ========================================
 	// 23500-23599: Flow Control
 	// ========================================
-
-	/// <summary>Flow control applied.</summary>
-	public const int FlowControlApplied = 23500;
 
 	/// <summary>Flow control released.</summary>
 	public const int FlowControlReleased = 23501;
@@ -333,16 +285,6 @@ internal static class GooglePubSubEventId
 
 	/// <summary>Purged messages from the dead letter queue.</summary>
 	public const int DeadLetterQueuePurged = 23704;
-
-	// RetryPolicyManager
-	/// <summary>Retry attempt logged.</summary>
-	public const int RetryAttemptLogged = 23720;
-
-	/// <summary>Adapted retry policy for low success rate.</summary>
-	public const int RetryAdaptedLowSuccessRate = 23721;
-
-	/// <summary>Adapted retry policy for high success rate.</summary>
-	public const int RetryAdaptedHighSuccessRate = 23722;
 
 	/// <summary>Retry warning logged.</summary>
 	public const int RetryWarning = 23723;

@@ -52,7 +52,11 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 
 		var accessToken = context.AccessToken();
 
-		ActivityName = request.GetType().Name;
+		// A declared message name if the request has one, so renaming or moving the request type does
+		// not split an audit trail into rows that no longer match the ones before it. The simple type
+		// name stays the fallback: it is what every audit row written so far carries, and changing that
+		// default would silently stop new rows matching the existing history.
+		ActivityName = MessageNameHelper.GetDeclaredName(request.GetType()) ?? request.GetType().Name;
 		ApplicationName = context.ApplicationName() ?? "Unknown";
 		ClientAddress = context.ClientAddress();
 		CorrelationId = context.CorrelationId() ?? Guid.Empty;

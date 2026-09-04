@@ -179,8 +179,6 @@ public sealed class SecurityValidateOnStartRegistrationShould
 		_ = services.AddRateLimiting(opts =>
 		{
 			opts.DefaultRetryAfterMilliseconds = 2000;
-			opts.CleanupIntervalMinutes = 10;
-			opts.InactivityTimeoutMinutes = 60;
 		});
 
 		// Act
@@ -190,8 +188,6 @@ public sealed class SecurityValidateOnStartRegistrationShould
 
 		// Assert
 		value.DefaultRetryAfterMilliseconds.ShouldBe(2000);
-		value.CleanupIntervalMinutes.ShouldBe(10);
-		value.InactivityTimeoutMinutes.ShouldBe(60);
 	}
 
 	[Fact]
@@ -213,24 +209,6 @@ public sealed class SecurityValidateOnStartRegistrationShould
 		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
 	}
 
-	[Fact]
-	public void RateLimitingInvalidCleanupInterval_ThrowsOnResolve()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		_ = services.AddRateLimiting(opts =>
-		{
-			opts.CleanupIntervalMinutes = -5; // Violates [Range(1, int.MaxValue)]
-		});
-
-		// Act
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<RateLimitingOptions>>();
-
-		// Assert
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
-	}
 
 	#endregion
 

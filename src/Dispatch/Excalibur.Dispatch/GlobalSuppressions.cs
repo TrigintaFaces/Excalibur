@@ -49,12 +49,6 @@ using System.Diagnostics.CodeAnalysis;
 	SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Logical grouping of telemetry constants",
 		Scope = "type", Target = "~T:Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues")]
 
-// Suppress CA1815 for struct types that don't need equality
-[assembly:
-	SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types",
-		Justification = "These structs are used as handles and don't require value equality", Scope = "type",
-		Target = "~T:Excalibur.Dispatch.Buffers.BufferSegment")]
-
 [assembly:
 	SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Required for configuration binding",
 		Scope = "member", Target = "~P:Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions.GlobalTags")]

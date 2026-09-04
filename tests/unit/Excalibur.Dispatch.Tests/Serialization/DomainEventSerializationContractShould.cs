@@ -70,7 +70,6 @@ public sealed class DomainEventSerializationContractShould
 		deserialized.AggregateId.ShouldBe(original.AggregateId);
 		deserialized.Version.ShouldBe(original.Version);
 		deserialized.OccurredAt.ShouldBe(original.OccurredAt);
-		deserialized.EventType.ShouldBe(original.EventType);
 
 		// Assert - domain-specific properties
 		deserialized.OrderId.ShouldBe("order-456");
@@ -232,7 +231,9 @@ public sealed class DomainEventSerializationContractShould
 		root.TryGetProperty("aggregateId", out _).ShouldBeTrue("Missing 'aggregateId' key");
 		root.TryGetProperty("version", out _).ShouldBeTrue("Missing 'version' key");
 		root.TryGetProperty("occurredAt", out _).ShouldBeTrue("Missing 'occurredAt' key");
-		root.TryGetProperty("eventType", out _).ShouldBeTrue("Missing 'eventType' key");
+		root.TryGetProperty("eventType", out _).ShouldBeFalse(
+			"eventType must NOT be a payload key: identity is declared per-type via [MessageName] and "
+			+ "recorded in the storage envelope. A payload key lets one instance disagree with its type.");
 		root.TryGetProperty("orderId", out _).ShouldBeTrue("Missing 'orderId' key");
 		root.TryGetProperty("amount", out _).ShouldBeTrue("Missing 'amount' key");
 	}
@@ -409,15 +410,33 @@ public sealed class DomainEventSerializationContractShould
 	[Fact]
 	public void ResolveType_ForKnownDomainEvent()
 	{
-		// Arrange — scan opt-in: resolving an unregistered loaded type uses the assembly-scan path.
-		var scanningSerializer = CreateScanningSerializer();
-		var typeName = scanningSerializer.GetTypeName(typeof(SimpleContractEvent));
+		// A declared name is resolved by the REGISTRY. It is not a CLR type name, so it is not
+		// something the assembly scan could ever find -- see
+		// NotResolveADeclaredNameThroughTheAssemblyScan below.
+		var registry = new EventTypeRegistry();
+		registry.Register(typeof(SimpleContractEvent));
+		var registrySerializer = new JsonEventSerializer(registry, options: null, allowAssemblyScan: false);
 
 		// Act
-		var resolved = scanningSerializer.ResolveType(typeName);
+		var resolved = registrySerializer.ResolveType(registrySerializer.GetTypeName(typeof(SimpleContractEvent)));
 
 		// Assert
 		resolved.ShouldBe(typeof(SimpleContractEvent));
+	}
+
+	[Fact]
+	[SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]
+	[SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code")]
+	public void NotResolveADeclaredNameThroughTheAssemblyScan()
+	{
+		// The scan searches LOADED ASSEMBLIES BY CLR TYPE NAME. A declared name deliberately carries
+		// no namespace or assembly, so the scan cannot resolve one -- registration is the only path.
+		// This is RED the moment a derived-name fallback is reintroduced, because a derived name IS a
+		// CLR type name and the scan would start finding it again.
+		var scanningSerializer = CreateScanningSerializer();
+
+		Should.Throw<UnknownEventTypeException>(
+			() => scanningSerializer.ResolveType(MessageNameHelper.GetName(typeof(SimpleContractEvent))));
 	}
 
 	[Fact]
@@ -470,7 +489,6 @@ public sealed class DomainEventSerializationContractShould
 		// Assert
 		deserialized.EventId.ShouldBe("evt-record");
 		deserialized.OccurredAt.ShouldBe(original.OccurredAt);
-		deserialized.EventType.ShouldBe(nameof(OrderCreatedEvent));
 		deserialized.OrderId.ShouldBe("order-rec-1");
 		deserialized.Total.ShouldBe(199.99m);
 	}
@@ -527,7 +545,6 @@ public sealed class DomainEventSerializationContractShould
 		deserialized.AggregateId.ShouldBe("agg-fixed");
 		deserialized.Version.ShouldBe(7);
 		deserialized.OccurredAt.ShouldBe(new DateTimeOffset(2026, 1, 15, 8, 30, 0, TimeSpan.Zero));
-		deserialized.EventType.ShouldBe("SimpleContractEvent");
 		deserialized.OrderId.ShouldBe("order-fixed");
 		deserialized.Amount.ShouldBe(42.50m);
 	}
@@ -572,13 +589,13 @@ public sealed class DomainEventSerializationContractShould
 	/// Simple IDomainEvent implementation for contract testing.
 	/// WARNING: Do NOT rename any properties -- existing tests validate the serialization contract.
 	/// </summary>
+	[MessageName("Test.Serialization.SimpleContractEvent")]
 	private sealed class SimpleContractEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; } = nameof(SimpleContractEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 
 		// Domain-specific properties
@@ -589,13 +606,13 @@ public sealed class DomainEventSerializationContractShould
 	/// <summary>
 	/// Event with explicit JsonPropertyName to test attribute-based contract stability.
 	/// </summary>
+	[MessageName("Test.EventWithJsonPropertyName")]
 	private sealed class EventWithJsonPropertyName : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; } = nameof(EventWithJsonPropertyName);
 		public IDictionary<string, object>? Metadata { get; init; }
 
 		[JsonPropertyName("customerId")]
@@ -606,13 +623,13 @@ public sealed class DomainEventSerializationContractShould
 	/// Simulates a BREAKING CHANGE: the property was renamed from "customer_id" to "client_id".
 	/// Persisted events using the old name will lose data on deserialization.
 	/// </summary>
+	[MessageName("Test.EventWithRenamedProperty")]
 	private sealed class EventWithRenamedProperty : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; } = nameof(EventWithRenamedProperty);
 		public IDictionary<string, object>? Metadata { get; init; }
 
 		// Was previously [JsonPropertyName("customer_id")] -- now changed to "client_id"
@@ -623,6 +640,7 @@ public sealed class DomainEventSerializationContractShould
 	/// <summary>
 	/// DomainEvent record using the abstract base class pattern.
 	/// </summary>
+	[MessageName("Test.DomainEventSerializationContract.OrderCreatedEvent")]
 	private sealed record OrderCreatedEvent(string OrderId, decimal Total) : DomainEvent;
 
 	/// <summary>

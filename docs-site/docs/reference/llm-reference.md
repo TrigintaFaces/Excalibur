@@ -53,8 +53,10 @@ All message types are in namespace `Excalibur.Dispatch`. Handler types are in `E
 | `IDispatchAction<TResponse>` | Query (returns T) | Extends `IDispatchAction` |
 | `IDispatchEvent` | Event (pub/sub) | Extends `IDispatchMessage`. Multiple handlers allowed. |
 | `IDispatchDocument` | Document/batch | Extends `IDispatchMessage`. For ETL, bulk processing. |
-| `IDomainEvent` | Domain event | Extends `IDispatchEvent`. Has `EventId`, `OccurredAt`, `EventType`, `Metadata`, `CorrelationId`, `CausationId`. Carries NO aggregate id or stream version — those are supplied to / assigned by the event store. |
+| `IDomainEvent` | Domain event | Extends `IDispatchEvent`. Has `EventId`, `OccurredAt`, `Metadata`, `CorrelationId`, `CausationId`. Carries NO aggregate id or stream version — those are supplied to / assigned by the event store. |
 | `DomainEvent` | Base record | Abstract record implementing `IDomainEvent` with auto-generated `EventId` (UUID v7). Namespace: `Excalibur.Dispatch`. |
+| `MessageNameAttribute` | Stable name | `[MessageName("Contoso.Orders.OrderCreated")]`. Required on every registered event type; it is the name used by the event store, the outbox `MessageType`, and the CloudEvents `type`. Namespace: `Excalibur.Dispatch`. |
+| `MessageNameAliasAttribute` | Retired name | `[MessageNameAlias("Contoso.Crm.CustomerCreated")]`. Repeatable, read-side only — lets data written under an old name stay readable. |
 | `IActionHandler<TAction>` | Command handler | 1 method: `Task HandleAsync(TAction action, CancellationToken cancellationToken)` |
 | `IActionHandler<TAction, TResult>` | Query handler | 1 method: `Task<TResult> HandleAsync(TAction action, CancellationToken cancellationToken)` |
 | `IEventHandler<TEvent>` | Event handler | 1 method: `Task HandleAsync(TEvent eventMessage, CancellationToken cancellationToken)` |
@@ -74,7 +76,7 @@ Domain building blocks are in namespace `Excalibur.Domain.Model`.
 | `EntityBase<TKey>` | Entity base | Abstract `Key` property, equality by type + key |
 | `EntityBase` | String-key shorthand | Extends `EntityBase<string>` |
 | `ValueObjectBase` | Value object base | Abstract `GetEqualityComponents()`, component-based equality, `==`/`!=` operators |
-| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7), `OccurredAt` (UTC via `TimeProvider`), `EventType` (class name). Put event data in the record's own properties. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch`. |
+| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7) and `OccurredAt` (UTC via `TimeProvider`). Its stored name comes from the required `[MessageName]` attribute. Put event data in the record's own properties. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch`. |
 | `ISnapshot` | Snapshot interface | `SnapshotId`, `AggregateId`, `AggregateType`, `Version`, `CreatedAt`, `Data` |
 
 :::note Two DomainEvent base types
@@ -202,6 +204,7 @@ public class GetOrderHandler : IActionHandler<GetOrder, Order>
 }
 
 // 3. Event (multiple handlers, pub/sub)
+[MessageName("Contoso.Orders.OrderPlaced")]
 public record OrderPlaced(string OrderId) : IDispatchEvent;
 
 public class OrderPlacedHandler : IEventHandler<OrderPlaced>
@@ -290,7 +293,17 @@ arrives as **500**. When no status was determined, `ProblemDetails` is `null` an
 falls back to 500 — the safe direction, and never the caller's fault by accident.
 :::
 
-The 2-parameter `DispatchAsync(message, cancellationToken)` extension methods use ambient context (`MessageContextHolder.Current`) or create a new one automatically. These are the recommended dispatch methods for most use cases.
+The 2-parameter `DispatchAsync(message, cancellationToken)` extension methods reuse the current
+message context when one is available, and otherwise create a fresh root context. These are the
+recommended dispatch methods for most use cases.
+
+A context is available inside a handler **only when that handler declared it wants one** — by
+taking `IMessageContext` as a settable property, or by injecting `IMessageContextAccessor`. A
+handler that declares neither runs on a faster path with no context established, so a nested
+`DispatchAsync(message, cancellationToken)` from inside it starts a new root rather than a child.
+When generating a handler that dispatches follow-up messages and needs the causal chain, inject
+`IMessageContextAccessor` — or pass the parent explicitly with
+`DispatchAsync(message, context, cancellationToken)`.
 
 ## Aggregate + Event Sourcing Pattern
 
@@ -298,9 +311,11 @@ The 2-parameter `DispatchAsync(message, cancellationToken)` extension methods us
 using Excalibur.Domain.Model;
 using Excalibur.Dispatch;
 
-// 1. Define domain events
+// 1. Define domain events (every event declares its stable name)
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(string OrderId, string CustomerId) : DomainEvent;
 
+[MessageName("Contoso.Orders.ItemAdded")]
 public record ItemAdded(string OrderId, string ItemId) : DomainEvent;
 
 // 2. Define the aggregate
@@ -328,18 +343,25 @@ public class OrderAggregate : AggregateRoot
         switch (domainEvent)
         {
             case OrderCreated e:
+            {
                 CustomerId = e.CustomerId;
                 return true;
+            }
             case ItemAdded e:
+            {
                 Items.Add(e.ItemId);
                 return true;
+            }
             default:
                 return false;
         }
     }
 }
 
-// 3. Use in a handler
+// 3. Define the command the handler accepts
+public record PlaceOrder(string CustomerId) : IDispatchAction;
+
+// 4. Use in a handler
 public class PlaceOrderHandler : IActionHandler<PlaceOrder>
 {
     private readonly IEventSourcedRepository<OrderAggregate> _repository;
@@ -376,6 +398,7 @@ Key points:
 8. **No EntityFramework**: This framework uses **Dapper** for SQL, not EF Core. Never suggest EF migrations or DbContext.
 9. **Blocking async in Dispose**: Use `IAsyncDisposable` with `DisposeAsync()`, never `task.GetAwaiter().GetResult()`.
 10. **Missing aggregate factory**: `AddRepository` requires a factory function: `es.AddRepository<MyAggregate>(key => new MyAggregate(key))`.
+11. **Missing `[MessageName]`**: every registered event type must declare one — registration throws without it. Never write `EventType`; that member no longer exists. See [stable message names](../event-sourcing/domain-events.md#stable-message-names).
 
 ## Deep Dive Links
 

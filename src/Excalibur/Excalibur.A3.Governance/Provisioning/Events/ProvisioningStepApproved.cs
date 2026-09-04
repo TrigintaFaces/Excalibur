@@ -6,6 +6,7 @@ using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Governance.Events;
 
+[MessageName("Excalibur.A3.ProvisioningStepApproved")]
 internal sealed class ProvisioningStepApproved : IDomainEvent
 {
 	public required string RequestId { get; init; }
@@ -16,6 +17,5 @@ internal sealed class ProvisioningStepApproved : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(ProvisioningStepApproved);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

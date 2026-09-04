@@ -18,6 +18,7 @@ namespace ProjectionsSample.Domain;
 /// <summary>
 /// Event raised when a new product is created.
 /// </summary>
+[MessageName("Contoso.Catalog.ProductCreated")]
 public sealed record ProductCreated(
 	Guid ProductId,
 	string Name,
@@ -28,6 +29,7 @@ public sealed record ProductCreated(
 /// <summary>
 /// Event raised when a product's price changes.
 /// </summary>
+[MessageName("Contoso.Catalog.ProductPriceChanged")]
 public sealed record ProductPriceChanged(
 	Guid ProductId,
 	string Category,
@@ -37,6 +39,7 @@ public sealed record ProductPriceChanged(
 /// <summary>
 /// Event raised when stock is added to a product.
 /// </summary>
+[MessageName("Contoso.Catalog.ProductStockAdded")]
 public sealed record ProductStockAdded(
 	Guid ProductId,
 	string Category,
@@ -46,6 +49,7 @@ public sealed record ProductStockAdded(
 /// <summary>
 /// Event raised when stock is removed from a product (e.g., sale).
 /// </summary>
+[MessageName("Contoso.Catalog.ProductStockRemoved")]
 public sealed record ProductStockRemoved(
 	Guid ProductId,
 	string Category,
@@ -56,4 +60,5 @@ public sealed record ProductStockRemoved(
 /// <summary>
 /// Event raised when a product is discontinued.
 /// </summary>
+[MessageName("Contoso.Catalog.ProductDiscontinued")]
 public sealed record ProductDiscontinued(Guid ProductId, string Category, string Reason) : DomainEvent;

@@ -117,6 +117,7 @@ public sealed class ProjectionRebuildErasureShould
 		A.CallTo(() => eventSerializer.ResolveType(ErasedEventMarker.EventType)).MustNotHaveHappened();
 	}
 
+	[MessageName("Test.SubjectTouchedEvent")]
 	private sealed class SubjectTouchedEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
@@ -127,7 +128,6 @@ public sealed class ProjectionRebuildErasureShould
 
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-		public string EventType { get; init; } = nameof(SubjectTouchedEvent);
 
 		public IDictionary<string, object>? Metadata { get; init; }
 	}

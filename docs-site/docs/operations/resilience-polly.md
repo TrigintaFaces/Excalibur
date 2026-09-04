@@ -365,6 +365,23 @@ public interface ITransportCircuitBreakerRegistry
 }
 ```
 
+:::caution The registry holds at most 1024 distinct circuits
+
+Once 1024 circuits exist, a key that is not already present shares one overflow circuit instead of
+allocating another, so the map cannot grow without bound. Protection is preserved but coarser: one
+failing key can open the circuit for every other key that landed in the overflow.
+
+This matters when the key is derived from the message. `CircuitBreakerOptions.CircuitKeySelector` is
+a `Func<IDispatchMessage, string>` you supply, so a selector returning a tenant id, a route or any
+other high-cardinality value can exceed the cap. **Return a bounded set of keys** — bucket by route
+family or tenant tier rather than by identity. Transport names, the intended use of this registry,
+are naturally far below the cap.
+
+Diagnostics reflect the sharing: `GetAllStates()` reports the shared circuit under the reserved key
+`__overflow__`, and `TryGet(...)` returns `null` for a key that ended up in it.
+
+:::
+
 **Usage:**
 
 ```csharp
@@ -389,21 +406,16 @@ Administrative operations are on a separate `ITransportCircuitBreakerDiagnostics
 ```csharp
 using Excalibur.Dispatch.Resilience;
 
-// Access via GetService() on the registry instance
-if (registry is IServiceProvider provider)
+// A registry is not obliged to expose diagnostics, so test the instance for the facet.
+// The registries shipped in the box implement it.
+if (registry is ITransportCircuitBreakerDiagnostics diagnostics)
 {
-    var diagnostics = provider.GetService(typeof(ITransportCircuitBreakerDiagnostics))
-        as ITransportCircuitBreakerDiagnostics;
+    var count = diagnostics.Count;
+    var states = diagnostics.GetAllStates();
+    var names = diagnostics.GetTransportNames();
 
-    if (diagnostics is not null)
-    {
-        var count = diagnostics.Count;
-        var states = diagnostics.GetAllStates();
-        var names = diagnostics.GetTransportNames();
-
-        diagnostics.ResetAll();
-        diagnostics.Remove("OldTransport");
-    }
+    diagnostics.ResetAll();
+    diagnostics.Remove("OldTransport");
 }
 ```
 
@@ -475,13 +487,16 @@ services.AddBulkhead("external-api", options =>
 |----------|------|---------|-------------|
 | `MaxConcurrency` | `int` | `10` | Maximum operations executing concurrently (must be ≥ 1) |
 | `MaxQueueLength` | `int` | `50` | Maximum callers allowed to wait for a slot (must be ≥ 0) |
+| `AllowQueueing` | `bool` | `true` | Whether callers may wait at all. Set `false` to reject immediately once `MaxConcurrency` is reached, ignoring `MaxQueueLength` |
 
-:::info `MaxQueueLength` is a hard admission bound
-Queue admission is atomic: a caller that finds no free execution slot reserves a queue slot with an
-interlocked increment and is rejected with `BulkheadRejectedException` the instant the post-increment
-count exceeds `MaxQueueLength`. Concurrent callers can no longer all pass a stale check-then-act gate
-and overshoot the limit, so the in-flight waiter count (surfaced as `BulkheadMetrics.QueueLength` and
-`HasCapacity`) is accurate under contention.
+:::info `MaxQueueLength` is a hard admission bound, and the queue is FIFO
+Admission is handled by `System.Threading.RateLimiting.ConcurrencyLimiter`, so the bound holds under
+contention rather than depending on a check-then-act gate: a caller arriving when the queue is full is
+rejected immediately with `BulkheadRejectedException`, and the waiter count surfaced through
+`BulkheadMetrics.QueueLength` and `HasCapacity` reflects the limiter's own accounting.
+
+Waiters are admitted oldest-first, so the queue is FIFO. A caller already waiting is never evicted to
+make room for one that arrives later — the newcomer is rejected instead.
 :::
 
 The bulkhead manager (resolved via DI as `IBulkheadManager`) manages named bulkhead isolations to prevent one slow operation from consuming all available threads.

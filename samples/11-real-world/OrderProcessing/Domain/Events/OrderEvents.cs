@@ -15,6 +15,7 @@ namespace OrderProcessingSample.Domain.Events;
 /// <summary>
 /// Raised when a new order is created.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreated(
 	Guid OrderId,
 	Guid CustomerId,
@@ -28,16 +29,19 @@ public sealed record OrderCreated(
 /// <summary>
 /// Raised when order validation succeeds.
 /// </summary>
+[MessageName("Contoso.Orders.OrderValidated")]
 public sealed record OrderValidated(Guid OrderId) : DomainEvent;
 
 /// <summary>
 /// Raised when order validation fails.
 /// </summary>
+[MessageName("Contoso.Orders.OrderValidationFailed")]
 public sealed record OrderValidationFailed(Guid OrderId, string Reason) : DomainEvent;
 
 /// <summary>
 /// Raised when payment is successfully processed.
 /// </summary>
+[MessageName("Contoso.Payments.PaymentProcessed")]
 public sealed record PaymentProcessed(
 	Guid OrderId,
 	string TransactionId,
@@ -46,11 +50,13 @@ public sealed record PaymentProcessed(
 /// <summary>
 /// Raised when payment fails.
 /// </summary>
+[MessageName("Contoso.Payments.PaymentFailed")]
 public sealed record PaymentFailed(Guid OrderId, string Reason) : DomainEvent;
 
 /// <summary>
 /// Raised when the order is shipped.
 /// </summary>
+[MessageName("Contoso.Orders.OrderShipped")]
 public sealed record OrderShipped(
 	Guid OrderId,
 	string TrackingNumber,
@@ -59,11 +65,13 @@ public sealed record OrderShipped(
 /// <summary>
 /// Raised when the order is delivered and completed.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCompleted")]
 public sealed record OrderCompleted(Guid OrderId) : DomainEvent;
 
 /// <summary>
 /// Raised when an order is cancelled.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCancelled")]
 public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 
 /// <summary>

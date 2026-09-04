@@ -16,7 +16,6 @@ public sealed class EventBuilderShould
 		evt.ShouldNotBeNull();
 		evt.EventId.ShouldNotBeNullOrEmpty();
 		evt.AggregateId.ShouldNotBeNullOrEmpty();
-		evt.EventType.ShouldBe("TestEvent");
 		evt.Data.ShouldBe(string.Empty);
 		evt.OccurredAt.ShouldNotBe(default);
 	}
@@ -62,15 +61,9 @@ public sealed class EventBuilderShould
 		evt.OccurredAt.ShouldBe(ts);
 	}
 
-	[Fact]
-	public void SetEventType()
-	{
-		var evt = new EventBuilder()
-			.WithEventType("OrderPlaced")
-			.Build();
-
-		evt.EventType.ShouldBe("OrderPlaced");
-	}
+	// WithEventType is deleted: a builder that stamps a per-instance name is the exact capability
+	// the declared-identity change removes. A built event's name comes from [MessageName] on its
+	// type, which no builder call can vary. Covered by StableEventTypeIdentityShould.
 
 	[Fact]
 	public void SetData()
@@ -114,7 +107,6 @@ public sealed class EventBuilderShould
 			.WithEventId("evt-1")
 			.WithAggregateId("agg-1")
 			.WithVersion(1)
-			.WithEventType("Test")
 			.WithData("payload")
 			.WithMetadata("k", "v")
 			.Build();
@@ -129,13 +121,11 @@ public sealed class EventBuilderShould
 	{
 		var events = new EventBuilder()
 			.WithAggregateId("agg-shared")
-			.WithEventType("BatchEvent")
 			.WithData("data")
 			.BuildMany(5);
 
 		events.Count.ShouldBe(5);
 		events.ShouldAllBe(e => e.AggregateId == "agg-shared");
-		events.ShouldAllBe(e => e.EventType == "BatchEvent");
 	}
 
 	[Fact]

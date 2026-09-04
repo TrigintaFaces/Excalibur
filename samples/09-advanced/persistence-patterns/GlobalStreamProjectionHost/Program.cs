@@ -141,23 +141,23 @@ public sealed class SystemMetricsProjection(
 // Domain Events
 // ============================================================================
 
+[MessageName("Contoso.Orders.OrderPlaced")]
 public sealed record OrderPlaced(string OrderId, string AggregateId, decimal Amount)
     : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
     public long Version { get; init; }
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType => nameof(OrderPlaced);
     public IDictionary<string, object>? Metadata { get; init; }
 }
 
+[MessageName("Contoso.Payments.PaymentReceived")]
 public sealed record PaymentReceived(string PaymentId, string AggregateId, decimal Amount)
     : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
     public long Version { get; init; }
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType => nameof(PaymentReceived);
     public IDictionary<string, object>? Metadata { get; init; }
 }
 

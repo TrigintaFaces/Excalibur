@@ -10,6 +10,8 @@ using Excalibur.EventSourcing.Implementation;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Options;
+
 using Shouldly;
 
 using Xunit;
@@ -60,6 +62,7 @@ namespace Excalibur.EventSourcing.Tests.Implementation;
 [Trait("Component", "EventSourcing")]
 public sealed class EventSourcedRepositoryDisposedOutboxStoreShould
 {
+	[MessageName("Test.Es.DisposedOutboxIntegrationEvent")]
 	internal sealed record OutboxIntegrationEvent : DomainEvent, IIntegrationEvent
 	{
 		public string Payload { get; init; } = string.Empty;
@@ -113,8 +116,8 @@ public sealed class EventSourcedRepositoryDisposedOutboxStoreShould
 			eventStore,
 			A.Fake<IEventSerializer>(),
 			id => new OutboxAggregate(id),
-			outboxStore: outboxStore,
-			outboxStagingStrategy: OutboxStagingStrategy.EventuallyConsistent);
+			Options.Create(new EventSourcedRepositoryOptions { OutboxStagingStrategy = OutboxStagingStrategy.EventuallyConsistent }),
+			outboxStore: outboxStore);
 
 		// Act + Assert — the disposed/faulted store must surface, NOT be silently swallowed as a dup-id no-op.
 		_ = await Should.ThrowAsync<ObjectDisposedException>(
@@ -146,8 +149,8 @@ public sealed class EventSourcedRepositoryDisposedOutboxStoreShould
 			eventStore,
 			A.Fake<IEventSerializer>(),
 			id => new OutboxAggregate(id),
-			outboxStore: outboxStore,
-			outboxStagingStrategy: OutboxStagingStrategy.EventuallyConsistent);
+			Options.Create(new EventSourcedRepositoryOptions { OutboxStagingStrategy = OutboxStagingStrategy.EventuallyConsistent }),
+			outboxStore: outboxStore);
 
 		// Act + Assert — the duplicate-id contract is still treated as an idempotent no-op: SaveAsync completes,
 		// the append happened, and the events are committed. The fix must NOT over-narrow this legitimate path.

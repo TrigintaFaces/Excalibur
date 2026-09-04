@@ -39,6 +39,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private readonly ConcurrentDictionary<int, ConcurrentQueue<Utf8JsonWriter>> _globalPool;
 	private readonly ThreadLocal<WriterCache> _threadLocalCache;
 	private readonly JsonWriterOptions _defaultOptions;
+	private readonly JsonWriterOptions _normalizedDefaultOptions;
 	private readonly Meter? _meter;
 	private readonly Counter<long>? _rentThreadLocalCounter;
 	private readonly Counter<long>? _rentGlobalCounter;
@@ -157,6 +158,8 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 				description: "Peak pool size observed");
 		}
 
+		_normalizedDefaultOptions = NormalizeOptions(_defaultOptions);
+
 		// Set up adaptive sizing timer
 		if (_enableAdaptiveSizing)
 		{
@@ -194,11 +197,18 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		_ = Interlocked.Increment(ref _totalRented);
 		var requestedOptions = options ?? _defaultOptions;
 
+		// Pooled writers report their options through Utf8JsonWriter.Options, which the BCL has
+		// normalized (MaxDepth 0 becomes 1000, NewLine picks up the platform default). Matching a
+		// raw request against that never succeeds, so match on the normalized form instead.
+		var matchOptions = options is null || AreOptionsEqual(requestedOptions, _defaultOptions)
+			? _normalizedDefaultOptions
+			: NormalizeOptions(requestedOptions);
+
 		// Fast path: Try thread-local cache first
 		if (_threadLocalCacheSize > 0)
 		{
 			var cache = _threadLocalCache.Value!;
-			var writer = cache.TryRent(requestedOptions);
+			var writer = cache.TryRent(matchOptions);
 			if (writer != null)
 			{
 				_ = Interlocked.Increment(ref _threadLocalHits);
@@ -211,7 +221,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		}
 
 		// Slow path: Try global pool
-		if (TryRentFromGlobalPool(bufferWriter, requestedOptions, out var pooledWriter))
+		if (TryRentFromGlobalPool(bufferWriter, matchOptions, out var pooledWriter))
 		{
 			RecordRental(fromThreadLocal: false);
 			return pooledWriter;
@@ -385,43 +395,43 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	}
 
 	/// <summary>
-	/// Returns the assumed <see cref="JsonWriterOptions"/> for a given writer.
+	/// A writer parked in a pool must not keep the buffer of the caller that returned it alive, and must
+	/// not be able to write into it. Returned writers are rebound to this sentinel until the next rent
+	/// rebinds them to the new caller's buffer. Nothing is ever written to it, so sharing it is safe.
 	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// <b>Why this is a stub:</b> <see cref="Utf8JsonWriter"/> does not expose its
-	/// <see cref="JsonWriterOptions"/> after construction. The <c>Options</c> property was added
-	/// in .NET 8 but is a copy-struct and does not round-trip the <see cref="System.Text.Encodings.Web.JavaScriptEncoder"/>
-	/// reference reliably across pool return/rent cycles. Rather than risk incorrect option-matching
-	/// in the pool (which would cause silent data corruption if writers are bucketed by mismatched
-	/// options), we return the pool's default options. This is safe because:
-	/// </para>
-	/// <list type="bullet">
-	/// <item><description>Writers are bucketed by <see cref="GetOptionsHashCode"/> at return time.</description></item>
-	/// <item><description>At rent time, the writer is <see cref="Utf8JsonWriter.Reset()"/>-ed with the caller's requested options.</description></item>
-	/// <item><description>The only impact is that writers created with non-default options may not be reused from the
-	/// thread-local cache (they will fall through to the global pool or be newly allocated).</description></item>
-	/// </list>
-	/// <para>
-	/// If .NET exposes a reliable way to read back the full options (including Encoder) from a writer,
-	/// this method should be updated to use it.
-	/// </para>
-	/// </remarks>
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter",
-		Justification = "Writer parameter reserved for future implementation of extracting options from existing Utf8JsonWriter instances")]
-	private static JsonWriterOptions ExtractWriterOptions(Utf8JsonWriter writer) =>
-		new() { Indented = false, SkipValidation = false, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, MaxDepth = 64 };
+	private static readonly ArrayBufferWriter<byte> DetachedBuffer = new(1);
+
+	/// <summary>
+	/// Returns the options as <see cref="Utf8JsonWriter"/> itself reports them, which is the form every
+	/// pooled writer is bucketed and matched by. Asking the writer is the only way to get this right --
+	/// the normalization rules are the BCL's, not ours.
+	/// </summary>
+	private static JsonWriterOptions NormalizeOptions(JsonWriterOptions options)
+	{
+		using var probe = new Utf8JsonWriter(DetachedBuffer, options);
+		return probe.Options;
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool AreOptionsEqual(JsonWriterOptions options1, JsonWriterOptions options2) =>
 		options1.Indented == options2.Indented &&
 		options1.SkipValidation == options2.SkipValidation &&
 		options1.MaxDepth == options2.MaxDepth &&
+		options1.IndentCharacter == options2.IndentCharacter &&
+		options1.IndentSize == options2.IndentSize &&
+		options1.NewLine == options2.NewLine &&
 		ReferenceEquals(options1.Encoder, options2.Encoder);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static int GetOptionsHashCode(JsonWriterOptions options) =>
-		HashCode.Combine(options.Indented, options.SkipValidation, options.MaxDepth, RuntimeHelpers.GetHashCode(options.Encoder));
+		HashCode.Combine(
+			options.Indented,
+			options.SkipValidation,
+			options.MaxDepth,
+			options.IndentCharacter,
+			options.IndentSize,
+			options.NewLine,
+			options.Encoder is null ? 0 : RuntimeHelpers.GetHashCode(options.Encoder));
 
 	private bool TryRentFromGlobalPool(IBufferWriter<byte> bufferWriter, JsonWriterOptions requestedOptions, out Utf8JsonWriter writer)
 	{
@@ -451,11 +461,9 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		// Try to add to pool
 		if (Interlocked.Increment(ref _currentPoolSize) <= MaxPoolSize)
 		{
-			var dummyBuffer = new ArrayBufferWriter<byte>();
-			writer.Reset(dummyBuffer);
+			writer.Reset(DetachedBuffer);
 
-			var options = ExtractWriterOptions(writer);
-			var key = GetOptionsHashCode(options);
+			var key = GetOptionsHashCode(writer.Options);
 			var queue = _globalPool.BoundedGetOrAdd(key, static _ => new ConcurrentQueue<Utf8JsonWriter>(), maxEntries: 16);
 			queue.Enqueue(writer);
 
@@ -655,8 +663,8 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 				return false;
 			}
 
-			var options = ExtractWriterOptions(writer);
-			_cache[_count++] = new PooledWriterEntry(writer, options);
+			writer.Reset(DetachedBuffer);
+			_cache[_count++] = new PooledWriterEntry(writer, writer.Options);
 			return true;
 		}
 

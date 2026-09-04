@@ -1,9 +1,11 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.InMemory.Snapshots;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.InMemory;
+
+using Excalibur.Dispatch;
 
 namespace Excalibur.MultiTenancy.Tests;
 
@@ -187,13 +189,13 @@ public sealed class InMemoryStoreTenantAdmissionShould
     /// A minimal domain event implementing the interface directly rather than through a first-party base, so
     /// the round trip binds the contract the store actually persists.
     /// </summary>
+    [MessageName("Test.InMemoryStoreTenantAdmission.TestEvent")]
     private sealed class TestEvent : IDomainEvent
     {
         public string EventId { get; } = Guid.NewGuid().ToString();
 
         public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
 
-        public string EventType => nameof(TestEvent);
 
         public IDictionary<string, object>? Metadata => null;
     }

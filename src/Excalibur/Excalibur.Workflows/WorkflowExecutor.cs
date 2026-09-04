@@ -259,7 +259,7 @@ internal sealed class WorkflowExecutor : IWorkflowExecutor
         foreach (var se in stored)
         {
             // StoredEvent.EventType is the assembly-qualified type name the store wrote (via
-            // EventTypeNameHelper), not a journal discriminator. Resolve it against the engine's own closed
+            // MessageNameHelper), not a journal discriminator. Resolve it against the engine's own closed
             // set of journal types — a workflow host is not required to register these with the event
             // serializer, so the engine owns the resolution — then let the serializer deserialize the bytes.
             // A workflow journal drives side effects on replay: a journaled activity completion is what

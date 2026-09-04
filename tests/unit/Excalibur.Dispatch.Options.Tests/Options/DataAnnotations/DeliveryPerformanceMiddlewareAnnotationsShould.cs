@@ -121,24 +121,4 @@ public sealed class DeliveryPerformanceMiddlewareAnnotationsShould
 	}
 
 	#endregion
-
-	#region MessageEnvelopePoolOptions
-
-	[Fact]
-	public void MessageEnvelopePool_Succeed_WithDefaults()
-	{
-		var options = new MessageEnvelopePoolOptions();
-		TryValidate(options, out var results).ShouldBeTrue();
-		results.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void MessageEnvelopePool_Fail_WhenThreadLocalCacheSizeIsZero()
-	{
-		var options = new MessageEnvelopePoolOptions { ThreadLocalCacheSize = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(MessageEnvelopePoolOptions.ThreadLocalCacheSize)));
-	}
-
-	#endregion
 }

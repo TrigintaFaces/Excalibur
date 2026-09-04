@@ -820,6 +820,7 @@ public sealed class MaterializedViewProcessorShould
 
     #region Test Events
 
+    [MessageName("Test.Es.MvOrderCreatedEvent")]
     private sealed record OrderCreatedEvent(
         string AggregateId,
         string ProductName,
@@ -828,31 +829,30 @@ public sealed class MaterializedViewProcessorShould
         public string EventId { get; init; } = Guid.NewGuid().ToString();
         public long Version { get; init; } = 1;
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-        public string EventType => nameof(OrderCreatedEvent);
         public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
     }
 
     /// <summary>
     /// Event that returns null from GetViewId — tests the null-viewId skip path.
     /// </summary>
+    [MessageName("Test.Es.OrderNullViewIdEvent")]
     private sealed record OrderNullViewIdEvent(string AggregateId) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
         public long Version { get; init; } = 1;
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-        public string EventType => nameof(OrderNullViewIdEvent);
         public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
     }
 
     /// <summary>
     /// Event that no builder handles — tests the unknown event skip path.
     /// </summary>
+    [MessageName("Test.Es.MvUnknownEvent")]
     private sealed record UnknownEvent(string AggregateId) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
         public long Version { get; init; } = 1;
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-        public string EventType => nameof(UnknownEvent);
         public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
     }
 
@@ -1092,7 +1092,7 @@ public sealed class MaterializedViewProcessorShould
         }
 
         public byte[] SerializeEvent(IDomainEvent domainEvent) =>
-            System.Text.Encoding.UTF8.GetBytes(domainEvent.EventType);
+            System.Text.Encoding.UTF8.GetBytes(MessageNameHelper.GetName(domainEvent.GetType()));
 
         public IDomainEvent DeserializeEvent(byte[] data, Type eventType)
         {

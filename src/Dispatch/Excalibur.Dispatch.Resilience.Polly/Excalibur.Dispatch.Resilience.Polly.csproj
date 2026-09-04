@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Polly" />
+    <PackageReference Include="System.Threading.RateLimiting" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />

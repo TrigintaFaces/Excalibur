@@ -8,6 +8,7 @@ using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Implementation;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 using Shouldly;
 
@@ -36,8 +37,15 @@ public sealed class AggregateHandlerShould
 	private static EventSourcedRepository<Widget, string> NewRepository(IEventStore store)
 		=> new(
 			store,
-			new JsonEventSerializer(allowAssemblyScan: true),
-			id => new Widget(id));
+			new JsonEventSerializer(
+				// A declared name resolves through the registry, never through the assembly scan --
+				// the scan matches CLR type names and a declared name deliberately is not one.
+				new ServiceCollection().AddEventTypes(typeof(WidgetCreated), typeof(WidgetRenamed))
+					.BuildServiceProvider().GetRequiredService<IEventTypeRegistry>(),
+				options: null,
+				allowAssemblyScan: false),
+			id => new Widget(id),
+			Options.Create(new EventSourcedRepositoryOptions()));
 
 	private static ServiceProvider BuildHandlerProvider(
 		EventSourcedRepository<Widget, string> repository,
@@ -178,21 +186,21 @@ public sealed class AggregateHandlerShould
 		}
 	}
 
+	[MessageName("Test.WidgetCreated")]
 	private sealed record WidgetCreated(string AggregateId) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "WidgetCreated";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
+	[MessageName("Test.WidgetRenamed")]
 	private sealed record WidgetRenamed(string AggregateId, string Name) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "WidgetRenamed";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

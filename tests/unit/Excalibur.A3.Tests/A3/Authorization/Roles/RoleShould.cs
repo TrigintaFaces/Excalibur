@@ -68,7 +68,8 @@ public sealed class RoleShould : UnitTestBase
 		created.TenantId.ShouldBe("t1");
 		created.ActivityGroupNames.Count.ShouldBe(2);
 		created.CreatedBy.ShouldBe("creator");
-		created.EventType.ShouldBe("RoleCreated");
+		// The stored name is DECLARED, so it survives renaming the class or moving the assembly.
+		MessageNameHelper.GetName(typeof(RoleCreated)).ShouldBe("Excalibur.A3.RoleCreated");
 	}
 
 	[Theory]

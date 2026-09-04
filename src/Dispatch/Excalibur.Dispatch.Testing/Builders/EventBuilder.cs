@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Testing.Builders;
 
 /// <summary>
@@ -13,7 +15,6 @@ namespace Excalibur.Dispatch.Testing.Builders;
 /// <code>
 /// var domainEvent = new EventBuilder()
 ///     .WithAggregateId("order-123")
-///     .WithEventType("OrderPlaced")
 ///     .WithData("test-payload")
 ///     .Build();
 /// </code>
@@ -25,7 +26,6 @@ public sealed class EventBuilder
 	private string? _aggregateId;
 	private long _version;
 	private DateTimeOffset? _occurredAt;
-	private string _eventType = "TestEvent";
 	private string _data = string.Empty;
 	private IDictionary<string, object>? _metadata;
 
@@ -70,17 +70,6 @@ public sealed class EventBuilder
 	public EventBuilder WithOccurredAt(DateTimeOffset occurredAt)
 	{
 		_occurredAt = occurredAt;
-		return this;
-	}
-
-	/// <summary>
-	/// Sets the event type.
-	/// </summary>
-	/// <param name="eventType">The event type.</param>
-	/// <returns>This builder for chaining.</returns>
-	public EventBuilder WithEventType(string eventType)
-	{
-		_eventType = eventType;
 		return this;
 	}
 
@@ -131,7 +120,6 @@ public sealed class EventBuilder
 			AggregateId = _aggregateId ?? Guid.NewGuid().ToString(),
 			Version = _version,
 			OccurredAt = _occurredAt ?? DateTimeOffset.UtcNow,
-			EventType = _eventType,
 			Data = _data,
 			Metadata = _metadata
 		};
@@ -150,7 +138,6 @@ public sealed class EventBuilder
 			var builder = new EventBuilder()
 				.WithAggregateId(aggregateId)
 				.WithVersion(i)
-				.WithEventType(_eventType)
 				.WithData($"{_data}-{i}");
 
 			if (_metadata is not null)
@@ -167,6 +154,7 @@ public sealed class EventBuilder
 /// <summary>
 /// Test domain event implementation used by the <see cref="EventBuilder"/>.
 /// </summary>
+[MessageName("Excalibur.Dispatch.TestDomainEvent")]
 public sealed class TestDomainEvent : IDomainEvent
 {
 	/// <inheritdoc/>
@@ -187,13 +175,6 @@ public sealed class TestDomainEvent : IDomainEvent
 	/// <inheritdoc/>
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <summary>
-	/// Gets or sets the event type name.
-	/// </summary>
-	public string EventType { get; set; } = "TestEvent";
-
-	/// <inheritdoc/>
-	string IDomainEvent.EventType => EventType;
 
 	/// <inheritdoc/>
 	public IDictionary<string, object>? Metadata { get; set; }

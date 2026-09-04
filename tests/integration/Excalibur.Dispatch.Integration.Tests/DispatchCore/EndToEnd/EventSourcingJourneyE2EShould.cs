@@ -36,7 +36,13 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 		// wpynky/c6wd6f: the secure default rejects unregistered event types (assembly scan OFF). These
 		// E2E event types live in this trusted test assembly, so opt into the assembly scan rather than
 		// registering each type — matching the documented trusted-environment opt-in.
-		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer(allowAssemblyScan: true));
+		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer(
+				// A declared name resolves through the registry, never through the assembly scan --
+				// the scan matches CLR type names and a declared name deliberately is not one.
+				new ServiceCollection().AddEventTypes(typeof(TestOrderCreated), typeof(TestOrderItemAdded), typeof(TestOrderShipped))
+					.BuildServiceProvider().GetRequiredService<IEventTypeRegistry>(),
+				options: null,
+				allowAssemblyScan: false));
 
 		_ = services.AddExcaliburEventSourcing(builder =>
 			builder.AddRepository<TestOrderAggregate, string>(_ => new TestOrderAggregate()));
@@ -292,15 +298,18 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 
 	// ── Test Domain Events ─────────────────────────────────────────────
 
-	public record TestOrderCreated(string OrderId, string CustomerId, decimal Total) : DomainEvent
+[MessageName("Test.TestOrderCreated")]
+public record TestOrderCreated(string OrderId, string CustomerId, decimal Total) : DomainEvent
 	{
 	}
 
-	public record TestOrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent
+[MessageName("Test.TestOrderItemAdded")]
+public record TestOrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent
 	{
 	}
 
-	public record TestOrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent
+[MessageName("Test.TestOrderShipped")]
+public record TestOrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent
 	{
 	}
 

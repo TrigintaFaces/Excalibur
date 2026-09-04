@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.DependencyInjection;
 
 using FakeItEasy;
@@ -34,6 +35,7 @@ namespace Excalibur.EventSourcing.Tests.DependencyInjection;
 [Trait("Component", "EventSourcing")]
 public sealed class HostLessStartupGatesShould
 {
+	[MessageName("Test.Es.HostLessTestEvent")]
 	private sealed record TestEvent;
 
 	/// <summary>Records whether anything started it, so the no-double-start arm is observable.</summary>

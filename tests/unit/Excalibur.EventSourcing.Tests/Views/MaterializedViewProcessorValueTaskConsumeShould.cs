@@ -91,12 +91,12 @@ public sealed class MaterializedViewProcessorValueTaskConsumeShould
 		public CountingView CreateNew() => new();
 	}
 
+	[MessageName("Test.Es.TickEvent")]
 	private sealed record TickEvent(string AggregateId) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(TickEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

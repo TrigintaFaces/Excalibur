@@ -28,39 +28,4 @@ public sealed class DeliveryTypesShould
 		flags.HasFlag(MessageFlags.Encrypted).ShouldBeTrue();
 		flags.HasFlag(MessageFlags.Persistent).ShouldBeFalse();
 	}
-
-	// --- MessageEnvelopePoolStats ---
-
-	[Fact]
-	public void MessageEnvelopePoolStats_DefaultValues()
-	{
-		var stats = new MessageEnvelopePoolStats();
-
-		stats.TotalRentals.ShouldBe(0);
-		stats.TotalReturns.ShouldBe(0);
-		stats.PoolHits.ShouldBe(0);
-		stats.PoolMisses.ShouldBe(0);
-		stats.HitRate.ShouldBe(0);
-		stats.ThreadLocalStats.ShouldNotBeNull();
-		stats.ThreadLocalStats.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void MessageEnvelopePoolStats_SetAllProperties()
-	{
-		var stats = new MessageEnvelopePoolStats
-		{
-			TotalRentals = 1000,
-			TotalReturns = 950,
-			PoolHits = 800,
-			PoolMisses = 200,
-			HitRate = 0.80,
-		};
-
-		stats.TotalRentals.ShouldBe(1000);
-		stats.TotalReturns.ShouldBe(950);
-		stats.PoolHits.ShouldBe(800);
-		stats.PoolMisses.ShouldBe(200);
-		stats.HitRate.ShouldBe(0.80);
-	}
 }

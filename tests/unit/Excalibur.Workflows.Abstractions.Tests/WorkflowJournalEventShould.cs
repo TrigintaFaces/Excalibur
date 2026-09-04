@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Workflows;
 
 namespace Excalibur.Workflows.Abstractions.Tests;
@@ -29,7 +30,8 @@ public sealed class WorkflowJournalEventShould
 			WorkflowName = "OrderFulfillment",
 		};
 
-		started.EventType.ShouldBe("WorkflowStarted");
+		// Declared identity: the stored name must not track the class name.
+		MessageNameHelper.GetName(typeof(WorkflowStarted)).ShouldBe("Excalibur.Workflows.WorkflowStarted");
 		started.Version.ShouldBe(42);
 		started.WorkflowName.ShouldBe("OrderFulfillment");
 		started.DefinitionVersion.ShouldBe(1);

@@ -50,7 +50,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	}
 
 	[Fact]
-	public void BothCircuitBreakersTrackConsecutiveFailures()
+	public async Task BothCircuitBreakersTrackConsecutiveFailures()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
@@ -63,8 +63,8 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		// Act
 		for (var i = 0; i < 3; i++)
 		{
-			defaultCb.RecordFailure(new InvalidOperationException($"Error {i}"));
-			pollyCb.RecordFailure(new InvalidOperationException($"Error {i}"));
+			await defaultCb.FailAsync(new InvalidOperationException($"Error {i}"));
+			await pollyCb.FailAsync(new InvalidOperationException($"Error {i}"));
 		}
 
 		// Assert
@@ -73,7 +73,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	}
 
 	[Fact]
-	public void BothCircuitBreakersResetFailureCountOnSuccess()
+	public async Task BothCircuitBreakersResetFailureCountOnSuccess()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
@@ -84,14 +84,14 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		_disposables.Add(pollyCb);
 
 		// Record failures
-		defaultCb.RecordFailure();
-		defaultCb.RecordFailure();
-		pollyCb.RecordFailure();
-		pollyCb.RecordFailure();
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		await pollyCb.FailAsync().ConfigureAwait(false);
+		await pollyCb.FailAsync().ConfigureAwait(false);
 
 		// Act
-		defaultCb.RecordSuccess();
-		pollyCb.RecordSuccess();
+		await defaultCb.SucceedAsync().ConfigureAwait(false);
+		await pollyCb.SucceedAsync().ConfigureAwait(false);
 
 		// Assert
 		defaultCb.ConsecutiveFailures.ShouldBe(0);
@@ -99,7 +99,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	}
 
 	[Fact]
-	public void BothCircuitBreakersResetToClosedState()
+	public async Task BothCircuitBreakersResetToClosedState()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
@@ -110,10 +110,10 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		_disposables.Add(pollyCb);
 
 		// Open the circuits by exceeding threshold
-		defaultCb.RecordFailure();
-		defaultCb.RecordFailure();
-		pollyCb.RecordFailure();
-		pollyCb.RecordFailure();
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		await defaultCb.FailAsync().ConfigureAwait(false);
+		await pollyCb.FailAsync().ConfigureAwait(false);
+		await pollyCb.FailAsync().ConfigureAwait(false);
 
 		// Act
 		defaultCb.Reset();
@@ -121,7 +121,8 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 
 		// Assert
 		((int)defaultCb.State).ShouldBe((int)CircuitState.Closed);
-		((int)pollyCb.State).ShouldBe((int)Excalibur.Dispatch.Resilience.CircuitState.Closed);
+		((int)await pollyCb.WaitForStateAsync(CircuitState.Closed).ConfigureAwait(false))
+			.ShouldBe((int)Excalibur.Dispatch.Resilience.CircuitState.Closed);
 		defaultCb.ConsecutiveFailures.ShouldBe(0);
 		pollyCb.ConsecutiveFailures.ShouldBe(0);
 	}
@@ -156,7 +157,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	}
 
 	[Fact]
-	public async Task BothCircuitBreakersRecordFailureOnException()
+	public async Task BothCircuitBreakersRecordTheFailureOnException()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 10 };
@@ -407,7 +408,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	}
 
 	[Fact]
-	public void BothRegistriesIsolateTransports()
+	public async Task BothRegistriesIsolateTransports()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions();
@@ -423,8 +424,8 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		var pollyRabbitmq = pollyRegistry.GetOrCreate("rabbitmq");
 		var pollyKafka = pollyRegistry.GetOrCreate("kafka");
 
-		defaultRabbitmq.RecordFailure();
-		pollyRabbitmq.RecordFailure();
+		await defaultRabbitmq.FailAsync().ConfigureAwait(false);
+		await pollyRabbitmq.FailAsync().ConfigureAwait(false);
 
 		// Assert - kafka should be unaffected
 		((ICircuitBreakerDiagnostics)defaultRabbitmq).ConsecutiveFailures.ShouldBe(1);
@@ -434,7 +435,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	}
 
 	[Fact]
-	public void BothRegistriesResetAll()
+	public async Task BothRegistriesResetAll()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions();
@@ -450,10 +451,10 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		var pollyRabbitmq = pollyRegistry.GetOrCreate("rabbitmq");
 		var pollyKafka = pollyRegistry.GetOrCreate("kafka");
 
-		defaultRabbitmq.RecordFailure();
-		defaultKafka.RecordFailure();
-		pollyRabbitmq.RecordFailure();
-		pollyKafka.RecordFailure();
+		await defaultRabbitmq.FailAsync().ConfigureAwait(false);
+		await defaultKafka.FailAsync().ConfigureAwait(false);
+		await pollyRabbitmq.FailAsync().ConfigureAwait(false);
+		await pollyKafka.FailAsync().ConfigureAwait(false);
 
 		// Act
 		defaultRegistry.ResetAll();

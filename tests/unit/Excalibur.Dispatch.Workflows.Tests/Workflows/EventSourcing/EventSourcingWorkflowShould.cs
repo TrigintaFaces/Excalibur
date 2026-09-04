@@ -3,6 +3,8 @@
 
 using System.Collections.Concurrent;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Tests.Workflows.EventSourcing;
 
 /// <summary>
@@ -295,13 +297,19 @@ public sealed class EventSourcingWorkflowShould
 		string AggregateId { get; }
 	}
 
+	[MessageName("Test.EventSourcingWorkflow.OrderCreated")]
 	internal sealed record OrderCreated(string AggregateId, string OrderId, string CustomerId) : IDomainEvent;
+	[MessageName("Test.EventSourcingWorkflow.ItemAdded")]
 	internal sealed record ItemAdded(string AggregateId, string ProductId, int Quantity, decimal Price) : IDomainEvent;
+	[MessageName("Test.OrderSubmitted")]
 	internal sealed record OrderSubmitted(string AggregateId) : IDomainEvent;
 
 	// Event versions for upcasting test
+	[MessageName("Test.ProductPriceChangedV1")]
 	internal sealed record ProductPriceChangedV1(string AggregateId, string ProductId, decimal NewPrice) : IDomainEvent;
+	[MessageName("Test.ProductPriceChangedV2")]
 	internal sealed record ProductPriceChangedV2(string AggregateId, string ProductId, decimal NewPrice, string Currency) : IDomainEvent;
+	[MessageName("Test.ProductPriceChangedV3")]
 	internal sealed record ProductPriceChangedV3(string AggregateId, string ProductId, decimal NewPrice, string Currency, string Reason) : IDomainEvent;
 
 	#endregion Domain Events
@@ -411,6 +419,7 @@ public sealed class EventSourcingWorkflowShould
 
 		public void ClearUncommittedEvents() => _uncommittedEvents.Clear();
 
+		[MessageName("Test.EventSourcingWorkflow.CounterIncremented")]
 		private sealed record CounterIncremented(string AggregateId) : IDomainEvent;
 	}
 

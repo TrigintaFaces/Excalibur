@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Threading.RateLimiting;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,13 +20,13 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 	private readonly BulkheadOptions _options;
 	private readonly ILogger _logger;
 	private readonly ResiliencePipeline _pipeline;
-	private readonly SemaphoreSlim _semaphore;
+	private readonly ConcurrencyLimiter _limiter;
+	private readonly int _queueLimit;
 	private volatile bool _disposed;
 	private long _totalExecutions;
 	private long _rejectedExecutions;
 	private long _queuedExecutions;
 	private int _activeExecutions;
-	private int _pendingWaiters;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="BulkheadPolicy" /> class.
@@ -38,17 +40,35 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger.Instance;
 
-		_semaphore = new SemaphoreSlim(_options.MaxConcurrency, _options.MaxConcurrency);
+		// Queueing is a configured capability, so a bulkhead with it turned off admits no waiters at all.
+		_queueLimit = _options.AllowQueueing ? _options.MaxQueueLength : 0;
 
-		// Build Polly pipeline with bulkhead - using simple semaphore approach for now Polly 8 doesn't have direct bulkhead/concurrency
-		// limiter in the same way
+		_limiter = new ConcurrencyLimiter(new ConcurrencyLimiterOptions
+		{
+			PermitLimit = _options.MaxConcurrency,
+			QueueLimit = _queueLimit,
+
+			// OldestFirst is the only order that rejects the arriving caller when the queue is full.
+			// NewestFirst would evict a caller that is already waiting to make room for the new one,
+			// which is a different contract from the one this bulkhead advertises. It also makes the
+			// queue FIFO, where the semaphore it replaces left ordering unspecified.
+			QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+		});
+
 		_pipeline = new ResiliencePipelineBuilder()
 			.AddTimeout(_options.OperationTimeout)
 			.Build();
 	}
 
 	/// <inheritdoc />
-	public bool HasCapacity => _semaphore.CurrentCount > 0 || Volatile.Read(ref _pendingWaiters) < _options.MaxQueueLength;
+	public bool HasCapacity
+	{
+		get
+		{
+			var statistics = TryGetStatistics();
+			return statistics is null || statistics.CurrentAvailablePermits > 0 || statistics.CurrentQueuedCount < _queueLimit;
+		}
+	}
 
 	/// <inheritdoc />
 	public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
@@ -58,52 +78,30 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 		_ = Interlocked.Increment(ref _totalExecutions);
 
 		var startTime = DateTimeOffset.UtcNow;
-		var semaphoreAcquired = false;
-		var queued = false;
 
-		// Fast path: try to take an execution slot immediately, without entering the queue.
-		// Wait(0) is non-blocking and atomically decrements the semaphore when a slot is free.
-		if (_semaphore.Wait(0))
+		// A lease that completes synchronously never entered the queue; one that does not, did. The
+		// limiter enforces MaxQueueLength itself, so there is no counter to keep in step with it.
+		var acquisition = _limiter.AcquireAsync(permitCount: 1, cancellationToken);
+		var queued = !acquisition.IsCompleted;
+		if (queued)
 		{
-			semaphoreAcquired = true;
-		}
-		else
-		{
-			// No slot available — atomically reserve a queue slot. Incrementing first and testing the
-			// post-increment value makes MaxQueueLength a HARD bound: concurrent callers cannot all pass a
-			// stale check-then-act gate and overshoot the limit. _pendingWaiters now counts
-			// only true waiters, so GetMetrics().QueueLength / HasCapacity are accurate.
-			var pending = Interlocked.Increment(ref _pendingWaiters);
-			if (pending > _options.MaxQueueLength)
-			{
-				_ = Interlocked.Decrement(ref _pendingWaiters);
-				_ = Interlocked.Increment(ref _rejectedExecutions);
-				LogBulkheadRejected(_name, _options.MaxQueueLength);
-				throw new BulkheadRejectedException($"Bulkhead '{_name}' queue is full");
-			}
-
-			queued = true;
 			_ = Interlocked.Increment(ref _queuedExecutions);
-			LogBulkheadQueueing(_name, pending, _options.MaxQueueLength);
+			LogBulkheadQueueing(_name, (int)(TryGetStatistics()?.CurrentQueuedCount ?? 0), _queueLimit);
+		}
+
+		using var lease = await acquisition.ConfigureAwait(false);
+		if (!lease.IsAcquired)
+		{
+			_ = Interlocked.Increment(ref _rejectedExecutions);
+			LogBulkheadRejected(_name, _queueLimit);
+			throw new BulkheadRejectedException($"Bulkhead '{_name}' queue is full");
 		}
 
 		try
 		{
-			if (!semaphoreAcquired)
-			{
-				// Wait for an execution slot to free up.
-				await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-				semaphoreAcquired = true;
-
-				// Left the queue, entering execution.
-				_ = Interlocked.Decrement(ref _pendingWaiters);
-				queued = false;
-			}
-
 			_ = Interlocked.Increment(ref _activeExecutions);
 			LogBulkheadExecuting(_name, _activeExecutions, _options.MaxConcurrency);
 
-			// Execute with Polly pipeline
 			var result = await _pipeline.ExecuteAsync(
 				async _ => await operation().ConfigureAwait(false),
 				cancellationToken).ConfigureAwait(false);
@@ -115,34 +113,39 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 		}
 		finally
 		{
-			if (semaphoreAcquired)
-			{
-				_ = Interlocked.Decrement(ref _activeExecutions);
-				_ = _semaphore.Release();
-			}
-
-			if (queued)
-			{
-				// Cancellation/exception while still waiting in the queue — leave the queue.
-				_ = Interlocked.Decrement(ref _pendingWaiters);
-			}
+			_ = Interlocked.Decrement(ref _activeExecutions);
 		}
 	}
 
 	/// <inheritdoc />
-	public BulkheadMetrics GetMetrics() =>
-		new()
+	public BulkheadMetrics GetMetrics()
+	{
+		var statistics = TryGetStatistics();
+
+		return new BulkheadMetrics
 		{
 			Name = _name,
 			MaxConcurrency = _options.MaxConcurrency,
 			MaxQueueLength = _options.MaxQueueLength,
-			ActiveExecutions = _activeExecutions,
-			QueueLength = Volatile.Read(ref _pendingWaiters),
-			TotalExecutions = _totalExecutions,
-			RejectedExecutions = _rejectedExecutions,
-			QueuedExecutions = _queuedExecutions,
-			AvailableCapacity = _semaphore.CurrentCount,
+			ActiveExecutions = Volatile.Read(ref _activeExecutions),
+			QueueLength = (int)(statistics?.CurrentQueuedCount ?? 0),
+			TotalExecutions = Interlocked.Read(ref _totalExecutions),
+			RejectedExecutions = Interlocked.Read(ref _rejectedExecutions),
+			QueuedExecutions = Interlocked.Read(ref _queuedExecutions),
+			AvailableCapacity = (int)(statistics?.CurrentAvailablePermits ?? 0),
 		};
+	}
+
+	/// <summary>
+	/// Reads the limiter's live counters, or <see langword="null" /> once the policy is disposed.
+	/// </summary>
+	/// <remarks>
+	/// Reading diagnostics off a disposed bulkhead is a normal thing for a shutdown path to do, and it
+	/// must not throw. The limiter refuses once disposed, so the disposed case reports nothing rather
+	/// than failing.
+	/// </remarks>
+	/// <returns>The limiter statistics, or <see langword="null" /> if this policy has been disposed.</returns>
+	private RateLimiterStatistics? TryGetStatistics() => _disposed ? null : _limiter.GetStatistics();
 
 	/// <inheritdoc />
 	public void Dispose()
@@ -162,27 +165,29 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 			return;
 		}
 
+		// Set before releasing the limiter, so a concurrent metrics read sees "disposed" rather than
+		// reaching a limiter that is already gone.
+		_disposed = true;
+
 		if (disposing)
 		{
-			_semaphore.Dispose();
+			_limiter.Dispose();
 		}
-
-		_disposed = true;
 	}
 
 	/// <summary>
 	/// Asynchronously releases resources used by the bulkhead policy.
 	/// </summary>
-	public ValueTask DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
 		if (_disposed)
 		{
-			return ValueTask.CompletedTask;
+			return;
 		}
 
-		Dispose(disposing: true);
+		_disposed = true;
+		await _limiter.DisposeAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
-		return ValueTask.CompletedTask;
 	}
 
 	// Source-generated logging methods

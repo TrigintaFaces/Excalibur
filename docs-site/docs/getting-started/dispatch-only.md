@@ -71,6 +71,7 @@ app.Run();
 // --- Actions ---
 public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
 public record GetOrderQuery(Guid OrderId) : IDispatchAction<OrderDto>;
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(Guid OrderId) : IDispatchEvent;
 
 // --- Handlers ---

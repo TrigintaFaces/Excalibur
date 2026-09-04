@@ -15,7 +15,6 @@ public sealed class CircuitBreakerOptionsShould
 		var sut = new CircuitBreakerOptions();
 
 		sut.Enabled.ShouldBeTrue();
-		sut.FailureThreshold.ShouldBe(5);
 		sut.MinimumThroughput.ShouldBe(10);
 		sut.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 		sut.SamplingDuration.ShouldBe(TimeSpan.FromSeconds(60));
@@ -28,7 +27,6 @@ public sealed class CircuitBreakerOptionsShould
 		var sut = new CircuitBreakerOptions
 		{
 			Enabled = false,
-			FailureThreshold = 10,
 			MinimumThroughput = 20,
 			BreakDuration = TimeSpan.FromMinutes(2),
 			SamplingDuration = TimeSpan.FromMinutes(5),
@@ -36,7 +34,6 @@ public sealed class CircuitBreakerOptionsShould
 		};
 
 		sut.Enabled.ShouldBeFalse();
-		sut.FailureThreshold.ShouldBe(10);
 		sut.MinimumThroughput.ShouldBe(20);
 		sut.BreakDuration.ShouldBe(TimeSpan.FromMinutes(2));
 		sut.SamplingDuration.ShouldBe(TimeSpan.FromMinutes(5));

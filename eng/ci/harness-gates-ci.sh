@@ -424,7 +424,9 @@ run "ddl-pack-completeness (real repo)" python3 eng/ci/ddl-pack-completeness.py
 # report before the verdict is believed. Keep this above the real-repo run.
 run "self-test: ddl-migration-completeness" python3 eng/ci/ddl-migration-completeness.py --self-test
 
-run_development_only \n    "it walks committed history from an anchor commit that exists only in the development repository" \n    "ddl-migration-completeness (real repo)" python3 eng/ci/ddl-migration-completeness.py
+run_development_only \
+    "it walks committed history from an anchor commit that exists only in the development repository" \
+    "ddl-migration-completeness (real repo)" python3 eng/ci/ddl-migration-completeness.py
 
 # Report what EXECUTED, not what is configured. A battery that reaches green by dropping entries
 # prints the same "0 failures" as a healthy one, so the failure count alone cannot distinguish a

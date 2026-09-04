@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch;
 /// class produced by <c>EventStoreTypeMapGenerator</c>.
 /// </para>
 /// </remarks>
-internal interface IEventTypeRegistry
+public interface IEventTypeRegistry
 {
 	/// <summary>
 	/// Resolves an event type from its stored type name.

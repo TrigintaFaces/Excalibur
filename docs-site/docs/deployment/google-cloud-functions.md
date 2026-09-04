@@ -285,13 +285,18 @@ gcloud scheduler jobs create http outbox-processor-schedule \
 using Google.Cloud.Firestore;
 using Excalibur.EventSourcing;
 
+// The stored eventType holds the event's declared [MessageName] -- the same name used by the outbox
+// MessageType and the CloudEvents type. See ../event-sourcing/domain-events.md#stable-message-names.
 public class FirestoreEventStore : IEventStore
 {
     private readonly FirestoreDb _db;
+    private readonly IEventTypeRegistry _eventTypes;
 
-    public FirestoreEventStore(string projectId, string databaseId = "(default)")
+    public FirestoreEventStore(
+        string projectId, IEventTypeRegistry eventTypes, string databaseId = "(default)")
     {
         _db = FirestoreDb.Create(projectId, databaseId);
+        _eventTypes = eventTypes;
     }
 
     public async Task AppendAsync(
@@ -311,7 +316,7 @@ public class FirestoreEventStore : IEventStore
             var eventData = new Dictionary<string, object>
             {
                 ["aggregateId"] = aggregateId,
-                ["eventType"] = @event.EventType,
+                ["eventType"] = MessageNameHelper.GetName(@event.GetType()),
                 ["eventData"] = JsonSerializer.Serialize(@event),
                 ["version"] = ++version,
                 ["occurredAt"] = Timestamp.FromDateTimeOffset(@event.OccurredAt)
@@ -344,7 +349,7 @@ public class FirestoreEventStore : IEventStore
         var events = new List<IDomainEvent>();
         foreach (var document in snapshot.Documents)
         {
-            var eventType = Type.GetType(document.GetValue<string>("eventType"));
+            var eventType = _eventTypes.ResolveType(document.GetValue<string>("eventType"));
             var eventData = document.GetValue<string>("eventData");
             var @event = JsonSerializer.Deserialize(eventData, eventType) as IDomainEvent;
             events.Add(@event);
@@ -361,7 +366,8 @@ public class FirestoreEventStore : IEventStore
 public override void ConfigureServices(WebHostBuilderContext context, IServiceCollection services)
 {
     var projectId = Environment.GetEnvironmentVariable("GCP_PROJECT");
-    services.AddSingleton<IEventStore>(new FirestoreEventStore(projectId));
+    services.AddSingleton<IEventStore>(sp =>
+        new FirestoreEventStore(projectId, sp.GetRequiredService<IEventTypeRegistry>()));
 }
 ```
 
@@ -376,10 +382,12 @@ using CloudNative.CloudEvents;
 public class ProjectionFunction : ICloudEventFunction<DocumentEventData>
 {
     private readonly IProjectionService _projectionService;
+    private readonly IEventTypeRegistry _eventTypes;
 
-    public ProjectionFunction(IProjectionService projectionService)
+    public ProjectionFunction(IProjectionService projectionService, IEventTypeRegistry eventTypes)
     {
         _projectionService = projectionService;
+        _eventTypes = eventTypes;
     }
 
     public async Task HandleAsync(
@@ -392,7 +400,8 @@ public class ProjectionFunction : ICloudEventFunction<DocumentEventData>
         var eventType = data.Value.Fields["eventType"].StringValue;
         var eventData = data.Value.Fields["eventData"].StringValue;
 
-        var type = Type.GetType(eventType);
+        // eventType is the declared [MessageName]; resolve it through the registry.
+        var type = _eventTypes.ResolveType(eventType);
         var @event = JsonSerializer.Deserialize(eventData, type) as IDomainEvent;
 
         await _projectionService.ProjectAsync(@event, cancellationToken);

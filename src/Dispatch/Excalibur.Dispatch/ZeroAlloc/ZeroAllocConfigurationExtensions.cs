@@ -55,8 +55,6 @@ public static class ZeroAllocConfigurationExtensions
 			? builder.Services.Replace(ServiceDescriptor.Singleton<IHandlerInvoker, HandlerInvoker>())
 			: builder.Services.Replace(ServiceDescriptor.Singleton<IHandlerInvoker, HandlerInvokerAot>());
 
-		// Add buffer pool if not already registered
-		builder.Services.TryAddSingleton<MessageBufferPool>();
 
 		return builder;
 	}

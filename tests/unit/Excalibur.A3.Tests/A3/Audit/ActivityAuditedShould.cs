@@ -153,7 +153,8 @@ public sealed class ActivityAuditedShould
 		var audited = new ActivityAudited(source);
 
 		// Assert
-		audited.EventType.ShouldBe(nameof(ActivityAudited));
+		// The stored name is DECLARED, so it survives renaming the class or moving the assembly.
+		MessageNameHelper.GetName(typeof(ActivityAudited)).ShouldBe("Excalibur.A3.ActivityAudited");
 	}
 
 	[Fact]

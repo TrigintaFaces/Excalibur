@@ -18,6 +18,17 @@ namespace Excalibur.Dispatch.Resilience;
 /// </remarks>
 internal sealed class TransportCircuitBreakerRegistry : ITransportCircuitBreakerRegistry, ITransportCircuitBreakerDiagnostics
 {
+	/// <summary>
+	/// Upper bound on distinct circuits held at once. The circuit key can be derived from the message
+	/// through <see cref="CircuitBreakerOptions.CircuitKeySelector"/>, so an unbounded map is a
+	/// memory-growth vector driven by message content. Past the cap, further keys share one overflow
+	/// circuit: coarser than per-key, but the dependency stays protected and the map cannot grow.
+	/// </summary>
+	internal const int MaxBreakers = 1024;
+
+	/// <summary>Reserved key for the shared circuit used once <see cref="MaxBreakers"/> is reached.</summary>
+	internal const string OverflowKey = "__overflow__";
+
 	private readonly ConcurrentDictionary<string, ICircuitBreakerPolicy> _breakers = new(StringComparer.OrdinalIgnoreCase);
 	private readonly CircuitBreakerOptions _defaultOptions;
 	private readonly ILoggerFactory? _loggerFactory;
@@ -49,6 +60,13 @@ internal sealed class TransportCircuitBreakerRegistry : ITransportCircuitBreaker
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 		ArgumentNullException.ThrowIfNull(options);
+
+		// Bounded registry: skip creating a new circuit when full and share the overflow circuit
+		// instead, so a message-derived key cannot grow this map without limit.
+		if (_breakers.Count >= MaxBreakers && !_breakers.ContainsKey(transportName))
+		{
+			transportName = OverflowKey;
+		}
 
 		return _breakers.GetOrAdd(transportName, name =>
 		{

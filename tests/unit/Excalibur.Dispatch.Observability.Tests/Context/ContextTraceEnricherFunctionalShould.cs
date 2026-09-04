@@ -26,7 +26,6 @@ public sealed class ContextTraceEnricherFunctionalShould : IDisposable
 {
 	private readonly ContextTraceEnricher _enricher;
 	private readonly ActivityListener _listener;
-	private readonly List<Activity> _activities = [];
 
 	public ContextTraceEnricherFunctionalShould()
 	{
@@ -44,7 +43,6 @@ public sealed class ContextTraceEnricherFunctionalShould : IDisposable
 		{
 			ShouldListenTo = source => source.Name.Contains("Dispatch", StringComparison.OrdinalIgnoreCase),
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-			ActivityStarted = activity => _activities.Add(activity),
 		};
 		ActivitySource.AddActivityListener(_listener);
 	}
@@ -53,10 +51,6 @@ public sealed class ContextTraceEnricherFunctionalShould : IDisposable
 	{
 		_listener.Dispose();
 		_enricher.Dispose();
-		foreach (var activity in _activities)
-		{
-			activity.Dispose();
-		}
 	}
 
 	[Fact]

@@ -99,7 +99,9 @@ public record GetOrderQuery(Guid OrderId) : IDispatchAction<OrderDto?>;
 public record GetCustomerOrdersQuery(string CustomerId) : IDispatchAction<IReadOnlyList<OrderDto>>;
 
 // Events
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(Guid OrderId, string CustomerId, decimal Total) : IDispatchEvent;
+[MessageName("Contoso.Orders.OrderCancelled")]
 public record OrderCancelledEvent(Guid OrderId, string Reason) : IDispatchEvent;
 
 // DTOs

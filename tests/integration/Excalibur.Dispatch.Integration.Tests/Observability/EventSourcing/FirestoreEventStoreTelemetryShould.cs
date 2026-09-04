@@ -445,7 +445,6 @@ public sealed class FirestoreEventStoreTelemetryShould : IClassFixture<Firestore
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = Guid.NewGuid().ToString(),
 			Version = 0,
-			EventType = "TestEvent",
 			OccurredAt = DateTimeOffset.UtcNow,
 			Value = "Test-" + Guid.NewGuid().ToString("N"),
 		};
@@ -457,12 +456,12 @@ public sealed class FirestoreEventStoreTelemetryShould : IClassFixture<Firestore
 /// <summary>
 /// Test domain event for Firestore telemetry integration tests.
 /// </summary>
+[MessageName("Test.FirestoreTelemetryTestDomainEvent")]
 internal sealed class FirestoreTelemetryTestDomainEvent : IDomainEvent
 {
 	public required string EventId { get; init; }
 	public required string AggregateId { get; init; }
 	public required long Version { get; init; }
-	public required string EventType { get; init; }
 	public required DateTimeOffset OccurredAt { get; init; }
 	public IDictionary<string, object>? Metadata { get; init; }
 	public required string Value { get; init; }

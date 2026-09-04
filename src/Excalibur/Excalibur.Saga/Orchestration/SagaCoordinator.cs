@@ -291,6 +291,10 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
 
+		// Hand the saga the context it is handling under, so the commands and events it emits can be
+		// correlated as children of this one. Previously read from a flow-local static inside the saga.
+		saga.HandlingContext = messageContext;
+
 		// Idempotent replay guard: derive a unique event ID and check if already processed.
 		// The ID is added to the in-memory set BEFORE HandleAsync, but only persisted when SaveAsync succeeds.
 		// If SaveAsync fails or crashes, the ID is lost from the set on reload, allowing correct replay.

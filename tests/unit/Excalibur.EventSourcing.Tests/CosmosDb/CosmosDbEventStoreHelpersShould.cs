@@ -123,7 +123,8 @@ public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 
 		var domainEvent = new TestDomainEvent("evt-1", new Dictionary<string, object> { ["key"] = "value" });
 		var document = createMethod!.Invoke(
-			StoreWithPayloadWriter(), ["Order:agg-1", "agg-1", "Order", domainEvent, 8L]);
+			StoreWithPayloadWriter(),
+			["Order:agg-1", "agg-1", "Order", new[] { (IDomainEvent)domainEvent }.AsNamedEvents()[0], 8L]);
 		document.ShouldNotBeNull();
 
 		var cloudEvent = toCloudMethod!.Invoke(null, [document!]);
@@ -150,11 +151,11 @@ public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 		((bool)disposedField!.GetValue(sut)!).ShouldBeTrue();
 	}
 
+	[MessageName("Test.Es.CosmosHelpersTestDomainEvent")]
 	private sealed record TestDomainEvent(string EventId, IDictionary<string, object>? Metadata = null) : IDomainEvent
 	{
 		public string AggregateId => "agg-1";
 		public long Version => 1;
 		public DateTimeOffset OccurredAt => DateTimeOffset.UtcNow;
-		public string EventType => "TestDomainEvent";
 	}
 }

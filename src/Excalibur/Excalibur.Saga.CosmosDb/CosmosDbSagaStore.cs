@@ -92,7 +92,6 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	// Deterministic DI construction: the advanced constructor below also accepts an ITenantContext, so
 	// without this marker ActivatorUtilities' selection depends on which services happen to be
 	// registered, and reports a missing dependency as a constructor ambiguity.
-	[ActivatorUtilitiesConstructor]
 	public CosmosDbSagaStore(
 		IOptions<CosmosDbSagaOptions> options,
 		ILogger<CosmosDbSagaStore> logger,
@@ -133,6 +132,20 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
 	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
+	// Every registration path in SagaBuilderCosmosDbExtensions puts a CosmosClient in DI -- the one the
+	// caller supplied, or one built from their endpoint or connection string. So this constructor is
+	// always satisfiable, and it is the only one that HONOURS a caller-supplied client.
+	//
+	// With the attribute on the options constructor instead, a client passed to cosmos.Client(...) was
+	// registered and then ignored: the store built its own from options.Client.ConnectionString, which
+	// the builder-managed path deliberately sets to an unroutable sentinel so options validation passes.
+	// Every call then dialled a host that does not exist, and the client-supplying API was advertised
+	// and dead.
+	//
+	// It also matters beyond reachability: a client built here from a connection string carries whatever
+	// serializer it is handed, while the registered client is configured with System.Text.Json.
+	// Preferring the registered one keeps a single, correctly-configured client.
+	[ActivatorUtilitiesConstructor]
 	public CosmosDbSagaStore(
 		CosmosClient client,
 		IOptions<CosmosDbSagaOptions> options,

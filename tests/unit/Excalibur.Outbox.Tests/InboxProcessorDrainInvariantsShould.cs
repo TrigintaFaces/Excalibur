@@ -175,13 +175,9 @@ public sealed class InboxProcessorDrainInvariantsShould
 			"the drain must route its dispatch through the breaker, and one failed delivery is one failed "
 			+ "execution -- a breaker that observes none has been bypassed, not fixed");
 
-		// Safety.
-		breaker.OutcomesRecordedByTheCaller.ShouldBe(
-			0,
-			"ExecuteAsync has already recorded this outcome by the time control returns to the drain. "
-			+ "Recording it again double-counts the failure, and also overrides the breaker's own decision "
-			+ "about which exceptions count -- the explicit recorders are for outcomes observed OUTSIDE "
-			+ "ExecuteAsync, not a supplement to it");
+		// Safety is now structural rather than asserted: ExecuteAsync records the outcome itself and
+		// the contract carries no second, out-of-band recorder, so a drain has no way to charge the
+		// same delivery to the breaker twice.
 	}
 
 	[Fact]
@@ -203,16 +199,12 @@ public sealed class InboxProcessorDrainInvariantsShould
 
 		breaker.SuccessesObservedInsideExecute.ShouldBe(
 			1, "the drain must route its dispatch through the breaker");
-
-		breaker.OutcomesRecordedByTheCaller.ShouldBe(
-			0, "ExecuteAsync has already recorded the success by the time control returns to the drain");
 	}
 
 	/// <summary>
 	/// An <see cref="ICircuitBreakerPolicy"/> that records the outcome inside <c>ExecuteAsync</c> -- as both
-	/// shipped implementations do -- while counting the explicit recorders separately, so an arm can tell
-	/// WHICH of the two recorded a given outcome. A fake that merged them into one total would agree with
-	/// the double-count and pass.
+	/// shipped implementations do -- so an arm can tell whether the drain routed its dispatch through the
+	/// breaker at all.
 	/// </summary>
 	private sealed class OutcomeAttributingCircuitBreaker : ICircuitBreakerPolicy
 	{
@@ -220,9 +212,35 @@ public sealed class InboxProcessorDrainInvariantsShould
 
 		public int FailuresObservedInsideExecute { get; private set; }
 
-		public int OutcomesRecordedByTheCaller { get; private set; }
-
 		public CircuitState State => CircuitState.Closed;
+
+
+		public async Task<TResult> ExecuteAsync<TResult>(
+			Func<CancellationToken, Task<TResult>> operation,
+			Func<TResult, bool> isFailure,
+			CancellationToken cancellationToken)
+		{
+			try
+			{
+				var result = await operation(cancellationToken).ConfigureAwait(false);
+
+				if (isFailure(result))
+				{
+					FailuresObservedInsideExecute++;
+				}
+				else
+				{
+					SuccessesObservedInsideExecute++;
+				}
+
+				return result;
+			}
+			catch
+			{
+				FailuresObservedInsideExecute++;
+				throw;
+			}
+		}
 
 		public async Task<TResult> ExecuteAsync<TResult>(
 			Func<CancellationToken, Task<TResult>> action,
@@ -240,10 +258,6 @@ public sealed class InboxProcessorDrainInvariantsShould
 				throw;
 			}
 		}
-
-		public void RecordSuccess() => OutcomesRecordedByTheCaller++;
-
-		public void RecordFailure(Exception? exception = null) => OutcomesRecordedByTheCaller++;
 
 		public void Reset()
 		{

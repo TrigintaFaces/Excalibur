@@ -9,6 +9,7 @@ namespace Excalibur.Testing.Conformance;
 /// <summary>
 /// A simple domain event for use in conformance tests.
 /// </summary>
+[MessageName("Excalibur.Testing.TestDomainEvent")]
 public sealed record TestDomainEvent : IDomainEvent
 {
 	/// <inheritdoc />
@@ -29,8 +30,6 @@ public sealed record TestDomainEvent : IDomainEvent
 	/// <inheritdoc />
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc />
-	public string EventType => nameof(TestDomainEvent);
 
 	/// <inheritdoc />
 	public IDictionary<string, object>? Metadata { get; init; }

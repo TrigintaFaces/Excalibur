@@ -83,7 +83,6 @@ public static class ObservabilityServiceCollectionExtensions
 		services.TryAddSingleton<IContextFlowTracker, ContextFlowTracker>();
 		services.TryAddSingleton<IContextFlowMetrics, ContextFlowMetrics>();
 		services.TryAddSingleton<IContextTraceEnricher, ContextTraceEnricher>();
-		services.TryAddSingleton<IContextFlowDiagnostics, ContextFlowDiagnostics>();
 
 		// Register PII sanitizer with options + startup warning validator
 		_ = services.AddOptions<TelemetrySanitizerOptions>()

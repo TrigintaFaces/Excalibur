@@ -192,6 +192,7 @@ public sealed class AotEventSerializerReachabilityShould
 		Shipped = 1,
 	}
 
+	[MessageName("Test.Aot.ReachabilityOrderPlaced")]
 	internal sealed class ReachabilityOrderPlaced : IDomainEvent
 	{
 		public string OrderId { get; set; } = string.Empty;
@@ -204,7 +205,6 @@ public sealed class AotEventSerializerReachabilityShould
 
 		public DateTimeOffset OccurredAt { get; set; }
 
-		public string EventType { get; set; } = nameof(ReachabilityOrderPlaced);
 
 		public IDictionary<string, object>? Metadata { get; set; }
 	}

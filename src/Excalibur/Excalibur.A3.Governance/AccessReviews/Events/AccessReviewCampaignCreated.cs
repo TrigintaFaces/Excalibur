@@ -9,6 +9,7 @@ namespace Excalibur.A3.Governance.Events;
 /// <summary>
 /// Raised when a new access review campaign is created.
 /// </summary>
+[MessageName("Excalibur.A3.AccessReviewCampaignCreated")]
 internal sealed class AccessReviewCampaignCreated : IDomainEvent
 {
 	public required string CampaignId { get; init; }
@@ -22,6 +23,5 @@ internal sealed class AccessReviewCampaignCreated : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(AccessReviewCampaignCreated);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

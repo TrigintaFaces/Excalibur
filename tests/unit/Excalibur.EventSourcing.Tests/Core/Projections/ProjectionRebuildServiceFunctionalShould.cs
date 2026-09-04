@@ -29,6 +29,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		public int EventCount { get; set; }
 	}
 
+	[MessageName("Test.UpcastTestEventV1")]
 	private sealed record UpcastTestEventV1 : DomainEvent, IVersionedMessage
 	{
 		int IVersionedMessage.Version => 1;

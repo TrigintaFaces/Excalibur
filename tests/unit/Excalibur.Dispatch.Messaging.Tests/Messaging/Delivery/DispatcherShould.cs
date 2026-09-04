@@ -589,10 +589,17 @@ public sealed class DispatcherShould
 
 			// Assert
 			result.Succeeded.ShouldBeTrue();
-			// Q.1 fix (Sprint 656): PushAmbientContext restored on fast path so handlers
-			// can read MessageContextHolder.Current during synchronous execution.
-			// Handler sees the dispatch context, and previous ambient is restored after dispatch.
-			capturedAmbient.ShouldBe(context);
+			// The ultra-local fast path publishes NO ambient context. It is reached only when the
+			// per-type dispatch info says the handler declared it takes no context (neither a settable
+			// IMessageContext property nor an IMessageContextAccessor constructor parameter), so there
+			// is nobody on this path entitled to read one -- and publishing it cost an ExecutionContext
+			// copy-on-write, 44% of the path and all of its allocation.
+			// What still matters, and is what this test now pins: the fast path must leave a caller's
+			// existing ambient ALONE. The handler sees the outer ambient unchanged, and it is still
+			// intact afterwards. (Supersedes the Sprint 656 behaviour, which pushed the dispatch
+			// context here so a handler could read it from the public static; that static is now
+			// internal, so no handler can reach it without declaring injection.)
+			capturedAmbient.ShouldBe(previousAmbient);
 			MessageContextHolder.Current.ShouldBe(previousAmbient);
 		}
 		finally
@@ -602,7 +609,7 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task Set_Ambient_Context_On_Sync_DirectLocal_FastPath_When_None_Exists()
+	public async Task Not_Publish_Ambient_Context_On_Sync_DirectLocal_FastPath()
 	{
 		// Arrange
 		var (dispatcher, localInvoker, _) = CreateTransportAwareDispatcherForFastPath();
@@ -620,9 +627,11 @@ public sealed class DispatcherShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		// Q.1 fix (Sprint 656): PushAmbientContext restored on fast path.
-		// Handler sees the dispatch context; after dispatch, null is restored.
-		capturedAmbient.ShouldBe(context);
+		// No ambient is published on the ultra-local fast path, so a handler that declared it takes
+		// no context sees exactly what was there before: nothing. This is the liveness counterpart to
+		// the preservation test above -- together they pin "does not publish" and "does not disturb",
+		// which is the whole ambient contract of this path.
+		capturedAmbient.ShouldBeNull();
 		MessageContextHolder.Current.ShouldBeNull();
 	}
 

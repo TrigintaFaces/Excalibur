@@ -11,6 +11,7 @@ namespace Excalibur.A3.Authorization.Events;
 /// <summary>
 /// Represents an event that occurs when a grant is added to a user.
 /// </summary>
+[MessageName("Excalibur.A3.GrantAdded")]
 public sealed record GrantAdded : DomainEvent, IGrantAdded
 {
 	/// <summary>

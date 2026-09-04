@@ -54,13 +54,13 @@ public sealed class AutoSnapshotIntegrationShould
 		}
 	}
 
+	[MessageName("Test.ValueSetEvent")]
 	internal sealed class ValueSetEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(ValueSetEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 		public int Value { get; init; }
 	}
@@ -117,6 +117,7 @@ public sealed class AutoSnapshotIntegrationShould
 			eventStore,
 			CreateFakeSerializer(),
 			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			autoSnapshotOptions: options);
 
@@ -149,6 +150,7 @@ public sealed class AutoSnapshotIntegrationShould
 			eventStore,
 			CreateFakeSerializer(),
 			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			autoSnapshotOptions: options);
 
@@ -181,6 +183,7 @@ public sealed class AutoSnapshotIntegrationShould
 			eventStore,
 			CreateFakeSerializer(),
 			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			autoSnapshotOptions: options);
 
@@ -209,6 +212,7 @@ public sealed class AutoSnapshotIntegrationShould
 			eventStore,
 			CreateFakeSerializer(),
 			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			autoSnapshotOptions: options);
 
@@ -236,6 +240,7 @@ public sealed class AutoSnapshotIntegrationShould
 			eventStore,
 			CreateFakeSerializer(),
 			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: null,
 			autoSnapshotOptions: options);
 
@@ -270,6 +275,7 @@ public sealed class AutoSnapshotIntegrationShould
 			eventStore,
 			CreateFakeSerializer(),
 			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			autoSnapshotOptions: options);
 

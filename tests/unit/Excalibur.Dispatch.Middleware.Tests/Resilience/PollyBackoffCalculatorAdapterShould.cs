@@ -532,4 +532,35 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	}
 
 	#endregion Thread Safety Tests
+
+	#region Sequence Isolation
+
+	// The adapter is registered AddSingleton, so one instance serves every retry sequence in the
+	// process. attempt == 1 must start from base rather than from whatever an unrelated earlier
+	// sequence happened to leave in the threaded state, or one message's backoff depends on
+	// another's. DecorrelatedJitterBackoffCalculator documents and implements the same reset.
+	[Fact]
+	public void StartEachRetrySequenceFromBaseRatherThanTheLastSequencesDelay()
+	{
+		var calculator = new PollyBackoffCalculatorAdapter(
+			Polly.DelayBackoffType.Exponential,
+			TimeSpan.FromMilliseconds(100),
+			TimeSpan.FromSeconds(30),
+			useJitter: true);
+
+		// A long sequence drives the threaded state far above the base delay.
+		for (var attempt = 1; attempt <= 8; attempt++)
+		{
+			_ = calculator.CalculateDelay(attempt);
+		}
+
+		// A fresh sequence on the SAME instance must not inherit that.
+		var firstOfNewSequence = calculator.CalculateDelay(1);
+
+		// A first attempt is bounded by the target for attempt 1, which is the base delay.
+		// Without the reset this returns a value derived from the previous sequence's last delay.
+		firstOfNewSequence.ShouldBeLessThanOrEqualTo(TimeSpan.FromMilliseconds(100));
+	}
+
+	#endregion Sequence Isolation
 }

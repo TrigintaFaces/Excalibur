@@ -24,7 +24,7 @@ public sealed class ElasticsearchResilienceOptionsShould
 	public void AllowSettingAllProperties()
 	{
 		var retry = new ElasticSearchRetryPolicyOptions { MaxAttempts = 5 };
-		var cb = new CircuitBreakerOptions { FailureThreshold = 10 };
+		var cb = new CircuitBreakerOptions { MinimumThroughput = 10 };
 		var timeouts = new TimeoutOptions { SearchTimeout = TimeSpan.FromSeconds(60) };
 
 		var sut = new ElasticsearchResilienceOptions

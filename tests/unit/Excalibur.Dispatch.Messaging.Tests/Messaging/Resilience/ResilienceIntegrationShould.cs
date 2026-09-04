@@ -59,8 +59,8 @@ public sealed class ResilienceIntegrationShould
 		var circuitBreaker = new CircuitBreakerPolicy(options, "order-service", _cbLogger);
 
 		// Act - Simulate failures until circuit opens
-		circuitBreaker.RecordFailure(new TimeoutException("Service timeout"));
-		circuitBreaker.RecordFailure(new TimeoutException("Service timeout"));
+		await circuitBreaker.FailAsync(new TimeoutException("Service timeout"));
+		await circuitBreaker.FailAsync(new TimeoutException("Service timeout"));
 		circuitBreaker.State.ShouldBe(CircuitState.Open);
 
 		// Try to process a message when circuit is open
@@ -181,11 +181,11 @@ public sealed class ResilienceIntegrationShould
 
 		// Act - Open RabbitMQ circuit, keep Kafka closed
 		var rabbitBreaker = registry.GetOrCreate("rabbitmq");
-		rabbitBreaker.RecordFailure(new TimeoutException("RabbitMQ timeout"));
-		rabbitBreaker.RecordFailure(new TimeoutException("RabbitMQ timeout"));
+		await rabbitBreaker.FailAsync(new TimeoutException("RabbitMQ timeout"));
+		await rabbitBreaker.FailAsync(new TimeoutException("RabbitMQ timeout"));
 
 		var kafkaBreaker = registry.GetOrCreate("kafka");
-		kafkaBreaker.RecordSuccess(); // Kafka is healthy
+		await kafkaBreaker.SucceedAsync(); // Kafka is healthy
 
 		// Verify isolation
 		rabbitBreaker.State.ShouldBe(CircuitState.Open);
@@ -309,7 +309,7 @@ public sealed class ResilienceIntegrationShould
 		var circuitBreaker = new CircuitBreakerPolicy(options, "payment-service", _cbLogger);
 
 		// Act - Open circuit and queue message
-		circuitBreaker.RecordFailure(new TimeoutException("Service down"));
+		await circuitBreaker.FailAsync(new TimeoutException("Service down"));
 		circuitBreaker.State.ShouldBe(CircuitState.Open);
 
 		var message = new TestPaymentMessage { PaymentId = Guid.NewGuid() };
@@ -321,7 +321,7 @@ public sealed class ResilienceIntegrationShould
 		await WaitForCircuitStateAsync(circuitBreaker, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Record success to close circuit
-		circuitBreaker.RecordSuccess();
+		await circuitBreaker.SucceedAsync().ConfigureAwait(false);
 		circuitBreaker.State.ShouldBe(CircuitState.Closed);
 
 		// Replay DLQ messages now that circuit is closed
@@ -441,16 +441,16 @@ public sealed class ResilienceIntegrationShould
 		circuitBreaker.State.ShouldBe(CircuitState.Closed);
 
 		// Step 2: Failures -> Open
-		circuitBreaker.RecordFailure();
-		circuitBreaker.RecordFailure();
+		await circuitBreaker.FailAsync().ConfigureAwait(false);
+		await circuitBreaker.FailAsync().ConfigureAwait(false);
 		circuitBreaker.State.ShouldBe(CircuitState.Open);
 
 		// Step 3: Wait -> HalfOpen
 		await WaitForCircuitStateAsync(circuitBreaker, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Step 4: Successes -> Closed
-		circuitBreaker.RecordSuccess();
-		circuitBreaker.RecordSuccess();
+		await circuitBreaker.SucceedAsync().ConfigureAwait(false);
+		await circuitBreaker.SucceedAsync().ConfigureAwait(false);
 		circuitBreaker.State.ShouldBe(CircuitState.Closed);
 
 		// Assert
@@ -478,7 +478,7 @@ public sealed class ResilienceIntegrationShould
 				Enumerable.Range(0, operationsPerTransport).Select(_ => Task.Run(() =>
 				{
 					var breaker = registry.GetOrCreate(name);
-					breaker.RecordSuccess();
+					await breaker.SucceedAsync().ConfigureAwait(false);
 					return breaker.State;
 				})))
 			.ToList();

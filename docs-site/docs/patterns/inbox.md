@@ -270,6 +270,7 @@ To deduplicate on a business key rather than a transport identity, set that key 
 middleware that runs before the inbox stage:
 
 ```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(Guid OrderId, string CustomerId) : IDispatchEvent
 {
     // Deduplicate on the business key rather than a fresh transport id

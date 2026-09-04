@@ -74,18 +74,16 @@ public sealed class IDomainEventContractShould
 	}
 
 	[Fact]
-	public void Have_EventType_Property()
+	public void NotDefine_EventType_OnTheMessagingContract()
 	{
-		// Arrange
-		var interfaceType = typeof(IDomainEvent);
-
-		// Act
-		var property = interfaceType.GetProperty(nameof(IDomainEvent.EventType));
-
-		// Assert
-		_ = property.ShouldNotBeNull("IDomainEvent must define EventType property");
-		property.PropertyType.ShouldBe(typeof(string), "EventType must be of type string");
-		property.CanRead.ShouldBeTrue("EventType must be readable");
+		// Identity is DECLARED on the type ([MessageName]), never carried per-instance. A payload
+		// EventType let one type's instances disagree about what they are, and defaulting it to
+		// GetType().Name silently rebound stored data to the class name -- so renaming a class
+		// orphaned every event it had already written. Re-adding either re-opens both.
+		typeof(IDomainEvent).GetProperty("EventType")
+			.ShouldBeNull("IDomainEvent must NOT carry EventType (identity is declared via [MessageName])");
+		typeof(DomainEvent).GetProperty("EventType")
+			.ShouldBeNull("DomainEvent must NOT carry EventType (no GetType().Name fallback)");
 	}
 
 	[Fact]

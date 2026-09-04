@@ -69,14 +69,14 @@ internal sealed class DecorrelatedJitterBackoffCalculator : IBackoffCalculator
 		TimeSpan maxDelay,
 		Func<double>? jitterSource = null)
 	{
-		if (baseDelay <= TimeSpan.Zero)
+		if (baseDelay < TimeSpan.Zero)
 		{
-			throw new ArgumentOutOfRangeException(nameof(baseDelay), Resources.ExponentialBackoffCalculator_BaseDelayMustBePositive);
+			throw new ArgumentOutOfRangeException(nameof(baseDelay), Resources.ExponentialBackoffCalculator_BaseDelayCannotBeNegative);
 		}
 
-		if (maxDelay <= TimeSpan.Zero)
+		if (maxDelay < TimeSpan.Zero)
 		{
-			throw new ArgumentOutOfRangeException(nameof(maxDelay), Resources.ExponentialBackoffCalculator_MaxDelayMustBePositive);
+			throw new ArgumentOutOfRangeException(nameof(maxDelay), Resources.ExponentialBackoffCalculator_MaxDelayCannotBeNegative);
 		}
 
 		_baseDelay = baseDelay;

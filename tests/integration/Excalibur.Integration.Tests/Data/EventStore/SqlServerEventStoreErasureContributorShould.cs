@@ -75,11 +75,11 @@ public sealed class SqlServerEventStoreErasureContributorShould
 				new[] { new AggregateReference(dataSubjectIdHash, AggregateType) });
 	}
 
-	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
+[MessageName("Test.SqlServerEventStoreErasureContributor.OrderPlaced")]
+private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(OrderPlaced);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

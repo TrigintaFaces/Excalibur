@@ -60,6 +60,7 @@ app.Run();
 // --- Messages ---
 public record GreetAction(string Name) : IDispatchAction;
 public record GetGreetingQuery(string Name) : IDispatchAction<string>;
+[MessageName("Contoso.Greetings.Greeted")]
 public record GreetedEvent(string Name) : IDispatchEvent;
 
 // --- Handlers ---
@@ -176,7 +177,10 @@ app.Run();
 // --- Messages ---
 public record CreateCounterAction() : IDispatchAction<Guid>;
 public record IncrementCounterAction(Guid CounterId) : IDispatchAction;
+[MessageName("Contoso.Counters.CounterCreated")]
 public record CounterCreated(Guid CounterId) : DomainEvent;
+
+[MessageName("Contoso.Counters.CounterIncremented")]
 public record CounterIncremented(Guid CounterId) : DomainEvent;
 
 // --- Aggregate ---
@@ -272,6 +276,7 @@ app.Run();
 // --- Messages ---
 public record ProcessRequest(string Data);
 public record ProcessDataAction(string Data) : IDispatchAction;
+[MessageName("Contoso.Processing.DataProcessed")]
 public record DataProcessedEvent(string Data) : IDispatchEvent;
 
 // --- Handler ---
@@ -382,7 +387,10 @@ app.Run();
 public record CreateTodoRequest(string Title);
 public record CreateTodoAction(string Title) : IDispatchAction<Guid>;
 public record CompleteTodoAction(Guid TodoId) : IDispatchAction;
+[MessageName("Contoso.Todos.TodoCreated")]
 public record TodoCreated(Guid TodoId, string Title) : DomainEvent;
+
+[MessageName("Contoso.Todos.TodoCompleted")]
 public record TodoCompleted(Guid TodoId) : DomainEvent;
 
 // --- Read Model (Projection) ---

@@ -278,33 +278,33 @@ public sealed class KeyedAggregateRootShould
 
 	#region Test Events
 
+	[MessageName("Test.TestOrderCreated")]
 	private sealed record TestOrderCreated(Guid OrderId, string OrderNumber) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = OrderId.ToString();
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(TestOrderCreated);
 		public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
 	}
 
+	[MessageName("Test.KeyedAggregateRoot.TestOrderShipped")]
 	private sealed record TestOrderShipped(string TrackingNumber) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(TestOrderShipped);
 		public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
 	}
 
+	[MessageName("Test.TestOrderNumberUpdated")]
 	private sealed record TestOrderNumberUpdated(string NewOrderNumber) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(TestOrderNumberUpdated);
 		public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
 	}
 

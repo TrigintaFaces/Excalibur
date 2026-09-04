@@ -174,25 +174,6 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void MessageEnvelopeOptions_HaveDefaults()
-	{
-		var opts = new MessageEnvelopeOptions();
-
-		opts.ThreadLocalCacheSize.ShouldBe(16);
-		opts.EnableTelemetry.ShouldBeFalse();
-		opts.PoolContexts.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void MessageEnvelopePoolOptions_HaveDefaults()
-	{
-		var opts = new MessageEnvelopePoolOptions();
-
-		opts.ThreadLocalCacheSize.ShouldBe(16);
-		opts.EnableTelemetry.ShouldBeFalse();
-	}
-
-	[Fact]
 	public void OutboxDeliveryGuarantee_HaveExpectedValues()
 	{
 		OutboxDeliveryGuarantee.AtLeastOnce.ShouldBe((OutboxDeliveryGuarantee)0);

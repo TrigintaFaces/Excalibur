@@ -15,27 +15,7 @@ public sealed class SagaInterfaceInternalizationShould
 {
     private static readonly Assembly SagaAssembly = typeof(SagaOptions).Assembly;
 
-    [Fact]
-    public void HaveISagaOutboxMediatorAsInternal()
-    {
-        // Act
-        var type = SagaAssembly.GetType("Excalibur.Saga.Outbox.ISagaOutboxMediator");
 
-        // Assert — type exists but is not public
-        type.ShouldNotBeNull("ISagaOutboxMediator should exist in the assembly");
-        type.IsPublic.ShouldBeFalse("ISagaOutboxMediator should be internal per bd-uu6j5a");
-    }
-
-    [Fact]
-    public void HaveISagaStateMigratorAsInternal()
-    {
-        // Act — generic type uses backtick notation
-        var type = SagaAssembly.GetType("Excalibur.Saga.Versioning.ISagaStateMigrator`2");
-
-        // Assert — type exists but is not public
-        type.ShouldNotBeNull("ISagaStateMigrator<TFrom,TTo> should exist in the assembly");
-        type.IsPublic.ShouldBeFalse("ISagaStateMigrator should be internal per bd-uu6j5a");
-    }
 
     [Fact]
     public void NotExposeAnyDeletedModelBInterfaces()

@@ -29,13 +29,13 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// </remarks>
 /// <param name="options"> The circuit breaker options. </param>
 /// <param name="sanitizer"> The telemetry sanitizer for PII protection. </param>
-/// <param name="timeProvider">
-/// The time source used for the open-duration deadline that gates the half-open probe. Supply a fake
-/// provider to step across that deadline in a test instead of sleeping.
+/// <param name="registry">
+/// Shared per-key circuit registry, so this middleware and the outbox and inbox drains see one
+/// circuit per dependency rather than three private ones.
 /// </param>
 /// <param name="logger"> The logger. </param>
 [AppliesTo(MessageKinds.All)]
-public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOptions> options, ITelemetrySanitizer sanitizer, TimeProvider timeProvider, ILogger<CircuitBreakerMiddleware> logger)
+public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOptions> options, ITransportCircuitBreakerRegistry registry, ITelemetrySanitizer sanitizer, ILogger<CircuitBreakerMiddleware> logger)
 	: IDispatchMiddleware
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware, "1.0.0");
@@ -55,13 +55,9 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 
 	private readonly CircuitBreakerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
-	private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+	private readonly ITransportCircuitBreakerRegistry _registry = registry ?? throw new ArgumentNullException(nameof(registry));
 	private readonly ILogger<CircuitBreakerMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-	private const int MaxCircuitStates = 1024;
-
-	private readonly ConcurrentDictionary<string, CircuitBreakerState> _circuitStates =
-		new(StringComparer.Ordinal);
 
 	/// <inheritdoc />
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.ErrorHandling;
@@ -83,124 +79,58 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 
 		var circuitKey = GetCircuitKey(message);
 
-		// Bounded ConcurrentDictionary pattern (cap=1024) — skip caching when full
-		CircuitBreakerState state;
-		if (_circuitStates.TryGetValue(circuitKey, out var existingState))
-		{
-			state = existingState;
-		}
-		else if (_circuitStates.Count >= MaxCircuitStates)
-		{
-			// Cache is full, create a transient state (not cached)
-			state = new CircuitBreakerState(_options, _timeProvider);
-		}
-		else
-		{
-			state = _circuitStates.GetOrAdd(circuitKey, (_, s) => new CircuitBreakerState(s.options, s.time), (options: _options, time: _timeProvider));
-		}
+		// One breaker per key, shared through the registry, so the outbox, inbox and this
+		// middleware all see the same circuit for the same dependency instead of three private ones.
+		// The registry owns the bound on distinct keys (the key can be message-derived here).
+		var breaker = _registry.GetOrCreate(circuitKey, _options);
 
 		_ = (activity?.SetTag("circuit.key", circuitKey));
-		_ = (activity?.SetTag("circuit.state", state.State.ToString()));
+		_ = (activity?.SetTag("circuit.state", breaker.State.ToString()));
 
 		// Check if circuit is open
-		if (state.State == CircuitState.Open)
-		{
-			if (CreateTimestamp() < state.NextAttemptTime)
-			{
-				LogCircuitBreakerOpen(circuitKey, context.MessageId ?? string.Empty);
-
-				_ = (activity?.SetTag("circuit.rejected", value: true));
-				_ = (activity?.SetStatus(ActivityStatusCode.Error, "Circuit breaker open"));
-
-				RejectionsCounter.Add(1, new KeyValuePair<string, object?>("circuit.key", circuitKey));
-
-				return MessageResult.Failed(new MessageProblemDetails
-				{
-					Type = "CircuitBreakerOpen",
-					Title = "Circuit Breaker Open",
-					ErrorCode = 503,
-					Status = 503,
-					Detail = "Circuit breaker is open - request rejected",
-					Instance = context.MessageId ?? string.Empty,
-				});
-			}
-
-			// Move to half-open state
-			var fromHalfOpen = state.State;
-			state.TransitionToHalfOpen();
-			EmitTransition(circuitKey, fromHalfOpen, state.State);
-			LogCircuitBreakerHalfOpen(circuitKey);
-			_ = (activity?.SetTag("circuit.transition", "half_open"));
-		}
-
 		try
 		{
-			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+			// The breaker owns the decision and the state machine. A returned failure counts as a
+			// failure too -- a pipeline that answers "failed" without throwing would otherwise look
+			// healthy to the circuit forever.
+			return await breaker.ExecuteAsync(
+				async ct => await nextDelegate(message, context, ct).ConfigureAwait(false),
+				static result => !result.IsSuccess,
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (CircuitBreakerOpenException)
+		{
+			LogCircuitBreakerOpen(circuitKey, context.MessageId ?? string.Empty);
 
-			if (result.IsSuccess)
+			_ = (activity?.SetTag("circuit.rejected", value: true));
+			_ = (activity?.SetStatus(ActivityStatusCode.Error, "Circuit breaker open"));
+
+			RejectionsCounter.Add(1, new KeyValuePair<string, object?>("circuit.key", circuitKey));
+
+			return MessageResult.Failed(new MessageProblemDetails
 			{
-				var fromSuccess = state.State;
-				state.RecordSuccess();
-				EmitTransition(circuitKey, fromSuccess, state.State);
-				_ = (activity?.SetTag("circuit.success", value: true));
-
-				if (state.State == CircuitState.HalfOpen)
-				{
-					LogCircuitBreakerClosed(circuitKey);
-					_ = (activity?.SetTag("circuit.recovered", value: true));
-				}
-			}
-			else
-			{
-				var fromFailure = state.State;
-				state.RecordFailure();
-				EmitTransition(circuitKey, fromFailure, state.State);
-				_ = (activity?.SetTag("circuit.failure", value: true));
-
-				if (state.State == CircuitState.Open)
-				{
-					LogCircuitBreakerOpenedFailureThreshold(circuitKey);
-					_ = (activity?.SetTag("circuit.opened", value: true));
-				}
-			}
-
-			_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-			return result;
+				Type = "CircuitBreakerOpen",
+				Title = "Circuit Breaker Open",
+				ErrorCode = 503,
+				Status = 503,
+				Detail = "Circuit breaker is open - request rejected",
+				Instance = context.MessageId ?? string.Empty,
+			});
 		}
 		catch (HandlerNotRegisteredException)
 		{
-			// A missing handler registration is a configuration fault. Recording it as a circuit failure would trip the breaker on
-			// an omission no downstream dependency can recover from, and mask it behind an open-circuit result.
 			throw;
 		}
 		catch (Exception ex)
 		{
-			var fromException = state.State;
-			state.RecordFailure();
-			EmitTransition(circuitKey, fromException, state.State);
 			_ = (activity?.SetTag("circuit.exception", value: true));
 			activity?.SetSanitizedErrorStatus(ex, _sanitizer);
-
-			if (state.State == CircuitState.Open)
-			{
-				LogCircuitBreakerOpenedExceptionThreshold(circuitKey);
-				_ = (activity?.SetTag("circuit.opened", value: true));
-			}
-
 			LogCircuitBreakerException(circuitKey, context.MessageId ?? string.Empty, ex);
 
-			// The failure is recorded, then the exception PROPAGATES. Observing a fault is all this
-			// middleware does with it; converting it to a failure result would replace the consumer's own
-			// exception with a breaker-shaped one and hide it from the mapping and typed-handler middleware
-			// above, which match on the original type. The one result this middleware does synthesize is
-			// the open-circuit rejection above — that outcome is the breaker's own, not somebody else's
-			// fault restated.
 			throw;
 		}
 	}
 
-	// Was DateTimeOffset.UtcNow. See CircuitBreakerState.CreateTimestamp for why this matters here.
-	private DateTimeOffset CreateTimestamp() => _timeProvider.GetUtcNow();
 
 	/// <summary>
 	/// Emits the circuit-breaker transition counter when the state actually changed, tagged

@@ -653,7 +653,6 @@ public sealed class PackageDiSmokeTests
 			s.AddExcalibur(b => b.ScanAssemblies(Array.Empty<Assembly>())));
 		yield return Reg("Excalibur.Hosting.HealthChecks", s => s.AddExcaliburHealthChecks());
 		yield return Reg("Excalibur.Hosting.HealthChecks [Memory]", s => _ = s.AddHealthChecks().AddMemoryHealthChecks());
-		yield return Reg("Excalibur.Hosting.Compliance", s => s.AddExcalibur(x => x.AddGdprErasure()));
 		yield return Reg("Excalibur.Hosting.Jobs", s => s.AddExcalibur(x => x.AddJobs()));
 		// S804 bd-sdhocq A9: AddExcaliburWebServices deleted. Web hosting wires via AddExcalibur
 		// + explicit API versioning opt-in (not bundled at composition root).

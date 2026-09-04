@@ -77,8 +77,8 @@ public sealed class ProcessorResilienceIntegrationShould
 		var circuitBreaker = new CircuitBreakerPolicy(cbOptions, "inbox-handler", _cbLogger);
 
 		// Trip the circuit
-		circuitBreaker.RecordFailure(new TimeoutException());
-		circuitBreaker.RecordFailure(new TimeoutException());
+		await circuitBreaker.FailAsync(new TimeoutException());
+		await circuitBreaker.FailAsync(new TimeoutException());
 		circuitBreaker.State.ShouldBe(CircuitState.Open);
 
 		var message = new TestInboxMessage
@@ -113,7 +113,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	#region Per-Transport Circuit Breaker Verification
 
 	[Fact]
-	public void RegistryIsolatesCircuitBreakersPerTransport()
+	public async Task RegistryIsolatesCircuitBreakersPerTransport()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 3 };
@@ -125,9 +125,9 @@ public sealed class ProcessorResilienceIntegrationShould
 		var shippingCircuit = registry.GetOrCreate("ShippingEvents");
 
 		// Trip only the order circuit
-		orderCircuit.RecordFailure(new InvalidOperationException());
-		orderCircuit.RecordFailure(new InvalidOperationException());
-		orderCircuit.RecordFailure(new InvalidOperationException());
+		await orderCircuit.FailAsync(new InvalidOperationException());
+		await orderCircuit.FailAsync(new InvalidOperationException());
+		await orderCircuit.FailAsync(new InvalidOperationException());
 
 		// Assert - Only order circuit should be open
 		orderCircuit.State.ShouldBe(CircuitState.Open);
@@ -137,7 +137,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	}
 
 	[Fact]
-	public void RegistryReturnsExistingCircuitForSameTransport()
+	public async Task RegistryReturnsExistingCircuitForSameTransport()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
@@ -145,7 +145,7 @@ public sealed class ProcessorResilienceIntegrationShould
 
 		// Act
 		var circuit1 = registry.GetOrCreate("SameTransport");
-		circuit1.RecordFailure(new InvalidOperationException());
+		await circuit1.FailAsync(new InvalidOperationException());
 
 		var circuit2 = registry.GetOrCreate("SameTransport");
 
@@ -154,7 +154,7 @@ public sealed class ProcessorResilienceIntegrationShould
 	}
 
 	[Fact]
-	public void RegistryAllowsCustomOptionsPerTransport()
+	public async Task RegistryAllowsCustomOptionsPerTransport()
 	{
 		// Arrange
 		var defaultOptions = new CircuitBreakerOptions { FailureThreshold = 5 };
@@ -171,11 +171,11 @@ public sealed class ProcessorResilienceIntegrationShould
 		var criticalCircuit = registry.GetOrCreate("CriticalTransport", criticalOptions);
 
 		// Trip both with same number of failures
-		normalCircuit.RecordFailure(new InvalidOperationException());
-		normalCircuit.RecordFailure(new InvalidOperationException());
+		await normalCircuit.FailAsync(new InvalidOperationException());
+		await normalCircuit.FailAsync(new InvalidOperationException());
 
-		criticalCircuit.RecordFailure(new InvalidOperationException());
-		criticalCircuit.RecordFailure(new InvalidOperationException());
+		await criticalCircuit.FailAsync(new InvalidOperationException());
+		await criticalCircuit.FailAsync(new InvalidOperationException());
 
 		// Assert - Critical should trip, normal should not
 		normalCircuit.State.ShouldBe(CircuitState.Closed);
@@ -183,16 +183,16 @@ public sealed class ProcessorResilienceIntegrationShould
 	}
 
 	[Fact]
-	public void RegistryGetAllStatesReturnsAllCircuits()
+	public async Task RegistryGetAllStatesReturnsAllCircuits()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 2 };
 		var registry = new TransportCircuitBreakerRegistry(options, NullLoggerFactory.Instance);
 
-		registry.GetOrCreate("Transport1").RecordSuccess();
-		registry.GetOrCreate("Transport2").RecordFailure(new InvalidOperationException());
-		registry.GetOrCreate("Transport3").RecordFailure(new InvalidOperationException());
-		registry.GetOrCreate("Transport3").RecordFailure(new InvalidOperationException()); // Trip it
+		await registry.GetOrCreate("Transport1").SucceedAsync().ConfigureAwait(false);
+		await registry.GetOrCreate("Transport2").FailAsync(new InvalidOperationException());
+		await registry.GetOrCreate("Transport3").FailAsync(new InvalidOperationException());
+		await registry.GetOrCreate("Transport3").FailAsync(new InvalidOperationException()); // Trip it
 
 		// Act
 		var states = registry.GetAllStates();
@@ -356,11 +356,11 @@ public sealed class ProcessorResilienceIntegrationShould
 
 				// Attempt 4+ succeeds
 				processedSuccessfully = true;
-				circuit.RecordSuccess();
+				await circuit.SucceedAsync().ConfigureAwait(false);
 			}
 			catch (TimeoutException)
 			{
-				circuit.RecordFailure(new TimeoutException());
+				await circuit.FailAsync(new TimeoutException());
 
 				if (attempt < maxAttempts && deliveryOptions.EnableAutomaticRetry)
 				{

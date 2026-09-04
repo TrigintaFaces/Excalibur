@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 using Excalibur.Dispatch;
@@ -36,7 +37,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 [Trait("Feature", "Observability")]
 public sealed class MiddlewareInstrumentationSpansShould : IDisposable
 {
-	private readonly List<Activity> _captured = [];
+	private readonly ConcurrentQueue<Activity> _captured = new();
 	private readonly ActivityListener _listener;
 
 	public MiddlewareInstrumentationSpansShould()
@@ -45,7 +46,7 @@ public sealed class MiddlewareInstrumentationSpansShould : IDisposable
 		{
 			ShouldListenTo = source => source.Name.StartsWith("Excalibur.Dispatch.", StringComparison.Ordinal),
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-			ActivityStarted = activity => _captured.Add(activity),
+			ActivityStarted = activity => _captured.Enqueue(activity),
 		};
 		ActivitySource.AddActivityListener(_listener);
 	}
@@ -53,10 +54,6 @@ public sealed class MiddlewareInstrumentationSpansShould : IDisposable
 	public void Dispose()
 	{
 		_listener.Dispose();
-		foreach (var activity in _captured)
-		{
-			activity.Dispose();
-		}
 	}
 
 	[Fact]

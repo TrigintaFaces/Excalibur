@@ -37,7 +37,6 @@ public sealed class MessageTypeShould : UnitTestBase
 		domainEvent.AggregateId.ShouldBe(aggregateId);
 		domainEvent.Version.ShouldBe(version);
 		domainEvent.OccurredAt.ShouldBeInRange(beforeCreation, afterCreation);
-		domainEvent.EventType.ShouldBe(nameof(TestDomainEvent));
 		_ = domainEvent.Metadata.ShouldNotBeNull();
 		domainEvent.Metadata.ShouldContainKey("UserId");
 	}
@@ -111,18 +110,12 @@ public sealed class MessageTypeShould : UnitTestBase
 		domainEvent.Metadata.ShouldBeNull();
 	}
 
-	[Fact]
-	public void DomainEvent_EventType_ReturnsClassNameByDefault()
-	{
-		// Act
-		var domainEvent = new TestDomainEvent("aggregate-1", 1);
+	// DomainEvent no longer defaults an EventType to the class name -- that binding meant renaming
+	// a class silently orphaned every event it had already written. Identity is declared per-type
+	// via [MessageName]; the absence is guarded by
+	// IDomainEventContractShould.NotDefine_EventType_OnTheMessagingContract.
 
-		// Assert
-		domainEvent.EventType.ShouldBe(nameof(TestDomainEvent));
-		domainEvent.EventType.ShouldNotBeNullOrEmpty();
-	}
-
-	#endregion IDomainEvent Tests (7 tests)
+	#endregion IDomainEvent Tests (6 tests)
 
 	#region IIntegrationEvent Tests (6 tests)
 
@@ -344,6 +337,7 @@ public sealed class MessageTypeShould : UnitTestBase
 	/// <summary>
 	/// Test implementation of IDomainEvent for testing domain event behavior.
 	/// </summary>
+	[MessageName("Test.MessageType.TestDomainEvent")]
 	private sealed class TestDomainEvent : IDomainEvent
 	{
 		public TestDomainEvent(string aggregateId, long version, IDictionary<string, object>? metadata = null)
@@ -352,7 +346,6 @@ public sealed class MessageTypeShould : UnitTestBase
 			AggregateId = aggregateId;
 			Version = version;
 			OccurredAt = DateTimeOffset.UtcNow;
-			EventType = nameof(TestDomainEvent);
 			Metadata = metadata;
 		}
 
@@ -360,7 +353,6 @@ public sealed class MessageTypeShould : UnitTestBase
 		public string AggregateId { get; init; }
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; }
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

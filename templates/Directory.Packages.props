@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    Template content is SCAFFOLD SOURCE, not a project this repository builds against its own
+    dependency graph. A generated project is restored outside this repository, where there is no
+    central package version file to inherit, so its PackageReference items must carry explicit
+    versions. The root Directory.Packages.props would forbid exactly that (NU1008).
+
+    NuGet walks up from a project until it finds a Directory.Packages.props, so this file stops that
+    search here and switches central management off for the templates subtree only. Without it the
+    templates cannot be built in place at all, which hides real breakage in them until someone
+    scaffolds one.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

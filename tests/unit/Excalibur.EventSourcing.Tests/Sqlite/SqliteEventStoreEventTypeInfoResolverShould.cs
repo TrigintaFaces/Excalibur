@@ -299,6 +299,7 @@ internal enum SqliteResolverTestShade
 	Green,
 }
 
+[MessageName("Test.Es.SqliteResolverTestEvent")]
 internal sealed class SqliteResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -307,7 +308,6 @@ internal sealed class SqliteResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(SqliteResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -316,6 +316,7 @@ internal sealed class SqliteResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.Es.UndeclaredSqliteTestEvent")]
 internal sealed class UndeclaredSqliteTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -324,7 +325,6 @@ internal sealed class UndeclaredSqliteTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredSqliteTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

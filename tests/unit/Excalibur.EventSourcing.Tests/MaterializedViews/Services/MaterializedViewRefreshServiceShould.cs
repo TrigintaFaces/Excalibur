@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Services;
 using Excalibur.EventSourcing.Views;
@@ -42,6 +43,94 @@ public sealed class MaterializedViewRefreshServiceShould
 		A.CallTo(() => _scopeFactory.CreateScope()).Returns(_scope);
 		A.CallTo(() => _scope.ServiceProvider).Returns(_serviceProvider);
 	}
+
+	#region Catch-up routing key
+
+	/// <summary>
+	/// A view whose declared <c>ViewName</c> deliberately differs from its class name -- the ordinary
+	/// case, since builders conventionally declare a slug.
+	/// </summary>
+	private sealed class SlugNamedView
+	{
+		public int Applied { get; set; }
+	}
+
+	private sealed class SlugNamedViewBuilder : IMaterializedViewBuilder<SlugNamedView>
+	{
+		public const string DeclaredViewName = "slug-named-view";
+
+		public string ViewName => DeclaredViewName;
+
+		public IReadOnlyList<Type> HandledEventTypes { get; } = [];
+
+		public string? GetViewId(IDomainEvent @event) => "global";
+
+		public SlugNamedView Apply(SlugNamedView view, IDomainEvent @event) => view;
+
+		public SlugNamedView CreateNew() => new();
+	}
+
+	[Fact]
+	public async Task CatchUpUsingTheBuildersDeclaredViewNameNotTheViewTypeName()
+	{
+		// Arrange -- the two names differ, which is the whole point: routing is keyed by the declared
+		// name, so passing the type name addresses a view that does not exist and silently does nothing.
+		SlugNamedViewBuilder.DeclaredViewName.ShouldNotBe(nameof(SlugNamedView));
+
+		var processor = A.Fake<IMaterializedViewProcessor>();
+		var registration = new MaterializedViewBuilderRegistration(
+			typeof(SlugNamedView),
+			typeof(SlugNamedViewBuilder),
+			new SlugNamedViewBuilder(),
+			new ViewStoreAccessor<SlugNamedView>(),
+			ViewDeliverySemantics.ExactlyOnce);
+
+		A.CallTo(() => _serviceProvider.GetService(typeof(IMaterializedViewProcessor))).Returns(processor);
+		A.CallTo(() => _serviceProvider.GetService(typeof(IEnumerable<MaterializedViewBuilderRegistration>)))
+			.Returns(new[] { registration });
+
+		var options = Options.Create(new MaterializedViewRefreshOptions
+		{
+			Enabled = true,
+			CatchUpOnStartup = true,
+			RefreshInterval = TimeSpan.FromHours(1)
+		});
+
+		var service = new MaterializedViewRefreshService(
+			_scopeFactory, options, TimeProvider.System, NullLogger<MaterializedViewRefreshService>.Instance);
+
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+
+		var caughtUp = await WaitHelpers.WaitUntilAsync(() =>
+		{
+			try
+			{
+				A.CallTo(() => processor.CatchUpAsync(SlugNamedViewBuilder.DeclaredViewName, A<CancellationToken>._))
+					.MustHaveHappened();
+				return true;
+			}
+			catch (ExpectationException)
+			{
+				return false;
+			}
+		}, timeout: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(25));
+
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		caughtUp.ShouldBeTrue(
+			"the refresh service must catch up using the builder's declared ViewName");
+
+		// And it must never address the view by its type name, which routes to nothing.
+		A.CallTo(() => processor.CatchUpAsync(nameof(SlugNamedView), A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	#endregion
 
 	#region Type Tests
 
@@ -497,12 +586,14 @@ public sealed class MaterializedViewRefreshServiceShould
 		var registrationType = typeof(MaterializedViewRefreshService).Assembly
 			.GetType("Excalibur.EventSourcing.Views.MaterializedViewBuilderRegistration")
 			.ShouldNotBeNull();
+		// A real builder type: the refresh loop reads the builder's declared ViewName, so a
+		// placeholder here would fail for a reason that has nothing to do with retry.
 		var registration = Activator.CreateInstance(
 			registrationType,
-			typeof(TestMaterializedView),
-			typeof(object),
-			new object(),
-			new ViewStoreAccessor<TestMaterializedView>(),
+			typeof(SlugNamedView),
+			typeof(SlugNamedViewBuilder),
+			new SlugNamedViewBuilder(),
+			new ViewStoreAccessor<SlugNamedView>(),
 			ViewDeliverySemantics.ExactlyOnce).ShouldNotBeNull();
 		var registrationSequenceType = typeof(IEnumerable<>).MakeGenericType(registrationType);
 		var registrations = Array.CreateInstance(registrationType, 1);

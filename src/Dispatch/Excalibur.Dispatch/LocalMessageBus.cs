@@ -291,29 +291,44 @@ internal sealed partial class LocalMessageBus(
 		EventDispatchPlan[] plans,
 		IMessageContext context,
 		CancellationToken cancellationToken)
-		=> _ = await _scopeResolver.RunAsync<object?>(
+		=> _ = await _scopeResolver.RunAsync(
 			scopeAnchor,
 			PreferredScope(context),
-			async scopedProvider =>
+			new PublishScopeState(this, messageType, evt, plans, context, cancellationToken),
+			// static: the state above carries everything the body needs, so no closure object and no
+			// per-dispatch delegate is allocated on this path.
+			static async (scopedProvider, s) =>
 			{
 				// Rebind the caller's context to the resolved scope for the duration of the fan-out (and
 				// restore it after) so every handler resolves from that scope and sees a RequestServices
 				// matching where it was resolved -- without discarding the context's correlation, items or
 				// features, which a substitute context would lose.
-				var previous = context.RequestServices;
-				context.RequestServices = scopedProvider;
+				var previous = s.Context.RequestServices;
+				s.Context.RequestServices = scopedProvider;
 				try
 				{
-					await PublishToPlansAsync(messageType, evt, plans, context, scopeOpen: true, cancellationToken)
+					await s.Bus.PublishToPlansAsync(
+						s.MessageType, s.Event, s.Plans, s.Context, scopeOpen: true, s.CancellationToken)
 						.ConfigureAwait(false);
 				}
 				finally
 				{
-					context.RequestServices = previous;
+					s.Context.RequestServices = previous;
 				}
 
-				return null;
+				return (object?)null;
 			}).ConfigureAwait(false);
+
+	/// <summary>
+	/// State handed to the scoped fan-out body so it can be a non-capturing <see langword="static"/> lambda.
+	/// </summary>
+	private readonly record struct PublishScopeState(
+		LocalMessageBus Bus,
+		Type MessageType,
+		IDispatchEvent Event,
+		EventDispatchPlan[] Plans,
+		IMessageContext Context,
+		CancellationToken CancellationToken);
 
 	/// <summary>
 	/// Invokes every dispatch plan for the event. When <paramref name="scopeOpen"/> is set, a scope is
@@ -1931,20 +1946,37 @@ internal sealed partial class LocalMessageBus(
 		IDispatchMessage message,
 		IMessageContext context,
 		CancellationToken cancellationToken)
-		=> _scopeResolver.RunAsync(handlerType, PreferredScope(context), async scopedProvider =>
-		{
-			var previous = context.RequestServices;
-			context.RequestServices = scopedProvider;
-			try
+		=> _scopeResolver.RunAsync(
+			handlerType,
+			PreferredScope(context),
+			new InvokeScopeState(this, handlerType, message, context, cancellationToken),
+			// static: see PublishScopeState -- this is the single-handler dispatch's hot path.
+			static async (scopedProvider, s) =>
 			{
-				var handler = ActivateHandler(handlerType, context);
-				return await InvokeHandler(handler, message, cancellationToken).ConfigureAwait(false);
-			}
-			finally
-			{
-				context.RequestServices = previous;
-			}
-		});
+				var previous = s.Context.RequestServices;
+				s.Context.RequestServices = scopedProvider;
+				try
+				{
+					var handler = s.Bus.ActivateHandler(s.HandlerType, s.Context);
+					return await s.Bus.InvokeHandler(handler, s.Message, s.CancellationToken).ConfigureAwait(false);
+				}
+				finally
+				{
+					s.Context.RequestServices = previous;
+				}
+			});
+
+	/// <summary>
+	/// State handed to the single-handler scoped invocation body so it can be a non-capturing
+	/// <see langword="static"/> lambda.
+	/// </summary>
+	private readonly record struct InvokeScopeState(
+		LocalMessageBus Bus,
+		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		Type HandlerType,
+		IDispatchMessage Message,
+		IMessageContext Context,
+		CancellationToken CancellationToken);
 
 	private async Task SendScopedAsync(
 		HandlerRegistryEntry entry,
@@ -2009,38 +2041,56 @@ internal sealed partial class LocalMessageBus(
 		IDispatchAction action,
 		IMessageContext? context,
 		CancellationToken cancellationToken)
-		=> _scopeResolver.RunAsync(handlerType, PreferredScope(context), async scopedProvider =>
-		{
-			// Rebind the caller's context to the resolved scope for the duration of the invocation (and
-			// restore it after) so the handler resolves from that scope and sees a RequestServices
-			// matching where it was resolved -- the same treatment the event fan-out above gives its
-			// context, and for the same reason: substituting a fresh context here discarded the caller's
-			// tenant, user, correlation and causation outright. A handler resolved into a fresh scope
-			// therefore ran untenanted, and silently, because a context carrying no tenant is
-			// indistinguishable downstream from one for a genuinely untenanted operation. Only a null
-			// caller context needs a substitute, and it has nothing to lose.
-			var scopedContext = context ?? new MessageContext(action, scopedProvider);
-			var previousServices = scopedContext.RequestServices;
-			scopedContext.RequestServices = scopedProvider;
-
-			try
+		=> _scopeResolver.RunAsync(
+			handlerType,
+			PreferredScope(context),
+			new ScopedActionState(this, actionType, handlerType, action, context, cancellationToken),
+			// static: see PublishScopeState.
+			static async (scopedProvider, s) =>
 			{
-				// Prefer the source-generated precompiled plan (AOT-safe, no reflection), resolved from the
-				// scope provider; fall back to activator-based resolution (also from the scope) otherwise.
-				if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan) &&
-					!ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+				// Rebind the caller's context to the resolved scope for the duration of the invocation (and
+				// restore it after) so the handler resolves from that scope and sees a RequestServices
+				// matching where it was resolved -- the same treatment the event fan-out above gives its
+				// context, and for the same reason: substituting a fresh context here discarded the caller's
+				// tenant, user, correlation and causation outright. A handler resolved into a fresh scope
+				// therefore ran untenanted, and silently, because a context carrying no tenant is
+				// indistinguishable downstream from one for a genuinely untenanted operation. Only a null
+				// caller context needs a substitute, and it has nothing to lose.
+				var scopedContext = s.Context ?? new MessageContext(s.Action, scopedProvider);
+				var previousServices = scopedContext.RequestServices;
+				scopedContext.RequestServices = scopedProvider;
+
+				try
 				{
-					return await precompiledPlan.Invoke(action, scopedProvider, scopedContext, cancellationToken).ConfigureAwait(false);
-				}
+					// Prefer the source-generated precompiled plan (AOT-safe, no reflection), resolved from the
+					// scope provider; fall back to activator-based resolution (also from the scope) otherwise.
+					if (s.Bus.TryGetPrecompiledDirectActionDispatchPlan(s.ActionType, out var precompiledPlan) &&
+						!s.Bus.ResolveRequiresContext(s.ActionType, precompiledPlan.RequiresContext))
+					{
+						return await precompiledPlan.Invoke(s.Action, scopedProvider, scopedContext, s.CancellationToken).ConfigureAwait(false);
+					}
 
-				var handler = ActivateHandler(handlerType, scopedContext);
-				return await InvokeHandler(handler, action, cancellationToken).ConfigureAwait(false);
-			}
-			finally
-			{
-				scopedContext.RequestServices = previousServices;
-			}
-		});
+					var handler = s.Bus.ActivateHandler(s.HandlerType, scopedContext);
+					return await s.Bus.InvokeHandler(handler, s.Action, s.CancellationToken).ConfigureAwait(false);
+				}
+				finally
+				{
+					scopedContext.RequestServices = previousServices;
+				}
+			});
+
+	/// <summary>
+	/// State handed to the scoped action-invocation body so it can be a non-capturing
+	/// <see langword="static"/> lambda.
+	/// </summary>
+	private readonly record struct ScopedActionState(
+		LocalMessageBus Bus,
+		Type ActionType,
+		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		Type HandlerType,
+		IDispatchAction Action,
+		IMessageContext? Context,
+		CancellationToken CancellationToken);
 
 	[RequiresUnreferencedCode("Falls back to reflection-based dispatch plan resolution when no precompiled plan covers the action.")]
 	private async ValueTask InvokeScopedNoResponseAsync(

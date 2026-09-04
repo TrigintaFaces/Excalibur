@@ -40,6 +40,7 @@ public sealed class EventSourcedRepositoryShould
 	/// <summary>
 	/// V1 event implementing both IDomainEvent and IVersionedMessage.
 	/// </summary>
+	[MessageName("Test.TestCreatedEventV1")]
 	internal sealed record TestCreatedEventV1 : DomainEvent, IVersionedMessage
 	{
 		public string Name { get; init; } = string.Empty;
@@ -52,6 +53,7 @@ public sealed class EventSourcedRepositoryShould
 	/// <summary>
 	/// V2 event with split name fields.
 	/// </summary>
+	[MessageName("Test.TestCreatedEventV2")]
 	internal sealed record TestCreatedEventV2 : DomainEvent, IVersionedMessage
 	{
 		public string FirstName { get; init; } = string.Empty;
@@ -65,6 +67,7 @@ public sealed class EventSourcedRepositoryShould
 	/// <summary>
 	/// Non-versioned event for testing pass-through behavior.
 	/// </summary>
+	[MessageName("Test.TestUpdatedEvent")]
 	internal sealed record TestUpdatedEvent : DomainEvent
 	{
 		public string NewValue { get; init; } = string.Empty;
@@ -197,7 +200,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		var result = await repository.GetByIdAsync("non-existent", CancellationToken.None);
@@ -227,7 +231,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(v1Event, updateEvent),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
@@ -287,7 +292,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			serializer,
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert — rehydration must FAIL LOUD, never return a silently-truncated aggregate.
 		_ = await Should.ThrowAsync<InvalidOperationException>(
@@ -324,13 +330,13 @@ public sealed class EventSourcedRepositoryShould
 				return msg;
 			});
 
-		var options = Microsoft.Extensions.Options.Options.Create(new UpcastingOptions { EnableAutoUpcastOnReplay = true });
+		var options = Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { EnableAutoUpcast = true });
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(v1Event),
 			id => new TestAggregate(id),
-			upcastingOptions: options,
+			options,
 			upcastingPipeline: pipeline);
 
 		// Act
@@ -360,13 +366,13 @@ public sealed class EventSourcedRepositoryShould
 			.Returns(storedEvents);
 
 		var pipeline = A.Fake<IUpcastingPipeline>();
-		var options = Microsoft.Extensions.Options.Options.Create(new UpcastingOptions { EnableAutoUpcastOnReplay = false });
+		var options = Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { EnableAutoUpcast = false });
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(v1Event),
 			id => new TestAggregate(id),
-			upcastingOptions: options,
+			options,
 			upcastingPipeline: pipeline);
 
 		// Act
@@ -395,13 +401,13 @@ public sealed class EventSourcedRepositoryShould
 			.Returns(storedEvents);
 
 		var pipeline = A.Fake<IUpcastingPipeline>();
-		var options = Microsoft.Extensions.Options.Options.Create(new UpcastingOptions { EnableAutoUpcastOnReplay = true });
+		var options = Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { EnableAutoUpcast = true });
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(updateEvent),
 			id => new TestAggregate(id),
-			upcastingOptions: options,
+			options,
 			upcastingPipeline: pipeline);
 
 		// Act
@@ -429,16 +435,16 @@ public sealed class EventSourcedRepositoryShould
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "TestAggregate", A<long>._, A<CancellationToken>._))
 			.Returns(storedEvents);
 
-		var options = Microsoft.Extensions.Options.Options.Create(new UpcastingOptions { EnableAutoUpcastOnReplay = true });
+		var options = Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions { EnableAutoUpcast = true });
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(v1Event),
 			id => new TestAggregate(id),
+			options,
 			upcastingPipeline: null,
 			snapshotManager: null,
-			snapshotStrategy: null,
-			upcastingOptions: options);
+			snapshotStrategy: null);
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
@@ -473,7 +479,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		var exists = await repository.ExistsAsync(aggregateId, CancellationToken.None);
@@ -494,7 +501,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		var exists = await repository.ExistsAsync(aggregateId, CancellationToken.None);
@@ -529,7 +537,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		await repository.SaveAsync(aggregate, CancellationToken.None);
@@ -563,7 +572,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ConcurrencyException>(
@@ -591,7 +601,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<Excalibur.Data.ResourceException>(
@@ -610,7 +621,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		await repository.SaveAsync(aggregate, CancellationToken.None);
@@ -644,7 +656,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		await Should.NotThrowAsync(async () =>
@@ -664,7 +677,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ConcurrencyException>(async () =>
@@ -691,7 +705,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		await Should.NotThrowAsync(async () =>
@@ -712,7 +727,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<NotSupportedException>(async () =>
@@ -730,7 +746,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -767,7 +784,8 @@ public sealed class EventSourcedRepositoryShould
 		_ = Should.Throw<ArgumentNullException>(() => new EventSourcedRepository<TestAggregate>(
 			null!,
 			CreateMockSerializer(),
-			id => new TestAggregate(id)));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions())));
 	}
 
 	[Fact]
@@ -778,7 +796,8 @@ public sealed class EventSourcedRepositoryShould
 		_ = Should.Throw<ArgumentNullException>(() => new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			null!,
-			id => new TestAggregate(id)));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions())));
 	}
 
 	[Fact]
@@ -789,7 +808,8 @@ public sealed class EventSourcedRepositoryShould
 		_ = Should.Throw<ArgumentNullException>(() => new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			null!));
+			null!,
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions())));
 	}
 
 	#endregion Constructor Validation Tests
@@ -805,7 +825,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -821,7 +842,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -837,7 +859,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -857,7 +880,8 @@ public sealed class EventSourcedRepositoryShould
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
 			CreateMockSerializer(),
-			id => new TestAggregate(id));
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Assert
 		_ = repository.ShouldBeAssignableTo<IEventSourcedRepository<TestAggregate>>();
@@ -903,6 +927,7 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(),
 			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			eventNotificationBroker: broker);
 
 		// Act
@@ -956,6 +981,7 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(),
 			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			eventNotificationBroker: broker);
 
 		// Act
@@ -991,6 +1017,7 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(),
 			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			eventNotificationBroker: broker);
 
 		// Act & Assert -- save should throw due to concurrency conflict
@@ -1032,6 +1059,7 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(),
 			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			eventNotificationBroker: broker);
 
 		// Act & Assert -- broker failure should propagate

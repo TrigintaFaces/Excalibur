@@ -199,10 +199,15 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 			var targetDelay = _baseDelay.TotalMilliseconds * Math.Pow(Multiplier, attempt - 1);
 
 			// Apply the decorrelated jitter formula
-			// This uses the random point (RP) approach from the Polly team's research
-			var rpDelay = _previousDelay.TotalMilliseconds == 0
+			// This uses the random point (RP) approach from the Polly team's research.
+			// attempt == 1 starts a NEW retry sequence, so the threaded state resets to base:
+			// this calculator is registered as a singleton, and without the reset one message's
+			// first retry would be computed from an unrelated earlier message's last delay.
+			// Matches DecorrelatedJitterBackoffCalculator, which documents the same behaviour.
+			var previousMs = attempt == 1 ? 0d : _previousDelay.TotalMilliseconds;
+			var rpDelay = previousMs == 0
 				? _baseDelay.TotalMilliseconds
-				: _previousDelay.TotalMilliseconds * RpScalingFactor;
+				: previousMs * RpScalingFactor;
 
 			// Random component with cryptographically secure random
 			var randomFactor = GetSecureRandomDouble();

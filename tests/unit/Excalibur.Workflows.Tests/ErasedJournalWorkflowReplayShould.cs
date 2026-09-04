@@ -175,6 +175,7 @@ public sealed class ErasedJournalWorkflowReplayShould
         }
     }
 
+    [MessageName("Test.NotAJournalEvent")]
     private sealed class NotAJournalEvent : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
@@ -185,7 +186,6 @@ public sealed class ErasedJournalWorkflowReplayShould
 
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-        public string EventType { get; init; } = nameof(NotAJournalEvent);
 
         public IDictionary<string, object>? Metadata { get; init; }
     }

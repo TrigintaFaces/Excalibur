@@ -164,11 +164,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.OrderingMessageProcessingError.ShouldBeInRange(23300, 23399);
 		GooglePubSubEventId.UnorderedMessageError.ShouldBeInRange(23300, 23399);
 		GooglePubSubEventId.OrderingQueueRemoved.ShouldBeInRange(23300, 23399);
-		GooglePubSubEventId.OrderingManagerInitialized.ShouldBeInRange(23300, 23399);
-		GooglePubSubEventId.OutOfSequenceMessage.ShouldBeInRange(23300, 23399);
-		GooglePubSubEventId.OrderingKeyFailed.ShouldBeInRange(23300, 23399);
-		GooglePubSubEventId.OrderingKeyReset.ShouldBeInRange(23300, 23399);
-		GooglePubSubEventId.OrderingKeyCleanupCompleted.ShouldBeInRange(23300, 23399);
+
 		GooglePubSubEventId.OrderingWorkerStartTimeout.ShouldBeInRange(23300, 23399);
 	}
 
@@ -201,15 +197,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.BatchReceiveCompleted.ShouldBeInRange(23400, 23499);
 		GooglePubSubEventId.AdaptiveBatchingApplied.ShouldBeInRange(23400, 23499);
 		GooglePubSubEventId.BatchSizeAdjusted.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.FlowControlPreventedReceive.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.BatchAcknowledged.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.BatchAcknowledgmentsFailed.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.BatchAckDeadlineModified.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.AdaptiveFlowControlLimit.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.AdaptiveMemoryPressure.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.AdaptiveBatchResult.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.AdaptiveStrategyReset.ShouldBeInRange(23400, 23499);
-		GooglePubSubEventId.AdaptiveBatchSizeAdjusted.ShouldBeInRange(23400, 23499);
+
 	}
 
 	#endregion
@@ -219,7 +207,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 	[Fact]
 	public void HaveFlowControlAppliedInFlowControlRange()
 	{
-		GooglePubSubEventId.FlowControlApplied.ShouldBe(23500);
+
 	}
 
 	[Fact]
@@ -231,7 +219,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 	[Fact]
 	public void HaveAllFlowControlEventIdsInExpectedRange()
 	{
-		GooglePubSubEventId.FlowControlApplied.ShouldBeInRange(23500, 23599);
+
 		GooglePubSubEventId.FlowControlReleased.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.SubscriberFactoryCreated.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.OutstandingMessagesLimit.ShouldBeInRange(23500, 23599);
@@ -271,9 +259,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.DeadLetterMessagesReprocessed.ShouldBeInRange(23700, 23799);
 		GooglePubSubEventId.DeadLetterMetadataDeserializeFailed.ShouldBeInRange(23700, 23799);
 		GooglePubSubEventId.DeadLetterMessageReprocessed.ShouldBeInRange(23700, 23799);
-		GooglePubSubEventId.RetryAttemptLogged.ShouldBeInRange(23700, 23799);
-		GooglePubSubEventId.RetryAdaptedLowSuccessRate.ShouldBeInRange(23700, 23799);
-		GooglePubSubEventId.RetryAdaptedHighSuccessRate.ShouldBeInRange(23700, 23799);
+
 		GooglePubSubEventId.RetryWarning.ShouldBeInRange(23700, 23799);
 		GooglePubSubEventId.CircuitBreakerOpened.ShouldBeInRange(23700, 23799);
 		GooglePubSubEventId.CircuitBreakerReset.ShouldBeInRange(23700, 23799);
@@ -349,7 +335,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 	public void HaveCorrectNumberOfEventIds()
 	{
 		var allEventIds = GetAllGooglePubSubEventIds();
-		allEventIds.Length.ShouldBeGreaterThan(100);
+		allEventIds.Length.ShouldBeGreaterThan(90);
 	}
 
 	#endregion
@@ -419,11 +405,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.OrderingMessageProcessingError,
 			GooglePubSubEventId.UnorderedMessageError,
 			GooglePubSubEventId.OrderingQueueRemoved,
-			GooglePubSubEventId.OrderingManagerInitialized,
-			GooglePubSubEventId.OutOfSequenceMessage,
-			GooglePubSubEventId.OrderingKeyFailed,
-			GooglePubSubEventId.OrderingKeyReset,
-			GooglePubSubEventId.OrderingKeyCleanupCompleted,
+
 			GooglePubSubEventId.OrderingWorkerStartTimeout,
 
 			// Batch Receiving (23400-23499)
@@ -431,18 +413,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.BatchReceiveCompleted,
 			GooglePubSubEventId.AdaptiveBatchingApplied,
 			GooglePubSubEventId.BatchSizeAdjusted,
-			GooglePubSubEventId.FlowControlPreventedReceive,
-			GooglePubSubEventId.BatchAcknowledged,
-			GooglePubSubEventId.BatchAcknowledgmentsFailed,
-			GooglePubSubEventId.BatchAckDeadlineModified,
-			GooglePubSubEventId.AdaptiveFlowControlLimit,
-			GooglePubSubEventId.AdaptiveMemoryPressure,
-			GooglePubSubEventId.AdaptiveBatchResult,
-			GooglePubSubEventId.AdaptiveStrategyReset,
-			GooglePubSubEventId.AdaptiveBatchSizeAdjusted,
 
-			// Flow Control (23500-23599)
-			GooglePubSubEventId.FlowControlApplied,
 			GooglePubSubEventId.FlowControlReleased,
 			GooglePubSubEventId.SubscriberFactoryCreated,
 			GooglePubSubEventId.OutstandingMessagesLimit,
@@ -463,9 +434,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.DeadLetterMessagesReprocessed,
 			GooglePubSubEventId.DeadLetterMetadataDeserializeFailed,
 			GooglePubSubEventId.DeadLetterMessageReprocessed,
-			GooglePubSubEventId.RetryAttemptLogged,
-			GooglePubSubEventId.RetryAdaptedLowSuccessRate,
-			GooglePubSubEventId.RetryAdaptedHighSuccessRate,
+
 			GooglePubSubEventId.RetryWarning,
 			GooglePubSubEventId.CircuitBreakerOpened,
 			GooglePubSubEventId.CircuitBreakerReset,

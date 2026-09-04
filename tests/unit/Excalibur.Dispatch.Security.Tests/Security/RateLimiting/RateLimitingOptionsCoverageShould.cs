@@ -24,8 +24,6 @@ public sealed class RateLimitingOptionsCoverageShould
         options.TierLimits.ShouldNotBeNull();
         options.TierLimits.Count.ShouldBe(0);
         options.DefaultRetryAfterMilliseconds.ShouldBe(1000);
-        options.CleanupIntervalMinutes.ShouldBe(5);
-        options.InactivityTimeoutMinutes.ShouldBe(30);
     }
 
     [Fact]
@@ -38,8 +36,6 @@ public sealed class RateLimitingOptionsCoverageShould
             Algorithm = RateLimitAlgorithm.SlidingWindow,
             DefaultLimits = new RateLimits { PermitLimit = 50 },
             DefaultRetryAfterMilliseconds = 2000,
-            CleanupIntervalMinutes = 10,
-            InactivityTimeoutMinutes = 60,
         };
         options.TenantLimits["premium"] = new RateLimits { PermitLimit = 500 };
         options.TierLimits["enterprise"] = new RateLimits { PermitLimit = 1000 };
@@ -49,8 +45,6 @@ public sealed class RateLimitingOptionsCoverageShould
         options.Algorithm.ShouldBe(RateLimitAlgorithm.SlidingWindow);
         options.DefaultLimits.PermitLimit.ShouldBe(50);
         options.DefaultRetryAfterMilliseconds.ShouldBe(2000);
-        options.CleanupIntervalMinutes.ShouldBe(10);
-        options.InactivityTimeoutMinutes.ShouldBe(60);
         options.TenantLimits["premium"].PermitLimit.ShouldBe(500);
         options.TierLimits["enterprise"].PermitLimit.ShouldBe(1000);
     }

@@ -10,6 +10,7 @@ namespace Excalibur.Testing.Conformance;
 /// <summary>
 /// An event type the conformance resolver declares, used as the arm's fixture discriminator.
 /// </summary>
+[MessageName("Excalibur.Testing.DeclaredConformanceEvent")]
 internal sealed class DeclaredConformanceEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -18,7 +19,6 @@ internal sealed class DeclaredConformanceEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(DeclaredConformanceEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -34,6 +34,7 @@ internal sealed class DeclaredConformanceEvent : IDomainEvent
 /// it. A store that quietly built its own reflection options serializes it happily, which is the defect
 /// the refusal arm exists to catch — and which no build warning reports either way.
 /// </remarks>
+[MessageName("Excalibur.Testing.UndeclaredConformanceEvent")]
 internal sealed class UndeclaredConformanceEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -42,7 +43,6 @@ internal sealed class UndeclaredConformanceEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredConformanceEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

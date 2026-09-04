@@ -397,7 +397,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 	#region ResetAll Tests
 
 	[Fact]
-	public void ResetAllCircuitBreakers()
+	public async Task ResetAllCircuitBreakers()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -405,9 +405,9 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		var cbKafka = registry.GetOrCreate("kafka");
 
 		// Record some failures
-		cbRabbitmq.RecordFailure();
-		cbRabbitmq.RecordFailure();
-		cbKafka.RecordFailure();
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
+		await cbKafka.FailAsync().ConfigureAwait(false);
 
 		// Act
 		registry.ResetAll();
@@ -592,7 +592,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 	#region Transport Isolation Tests
 
 	[Fact]
-	public void IsolateFailuresBetweenTransports()
+	public async Task IsolateFailuresBetweenTransports()
 	{
 		// Arrange
 		var registry = CreateRegistry();
@@ -600,9 +600,9 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		var cbKafka = registry.GetOrCreate("kafka");
 
 		// Act
-		cbRabbitmq.RecordFailure();
-		cbRabbitmq.RecordFailure();
-		cbRabbitmq.RecordFailure();
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
 
 		// Assert - kafka should be unaffected
 		((ICircuitBreakerDiagnostics)cbRabbitmq).ConsecutiveFailures.ShouldBe(3);
@@ -610,7 +610,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 	}
 
 	[Fact]
-	public void IsolateStatesBetweenTransports()
+	public async Task IsolateStatesBetweenTransports()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -623,8 +623,8 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		var cbKafka = registry.GetOrCreate("kafka");
 
 		// Record enough failures to track independently
-		cbRabbitmq.RecordFailure();
-		cbRabbitmq.RecordFailure();
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
+		await cbRabbitmq.FailAsync().ConfigureAwait(false);
 
 		// Act
 		var states = registry.GetAllStates();
@@ -694,7 +694,7 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 		for (var i = 0; i < 50; i++)
 		{
 			var index = i;
-			tasks.Add(Task.Run(() =>
+			tasks.Add(Task.Run(async () =>
 			{
 				switch (index % 5)
 				{
@@ -716,7 +716,11 @@ public sealed class PollyTransportCircuitBreakerRegistryShould : IDisposable
 
 					case 4:
 						var cb = registry.TryGet($"transport-{index % 10}");
-						cb?.RecordFailure();
+						if (cb is not null)
+						{
+							await cb.FailAsync().ConfigureAwait(false);
+						}
+
 						break;
 				}
 			}));

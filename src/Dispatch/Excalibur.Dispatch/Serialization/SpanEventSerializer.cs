@@ -161,7 +161,12 @@ public sealed class SpanEventSerializer : IEventSerializer
 	public string GetTypeName(Type type)
 	{
 		ArgumentNullException.ThrowIfNull(type);
-		return type.AssemblyQualifiedName ?? type.FullName ?? type.Name;
+
+		// The declared name, matching every other implementation of this contract. Returning the
+		// assembly-qualified name here made one interface answer two ways: a consumer who swapped
+		// serializers changed the identity of everything already stored, and a namespace move or an
+		// assembly version bump rewrote it again.
+		return MessageNameHelper.GetName(type);
 	}
 
 	/// <inheritdoc />

@@ -137,7 +137,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			await ApplyEventToBuilderAsync(route.Registration, @event, position, cancellationToken).ConfigureAwait(false);
 		}
 
-		LogEventProcessed(@event.EventType, position);
+		LogEventProcessed(MessageNameHelper.GetName(@event.GetType()), position);
 	}
 
 	/// <inheritdoc />
@@ -468,14 +468,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// <summary>
 	/// Gets the view name from a builder registration by invoking its ViewName property.
 	/// </summary>
-	private static string GetViewName(MaterializedViewBuilderRegistration registration)
-	{
-		// The BuilderInstance implements IMaterializedViewBuilder<TView> which has ViewName
-		var viewNameProp = registration.BuilderType
-			.GetProperty(nameof(IMaterializedViewBuilder<>.ViewName));
-
-		return (string)viewNameProp!.GetValue(registration.BuilderInstance)!;
-	}
+	private static string GetViewName(MaterializedViewBuilderRegistration registration) =>
+		registration.GetViewName();
 
 	/// <summary>
 	/// Gets the view ID for an event from a builder registration.

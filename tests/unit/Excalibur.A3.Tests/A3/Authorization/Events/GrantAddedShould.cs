@@ -56,7 +56,8 @@ public sealed class GrantAddedShould
 		grantAdded.ShouldBeAssignableTo<DomainEvent>();
 		grantAdded.ShouldBeAssignableTo<IDomainEvent>();
 		grantAdded.EventId.ShouldNotBeNullOrWhiteSpace();
-		grantAdded.EventType.ShouldBe(nameof(GrantAdded));
+		// The stored name is DECLARED, so it survives renaming the class or moving the assembly.
+		MessageNameHelper.GetName(typeof(GrantAdded)).ShouldBe("Excalibur.A3.GrantAdded");
 	}
 
 	[Fact]

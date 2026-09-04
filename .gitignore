@@ -570,3 +570,6 @@ eng/docs/api/_site/
 eng/docs/api/api-dispatch/
 eng/docs/api/api-excalibur/
 eng/docs/api/obj/
+
+# graphify knowledge-graph artifacts (generated, ~1GB)
+graphify-out/

@@ -12,7 +12,7 @@ namespace Excalibur.Data;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A6: <c>AddExcaliburDataServices(...)</c> was deleted. The Dapper
+/// <c>AddExcaliburDataServices(...)</c> no longer exists. The Dapper
 /// snake-case column name binding (<c>DefaultTypeMap.MatchNamesWithUnderscores = true</c>)
 /// previously lived inside that method body and would fire only when consumers explicitly
 /// opted-in. A module initializer preserves the same default without requiring a

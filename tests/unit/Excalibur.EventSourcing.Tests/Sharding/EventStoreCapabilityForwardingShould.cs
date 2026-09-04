@@ -261,6 +261,7 @@ public sealed class EventStoreCapabilityForwardingShould
 	};
 
 	/// <summary>An event carrying a data subject's personal field, so encryption of it is observable.</summary>
+	[MessageName("Test.SubjectEvent")]
 	private sealed record SubjectEvent : IDomainEvent
 	{
 		internal const string PlaintextEmail = "subject@example.test";
@@ -269,7 +270,6 @@ public sealed class EventStoreCapabilityForwardingShould
 
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UnixEpoch;
 
-		public string EventType => nameof(SubjectEvent);
 
 		public IDictionary<string, object>? Metadata { get; init; }
 

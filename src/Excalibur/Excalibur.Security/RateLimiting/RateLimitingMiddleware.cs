@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -31,6 +30,12 @@ namespace Excalibur.Security;
 /// <item> Burst allowance for temporary spikes </item>
 /// <item> Metrics and monitoring integration </item>
 /// </list>
+/// <para>
+/// Per-key limiters are held by a <see cref="PartitionedRateLimiter{TResource}" />. A partition is created on first use of a key and
+/// released once that key has been idle, so a caller who rotates identifiers (client IP, API key) cannot grow the limiter set without
+/// bound. Because an idle partition is released, a key that stops sending for longer than the idle window starts again with a full
+/// budget.
+/// </para>
 /// </remarks>
 public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDisposable, IAsyncDisposable
 {
@@ -39,9 +44,7 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 
 	private readonly RateLimitingOptions _options;
 	private readonly ILogger<RateLimitingMiddleware> _logger;
-	private readonly ConcurrentDictionary<string, RateLimiter> _limiters = new(StringComparer.Ordinal);
-	private readonly Timer _cleanupTimer;
-	private readonly SemaphoreSlim _cleanupLock = new(1, 1);
+	private readonly PartitionedRateLimiter<string> _limiter;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -58,13 +61,7 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 
 		_options = options.Value;
 		_logger = logger;
-
-		// Start cleanup timer to remove inactive limiters
-		_cleanupTimer = new Timer(
-			CleanupInactiveLimiters,
-			state: null,
-			TimeSpan.FromMinutes(_options.CleanupIntervalMinutes),
-			TimeSpan.FromMinutes(_options.CleanupIntervalMinutes));
+		_limiter = PartitionedRateLimiter.Create<string, string>(CreatePartition, StringComparer.Ordinal);
 	}
 
 	/// <inheritdoc />
@@ -98,16 +95,13 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 			rateLimitKey = RateLimitKeyPrefixes.Global;
 		}
 
-		// Get or create rate limiter for this key
-		var limiter = GetOrCreateLimiter(rateLimitKey);
-
 		// Create activity for tracing
 		using var activity = Activity.Current?.Source.StartActivity("RateLimiting.Check");
 		_ = (activity?.SetTag("rate_limit.key", rateLimitKey));
 		_ = (activity?.SetTag("rate_limit.algorithm", _options.Algorithm.ToString()));
 
 		// Attempt to acquire permit
-		using var lease = await limiter.AcquireAsync(1, cancellationToken).ConfigureAwait(false);
+		using var lease = await _limiter.AcquireAsync(rateLimitKey, 1, cancellationToken).ConfigureAwait(false);
 
 		if (lease.IsAcquired)
 		{
@@ -127,15 +121,7 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 		}
 
 		_disposed = true;
-		_cleanupTimer.Dispose();
-		_cleanupLock.Dispose();
-
-		foreach (var limiter in _limiters.Values)
-		{
-			limiter.Dispose();
-		}
-
-		_limiters.Clear();
+		_limiter.Dispose();
 	}
 
 	/// <inheritdoc />
@@ -147,17 +133,7 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 		}
 
 		_disposed = true;
-
-		// Wait for any in-flight timer callback to complete
-		await _cleanupTimer.DisposeAsync().ConfigureAwait(false);
-		_cleanupLock.Dispose();
-
-		foreach (var limiter in _limiters.Values)
-		{
-			limiter.Dispose();
-		}
-
-		_limiters.Clear();
+		await _limiter.DisposeAsync().ConfigureAwait(false);
 	}
 
 	private static string ExtractRateLimitKey(IDispatchMessage message, IMessageContext context)
@@ -192,58 +168,6 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 		return $"{RateLimitKeyPrefixes.MessageType}{message.GetType().Name}";
 	}
 
-	private static RateLimiter CreateLimiterForKey(string key, RateLimitingMiddleware middleware)
-	{
-		// Get limits for this key
-		var limits = middleware.GetLimitsForKey(key);
-
-		// Create limiter based on configured algorithm
-		return middleware._options.Algorithm switch
-		{
-			RateLimitAlgorithm.TokenBucket => new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
-			{
-				TokenLimit = limits.TokenLimit,
-				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-				QueueLimit = limits.QueueLimit,
-				ReplenishmentPeriod = TimeSpan.FromSeconds(limits.ReplenishmentPeriodSeconds),
-				TokensPerPeriod = limits.TokensPerPeriod,
-				AutoReplenishment = true,
-			}),
-
-			RateLimitAlgorithm.SlidingWindow => new SlidingWindowRateLimiter(new SlidingWindowRateLimiterOptions
-			{
-				PermitLimit = limits.PermitLimit,
-				Window = TimeSpan.FromSeconds(limits.WindowSeconds),
-				SegmentsPerWindow = limits.SegmentsPerWindow,
-				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-				QueueLimit = limits.QueueLimit,
-				AutoReplenishment = true,
-			}),
-
-			RateLimitAlgorithm.FixedWindow => new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
-			{
-				PermitLimit = limits.PermitLimit,
-				Window = TimeSpan.FromSeconds(limits.WindowSeconds),
-				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-				QueueLimit = limits.QueueLimit,
-				AutoReplenishment = true,
-			}),
-
-			RateLimitAlgorithm.Concurrency => new ConcurrencyLimiter(new ConcurrencyLimiterOptions
-			{
-				PermitLimit = limits.ConcurrencyLimit,
-				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-				QueueLimit = limits.QueueLimit,
-			}),
-
-			_ => throw new NotSupportedException(
-					string.Format(
-							CultureInfo.InvariantCulture,
-							UnsupportedAlgorithmFormat,
-							middleware._options.Algorithm)),
-		};
-	}
-
 	private static void RecordRateLimitExceeded(string key, string messageType)
 	{
 		// Record metrics using Activity API
@@ -254,6 +178,58 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 			new ActivityTagsCollection { ["rate_limit.key"] = key, ["message.type"] = messageType })));
 
 		// Could also emit custom metrics here using System.Diagnostics.Metrics
+	}
+
+	private RateLimitPartition<string> CreatePartition(string key)
+	{
+		// Limits are resolved once per partition, from the same tenant/tier lookup the hand-rolled
+		// dictionary used, so per-key configuration survives the move to the framework limiter.
+		var limits = GetLimitsForKey(key);
+
+		return _options.Algorithm switch
+		{
+			RateLimitAlgorithm.TokenBucket => RateLimitPartition.GetTokenBucketLimiter(key, _ => new TokenBucketRateLimiterOptions
+			{
+				TokenLimit = limits.TokenLimit,
+				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+				QueueLimit = limits.QueueLimit,
+				ReplenishmentPeriod = TimeSpan.FromSeconds(limits.ReplenishmentPeriodSeconds),
+				TokensPerPeriod = limits.TokensPerPeriod,
+				AutoReplenishment = true,
+			}),
+
+			RateLimitAlgorithm.SlidingWindow => RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
+			{
+				PermitLimit = limits.PermitLimit,
+				Window = TimeSpan.FromSeconds(limits.WindowSeconds),
+				SegmentsPerWindow = limits.SegmentsPerWindow,
+				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+				QueueLimit = limits.QueueLimit,
+				AutoReplenishment = true,
+			}),
+
+			RateLimitAlgorithm.FixedWindow => RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+			{
+				PermitLimit = limits.PermitLimit,
+				Window = TimeSpan.FromSeconds(limits.WindowSeconds),
+				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+				QueueLimit = limits.QueueLimit,
+				AutoReplenishment = true,
+			}),
+
+			RateLimitAlgorithm.Concurrency => RateLimitPartition.GetConcurrencyLimiter(key, _ => new ConcurrencyLimiterOptions
+			{
+				PermitLimit = limits.ConcurrencyLimit,
+				QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+				QueueLimit = limits.QueueLimit,
+			}),
+
+			_ => throw new NotSupportedException(
+					string.Format(
+							CultureInfo.InvariantCulture,
+							UnsupportedAlgorithmFormat,
+							_options.Algorithm)),
+		};
 	}
 
 	private async Task<IMessageResult> ProcessPermitAcquiredAsync(
@@ -312,9 +288,6 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 		};
 	}
 
-	private RateLimiter GetOrCreateLimiter(string key) =>
-		_limiters.GetOrAdd(key, CreateLimiterForKey, this);
-
 	private RateLimits GetLimitsForKey(string key)
 	{
 		// Check for specific tenant limits
@@ -341,65 +314,10 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 		return _options.DefaultLimits;
 	}
 
-	private void CleanupInactiveLimiters(object? state)
-	{
-		// Use non-blocking approach - only proceed if we can immediately acquire the lock
-		if (_cleanupLock.CurrentCount == 0 || !_cleanupLock.Wait(TimeSpan.Zero))
-		{
-			return; // Skip if cleanup is already running or can't acquire immediately
-		}
-
-		try
-		{
-			var keysToRemove = new List<string>();
-
-			foreach (var kvp in _limiters)
-			{
-				// Check if limiter has been inactive
-				// Note: This is simplified; in production you'd track last access time
-				if (kvp.Value.GetStatistics()?.CurrentAvailablePermits == kvp.Value.GetStatistics()?.TotalSuccessfulLeases)
-				{
-					keysToRemove.Add(kvp.Key);
-				}
-			}
-
-			foreach (var key in keysToRemove)
-			{
-				if (_limiters.TryRemove(key, out var limiter))
-				{
-					limiter.Dispose();
-					LogInactiveLimiterRemoved(key);
-				}
-			}
-
-			if (keysToRemove.Count > 0)
-			{
-				LogCleanupCompleted(keysToRemove.Count);
-			}
-		}
-		catch (Exception ex)
-		{
-			LogCleanupError(ex);
-		}
-		finally
-		{
-			_ = _cleanupLock.Release();
-		}
-	}
-
 	// Source-generated logging methods
 	[LoggerMessage(SecurityEventId.RateLimitPermitAcquired, LogLevel.Debug, "Rate limit permit acquired for {RateLimitKey}. {RemainingInfo}")]
 	private partial void LogPermitAcquired(string rateLimitKey, string remainingInfo);
 
 	[LoggerMessage(SecurityEventId.RateLimitExceeded, LogLevel.Warning, "Rate limit exceeded for {RateLimitKey} (message type: {MessageType}). Retry after {RetryAfterMs}ms")]
 	private partial void LogRateLimitExceeded(string rateLimitKey, string messageType, int retryAfterMs);
-
-	[LoggerMessage(SecurityEventId.RateLimitInactiveLimiterRemoved, LogLevel.Debug, "Removed inactive rate limiter for {Key}")]
-	private partial void LogInactiveLimiterRemoved(string key);
-
-	[LoggerMessage(SecurityEventId.RateLimitCleanupCompleted, LogLevel.Information, "Cleaned up {Count} inactive rate limiters")]
-	private partial void LogCleanupCompleted(int count);
-
-	[LoggerMessage(SecurityEventId.RateLimitCleanupError, LogLevel.Error, "Error during rate limiter cleanup")]
-	private partial void LogCleanupError(Exception ex);
 }

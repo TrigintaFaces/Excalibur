@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Text;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Serialization;
 
 using FakeItEasy;
@@ -493,17 +494,50 @@ public sealed class SpanEventSerializerShould
 	}
 
 	[Fact]
-	public void GetTypeName_ReturnsAssemblyQualifiedName()
+	public void GetTypeName_ReturnsTheDeclaredName()
 	{
-		// Arrange
+		// This used to return the assembly-qualified name, so a namespace move or an assembly
+		// version bump rewrote the identity of everything already stored.
 		var serializer = new SpanEventSerializer(_serializer);
 		var type = typeof(TestDomainEvent);
 
-		// Act
 		var result = serializer.GetTypeName(type);
 
-		// Assert
-		result.ShouldBe(type.AssemblyQualifiedName);
+		result.ShouldBe("Test.SpanEventSerializer.TestDomainEvent");
+		result.ShouldNotBe(type.AssemblyQualifiedName);
+		result.ShouldNotContain("Version=", Case.Insensitive);
+	}
+
+	[Fact]
+	public void GetTypeName_AgreesWithEveryOtherImplementationOfTheContract()
+	{
+		// One contract, one answer. Two implementations returning different identities for the
+		// same type is invisible until a consumer swaps serializers and cannot read their data.
+		var span = new SpanEventSerializer(_serializer);
+		var json = new JsonEventSerializer(allowAssemblyScan: false);
+
+		span.GetTypeName(typeof(TestDomainEvent))
+			.ShouldBe(json.GetTypeName(typeof(TestDomainEvent)));
+	}
+
+	[Fact]
+	public void RegisterTheDeclaredNameSoAWrittenNameCanBeReadBack()
+	{
+		// The liveness arm for the change above. The serializers now write the declared name, so a
+		// type not claimed under it would be unreadable -- asserting the new write name alone would
+		// not show that. Asserted against the registry rather than through the resolver, because the
+		// resolver lives in global static state another test class clears.
+		MessageTypeRegistry.RegisterType<TestDomainEvent>();
+
+		MessageTypeRegistry.TryGetType("Test.SpanEventSerializer.TestDomainEvent", out var byDeclaredName)
+			.ShouldBeTrue("the name the serializer writes must be a name the registry knows");
+		byDeclaredName.ShouldBe(typeof(TestDomainEvent));
+
+		// And the CLR-derived forms still resolve, so data written before a type declared a name
+		// is not orphaned by the change.
+		MessageTypeRegistry.TryGetType(typeof(TestDomainEvent).AssemblyQualifiedName!, out var byAqn)
+			.ShouldBeTrue();
+		byAqn.ShouldBe(typeof(TestDomainEvent));
 	}
 
 	[Fact]
@@ -691,6 +725,7 @@ public sealed class SpanEventSerializerShould
 	/// <summary>
 	/// Test domain event implementation for serialization testing.
 	/// </summary>
+	[MessageName("Test.SpanEventSerializer.TestDomainEvent")]
 	private sealed class TestDomainEvent : IDomainEvent
 	{
 		public TestDomainEvent() { }
@@ -701,14 +736,12 @@ public sealed class SpanEventSerializerShould
 			AggregateId = aggregateId;
 			Version = version;
 			OccurredAt = DateTimeOffset.UtcNow;
-			EventType = nameof(TestDomainEvent);
 		}
 
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TestDomainEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

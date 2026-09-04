@@ -57,7 +57,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 }
 
 /// <summary>Raised when an <see cref="OrderAggregate"/> is created.</summary>
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreated(Guid OrderId) : DomainEvent;
 
 /// <summary>Raised when a note is appended to an <see cref="OrderAggregate"/>.</summary>
+[MessageName("Contoso.Orders.OrderNoteAppended")]
 public sealed record OrderNoteAppended(Guid OrderId, string Note) : DomainEvent;

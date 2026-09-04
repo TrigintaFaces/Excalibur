@@ -123,6 +123,7 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 	#region Test Events
 
+	[MessageName("Test.ExcaliburEventSourcingBuilder.OrderPlacedEvent")]
 	internal sealed record OrderPlacedEvent : DomainEvent
 	{
 		public string CustomerName { get; init; } = string.Empty;
@@ -130,6 +131,7 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 	}
 
+	[MessageName("Test.CustomerRegisteredEvent")]
 	internal sealed record CustomerRegisteredEvent : DomainEvent
 	{
 		public string Name { get; init; } = string.Empty;

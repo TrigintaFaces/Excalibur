@@ -11,6 +11,7 @@ namespace Excalibur.A3.Audit.Events;
 /// <summary>
 /// Represents an audited activity, capturing details about an activity performed in the system, including metadata for auditing purposes.
 /// </summary>
+[MessageName("Excalibur.A3.ActivityAudited")]
 public sealed record ActivityAudited : DomainEvent, IActivityAudited
 {
 	/// <summary>

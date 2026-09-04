@@ -33,18 +33,20 @@ One metapackage bundles Dispatch + Domain + EventSourcing + SqlServer.
 
 ## Step 2: Define Domain Events
 
-Domain events are immutable records that describe what happened. Extend the `DomainEvent` base record — it auto-generates `EventId`, `OccurredAt`, `Version`, and `EventType` for you.
+Domain events are immutable records that describe what happened. Extend the `DomainEvent` base record — it auto-generates `EventId` and `OccurredAt` for you. Each event declares the permanent name it is stored and transmitted under with `[MessageName]`; the attribute is required, and registering an event type without one throws. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
 
 ```csharp title="Domain/Events.cs"
 using Excalibur.Dispatch;
 
-namespace OrderSystem.Domain;
+namespace OrderSystem;
 
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(
     Guid OrderId,
     string CustomerId,
     List<OrderLineData> Lines) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderLineAdded")]
 public record OrderLineAdded(
     Guid OrderId,
     string ProductId,
@@ -52,8 +54,10 @@ public record OrderLineAdded(
     decimal Price,
     int Quantity) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderConfirmed")]
 public record OrderConfirmed(Guid OrderId, decimal Total) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderCancelled")]
 public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 
 // Shared data record for order lines (not an event)
@@ -68,7 +72,7 @@ The aggregate is the consistency boundary. It validates commands, raises events,
 using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
-namespace OrderSystem.Domain;
+namespace OrderSystem;
 
 public class OrderAggregate : AggregateRoot<Guid>
 {
@@ -171,7 +175,7 @@ public enum OrderStatus { Pending, Confirmed, Cancelled }
 The read model (projection) is a denormalized view optimized for queries. It's built from events, not from the aggregate directly.
 
 ```csharp title="ReadModels/OrderSummary.cs"
-namespace OrderSystem.ReadModels;
+namespace OrderSystem;
 
 public class OrderSummary
 {
@@ -192,9 +196,8 @@ Handlers load the aggregate from the repository, call command methods, and save.
 ```csharp title="Handlers/OrderCommandHandlers.cs"
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
-using OrderSystem.Domain;
 
-namespace OrderSystem.Handlers;
+namespace OrderSystem;
 
 // CreateOrderAction and CancelOrderAction are defined in Messages/OrderActions.cs below
 public class CreateOrderHandler(
@@ -230,10 +233,8 @@ public class CancelOrderHandler(
 
 ```csharp title="Messages/OrderActions.cs"
 using Excalibur.Dispatch;
-using OrderSystem.Domain;
-using OrderSystem.ReadModels;
 
-namespace OrderSystem.Handlers;
+namespace OrderSystem;
 
 // Commands
 public record CreateOrderAction(
@@ -254,9 +255,8 @@ Query handlers read from the projection store — a denormalized, query-optimize
 ```csharp title="Handlers/OrderQueryHandlers.cs"
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
-using OrderSystem.ReadModels;
 
-namespace OrderSystem.Handlers;
+namespace OrderSystem;
 
 public class GetOrderHandler(
     IProjectionStore<OrderSummary> projections)
@@ -295,10 +295,8 @@ This tutorial uses `IEventHandler<T>` for projections, which processes events th
 ```csharp title="Projections/OrderSummaryProjection.cs"
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
-using OrderSystem.Domain;
-using OrderSystem.ReadModels;
 
-namespace OrderSystem.Projections;
+namespace OrderSystem;
 
 public class OrderSummaryProjection(IProjectionStore<OrderSummary> store) :
     IEventHandler<OrderCreated>,
@@ -359,9 +357,6 @@ public class OrderSummaryProjection(IProjectionStore<OrderSummary> store) :
 ```csharp title="Program.cs"
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Hosting.AspNetCore;
-using OrderSystem.Domain;
-using OrderSystem.Handlers;
-using OrderSystem.ReadModels;
 
 var builder = WebApplication.CreateBuilder(args);
 

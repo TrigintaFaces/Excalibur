@@ -3,6 +3,7 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly — FakeItEasy .Returns() stores ValueTask
 
+using Excalibur.Dispatch.Resilience;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch;
@@ -38,6 +39,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 [Trait("Component", "Dispatch.Core")]
 public sealed class CircuitBreakerMiddlewareMetricsShould
 {
+
+    // A registry per middleware, deliberately. GetOrCreate honours the options it is given only
+    // when it FIRST creates a circuit for that key, so a shared registry would hand every test the
+    // thresholds of whichever test ran first.
+    private static ITransportCircuitBreakerRegistry NewRegistry() => new TransportCircuitBreakerRegistry();
+
     private const string MeterName = "Excalibur.Dispatch.CircuitBreakerMiddleware";
     private const string TransitionsCounter = "dispatch.circuit_breaker.transitions";
     private const string RejectionsCounter = "dispatch.circuit_breaker.rejections";
@@ -49,8 +56,8 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
         A.CallTo(() => Sanitizer.SanitizeTag(A<string>._, A<string?>._)).ReturnsLazily(call => call.GetArgument<string?>(1));
         return new CircuitBreakerMiddleware(
             Microsoft.Extensions.Options.Options.Create(options),
+            NewRegistry(),
             Sanitizer,
-            TimeProvider.System,
             logger ?? new ListLogger<CircuitBreakerMiddleware>());
     }
 
@@ -121,10 +128,16 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
 
         await DriveFailureAsync(sut); // Closed→Open
 
-        // Additive (not replaced): both the metric AND the pre-existing Warning log fire.
+        // The transition itself is reported by the circuit, which is the only object that knows it
+        // transitioned; the middleware reports what IT does, which is reject the next call.
         metrics.Count(TransitionsCounter, ("from_state", "closed"), ("to_state", "open"), ("circuit.key", key))
             .ShouldBe(1);
-        logger.Entries.ShouldContain(e => e.Level == LogLevel.Warning);
+
+        await DriveFailureAsync(sut); // now open: this one is rejected rather than executed
+
+        logger.Entries.ShouldContain(
+            e => e.Level == LogLevel.Warning,
+            "a rejected call must still be visible in the middleware's own log");
     }
 
     // ---- AC-D4: HalfOpen→Closed (recovery) and HalfOpen→Open (re-trip) each record with correct from/to. ----

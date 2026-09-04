@@ -37,7 +37,6 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		result.ShouldBeSameAs(services);
 
 		// Verify service descriptors are registered (not resolving, which requires logging)
-		services.Any(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(ITimeoutManager)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(IGracefulDegradationService)).ShouldBeTrue();
 		services.Any(d => d.ServiceType == typeof(BulkheadManager)).ShouldBeTrue();
@@ -96,8 +95,8 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		services.AddPollyResilience();
 
 		// Assert - TryAddSingleton should prevent duplicates
-		var factoryDescriptors = services.Where(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ToList();
-		factoryDescriptors.Count.ShouldBe(1);
+		var timeoutManagerDescriptors = services.Where(d => d.ServiceType == typeof(ITimeoutManager)).ToList();
+		timeoutManagerDescriptors.Count.ShouldBe(1);
 	}
 
 	#endregion
@@ -626,7 +625,6 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		services.ConfigureTimeoutManager(_ => { });
 
 		// Assert - Core services should be registered (check descriptors)
-		services.Any(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ShouldBeTrue();
 	}
 
 	#endregion

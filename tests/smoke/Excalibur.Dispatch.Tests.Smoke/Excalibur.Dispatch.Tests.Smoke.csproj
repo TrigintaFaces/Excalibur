@@ -115,7 +115,6 @@
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Observability/Excalibur.Hosting.Observability.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj" />
-    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Compliance/Excalibur.Hosting.Compliance.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Abstractions/Excalibur.Jobs.Abstractions.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Aws/Excalibur.Jobs.Aws.csproj" />
     <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Azure/Excalibur.Jobs.Azure.csproj" />

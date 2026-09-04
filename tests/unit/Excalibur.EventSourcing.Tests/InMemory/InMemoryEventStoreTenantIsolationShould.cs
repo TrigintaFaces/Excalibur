@@ -198,7 +198,6 @@ public sealed class InMemoryEventStoreTenantIsolationShould
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = aggregateId,
 			Version = i,
-			EventType = "TestEvent",
 		})];
 
 	/// <summary>
@@ -212,6 +211,7 @@ public sealed class InMemoryEventStoreTenantIsolationShould
 		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
 	}
 
+	[MessageName("Test.Es.TenantIsolationTestDomainEvent")]
 	private sealed class TenantIsolationTestDomainEvent : IDomainEvent
 	{
 		public required string EventId { get; init; }
@@ -222,7 +222,6 @@ public sealed class InMemoryEventStoreTenantIsolationShould
 
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-		public required string EventType { get; init; }
 
 		public IDictionary<string, object>? Metadata { get; init; }
 	}

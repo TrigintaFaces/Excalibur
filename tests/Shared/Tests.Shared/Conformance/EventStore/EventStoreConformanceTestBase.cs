@@ -679,6 +679,7 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 /// <summary>
 /// Test domain event for conformance testing.
 /// </summary>
+[MessageName("Test.Shared.Conformance.TestDomainEvent")]
 public class TestDomainEvent : IDomainEvent
 {
 	/// <inheritdoc/>
@@ -693,8 +694,6 @@ public class TestDomainEvent : IDomainEvent
 	/// <inheritdoc/>
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc/>
-	public string EventType => nameof(TestDomainEvent);
 
 	/// <inheritdoc/>
 	public IDictionary<string, object>? Metadata { get; set; }

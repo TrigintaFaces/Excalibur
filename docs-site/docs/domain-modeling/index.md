@@ -88,7 +88,9 @@ public class Order : AggregateRoot<Guid>
 
 ### 3. Use Events for State Changes
 
-All state changes happen through domain events. Events extend the `DomainEvent` abstract record:
+All state changes happen through domain events. Events extend the `DomainEvent` abstract record and declare
+the permanent name they are stored and transmitted under with `[MessageName]` — see
+[Stable Message Names](../event-sourcing/domain-events.md#stable-message-names):
 
 ```csharp
 // 1. Validate and raise event
@@ -179,11 +181,17 @@ public class Order : AggregateRoot<Guid>
     }
 }
 
-// Domain Events extend DomainEvent abstract record
+// Consumer-domain value type held by the aggregate
+public record OrderLine(string ProductId, int Quantity, decimal UnitPrice);
+
+// Domain Events extend DomainEvent abstract record and declare a stable name
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderLineAdded")]
 public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderSubmitted")]
 public record OrderSubmitted(Guid OrderId) : DomainEvent;
 ```
 

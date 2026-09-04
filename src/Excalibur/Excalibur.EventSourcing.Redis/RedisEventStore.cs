@@ -210,7 +210,7 @@ public sealed partial class RedisEventStore : IEventStore
 		};
 
 		var nextVersion = expectedVersion;
-		foreach (var evt in eventList)
+		foreach (var (evt, eventTypeName) in eventList.AsNamedEvents())
 		{
 			nextVersion++;
 			// Named arguments, deliberately: this envelope is built positionally by every other store, but
@@ -222,7 +222,7 @@ public sealed partial class RedisEventStore : IEventStore
 				EventId: evt.EventId,
 				AggregateId: aggregateId,
 				AggregateType: aggregateType,
-				EventType: evt.EventType,
+				EventType: eventTypeName,
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 				EventData: SerializeEvent(evt, aggregateId, aggregateType),
 				// The event's own metadata, carried on the envelope as every other event store carries it.

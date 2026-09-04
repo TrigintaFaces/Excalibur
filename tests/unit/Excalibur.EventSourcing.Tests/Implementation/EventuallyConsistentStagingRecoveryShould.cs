@@ -10,6 +10,8 @@ using Excalibur.EventSourcing.Implementation;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Options;
+
 using Shouldly;
 
 using Xunit;
@@ -55,6 +57,7 @@ namespace Excalibur.EventSourcing.Tests.Implementation;
 [Trait("Component", "EventSourcing")]
 public sealed class EventuallyConsistentStagingRecoveryShould
 {
+	[MessageName("Test.Es.StagingIntegrationEvent")]
 	internal sealed record StagingIntegrationEvent : DomainEvent, IIntegrationEvent
 	{
 		public string Payload { get; init; } = string.Empty;
@@ -104,8 +107,8 @@ public sealed class EventuallyConsistentStagingRecoveryShould
 			eventStore,
 			A.Fake<IEventSerializer>(),
 			id => new StagingAggregate(id),
-			outboxStore: outboxStore,
-			outboxStagingStrategy: OutboxStagingStrategy.EventuallyConsistent);
+			Options.Create(new EventSourcedRepositoryOptions { OutboxStagingStrategy = OutboxStagingStrategy.EventuallyConsistent }),
+			outboxStore: outboxStore);
 
 		// Act 1 — first SaveAsync: append succeeds, staging fails => failure propagates, breadcrumb left,
 		// events remain uncommitted for the retry.

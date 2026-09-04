@@ -30,15 +30,8 @@ public interface ICircuitBreakerPolicy
 	/// </summary>
 	/// <remarks>
 	/// <b>This method records the outcome itself.</b> An implementation registers the success, or registers
-	/// the failure and rethrows, before control returns to the caller. A caller that also calls
-	/// <see cref="RecordSuccess"/> or <see cref="RecordFailure"/> for the same execution counts it twice, so
-	/// a breaker configured to open after N consecutive failures opens after N/2 and sheds a healthy
-	/// dependency at half the tolerance its consumer configured. The explicit recorders exist for outcomes
-	/// observed <em>outside</em> this method; they are not a supplement to it.
-	/// <para>
-	/// The recorders also bypass an implementation's own decision about which exceptions count. Calling one
-	/// after an execution therefore overrides that decision as well as double-counting it.
-	/// </para>
+	/// the failure and rethrows, before control returns to the caller. Recording an outcome is not something
+	/// a caller can do -- or need to do -- separately.
 	/// </remarks>
 	/// <typeparam name="TResult">The type of the result.</typeparam>
 	/// <param name="action">The action to execute.</param>
@@ -50,15 +43,22 @@ public interface ICircuitBreakerPolicy
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Records a successful operation, potentially closing the circuit.
+	/// Executes an action through the circuit, treating a returned value as a failure when
+	/// <paramref name="isFailure"/> says so.
 	/// </summary>
-	void RecordSuccess();
-
-	/// <summary>
-	/// Records a failed operation, potentially opening the circuit.
-	/// </summary>
-	/// <param name="exception">The exception that caused the failure.</param>
-	void RecordFailure(Exception? exception = null);
+	/// <typeparam name="TResult">The result type.</typeparam>
+	/// <param name="action">The action to execute.</param>
+	/// <param name="isFailure">
+	/// Decides whether a returned result counts as a failure. Not every failure is an exception: a
+	/// pipeline that returns a failed result would otherwise look healthy to the circuit forever.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>The result of the action.</returns>
+	/// <exception cref="CircuitBreakerOpenException">Thrown when the circuit is open.</exception>
+	Task<TResult> ExecuteAsync<TResult>(
+		Func<CancellationToken, Task<TResult>> action,
+		Func<TResult, bool> isFailure,
+		CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Manually resets the circuit breaker to the closed state.

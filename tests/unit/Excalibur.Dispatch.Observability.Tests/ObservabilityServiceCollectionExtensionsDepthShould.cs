@@ -32,7 +32,6 @@ public sealed class ObservabilityServiceCollectionExtensionsDepthShould
 		services.ShouldContain(sd => sd.ServiceType == typeof(IContextFlowTracker));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IContextFlowMetrics));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IContextTraceEnricher));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IContextFlowDiagnostics));
 	}
 
 	[Fact]

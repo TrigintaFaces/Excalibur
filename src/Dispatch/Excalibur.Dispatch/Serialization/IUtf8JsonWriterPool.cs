@@ -10,7 +10,11 @@ namespace Excalibur.Dispatch.Serialization;
 /// <summary>
 /// Defines a pool for managing <see cref="Utf8JsonWriter" /> instances to reduce allocations.
 /// </summary>
-public interface IUtf8JsonWriterPool
+// A writer pool is an implementation detail of how this assembly serializes, not something a
+// consumer supplies -- nothing outside the assembly has ever provided one. Public visibility here
+// also froze the pool's shape at the API freeze, which would have made replacing it with
+// Microsoft.Extensions.ObjectPool a breaking change rather than an internal decision.
+internal interface IUtf8JsonWriterPool
 {
 	/// <summary>
 	/// Gets the maximum number of writers that can be pooled.

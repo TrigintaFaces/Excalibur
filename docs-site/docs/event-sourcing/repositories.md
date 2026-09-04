@@ -226,6 +226,8 @@ For advanced scenarios, access the event store:
 ```csharp
 // A read model of your own. `LoadAsync` returns `StoredEvent`; project it into
 // whatever shape your API surfaces.
+// `StoredEvent.EventType` carries the name the event declared with [MessageName] —
+// see "Stable Message Names" in Domain Events.
 public sealed record EventInfo
 {
     public long Version { get; init; }

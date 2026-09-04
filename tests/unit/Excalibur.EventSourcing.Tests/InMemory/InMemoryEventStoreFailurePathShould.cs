@@ -39,7 +39,6 @@ public sealed class InMemoryEventStoreFailurePathShould
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = "agg-1",
 			Version = 0,
-			EventType = "Test",
 			OccurredAt = DateTimeOffset.UtcNow,
 			Data = "data"
 		};
@@ -54,13 +53,13 @@ public sealed class InMemoryEventStoreFailurePathShould
 		return (T)field.GetValue(instance)!;
 	}
 
+	[MessageName("Test.Es.FailurePathTestDomainEvent")]
 	private sealed class TestDomainEvent : IDomainEvent
 	{
 		public required string EventId { get; init; }
 		public required string AggregateId { get; init; }
 		public required long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public required string EventType { get; init; }
 		public required string Data { get; init; }
 		public IDictionary<string, object>? Metadata { get; init; }
 	}

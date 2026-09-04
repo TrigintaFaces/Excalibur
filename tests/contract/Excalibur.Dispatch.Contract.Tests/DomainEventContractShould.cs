@@ -56,7 +56,6 @@ public sealed class DomainEventContractShould
 			AggregateId = "order-123",
 			Version = 1,
 			OccurredAt = new DateTimeOffset(2026, 3, 15, 14, 30, 0, TimeSpan.Zero),
-			EventType = "OrderPlaced",
 			Metadata = new Dictionary<string, object>
 			{
 				["userId"] = "user-42",
@@ -88,7 +87,6 @@ public sealed class DomainEventContractShould
 			AggregateId = "order-rt-456",
 			Version = 5,
 			OccurredAt = new DateTimeOffset(2026, 6, 20, 8, 0, 0, TimeSpan.Zero),
-			EventType = "OrderPlaced",
 			Metadata = new Dictionary<string, object>
 			{
 				["correlationId"] = "corr-rt-789",
@@ -104,7 +102,6 @@ public sealed class DomainEventContractShould
 		deserialized.EventId.ShouldBe(original.EventId);
 		deserialized.AggregateId.ShouldBe(original.AggregateId);
 		deserialized.Version.ShouldBe(original.Version);
-		deserialized.EventType.ShouldBe(original.EventType);
 	}
 
 	[Fact]
@@ -117,7 +114,6 @@ public sealed class DomainEventContractShould
 			AggregateId = "order-nm",
 			Version = 1,
 			OccurredAt = DateTimeOffset.UtcNow,
-			EventType = "OrderPlaced",
 			Metadata = null,
 		};
 
@@ -148,13 +144,13 @@ public sealed class DomainEventContractShould
 	/// <summary>
 	/// Concrete test implementation of IDomainEvent for serialization testing.
 	/// </summary>
+	[MessageName("Test.TestOrderPlacedEvent")]
 	private sealed class TestOrderPlacedEvent : IDomainEvent
 	{
 		public string EventId { get; set; } = string.Empty;
 		public string AggregateId { get; set; } = string.Empty;
 		public long Version { get; set; }
 		public DateTimeOffset OccurredAt { get; set; }
-		public string EventType { get; set; } = string.Empty;
 		public IDictionary<string, object>? Metadata { get; set; }
 	}
 }

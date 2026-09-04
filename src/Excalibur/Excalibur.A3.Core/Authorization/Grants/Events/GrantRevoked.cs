@@ -11,6 +11,7 @@ namespace Excalibur.A3.Authorization.Events;
 /// <summary>
 /// Represents an event that occurs when a grant is revoked from a user.
 /// </summary>
+[MessageName("Excalibur.A3.GrantRevoked")]
 public sealed record GrantRevoked : DomainEvent, IGrantRevoked
 {
 	/// <summary>

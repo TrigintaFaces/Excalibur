@@ -89,13 +89,13 @@ public sealed class AdditionalGeneratorDriverIntegrationShould
 
 			namespace TestApp
 			{
+			    [MessageName("Test.AdditionalGeneratorDriverIntegration.OrderCreatedEvent")]
 			    public class OrderCreatedEvent : IDomainEvent
 			    {
 			        public Guid EventId { get; set; }
 			        public Guid AggregateId { get; set; }
 			        public int Version { get; set; }
 			        public DateTimeOffset OccurredAt { get; set; }
-			        public string EventType { get; set; } = string.Empty;
 			        public IReadOnlyDictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
 			    }
 			}

@@ -9,6 +9,9 @@ using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Implementation;
+
+using Microsoft.Extensions.Options;
+
 using IEventStore = Excalibur.EventSourcing.IEventStore;
 using ISnapshotManager = Excalibur.EventSourcing.ISnapshotManager;
 using ISnapshotStrategy = Excalibur.EventSourcing.ISnapshotStrategy;
@@ -33,7 +36,7 @@ public sealed class EventSourcedRepositoryDepthShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new EventSourcedRepository<TestRepoAggregate, string>(
-				null!, _eventSerializer, id => new TestRepoAggregate(id)));
+				null!, _eventSerializer, id => new TestRepoAggregate(id), Options.Create(new EventSourcedRepositoryOptions())));
 	}
 
 	[Fact]
@@ -41,7 +44,7 @@ public sealed class EventSourcedRepositoryDepthShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new EventSourcedRepository<TestRepoAggregate, string>(
-				_eventStore, null!, id => new TestRepoAggregate(id)));
+				_eventStore, null!, id => new TestRepoAggregate(id), Options.Create(new EventSourcedRepositoryOptions())));
 	}
 
 	[Fact]
@@ -49,7 +52,7 @@ public sealed class EventSourcedRepositoryDepthShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new EventSourcedRepository<TestRepoAggregate, string>(
-				_eventStore, _eventSerializer, null!));
+				_eventStore, _eventSerializer, null!, Options.Create(new EventSourcedRepositoryOptions())));
 	}
 
 	[Fact]
@@ -343,6 +346,7 @@ public sealed class EventSourcedRepositoryDepthShould
 			_eventStore,
 			_eventSerializer,
 			id => new TestRepoAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			snapshotStrategy: snapshotStrategy);
 	}
@@ -369,12 +373,12 @@ public sealed class EventSourcedRepositoryDepthShould
 		}
 	}
 
+	[MessageName("Test.TestRepoCreatedEvent")]
 	private sealed record TestRepoCreatedEvent(string AggregateId) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "TestCreated";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

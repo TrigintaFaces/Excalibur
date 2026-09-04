@@ -58,3 +58,9 @@ tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/OriginalCr
 # blob disagree there — and a committed CRLF blob disagrees with every Linux checkout, which is a
 # drift no rebuild can fix. eol=lf pins both sides to the same bytes on every platform.
 src/Excalibur/Excalibur.Operations.Dashboard.Spa/wwwroot/**   text eol=lf
+#
+# The SOURCE template is pinned too, and that is not belt-and-braces. Vite copies the template's own
+# lines into the output VERBATIM and emits only its injected lines itself, so a CRLF template on Windows
+# produces an output with MIXED endings -- one CRLF line among LFs. Pinning only the output leaves that
+# byte to come back on the next Windows build, which is exactly the drift this pair exists to stop.
+src/Excalibur/Excalibur.Operations.Dashboard.Spa/ClientApp/index.html   text eol=lf

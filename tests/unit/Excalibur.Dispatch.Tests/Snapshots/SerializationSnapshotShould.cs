@@ -77,7 +77,6 @@ public sealed class SerializationSnapshotShould : UnitTestBase
 			AggregateId = "order-42",
 			Version = 3,
 			OccurredAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
-			EventType = "OrderPlaced",
 			Metadata = new Dictionary<string, object>
 			{
 				["UserId"] = "user-001",
@@ -96,7 +95,8 @@ public sealed class SerializationSnapshotShould : UnitTestBase
 		root.GetProperty("aggregateId").GetString().ShouldBe("order-42");
 		root.GetProperty("version").GetInt64().ShouldBe(3);
 		root.GetProperty("occurredAt").GetString().ShouldBe("2026-01-01T12:00:00+00:00");
-		root.GetProperty("eventType").GetString().ShouldBe("OrderPlaced");
+		root.TryGetProperty("eventType", out _).ShouldBeFalse(
+			"eventType is no longer serialized: identity is declared per-type, not carried per-instance.");
 
 		// Verify metadata
 		var metadata = root.GetProperty("metadata");
@@ -137,13 +137,13 @@ public sealed class SerializationSnapshotShould : UnitTestBase
 	/// Concrete IDomainEvent implementation for snapshot testing.
 	/// Uses fixed values to produce deterministic snapshots.
 	/// </summary>
+	[MessageName("Test.SnapshotTestDomainEvent")]
 	private sealed class SnapshotTestDomainEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; } = string.Empty;
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 }

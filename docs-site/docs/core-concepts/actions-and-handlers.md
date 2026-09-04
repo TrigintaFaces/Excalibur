@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 1
 title: Actions and Handlers
 description: Learn how to define actions and implement handlers in Excalibur.Dispatch.
@@ -256,9 +256,18 @@ This ensures:
 
 ## Event Handlers
 
-For handling domain events or integration events:
+For handling domain events or integration events.
+
+An event declares the name it is stored and transmitted under with `[MessageName]`. That name is
+the event's identity on the wire and in the event store, so it must not change when you rename or
+move the type — see [stable message names](../event-sourcing/domain-events.md#stable-message-names).
+Publishing an event that declares no name throws `InvalidOperationException` as soon as something
+needs to serialize it.
 
 ```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
+public record OrderCreatedEvent(Guid OrderId, string CustomerId) : IDispatchEvent;
+
 public class OrderCreatedEventHandler : IEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(
@@ -270,13 +279,29 @@ public class OrderCreatedEventHandler : IEventHandler<OrderCreatedEvent>
 }
 ```
 
-Multiple handlers can subscribe to the same event:
+Multiple handlers can subscribe to the same event, and every one of them is invoked:
 
 ```csharp
-// Both handlers will be invoked
-public class SendEmailOnOrderCreated : IEventHandler<OrderCreatedEvent> { }
-public class UpdateInventoryOnOrderCreated : IEventHandler<OrderCreatedEvent> { }
+public class SendEmailOnOrderCreated : IEventHandler<OrderCreatedEvent>
+{
+    public Task HandleAsync(OrderCreatedEvent @event, CancellationToken cancellationToken)
+    {
+        // send the confirmation email
+        return Task.CompletedTask;
+    }
+}
+
+public class UpdateInventoryOnOrderCreated : IEventHandler<OrderCreatedEvent>
+{
+    public Task HandleAsync(OrderCreatedEvent @event, CancellationToken cancellationToken)
+    {
+        // decrement stock
+        return Task.CompletedTask;
+    }
+}
 ```
+
+Handlers run independently: one failing does not stop the others.
 
 ## Error Handling
 

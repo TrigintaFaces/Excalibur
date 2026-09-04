@@ -7,8 +7,6 @@ Excalibur.Data.ElasticSearch.CircuitBreakerOptions.Enabled.get -> bool
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.Enabled.init -> void
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.FailureRateThreshold.get -> double
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.FailureRateThreshold.init -> void
-Excalibur.Data.ElasticSearch.CircuitBreakerOptions.FailureThreshold.get -> int
-Excalibur.Data.ElasticSearch.CircuitBreakerOptions.FailureThreshold.init -> void
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.MinimumThroughput.get -> int
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.MinimumThroughput.init -> void
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.SamplingDuration.get -> System.TimeSpan
@@ -1422,35 +1420,10 @@ Excalibur.Data.ElasticSearch.RebuildManagerOptions.OperationTimeout.init -> void
 Excalibur.Data.ElasticSearch.RebuildManagerOptions.RebuildManagerOptions() -> void
 Excalibur.Data.ElasticSearch.RebuildManagerOptions.UseAliasing.get -> bool
 Excalibur.Data.ElasticSearch.RebuildManagerOptions.UseAliasing.init -> void
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.ConsecutiveFailures.get -> int
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.Dispose() -> void
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.ElasticsearchCircuitBreaker(Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker!>! logger) -> void
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.FailureRate.get -> double
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.IsHalfOpen.get -> bool
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.IsOpen.get -> bool
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.RecordFailureAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.RecordSuccessAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchCircuitBreaker.State.get -> Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchRetryPolicy
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchRetryPolicy.ElasticsearchRetryPolicy(Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions!>! options) -> void
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchRetryPolicy.GetRetryDelay(int attemptNumber) -> System.TimeSpan
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchRetryPolicy.MaxAttempts.get -> int
-Excalibur.Data.ElasticSearch.Resilience.ElasticsearchRetryPolicy.ShouldRetry(System.Exception! exception, int attemptNumber) -> bool
 Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.ConsecutiveFailures.get -> int
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.FailureRate.get -> double
 Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.IsHalfOpen.get -> bool
 Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.IsOpen.get -> bool
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.RecordFailureAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.RecordSuccessAsync() -> System.Threading.Tasks.Task!
 Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker.State.get -> Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchRetryPolicy
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchRetryPolicy.GetRetryDelay(int attemptNumber) -> System.TimeSpan
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchRetryPolicy.MaxAttempts.get -> int
-Excalibur.Data.ElasticSearch.Resilience.IElasticsearchRetryPolicy.ShouldRetry(System.Exception! exception, int attemptNumber) -> bool
 Excalibur.Data.ElasticSearch.Resilience.IResilientElasticsearchClient
 Excalibur.Data.ElasticSearch.Resilience.IResilientElasticsearchClient.BulkAsync(Elastic.Clients.Elasticsearch.BulkRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.BulkResponse!>!
 Excalibur.Data.ElasticSearch.Resilience.IResilientElasticsearchClient.DeleteAsync(Elastic.Clients.Elasticsearch.DeleteRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.DeleteResponse!>!
@@ -1744,6 +1717,7 @@ Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult.NextRotationD
 Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult.RotatedAt.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult.Success.get -> bool
 Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs
+Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.AutomatedResponseTriggeredEventArgs(Excalibur.Data.ElasticSearch.Security.ThreatType threatType) -> void
 Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.ThreatType.get -> Excalibur.Data.ElasticSearch.Security.ThreatType
 Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.TriggeredAt.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AzureKeyVaultOptions
@@ -2117,6 +2091,7 @@ Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityAuditorReporting.Gen
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityAuditorReporting.GenerateComplianceReportAsync(Excalibur.Data.ElasticSearch.Security.ComplianceReportRequest! complianceRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.ComplianceReport!>!
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityAuditorReporting.SearchAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditSearchRequest! searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditSearchResult!>!
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityMonitor
+Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityMonitor.Configuration.get -> Excalibur.Data.ElasticSearch.Security.SecurityMonitoringOptions!
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityMonitorEvents
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityMonitorEvents.AnomalyDetected -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.AnomalyDetectedEventArgs!>?
 Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityMonitorEvents.AutomatedResponseTriggered -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs!>?
@@ -2711,6 +2686,7 @@ static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensi
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddLocalKeyProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityAuditing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.AddOrUpdateAsync(string! documentId, TDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.BulkAddOrUpdateAsync(System.Collections.Generic.IEnumerable<TDocument!>! documents, System.Func<TDocument!, string!>! idSelector, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
@@ -2718,6 +2694,3 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.Initialize
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!> searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddSecurityMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.ElasticSearch.Security.IElasticsearchSecurityMonitor.Configuration.get -> Excalibur.Data.ElasticSearch.Security.SecurityMonitoringOptions!
-Excalibur.Data.ElasticSearch.Security.AutomatedResponseTriggeredEventArgs.AutomatedResponseTriggeredEventArgs(Excalibur.Data.ElasticSearch.Security.ThreatType threatType) -> void

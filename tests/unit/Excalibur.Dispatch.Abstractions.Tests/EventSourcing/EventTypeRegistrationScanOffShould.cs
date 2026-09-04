@@ -32,18 +32,20 @@ namespace Excalibur.Dispatch.Tests.EventSourcing;
 [Trait("Component", "Core")]
 public sealed class EventTypeRegistrationScanOffShould
 {
+	[MessageName("Test.ScanOff.RegisteredTestEvent")]
 	private sealed record RegisteredTestEvent(string Id);
+	[MessageName("Test.ScanOff.SecondRegisteredTestEvent")]
 	private sealed record SecondRegisteredTestEvent(int Value);
 
 	// A concrete IDomainEvent in THIS (the test) assembly, so AddEventTypesFromAssembly's
 	// IDomainEvent-filtered scan registers it.
+	[MessageName("Test.ScanOff.AssemblyScannedTestEvent")]
 	private sealed record AssemblyScannedTestEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = "evt-1";
 		public string AggregateId { get; init; } = "agg-1";
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; } = nameof(AssemblyScannedTestEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

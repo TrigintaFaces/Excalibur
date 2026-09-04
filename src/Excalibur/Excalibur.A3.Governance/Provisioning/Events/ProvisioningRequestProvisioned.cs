@@ -5,12 +5,12 @@ using Excalibur.Dispatch;
 
 namespace Excalibur.A3.Governance.Events;
 
+[MessageName("Excalibur.A3.ProvisioningRequestProvisioned")]
 internal sealed class ProvisioningRequestProvisioned : IDomainEvent
 {
 	public required string RequestId { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(ProvisioningRequestProvisioned);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

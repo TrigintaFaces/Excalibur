@@ -129,7 +129,7 @@ internal sealed class ElasticsearchMonitoringService(
 		int attemptNumber,
 		int maxAttempts,
 		TimeSpan delay,
-		Exception exception,
+		Exception? exception,
 		string? indexName = null,
 		Activity? parentActivity = null)
 	{

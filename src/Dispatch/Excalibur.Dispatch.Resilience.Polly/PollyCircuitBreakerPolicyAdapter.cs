@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// <c>DefaultCircuitBreakerPolicy</c> which has no external dependencies.
 /// </para>
 /// </remarks>
-public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreakerPolicy, ICircuitBreakerDiagnostics, IDisposable
+public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreakerPolicy, ICircuitBreakerEvents, ICircuitBreakerDiagnostics, IDisposable
 {
 	private readonly ResiliencePipeline _pipeline;
 	private readonly CircuitBreakerManualControl _manualControl;
@@ -110,6 +110,11 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 					return ValueTask.CompletedTask;
 				},
 			})
+			// Inside the breaker on purpose: the first strategy added is the outermost, so an
+			// operation that overruns its budget surfaces as a failure the circuit counts rather
+			// than a hang the circuit never sees. CircuitBreakerOptions.OperationTimeout is
+			// documented and validated, and until now only an adapter nothing resolved applied it.
+			.AddTimeout(options.OperationTimeout)
 			.Build();
 	}
 
@@ -227,21 +232,11 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 		}
 	}
 
-	/// <inheritdoc />
-	public void RecordSuccess()
+	private void RecordSuccess()
 	{
 		lock (_lock)
 		{
 			_consecutiveFailures = 0;
-		}
-	}
-
-	/// <inheritdoc />
-	public void RecordFailure(Exception? exception = null)
-	{
-		lock (_lock)
-		{
-			_consecutiveFailures++;
 		}
 	}
 
@@ -250,21 +245,81 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 	/// <see cref="ICoreCircuitBreakerPolicy.Reset"/> is synchronous while Polly's manual control API is
 	/// asynchronous; this method triggers close without blocking.
 	/// </remarks>
+	/// <inheritdoc />
+	public async Task<TResult> ExecuteAsync<TResult>(
+		Func<CancellationToken, Task<TResult>> action,
+		Func<TResult, bool> isFailure,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(action);
+		ArgumentNullException.ThrowIfNull(isFailure);
+
+		try
+		{
+			// Polly's strategy counts exceptions, so a failed RESULT is signalled as one and unwrapped
+			// on the way out. The alternative -- inspecting the result after the pipeline returned --
+			// would leave the circuit blind to every failure that does not throw.
+			return await ExecuteAsync(
+				async token =>
+				{
+					var result = await action(token).ConfigureAwait(false);
+					return isFailure(result) ? throw new OutcomeFailureSignal<TResult>(result) : result;
+				},
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (OutcomeFailureSignal<TResult> signal)
+		{
+			return signal.Result;
+		}
+	}
+
+	/// <summary>
+	/// Carries a failed result through Polly, which counts exceptions rather than outcomes.
+	/// </summary>
+	/// <typeparam name="T">The result type being carried.</typeparam>
+	/// <param name="result">The failed result.</param>
+	/// <remarks>
+	/// Deliberately private and never observable: it exists only to cross the pipeline boundary and is
+	/// unwrapped immediately on the other side, so no caller can catch or depend on it.
+	/// </remarks>
+#pragma warning disable CA1064 // Not a public exception; it never leaves this type.
+	private sealed class OutcomeFailureSignal<T>(T result)
+		: Exception("The operation returned a failed result.")
+#pragma warning restore CA1064
+	{
+		/// <summary>Gets the failed result being carried.</summary>
+		/// <value>The result the predicate judged to be a failure.</value>
+		public T Result { get; } = result;
+	}
+
+	/// <inheritdoc />
 	public void Reset()
 	{
-		// Use manual control to close the circuit without sync-over-async blocking.
-		_ = _manualControl.CloseAsync();
-
 		lock (_lock)
 		{
-			var previousState = _currentState;
-			_currentState = CircuitState.Closed;
 			_consecutiveFailures = 0;
+		}
 
-			if (previousState != CircuitState.Closed)
-			{
-				RaiseStateChanged(previousState, CircuitState.Closed, null);
-			}
+		// ManualControl.CloseAsync is asynchronous and this member is not, so the close is observed
+		// rather than discarded. Writing Closed here optimistically would report a circuit that had
+		// not closed yet, and would hide a fault in the close entirely; Polly's own OnClosed callback
+		// updates the state and raises the transition once the circuit has actually closed.
+		_ = ObserveResetAsync();
+	}
+
+	private async Task ObserveResetAsync()
+	{
+		try
+		{
+			await _manualControl.CloseAsync().ConfigureAwait(false);
+		}
+		catch (ObjectDisposedException)
+		{
+			// The adapter was disposed while the close was in flight; nothing left to close.
+		}
+		catch (Exception ex)
+		{
+			LogResetFailed(ex);
 		}
 	}
 
@@ -299,4 +354,8 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 	[LoggerMessage(ResilienceEventId.CircuitBreakerHalfOpen, LogLevel.Information,
 		"Circuit breaker half-open: {CircuitName}")]
 	private partial void LogCircuitHalfOpen(string circuitName);
+
+	[LoggerMessage(ResilienceEventId.CircuitBreakerResetFailed, LogLevel.Warning,
+		"Circuit breaker reset did not complete; the circuit may still be open")]
+	private partial void LogResetFailed(Exception exception);
 }

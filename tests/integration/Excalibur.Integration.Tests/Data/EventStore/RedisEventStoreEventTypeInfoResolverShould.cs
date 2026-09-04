@@ -8,6 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Redis;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -184,6 +186,7 @@ internal enum RedisResolverTestShade
 	Green,
 }
 
+[MessageName("Test.RedisResolverTestEvent")]
 internal sealed class RedisResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -192,7 +195,6 @@ internal sealed class RedisResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(RedisResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -201,6 +203,7 @@ internal sealed class RedisResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredRedisTestEvent")]
 internal sealed class UndeclaredRedisTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -209,7 +212,6 @@ internal sealed class UndeclaredRedisTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredRedisTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

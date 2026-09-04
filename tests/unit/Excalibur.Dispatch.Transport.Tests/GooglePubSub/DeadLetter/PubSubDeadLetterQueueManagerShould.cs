@@ -361,21 +361,6 @@ public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 		descriptor.ShouldNotBeNull("AddOptimizedDeadLetterQueue should register keyed IDeadLetterQueueManager");
 	}
 
-	[Fact]
-	public void AddGooglePubSubDeadLetterQueue_RegistersViaBuilder()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddGooglePubSubDeadLetterQueue(builder => { });
-
-		// Assert — builder-based registration also uses the shared interface
-		var descriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(IDeadLetterQueueManager));
-		descriptor.ShouldNotBeNull("AddGooglePubSubDeadLetterQueue should register IDeadLetterQueueManager");
-	}
-
 	#endregion
 
 	#region Helpers

@@ -15,7 +15,6 @@ public sealed class OptionsDefaultsShould
 		var options = new CircuitBreakerOptions();
 
 		options.Enabled.ShouldBeTrue();
-		options.FailureThreshold.ShouldBe(5);
 		options.MinimumThroughput.ShouldBe(10);
 		options.BreakDuration.ShouldBe(TimeSpan.FromSeconds(30));
 		options.SamplingDuration.ShouldBe(TimeSpan.FromSeconds(60));

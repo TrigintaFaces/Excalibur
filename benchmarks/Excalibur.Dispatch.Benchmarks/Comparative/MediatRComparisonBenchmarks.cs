@@ -223,111 +223,110 @@ public class MediatRComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch single command handler invocation.
 	/// </summary>
 	[Benchmark(Baseline = true, Description = "Dispatch: Single command handler")]
-	public async Task<IMessageResult> Dispatch_SingleCommandHandler()
+	public Task<IMessageResult> Dispatch_SingleCommandHandler()
 	{
 		var command = new TestCommand { Value = 42 };
-		return await DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, command).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, command);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch strict direct-local profile (explicit no-middleware profile).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Single command strict direct-local")]
-	public async Task<IMessageResult> Dispatch_SingleCommand_StrictDirectLocal()
+	public Task<IMessageResult> Dispatch_SingleCommand_StrictDirectLocal()
 	{
 		var command = new TestCommand { Value = 42 };
-		return await DispatchWithFreshContextAsync(_directDispatcher, _directContextFactory, command).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(_directDispatcher, _directContextFactory, command);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch ultra-local API path (ValueTask, no IMessageResult materialization on success).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Single command ultra-local API")]
-	public async Task Dispatch_SingleCommand_UltraLocalApi()
+	public ValueTask Dispatch_SingleCommand_UltraLocalApi()
 	{
 		var command = new TestCommand { Value = 42 };
-		await DispatchUltraLocalAsync(_directLocalDispatcher, command).ConfigureAwait(false);
+		return DispatchUltraLocalAsync(_directLocalDispatcher, command);
 	}
 
 	/// <summary>
 	/// MediatR: Single command handler invocation.
 	/// </summary>
 	[Benchmark(Description = "MediatR: Single command handler")]
-	public async Task<Unit> MediatR_SingleCommandHandler()
+	public Task<Unit> MediatR_SingleCommandHandler()
 	{
 		var command = new MediatRTestCommand { Value = 42 };
-		return await _mediator.Send(command, CancellationToken.None);
+		return _mediator!.Send(command, CancellationToken.None);
 	}
 
 	/// <summary>
 	/// Baseline: Excalibur.Dispatch notification to multiple handlers (1 notification → 3 handlers).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Notification to 3 handlers")]
-	public async Task<IMessageResult> Dispatch_NotificationMultipleHandlers()
+	public Task<IMessageResult> Dispatch_NotificationMultipleHandlers()
 	{
 		var notification = new TestNotification { Message = "test" };
-		return await DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, notification).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, notification);
 	}
 
 	/// <summary>
 	/// MediatR: Notification to multiple handlers (1 notification → 3 handlers).
 	/// </summary>
 	[Benchmark(Description = "MediatR: Notification to 3 handlers")]
-	public async Task MediatR_NotificationMultipleHandlers()
+	public Task MediatR_NotificationMultipleHandlers()
 	{
 		var notification = new MediatRTestNotification { Message = "test" };
-		await _mediator.Publish(notification, CancellationToken.None);
+		return _mediator!.Publish(notification, CancellationToken.None);
 	}
 
 	/// <summary>
 	/// Baseline: Excalibur.Dispatch query with return value.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query with return value")]
-	public async Task<IMessageResult> Dispatch_QueryWithReturnValue()
+	public Task<IMessageResult> Dispatch_QueryWithReturnValue()
 	{
 		var query = new TestQuery { Id = 123 };
-		return await DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, query).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, query);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch query via strict direct-local profile (no middleware, matching command direct-local).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query strict direct-local")]
-	public async Task<IMessageResult> Dispatch_QueryWithReturnValue_StrictDirectLocal()
+	public Task<IMessageResult> Dispatch_QueryWithReturnValue_StrictDirectLocal()
 	{
 		var query = new TestQuery { Id = 123 };
-		return await DispatchWithFreshContextAsync(_directDispatcher, _directContextFactory, query).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(_directDispatcher, _directContextFactory, query);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch typed query API path (IDispatchAction&lt;TResponse&gt;).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query with return value (typed API)")]
-	public async Task<IMessageResult<int>> Dispatch_QueryWithReturnValue_TypedApi()
+	public Task<IMessageResult<int>> Dispatch_QueryWithReturnValue_TypedApi()
 	{
 		var query = new TestQuery { Id = 123 };
-		return await DispatchWithFreshContextTypedAsync<TestQuery, int>(_dispatcher, _dispatchContextFactory, query)
-			.ConfigureAwait(false);
+		return DispatchWithFreshContextTypedAsync<TestQuery, int>(_dispatcher, _dispatchContextFactory, query);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch ultra-local query path (ValueTask&lt;T&gt;, no IMessageResult materialization on success).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query ultra-local API")]
-	public async Task<int?> Dispatch_QueryWithReturnValue_UltraLocalApi()
+	public ValueTask<int> Dispatch_QueryWithReturnValue_UltraLocalApi()
 	{
 		var query = new TestQuery { Id = 123 };
-		return await DispatchUltraLocalWithResponseAsync<TestQuery, int>(_directLocalDispatcher, query).ConfigureAwait(false);
+		return DispatchUltraLocalWithResponseAsync<TestQuery, int>(_directLocalDispatcher, query);
 	}
 
 	/// <summary>
 	/// MediatR: Query with return value.
 	/// </summary>
 	[Benchmark(Description = "MediatR: Query with return value")]
-	public async Task<int> MediatR_QueryWithReturnValue()
+	public Task<int> MediatR_QueryWithReturnValue()
 	{
 		var query = new MediatRTestQuery { Id = 123 };
-		return await _mediator.Send(query, CancellationToken.None);
+		return _mediator!.Send(query, CancellationToken.None);
 	}
 
 	// ============================================================================
@@ -339,20 +338,20 @@ public class MediatRComparisonBenchmarks
 	/// Stateless handlers are automatically promoted from transient to singleton lifetime.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Ultra-local singleton-promoted")]
-	public async Task Dispatch_SingleCommand_SingletonPromoted()
+	public ValueTask Dispatch_SingleCommand_SingletonPromoted()
 	{
 		var command = new TestCommand { Value = 42 };
-		await DispatchUltraLocalAsync(_singletonDirectLocalDispatcher, command).ConfigureAwait(false);
+		return DispatchUltraLocalAsync(_singletonDirectLocalDispatcher, command);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch with auto-promoted singleton handlers (query with response).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query singleton-promoted")]
-	public async Task<int?> Dispatch_Query_SingletonPromoted()
+	public ValueTask<int> Dispatch_Query_SingletonPromoted()
 	{
 		var query = new TestQuery { Id = 123 };
-		return await DispatchUltraLocalWithResponseAsync<TestQuery, int>(_singletonDirectLocalDispatcher, query).ConfigureAwait(false);
+		return DispatchUltraLocalWithResponseAsync<TestQuery, int>(_singletonDirectLocalDispatcher, query);
 	}
 
 	// ============================================================================
@@ -363,7 +362,7 @@ public class MediatRComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch 10 concurrent command dispatches.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: 10 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands10()
+	public Task Dispatch_ConcurrentCommands10()
 	{
 		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
@@ -372,14 +371,14 @@ public class MediatRComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, command);
 		}
 
-		_ = await Task.WhenAll(tasks);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// MediatR: 10 concurrent command dispatches.
 	/// </summary>
 	[Benchmark(Description = "MediatR: 10 concurrent commands")]
-	public async Task MediatR_ConcurrentCommands10()
+	public Task MediatR_ConcurrentCommands10()
 	{
 		var tasks = new Task<Unit>[10];
 		for (int i = 0; i < 10; i++)
@@ -388,14 +387,14 @@ public class MediatRComparisonBenchmarks
 			tasks[i] = _mediator.Send(command, CancellationToken.None);
 		}
 
-		_ = await Task.WhenAll(tasks);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// Baseline: Excalibur.Dispatch 100 concurrent command dispatches.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: 100 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands100()
+	public Task Dispatch_ConcurrentCommands100()
 	{
 		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
@@ -404,14 +403,14 @@ public class MediatRComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextAsync(_dispatcher, _dispatchContextFactory, command);
 		}
 
-		_ = await Task.WhenAll(tasks);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// MediatR: 100 concurrent command dispatches.
 	/// </summary>
 	[Benchmark(Description = "MediatR: 100 concurrent commands")]
-	public async Task MediatR_ConcurrentCommands100()
+	public Task MediatR_ConcurrentCommands100()
 	{
 		var tasks = new Task<Unit>[100];
 		for (int i = 0; i < 100; i++)
@@ -420,7 +419,7 @@ public class MediatRComparisonBenchmarks
 			tasks[i] = _mediator.Send(command, CancellationToken.None);
 		}
 
-		_ = await Task.WhenAll(tasks);
+		return Task.WhenAll(tasks);
 	}
 
 	private void WarmupAndFreezeDispatchCaches()
@@ -447,7 +446,13 @@ public class MediatRComparisonBenchmarks
 		FinalDispatchHandler.FreezeResultFactoryCache();
 	}
 
-	private static async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(
+	// Deliberately NOT async, and neither are the benchmark methods that call it. An async frame whose
+	// result is a non-null reference allocates a Task<T> (AsyncTaskMethodBuilder<T> only caches the
+	// default-result task), so an async helper plus an async benchmark body charged the Dispatch arm
+	// ~144 B that a competitor arm returning its own library Task never paid. Returning the
+	// dispatcher's own Task preserves the fresh-context-per-invocation behaviour while keeping the
+	// harness frame count at zero for every arm, so the allocation column measures the library.
+	private static Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(
 		IDispatcher? dispatcher,
 		IMessageContextFactory? contextFactory,
 		TMessage message)
@@ -460,20 +465,14 @@ public class MediatRComparisonBenchmarks
 		var dispatchTask = dispatcher.DispatchAsync(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				contextFactory.Return(context);
-			}
+			contextFactory.Return(context);
+			return dispatchTask;
 		}
 
-		return await AwaitAndReturnContextAsync(dispatchTask, contextFactory, context).ConfigureAwait(false);
+		return AwaitAndReturnContextAsync(dispatchTask, contextFactory, context);
 	}
 
-	private static async Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(
+	private static Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(
 		IDispatcher? dispatcher,
 		IMessageContextFactory? contextFactory,
 		TMessage message)
@@ -486,16 +485,18 @@ public class MediatRComparisonBenchmarks
 		var dispatchTask = dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				contextFactory.Return(context);
-			}
+			contextFactory.Return(context);
+			return dispatchTask;
 		}
 
+		return AwaitAndReturnContextTypedAsync(dispatchTask, contextFactory, context);
+	}
+
+	private static async Task<IMessageResult<TResponse>> AwaitAndReturnContextTypedAsync<TResponse>(
+		Task<IMessageResult<TResponse>> dispatchTask,
+		IMessageContextFactory contextFactory,
+		IMessageContext context)
+	{
 		try
 		{
 			return await dispatchTask.ConfigureAwait(false);

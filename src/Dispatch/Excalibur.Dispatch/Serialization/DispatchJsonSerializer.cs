@@ -13,6 +13,10 @@ using Excalibur.Dispatch.Buffers;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Delivery.Registry;
 
+using System.Text;
+
+using System.Collections.Concurrent;
+
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
@@ -42,13 +46,27 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// is set, so callers can override it (e.g., set <c>TypeInfoResolver = null</c> for reflection-based serialization).
 	/// </param>
 	/// <param name="jsonContext"> Optional JSON context for AOT serialization. </param>
-	/// <param name="writerPool"> Optional UTF-8 JSON writer pool for performance optimization. </param>
 	/// <param name="bufferManager"> Optional buffer manager for memory pooling. </param>
 	public DispatchJsonSerializer(
 		Action<JsonSerializerOptions>? configure = null,
 		JsonSerializerContext? jsonContext = null,
-		IUtf8JsonWriterPool? writerPool = null,
 		IPooledBufferService? bufferManager = null)
+		: this(configure, jsonContext, writerPool: null, bufferManager)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance that serializes through a supplied writer pool.
+	/// </summary>
+	/// <param name="configure"> Optional configuration action for JsonSerializerOptions. </param>
+	/// <param name="jsonContext"> Optional JSON context for AOT serialization. </param>
+	/// <param name="writerPool"> The writer pool to serialize through. </param>
+	/// <param name="bufferManager"> Optional buffer manager for memory pooling. </param>
+	internal DispatchJsonSerializer(
+		Action<JsonSerializerOptions>? configure,
+		JsonSerializerContext? jsonContext,
+		IUtf8JsonWriterPool? writerPool,
+		IPooledBufferService? bufferManager)
 	{
 		_jsonContext = jsonContext ?? DispatchJsonContext.Default;
 
@@ -285,7 +303,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 		// Check for type resolution if needed
 		if (type == typeof(string) && utf8Json.Length > 0 && utf8Json[0] != '"')
 		{
-			var typeNameString = Utf8StringCache.Shared.GetString(utf8Json);
+			var typeNameString = InternTypeName(utf8Json);
 			if (MessageTypeRegistry.TryGetType(typeNameString, out var resolvedType))
 			{
 				type = resolvedType;
@@ -371,7 +389,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	public T? Deserialize<T>(string json)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(json);
-		var bytes = Utf8StringCache.Shared.GetBytes(json);
+		var bytes = Encoding.UTF8.GetBytes(json);
 		return (T?)DeserializeFromBytes(bytes, typeof(T));
 	}
 
@@ -390,7 +408,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(json);
 		ArgumentNullException.ThrowIfNull(type);
-		var bytes = Utf8StringCache.Shared.GetBytes(json);
+		var bytes = Encoding.UTF8.GetBytes(json);
 		return DeserializeFromBytes(bytes, type);
 	}
 
@@ -405,7 +423,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	public string Serialize<T>(T value)
 	{
 		using var result = SerializeToPooledBuffer(value);
-		return Utf8StringCache.Shared.GetString(result.WrittenSpan);
+		return Encoding.UTF8.GetString(result.WrittenSpan);
 	}
 
 	/// <summary>
@@ -419,7 +437,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 	public string Serialize(object? value, Type type)
 	{
 		using var result = SerializeToPooledBuffer(value, type);
-		return Utf8StringCache.Shared.GetString(result.WrittenSpan);
+		return Encoding.UTF8.GetString(result.WrittenSpan);
 	}
 
 	/// <summary>
@@ -540,5 +558,24 @@ public sealed class DispatchJsonSerializer : IDisposable
 		}
 
 		_threadLocalBufferWriter.Dispose();
+	}
+
+	// Type names repeat on every message of a type, so interning them is worth a bounded map. The
+	// payload-sized conversions are not: a whole JSON document is a key that never recurs, so caching
+	// one copies and hashes the entire payload in order to miss.
+	private const int MaxInternedTypeNames = 1024;
+
+	private static readonly ConcurrentDictionary<string, string> InternedTypeNames = new(StringComparer.Ordinal);
+
+	private static string InternTypeName(ReadOnlySpan<byte> utf8)
+	{
+		var name = Encoding.UTF8.GetString(utf8);
+
+		if (InternedTypeNames.Count >= MaxInternedTypeNames)
+		{
+			return InternedTypeNames.TryGetValue(name, out var known) ? known : name;
+		}
+
+		return InternedTypeNames.GetOrAdd(name, name);
 	}
 }

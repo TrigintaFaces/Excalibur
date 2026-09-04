@@ -297,8 +297,8 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		// Act
 		_ = builder.UseResilience();
 
-		// Assert — resilience adds Polly services (circuit breaker factory, timeout manager, etc.)
-		services.ShouldContain(d => d.ServiceType == typeof(ICircuitBreakerFactory));
+		// Assert — resilience adds Polly services (timeout manager, degradation, etc.)
+		services.ShouldContain(d => d.ServiceType == typeof(ITimeoutManager));
 	}
 
 	[Fact]

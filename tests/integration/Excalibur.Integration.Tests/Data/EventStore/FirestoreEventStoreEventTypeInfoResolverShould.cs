@@ -8,6 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Firestore;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -190,6 +192,7 @@ internal enum FsResolverTestShade
 	Green,
 }
 
+[MessageName("Test.FsResolverTestEvent")]
 internal sealed class FsResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -198,7 +201,6 @@ internal sealed class FsResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(FsResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -207,6 +209,7 @@ internal sealed class FsResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredFsTestEvent")]
 internal sealed class UndeclaredFsTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -215,7 +218,6 @@ internal sealed class UndeclaredFsTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredFsTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

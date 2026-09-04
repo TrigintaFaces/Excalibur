@@ -579,13 +579,13 @@ public sealed class RegistrationTestQuery : IDispatchAction<RegistrationTestQuer
 public sealed class RegistrationTestQueryResult { }
 
 // Test domain event
+[MessageName("Test.RegistrationTestDomainEvent")]
 public sealed class RegistrationTestDomainEvent : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = Guid.NewGuid().ToString();
 	public long Version { get; init; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(RegistrationTestDomainEvent);
 	public IDictionary<string, object>? Metadata { get; init; }
 }
 

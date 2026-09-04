@@ -32,9 +32,6 @@ internal static class ObservabilityEventId
 	/// <summary>Context flow completed.</summary>
 	public const int ContextFlowCompleted = 80002;
 
-	/// <summary>Context flow diagnostics collected.</summary>
-	public const int ContextFlowDiagnosticsCollected = 80003;
-
 	/// <summary>Context propagated.</summary>
 	public const int ContextPropagated = 80004;
 
@@ -132,11 +129,6 @@ internal static class ObservabilityEventId
 	/// <summary>Context flow diagnostic.</summary>
 	public const int ContextFlowDiagnostic = 80112;
 
-	/// <summary>History event logged.</summary>
-	public const int HistoryEvent = 80113;
-
-	/// <summary>Context anomaly logged.</summary>
-	public const int ContextAnomalyLogged = 80114;
 
 	/// <summary>Context observability instrumentation failed and was skipped (fail-open).</summary>
 	public const int ContextObservabilityInstrumentationFailed = 80115;

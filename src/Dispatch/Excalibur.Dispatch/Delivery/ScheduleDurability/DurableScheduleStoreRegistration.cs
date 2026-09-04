@@ -15,8 +15,17 @@ namespace Excalibur.Dispatch.Delivery;
 /// across process restarts.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The marker is emitted only alongside the registration that supplies a durable store, never on its own,
 /// so a volatile store cannot carry a truthful-looking attestation.
+/// </para>
+/// <para>
+/// A flag on the schedule options would be weaker: it can be set by anything, including a host that
+/// configured a volatile store, so it attests to nothing. Probing whether an
+/// <c>IScheduleStore</c> is registered would be weaker still, because it answers a different
+/// question -- an in-memory store is a registered store. The type exists so the claim cannot be made
+/// except by the code that makes it true.
+/// </para>
 /// </remarks>
 internal interface IDurableScheduleStoreCapability
 {

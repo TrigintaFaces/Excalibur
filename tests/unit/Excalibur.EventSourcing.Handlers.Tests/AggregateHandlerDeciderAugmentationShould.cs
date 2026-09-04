@@ -7,6 +7,7 @@ using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Implementation;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 using Shouldly;
 
@@ -41,7 +42,14 @@ public sealed class AggregateHandlerDeciderAugmentationShould
 			.GetRequiredKeyedService<IEventStore>("default");
 
 	private static EventSourcedRepository<Counter, string> NewRepository(IEventStore store)
-		=> new(store, new JsonEventSerializer(allowAssemblyScan: true), id => new Counter(id));
+		=> new(store, new JsonEventSerializer(
+				// A declared name resolves through the registry, never through the assembly scan --
+				// the scan matches CLR type names and a declared name deliberately is not one.
+				new ServiceCollection().AddEventTypes(typeof(CounterCreated), typeof(CounterIncremented))
+					.BuildServiceProvider().GetRequiredService<IEventTypeRegistry>(),
+				options: null,
+				allowAssemblyScan: false), id => new Counter(id),
+			Options.Create(new EventSourcedRepositoryOptions()));
 
 	private static ServiceProvider BuildHandlerProvider(
 		EventSourcedRepository<Counter, string> repository,
@@ -193,21 +201,21 @@ public sealed class AggregateHandlerDeciderAugmentationShould
 		}
 	}
 
+	[MessageName("Test.CounterCreated")]
 	private sealed record CounterCreated(string AggregateId) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "CounterCreated";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
+	[MessageName("Test.AggregateHandlerDeciderAugmentation.CounterIncremented")]
 	private sealed record CounterIncremented(string AggregateId) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "CounterIncremented";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

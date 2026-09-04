@@ -307,7 +307,6 @@ public static class SqsChannelServiceCollectionExtensions
 		});
 
 		// Add metrics collection
-		services.TryAddSingleton<ISqsChannelMetricsCollector, SqsChannelMetricsCollector>();
 
 		return services;
 	}

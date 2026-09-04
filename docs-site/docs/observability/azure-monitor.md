@@ -292,7 +292,7 @@ public class TelemetryEventStore : IEventStore
                         new Dictionary<string, string>
                         {
                             ["AggregateType"] = aggregateType,
-                            ["EventType"] = evt.EventType
+                            ["EventType"] = MessageNameHelper.GetName(evt.GetType())
                         });
                 }
 

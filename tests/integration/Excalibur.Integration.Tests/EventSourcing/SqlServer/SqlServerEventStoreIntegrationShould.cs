@@ -258,7 +258,8 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	private Task InitializeDatabaseAsync() =>
 		ShippedEventStoreSchema.EnsureCreatedAsync(_connectionString, CancellationToken.None);
 
-	private sealed record TestDomainEvent : IDomainEvent
+[MessageName("Test.SqlServerEventStoreIntegration.TestDomainEvent")]
+private sealed record TestDomainEvent : IDomainEvent
 	{
 		public TestDomainEvent(string aggregateId, long version)
 		{
@@ -266,14 +267,12 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			AggregateId = aggregateId;
 			Version = version;
 			OccurredAt = DateTimeOffset.UtcNow;
-			EventType = nameof(TestDomainEvent);
 		}
 
 		public string EventId { get; init; }
 		public string AggregateId { get; init; }
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; }
 		public IDictionary<string, object>? Metadata => null;
 	}
 }

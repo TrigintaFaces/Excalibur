@@ -95,11 +95,11 @@ public sealed class SqlServerEventStoreErasureTenantScopeShould
 	private static IEventStoreErasure GuardedErasure(ServiceProvider provider) =>
 		(IEventStoreErasure)provider.GetRequiredKeyedService<IEventStore>("default");
 
-	private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
+[MessageName("Test.SqlServerEventStoreErasureTenantScope.OrderPlaced")]
+private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(OrderPlaced);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

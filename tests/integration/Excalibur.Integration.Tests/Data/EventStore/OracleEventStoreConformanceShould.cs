@@ -12,6 +12,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Oracle.ManagedDataAccess.Client;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -443,7 +445,8 @@ public sealed class OracleEventStoreConformanceShould : EventStoreConformanceTes
 			"the loser MUST be a ConcurrencyConflict — the fix must not lower isolation into a silent lost update");
 	}
 
-	private sealed class ConformanceEvent : IDomainEvent
+[MessageName("Test.ConformanceEvent")]
+private sealed class ConformanceEvent : IDomainEvent
 	{
 		public ConformanceEvent(string aggregateId, long version)
 		{
@@ -459,7 +462,6 @@ public sealed class OracleEventStoreConformanceShould : EventStoreConformanceTes
 
 		public DateTimeOffset OccurredAt { get; } = DateTimeOffset.UtcNow;
 
-		public string EventType => nameof(ConformanceEvent);
 
 		public IDictionary<string, object>? Metadata => null;
 	}

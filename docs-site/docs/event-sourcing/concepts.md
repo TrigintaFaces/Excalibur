@@ -22,9 +22,12 @@ Events represent things that have happened - they cannot be changed or deleted:
 
 ```csharp
 // Events use past tense - they describe completed actions
-// Events extend DomainEvent which provides EventId, OccurredAt, EventType, Metadata
+// Events extend DomainEvent which provides EventId, OccurredAt, Metadata,
+// and declare the permanent name they are stored under with [MessageName]
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderLineAdded")]
 public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity) : DomainEvent;
 ```
 
@@ -68,15 +71,17 @@ Event Stream: order-123
 
 ## Event Anatomy
 
-Every domain event should extend `DomainEvent` (from `Excalibur.Dispatch.Abstractions`) which provides standard properties:
+Every domain event should extend `DomainEvent` (from `Excalibur.Dispatch.Abstractions`) which provides standard properties. The `[MessageName]` attribute is required and declares the permanent name the event is
+stored and transmitted under -- the same name appears in the event store, the outbox `MessageType`, and the
+CloudEvents `type`. See [Stable Message Names](domain-events.md#stable-message-names):
 
 ```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
 // DomainEvent provides these properties automatically:
 // - EventId: Auto-generated UUID v7 string (time-ordered)
 // - OccurredAt: DateTimeOffset.UtcNow at construction time
-// - EventType: Derived type name (e.g. "OrderCreated")
 // - Metadata: Optional cross-cutting concerns (null by default)
 // - CorrelationId / CausationId: Optional causation tracking (null by default)
 //
@@ -247,10 +252,10 @@ foreach (var e in events)
 {
     Console.WriteLine($"{e.Version}: {e.EventType} at {e.Timestamp}");
 }
-// Output:
-// 1: OrderCreated at 2024-01-10 10:00:00
-// 2: OrderLineAdded at 2024-01-10 10:05:00
-// 3: OrderSubmitted at 2024-01-10 10:10:00
+// EventType is the declared [MessageName], not the CLR type name:
+// 1: Contoso.Orders.OrderCreated at 2024-01-10 10:00:00
+// 2: Contoso.Orders.OrderLineAdded at 2024-01-10 10:05:00
+// 3: Contoso.Orders.OrderSubmitted at 2024-01-10 10:10:00
 ```
 
 ## Event Versioning

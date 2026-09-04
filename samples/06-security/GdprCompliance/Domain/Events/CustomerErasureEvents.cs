@@ -10,6 +10,7 @@ namespace GdprCompliance.Domain.Events;
 /// Published after <see cref="Commands.EraseCustomerHandler"/> clears every
 /// <see cref="PersonalDataAttribute"/> field on a customer.
 /// </summary>
+[MessageName("Contoso.Customers.CustomerErasedEvent")]
 public sealed record CustomerErasedEvent(
 	Guid CustomerId,
 	Guid RequestId,
@@ -21,6 +22,7 @@ public sealed record CustomerErasedEvent(
 /// Published after <see cref="Commands.TombstoneCustomerHandler"/> replaces a
 /// customer row with a tombstone marker record.
 /// </summary>
+[MessageName("Contoso.Customers.CustomerTombstonedEvent")]
 public sealed record CustomerTombstonedEvent(
 	Guid CustomerId,
 	Guid RequestId,

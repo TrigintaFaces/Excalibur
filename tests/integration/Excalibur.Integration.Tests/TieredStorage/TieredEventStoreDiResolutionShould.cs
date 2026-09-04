@@ -17,6 +17,8 @@ using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings below are fixed test-fixture constants, not user input
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.TieredStorage;
 
 /// <summary>
@@ -220,16 +222,15 @@ public sealed class TieredEventStoreDiResolutionShould : IAsyncLifetime
 		Version = version,
 		EventId = Guid.NewGuid().ToString(),
 		OccurredAt = DateTimeOffset.UtcNow,
-		EventType = nameof(TieredDiEvent),
 	};
 
-	private sealed class TieredDiEvent : IDomainEvent
+[MessageName("Test.TieredDiEvent")]
+private sealed class TieredDiEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TieredDiEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 }

@@ -363,6 +363,7 @@ public sealed class AggregateTestFixtureShould
 	// Derives from DomainEvent (the framework base, which implements the internal IEventMetadataWriter
 	// stamping seam) so AggregateTestFixture.Given can assign contiguous 0-based versions AOT-safely,
 	// exercising the blessed consumer event path.
+	[MessageName("Test.AggregateTestFixture.ItemAdded")]
 	private sealed record ItemAdded : DomainEvent
 	{
 		public ItemAdded(string itemId)

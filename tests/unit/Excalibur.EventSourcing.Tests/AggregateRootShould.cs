@@ -20,12 +20,14 @@ public sealed class AggregateRootShould
 {
 	#region Test Domain Events
 
+	[MessageName("Test.SomethingHappened")]
 	internal sealed record SomethingHappened : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
 
 	}
 
+	[MessageName("Test.SomethingElseHappened")]
 	internal sealed record SomethingElseHappened : DomainEvent
 	{
 		public int Number { get; init; }

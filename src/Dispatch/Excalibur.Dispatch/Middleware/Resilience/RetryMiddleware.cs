@@ -127,9 +127,11 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		Exception? lastException = null;
 		IMessageResult? lastFailedResult = null;
 
-		// Threads the previous actual delay forward for BackoffStrategy.DecorrelatedJitter (stateful within
-		// this in-process retry sequence); ignored by the attempt-derived strategies.
-		var previousDelayMs = 0.0;
+		// One calculator for this retry sequence, not one per attempt: DecorrelatedJitter derives each
+		// delay from the previous one, so a fresh calculator each time would restart the ladder. Built
+		// on first use rather than up front, because a dispatch that never retries must not pay for --
+		// or be failed by -- constructing a ladder it will not walk.
+		IBackoffCalculator? backoff = null;
 
 		while (attempt < effectiveOptions.MaxAttempts)
 		{
@@ -222,8 +224,11 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			if (attempt < effectiveOptions.MaxAttempts)
 			{
 				RetryAttemptsCounter.Add(1, new KeyValuePair<string, object?>("message.type", message.GetType().Name));
-				var delay = CalculateDelay(effectiveOptions, attempt, previousDelayMs);
-				previousDelayMs = delay.TotalMilliseconds;
+				backoff ??= BackoffCalculatorFactory.Create(
+					effectiveOptions.BackoffStrategy,
+					ToPolicyOptions(effectiveOptions));
+
+				var delay = backoff.CalculateDelay(attempt);
 				LogWaitingBeforeRetry(delay.TotalMilliseconds, attempt + 1, context.MessageId ?? string.Empty);
 
 				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
@@ -274,14 +279,6 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		// failure result is what the caller should see — returning a retry-shaped substitute would replace a
 		// result the pipeline below deliberately produced.
 		return lastFailedResult!;
-	}
-
-	private static double GetSecureRandomDouble()
-	{
-		Span<byte> bytes = stackalloc byte[8];
-		System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
-		var value = BitConverter.ToUInt64(bytes);
-		return (double)value / ulong.MaxValue;
 	}
 
 	// Source-generated logging methods
@@ -379,29 +376,6 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		return _classifier.Classify(exception) == MessageFailureKind.Transient;
 	}
 
-	private static TimeSpan CalculateDelay(RetryOptions options, int attempt, double previousDelayMs)
-	{
-		var baseMs = options.BaseDelay.TotalMilliseconds;
-
-		var delayMs = options.BackoffStrategy switch
-		{
-			BackoffStrategy.Fixed => baseMs,
-			BackoffStrategy.Linear => baseMs * attempt,
-			// use the configured BackoffMultiplier (default 2.0) rather than a hardcoded 2, so the
-			// exponential growth matches the documented option and stays consistent with Outbox/Inbox backoff.
-			BackoffStrategy.Exponential => baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1),
-			BackoffStrategy.ExponentialWithJitter => CalculateExponentialWithJitterMs(options, baseMs, attempt),
-			BackoffStrategy.FullJitter => CalculateFullJitterMs(options, baseMs, attempt),
-			BackoffStrategy.DecorrelatedJitter => CalculateDecorrelatedJitterMs(baseMs, previousDelayMs),
-			_ => baseMs,
-		};
-
-		// Every backoff strategy funnels its raw millisecond delay through ClampMs, the single seam that
-		// constructs the resulting TimeSpan. This makes an uncapped or non-finite delay structurally
-		// inexpressible: the cap is applied before TimeSpan.FromMilliseconds, never after.
-		return ClampMs(delayMs, options.MaxDelay);
-	}
-
 	/// <summary>
 	/// Converts a raw delay expressed in milliseconds into a bounded <see cref="TimeSpan" />, guaranteeing
 	/// the result is finite and never exceeds <paramref name="maxDelay" />.
@@ -423,31 +397,26 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		return TimeSpan.FromMilliseconds(Math.Max(0d, capped));
 	}
 
-	private static double CalculateExponentialWithJitterMs(RetryOptions options, double baseMs, int attempt)
-	{
-		var exponentialDelay = baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1);
-		var jitter = GetSecureRandomDouble() * options.JitterFactor;
-		return exponentialDelay * (1 + jitter);
-	}
 
-	// AWS "Decorrelated Jitter": sample uniformly from [base, previous * 3], threading the previous actual
-	// delay forward. The first attempt has no prior delay, so it seeds from base. ClampMs applies the cap.
-	private static double CalculateDecorrelatedJitterMs(double baseMs, double previousDelayMs)
+	/// <summary>
+	/// Projects this middleware's retry options onto the shape the shared backoff calculators read.
+	/// </summary>
+	/// <param name="options">The middleware's retry options.</param>
+	/// <returns>The equivalent policy options.</returns>
+	/// <remarks>
+	/// Two option types describe one idea, which is a problem of its own; until they are reconciled
+	/// this keeps the ladder in one place rather than reimplementing it beside them.
+	/// </remarks>
+	private static RetryPolicyOptions ToPolicyOptions(RetryOptions options) => new()
 	{
-		var previous = previousDelayMs <= 0 ? baseMs : previousDelayMs;
-		var upper = previous * 3.0;
-		return baseMs + (GetSecureRandomDouble() * (upper - baseMs));
-	}
-
-	// AWS "Full Jitter": sample uniformly from [0, min(maxDelay, exponential ceiling)] so concurrent clients
-	// are maximally decorrelated. The ceiling is capped here (not just by ClampMs) so the distribution stays
-	// uniform across the whole window rather than spiking at the cap.
-	private static double CalculateFullJitterMs(RetryOptions options, double baseMs, int attempt)
-	{
-		var exponentialDelay = baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1);
-		var ceiling = double.IsFinite(exponentialDelay)
-			? Math.Min(exponentialDelay, options.MaxDelay.TotalMilliseconds)
-			: options.MaxDelay.TotalMilliseconds;
-		return GetSecureRandomDouble() * ceiling;
-	}
+		MaxRetryAttempts = options.MaxAttempts,
+		Backoff = new RetryBackoffOptions
+		{
+			BaseDelay = options.BaseDelay,
+			MaxDelay = options.MaxDelay,
+			BackoffMultiplier = options.BackoffMultiplier,
+			JitterFactor = options.JitterFactor,
+			EnableJitter = options.UseJitter,
+		},
+	};
 }

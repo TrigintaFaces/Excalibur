@@ -35,7 +35,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 	private readonly ConcurrentBag<(string Name, long Value, KeyValuePair<string, object?>[] Tags)> _counterRecordings = [];
 	private readonly ConcurrentBag<(string Name, double Value, KeyValuePair<string, object?>[] Tags)> _histogramRecordings = [];
 	private readonly ActivityListener _activityListener;
-	private readonly List<Activity> _capturedActivities = [];
+	private readonly ConcurrentQueue<Activity> _capturedActivities = new();
 
 	private const string ProviderName = "test-provider";
 	private const string AggregateId = "order-123";
@@ -70,7 +70,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 		{
 			ShouldListenTo = source => source == _activitySource,
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-			ActivityStarted = activity => _capturedActivities.Add(activity),
+			ActivityStarted = activity => _capturedActivities.Enqueue(activity),
 		};
 		ActivitySource.AddActivityListener(_activityListener);
 
@@ -80,10 +80,6 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 	public void Dispose()
 	{
 		_activityListener.Dispose();
-		foreach (var activity in _capturedActivities)
-		{
-			activity.Dispose();
-		}
 
 		_meterListener.Dispose();
 		_meter.Dispose();

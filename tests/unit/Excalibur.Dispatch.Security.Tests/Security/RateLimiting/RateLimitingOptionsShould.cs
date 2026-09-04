@@ -81,7 +81,6 @@ public sealed class RateLimitingOptionsShould
 		var options = new RateLimitingOptions();
 
 		// Assert
-		options.CleanupIntervalMinutes.ShouldBe(5);
 	}
 
 	[Fact]
@@ -91,7 +90,6 @@ public sealed class RateLimitingOptionsShould
 		var options = new RateLimitingOptions();
 
 		// Assert
-		options.InactivityTimeoutMinutes.ShouldBe(30);
 	}
 
 	[Fact]
@@ -185,31 +183,7 @@ public sealed class RateLimitingOptionsShould
 		options.DefaultRetryAfterMilliseconds.ShouldBe(5000);
 	}
 
-	[Fact]
-	public void AllowSettingCleanupIntervalMinutes()
-	{
-		// Arrange
-		var options = new RateLimitingOptions();
 
-		// Act
-		options.CleanupIntervalMinutes = 10;
-
-		// Assert
-		options.CleanupIntervalMinutes.ShouldBe(10);
-	}
-
-	[Fact]
-	public void AllowSettingInactivityTimeoutMinutes()
-	{
-		// Arrange
-		var options = new RateLimitingOptions();
-
-		// Act
-		options.InactivityTimeoutMinutes = 60;
-
-		// Assert
-		options.InactivityTimeoutMinutes.ShouldBe(60);
-	}
 
 	[Fact]
 	public void AllowCreatingWithAllProperties()
@@ -224,8 +198,6 @@ public sealed class RateLimitingOptionsShould
 			Algorithm = RateLimitAlgorithm.SlidingWindow,
 			DefaultLimits = defaultLimits,
 			DefaultRetryAfterMilliseconds = 2000,
-			CleanupIntervalMinutes = 15,
-			InactivityTimeoutMinutes = 45,
 		};
 		options.TenantLimits["premium"] = new RateLimits { TokenLimit = 2000 };
 		options.TierLimits["gold"] = new RateLimits { TokenLimit = 3000 };
@@ -237,8 +209,6 @@ public sealed class RateLimitingOptionsShould
 		options.TenantLimits["premium"].TokenLimit.ShouldBe(2000);
 		options.TierLimits["gold"].TokenLimit.ShouldBe(3000);
 		options.DefaultRetryAfterMilliseconds.ShouldBe(2000);
-		options.CleanupIntervalMinutes.ShouldBe(15);
-		options.InactivityTimeoutMinutes.ShouldBe(45);
 	}
 
 	[Fact]

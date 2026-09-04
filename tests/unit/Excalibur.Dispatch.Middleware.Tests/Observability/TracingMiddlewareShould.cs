@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 using Excalibur.Dispatch;
@@ -21,7 +22,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 public sealed class TracingMiddlewareShould : UnitTestBase
 {
 	private readonly ActivityListener _activityListener;
-	private readonly List<Activity> _capturedActivities = [];
+	private readonly ConcurrentQueue<Activity> _capturedActivities = new();
 	private readonly TracingMiddleware _middleware;
 
 	private static IOptions<ObservabilityOptions> DefaultOptions =>
@@ -36,7 +37,7 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		{
 			ShouldListenTo = source => source.Name == DispatchActivitySource.Name,
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-			ActivityStarted = activity => _capturedActivities.Add(activity)
+			ActivityStarted = activity => _capturedActivities.Enqueue(activity)
 		};
 		ActivitySource.AddActivityListener(_activityListener);
 	}
@@ -46,10 +47,6 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 		if (disposing)
 		{
 			_activityListener.Dispose();
-			foreach (var activity in _capturedActivities)
-			{
-				activity.Dispose();
-			}
 		}
 
 		base.Dispose(disposing);

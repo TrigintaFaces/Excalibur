@@ -214,7 +214,7 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 			EventId = "evt-1",
 			AggregateId = "agg-1",
 			AggregateType = "Order",
-			EventType = "OrderCreated",
+			EventType = "Excalibur.Test.OrderPlaced",
 			EventData = [1, 2, 3],
 			Metadata = [4, 5],
 			Version = 8,
@@ -261,11 +261,11 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 		field!.SetValue(instance, value);
 	}
 
+	[MessageName("Test.Es.FirestoreTestDomainEvent")]
 	private sealed record TestDomainEvent(string EventId, IDictionary<string, object>? Metadata) : IDomainEvent
 	{
 		public string AggregateId => "agg-1";
 		public long Version => 1;
 		public DateTimeOffset OccurredAt => DateTimeOffset.UtcNow;
-		public string EventType => "TestDomainEvent";
 	}
 }

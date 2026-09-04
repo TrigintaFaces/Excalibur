@@ -9,6 +9,8 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
+using Excalibur.Dispatch.Messaging;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;
@@ -30,6 +32,7 @@ public sealed class HandlerActivator : IHandlerActivator
 	/// Uses FrozenDictionary after freeze for optimal read performance.
 	/// </summary>
 	private static readonly ConcurrentDictionary<Type, Action<object, IMessageContext>?> _contextSetterCache = new();
+	private static readonly ConcurrentDictionary<Type, bool> _contextAccessorDependencyCache = new();
 	private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, IMessageContext, object>> _activationPlanCache = new();
 	private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, IMessageContext, object>> _registeredActivationPlanCache = new();
 	private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, IMessageContext, object>> _factoryActivationPlanCache = new();
@@ -127,7 +130,58 @@ public sealed class HandlerActivator : IHandlerActivator
 		Type handlerType)
 	{
 		ArgumentNullException.ThrowIfNull(handlerType);
-		return BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType)) is not null;
+
+		if (BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType)) is not null)
+		{
+			return true;
+		}
+
+		// A handler can also ask for the context by taking IMessageContextAccessor in its constructor
+		// rather than exposing a settable IMessageContext property. Both are the handler DECLARING that
+		// it reads the ambient context, so both must keep it off the ultra-local fast path -- that path
+		// publishes no ambient context, and the accessor would hand such a handler a silent null.
+		// Decidable here because it is the handler's own constructor signature. A service resolved
+		// BELOW the handler that reads the accessor is not visible from here and is not meant to be:
+		// that case fails loudly at its own call site rather than returning null.
+		return DeclaresContextAccessorDependency(handlerType);
+	}
+
+	/// <summary>
+	/// Determines whether <paramref name="handlerType"/> takes an <see cref="IMessageContextAccessor"/>
+	/// through any public constructor. Cached per type: it is a fixed fact about the signature.
+	/// </summary>
+	private static bool DeclaresContextAccessorDependency(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+		Type handlerType)
+	{
+		if (_contextAccessorDependencyCache.TryGetValue(handlerType, out var cached))
+		{
+			return cached;
+		}
+
+		// The reflection stays in this method rather than a GetOrAdd lambda: the lambda parameter
+		// carries no DynamicallyAccessedMembers annotation, so trimming cannot see that the
+		// constructors are needed (IL2070).
+		var declares = false;
+		foreach (var ctor in handlerType.GetConstructors())
+		{
+			foreach (var parameter in ctor.GetParameters())
+			{
+				if (parameter.ParameterType == typeof(IMessageContextAccessor))
+				{
+					declares = true;
+					break;
+				}
+			}
+
+			if (declares)
+			{
+				break;
+			}
+		}
+
+		_contextAccessorDependencyCache[handlerType] = declares;
+		return declares;
 	}
 
 	/// <summary>

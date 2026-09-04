@@ -41,11 +41,6 @@ public abstract record WorkflowJournalEvent : IDomainEvent
 	/// <value>The UTC timestamp when this entry was journaled.</value>
 	public DateTimeOffset OccurredAt { get; init; }
 
-	/// <summary>
-	/// Gets the journal discriminator for this entry.
-	/// </summary>
-	/// <value>The discriminator name identifying the concrete entry kind.</value>
-	public abstract string EventType { get; }
 
 	/// <summary>
 	/// Gets optional metadata for cross-cutting concerns.
@@ -57,10 +52,9 @@ public abstract record WorkflowJournalEvent : IDomainEvent
 /// <summary>
 /// Records that a workflow instance has started.
 /// </summary>
+[MessageName("Excalibur.Workflows.WorkflowStarted")]
 public sealed record WorkflowStarted : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "WorkflowStarted";
 
 	/// <summary>
 	/// Gets the registered workflow name that was started.
@@ -84,10 +78,9 @@ public sealed record WorkflowStarted : WorkflowJournalEvent
 /// <summary>
 /// Records that an activity has been scheduled for execution.
 /// </summary>
+[MessageName("Excalibur.Workflows.ActivityScheduled")]
 public sealed record ActivityScheduled : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "ActivityScheduled";
 
 	/// <summary>
 	/// Gets the registered activity name that was scheduled.
@@ -105,10 +98,9 @@ public sealed record ActivityScheduled : WorkflowJournalEvent
 /// <summary>
 /// Records that a scheduled activity completed successfully.
 /// </summary>
+[MessageName("Excalibur.Workflows.ActivityCompleted")]
 public sealed record ActivityCompleted : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "ActivityCompleted";
 
 	/// <summary>
 	/// Gets the registered activity name that completed.
@@ -132,10 +124,9 @@ public sealed record ActivityCompleted : WorkflowJournalEvent
 /// <summary>
 /// Records that a scheduled activity failed.
 /// </summary>
+[MessageName("Excalibur.Workflows.ActivityFailed")]
 public sealed record ActivityFailed : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "ActivityFailed";
 
 	/// <summary>
 	/// Gets the registered activity name that failed.
@@ -159,10 +150,9 @@ public sealed record ActivityFailed : WorkflowJournalEvent
 /// <summary>
 /// Records that a durable timer has been created.
 /// </summary>
+[MessageName("Excalibur.Workflows.TimerCreated")]
 public sealed record TimerCreated : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "TimerCreated";
 
 	/// <summary>
 	/// Gets the duration to wait before the timer fires.
@@ -180,10 +170,9 @@ public sealed record TimerCreated : WorkflowJournalEvent
 /// <summary>
 /// Records that a durable timer has fired.
 /// </summary>
+[MessageName("Excalibur.Workflows.TimerFired")]
 public sealed record TimerFired : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "TimerFired";
 
 	/// <summary>
 	/// Gets the ordinal of the timer step that fired within the workflow instance.
@@ -197,10 +186,9 @@ public sealed record TimerFired : WorkflowJournalEvent
 /// journal entry's <see cref="WorkflowJournalEvent.OccurredAt"/>, so replay reproduces the value the workflow
 /// observed on first execution.
 /// </summary>
+[MessageName("Excalibur.Workflows.WorkflowTimeRead")]
 public sealed record WorkflowTimeRead : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "WorkflowTimeRead";
 
 	/// <summary>
 	/// Gets the ordinal of this time-read step within the workflow instance.
@@ -213,10 +201,9 @@ public sealed record WorkflowTimeRead : WorkflowJournalEvent
 /// Records a deterministic identifier generated inside a workflow body, so replay reproduces the same
 /// identifier rather than generating a new one.
 /// </summary>
+[MessageName("Excalibur.Workflows.WorkflowGuidCreated")]
 public sealed record WorkflowGuidCreated : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "WorkflowGuidCreated";
 
 	/// <summary>
 	/// Gets the ordinal of this identifier-generation step within the workflow instance.
@@ -234,10 +221,9 @@ public sealed record WorkflowGuidCreated : WorkflowJournalEvent
 /// <summary>
 /// Records that an external signal has been received.
 /// </summary>
+[MessageName("Excalibur.Workflows.SignalReceived")]
 public sealed record SignalReceived : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "SignalReceived";
 
 	/// <summary>
 	/// Gets the name of the received signal.
@@ -267,10 +253,9 @@ public sealed record SignalReceived : WorkflowJournalEvent
 /// <summary>
 /// Records that a workflow instance has completed.
 /// </summary>
+[MessageName("Excalibur.Workflows.WorkflowCompleted")]
 public sealed record WorkflowCompleted : WorkflowJournalEvent
 {
-	/// <inheritdoc/>
-	public override string EventType => "WorkflowCompleted";
 
 	/// <summary>
 	/// Gets the serialized workflow result, if any.

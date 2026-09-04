@@ -127,6 +127,12 @@
           "Polly.Core": "8.6.6"
         }
       },
+      "System.Threading.RateLimiting": {
+        "type": "Direct",
+        "requested": "[10.0.7, )",
+        "resolved": "10.0.7",
+        "contentHash": "jyE25vnx7GODTj0HyNLw0N1xZZnC393yheswsr4OMCZIrJ8VrBzgpPf9a+qJyDoQXt49cekHy1dIY1eQa5uhOg=="
+      },
       "Microsoft.Extensions.Diagnostics": {
         "type": "Transitive",
         "resolved": "10.0.10",
@@ -295,12 +301,6 @@
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
         "contentHash": "Tx0R6PY9MNSh0mDKSxbpHLuuec93IxF1cel+1ithQnMNr/vbfLSSHOQHGHIppAJCGfPcEo/wO1Ylj+QpXtzo3A=="
-      },
-      "System.Threading.RateLimiting": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.7, )",
-        "resolved": "10.0.7",
-        "contentHash": "jyE25vnx7GODTj0HyNLw0N1xZZnC393yheswsr4OMCZIrJ8VrBzgpPf9a+qJyDoQXt49cekHy1dIY1eQa5uhOg=="
       }
     }
   }

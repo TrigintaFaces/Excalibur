@@ -27,35 +27,35 @@ public sealed class MultiStreamProjectionFunctionalShould
 		public string? LastCustomerName { get; set; }
 	}
 
+	[MessageName("Test.MultiStreamProjectionFunctional.OrderPlacedEvent")]
 	private sealed record OrderPlacedEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "order-1";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "OrderPlaced";
 		public IDictionary<string, object>? Metadata { get; init; }
 		public string CustomerName { get; init; } = string.Empty;
 		public decimal Amount { get; init; }
 	}
 
+	[MessageName("Test.OrderCancelledEvent")]
 	private sealed record OrderCancelledEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "order-1";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "OrderCancelled";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
+	[MessageName("Test.UnhandledEvent")]
 	private sealed record UnhandledEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = "agg-1";
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => "Unhandled";
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

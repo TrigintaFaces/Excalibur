@@ -142,6 +142,15 @@
           "OpenTelemetry": "1.15.3"
         }
       },
+      "Polly": {
+        "type": "Direct",
+        "requested": "[8.6.6, )",
+        "resolved": "8.6.6",
+        "contentHash": "czKHYJ6uGowPijuZt4kgF4njfGvWxVZ8mKBcrZ9iEtwDe9HKdF0ug6p6TwUG8EHuuufgbDU//rSBFebt5/0Fyw==",
+        "dependencies": {
+          "Polly.Core": "8.6.6"
+        }
+      },
       "System.Diagnostics.DiagnosticSource": {
         "type": "Direct",
         "requested": "[10.0.7, )",
@@ -902,15 +911,6 @@
         "requested": "[1.15.3, )",
         "resolved": "1.15.3",
         "contentHash": "fX+fkCysfPut+qCcT3bKqyX4QN9Saf4CgX8HLOHywEVD+Xr7sULtfuypITpoDysjx8R59dn/3mWhgimMH8cm/g=="
-      },
-      "Polly": {
-        "type": "CentralTransitive",
-        "requested": "[8.6.6, )",
-        "resolved": "8.6.6",
-        "contentHash": "czKHYJ6uGowPijuZt4kgF4njfGvWxVZ8mKBcrZ9iEtwDe9HKdF0ug6p6TwUG8EHuuufgbDU//rSBFebt5/0Fyw==",
-        "dependencies": {
-          "Polly.Core": "8.6.6"
-        }
       },
       "System.IdentityModel.Tokens.Jwt": {
         "type": "CentralTransitive",

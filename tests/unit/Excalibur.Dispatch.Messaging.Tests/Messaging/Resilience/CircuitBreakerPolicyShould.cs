@@ -87,18 +87,18 @@ public sealed class CircuitBreakerPolicyShould
 	#region Failure Threshold Tests
 
 	[Fact]
-	public void OpenCircuitAfterFailureThresholdReached()
+	public async Task OpenCircuitAfterFailureThresholdReached()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 3 };
 		var policy = CreatePolicy(options);
 
 		// Act - Record failures up to threshold
-		policy.RecordFailure(new InvalidOperationException("Error 1"));
-		policy.RecordFailure(new InvalidOperationException("Error 2"));
+		await policy.FailAsync(new InvalidOperationException("Error 1"));
+		await policy.FailAsync(new InvalidOperationException("Error 2"));
 		policy.State.ShouldBe(CircuitState.Closed); // Still closed
 
-		policy.RecordFailure(new InvalidOperationException("Error 3")); // Threshold reached
+		await policy.FailAsync(new InvalidOperationException("Error 3")); // Threshold reached
 
 		// Assert
 		policy.State.ShouldBe(CircuitState.Open);
@@ -106,7 +106,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void NotOpenCircuitBeforeThresholdReached()
+	public async Task NotOpenCircuitBeforeThresholdReached()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
@@ -115,7 +115,7 @@ public sealed class CircuitBreakerPolicyShould
 		// Act - Record failures but not enough to reach threshold
 		for (var i = 0; i < 4; i++)
 		{
-			policy.RecordFailure(new InvalidOperationException($"Error {i}"));
+			await policy.FailAsync(new InvalidOperationException($"Error {i}"));
 		}
 
 		// Assert
@@ -124,19 +124,19 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void TrackConsecutiveFailuresAccurately()
+	public async Task TrackConsecutiveFailuresAccurately()
 	{
 		// Arrange
 		var policy = CreatePolicy();
 
 		// Act & Assert
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
 		policy.ConsecutiveFailures.ShouldBe(1);
 
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
 		policy.ConsecutiveFailures.ShouldBe(2);
 
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
 		policy.ConsecutiveFailures.ShouldBe(3);
 	}
 
@@ -152,7 +152,7 @@ public sealed class CircuitBreakerPolicyShould
 		var policy = CreatePolicy(options);
 
 		// Open the circuit
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 		policy.State.ShouldBe(CircuitState.Open);
 
 		// Act & Assert - Should throw CircuitBreakerOpenException
@@ -166,7 +166,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void SetLastOpenedAtWhenCircuitOpens()
+	public async Task SetLastOpenedAtWhenCircuitOpens()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
@@ -174,7 +174,7 @@ public sealed class CircuitBreakerPolicyShould
 		var beforeOpen = DateTimeOffset.UtcNow;
 
 		// Act
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 
 		// Assert
 		_ = policy.LastOpenedAt.ShouldNotBeNull();
@@ -184,12 +184,12 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void IncludeCircuitNameInOpenException()
+	public async Task IncludeCircuitNameInOpenException()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1, OpenDuration = TimeSpan.FromMinutes(1) };
 		var policy = new CircuitBreakerPolicy(options, "my-service", _logger);
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 
 		// Act & Assert
 		var exception = Should.Throw<CircuitBreakerOpenException>(() =>
@@ -220,7 +220,7 @@ public sealed class CircuitBreakerPolicyShould
 		var policy = CreatePolicy(options);
 
 		// Open the circuit
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 		policy.State.ShouldBe(CircuitState.Open);
 
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
@@ -238,7 +238,7 @@ public sealed class CircuitBreakerPolicyShould
 		var policy = CreatePolicy(options);
 
 		// Open and wait for half-open
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - Execute should work in half-open
@@ -265,12 +265,12 @@ public sealed class CircuitBreakerPolicyShould
 		var policy = CreatePolicy(options);
 
 		// Open and wait for half-open
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - a single success closes the circuit. The configurable success threshold was removed so the
 		// built-in policy matches Polly, which closes after one successful trial call.
-		policy.RecordSuccess();
+		await policy.SucceedAsync().ConfigureAwait(false);
 
 		// Assert
 		policy.State.ShouldBe(CircuitState.Closed);
@@ -290,14 +290,14 @@ public sealed class CircuitBreakerPolicyShould
 		// Open and wait for half-open
 		for (var i = 0; i < 5; i++)
 		{
-			policy.RecordFailure(new InvalidOperationException($"Error {i}"));
+			await policy.FailAsync(new InvalidOperationException($"Error {i}"));
 		}
 
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - any failure while half-open reopens. No successes are recorded first: one success now closes
 		// the circuit, so a pre-success sequence would leave it Closed and stop exercising this property.
-		policy.RecordFailure(new InvalidOperationException("Error in half-open"));
+		await policy.FailAsync(new InvalidOperationException("Error in half-open"));
 
 		// Assert
 		policy.State.ShouldBe(CircuitState.Open);
@@ -308,20 +308,20 @@ public sealed class CircuitBreakerPolicyShould
 	#region Success Handling Tests
 
 	[Fact]
-	public void ResetConsecutiveFailuresOnSuccess()
+	public async Task ResetConsecutiveFailuresOnSuccess()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
 		var policy = CreatePolicy(options);
 
 		// Record some failures
-		policy.RecordFailure();
-		policy.RecordFailure();
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
+		await policy.FailAsync().ConfigureAwait(false);
+		await policy.FailAsync().ConfigureAwait(false);
 		policy.ConsecutiveFailures.ShouldBe(3);
 
 		// Act
-		policy.RecordSuccess();
+		await policy.SucceedAsync().ConfigureAwait(false);
 
 		// Assert
 		policy.ConsecutiveFailures.ShouldBe(0);
@@ -335,8 +335,8 @@ public sealed class CircuitBreakerPolicyShould
 		var policy = CreatePolicy(options);
 
 		// Record some failures
-		policy.RecordFailure();
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
+		await policy.FailAsync().ConfigureAwait(false);
 		policy.ConsecutiveFailures.ShouldBe(2);
 
 		// Act
@@ -356,14 +356,14 @@ public sealed class CircuitBreakerPolicyShould
 	#region Reset Tests
 
 	[Fact]
-	public void ResetToClosedState()
+	public async Task ResetToClosedState()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
 		var policy = CreatePolicy(options);
 
 		// Open the circuit
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
 		policy.State.ShouldBe(CircuitState.Open);
 
 		// Act
@@ -376,14 +376,14 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void ClearFailureCountOnReset()
+	public async Task ClearFailureCountOnReset()
 	{
 		// Arrange
 		var policy = CreatePolicy();
 
-		policy.RecordFailure();
-		policy.RecordFailure();
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
+		await policy.FailAsync().ConfigureAwait(false);
+		await policy.FailAsync().ConfigureAwait(false);
 
 		// Act
 		policy.Reset();
@@ -397,7 +397,7 @@ public sealed class CircuitBreakerPolicyShould
 	#region State Changed Event Tests
 
 	[Fact]
-	public void RaiseStateChangedEventOnTransition()
+	public async Task RaiseStateChangedEventOnTransition()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
@@ -412,7 +412,7 @@ public sealed class CircuitBreakerPolicyShould
 		};
 
 		// Act
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 
 		// Assert
 		eventRaised.ShouldBeTrue();
@@ -423,7 +423,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void IncludeTriggeringExceptionInEventArgs()
+	public async Task IncludeTriggeringExceptionInEventArgs()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
@@ -434,7 +434,7 @@ public sealed class CircuitBreakerPolicyShould
 		policy.StateChanged += (sender, args) => receivedArgs = args;
 
 		// Act
-		policy.RecordFailure(triggeringException);
+		await policy.FailAsync(triggeringException).ConfigureAwait(false);
 
 		// Assert
 		_ = receivedArgs.ShouldNotBeNull();
@@ -628,7 +628,7 @@ public sealed class CircuitBreakerPolicyShould
 		var policy = CreatePolicy(options);
 
 		// Open the circuit
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<CircuitBreakerOpenException>(async () =>
@@ -670,11 +670,11 @@ public sealed class CircuitBreakerPolicyShould
 		// Act - Record failures from multiple threads
 		for (var i = 0; i < 50; i++)
 		{
-			tasks.Add(Task.Run(() =>
+			tasks.Add(Task.Run(async () =>
 			{
 				for (var j = 0; j < 10; j++)
 				{
-					policy.RecordFailure(new InvalidOperationException($"Error {j}"));
+					await policy.FailAsync(new InvalidOperationException($"Error {j}")).ConfigureAwait(false);
 				}
 			}));
 		}
@@ -702,17 +702,17 @@ public sealed class CircuitBreakerPolicyShould
 		// Act - Mix of failures, successes, and state checks from multiple threads
 		for (var i = 0; i < 20; i++)
 		{
-			tasks.Add(Task.Run(() =>
+			tasks.Add(Task.Run(async () =>
 			{
 				for (var j = 0; j < 5; j++)
 				{
 					if (j % 2 == 0)
 					{
-						policy.RecordFailure();
+						await policy.FailAsync().ConfigureAwait(false);
 					}
 					else
 					{
-						policy.RecordSuccess();
+						await policy.SucceedAsync().ConfigureAwait(false);
 					}
 
 					_ = policy.State; // Force state evaluation
@@ -733,7 +733,7 @@ public sealed class CircuitBreakerPolicyShould
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
 		var policy = CreatePolicy(options);
-		policy.RecordFailure(); // Open the circuit
+		await policy.FailAsync(); // Open the circuit
 		var tasks = new List<Task>();
 
 		// Act - Reset from multiple threads
@@ -785,7 +785,7 @@ public sealed class CircuitBreakerPolicyShould
 		policy.StateChanged += (sender, args) => events.Add(args);
 
 		// Open the circuit
-		policy.RecordFailure(new InvalidOperationException("Error"));
+		await policy.FailAsync(new InvalidOperationException("Error"));
 
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
@@ -798,7 +798,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void RaiseStateChangedEventOnResetFromOpen()
+	public async Task RaiseStateChangedEventOnResetFromOpen()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions { FailureThreshold = 1 };
@@ -806,7 +806,7 @@ public sealed class CircuitBreakerPolicyShould
 		var events = new List<CircuitStateChangedEventArgs>();
 
 		policy.StateChanged += (sender, args) => events.Add(args);
-		policy.RecordFailure(); // Open
+		await policy.FailAsync(); // Open
 		events.Clear(); // Clear the open event
 
 		// Act
@@ -839,7 +839,7 @@ public sealed class CircuitBreakerPolicyShould
 	#region Edge Case Tests
 
 	[Fact]
-	public void NotTransitionToSameState()
+	public async Task NotTransitionToSameState()
 	{
 		// Arrange - Test that TransitionTo with same state is a no-op
 		var options = new CircuitBreakerOptions { FailureThreshold = 5 };
@@ -849,8 +849,8 @@ public sealed class CircuitBreakerPolicyShould
 		policy.StateChanged += (_, _) => eventCount++;
 
 		// Act - Record failures but don't reach threshold
-		policy.RecordFailure();
-		policy.RecordFailure();
+		await policy.FailAsync().ConfigureAwait(false);
+		await policy.FailAsync().ConfigureAwait(false);
 
 		// Assert - Should still be Closed, no state change events
 		policy.State.ShouldBe(CircuitState.Closed);

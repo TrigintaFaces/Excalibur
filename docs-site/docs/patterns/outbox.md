@@ -361,6 +361,11 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 
 ## Database Schema
 
+The `MessageType` column holds the event's declared `[MessageName]` — the same stable name the event
+store records and external subscribers see as the CloudEvents `type`. It is what your consumers route
+on, and it does not change when the CLR type moves. See
+[stable message names](../event-sourcing/domain-events.md#stable-message-names).
+
 ### SQL Server
 
 The SQL Server store does **not** auto-create tables — create the schema before starting the application. The `IX_OutboxMessages_Claim` index backs the atomic claim predicate (status + retry-visibility) and the partition-ordered delivery guarantee.

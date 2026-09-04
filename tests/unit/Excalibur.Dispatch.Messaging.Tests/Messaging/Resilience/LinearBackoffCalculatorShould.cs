@@ -21,10 +21,10 @@ public sealed class LinearBackoffCalculatorShould
 	}
 
 	[Fact]
-	public void ThrowForZeroBaseDelay()
+	public void AcceptZeroBaseDelay()
 	{
-		Should.Throw<ArgumentOutOfRangeException>(() =>
-			new LinearBackoffCalculator(TimeSpan.Zero));
+		// Zero means "retry immediately" -- a legal configuration, not an error.
+		new LinearBackoffCalculator(TimeSpan.Zero).CalculateDelay(3).ShouldBe(TimeSpan.Zero);
 	}
 
 	[Fact]
@@ -42,10 +42,11 @@ public sealed class LinearBackoffCalculatorShould
 	}
 
 	[Fact]
-	public void ThrowForZeroMaxDelay()
+	public void ClampToZeroWhenMaxDelayIsZero()
 	{
-		Should.Throw<ArgumentOutOfRangeException>(() =>
-			new LinearBackoffCalculator(TimeSpan.FromSeconds(1), TimeSpan.Zero));
+		// Zero means "retry immediately" -- a legal configuration, not an error.
+		new LinearBackoffCalculator(TimeSpan.FromSeconds(1), TimeSpan.Zero)
+			.CalculateDelay(1).ShouldBe(TimeSpan.Zero);
 	}
 
 	[Fact]

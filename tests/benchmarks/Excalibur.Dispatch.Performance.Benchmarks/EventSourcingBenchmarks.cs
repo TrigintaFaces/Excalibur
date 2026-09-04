@@ -191,13 +191,13 @@ public class EventSourcingBenchmarks
 	/// <summary>
 	/// Benchmark domain event implementation.
 	/// </summary>
+	[MessageName("Test.BenchmarkDomainEvent")]
 	public sealed class BenchmarkDomainEvent : IDomainEvent
 	{
 		public string EventId { get; set; } = string.Empty;
 		public string AggregateId { get; set; } = string.Empty;
 		public long Version { get; set; }
 		public DateTimeOffset OccurredAt { get; set; }
-		public string EventType => nameof(BenchmarkDomainEvent);
 		public IDictionary<string, object>? Metadata { get; set; }
 		public string Data { get; set; } = string.Empty;
 	}
@@ -254,7 +254,7 @@ public class EventSourcingBenchmarks
 						EventId: evt.EventId,
 						AggregateId: aggregateId,
 						AggregateType: aggregateType,
-						EventType: evt.EventType,
+						EventType: MessageNameHelper.GetName(evt.GetType()),
 						EventData: Encoding.UTF8.GetBytes($"benchmark-{version}"),
 						Metadata: null,
 						Version: version,

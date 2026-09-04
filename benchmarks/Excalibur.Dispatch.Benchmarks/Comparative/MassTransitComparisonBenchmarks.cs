@@ -178,20 +178,20 @@ public class MassTransitComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch single command handler invocation.
 	/// </summary>
 	[Benchmark(Baseline = true, Description = "Dispatch: Single command")]
-	public async Task<IMessageResult> Dispatch_SingleCommand()
+	public Task<IMessageResult> Dispatch_SingleCommand()
 	{
 		var command = new MassTransitTestCommand { Value = 42 };
-		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(command);
 	}
 
 	/// <summary>
 	/// Dispatch via the tuned direct-local path, matching the tuned tier every other pairing publishes.
 	/// </summary>
 	[Benchmark(Description = "Dispatch (tuned direct-local): Single command")]
-	public async Task Dispatch_SingleCommand_DirectLocal()
+	public ValueTask Dispatch_SingleCommand_DirectLocal()
 	{
 		var command = new MassTransitTestCommand { Value = 42 };
-		await _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None).ConfigureAwait(false);
+		return _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -219,10 +219,10 @@ public class MassTransitComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch event to multiple handlers (1 event → 2 handlers).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Event to 2 handlers")]
-	public async Task<IMessageResult> Dispatch_EventMultipleHandlers()
+	public Task<IMessageResult> Dispatch_EventMultipleHandlers()
 	{
 		var @event = new MassTransitTestEvent { Message = "test" };
-		return await DispatchWithFreshContextAsync(@event).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(@event);
 	}
 
 	/// <summary>
@@ -250,7 +250,7 @@ public class MassTransitComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch 10 concurrent command dispatches.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: 10 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands10()
+	public Task Dispatch_ConcurrentCommands10()
 	{
 		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
@@ -259,7 +259,7 @@ public class MassTransitComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextAsync(command);
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
@@ -290,7 +290,7 @@ public class MassTransitComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch 100 concurrent command dispatches.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: 100 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands100()
+	public Task Dispatch_ConcurrentCommands100()
 	{
 		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
@@ -299,7 +299,7 @@ public class MassTransitComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextAsync(command);
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
@@ -363,7 +363,7 @@ public class MassTransitComparisonBenchmarks
 		}
 
 		await _bus.PublishBatch(messages, CancellationToken.None);
-		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout))).ConfigureAwait(false);
+		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout)));
 	}
 
 	// ============================================================================
@@ -383,7 +383,13 @@ public class MassTransitComparisonBenchmarks
 		FinalDispatchHandler.FreezeResultFactoryCache();
 	}
 
-	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
+	// Deliberately NOT async, and neither are the single-call benchmark methods that use it. An async
+	// frame whose result is a non-null reference allocates a Task<T> (AsyncTaskMethodBuilder<T> only
+	// caches the default-result task), so an async helper plus an async benchmark body charged the
+	// Dispatch arm ~144 B that a competitor arm returning its own library Task never paid. Returning
+	// the dispatcher's own Task preserves fresh-context-per-invocation while keeping the harness frame
+	// count at zero for every arm, so the allocation column measures the library, not the harness.
+	private Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
 		where TMessage : IDispatchMessage
 	{
 		ArgumentNullException.ThrowIfNull(_dispatcher);
@@ -393,23 +399,25 @@ public class MassTransitComparisonBenchmarks
 		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_dispatchContextFactory.Return(context);
-			}
+			_dispatchContextFactory.Return(context);
+			return dispatchTask;
 		}
 
+		return AwaitAndReturnContextAsync(dispatchTask, _dispatchContextFactory, context);
+	}
+
+	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
+		Task<IMessageResult> dispatchTask,
+		IMessageContextFactory contextFactory,
+		IMessageContext context)
+	{
 		try
 		{
 			return await dispatchTask.ConfigureAwait(false);
 		}
 		finally
 		{
-			_dispatchContextFactory.Return(context);
+			contextFactory.Return(context);
 		}
 	}
 }

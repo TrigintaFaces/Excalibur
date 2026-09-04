@@ -8,6 +8,7 @@ namespace Excalibur.A3.Authorization.Roles.Events;
 /// <summary>
 /// Raised when a role's direct activity mappings are changed.
 /// </summary>
+[MessageName("Excalibur.A3.RoleActivitiesChanged")]
 internal sealed class RoleActivitiesChanged : IDomainEvent
 {
 	public required string RoleId { get; init; }
@@ -15,6 +16,5 @@ internal sealed class RoleActivitiesChanged : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(RoleActivitiesChanged);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

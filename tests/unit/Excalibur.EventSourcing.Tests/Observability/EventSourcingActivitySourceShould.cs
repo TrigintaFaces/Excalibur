@@ -19,7 +19,6 @@ namespace Excalibur.EventSourcing.Tests.Observability;
 public sealed class EventSourcingActivitySourceShould : IDisposable
 {
 	private readonly ActivityListener _listener;
-	private readonly List<Activity> _capturedActivities = new();
 
 	public EventSourcingActivitySourceShould()
 	{
@@ -27,7 +26,6 @@ public sealed class EventSourcingActivitySourceShould : IDisposable
 		{
 			ShouldListenTo = source => source.Name == EventSourcingActivitySource.Name,
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-			ActivityStarted = activity => _capturedActivities.Add(activity)
 		};
 		ActivitySource.AddActivityListener(_listener);
 	}
@@ -35,10 +33,6 @@ public sealed class EventSourcingActivitySourceShould : IDisposable
 	public void Dispose()
 	{
 		_listener.Dispose();
-		foreach (var activity in _capturedActivities)
-		{
-			activity.Dispose();
-		}
 	}
 
 	#region Name and Instance Tests

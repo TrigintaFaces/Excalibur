@@ -437,7 +437,6 @@ public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEven
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = Guid.NewGuid().ToString(),
 			Version = 0,
-			EventType = "TestEvent",
 			OccurredAt = DateTimeOffset.UtcNow,
 			Value = $"Test-{Guid.NewGuid():N}",
 		};
@@ -449,12 +448,12 @@ public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEven
 /// <summary>
 /// Test domain event for MongoDB telemetry integration tests.
 /// </summary>
+[MessageName("Test.MongoDbTelemetryTestDomainEvent")]
 internal sealed class MongoDbTelemetryTestDomainEvent : IDomainEvent
 {
 	public required string EventId { get; init; }
 	public required string AggregateId { get; init; }
 	public required long Version { get; init; }
-	public required string EventType { get; init; }
 	public required DateTimeOffset OccurredAt { get; init; }
 	public IDictionary<string, object>? Metadata { get; init; }
 	public required string Value { get; init; }

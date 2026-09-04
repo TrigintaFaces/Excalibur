@@ -21,12 +21,14 @@ public sealed class InMemoryEventStoreShould
 {
 	#region Test Events
 
+	[MessageName("Test.Es.InMemoryTestCreatedEvent")]
 	internal sealed record TestCreatedEvent : DomainEvent
 	{
 		public string Name { get; init; } = string.Empty;
 
 	}
 
+	[MessageName("Test.Es.InMemoryTestUpdatedEvent")]
 	internal sealed record TestUpdatedEvent : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;

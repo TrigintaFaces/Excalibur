@@ -347,14 +347,8 @@ internal static class SecurityEventId
 	/// <summary>Rate limit permit acquired.</summary>
 	public const int RateLimitPermitAcquired = 70504;
 
-	/// <summary>Inactive rate limiter removed.</summary>
-	public const int RateLimitInactiveLimiterRemoved = 70505;
 
-	/// <summary>Rate limiter cleanup completed.</summary>
-	public const int RateLimitCleanupCompleted = 70506;
 
-	/// <summary>Rate limiter cleanup error.</summary>
-	public const int RateLimitCleanupError = 70507;
 
 	// ========================================
 	// 70600-70699: Audit Logging (SecurityEventLogger)

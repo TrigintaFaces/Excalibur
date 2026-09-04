@@ -12,6 +12,8 @@ using Excalibur.EventSourcing.Implementation;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Options;
+
 using Shouldly;
 
 using Xunit;
@@ -59,7 +61,8 @@ public sealed class EventSourcedRepositoryBoundedTrackingShould
 		var repository = new EventSourcedRepository<TrackingTestAggregate>(
 			A.Fake<IEventStore>(),
 			A.Fake<IEventSerializer>(),
-			id => new TrackingTestAggregate(id));
+			id => new TrackingTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()));
 
 		// The bounded helper + tracking map are declared on the two-type-parameter base.
 		var baseType = repository.GetType().BaseType.ShouldNotBeNull();

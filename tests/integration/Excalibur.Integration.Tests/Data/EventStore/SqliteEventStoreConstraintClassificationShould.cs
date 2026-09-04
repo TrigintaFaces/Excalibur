@@ -154,13 +154,13 @@ public sealed class SqliteEventStoreConstraintClassificationShould : IClassFixtu
 			new FixedTestTenantContext(tenantId),
 			Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = true }));
 
-	private sealed record Placed(string AggregateId) : IDomainEvent
+[MessageName("Test.Placed")]
+private sealed record Placed(string AggregateId) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-		public string EventType { get; init; } = nameof(Placed);
 
 		public IDictionary<string, object>? Metadata { get; init; }
 	}

@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Aot.Sample.EventSourcing;
 /// <summary>
 /// Raised when a new bank account is opened.
 /// </summary>
+[MessageName("Contoso.Banking.AccountOpenedEvent")]
 public sealed record AccountOpenedEvent : IDomainEvent
 {
 	/// <inheritdoc />
@@ -37,8 +38,6 @@ public sealed record AccountOpenedEvent : IDomainEvent
 	/// <inheritdoc />
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc />
-	public string EventType => nameof(AccountOpenedEvent);
 
 	/// <inheritdoc />
 	public IDictionary<string, object>? Metadata { get; set; }
@@ -57,6 +56,7 @@ public sealed record AccountOpenedEvent : IDomainEvent
 /// <summary>
 /// Raised when funds are deposited into an account.
 /// </summary>
+[MessageName("Contoso.Banking.FundsDepositedEvent")]
 public sealed record FundsDepositedEvent : IDomainEvent
 {
 	/// <inheritdoc />
@@ -77,8 +77,6 @@ public sealed record FundsDepositedEvent : IDomainEvent
 	/// <inheritdoc />
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc />
-	public string EventType => nameof(FundsDepositedEvent);
 
 	/// <inheritdoc />
 	public IDictionary<string, object>? Metadata { get; set; }
@@ -92,6 +90,7 @@ public sealed record FundsDepositedEvent : IDomainEvent
 /// <summary>
 /// Raised when funds are withdrawn from an account.
 /// </summary>
+[MessageName("Contoso.Banking.FundsWithdrawnEvent")]
 public sealed record FundsWithdrawnEvent : IDomainEvent
 {
 	/// <inheritdoc />
@@ -112,8 +111,6 @@ public sealed record FundsWithdrawnEvent : IDomainEvent
 	/// <inheritdoc />
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc />
-	public string EventType => nameof(FundsWithdrawnEvent);
 
 	/// <inheritdoc />
 	public IDictionary<string, object>? Metadata { get; set; }

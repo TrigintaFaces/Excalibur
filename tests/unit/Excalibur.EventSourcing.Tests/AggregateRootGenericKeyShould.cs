@@ -20,6 +20,7 @@ public sealed class AggregateRootGenericKeyShould
 {
 	#region Test Events
 
+	[MessageName("Test.AggregateRootGenericKey.TestEvent")]
 	internal sealed record TestEvent : DomainEvent
 	{
 		public string Data { get; init; } = string.Empty;

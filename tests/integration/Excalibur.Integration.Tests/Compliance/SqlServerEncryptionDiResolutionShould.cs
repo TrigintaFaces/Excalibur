@@ -20,6 +20,10 @@ using Tests.Shared.Helpers;
 
 #pragma warning disable CA2100 // SQL strings are safe - schema scripts and fixed queries in this test file
 
+using Excalibur.Dispatch;
+
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.Integration.Tests.Compliance;
 
 /// <summary>
@@ -251,7 +255,13 @@ public sealed class SqlServerEncryptionDiResolutionShould : IAsyncLifetime
 			(IKeyManagementAdmin)sp.GetRequiredService<IKeyManagementProvider>());
 		_ = services.AddCryptoShredding();
 
-		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer(allowAssemblyScan: true));
+		_ = services.AddSingleton<IEventSerializer>(new JsonEventSerializer(
+				// A declared name resolves through the registry, never through the assembly scan --
+				// the scan matches CLR type names and a declared name deliberately is not one.
+				new ServiceCollection().AddEventTypes(typeof(SubjectRegistered))
+					.BuildServiceProvider().GetRequiredService<IEventTypeRegistry>(),
+				options: null,
+				allowAssemblyScan: false));
 		_ = services.AddExcalibur(x => x.AddEventSourcing(es => es.UseSqlServer(sql =>
 			_ = sql.ConnectionString(_eventStoreConnectionString!))));
 		_ = services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql =>
@@ -286,13 +296,13 @@ public sealed class SqlServerEncryptionDiResolutionShould : IAsyncLifetime
 	}
 
 	/// <summary>A test domain event carrying a data subject's PII field.</summary>
-	private sealed record SubjectRegistered : IDomainEvent
+[MessageName("Test.SqlServerEncryptionDiResolution.SubjectRegistered")]
+private sealed record SubjectRegistered : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(SubjectRegistered);
 		public IDictionary<string, object>? Metadata { get; init; }
 
 		[DataSubjectId]

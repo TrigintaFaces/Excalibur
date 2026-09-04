@@ -153,7 +153,7 @@ public class MetricsMiddleware : IDispatchMiddleware
         .CreateHistogram(
             "dispatch_message_duration_seconds",
             "Message processing duration in seconds",
-            new HistogramOptions
+            new HistogramConfiguration
             {
                 LabelNames = new[] { "message_type" },
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 10)
@@ -230,7 +230,7 @@ public class MetricsEventStore : IEventStore
         .CreateHistogram(
             "eventstore_append_duration_seconds",
             "Duration of event store append operations",
-            new HistogramOptions
+            new HistogramConfiguration
             {
                 LabelNames = new[] { "aggregate_type" },
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 10)
@@ -271,7 +271,7 @@ public class MetricsEventStore : IEventStore
                 foreach (var evt in events)
                 {
                     EventsAppended
-                        .WithLabels(aggregateType, evt.EventType)
+                        .WithLabels(aggregateType, MessageNameHelper.GetName(evt.GetType()))
                         .Inc();
                 }
 
@@ -352,6 +352,9 @@ public class MetricsOutboxPublisher : IOutboxPublisher
     }
 }
 ```
+
+`OutboxMessage.MessageType` is the event's declared `[MessageName]`, so this label is stable across
+refactors — see [stable message names](../event-sourcing/domain-events.md#stable-message-names).
 
 ## Grafana Dashboard JSON
 
@@ -868,7 +871,7 @@ public class OrderMetrics
         .CreateHistogram(
             "order_value_dollars",
             "Order value in dollars",
-            new HistogramOptions
+            new HistogramConfiguration
             {
                 Buckets = new[] { 10, 50, 100, 250, 500, 1000, 5000 }
             });

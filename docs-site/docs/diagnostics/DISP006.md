@@ -35,6 +35,7 @@ public sealed record CreateOrderCommand : IDispatchAction<OrderId>
 }
 
 // Implements IDispatchEvent -- dispatcher knows this is a multi-handler event
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreatedEvent(Guid OrderId) : IDispatchEvent;
 ```
 

@@ -270,11 +270,10 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure
  long firstPosition = 0;
  var version = currentVersion;
 
- foreach (var @event in eventList)
+ foreach (var (@event, eventTypeName) in eventList.AsNamedEvents())
  {
  version++;
  var position = Interlocked.Increment(ref _position);
- var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
  if (firstPosition == 0)
  {

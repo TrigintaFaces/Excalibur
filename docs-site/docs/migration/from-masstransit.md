@@ -121,17 +121,15 @@ public class OrderService
 **Excalibur.Dispatch:**
 ```csharp
 // Domain event
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(
     string OrderId,
     string CustomerId,
     decimal TotalValue) : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public string AggregateId { get; init; } = OrderId;
-    public long Version { get; init; } = 1;
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType { get; init; } = nameof(OrderCreatedEvent);
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public IDictionary<string, object>? Metadata { get; init; }
 }
 
 // Publisher (via event sourcing)
@@ -468,16 +466,14 @@ public record OrderCreated
 
 **After:**
 ```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(
     string OrderId,
     decimal TotalValue) : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public string AggregateId { get; init; } = OrderId;
-    public long Version { get; init; } = 1;
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType { get; init; } = nameof(OrderCreatedEvent);
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public IDictionary<string, object>? Metadata { get; init; }
 }
 ```
 
@@ -879,7 +875,7 @@ await dispatcher.DispatchAsync(@event, CancellationToken.None);
 - [ ] Evaluate whether to keep MassTransit for inter-service messaging
 - [ ] Install Dispatch packages
 - [ ] Configure outbox with SQL Server
-- [ ] Migrate message contracts to `IDomainEvent`
+- [ ] Migrate message contracts to `IDomainEvent`, declaring a `[MessageName]` on each
 - [ ] Migrate consumers to `IEventHandler<T>`
 - [ ] Migrate publishers to event-sourced aggregates
 - [ ] Migrate sagas to process managers

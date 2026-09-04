@@ -235,8 +235,32 @@ for f in "${CHANGED[@]}"; do
     fi
 done
 
+# Drop projects the solution does not build.
+#
+# This gate asks "does the code in this commit compile". A project outside the solution is not
+# compiled by CI either, so requiring it here is stricter than the pipeline it guards -- and for one
+# kind of project it is not merely stricter, it is the wrong question. Template content under
+# templates/ is SCAFFOLD SOURCE: it references PUBLISHED packages and is restored outside this
+# repository, so building it measures nuget.org and the last published alpha, not this commit. It
+# cannot compile against the working tree by design, and its buildability is tracked separately.
+#
+# Narrow on purpose: membership of the solution is the test, not a hardcoded path. Add a project to
+# the solution and it is gated again, automatically.
+SOLUTION_FILE="${SOLUTION_FILE_OVERRIDE:-$(ls "$REPO_ROOT"/*.sln 2>/dev/null | head -1)}"
+if [ -f "$SOLUTION_FILE" ]; then
+    for proj in "${!PROJECTS[@]}"; do
+        base="$(basename "$proj")"
+        if ! grep -qF "$base" "$SOLUTION_FILE" 2>/dev/null; then
+            echo "[committed-sha-build-gate] skipping $proj — not in $(basename "$SOLUTION_FILE"); the solution does not build it, so neither does CI."
+            unset 'PROJECTS[$proj]'
+        fi
+    done
+else
+    echo "[committed-sha-build-gate] no solution file found; gating every touched project."
+fi
+
 if [ "${#PROJECTS[@]}" -eq 0 ]; then
-    echo "[committed-sha-build-gate] $SHA touches no project — nothing to build."
+    echo "[committed-sha-build-gate] $SHA touches no project the solution builds — nothing to build."
     exit "$E_OK"
 fi
 

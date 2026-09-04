@@ -184,44 +184,9 @@ internal sealed class Dispatcher(
 			dispatchInfo.CanBypassMiddleware &&
 			RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 		{
-			if (dispatchInfo.IsAction)
+			if (TryDispatchFastPath(message, context, in dispatchInfo, cancellationToken, out var fastPathTask))
 			{
-				var action = (IDispatchAction)message;
-				if (dispatchInfo.DirectLocalNoResponseEligible &&
-					TryDispatchUltraLocalNoResponseFast(
-						message,
-						action,
-						context,
-						dispatchInfo.DirectLocalNoResponseInvoker!,
-						out var promotedTask,
-						cancellationToken))
-				{
-					return promotedTask;
-				}
-
-				if (dispatchInfo.DirectLocalTypedEligible &&
-					TryDispatchUltraLocalUntypedResponseFast(
-						message,
-						action,
-						context,
-						dispatchInfo.DirectLocalWithResponseInvoker!,
-						out promotedTask,
-						cancellationToken))
-				{
-					return promotedTask;
-				}
-
-				if (dispatchInfo.ExpectsResponse)
-				{
-					return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
-				}
-
-				return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
-			}
-
-			if (dispatchInfo.IsEvent)
-			{
-				return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+				return fastPathTask;
 			}
 		}
 
@@ -315,10 +280,17 @@ internal sealed class Dispatcher(
 		// enabling JIT devirtualization of all context property accesses.
 		ArgumentNullException.ThrowIfNull(message);
 
-		// PERF: Check the fast path FIRST, before null checks and cancellation.
+		// Cancellation is honoured BEFORE the fast path: a consumer opted in via
+		// Dispatch:ReturnCancelledResult must not have its handler executed on an
+		// already-cancelled token, and this overload carries >99% of dispatches.
+		if (cancellationToken.IsCancellationRequested && ShouldReturnCancelledResult(context))
+		{
+			return CancelledResultTask;
+		}
+
+		// PERF: Check the fast path next, before the null checks.
 		// _directLocalNoRouterFastPath is a pre-computed invariant that implies middlewareInvoker
 		// and finalHandler are non-null (requires DispatchMiddlewareInvoker + localMessageBus + no router).
-		// This eliminates 2 branch evaluations (null check + cancellation) on the hot path.
 		if (_directLocalNoRouterFastPath)
 		{
 			var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
@@ -330,44 +302,9 @@ internal sealed class Dispatcher(
 			if (dispatchInfo.CanBypassMiddleware &&
 				RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 			{
-				if (dispatchInfo.IsAction)
+				if (TryDispatchFastPath(message, context, in dispatchInfo, cancellationToken, out var fastPathTask))
 				{
-					var action = (IDispatchAction)message;
-					if (dispatchInfo.DirectLocalNoResponseEligible &&
-						TryDispatchUltraLocalNoResponseFast(
-							message,
-							action,
-							context,
-							dispatchInfo.DirectLocalNoResponseInvoker!,
-							out var promotedTask,
-							cancellationToken))
-					{
-						return promotedTask;
-					}
-
-					if (dispatchInfo.DirectLocalTypedEligible &&
-						TryDispatchUltraLocalUntypedResponseFast(
-							message,
-							action,
-							context,
-							dispatchInfo.DirectLocalWithResponseInvoker!,
-							out promotedTask,
-							cancellationToken))
-					{
-						return promotedTask;
-					}
-
-					if (dispatchInfo.ExpectsResponse)
-					{
-						return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
-					}
-
-					return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
-				}
-
-				if (dispatchInfo.IsEvent)
-				{
-					return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+					return fastPathTask;
 				}
 			}
 		}
@@ -375,11 +312,6 @@ internal sealed class Dispatcher(
 		if (middlewareInvoker == null || finalHandler == null)
 		{
 			throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
-		}
-
-		if (cancellationToken.IsCancellationRequested && ShouldReturnCancelledResult(context))
-		{
-			return CancelledResultTask;
 		}
 
 		var routingMessageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
@@ -405,44 +337,9 @@ internal sealed class Dispatcher(
 			routingDispatchInfo.CanBypassMiddleware &&
 			IsLocalRoute(context))
 		{
-			if (routingDispatchInfo.IsAction)
+			if (TryDispatchFastPath(message, context, in routingDispatchInfo, cancellationToken, out var fastPathTask))
 			{
-				var action = (IDispatchAction)message;
-				if (routingDispatchInfo.DirectLocalNoResponseEligible &&
-					TryDispatchUltraLocalNoResponseFast(
-						message,
-						action,
-						context,
-						routingDispatchInfo.DirectLocalNoResponseInvoker!,
-						out var promotedTask,
-						cancellationToken))
-				{
-					return promotedTask;
-				}
-
-				if (routingDispatchInfo.DirectLocalTypedEligible &&
-					TryDispatchUltraLocalUntypedResponseFast(
-						message,
-						action,
-						context,
-						routingDispatchInfo.DirectLocalWithResponseInvoker!,
-						out promotedTask,
-						cancellationToken))
-				{
-					return promotedTask;
-				}
-
-				if (routingDispatchInfo.ExpectsResponse)
-				{
-					return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
-				}
-
-				return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
-			}
-
-			if (routingDispatchInfo.IsEvent)
-			{
-				return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+				return fastPathTask;
 			}
 		}
 
@@ -972,6 +869,69 @@ internal sealed class Dispatcher(
 		throw new InvalidOperationException(result.ErrorMessage ?? "Direct local dispatch failed.");
 	}
 
+	/// <summary>
+	/// Selects and runs the direct-local fast path for a bypass-eligible message. Callers gate this on
+	/// their own eligibility guard; this method owns only the action/event selection.
+	/// </summary>
+	/// <remarks>
+	/// Aggressively inlined and generic over <typeparamref name="TMessage"/> so each call site keeps the
+	/// shape it had when the block was written out by hand: no delegate, no closure, no allocation and no
+	/// virtual dispatch. It exists because the block was duplicated across three entry points and drifted.
+	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	private bool TryDispatchFastPath<TMessage>(
+		TMessage message,
+		IMessageContext context,
+		in MessageDispatchInfo dispatchInfo,
+		CancellationToken cancellationToken,
+		out Task<IMessageResult> task)
+		where TMessage : IDispatchMessage
+	{
+		if (dispatchInfo.IsAction)
+		{
+			var action = (IDispatchAction)message;
+			if (dispatchInfo.DirectLocalNoResponseEligible &&
+				TryDispatchUltraLocalNoResponseFast(
+					message,
+					action,
+					context,
+					dispatchInfo.DirectLocalNoResponseInvoker!,
+					out task,
+					cancellationToken))
+			{
+				return true;
+			}
+
+			if (dispatchInfo.DirectLocalTypedEligible &&
+				TryDispatchUltraLocalUntypedResponseFast(
+					message,
+					action,
+					context,
+					dispatchInfo.DirectLocalWithResponseInvoker!,
+					out task,
+					cancellationToken))
+			{
+				return true;
+			}
+
+			task = dispatchInfo.ExpectsResponse
+				? DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken)
+				: DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
+			return true;
+		}
+
+		if (dispatchInfo.IsEvent)
+		{
+			task = DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+			return true;
+		}
+
+		task = null!;
+		return false;
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryDispatchUltraLocalNoResponseFast<TMessage>(
 		TMessage message,
@@ -987,14 +947,16 @@ internal sealed class Dispatcher(
 		// If the token becomes cancelled between the caller's check and handler invocation,
 		// the handler will throw OperationCanceledException which is caught below.
 
-		// Ambient context flows via AsyncLocal (MessageContextHolder). It is set here BEFORE invoking
-		// the handler, so the handler captures it in its own ExecutionContext whether it completes
-		// synchronously or goes async; Pop then restores the caller's context in the synchronous frame
-		// without disturbing the handler's already-captured EC (an AsyncLocal write does not propagate
-		// from a child EC back to the parent). NOTE: a ThreadStatic dual-layer fast path was tried and
-		// reverted (experiment #1) — do not reintroduce it.
-		var previous = PushAmbientContext(context);
-
+		// No ambient context is pushed here, deliberately. Every caller of this method has already
+		// tested dispatchInfo.DirectLocalNoResponseEligible / DirectLocalTypedEligible, and those flags
+		// are assigned ONLY inside `if (!directRequiresContext)` when the per-type dispatch info is
+		// built -- so reaching this method is proof that the handler declared it does not take a
+		// context. Pushing one cost an ExecutionContext copy-on-write (measured: 18.64 ns and 72 B --
+		// 44% of the standard dispatch path and 100% of its allocation) to publish a value nothing on
+		// this path is allowed to read. MessageContextHolder is internal, so a handler cannot read it
+		// without declaring injection, and declaring injection routes to the context-aware path rather
+		// than here. NOTE: a ThreadStatic dual-layer fast path was tried and reverted (experiment #1) --
+		// do not reintroduce it.
 		try
 		{
 			InitializeDirectLocalContext(message, context);
@@ -1003,28 +965,18 @@ internal sealed class Dispatcher(
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				PopAmbientContext(previous);
 				task = DirectLocalSuccessResultTask;
 				return true;
 			}
 
-			// Handler went async — Pop the caller's ambient context in the sync frame (the handler
-			// already captured it in its EC); the Await* helper carries `context` for the continuation.
-			PopAmbientContext(previous);
 			task = AwaitDirectLocalNoResponseAsync(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			PopAmbientContext(previous);
 			task = CancelledResultTask;
 			return true;
-		}
-		catch (Exception)
-		{
-			PopAmbientContext(previous);
-			throw;
 		}
 	}
 
@@ -1041,9 +993,16 @@ internal sealed class Dispatcher(
 		// PERF: Cancellation check removed — caller (DispatchAsync) already checks
 		// cancellationToken.IsCancellationRequested before calling this method.
 
-		// PERF: ambient-context push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
-		var previous = PushAmbientContext(context);
-
+		// No ambient context is pushed here, deliberately. Every caller of this method has already
+		// tested dispatchInfo.DirectLocalNoResponseEligible / DirectLocalTypedEligible, and those flags
+		// are assigned ONLY inside `if (!directRequiresContext)` when the per-type dispatch info is
+		// built -- so reaching this method is proof that the handler declared it does not take a
+		// context. Pushing one cost an ExecutionContext copy-on-write (measured: 18.64 ns and 72 B --
+		// 44% of the standard dispatch path and 100% of its allocation) to publish a value nothing on
+		// this path is allowed to read. MessageContextHolder is internal, so a handler cannot read it
+		// without declaring injection, and declaring injection routes to the context-aware path rather
+		// than here. NOTE: a ThreadStatic dual-layer fast path was tried and reverted (experiment #1) --
+		// do not reintroduce it.
 		try
 		{
 			InitializeDirectLocalContext(message, context);
@@ -1052,28 +1011,19 @@ internal sealed class Dispatcher(
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				PopAmbientContext(previous);
 				TrySetContextResult(context, invocation.Result);
 				task = DirectLocalSuccessResultTask;
 				return true;
 			}
 
-			// Handler went async — Pop the caller's ambient context; the handler already captured it in its EC.
-			PopAmbientContext(previous);
 			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			PopAmbientContext(previous);
 			task = CancelledResultTask;
 			return true;
-		}
-		catch (Exception)
-		{
-			PopAmbientContext(previous);
-			throw;
 		}
 	}
 
@@ -1090,9 +1040,16 @@ internal sealed class Dispatcher(
 		// checks cancellationToken.IsCancellationRequested before calling this method.
 		// Saves one branch + ShouldReturnCancelledResult per dispatch.
 
-		// PERF: ambient-context push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
-		var previous = PushAmbientContext(context);
-
+		// No ambient context is pushed here, deliberately. Every caller of this method has already
+		// tested dispatchInfo.DirectLocalNoResponseEligible / DirectLocalTypedEligible, and those flags
+		// are assigned ONLY inside `if (!directRequiresContext)` when the per-type dispatch info is
+		// built -- so reaching this method is proof that the handler declared it does not take a
+		// context. Pushing one cost an ExecutionContext copy-on-write (measured: 18.64 ns and 72 B --
+		// 44% of the standard dispatch path and 100% of its allocation) to publish a value nothing on
+		// this path is allowed to read. MessageContextHolder is internal, so a handler cannot read it
+		// without declaring injection, and declaring injection routes to the context-aware path rather
+		// than here. NOTE: a ThreadStatic dual-layer fast path was tried and reverted (experiment #1) --
+		// do not reintroduce it.
 		try
 		{
 			InitializeDirectLocalContext(message, context);
@@ -1101,27 +1058,18 @@ internal sealed class Dispatcher(
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				PopAmbientContext(previous);
 				task = Task.FromResult(CreateDirectLocalTypedSuccessResult<TResponse>(invocation.Result, context));
 				return true;
 			}
 
-			// Handler went async — Pop the caller's ambient context; the handler already captured it in its EC.
-			PopAmbientContext(previous);
 			task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			PopAmbientContext(previous);
 			task = CancelledResultTaskCache<TResponse>.Task;
 			return true;
-		}
-		catch (Exception)
-		{
-			PopAmbientContext(previous);
-			throw;
 		}
 	}
 

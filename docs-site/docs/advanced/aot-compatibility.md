@@ -61,8 +61,8 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.Dispatch.Transport.Abstractions` | AOT-safe | |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | Annotated | Builder pattern, no reflection. Annotated paths: `ToTransportMessageAsync`, `AddCloudEventsForRabbitMq`. The rest of the surface publishes clean. |
-| `Excalibur.Dispatch.Transport.AwsSqs` | Annotated | Builder pattern, no reflection. Annotated paths: `AddAwsLongPolling`, `ToBatchSqsMessageAsync`, `ToEventBridgeEventAsync` and 4 more, plus the CloudEvents registrations `UseCloudEvents`, `AddCloudEventsForSqs`, `AddCloudEventsForSns`, `AddCloudEventsForEventBridge`. The rest of the surface publishes clean. |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | Annotated | `MessageDeserializerRegistry` typed pattern; `AzureLogicAppsScheduler`/`EventGridTransportSender` annotated. Annotated paths: `ToTransportMessageAsync`, plus the CloudEvents registrations `UseCloudEvents`, `AddCloudEventsForServiceBus`, `AddCloudEventsForEventHubs`. The rest of the surface publishes clean. |
+| `Excalibur.Dispatch.Transport.AwsSqs` | Annotated | Builder pattern, no reflection. Annotated paths: `ToBatchSqsMessageAsync`, `ToEventBridgeEventAsync` and 4 more, plus the CloudEvents registrations `UseCloudEvents`, `AddCloudEventsForSqs`, `AddCloudEventsForSns`, `AddCloudEventsForEventBridge`. The rest of the surface publishes clean. |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | Annotated | `MessageDeserializerRegistry` typed pattern; `EventGridTransportSender` annotated. Annotated paths: `ToTransportMessageAsync`, plus the CloudEvents registrations `UseCloudEvents`, `AddCloudEventsForServiceBus`, `AddCloudEventsForEventHubs`. The rest of the surface publishes clean. |
 | `Excalibur.Dispatch.Transport.GooglePubSub` | **Not compatible** | Google Cloud SDK dependency uses reflection. `UseCloudEvents` and `AddCloudEventsForPubSub` are separately annotated: the bundled mapper serializes payloads reflectively |
 | `Excalibur.Dispatch.Transport.Kafka` | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance`. `AddCloudEventsForKafka` is separately annotated: the bundled mapper serializes payloads reflectively |
 | `Excalibur.Dispatch.Transport.Grpc` | AOT-safe | `GrpcJsonSerializerContext` source-gen JSON for all 10 transport types |
@@ -401,7 +401,6 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | `Excalibur.Data.Spanner` | **Not compatible** | NOT compatible. Google.Cloud.Spanner.Data uses gRPC + reflection-based value conversion. |
 | `Excalibur.EventSourcing.Handlers` | AOT-safe |  |
 | `Excalibur.EventSourcing.Oracle` | AOT-safe | Analysis reports 16 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
-| `Excalibur.Hosting.Compliance` | AOT-safe |  |
 | `Excalibur.Inbox.Oracle` | AOT-safe | Analysis reports 4 trim/AOT diagnostics on reflection paths in this package; the rest of the surface publishes clean |
 | `Excalibur.MultiTenancy` | **Not compatible** | Row-discriminator decoration of open-generic IProjectionStore&lt;T&gt; uses reflective MakeGenericType over the DI descriptor set, so this composition |
 | `Excalibur.Operations.Dashboard.EventSourcing` | AOT-safe |  |

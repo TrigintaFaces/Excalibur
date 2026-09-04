@@ -9,6 +9,7 @@ namespace Excalibur.A3.Governance.Events;
 /// <summary>
 /// Raised when a reviewer makes a decision on a grant within an access review campaign.
 /// </summary>
+[MessageName("Excalibur.A3.AccessReviewDecisionMade")]
 internal sealed class AccessReviewDecisionMade : IDomainEvent
 {
 	public required string CampaignId { get; init; }
@@ -21,6 +22,5 @@ internal sealed class AccessReviewDecisionMade : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(AccessReviewDecisionMade);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

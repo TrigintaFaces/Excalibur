@@ -110,6 +110,8 @@ services.AddExcalibur(excalibur =>
 });
 ```
 
+The event store writes each event's declared `[MessageName]` -- not its CLR type name -- to the stored event-type field, and resolves that name back to a CLR type through the registered event-type registry on read. See [Stable Message Names](../event-sourcing/domain-events.md#stable-message-names).
+
 ### Change Data Capture
 
 ```csharp

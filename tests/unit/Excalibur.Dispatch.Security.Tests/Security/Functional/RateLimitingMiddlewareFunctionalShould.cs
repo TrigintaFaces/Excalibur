@@ -41,7 +41,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
                 TokensPerPeriod = 100,
                 ReplenishmentPeriodSeconds = 1,
             },
-            CleanupIntervalMinutes = 60,
         };
 
         return new RateLimitingMiddleware(
@@ -83,7 +82,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
                 ReplenishmentPeriodSeconds = 300, // Very slow replenish
                 QueueLimit = 0, // Reject immediately when tokens exhausted
             },
-            CleanupIntervalMinutes = 60,
         });
 
         // First two should succeed
@@ -107,7 +105,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
             Enabled = true,
             Algorithm = RateLimitAlgorithm.TokenBucket,
             DefaultLimits = new RateLimits { TokenLimit = 1, TokensPerPeriod = 1, ReplenishmentPeriodSeconds = 300, QueueLimit = 0 },
-            CleanupIntervalMinutes = 60,
         });
 
         // Set TenantId in items -- extension method reads from Items dict
@@ -137,7 +134,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
             Enabled = true,
             Algorithm = RateLimitAlgorithm.SlidingWindow,
             DefaultLimits = new RateLimits { PermitLimit = 100, WindowSeconds = 60 },
-            CleanupIntervalMinutes = 60,
         });
 
         var result = await sut.InvokeAsync(_message, _context, _successNext, CancellationToken.None);
@@ -153,7 +149,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
             Enabled = true,
             Algorithm = RateLimitAlgorithm.FixedWindow,
             DefaultLimits = new RateLimits { PermitLimit = 100, WindowSeconds = 60 },
-            CleanupIntervalMinutes = 60,
         });
 
         var result = await sut.InvokeAsync(_message, _context, _successNext, CancellationToken.None);
@@ -169,7 +164,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
             Enabled = true,
             Algorithm = RateLimitAlgorithm.Concurrency,
             DefaultLimits = new RateLimits { ConcurrencyLimit = 10, QueueLimit = 10 },
-            CleanupIntervalMinutes = 60,
         });
 
         var result = await sut.InvokeAsync(_message, _context, _successNext, CancellationToken.None);
@@ -192,7 +186,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
                 QueueLimit = 0, // Reject immediately when tokens exhausted
             },
             DefaultRetryAfterMilliseconds = 5000,
-            CleanupIntervalMinutes = 60,
         });
 
         // Exhaust permits

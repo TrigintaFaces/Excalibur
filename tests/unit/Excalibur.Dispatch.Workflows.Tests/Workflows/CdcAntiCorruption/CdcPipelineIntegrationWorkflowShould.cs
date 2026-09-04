@@ -3,6 +3,8 @@
 
 using System.Collections.Concurrent;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Tests.Workflows.CdcAntiCorruption;
 
 /// <summary>
@@ -435,12 +437,14 @@ public sealed class CdcPipelineIntegrationWorkflowShould
 	}
 
 	// Domain event types
+	[MessageName("Test.OrderCreatedDomainEvent")]
 	internal sealed class OrderCreatedDomainEvent : IDomainEvent
 	{
 		public string OrderId { get; init; } = string.Empty;
 		public decimal TotalAmount { get; init; }
 	}
 
+	[MessageName("Test.GenericDomainEvent")]
 	internal sealed class GenericDomainEvent : IDomainEvent
 	{
 		public string TableName { get; init; } = string.Empty;

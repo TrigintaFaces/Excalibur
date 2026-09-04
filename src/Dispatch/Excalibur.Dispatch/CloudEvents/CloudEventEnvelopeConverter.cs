@@ -83,7 +83,12 @@ public sealed class CloudEventEnvelopeConverter(CloudEventOptions options) : ICl
 		var ce = new CloudEvent
 		{
 			Id = context?.MessageId ?? Guid.NewGuid().ToString(),
-			Type = context?.MessageType ?? message?.GetType().FullName ?? "UnknownEvent",
+			// context.MessageType DELIBERATELY wins. On a receive-then-re-emit round trip it holds the
+			// type string of the ORIGINATING publisher -- CreateBaseEnvelope copies it off the received
+			// CloudEvent -- and replacing that with our own declared name would rewrite another
+			// organisation's event identity. Only when there is no inbound type do we state our own.
+			Type = context?.MessageType
+				?? (message is not null ? MessageNameHelper.GetName(message.GetType()) : null),
 			Source = _options.DefaultSource,
 			Subject = context?.Subject ?? context?.ExternalId,
 			Time = context?.SentTimestampUtc ?? context?.ReceivedTimestampUtc,

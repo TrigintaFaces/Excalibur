@@ -196,10 +196,10 @@ public class WolverineComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch single command handler invocation (standard path).
 	/// </summary>
 	[Benchmark(Baseline = true, Description = "Dispatch: Single command")]
-	public async Task<IMessageResult> Dispatch_SingleCommand()
+	public Task<IMessageResult> Dispatch_SingleCommand()
 	{
 		var command = new WolverineTestCommand { Value = 42 };
-		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(command);
 	}
 
 	/// <summary>
@@ -207,20 +207,20 @@ public class WolverineComparisonBenchmarks
 	/// Closest apples-to-apples comparison with Wolverine InvokeAsync.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Single command (ultra-local)")]
-	public async Task Dispatch_SingleCommand_UltraLocal()
+	public ValueTask Dispatch_SingleCommand_UltraLocal()
 	{
 		var command = new WolverineTestCommand { Value = 42 };
-		await _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None).ConfigureAwait(false);
+		return _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None);
 	}
 
 	/// <summary>
 	/// Wolverine: Single command invocation (InvokeAsync - in-process execution).
 	/// </summary>
 	[Benchmark(Description = "Wolverine: Single command (InvokeAsync)")]
-	public async Task Wolverine_SingleCommandInvoke()
+	public Task Wolverine_SingleCommandInvoke()
 	{
 		var command = new WolverineCommandMessage { Value = 42 };
-		await _wolverineBus.InvokeAsync(command, CancellationToken.None);
+		return _wolverineBus.InvokeAsync(command, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -248,10 +248,10 @@ public class WolverineComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch event to multiple handlers (1 event → 2 handlers).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Event to 2 handlers")]
-	public async Task<IMessageResult> Dispatch_EventMultipleHandlers()
+	public Task<IMessageResult> Dispatch_EventMultipleHandlers()
 	{
 		var @event = new WolverineTestEvent { Message = "test" };
-		return await DispatchWithFreshContextAsync(@event).ConfigureAwait(false);
+		return DispatchWithFreshContextAsync(@event);
 	}
 
 	/// <summary>
@@ -278,14 +278,14 @@ public class WolverineComparisonBenchmarks
 	/// </para>
 	/// </remarks>
 	[Benchmark(Description = "Wolverine: Event to 2 handlers (inline)")]
-	public async Task Wolverine_EventPublish()
+	public Task Wolverine_EventPublish()
 	{
 		var @event = new WolverineEventMessage
 		{
 			Message = "test",
 			BenchmarkId = Guid.Empty,
 		};
-		await _wolverineBus.InvokeAsync(@event);
+		return _wolverineBus.InvokeAsync(@event);
 	}
 
 	// ============================================================================
@@ -296,7 +296,7 @@ public class WolverineComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch 10 concurrent commands.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: 10 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands10()
+	public Task Dispatch_ConcurrentCommands10()
 	{
 		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
@@ -305,14 +305,14 @@ public class WolverineComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextAsync(command);
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// Wolverine: 10 concurrent commands (InvokeAsync).
 	/// </summary>
 	[Benchmark(Description = "Wolverine: 10 concurrent commands")]
-	public async Task Wolverine_ConcurrentCommands10()
+	public Task Wolverine_ConcurrentCommands10()
 	{
 		var tasks = new List<Task>(10);
 		for (int i = 0; i < 10; i++)
@@ -321,7 +321,7 @@ public class WolverineComparisonBenchmarks
 			tasks.Add(_wolverineBus.InvokeAsync(command, CancellationToken.None));
 		}
 
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	// ============================================================================
@@ -332,20 +332,20 @@ public class WolverineComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch query with return value.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query with return value")]
-	public async Task<IMessageResult<int>> Dispatch_QueryWithReturnValue()
+	public Task<IMessageResult<int>> Dispatch_QueryWithReturnValue()
 	{
 		var query = new WolverineTestQuery { Id = 123 };
-		return await DispatchWithFreshContextTypedAsync<WolverineTestQuery, int>(query).ConfigureAwait(false);
+		return DispatchWithFreshContextTypedAsync<WolverineTestQuery, int>(query);
 	}
 
 	/// <summary>
 	/// Wolverine: Query with return value (InvokeAsync with response).
 	/// </summary>
 	[Benchmark(Description = "Wolverine: Query with return value")]
-	public async Task<int> Wolverine_QueryWithReturnValue()
+	public Task<int> Wolverine_QueryWithReturnValue()
 	{
 		var query = new WolverineQueryMessage { Id = 123 };
-		return await _wolverineBus.InvokeAsync<int>(query, CancellationToken.None);
+		return _wolverineBus.InvokeAsync<int>(query, CancellationToken.None);
 	}
 
 	// ============================================================================
@@ -356,7 +356,7 @@ public class WolverineComparisonBenchmarks
 	/// Baseline: Excalibur.Dispatch 100 concurrent commands.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: 100 concurrent commands")]
-	public async Task Dispatch_ConcurrentCommands100()
+	public Task Dispatch_ConcurrentCommands100()
 	{
 		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
@@ -365,14 +365,14 @@ public class WolverineComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextAsync(command);
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// Wolverine: 100 concurrent commands (InvokeAsync).
 	/// </summary>
 	[Benchmark(Description = "Wolverine: 100 concurrent commands")]
-	public async Task Wolverine_ConcurrentCommands100()
+	public Task Wolverine_ConcurrentCommands100()
 	{
 		var tasks = new List<Task>(100);
 		for (int i = 0; i < 100; i++)
@@ -381,14 +381,14 @@ public class WolverineComparisonBenchmarks
 			tasks.Add(_wolverineBus.InvokeAsync(command, CancellationToken.None));
 		}
 
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// Baseline: Excalibur.Dispatch batch queries (10 queries).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Batch queries (10)")]
-	public async Task Dispatch_BatchQueries10()
+	public Task Dispatch_BatchQueries10()
 	{
 		var tasks = new Task<IMessageResult<int>>[10];
 		for (int i = 0; i < 10; i++)
@@ -397,14 +397,14 @@ public class WolverineComparisonBenchmarks
 			tasks[i] = DispatchWithFreshContextTypedAsync<WolverineTestQuery, int>(query);
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// Wolverine: Batch queries (10 queries).
 	/// </summary>
 	[Benchmark(Description = "Wolverine: Batch queries (10)")]
-	public async Task Wolverine_BatchQueries10()
+	public Task Wolverine_BatchQueries10()
 	{
 		var tasks = new List<Task<int>>(10);
 		for (int i = 0; i < 10; i++)
@@ -413,7 +413,7 @@ public class WolverineComparisonBenchmarks
 			tasks.Add(_wolverineBus.InvokeAsync<int>(query, CancellationToken.None));
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
+		return Task.WhenAll(tasks);
 	}
 
 	// ============================================================================
@@ -439,7 +439,13 @@ public class WolverineComparisonBenchmarks
 		FinalDispatchHandler.FreezeResultFactoryCache();
 	}
 
-	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
+	// Deliberately NOT async, and neither are the single-call benchmark methods that use it. An async
+	// frame whose result is a non-null reference allocates a Task<T> (AsyncTaskMethodBuilder<T> only
+	// caches the default-result task), so an async helper plus an async benchmark body charged the
+	// Dispatch arm ~144 B that a competitor arm returning its own library Task never paid. Returning
+	// the dispatcher's own Task preserves fresh-context-per-invocation while keeping the harness frame
+	// count at zero for every arm, so the allocation column measures the library, not the harness.
+	private Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
 		where TMessage : IDispatchMessage
 	{
 		ArgumentNullException.ThrowIfNull(_dispatcher);
@@ -449,27 +455,35 @@ public class WolverineComparisonBenchmarks
 		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_dispatchContextFactory.Return(context);
-			}
+			_dispatchContextFactory.Return(context);
+			return dispatchTask;
 		}
 
+		return AwaitAndReturnContextAsync(dispatchTask, _dispatchContextFactory, context);
+	}
+
+	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
+		Task<IMessageResult> dispatchTask,
+		IMessageContextFactory contextFactory,
+		IMessageContext context)
+	{
 		try
 		{
 			return await dispatchTask.ConfigureAwait(false);
 		}
 		finally
 		{
-			_dispatchContextFactory.Return(context);
+			contextFactory.Return(context);
 		}
 	}
 
-	private async Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
+	// Deliberately NOT async, and neither are the single-call benchmark methods that use it. An async
+	// frame whose result is a non-null reference allocates a Task<T> (AsyncTaskMethodBuilder<T> only
+	// caches the default-result task), so an async helper plus an async benchmark body charged the
+	// Dispatch arm ~144 B that a competitor arm returning its own library Task never paid. Returning
+	// the dispatcher's own Task preserves fresh-context-per-invocation while keeping the harness frame
+	// count at zero for every arm, so the allocation column measures the library, not the harness.
+	private Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
 		where TMessage : IDispatchAction<TResponse>
 	{
 		ArgumentNullException.ThrowIfNull(_dispatcher);
@@ -479,23 +493,25 @@ public class WolverineComparisonBenchmarks
 		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_dispatchContextFactory.Return(context);
-			}
+			_dispatchContextFactory.Return(context);
+			return dispatchTask;
 		}
 
+		return AwaitAndReturnTypedContextAsync(dispatchTask, _dispatchContextFactory, context);
+	}
+
+	private static async Task<IMessageResult<TResponse>> AwaitAndReturnTypedContextAsync<TResponse>(
+		Task<IMessageResult<TResponse>> dispatchTask,
+		IMessageContextFactory contextFactory,
+		IMessageContext context)
+	{
 		try
 		{
 			return await dispatchTask.ConfigureAwait(false);
 		}
 		finally
 		{
-			_dispatchContextFactory.Return(context);
+			contextFactory.Return(context);
 		}
 	}
 }

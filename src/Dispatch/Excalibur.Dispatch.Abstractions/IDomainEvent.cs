@@ -32,13 +32,6 @@ public interface IDomainEvent : IDispatchEvent
 	DateTimeOffset OccurredAt { get; }
 
 	/// <summary>
-	/// Gets the event type name for serialization and routing.
-	/// Defaults to the class name.
-	/// </summary>
-	/// <value>The event type name for serialization and routing.</value>
-	string EventType { get; }
-
-	/// <summary>
 	/// Gets optional metadata for cross-cutting concerns.
 	/// Examples: UserId, TenantId, custom tags.
 	/// </summary>

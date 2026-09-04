@@ -688,10 +688,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		var transactItems = new List<TransactWriteItem>();
 		var version = expectedVersion;
 
-		foreach (var evt in events)
+		foreach (var named in events.AsNamedEvents())
 		{
+			var evt = named.Event;
 			version++;
-			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
+			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, named, version);
 
 			transactItems.Add(new TransactWriteItem
 			{
@@ -748,10 +749,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		var version = expectedVersion;
 		double totalCapacity = 0;
 
-		foreach (var evt in events)
+		foreach (var named in events.AsNamedEvents())
 		{
+			var evt = named.Event;
 			version++;
-			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
+			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, named, version);
 
 			var request = new PutItemRequest
 			{
@@ -782,10 +784,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		string streamId,
 		string aggregateId,
 		string aggregateType,
-		IDomainEvent evt,
+		NamedEvent named,
 		long version)
 	{
-		var eventTypeName = EventTypeNameHelper.GetEventTypeName(evt.GetType());
+		var (evt, eventTypeName) = named;
 
 		return new Dictionary<string, AttributeValue>
 		{

@@ -409,12 +409,12 @@ public sealed class AggregateRootShould
 
 	#region Test Events
 
+	[MessageName("Test.AggregateRoot.TestEvent")]
 	private sealed record TestEvent(string AggregateId, string Value) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(TestEvent);
 		public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
 	}
 

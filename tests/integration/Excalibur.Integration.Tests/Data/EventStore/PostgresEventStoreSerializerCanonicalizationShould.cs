@@ -149,6 +149,7 @@ public enum SerializerLockStatus
 }
 
 /// <summary>Event carrying an enum + a null-able member to bind the canonical serializer contract.</summary>
+[MessageName("Test.SerializerLockEvent")]
 public sealed class SerializerLockEvent : IDomainEvent
 {
 	/// <inheritdoc/>
@@ -163,8 +164,6 @@ public sealed class SerializerLockEvent : IDomainEvent
 	/// <inheritdoc/>
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc/>
-	public string EventType => nameof(SerializerLockEvent);
 
 	/// <inheritdoc/>
 	public IDictionary<string, object>? Metadata { get; set; }

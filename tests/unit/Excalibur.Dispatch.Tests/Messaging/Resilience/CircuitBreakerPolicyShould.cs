@@ -124,7 +124,7 @@ public sealed class CircuitBreakerPolicyShould
     }
 
     [Fact]
-    public void TrackConsecutiveFailures()
+    public async Task TrackConsecutiveFailures()
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
@@ -132,14 +132,14 @@ public sealed class CircuitBreakerPolicyShould
             OpenDuration = TimeSpan.FromSeconds(30)
         });
 
-        sut.RecordFailure(new InvalidOperationException("fail1"));
-        sut.RecordFailure(new InvalidOperationException("fail2"));
+        await sut.FailAsync(new InvalidOperationException("fail1"));
+        await sut.FailAsync(new InvalidOperationException("fail2"));
 
         sut.ConsecutiveFailures.ShouldBe(2);
     }
 
     [Fact]
-    public void ResetToClosedState()
+    public async Task ResetToClosedState()
     {
         var sut = CreateSut(new CircuitBreakerOptions
         {
@@ -147,7 +147,7 @@ public sealed class CircuitBreakerPolicyShould
             OpenDuration = TimeSpan.FromSeconds(30)
         });
 
-        sut.RecordFailure(new InvalidOperationException("fail"));
+        await sut.FailAsync(new InvalidOperationException("fail"));
         sut.State.ShouldBe(CircuitState.Open);
 
         sut.Reset();

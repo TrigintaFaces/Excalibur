@@ -177,6 +177,7 @@ internal enum PgResolverTestShade
 	Green,
 }
 
+[MessageName("Test.PgResolverTestEvent")]
 internal sealed class PgResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -185,7 +186,6 @@ internal sealed class PgResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(PgResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -194,6 +194,7 @@ internal sealed class PgResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredPgTestEvent")]
 internal sealed class UndeclaredPgTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -202,7 +203,6 @@ internal sealed class UndeclaredPgTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredPgTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

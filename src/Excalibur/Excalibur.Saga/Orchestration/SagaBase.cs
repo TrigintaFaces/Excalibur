@@ -65,6 +65,14 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <value>The current <see cref="Logger"/> value.</value>
 	protected ILogger Logger { get; } = logger;
 
+	/// <summary>
+	/// The message context this saga is currently handling under, set by the coordinator before it
+	/// invokes the saga. Passed explicitly rather than read from an ambient flow-local: the saga needs
+	/// a parent to correlate emitted commands and events against, the coordinator already holds one,
+	/// and handing it over makes the dependency visible instead of implicit.
+	/// </summary>
+	internal IMessageContext? HandlingContext { get; set; }
+
 	// Save-then-dispatch buffer: commands/events emitted during HandleAsync are queued here with
 	// their saga-correlated context and dispatched by the coordinator ONLY after SaveAsync succeeds, in emit
 	// (FIFO) order. The saga instance is created fresh per event, so this list is naturally scoped to a single
@@ -350,8 +358,8 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <returns>A message context with saga correlation metadata.</returns>
 	private IMessageContext CreateSagaCorrelatedContext()
 	{
-		// Try to use the current ambient context if available
-		var currentContext = MessageContextHolder.Current;
+		// The context the coordinator is handling under, handed to us explicitly.
+		var currentContext = HandlingContext;
 		IMessageContext context;
 
 		if (currentContext is not null)

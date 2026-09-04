@@ -105,7 +105,6 @@ public abstract class SagaEventSourcingIntegrationTestBase : IAsyncLifetime
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = aggregateId,
 			OccurredAt = DateTimeOffset.UtcNow,
-			EventType = eventType,
 			Data = data ?? $"TestData-{Guid.NewGuid():N}"
 		};
 	}
@@ -380,6 +379,7 @@ public class OrderSagaState : SagaState
 /// <summary>
 /// Test domain event for integration testing.
 /// </summary>
+[MessageName("Test.Shared.Conformance.IntegrationTestDomainEvent")]
 public class IntegrationTestDomainEvent : IDomainEvent
 {
 	/// <inheritdoc/>
@@ -394,8 +394,6 @@ public class IntegrationTestDomainEvent : IDomainEvent
 	/// <inheritdoc/>
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	/// <inheritdoc/>
-	public string EventType { get; set; } = string.Empty;
 
 	/// <inheritdoc/>
 	public IDictionary<string, object>? Metadata { get; set; }

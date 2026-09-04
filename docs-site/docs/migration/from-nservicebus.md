@@ -156,17 +156,15 @@ public class OrderPlacedHandler : IHandleMessages<OrderPlaced>
 **Excalibur.Dispatch:**
 ```csharp
 // Domain Event
+[MessageName("Contoso.Orders.OrderPlaced")]
 public record OrderPlacedEvent(
     string OrderId,
     string CustomerId,
     decimal TotalValue) : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public string AggregateId { get; init; } = OrderId;
-    public long Version { get; init; } = 1;
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType { get; init; } = nameof(OrderPlacedEvent);
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public IDictionary<string, object>? Metadata { get; init; }
 }
 
 // Handler
@@ -187,7 +185,7 @@ public class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
 
 **Key Differences:**
 - NServiceBus: Simple POCO events
-- Dispatch: Rich `IDomainEvent` interface with metadata
+- Dispatch: Rich `IDomainEvent` interface with metadata and a declared [stable message name](../event-sourcing/domain-events.md#stable-message-names)
 - NServiceBus: `IMessageHandlerContext` for sending/publishing
 - Dispatch: Direct dependency injection
 
@@ -506,15 +504,13 @@ await context.Publish(new OrderPlaced
 
 **After:**
 ```csharp
+[MessageName("Contoso.Orders.OrderPlaced")]
 public record OrderPlacedEvent(string OrderId, string CustomerId)
     : IDomainEvent
 {
     public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public string AggregateId { get; init; } = OrderId;
-    public long Version { get; init; } = 1;
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public string EventType { get; init; } = nameof(OrderPlacedEvent);
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public IDictionary<string, object>? Metadata { get; init; }
 }
 
 // Publishing (via aggregate)
@@ -866,7 +862,7 @@ await dispatcher.DispatchAsync(
 - [ ] Migrate commands: `ICommand` → `IDispatchAction` or `IDispatchAction<T>`
 - [ ] Migrate handlers: `IHandleMessages<T>` → `IActionHandler<T>` or `IActionHandler<T, TResult>`
 - [ ] Update method signatures: `Handle()` → `HandleAsync()`
-- [ ] Migrate events: `IEvent` → `IDomainEvent`
+- [ ] Migrate events: `IEvent` → `IDomainEvent` (each with a `[MessageName]`)
 - [ ] Migrate sagas: `Saga<T>` → `ProcessManager<TData>`
 - [ ] Replace saga timeouts with Hangfire
 - [ ] Implement custom retry logic

@@ -36,6 +36,7 @@ internal static class ResilienceEventId
 	/// <summary>Circuit breaker state changed.</summary>
 	public const int CircuitBreakerStateChanged = 60002;
 
+
 	/// <summary>Circuit breaker opened.</summary>
 	public const int CircuitBreakerOpened = 60003;
 
@@ -56,6 +57,9 @@ internal static class ResilienceEventId
 
 	/// <summary>Circuit breaker operation failed.</summary>
 	public const int CircuitBreakerOperationFailed = 60009;
+
+	/// <summary>A manual circuit reset did not complete, so the circuit may still be open.</summary>
+	public const int CircuitBreakerResetFailed = 60019;
 
 	/// <summary>Circuit breaker threshold exceeded.</summary>
 	public const int CircuitBreakerThresholdExceeded = 60010;

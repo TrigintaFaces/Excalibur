@@ -34,6 +34,8 @@ key carries a reserved single-tenant or untenanted segment either way. See
 
 Each `AddXxxEventSourcing()` call registers `IEventStore` and `ISnapshotStore` for that provider. Outbox is registered separately via `services.AddExcalibur(x => x.AddOutbox(...))`.
 
+Every provider stores the same identity: each event's declared `[MessageName]` -- not its CLR type name -- is written to the store's event-type column or field, and resolved back to a CLR type through the registered event-type registry on read. See [Stable Message Names](domain-events.md#stable-message-names).
+
 ## Before You Start
 
 - **.NET 10.0**

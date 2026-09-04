@@ -109,7 +109,7 @@ public sealed class ServiceCollectionExtensionsShould
 
 		// Assert
 		using var sp = services.BuildServiceProvider();
-		sp.GetService<IElasticsearchRetryPolicy>().ShouldNotBeNull();
+		sp.GetService<ElasticsearchResiliencePipeline>().ShouldNotBeNull();
 		sp.GetService<IElasticsearchCircuitBreaker>().ShouldNotBeNull();
 		sp.GetService<IResilientElasticsearchClient>().ShouldNotBeNull();
 	}
@@ -143,7 +143,7 @@ public sealed class ServiceCollectionExtensionsShould
 		// Assert
 		using var sp = services.BuildServiceProvider();
 		sp.GetService<ElasticsearchClient>().ShouldNotBeNull();
-		sp.GetService<IElasticsearchRetryPolicy>().ShouldNotBeNull();
+		sp.GetService<ElasticsearchResiliencePipeline>().ShouldNotBeNull();
 		sp.GetService<IElasticsearchCircuitBreaker>().ShouldNotBeNull();
 		sp.GetService<IResilientElasticsearchClient>().ShouldNotBeNull();
 	}

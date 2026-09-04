@@ -171,8 +171,10 @@ public class CartItem
 
 #region Events
 
+[MessageName("Contoso.Carts.CartCreated")]
 public sealed record CartCreated(Guid CartId) : DomainEvent;
 
+[MessageName("Contoso.Carts.ItemAddedToCart")]
 public sealed record ItemAddedToCart(
 	Guid CartId,
 	string ProductId,
@@ -180,10 +182,13 @@ public sealed record ItemAddedToCart(
 	decimal Price,
 	int Quantity) : DomainEvent;
 
+[MessageName("Contoso.Carts.ItemRemovedFromCart")]
 public sealed record ItemRemovedFromCart(Guid CartId, string ProductId) : DomainEvent;
 
+[MessageName("Contoso.Carts.CartItemQuantityUpdated")]
 public sealed record CartItemQuantityUpdated(Guid CartId, string ProductId, int NewQuantity) : DomainEvent;
 
+[MessageName("Contoso.Carts.CartCheckedOut")]
 public sealed record CartCheckedOut(Guid CartId, decimal TotalPrice) : DomainEvent;
 
 #endregion

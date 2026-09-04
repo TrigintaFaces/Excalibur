@@ -116,13 +116,13 @@ public sealed class KeyedAggregateRootDepthShould
 		}
 	}
 
+	[MessageName("Test.KeyedAggregateRootDepth.OrderCreatedEvent")]
 	private sealed record OrderCreatedEvent(Guid OrderId, string OrderNumber) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public string AggregateId => OrderId.ToString();
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType => nameof(OrderCreatedEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 }

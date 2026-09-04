@@ -33,6 +33,11 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
+// Freezing runs against process-wide cache state shared with the handler-invoker registry, so this
+// class must not run beside the other tests that mutate it. Without this it ran in parallel with
+// them and the freeze intermittently did not take, failing whichever of the two classes lost the
+// race -- a different test each run.
+[Collection("HandlerInvokerRegistry")]
 public sealed class DispatchAutoFreezeIsWiredShould : IDisposable
 {
 	/// <summary>

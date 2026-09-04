@@ -34,7 +34,11 @@ public static class CloudEventExtensions
 		{
 			Id = context.MessageId ?? Guid.NewGuid().ToString(),
 			Source = !string.IsNullOrWhiteSpace(source) ? new Uri(source) : new Uri("urn:dispatch"),
-			Type = evt.GetType().FullName ?? "unknown",
+			// The CloudEvents `type` other organisations write subscription filters against. It is the
+			// declared name, never anything derived from the CLR type: a namespace refactor here would
+			// otherwise silently break every external subscriber's rules. No fallback -- fabricating
+			// "unknown" would publish an identity a filter can actually match.
+			Type = MessageNameHelper.GetName(evt.GetType()),
 			Time = sentTimestamp ?? DateTimeOffset.UtcNow,
 			Data = evt,
 		};

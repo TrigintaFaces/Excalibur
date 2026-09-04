@@ -263,11 +263,7 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 		AwsSqsEventId.HostedServiceStarted.ShouldBeInRange(25500, 25599);
 		AwsSqsEventId.HostedServiceStopped.ShouldBeInRange(25500, 25599);
 		AwsSqsEventId.ThroughputMetrics.ShouldBeInRange(25500, 25599);
-		AwsSqsEventId.HighThroughputProcessorStarting.ShouldBeInRange(25500, 25599);
-		AwsSqsEventId.HighThroughputPollerStarted.ShouldBeInRange(25500, 25599);
-		AwsSqsEventId.HighThroughputPollerError.ShouldBeInRange(25500, 25599);
-		AwsSqsEventId.HighThroughputPollerStopped.ShouldBeInRange(25500, 25599);
-		AwsSqsEventId.HighThroughputBatchDeleteError.ShouldBeInRange(25500, 25599);
+
 		AwsSqsEventId.HostedServiceStarting.ShouldBeInRange(25500, 25599);
 		AwsSqsEventId.HostedServiceError.ShouldBeInRange(25500, 25599);
 	}
@@ -305,21 +301,7 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 		AwsSqsEventId.LongPollerStopped.ShouldBeInRange(25600, 25699);
 		AwsSqsEventId.LongPollerCountAdjusting.ShouldBeInRange(25600, 25699);
 		AwsSqsEventId.AdaptivePollingError.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingReceivingMessages.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingReceivedMessages.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingReceiveError.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingMessageProcessingError.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingPollingStarted.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingPollingError.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingPollingStopped.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingVisibilityTimeoutOptimized.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingVisibilityTimeoutOptimizationFailed.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingDeleteMessageFailed.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingBatchDeleteFailed.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingBatchDeleteError.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingReceiverStarted.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingReceiverStopped.ShouldBeInRange(25600, 25699);
-		AwsSqsEventId.LongPollingHealthStatusError.ShouldBeInRange(25600, 25699);
+
 	}
 
 	#endregion
@@ -419,7 +401,7 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 	public void HaveCorrectNumberOfEventIds()
 	{
 		var allEventIds = GetAllAwsSqsEventIds();
-		allEventIds.Length.ShouldBeGreaterThan(200);
+		allEventIds.Length.ShouldBeGreaterThan(190);
 	}
 
 	#endregion
@@ -565,11 +547,7 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 			AwsSqsEventId.HostedServiceStarted,
 			AwsSqsEventId.HostedServiceStopped,
 			AwsSqsEventId.ThroughputMetrics,
-			AwsSqsEventId.HighThroughputProcessorStarting,
-			AwsSqsEventId.HighThroughputPollerStarted,
-			AwsSqsEventId.HighThroughputPollerError,
-			AwsSqsEventId.HighThroughputPollerStopped,
-			AwsSqsEventId.HighThroughputBatchDeleteError,
+
 			AwsSqsEventId.HostedServiceStarting,
 			AwsSqsEventId.HostedServiceError,
 
@@ -588,21 +566,6 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 			AwsSqsEventId.LongPollerStopped,
 			AwsSqsEventId.LongPollerCountAdjusting,
 			AwsSqsEventId.AdaptivePollingError,
-			AwsSqsEventId.LongPollingReceivingMessages,
-			AwsSqsEventId.LongPollingReceivedMessages,
-			AwsSqsEventId.LongPollingReceiveError,
-			AwsSqsEventId.LongPollingMessageProcessingError,
-			AwsSqsEventId.LongPollingPollingStarted,
-			AwsSqsEventId.LongPollingPollingError,
-			AwsSqsEventId.LongPollingPollingStopped,
-			AwsSqsEventId.LongPollingVisibilityTimeoutOptimized,
-			AwsSqsEventId.LongPollingVisibilityTimeoutOptimizationFailed,
-			AwsSqsEventId.LongPollingDeleteMessageFailed,
-			AwsSqsEventId.LongPollingBatchDeleteFailed,
-			AwsSqsEventId.LongPollingBatchDeleteError,
-			AwsSqsEventId.LongPollingReceiverStarted,
-			AwsSqsEventId.LongPollingReceiverStopped,
-			AwsSqsEventId.LongPollingHealthStatusError,
 
 			// SNS (25700-25799)
 			AwsSqsEventId.SnsMessageBusInitializing,

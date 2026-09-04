@@ -165,62 +165,6 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	}
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class.
-	/// </summary>
-	/// <param name="eventStore"> The event store for persistence. </param>
-	/// <param name="eventSerializer"> The event serializer for deserialization. </param>
-	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a key. </param>
-	/// <param name="upcastingPipeline"> Optional upcasting pipeline for version transformation. </param>
-	/// <param name="snapshotManager"> Optional snapshot manager. </param>
-	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
-	/// <param name="upcastingOptions"> Optional upcasting configuration options. </param>
-	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
-	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
-	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
-	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
-	/// <param name="logger"> Optional logger for diagnostics. </param>
-	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
-	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
-	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
-	/// <param name="outboxStagingStrategy"> The outbox staging strategy. Default is <see cref="OutboxStagingStrategy.Auto"/>. </param>
-	public EventSourcedRepository(
-		IEventStore eventStore,
-		IEventSerializer eventSerializer,
-		Func<TKey, TAggregate> aggregateFactory,
-		IOptions<UpcastingOptions>? upcastingOptions = null,
-		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		IOptionsMonitor<AutoSnapshotOptions>? autoSnapshotOptions = null,
-		IUpcastingPipeline? upcastingPipeline = null,
-		ISnapshotManager? snapshotManager = null,
-		ISnapshotStrategy? snapshotStrategy = null,
-		ITransactionalOutboxWriter? transactionalOutboxWriter = null,
-		IOutboxStore? outboxStore = null,
-		SnapshotVersionManager? snapshotVersionManager = null,
-		IEventNotificationBroker? eventNotificationBroker = null,
-		TimeProvider? timeProvider = null,
-		OutboxStagingStrategy outboxStagingStrategy = OutboxStagingStrategy.Auto,
-		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
-	{
-		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
-		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
-		_aggregateFactory = aggregateFactory ?? throw new ArgumentNullException(nameof(aggregateFactory));
-		_upcastingPipeline = upcastingPipeline;
-		_snapshotManager = snapshotManager;
-		_snapshotStrategy = snapshotStrategy;
-		_transactionalOutboxWriter = transactionalOutboxWriter;
-		_outboxStore = outboxStore;
-		_outboxStagingStrategy = outboxStagingStrategy;
-		_snapshotVersionManager = snapshotVersionManager;
-		_enableAutoUpcast = upcastingOptions?.Value.EnableAutoUpcastOnReplay ?? false;
-		_enableAutoSnapshotUpgrade = snapshotUpgradingOptions?.Value.EnableAutoUpgradeOnLoad ?? false;
-		_targetSnapshotVersion = snapshotUpgradingOptions?.Value.CurrentSnapshotVersion ?? 1;
-		_eventNotificationBroker = eventNotificationBroker;
-		_timeProvider = timeProvider ?? TimeProvider.System;
-		_logger = logger;
-		_autoSnapshotOptions = autoSnapshotOptions;
-	}
-
-	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class
 	/// using the Options pattern for configuration.
 	/// </summary>
@@ -944,7 +888,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			// id, making a retried stage a no-op rather than a duplicate. EventId is a required, stable,
 			// per-event identifier on IDomainEvent (framework-stamped UUID v7 for DomainEvent-derived events).
 			Id = @event.EventId,
-			MessageType = @event.EventType,
+			// The outbox message type a consumer routes on: the event's declared name, the same
+			// identity the event store and the CloudEvents `type` carry. It previously came from a
+			// property each event set for itself, so the value a subscriber matched on depended on
+			// what the event happened to put there.
+			MessageType = MessageNameHelper.GetName(@event.GetType()),
 			// Route through the injected IEventSerializer (single serialization seam) so the outbox
 			// payload casing matches the event-store write — never a raw JsonSerializer default-PascalCase variant.
 			Payload = _eventSerializer.SerializeEvent(@event),
@@ -1044,49 +992,6 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 	IEventSourcedRepository<TAggregate>
 	where TAggregate : class, Domain.Model.IAggregateRoot<string>, Domain.Model.IAggregateSnapshotSupport
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate}" /> class.
-	/// </summary>
-	/// <param name="eventStore"> The event store for persistence. </param>
-	/// <param name="eventSerializer"> The event serializer for deserialization. </param>
-	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a string key. </param>
-	/// <param name="upcastingPipeline"> Optional upcasting pipeline for version transformation. </param>
-	/// <param name="snapshotManager"> Optional snapshot manager. </param>
-	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
-	/// <param name="upcastingOptions"> Optional upcasting configuration options. </param>
-	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
-	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
-	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
-	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
-	/// <param name="logger"> Optional logger for diagnostics. </param>
-	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
-	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
-	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
-	/// <param name="outboxStagingStrategy"> The outbox staging strategy. Default is <see cref="OutboxStagingStrategy.Auto"/>. </param>
-	public EventSourcedRepository(
-		IEventStore eventStore,
-		IEventSerializer eventSerializer,
-		Func<string, TAggregate> aggregateFactory,
-		IOptions<UpcastingOptions>? upcastingOptions = null,
-		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		IOptionsMonitor<AutoSnapshotOptions>? autoSnapshotOptions = null,
-		IUpcastingPipeline? upcastingPipeline = null,
-		ISnapshotManager? snapshotManager = null,
-		ISnapshotStrategy? snapshotStrategy = null,
-		ITransactionalOutboxWriter? transactionalOutboxWriter = null,
-		IOutboxStore? outboxStore = null,
-		SnapshotVersionManager? snapshotVersionManager = null,
-		IEventNotificationBroker? eventNotificationBroker = null,
-		TimeProvider? timeProvider = null,
-		OutboxStagingStrategy outboxStagingStrategy = OutboxStagingStrategy.Auto,
-		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null)
-		: base(eventStore, eventSerializer, aggregateFactory, upcastingOptions, snapshotUpgradingOptions,
-			autoSnapshotOptions, upcastingPipeline, snapshotManager, snapshotStrategy,
-			transactionalOutboxWriter, outboxStore, snapshotVersionManager, eventNotificationBroker,
-			timeProvider, outboxStagingStrategy, logger)
-	{
-	}
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate}" /> class
 	/// using the Options pattern for configuration.

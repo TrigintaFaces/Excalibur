@@ -60,21 +60,5 @@ public sealed class RateLimitingOptions
 	[Range(1, int.MaxValue)]
 	public int DefaultRetryAfterMilliseconds { get; set; } = 1000;
 
-	/// <summary>
-	/// Gets or sets the cleanup interval in minutes for removing inactive limiters.
-	/// </summary>
-	/// <value>
-	/// The cleanup interval in minutes for removing inactive limiters. The default is 5 minutes.
-	/// </value>
-	[Range(1, int.MaxValue)]
-	public int CleanupIntervalMinutes { get; set; } = 5;
 
-	/// <summary>
-	/// Gets or sets the inactivity timeout in minutes before a limiter is removed.
-	/// </summary>
-	/// <value>
-	/// The inactivity timeout in minutes before a limiter is removed. The default is 30 minutes.
-	/// </value>
-	[Range(1, int.MaxValue)]
-	public int InactivityTimeoutMinutes { get; set; } = 30;
 }

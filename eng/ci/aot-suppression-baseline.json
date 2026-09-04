@@ -813,13 +813,11 @@
     {
       "line": 33,
       "warningId": "IL2026",
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/LongPolling/LongPollingServiceCollectionExtensions.cs",
       "justification": "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives."
     },
     {
       "line": 35,
       "warningId": "IL3050",
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/LongPolling/LongPollingServiceCollectionExtensions.cs",
       "justification": "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives."
     },
     {
@@ -909,13 +907,11 @@
     {
       "line": 322,
       "warningId": "IL2026",
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/Scheduling/AzureLogicAppsScheduler.cs",
       "justification": "JSON serialization of scheduled message payloads uses reflection by design"
     },
     {
       "line": 324,
       "warningId": "IL3050",
-      "file": "src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/Scheduling/AzureLogicAppsScheduler.cs",
       "justification": "JSON serialization of scheduled message payloads requires dynamic code — external Azure Logic Apps API"
     },
     {

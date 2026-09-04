@@ -91,14 +91,14 @@ public sealed class SnapshotUpgradeFailClosedShould
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "FailClosedAggregate", A<long>._, A<CancellationToken>._))
 			.Returns(new List<StoredEvent>());
 
-		var upgradingOptions = Microsoft.Extensions.Options.Options.Create(
-			new SnapshotUpgradingOptions { EnableAutoUpgradeOnLoad = true, CurrentSnapshotVersion = 2 });
+		var repositoryOptions = Microsoft.Extensions.Options.Options.Create(
+			new EventSourcedRepositoryOptions { EnableAutoSnapshotUpgrade = true, TargetSnapshotVersion = 2 });
 
 		var repository = new EventSourcedRepository<FailClosedAggregate>(
 			eventStore,
 			A.Fake<IEventSerializer>(),
 			id => new FailClosedAggregate(id),
-			snapshotUpgradingOptions: upgradingOptions,
+			repositoryOptions,
 			snapshotManager: snapshotManager,
 			snapshotVersionManager: versionManager);
 

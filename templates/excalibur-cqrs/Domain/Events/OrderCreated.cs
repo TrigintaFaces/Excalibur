@@ -1,10 +1,11 @@
-﻿using Excalibur.Dispatch;
+using Excalibur.Dispatch;
 
 namespace Company.ExcaliburCqrs.Domain.Events;
 
 /// <summary>
 /// Raised when a new order is created.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCreated")]
 public sealed record OrderCreated : IDomainEvent
 {
     public Guid OrderId { get; init; }
@@ -23,8 +24,6 @@ public sealed record OrderCreated : IDomainEvent
     /// <inheritdoc />
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-    /// <inheritdoc />
-    public string EventType => nameof(OrderCreated);
 
     /// <inheritdoc />
     public IDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();

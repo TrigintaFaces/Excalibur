@@ -91,7 +91,9 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 		var rateLimiterKey = GetRateLimiterKey(message, context);
 		var rateLimiter = GetOrCreateRateLimiter(rateLimiterKey, message);
 
-		using var activity = Activity.Current;
+		// Read-only: this activity belongs to the caller. Disposing it would call Stop(),
+		// ending the caller's span here and reparenting everything downstream.
+		var activity = Activity.Current;
 		_ = activity?.SetTag("ratelimit.key", rateLimiterKey);
 		_ = activity?.SetTag("ratelimit.message_type", message.GetType().Name);
 
@@ -150,7 +152,12 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 		return ValueTask.CompletedTask;
 	}
 
-	private static async Task<CombinedRateLimitLease> AcquireLeaseAsync(
+	/// <remarks>
+	/// Internal so the permit-release path can be driven directly by a test: the second acquire can
+	/// throw (cancellation, or disposal during shutdown), and a permit already taken from the first
+	/// limiter has to come back when it does.
+	/// </remarks>
+	internal static async Task<CombinedRateLimitLease> AcquireLeaseAsync(
 		RateLimiter specificLimiter,
 		RateLimiter globalLimiter,
 		CancellationToken cancellationToken)
@@ -160,11 +167,25 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 
 		if (!specificLease.IsAcquired)
 		{
+			// Carried rather than disposed here: RetryAfter reads its metadata, and the combined
+			// lease disposes it. Only an ACQUIRED lease holds a permit that must come back promptly.
 			return new CombinedRateLimitLease(specificLease, globalLease: null);
 		}
 
-		var globalLease = await globalLimiter.AcquireAsync(1, cancellationToken)
-			.ConfigureAwait(false);
+		RateLimitLease globalLease;
+		try
+		{
+			globalLease = await globalLimiter.AcquireAsync(1, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch
+		{
+			// The specific permit is already held. Without this the throw -- a cancelled request, or
+			// the limiter being disposed during shutdown -- would strand it, and the per-key limiter
+			// would lose capacity permanently, one cancelled request at a time.
+			specificLease.Dispose();
+			throw;
+		}
 
 		if (!globalLease.IsAcquired)
 		{
@@ -259,7 +280,7 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 			(Self: this, Message: message));
 	}
 
-	private sealed class CombinedRateLimitLease(RateLimitLease? specificLease, RateLimitLease? globalLease) : IDisposable
+	internal sealed class CombinedRateLimitLease(RateLimitLease? specificLease, RateLimitLease? globalLease) : IDisposable
 	{
 		public bool IsAcquired => specificLease?.IsAcquired == true && globalLease?.IsAcquired != false;
 

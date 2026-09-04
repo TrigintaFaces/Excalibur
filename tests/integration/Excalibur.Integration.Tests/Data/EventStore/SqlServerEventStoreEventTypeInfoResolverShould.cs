@@ -8,6 +8,8 @@ using System.Text.Json.Serialization.Metadata;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.EventStore;
 
 /// <summary>
@@ -185,6 +187,7 @@ internal enum SqlResolverTestShade
 	Green,
 }
 
+[MessageName("Test.SqlResolverTestEvent")]
 internal sealed class SqlResolverTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -193,7 +196,6 @@ internal sealed class SqlResolverTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(SqlResolverTestEvent);
 
 	public string Name { get; set; } = string.Empty;
 
@@ -202,6 +204,7 @@ internal sealed class SqlResolverTestEvent : IDomainEvent
 	public IDictionary<string, object>? Metadata { get; set; }
 }
 
+[MessageName("Test.UndeclaredSqlTestEvent")]
 internal sealed class UndeclaredSqlTestEvent : IDomainEvent
 {
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
@@ -210,7 +213,6 @@ internal sealed class UndeclaredSqlTestEvent : IDomainEvent
 
 	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 
-	public string EventType { get; set; } = nameof(UndeclaredSqlTestEvent);
 
 	public IDictionary<string, object>? Metadata { get; set; }
 }

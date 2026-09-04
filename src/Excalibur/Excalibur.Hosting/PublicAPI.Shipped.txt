@@ -1,97 +1,6 @@
 #nullable enable
 Excalibur.Hosting.Builders.IExcaliburBuilder
 Excalibur.Hosting.Builders.IExcaliburBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.CloudProviderValidationOptions() -> void
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.Enabled.get -> bool
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.Enabled.set -> void
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.UseAws.get -> bool
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.UseAws.set -> void
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.UseAzure.get -> bool
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.UseAzure.set -> void
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.UseGoogleCloud.get -> bool
-Excalibur.Hosting.Configuration.CloudProviderValidationOptions.UseGoogleCloud.set -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationError
-Excalibur.Hosting.Configuration.ConfigurationValidationError.ConfigurationPath.get -> string?
-Excalibur.Hosting.Configuration.ConfigurationValidationError.ConfigurationValidationError(string! message, string? configurationPath = null, object? value = null, string? recommendation = null) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationError.Message.get -> string!
-Excalibur.Hosting.Configuration.ConfigurationValidationError.Recommendation.get -> string?
-Excalibur.Hosting.Configuration.ConfigurationValidationError.Value.get -> object?
-Excalibur.Hosting.Configuration.ConfigurationValidationException
-Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException() -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException(string! message, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, System.Exception? innerException = null) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException(string? message) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException(string? message, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationException.Errors.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>!
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.ConfigurationValidationOptions() -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.Enabled.get -> bool
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.Enabled.set -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.FailFast.get -> bool
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.FailFast.set -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.TreatValidatorExceptionsAsErrors.get -> bool
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.TreatValidatorExceptionsAsErrors.set -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.ValidationTimeout.get -> System.TimeSpan
-Excalibur.Hosting.Configuration.ConfigurationValidationOptions.ValidationTimeout.set -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationResult
-Excalibur.Hosting.Configuration.ConfigurationValidationResult.ConfigurationValidationResult(bool isValid, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>? errors = null) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>!
-Excalibur.Hosting.Configuration.ConfigurationValidationResult.IsValid.get -> bool
-Excalibur.Hosting.Configuration.ConfigurationValidatorBase
-Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ConfigurationName.get -> string!
-Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ConfigurationValidatorBase(string! configurationName, int priority = 100) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidatorBase.Priority.get -> int
-Excalibur.Hosting.Configuration.DatabaseValidationOptions
-Excalibur.Hosting.Configuration.DatabaseValidationOptions.Connections.get -> System.Collections.Generic.Dictionary<string!, Excalibur.Hosting.Configuration.Validators.DatabaseProvider>!
-Excalibur.Hosting.Configuration.DatabaseValidationOptions.DatabaseValidationOptions() -> void
-Excalibur.Hosting.Configuration.DatabaseValidationOptions.Enabled.get -> bool
-Excalibur.Hosting.Configuration.DatabaseValidationOptions.Enabled.set -> void
-Excalibur.Hosting.Configuration.DatabaseValidationOptions.TestConnections.get -> bool
-Excalibur.Hosting.Configuration.DatabaseValidationOptions.TestConnections.set -> void
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.CloudProviders.get -> Excalibur.Hosting.Configuration.CloudProviderValidationOptions!
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.Databases.get -> Excalibur.Hosting.Configuration.DatabaseValidationOptions!
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.Enabled.get -> bool
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.Enabled.set -> void
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ExcaliburValidationOptions() -> void
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.FailFast.get -> bool
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.FailFast.set -> void
-Excalibur.Hosting.Configuration.ExcaliburValidationOptions.MessageBrokers.get -> Excalibur.Hosting.Configuration.MessageBrokerValidationOptions!
-Excalibur.Hosting.Configuration.IConfigurationValidator
-Excalibur.Hosting.Configuration.IConfigurationValidator.ConfigurationName.get -> string!
-Excalibur.Hosting.Configuration.IConfigurationValidator.Priority.get -> int
-Excalibur.Hosting.Configuration.IConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.Enabled.get -> bool
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.Enabled.set -> void
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.MessageBrokerValidationOptions() -> void
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.UseKafka.get -> bool
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.UseKafka.set -> void
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.UseRabbitMq.get -> bool
-Excalibur.Hosting.Configuration.MessageBrokerValidationOptions.UseRabbitMq.set -> void
-Excalibur.Hosting.Configuration.Validators.AwsConfigurationValidator
-Excalibur.Hosting.Configuration.Validators.AwsConfigurationValidator.AwsConfigurationValidator(string! configSection = "AWS") -> void
-Excalibur.Hosting.Configuration.Validators.AzureConfigurationValidator
-Excalibur.Hosting.Configuration.Validators.AzureConfigurationValidator.AzureConfigurationValidator(string! configSection = "Azure") -> void
-Excalibur.Hosting.Configuration.Validators.CloudProviderValidator
-Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.CloudProviderValidator(string! configurationName) -> void
-Excalibur.Hosting.Configuration.Validators.ConnectionStringValidator
-Excalibur.Hosting.Configuration.Validators.ConnectionStringValidator.ConnectionStringValidator(string! connectionStringKey, Excalibur.Hosting.Configuration.Validators.DatabaseProvider provider, bool testConnection = false, string? configurationName = null) -> void
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider.MongoDb = 4 -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider.MySql = 2 -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider.Postgres = 1 -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider.Redis = 5 -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider.SqlServer = 0 -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.DatabaseProvider.Sqlite = 3 -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
-Excalibur.Hosting.Configuration.Validators.GoogleCloudConfigurationValidator
-Excalibur.Hosting.Configuration.Validators.GoogleCloudConfigurationValidator.GoogleCloudConfigurationValidator(string! configSection = "GoogleCloud") -> void
-Excalibur.Hosting.Configuration.Validators.KafkaConfigurationValidator
-Excalibur.Hosting.Configuration.Validators.KafkaConfigurationValidator.KafkaConfigurationValidator(string! configSection = "Kafka") -> void
-Excalibur.Hosting.Configuration.Validators.MessageBrokerValidator
-Excalibur.Hosting.Configuration.Validators.MessageBrokerValidator.MessageBrokerValidator(string! configurationName) -> void
-Excalibur.Hosting.Configuration.Validators.RabbitMqConfigurationValidator
-Excalibur.Hosting.Configuration.Validators.RabbitMqConfigurationValidator.RabbitMqConfigurationValidator(string! configSection = "RabbitMQ") -> void
 Excalibur.Hosting.Options.DispatchHealthCheckOptions
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.DispatchHealthCheckOptions() -> void
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeInbox.get -> bool
@@ -100,44 +9,11 @@ Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeLeaderElection.get -
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeLeaderElection.set -> void
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.get -> bool
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.set -> void
-Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions
 Microsoft.Extensions.DependencyInjection.DispatchHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburBuilderContextExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburBuilderDispatchExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburHostingServiceCollectionExtensions
 Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions
-abstract Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-override Excalibur.Hosting.Configuration.ConfigurationValidationError.ToString() -> string!
-override Excalibur.Hosting.Configuration.Validators.AwsConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-override Excalibur.Hosting.Configuration.Validators.AzureConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-override Excalibur.Hosting.Configuration.Validators.ConnectionStringValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-override Excalibur.Hosting.Configuration.Validators.GoogleCloudConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-override Excalibur.Hosting.Configuration.Validators.KafkaConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-override Excalibur.Hosting.Configuration.Validators.RabbitMqConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
-static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Combine(params Excalibur.Hosting.Configuration.ConfigurationValidationResult![]! results) -> Excalibur.Hosting.Configuration.ConfigurationValidationResult!
-static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Failure(System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors) -> Excalibur.Hosting.Configuration.ConfigurationValidationResult!
-static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Failure(string! errorMessage, string? configurationPath = null) -> Excalibur.Hosting.Configuration.ConfigurationValidationResult!
-static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Success() -> Excalibur.Hosting.Configuration.ConfigurationValidationResult!
-static Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateEnum(Microsoft.Extensions.Configuration.IConfiguration! configuration, string! key, System.Collections.Generic.IReadOnlySet<string!>! allowedValues, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, System.StringComparison comparison = System.StringComparison.OrdinalIgnoreCase, string? defaultValue = null) -> string?
-static Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateIntRange(Microsoft.Extensions.Configuration.IConfiguration! configuration, string! key, int min, int max, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, int? defaultValue = null) -> int
-static Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateRequired(Microsoft.Extensions.Configuration.IConfiguration! configuration, string! key, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, bool isRequired = true) -> string?
-static Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateTimeSpan(Microsoft.Extensions.Configuration.IConfiguration! configuration, string! key, System.TimeSpan? minValue, System.TimeSpan? maxValue, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, System.TimeSpan? defaultValue = null) -> System.TimeSpan
-static Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.ValidateArn(string? arn, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath) -> bool
-static Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.ValidateAzureResourceId(string? resourceId, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath) -> bool
-static Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.ValidateRegion(string? region, System.Collections.Generic.IReadOnlySet<string!>! validRegions, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath) -> bool
-static Excalibur.Hosting.Configuration.Validators.MessageBrokerValidator.ValidateEndpoint(string? endpoint, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath, string? expectedScheme = null) -> bool
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddAwsConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configSection = "AWS") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddAzureConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configSection = "Azure") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Hosting.Configuration.ConfigurationValidationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddConfigurationValidator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Hosting.Configuration.IConfigurationValidator! validator) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddConfigurationValidator<TValidator>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddConnectionStringValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringKey, Excalibur.Hosting.Configuration.Validators.DatabaseProvider provider, bool testConnection = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddExcaliburConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Hosting.Configuration.ExcaliburValidationOptions? options = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddGoogleCloudConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configSection = "GoogleCloud") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddKafkaConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configSection = "Kafka") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.AddRabbitMqConfigurationValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configSection = "RabbitMQ") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.UseConfigurationValidation(this Microsoft.Extensions.Hosting.HostApplicationBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configureValidation = null) -> Microsoft.Extensions.Hosting.HostApplicationBuilder!
-static Microsoft.Extensions.DependencyInjection.ConfigurationValidationExtensions.UseConfigurationValidation(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configureValidation = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchHealthChecksBuilderExtensions.AddExcaliburHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Hosting.Options.DispatchHealthCheckOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburBuilderContextExtensions.ScanAssemblies(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, params System.Reflection.Assembly![]! assemblies) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburBuilderContextExtensions.UseLocalClientAddress(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!

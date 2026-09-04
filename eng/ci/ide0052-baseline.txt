@@ -38,15 +38,7 @@
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Channels/SqsBatchProcessor.cs::SqsBatchProcessor._bufferPool
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Channels/SqsBatchProcessor.cs::SqsBatchProcessor._receiveBatches
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/ConnectionPooling/Models/ConnectionMetrics.cs::ConnectionMetrics._metricsPrefix
-src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/LongPolling/AdaptiveLongPollingStrategy.cs::AdaptiveLongPollingStrategy._uptime
-src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Sqs/HighThroughputSqsChannelProcessor.cs::HighThroughputSqsChannelProcessor._bufferPool
-src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Sqs/HighThroughputSqsChannelProcessor.cs::HighThroughputSqsChannelProcessor._uptimeStopwatch
 src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/EventHubs/AzureEventHubMessageBus.cs::AzureEventHubMessageBus._options
-src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/BatchReceiving/Processing/AdaptiveBatchProcessor.cs::AdaptiveBatchProcessor._options
-src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/BatchReceiving/Processing/OrderedBatchProcessor.cs::OrderedBatchProcessor._options
-src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/BatchReceiving/Processing/ParallelBatchProcessor.cs::ParallelBatchProcessor._options
-src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Ordering/OrderingKeyManager.cs::OrderingKeyManager._metrics
-src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Parallel/ThreadUtilizationMonitor.cs::ThreadUtilizationMonitor._lastSampleTime
 src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/PubSubTransportReceiver.cs::PubSubTransportReceiver._requestTimeout
 src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Serialization/PubSubBatchSerializer.cs::PubSubBatchSerializer._arrayPool
 src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/PubSub/Serialization/PubSubBatchSerializer.cs::PubSubBatchSerializer._options

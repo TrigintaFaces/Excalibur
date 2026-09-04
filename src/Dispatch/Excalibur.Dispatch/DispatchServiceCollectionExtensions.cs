@@ -104,10 +104,12 @@ public static class DispatchServiceCollectionExtensions
 		// Shared failure classifier (S-A): the single retry-vs-dead-letter taxonomy consumed by
 		// the retry policy/middleware and the outbox/inbox/CDC processors. Consumers override via TryAdd.
 		services.TryAddSingleton<IMessageFailureClassifier, DefaultMessageFailureClassifier>();
-		// Public construction seam for fresh, independently-owned circuit-breaker policies.
-		// Consumers that own their breaker lifecycle (e.g. the distributed-cache middleware) resolve this and
-		// call Create(name, options); shared per-transport breakers use ITransportCircuitBreakerRegistry.
-		services.TryAddSingleton<ICircuitBreakerPolicyFactory, CircuitBreakerPolicyFactory>();
+
+		// Without this the outbox and inbox drains resolve nothing and fall through to their
+		// NullTransportCircuitBreakerRegistry default, which means a host that has not taken the
+		// opt-in Polly package runs those paths with no circuit breaker at all. The Polly package
+		// RemoveAll()s this registration before substituting its own, so opting in still wins.
+		services.TryAddSingleton<ITransportCircuitBreakerRegistry, TransportCircuitBreakerRegistry>();
 		services.TryAddSingleton<FinalDispatchHandler>();
 
 		// Configure handler invocation based on AOT requirements

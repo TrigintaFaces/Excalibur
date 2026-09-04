@@ -457,7 +457,6 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 			EventId = Guid.NewGuid().ToString(),
 			AggregateId = Guid.NewGuid().ToString(),
 			Version = 0,
-			EventType = "MetadataTestEvent",
 			OccurredAt = DateTimeOffset.UtcNow,
 			Metadata = metadata,
 			Value = "Test-" + Guid.NewGuid().ToString("N"),
@@ -470,12 +469,12 @@ public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEven
 /// <summary>
 /// Test domain event for DynamoDb metadata round-trip tests.
 /// </summary>
+[MessageName("Test.DynamoDbMetadataTestDomainEvent")]
 internal sealed class DynamoDbMetadataTestDomainEvent : IDomainEvent
 {
 	public required string EventId { get; init; }
 	public required string AggregateId { get; init; }
 	public required long Version { get; init; }
-	public required string EventType { get; init; }
 	public required DateTimeOffset OccurredAt { get; init; }
 	public IDictionary<string, object>? Metadata { get; init; }
 	public required string Value { get; init; }

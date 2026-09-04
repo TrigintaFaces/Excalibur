@@ -10,12 +10,16 @@ namespace Excalibur.Tests.Domain.Model;
 
 // AggregateId/Version moved off the event payload to the persistence envelope
 // (StoredEvent.Version → HistoricEvent). Test events carry only their own data.
+[MessageName("Test.AggregateRootFunctional.OrderCreated")]
 public record OrderCreated(string OrderId, decimal Total) : DomainEvent;
 
+[MessageName("Test.OrderItemAdded")]
 public record OrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent;
 
+[MessageName("Test.OrderShipped")]
 public record OrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent;
 
+[MessageName("Test.OrderCancelled")]
 public record OrderCancelled(string OrderId, string Reason) : DomainEvent;
 
 // ── Test snapshot ──

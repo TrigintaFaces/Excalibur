@@ -428,7 +428,8 @@
           "Microsoft.Extensions.Http": "[10.0.10, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.10, )",
           "OpenTelemetry": "[1.15.3, )",
-          "OpenTelemetry.Extensions.Hosting": "[1.15.3, )"
+          "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
+          "Polly": "[8.6.6, )"
         }
       },
       "excalibur.dispatch": {

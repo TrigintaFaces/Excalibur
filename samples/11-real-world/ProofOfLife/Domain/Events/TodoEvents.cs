@@ -6,10 +6,13 @@ using Excalibur.Dispatch;
 namespace ProofOfLife.Domain.Events;
 
 /// <summary>Event raised when a new todo is created.</summary>
+[MessageName("Contoso.Todo.TodoCreated")]
 public sealed record TodoCreated(Guid TodoId, string Title) : DomainEvent;
 
 /// <summary>Event raised when a todo is marked as completed.</summary>
+[MessageName("Contoso.Todo.TodoCompleted")]
 public sealed record TodoCompleted(Guid TodoId) : DomainEvent;
 
 /// <summary>Event raised when a todo's title is updated.</summary>
+[MessageName("Contoso.Todo.TodoTitleUpdated")]
 public sealed record TodoTitleUpdated(Guid TodoId, string NewTitle) : DomainEvent;

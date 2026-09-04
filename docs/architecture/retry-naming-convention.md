@@ -43,7 +43,6 @@ Already aligned. No changes needed.
 | `OutboxBackgroundService.cs` (options) | Outbox | `MaxRetries` |
 | `OrderingKeyOptions.cs` | Transport.GooglePubSub | `MaxRetries` |
 | `AzureRetryOptions.cs` | Transport.AzureServiceBus | `MaxRetries` |
-| `AzureLogicAppsSchedulerOptions.cs` | Transport.AzureServiceBus | `MaxRetries` |
 | `AwsProviderOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `EventBridgeSchedulerOptions.cs` | Transport.AwsSqs | `MaxRetries` |
 | `DlqOptions.cs` | Transport.AwsSqs | `MaxRetries` |

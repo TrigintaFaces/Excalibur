@@ -466,7 +466,6 @@ The `ISagaBuilder` fluent API provides optional capabilities:
 | `.WithCoordination()` | Registers `SagaCoordinator` + `SagaHandlingMiddleware` |
 | `.WithTimeouts()` | Enables timeout scheduling and delivery |
 | `.WithInstrumentation()` | Adds OpenTelemetry tracing and metrics |
-| `.WithOutbox()` | Integrates saga events with the outbox pattern |
 | `.WithCorrelation()` | Enables saga lookup by business identifiers |
 | `.WithReminders()` | Saga reminder scheduling |
 

@@ -1,10 +1,11 @@
-﻿using Excalibur.Dispatch;
+using Excalibur.Dispatch;
 
 namespace Company.ExcaliburDdd.Domain.Events;
 
 /// <summary>
 /// Raised when an order is shipped.
 /// </summary>
+[MessageName("Contoso.Orders.OrderShipped")]
 public sealed record OrderShipped : IDomainEvent
 {
     public Guid OrderId { get; init; }
@@ -21,8 +22,6 @@ public sealed record OrderShipped : IDomainEvent
     /// <inheritdoc />
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 
-    /// <inheritdoc />
-    public string EventType => nameof(OrderShipped);
 
     /// <inheritdoc />
     public IDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();

@@ -8,13 +8,13 @@ namespace OutOfBandProjections.Domain;
 /// <summary>
 /// Raised when a new order is placed.
 /// </summary>
+[MessageName("Contoso.Orders.OrderPlaced")]
 public sealed record OrderPlaced : IDomainEvent
 {
     public required string EventId { get; init; }
     public required string AggregateId { get; init; }
     public required long Version { get; init; }
     public required DateTimeOffset OccurredAt { get; init; }
-    public required string EventType { get; init; }
     public IDictionary<string, object>? Metadata { get; init; }
 
     public required string CustomerId { get; init; }
@@ -26,13 +26,13 @@ public sealed record OrderPlaced : IDomainEvent
 /// <summary>
 /// Raised when an order is shipped.
 /// </summary>
+[MessageName("Contoso.Orders.OrderShipped")]
 public sealed record OrderShipped : IDomainEvent
 {
     public required string EventId { get; init; }
     public required string AggregateId { get; init; }
     public required long Version { get; init; }
     public required DateTimeOffset OccurredAt { get; init; }
-    public required string EventType { get; init; }
     public IDictionary<string, object>? Metadata { get; init; }
 
     public required string Carrier { get; init; }
@@ -42,13 +42,13 @@ public sealed record OrderShipped : IDomainEvent
 /// <summary>
 /// Raised when an order is cancelled.
 /// </summary>
+[MessageName("Contoso.Orders.OrderCancelled")]
 public sealed record OrderCancelled : IDomainEvent
 {
     public required string EventId { get; init; }
     public required string AggregateId { get; init; }
     public required long Version { get; init; }
     public required DateTimeOffset OccurredAt { get; init; }
-    public required string EventType { get; init; }
     public IDictionary<string, object>? Metadata { get; init; }
 
     public required string Reason { get; init; }

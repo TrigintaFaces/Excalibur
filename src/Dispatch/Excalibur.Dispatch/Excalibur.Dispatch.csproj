@@ -149,6 +149,11 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Dispatch.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- Measurement access: the writer pool is internal, and the benchmark that decides whether
+         Microsoft.Extensions.ObjectPool outperforms it has to be able to construct both. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Benchmarks</_Parameter1>
+    </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Tests</_Parameter1>
     </AssemblyAttribute>

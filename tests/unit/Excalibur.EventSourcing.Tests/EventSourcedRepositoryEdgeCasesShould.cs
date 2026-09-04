@@ -37,6 +37,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 {
 	#region Test Types
 
+	[MessageName("Test.EventSourcedRepositoryEdgeCases.TestDomainEvent")]
 	private sealed record TestDomainEvent : DomainEvent, IVersionedMessage
 	{
 		public string Data { get; init; } = string.Empty;
@@ -45,6 +46,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		string IVersionedMessage.MessageType => "TestDomainEvent";
 	}
 
+	[MessageName("Test.NonVersionedEvent")]
 	private sealed record NonVersionedEvent : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
@@ -143,6 +145,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager);
 
 		// Act
@@ -192,6 +195,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			snapshotStrategy: snapshotStrategy);
 
@@ -229,6 +233,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			snapshotStrategy: snapshotStrategy);
 
@@ -262,7 +267,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
-			id => new EdgeCaseAggregate(id));
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		await repository.SaveAsync(aggregate, CancellationToken.None);
@@ -307,7 +313,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
-			id => new EdgeCaseAggregate(id));
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert — bd-ze6pty / ADR-336 fail-only: rehydration must FAIL LOUD on a deserialization
 		// failure. Silently skipping the event would replay an incomplete history into a corrupt,
@@ -343,7 +350,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
-			id => new EdgeCaseAggregate(id));
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert — bd-ze6pty / ADR-336 fail-only: an unresolvable event type is a deserialization
 		// failure; rehydration must FAIL LOUD rather than skip the event and return a corrupt aggregate.
@@ -380,7 +388,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
-			id => new EdgeCaseAggregate(id));
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act & Assert — bd-ze6pty / ADR-336 fail-only: rehydration must FAIL LOUD on a deserialization
 		// failure rather than skip the event and return a corrupt, partially-applied aggregate.
@@ -424,13 +433,14 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		_ = A.CallTo(() => upcastingPipeline.Upcast(A<IDispatchMessage>._))
 			.Returns(A.Fake<IDispatchMessage>()); // Not an IDomainEvent
 
-		var options = Microsoft.Extensions.Options.Options.Create(new UpcastingOptions { EnableAutoUpcastOnReplay = true });
+		var repositoryOptions = Microsoft.Extensions.Options.Options.Create(
+			new EventSourcedRepositoryOptions { EnableAutoUpcast = true });
 
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
-			upcastingOptions: options,
+			repositoryOptions,
 			upcastingPipeline: upcastingPipeline);
 
 		// Act
@@ -456,7 +466,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<GuidAggregate, Guid>(
 			eventStore,
 			serializer,
-			id => new GuidAggregate(id));
+			id => new GuidAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Assert
 		_ = repository.ShouldNotBeNull();
@@ -478,7 +489,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<GuidAggregate, Guid>(
 			eventStore,
 			serializer,
-			id => new GuidAggregate(id));
+			id => new GuidAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
@@ -519,7 +531,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
-			id => new EdgeCaseAggregate(id));
+			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
 
 		// Act
 		await repository.SaveAsync(aggregate, "expected-etag", CancellationToken.None);
@@ -581,6 +594,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
 
@@ -635,6 +649,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
 			snapshotManager: snapshotManager,
 			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
 

@@ -41,7 +41,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		IConfiguration? configuration = null)
 	{
 		// Core resilience services
-		services.TryAddSingleton<ICircuitBreakerFactory, PollyCircuitBreakerFactory>();
 		services.TryAddTransient<PollyRetryPolicyAdapter>();
 		_ = services.AddOptions<PollyRetryOptions>().ValidateOnStart();
 		services.TryAddEnumerable(

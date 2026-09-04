@@ -154,50 +154,49 @@ internal class TimeoutDistributedCache : IDistributedCache
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
 		cts.CancelAfter(timeout);
 
+		var breaker = BreakerIfEnabled();
+
 		try
 		{
-			var result = await operation(cache, key, cts.Token).ConfigureAwait(false);
-			RecordBackendSuccess();
-			return result;
+			// The operation runs THROUGH the breaker rather than beside it. Reporting outcomes to the
+			// breaker afterwards left the Polly-backed implementation counting into a field its own
+			// strategy never reads, so the circuit could not open however badly the backend behaved.
+			// A backend that fails FAST is as unhealthy as one that fails slow, and both reach the
+			// breaker here because both leave this delegate as an exception.
+			return breaker is null
+				? await RunOnceAsync(operation, cache, key, cts.Token).ConfigureAwait(false)
+				: await breaker.ExecuteAsync(
+					ct => RunOnceAsync(operation, cache, key, ct),
+					cts.Token).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (!token.IsCancellationRequested)
 		{
+			// The breaker has already seen this as a failure; the caller still gets the fail-open value,
+			// because a cache must not turn a slow backend into a broken request.
 			RecordTimeout(key, timeout);
-			RecordBackendFailure(exception: null);
 			return onTimeout;
 		}
-		catch (Exception ex) when (ex is not OperationCanceledException)
+		catch (CircuitBreakerOpenException)
 		{
-			// A backend that fails FAST is as unhealthy as one that fails slow, and the breaker exists to
-			// stop paying for either. Recorded, then rethrown unchanged so the caller's own fail-open or
-			// fail-closed policy still decides what the failure means.
-			RecordBackendFailure(ex);
-			throw;
+			// Optional infrastructure fails open. An open circuit means stop paying for the backend,
+			// not fail the request that happened to arrive while it was open.
+			return onTimeout;
 		}
 	}
 
-	/// <summary>
-	/// Records a healthy backend operation against the circuit breaker, when one is configured and enabled.
-	/// </summary>
-	private void RecordBackendSuccess()
-	{
-		if (_circuitBreaker is not null && _breakerOptions.Value.Resilience.CircuitBreaker.Enabled)
-		{
-			_circuitBreaker.RecordSuccess();
-		}
-	}
+	private static Task<TResult> RunOnceAsync<TResult>(
+		Func<IDistributedCache, string, CancellationToken, Task<TResult>> operation,
+		IDistributedCache cache,
+		string key,
+		CancellationToken token) => operation(cache, key, token);
 
-	/// <summary>
-	/// Records an unhealthy backend operation against the circuit breaker, when one is configured and enabled.
-	/// </summary>
-	/// <param name="exception">The failure, or <see langword="null"/> for a timeout.</param>
-	private void RecordBackendFailure(Exception? exception)
-	{
-		if (_circuitBreaker is not null && _breakerOptions.Value.Resilience.CircuitBreaker.Enabled)
-		{
-			_circuitBreaker.RecordFailure(exception);
-		}
-	}
+	/// <summary>Gets the breaker to run through, or <see langword="null"/> when none is configured.</summary>
+	private ICircuitBreakerPolicy? BreakerIfEnabled() =>
+		_circuitBreaker is not null && _breakerOptions.Value.Resilience.CircuitBreaker.Enabled
+			? _circuitBreaker
+			: null;
+
+
 
 	/// <summary>
 	/// Records a backend timeout to the meter and the log.

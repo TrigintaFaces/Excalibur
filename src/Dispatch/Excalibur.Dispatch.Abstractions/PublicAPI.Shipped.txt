@@ -1,4 +1,10 @@
 #nullable enable
+Excalibur.Dispatch.AotJsonEventSerializer
+Excalibur.Dispatch.AotJsonEventSerializer.AotJsonEventSerializer(System.Text.Json.Serialization.JsonSerializerContext! jsonContext, params System.Type![]! eventTypes) -> void
+Excalibur.Dispatch.AotJsonEventSerializer.DeserializeEvent(byte[]! data, System.Type! eventType) -> Excalibur.Dispatch.IDomainEvent!
+Excalibur.Dispatch.AotJsonEventSerializer.GetTypeName(System.Type! type) -> string!
+Excalibur.Dispatch.AotJsonEventSerializer.ResolveType(string! typeName) -> System.Type!
+Excalibur.Dispatch.AotJsonEventSerializer.SerializeEvent(Excalibur.Dispatch.IDomainEvent! domainEvent) -> byte[]!
 Excalibur.Dispatch.ApiException
 Excalibur.Dispatch.ApiException.ApiException() -> void
 Excalibur.Dispatch.ApiException.ApiException(int statusCode, string? message, System.Exception? innerException) -> void
@@ -211,6 +217,9 @@ Excalibur.Dispatch.Diagnostics.IMessageMetrics
 Excalibur.Dispatch.Diagnostics.IMessageMetrics.RecordMessageFailed(string! messageType, string! errorMessage) -> void
 Excalibur.Dispatch.Diagnostics.IMessageMetrics.RecordMessageProcessed(string! messageType, System.TimeSpan duration) -> void
 Excalibur.Dispatch.Diagnostics.IMessageMetrics.RecordMessageProcessedAsync(object! context, System.TimeSpan duration, bool success, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Diagnostics.TagCardinalityGuard
+Excalibur.Dispatch.Diagnostics.TagCardinalityGuard.Guard(string? tagValue) -> string!
+Excalibur.Dispatch.Diagnostics.TagCardinalityGuard.TagCardinalityGuard(int maxCardinality = 100, string! overflowValue = "__other__") -> void
 Excalibur.Dispatch.Diagnostics.ValueStopwatch
 Excalibur.Dispatch.Diagnostics.ValueStopwatch.CompareTo(Excalibur.Dispatch.Diagnostics.ValueStopwatch other) -> int
 Excalibur.Dispatch.Diagnostics.ValueStopwatch.CompareTo(object? obj) -> int
@@ -248,8 +257,70 @@ Excalibur.Dispatch.DomainEvent.WithCorrelationId(System.Guid correlationId) -> E
 Excalibur.Dispatch.DomainEvent.WithCorrelationId(string? correlationId) -> Excalibur.Dispatch.DomainEvent!
 Excalibur.Dispatch.DomainEvent.WithMetadata(string! key, object! value) -> Excalibur.Dispatch.DomainEvent!
 Excalibur.Dispatch.ErrorConstants
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.CorrelationId.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.CorrelationId.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.DeadLetterFilter() -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.FromDate.get -> System.DateTimeOffset?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.FromDate.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.IsReplayed.get -> bool?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.IsReplayed.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MaxResults.get -> int
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MaxResults.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MessageType.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MessageType.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Reason.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Reason.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Skip.get -> int
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Skip.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.SourceSystem.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.SourceSystem.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.ToDate.get -> System.DateTimeOffset?
+Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.ToDate.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.CorrelationId.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.CorrelationId.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.DeadLetterMessage() -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ExceptionDetails.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ExceptionDetails.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.FirstAttemptAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.FirstAttemptAt.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Id.get -> string!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Id.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.IsReplayed.get -> bool
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.IsReplayed.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.LastAttemptAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.LastAttemptAt.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageBody.get -> string!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageBody.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageId.get -> string!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageId.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageMetadata.get -> string!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageMetadata.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageType.get -> string!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageType.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MovedToDeadLetterAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MovedToDeadLetterAt.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ProcessingAttempts.get -> int
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ProcessingAttempts.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Properties.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Properties.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Reason.get -> string!
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Reason.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ReplayedAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ReplayedAt.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.SourceSystem.get -> string?
+Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.SourceSystem.set -> void
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStore
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.DeleteAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.GetByIdAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ErrorHandling.DeadLetterMessage?>!
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.GetMessagesAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterFilter! filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.ErrorHandling.DeadLetterMessage!>!>!
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStoreAdmin
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStoreAdmin.CleanupOldMessagesAsync(int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.ErrorHandling.IDeadLetterStoreAdmin.GetCountAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Dispatch.EventSerializationDefaults
-Excalibur.Dispatch.EventTypeNameHelper
 Excalibur.Dispatch.Exceptions.DuplicateMessageException
 Excalibur.Dispatch.Exceptions.DuplicateMessageException.DuplicateMessageException(string! messageId) -> void
 Excalibur.Dispatch.Exceptions.DuplicateMessageException.MessageId.get -> string!
@@ -414,6 +485,8 @@ Excalibur.Dispatch.ICdcStateStore.GetAllPositionsAsync(System.Threading.Cancella
 Excalibur.Dispatch.ICdcStateStore.GetPositionAsync(string! consumerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ChangePosition?>!
 Excalibur.Dispatch.ICdcStateStore.SavePositionAsync(string! consumerId, Excalibur.Dispatch.ChangePosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.IClaimableDeduplicator
+Excalibur.Dispatch.IClaimableDeduplicator.ReleaseAsync(string! messageId, Excalibur.Dispatch.LeaseToken claim, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.IClaimableDeduplicator.TryClaimAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.LeaseToken?>!
 Excalibur.Dispatch.IClaimableInboxStore
 Excalibur.Dispatch.IClaimableInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IClaimableInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
@@ -462,7 +535,6 @@ Excalibur.Dispatch.IDomainEvent
 Excalibur.Dispatch.IDomainEvent.CausationId.get -> string?
 Excalibur.Dispatch.IDomainEvent.CorrelationId.get -> string?
 Excalibur.Dispatch.IDomainEvent.EventId.get -> string!
-Excalibur.Dispatch.IDomainEvent.EventType.get -> string!
 Excalibur.Dispatch.IDomainEvent.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Dispatch.IDomainEvent.OccurredAt.get -> System.DateTimeOffset
 Excalibur.Dispatch.IEventSerializer
@@ -470,6 +542,9 @@ Excalibur.Dispatch.IEventSerializer.DeserializeEvent(byte[]! data, System.Type! 
 Excalibur.Dispatch.IEventSerializer.GetTypeName(System.Type! type) -> string!
 Excalibur.Dispatch.IEventSerializer.ResolveType(string! typeName) -> System.Type!
 Excalibur.Dispatch.IEventSerializer.SerializeEvent(Excalibur.Dispatch.IDomainEvent! domainEvent) -> byte[]!
+Excalibur.Dispatch.IEventTypeRegistry
+Excalibur.Dispatch.IEventTypeRegistry.GetTypeName(System.Type! eventType) -> string?
+Excalibur.Dispatch.IEventTypeRegistry.ResolveType(string! eventTypeName) -> System.Type?
 Excalibur.Dispatch.IEventUpgrader<TFrom, TTo>
 Excalibur.Dispatch.IEventUpgrader<TFrom, TTo>.Upgrade(TFrom fromEvent) -> TTo
 Excalibur.Dispatch.IExceptionMapper
@@ -522,16 +597,24 @@ Excalibur.Dispatch.IInboxStore.TryMarkAsProcessedAsync(string! messageId, string
 Excalibur.Dispatch.IInboxStoreAdmin
 Excalibur.Dispatch.IInboxStoreAdmin.CleanupAllTenantsProcessedEntriesAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Dispatch.IInboxStoreAdmin.GetAllTenantsEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
+Excalibur.Dispatch.IInboxStoreAdmin.GetAllTenantsFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
 Excalibur.Dispatch.IInboxStoreAdmin.GetAllTenantsStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.InboxStatistics!>
 Excalibur.Dispatch.IInboxStoreAdmin.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IInboxStoreCapabilities
+Excalibur.Dispatch.IInboxStoreCapabilities.SupportsBackoffScheduling.get -> bool
 Excalibur.Dispatch.IInboxStoreCapabilities.SupportsClaim.get -> bool
+Excalibur.Dispatch.IInboxStoreCapabilities.SupportsLeasedClaim.get -> bool
 Excalibur.Dispatch.IInboxStoreCapabilities.SupportsProcessingTracking.get -> bool
+Excalibur.Dispatch.IInboxStoreCapabilities.SupportsScopedTransactional.get -> bool
 Excalibur.Dispatch.IInboxStoreCapabilities.SupportsTransactional.get -> bool
 Excalibur.Dispatch.IInboxTransactionScope
 Excalibur.Dispatch.IIntegrationEvent
 Excalibur.Dispatch.ILeaderProcessingGate
 Excalibur.Dispatch.ILeaderProcessingGate.FencingToken.get -> long?
+Excalibur.Dispatch.ILeasedInboxStore
+Excalibur.Dispatch.ILeasedInboxStore.CompleteAsync(string! messageId, string! handlerType, Excalibur.Dispatch.LeaseToken lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Dispatch.ILeasedInboxStore.FailAsync(string! messageId, string! handlerType, Excalibur.Dispatch.LeaseToken lease, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Dispatch.ILeasedInboxStore.TryAcquireLeaseAsync(string! messageId, string! handlerType, System.TimeSpan leaseDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.LeaseToken?>
 Excalibur.Dispatch.IMemoryMessage
 Excalibur.Dispatch.IMemoryMessage.Body.get -> System.Memory<byte>
 Excalibur.Dispatch.IMemoryMessage.ContentType.get -> string!
@@ -604,14 +687,6 @@ Excalibur.Dispatch.IMessageMetadataBuilder.WithCausationId(string? causationId) 
 Excalibur.Dispatch.IMessageMetadataBuilder.WithCorrelationId(string! correlationId) -> Excalibur.Dispatch.IMessageMetadataBuilder!
 Excalibur.Dispatch.IMessageMetadataBuilder.WithMessageId(string! messageId) -> Excalibur.Dispatch.IMessageMetadataBuilder!
 Excalibur.Dispatch.IMessageMetadataBuilder.WithProperty(string! key, object? value) -> Excalibur.Dispatch.IMessageMetadataBuilder!
-Excalibur.Dispatch.IMessagePool
-Excalibur.Dispatch.IMessagePool.AvailableCount.get -> int
-Excalibur.Dispatch.IMessagePool.Capacity.get -> int
-Excalibur.Dispatch.IMessagePool.Clear() -> void
-Excalibur.Dispatch.IMessagePool.Rent<TMessage>() -> Excalibur.Dispatch.MessageHandle<TMessage!>
-Excalibur.Dispatch.IMessagePool.RentedCount.get -> int
-Excalibur.Dispatch.IMessagePool.ReturnToPool<TMessage>(TMessage! message) -> void
-Excalibur.Dispatch.IMessagePool.TryRent<TMessage>(out Excalibur.Dispatch.MessageHandle<TMessage!> handle) -> bool
 Excalibur.Dispatch.IMessageProblemDetails
 Excalibur.Dispatch.IMessageProblemDetails.Detail.get -> string!
 Excalibur.Dispatch.IMessageProblemDetails.Detail.set -> void
@@ -772,9 +847,6 @@ Excalibur.Dispatch.IPooledBufferService.ReturnBuffer(Excalibur.Dispatch.IPooledB
 Excalibur.Dispatch.IPooledBufferServiceDiagnostics
 Excalibur.Dispatch.IPooledBufferServiceDiagnostics.TotalRentOperations.get -> long
 Excalibur.Dispatch.IPooledBufferServiceDiagnostics.TotalReturnOperations.get -> long
-Excalibur.Dispatch.IPooledObject
-Excalibur.Dispatch.IPooledObject.CanBePooled.get -> bool
-Excalibur.Dispatch.IPooledObject.Reset() -> void
 Excalibur.Dispatch.IProcessingGate
 Excalibur.Dispatch.IProcessingGate.ShouldProcess.get -> bool
 Excalibur.Dispatch.IProcessingTrackingInboxStore
@@ -925,6 +997,7 @@ Excalibur.Dispatch.IsolatingOutboxStoreDecorator.IsolatingOutboxStoreDecorator(E
 Excalibur.Dispatch.JsonEventSerializer
 Excalibur.Dispatch.JsonEventSerializer.DeserializeEvent(byte[]! data, System.Type! eventType) -> Excalibur.Dispatch.IDomainEvent!
 Excalibur.Dispatch.JsonEventSerializer.GetTypeName(System.Type! type) -> string!
+Excalibur.Dispatch.JsonEventSerializer.JsonEventSerializer(Excalibur.Dispatch.IEventTypeRegistry? registry, System.Text.Json.JsonSerializerOptions? options = null, bool allowAssemblyScan = false) -> void
 Excalibur.Dispatch.JsonEventSerializer.JsonEventSerializer(System.Text.Json.JsonSerializerOptions? options = null, bool allowAssemblyScan = false) -> void
 Excalibur.Dispatch.JsonEventSerializer.ResolveType(string! typeName) -> System.Type!
 Excalibur.Dispatch.JsonEventSerializer.SerializeEvent(Excalibur.Dispatch.IDomainEvent! domainEvent) -> byte[]!
@@ -934,6 +1007,11 @@ Excalibur.Dispatch.KeyedTenantPartition
 Excalibur.Dispatch.KeyedTenantPartition.Equals(Excalibur.Dispatch.KeyedTenantPartition? other) -> bool
 Excalibur.Dispatch.KeyedTenantPartition.IsRealTenant.get -> bool
 Excalibur.Dispatch.KeyedTenantPartition.TenantId.get -> string!
+Excalibur.Dispatch.LeaseToken
+Excalibur.Dispatch.LeaseToken.LeaseToken() -> void
+Excalibur.Dispatch.LeaseToken.LeaseToken(string! Value) -> void
+Excalibur.Dispatch.LeaseToken.Value.get -> string!
+Excalibur.Dispatch.LeaseToken.Value.init -> void
 Excalibur.Dispatch.MessageContextExtensions
 Excalibur.Dispatch.MessageContextTransportExtensions
 Excalibur.Dispatch.MessageEnvelope
@@ -1035,18 +1113,19 @@ Excalibur.Dispatch.MessageFailureKind
 Excalibur.Dispatch.MessageFailureKind.Permanent = 1 -> Excalibur.Dispatch.MessageFailureKind
 Excalibur.Dispatch.MessageFailureKind.Poison = 2 -> Excalibur.Dispatch.MessageFailureKind
 Excalibur.Dispatch.MessageFailureKind.Transient = 0 -> Excalibur.Dispatch.MessageFailureKind
-Excalibur.Dispatch.MessageHandle<TMessage>
-Excalibur.Dispatch.MessageHandle<TMessage>.Dispose() -> void
-Excalibur.Dispatch.MessageHandle<TMessage>.Equals(Excalibur.Dispatch.MessageHandle<TMessage!> other) -> bool
-Excalibur.Dispatch.MessageHandle<TMessage>.Message.get -> TMessage!
-Excalibur.Dispatch.MessageHandle<TMessage>.MessageHandle() -> void
-Excalibur.Dispatch.MessageHandle<TMessage>.MessageHandle(Excalibur.Dispatch.IMessagePool! pool, TMessage! message) -> void
 Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.MessageKinds.Action = 1 -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.MessageKinds.All = Excalibur.Dispatch.MessageKinds.Action | Excalibur.Dispatch.MessageKinds.Event | Excalibur.Dispatch.MessageKinds.Document -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.MessageKinds.Document = 4 -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.MessageKinds.Event = 2 -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.MessageKinds.None = 0 -> Excalibur.Dispatch.MessageKinds
+Excalibur.Dispatch.MessageNameAliasAttribute
+Excalibur.Dispatch.MessageNameAliasAttribute.MessageNameAliasAttribute(string! name) -> void
+Excalibur.Dispatch.MessageNameAliasAttribute.Name.get -> string!
+Excalibur.Dispatch.MessageNameAttribute
+Excalibur.Dispatch.MessageNameAttribute.MessageNameAttribute(string! name) -> void
+Excalibur.Dispatch.MessageNameAttribute.Name.get -> string!
+Excalibur.Dispatch.MessageNameHelper
 Excalibur.Dispatch.MessageProblemDetails
 Excalibur.Dispatch.MessageProblemDetails.Detail.get -> string!
 Excalibur.Dispatch.MessageProblemDetails.Detail.set -> void
@@ -1288,6 +1367,14 @@ Excalibur.Dispatch.MiddlewareEntry.MiddlewareEntry() -> void
 Excalibur.Dispatch.MiddlewareEntry.MiddlewareEntry(System.Type! MiddlewareType, Excalibur.Dispatch.MiddlewareCriticality Criticality = Excalibur.Dispatch.MiddlewareCriticality.Required) -> void
 Excalibur.Dispatch.MiddlewareEntry.MiddlewareType.get -> System.Type!
 Excalibur.Dispatch.MiddlewareEntry.MiddlewareType.init -> void
+Excalibur.Dispatch.NamedEvent
+Excalibur.Dispatch.NamedEvent.Event.get -> Excalibur.Dispatch.IDomainEvent!
+Excalibur.Dispatch.NamedEvent.Event.init -> void
+Excalibur.Dispatch.NamedEvent.EventTypeName.get -> string!
+Excalibur.Dispatch.NamedEvent.EventTypeName.init -> void
+Excalibur.Dispatch.NamedEvent.NamedEvent() -> void
+Excalibur.Dispatch.NamedEvent.NamedEvent(Excalibur.Dispatch.IDomainEvent! Event, string! EventTypeName) -> void
+Excalibur.Dispatch.NamedEventExtensions
 Excalibur.Dispatch.OperationComplexity
 Excalibur.Dispatch.OperationComplexity.Complex = 2 -> Excalibur.Dispatch.OperationComplexity
 Excalibur.Dispatch.OperationComplexity.Heavy = 3 -> Excalibur.Dispatch.OperationComplexity
@@ -1515,6 +1602,10 @@ Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenExce
 Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitName.get -> string?
 Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.get -> System.TimeSpan?
 Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.init -> void
+Excalibur.Dispatch.Resilience.CircuitState
+Excalibur.Dispatch.Resilience.CircuitState.Closed = 0 -> Excalibur.Dispatch.Resilience.CircuitState
+Excalibur.Dispatch.Resilience.CircuitState.HalfOpen = 2 -> Excalibur.Dispatch.Resilience.CircuitState
+Excalibur.Dispatch.Resilience.CircuitState.Open = 1 -> Excalibur.Dispatch.Resilience.CircuitState
 Excalibur.Dispatch.Routing.IDispatchRouter
 Excalibur.Dispatch.Routing.IDispatchRouter.CanRouteTo(Excalibur.Dispatch.IDispatchMessage! message, string! destination) -> bool
 Excalibur.Dispatch.Routing.IDispatchRouter.GetAvailableRoutes(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Routing.RouteInfo!>!
@@ -1596,6 +1687,7 @@ Excalibur.Dispatch.Serialization.IBinaryEnvelopeDeserializer.DeserializeInboxEnv
 Excalibur.Dispatch.Serialization.IBinaryEnvelopeDeserializer.DeserializeOutboxEnvelope(System.ReadOnlySpan<byte> data) -> Excalibur.Dispatch.Serialization.EnvelopeData?
 Excalibur.Dispatch.Serialization.IPayloadSerializer
 Excalibur.Dispatch.Serialization.IPayloadSerializer.Deserialize<T>(byte[]! data) -> T
+Excalibur.Dispatch.Serialization.IPayloadSerializer.DeserializeObject(byte[]! data, System.Type! type) -> object!
 Excalibur.Dispatch.Serialization.IPayloadSerializer.GetCurrentSerializerId() -> byte
 Excalibur.Dispatch.Serialization.IPayloadSerializer.GetCurrentSerializerName() -> string!
 Excalibur.Dispatch.Serialization.IPayloadSerializer.Serialize<T>(T value) -> byte[]!
@@ -1727,6 +1819,7 @@ Excalibur.Dispatch.Streaming.Chunk<T>.IsLast.get -> bool
 Excalibur.Dispatch.Streaming.Chunk<T>.IsLast.init -> void
 Excalibur.Dispatch.Streaming.Chunk<T>.IsMiddle.get -> bool
 Excalibur.Dispatch.Streaming.Chunk<T>.IsSingle.get -> bool
+Excalibur.Dispatch.Streaming.ChunkExtensions
 Excalibur.Dispatch.Streaming.StreamingDocument
 Excalibur.Dispatch.Streaming.StreamingDocument.CorrelationId.get -> string?
 Excalibur.Dispatch.Streaming.StreamingDocument.CorrelationId.init -> void
@@ -2136,6 +2229,7 @@ Excalibur.Dispatch.Transport.TransportHealthStatus
 Excalibur.Dispatch.Transport.TransportHealthStatus.Degraded = 1 -> Excalibur.Dispatch.Transport.TransportHealthStatus
 Excalibur.Dispatch.Transport.TransportHealthStatus.Healthy = 0 -> Excalibur.Dispatch.Transport.TransportHealthStatus
 Excalibur.Dispatch.Transport.TransportHealthStatus.Unhealthy = 2 -> Excalibur.Dispatch.Transport.TransportHealthStatus
+Excalibur.Dispatch.Transport.TransportHealthStatus.Unknown = 3 -> Excalibur.Dispatch.Transport.TransportHealthStatus
 Excalibur.Dispatch.Transport.TransportMeter
 Excalibur.Dispatch.TransportDeliveryStatistics
 Excalibur.Dispatch.TransportDeliveryStatistics.FailedCount.get -> int
@@ -2203,9 +2297,12 @@ Excalibur.Dispatch.Validation.ValidationSeverity.Critical = 3 -> Excalibur.Dispa
 Excalibur.Dispatch.Validation.ValidationSeverity.Error = 2 -> Excalibur.Dispatch.Validation.ValidationSeverity
 Excalibur.Dispatch.Validation.ValidationSeverity.Info = 0 -> Excalibur.Dispatch.Validation.ValidationSeverity
 Excalibur.Dispatch.Validation.ValidationSeverity.Warning = 1 -> Excalibur.Dispatch.Validation.ValidationSeverity
+Microsoft.Extensions.DependencyInjection.AotEventSerializerServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.DefaultTenantContextServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventTypeRegistrationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.IStartupPrerequisiteValidator
 Microsoft.Extensions.DependencyInjection.IStartupPrerequisiteValidator.Validate() -> void
+Microsoft.Extensions.DependencyInjection.KeyedStoreServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceDescriptorExtensions
 Microsoft.Extensions.DependencyInjection.StartupValidationServiceProviderExtensions
 Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions
@@ -2600,6 +2697,7 @@ const Excalibur.Dispatch.Serialization.SerializerIds.MessagePack = 3 -> byte
 const Excalibur.Dispatch.Serialization.SerializerIds.Protobuf = 4 -> byte
 const Excalibur.Dispatch.Serialization.SerializerIds.SystemTextJson = 2 -> byte
 const Excalibur.Dispatch.Serialization.SerializerIds.Unknown = 255 -> byte
+const Excalibur.Dispatch.TenantId.MaxLength = 64 -> int
 const Excalibur.Dispatch.TimePolicyOptions.SectionName = "Dispatch:TimePolicy" -> string!
 const Excalibur.Dispatch.Transport.TransportMeter.MeterName = "Excalibur.Dispatch.Transport" -> string!
 const Excalibur.Dispatch.Transport.TransportMeter.MeterVersion = "1.0.0" -> string!
@@ -2618,8 +2716,7 @@ override Excalibur.Dispatch.Diagnostics.ValueStopwatch.ToString() -> string!
 override Excalibur.Dispatch.InboxEntry.ToString() -> string!
 override Excalibur.Dispatch.KeyedTenantPartition.Equals(object? obj) -> bool
 override Excalibur.Dispatch.KeyedTenantPartition.GetHashCode() -> int
-override Excalibur.Dispatch.MessageHandle<TMessage>.Equals(object? obj) -> bool
-override Excalibur.Dispatch.MessageHandle<TMessage>.GetHashCode() -> int
+override Excalibur.Dispatch.LeaseToken.ToString() -> string!
 override Excalibur.Dispatch.OutboundMessage.ToString() -> string!
 override Excalibur.Dispatch.OutboundMessageTransport.ToString() -> string!
 override Excalibur.Dispatch.OutboxStatistics.ToString() -> string!
@@ -2668,7 +2765,8 @@ static Excalibur.Dispatch.Diagnostics.ValueStopwatch.operator >(Excalibur.Dispat
 static Excalibur.Dispatch.Diagnostics.ValueStopwatch.operator >=(Excalibur.Dispatch.Diagnostics.ValueStopwatch left, Excalibur.Dispatch.Diagnostics.ValueStopwatch right) -> bool
 static Excalibur.Dispatch.EventSerializationDefaults.Canonical.get -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions() -> System.Text.Json.JsonSerializerOptions!
-static Excalibur.Dispatch.EventTypeNameHelper.GetEventTypeName(System.Type! type) -> string!
+static Excalibur.Dispatch.EventSerializationDefaults.SerializeMetadataWithResolver(System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Text.Json.JsonSerializerOptions! jsonOptions) -> byte[]!
+static Excalibur.Dispatch.EventSerializationDefaults.TryApplyTypeInfoResolver(System.Text.Json.JsonSerializerOptions! jsonOptions, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? resolver) -> bool
 static Excalibur.Dispatch.Features.MessageContextFeatureExtensions.CreateChildContext(this Excalibur.Dispatch.IMessageContext! context, System.IServiceProvider? requestServices = null) -> Excalibur.Dispatch.IMessageContext!
 static Excalibur.Dispatch.Features.MessageContextFeatureExtensions.GetDeliveryCount(this Excalibur.Dispatch.IMessageContext! context) -> int
 static Excalibur.Dispatch.Features.MessageContextFeatureExtensions.GetExternalId(this Excalibur.Dispatch.IMessageContext! context) -> string?
@@ -2718,6 +2816,7 @@ static Excalibur.Dispatch.KeyedTenantPartition.FromContext(Excalibur.Dispatch.IT
 static Excalibur.Dispatch.KeyedTenantPartition.FromScope(Excalibur.Dispatch.TenantScope scope) -> Excalibur.Dispatch.KeyedTenantPartition!
 static Excalibur.Dispatch.KeyedTenantPartition.FromStoredValue(string? storedValue) -> Excalibur.Dispatch.KeyedTenantPartition!
 static Excalibur.Dispatch.KeyedTenantPartition.Scoped(string? tenantId) -> Excalibur.Dispatch.KeyedTenantPartition!
+static Excalibur.Dispatch.KeyedTenantPartition.ToSignedTenantId(string? storedValue) -> string?
 static Excalibur.Dispatch.KeyedTenantPartition.Untenanted.get -> Excalibur.Dispatch.KeyedTenantPartition!
 static Excalibur.Dispatch.MessageContextExtensions.AuthorizationResult(this Excalibur.Dispatch.IMessageContext! context) -> object?
 static Excalibur.Dispatch.MessageContextExtensions.AuthorizationResult(this Excalibur.Dispatch.IMessageContext! context, object? value) -> void
@@ -2767,8 +2866,8 @@ static Excalibur.Dispatch.MessageContextTransportExtensions.GetHeaders(this Exca
 static Excalibur.Dispatch.MessageContextTransportExtensions.GetScheduledDeliveryTime(this Excalibur.Dispatch.IMessageContext! context) -> System.DateTimeOffset?
 static Excalibur.Dispatch.MessageContextTransportExtensions.GetTimeToLive(this Excalibur.Dispatch.IMessageContext! context) -> System.TimeSpan?
 static Excalibur.Dispatch.MessageContextTransportExtensions.GetTraceContext(this Excalibur.Dispatch.IMessageContext! context) -> object?
-static Excalibur.Dispatch.MessageHandle<TMessage>.operator !=(Excalibur.Dispatch.MessageHandle<TMessage!> left, Excalibur.Dispatch.MessageHandle<TMessage!> right) -> bool
-static Excalibur.Dispatch.MessageHandle<TMessage>.operator ==(Excalibur.Dispatch.MessageHandle<TMessage!> left, Excalibur.Dispatch.MessageHandle<TMessage!> right) -> bool
+static Excalibur.Dispatch.MessageNameHelper.GetDeclaredName(System.Type! type) -> string?
+static Excalibur.Dispatch.MessageNameHelper.GetName(System.Type! type) -> string!
 static Excalibur.Dispatch.MessageProblemDetails.AuthorizationError(string! detail) -> Excalibur.Dispatch.IMessageProblemDetails!
 static Excalibur.Dispatch.MessageProblemDetails.InternalError(string! detail) -> Excalibur.Dispatch.IMessageProblemDetails!
 static Excalibur.Dispatch.MessageProblemDetails.NotFound(string! detail) -> Excalibur.Dispatch.IMessageProblemDetails!
@@ -2908,6 +3007,7 @@ static Excalibur.Dispatch.MetadataVersioningExtensions.GetContentEncoding(this E
 static Excalibur.Dispatch.MetadataVersioningExtensions.GetContractVersion(this Excalibur.Dispatch.IMessageMetadata! metadata) -> string!
 static Excalibur.Dispatch.MetadataVersioningExtensions.GetMessageVersion(this Excalibur.Dispatch.IMessageMetadata! metadata) -> string!
 static Excalibur.Dispatch.MetadataVersioningExtensions.GetSerializerVersion(this Excalibur.Dispatch.IMessageMetadata! metadata) -> string!
+static Excalibur.Dispatch.NamedEventExtensions.AsNamedEvents(this System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.NamedEvent>!
 static Excalibur.Dispatch.OrderingContextExtensions.SetOrderingSequence(this Excalibur.Dispatch.IMessageContext! context, long sequence, string? orderingKey = null) -> void
 static Excalibur.Dispatch.OrderingContextExtensions.TryGetOrderingSequence(this Excalibur.Dispatch.IMessageContext! context, out long sequence, out string! orderingKey) -> bool
 static Excalibur.Dispatch.OutboundMessage.FromContext(string! messageType, byte[]! payload, string! destination, Excalibur.Dispatch.IMessageContext! context, System.Collections.Generic.IDictionary<string!, object!>? headers = null) -> Excalibur.Dispatch.OutboundMessage!
@@ -2953,6 +3053,9 @@ static Excalibur.Dispatch.Serialization.SerializerRegistryExtensions.GetByName(t
 static Excalibur.Dispatch.Serialization.SerializerRegistryExtensions.IsRegistered(this Excalibur.Dispatch.Serialization.ISerializerRegistry! registry, byte id) -> bool
 static Excalibur.Dispatch.Serialization.SerializerRegistryExtensions.IsRegistered(this Excalibur.Dispatch.Serialization.ISerializerRegistry! registry, string! name) -> bool
 static Excalibur.Dispatch.SqlInboxTransactionScopeExtensions.AsSqlTransaction(this Excalibur.Dispatch.IInboxTransactionScope! scope) -> System.Data.IDbTransaction!
+static Excalibur.Dispatch.Streaming.ChunkExtensions.AsSingleChunk<T>(this T data) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Streaming.Chunk<T>>!
+static Excalibur.Dispatch.Streaming.ChunkExtensions.WithChunkInfo<T>(this System.Collections.Generic.IAsyncEnumerable<T>! source) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Streaming.Chunk<T>>!
+static Excalibur.Dispatch.Streaming.ChunkExtensions.WithChunkInfo<T>(this System.Collections.Generic.IAsyncEnumerable<T>! source, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Streaming.Chunk<T>>!
 static Excalibur.Dispatch.TenantId.FromString(string! value) -> Excalibur.Dispatch.TenantId!
 static Excalibur.Dispatch.TenantScope.FromContext(Excalibur.Dispatch.ITenantContext! tenantContext) -> Excalibur.Dispatch.TenantScope
 static Excalibur.Dispatch.TenantScope.Scoped(string? tenantId) -> Excalibur.Dispatch.TenantScope
@@ -2998,15 +3101,20 @@ static Excalibur.Dispatch.Validation.ValidationResult.Failure(params string![]! 
 static Excalibur.Dispatch.Validation.ValidationResult.FailureWithWarnings(Excalibur.Dispatch.Validation.ValidationError![]! errors, string![]! warnings) -> Excalibur.Dispatch.Validation.ValidationResult!
 static Excalibur.Dispatch.Validation.ValidationResult.Success() -> Excalibur.Dispatch.Validation.ValidationResult!
 static Excalibur.Dispatch.Validation.ValidationResult.SuccessWithWarnings(params string![]! warnings) -> Excalibur.Dispatch.Validation.ValidationResult!
+static Microsoft.Extensions.DependencyInjection.AotEventSerializerServiceCollectionExtensions.AddAotEventSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Text.Json.Serialization.JsonSerializerContext! jsonContext) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DefaultTenantContextServiceCollectionExtensions.AddDefaultTenantContext(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EventTypeRegistrationServiceCollectionExtensions.AddEventTypeAlias(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! storedTypeName, System.Type! eventType) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventTypeRegistrationServiceCollectionExtensions.AddEventTypes(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Type![]! eventTypes) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventTypeRegistrationServiceCollectionExtensions.AddEventTypes<TEvent>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventTypeRegistrationServiceCollectionExtensions.AddEventTypesFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.KeyedStoreServiceCollectionExtensions.DecorateKeyedStores<TService>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<TService!, System.IServiceProvider!, TService!>! decoratorFactory, System.Collections.Generic.IReadOnlyCollection<object!>? reservedKeys = null) -> bool
 static Microsoft.Extensions.DependencyInjection.ServiceDescriptorExtensions.GetImplementationFactory(this Microsoft.Extensions.DependencyInjection.ServiceDescriptor! descriptor) -> System.Func<System.IServiceProvider!, object!>?
 static Microsoft.Extensions.DependencyInjection.ServiceDescriptorExtensions.GetImplementationInstance(this Microsoft.Extensions.DependencyInjection.ServiceDescriptor! descriptor) -> object?
 static Microsoft.Extensions.DependencyInjection.ServiceDescriptorExtensions.GetImplementationType(this Microsoft.Extensions.DependencyInjection.ServiceDescriptor! descriptor) -> System.Type?
 static Microsoft.Extensions.DependencyInjection.StartupValidationServiceProviderExtensions.ValidateStartupGates(this System.IServiceProvider! provider) -> System.IServiceProvider!
 static Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions.AddTenantAwareStore<TContract, TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions.AddTenantAwareStore<TContract, TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, TStore!>! storeFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions.AddTenantScopedProjectionStore<TService, TStore, TCapabilityFamily>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, TStore!>! storeFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Dispatch.Telemetry.NullTelemetrySanitizer.Instance -> Excalibur.Dispatch.Telemetry.NullTelemetrySanitizer!
 static readonly Excalibur.Dispatch.TenantDefaults.DefaultTenantId -> string!
 static readonly Excalibur.Dispatch.TenantScope.UntenantedSentinel -> string!
@@ -3021,7 +3129,6 @@ virtual Excalibur.Dispatch.DomainEvent.CorrelationId.get -> string?
 virtual Excalibur.Dispatch.DomainEvent.CorrelationId.init -> void
 virtual Excalibur.Dispatch.DomainEvent.EventId.get -> string!
 virtual Excalibur.Dispatch.DomainEvent.EventId.init -> void
-virtual Excalibur.Dispatch.DomainEvent.EventType.get -> string!
 virtual Excalibur.Dispatch.DomainEvent.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 virtual Excalibur.Dispatch.DomainEvent.Metadata.init -> void
 virtual Excalibur.Dispatch.DomainEvent.OccurredAt.get -> System.DateTimeOffset
@@ -3034,108 +3141,3 @@ virtual Excalibur.Dispatch.OutboxStoreDecorator.GetUnsentMessagesAsync(int batch
 virtual Excalibur.Dispatch.OutboxStoreDecorator.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Dispatch.OutboxStoreDecorator.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Dispatch.OutboxStoreDecorator.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.AotJsonEventSerializer
-Excalibur.Dispatch.AotJsonEventSerializer.AotJsonEventSerializer(System.Text.Json.Serialization.JsonSerializerContext! jsonContext, params System.Type![]! eventTypes) -> void
-Excalibur.Dispatch.AotJsonEventSerializer.DeserializeEvent(byte[]! data, System.Type! eventType) -> Excalibur.Dispatch.IDomainEvent!
-Excalibur.Dispatch.AotJsonEventSerializer.GetTypeName(System.Type! type) -> string!
-Excalibur.Dispatch.AotJsonEventSerializer.ResolveType(string! typeName) -> System.Type!
-Excalibur.Dispatch.AotJsonEventSerializer.SerializeEvent(Excalibur.Dispatch.IDomainEvent! domainEvent) -> byte[]!
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.CorrelationId.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.CorrelationId.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.DeadLetterFilter() -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.FromDate.get -> System.DateTimeOffset?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.FromDate.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.IsReplayed.get -> bool?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.IsReplayed.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MaxResults.get -> int
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MaxResults.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MessageType.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.MessageType.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Reason.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Reason.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Skip.get -> int
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.Skip.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.SourceSystem.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.SourceSystem.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.ToDate.get -> System.DateTimeOffset?
-Excalibur.Dispatch.ErrorHandling.DeadLetterFilter.ToDate.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.CorrelationId.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.CorrelationId.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.DeadLetterMessage() -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ExceptionDetails.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ExceptionDetails.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.FirstAttemptAt.get -> System.DateTimeOffset?
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.FirstAttemptAt.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Id.get -> string!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Id.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.IsReplayed.get -> bool
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.IsReplayed.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.LastAttemptAt.get -> System.DateTimeOffset?
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.LastAttemptAt.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageBody.get -> string!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageBody.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageId.get -> string!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageId.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageMetadata.get -> string!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageMetadata.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageType.get -> string!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MessageType.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MovedToDeadLetterAt.get -> System.DateTimeOffset
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.MovedToDeadLetterAt.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ProcessingAttempts.get -> int
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ProcessingAttempts.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Properties.get -> System.Collections.Generic.Dictionary<string!, string!>!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Properties.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Reason.get -> string!
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.Reason.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ReplayedAt.get -> System.DateTimeOffset?
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.ReplayedAt.set -> void
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.SourceSystem.get -> string?
-Excalibur.Dispatch.ErrorHandling.DeadLetterMessage.SourceSystem.set -> void
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStore
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.DeleteAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.GetByIdAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ErrorHandling.DeadLetterMessage?>!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.GetMessagesAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterFilter! filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.ErrorHandling.DeadLetterMessage!>!>!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStoreAdmin
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStoreAdmin.CleanupOldMessagesAsync(int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterStoreAdmin.GetCountAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Excalibur.Dispatch.ILeasedInboxStore
-Excalibur.Dispatch.IInboxStoreCapabilities.SupportsLeasedClaim.get -> bool
-Excalibur.Dispatch.IInboxStoreCapabilities.SupportsBackoffScheduling.get -> bool
-Excalibur.Dispatch.ILeasedInboxStore.TryAcquireLeaseAsync(string! messageId, string! handlerType, System.TimeSpan leaseDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.LeaseToken?>
-Excalibur.Dispatch.ILeasedInboxStore.CompleteAsync(string! messageId, string! handlerType, Excalibur.Dispatch.LeaseToken lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-Excalibur.Dispatch.ILeasedInboxStore.FailAsync(string! messageId, string! handlerType, Excalibur.Dispatch.LeaseToken lease, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-Excalibur.Dispatch.LeaseToken
-Excalibur.Dispatch.LeaseToken.LeaseToken() -> void
-Excalibur.Dispatch.LeaseToken.LeaseToken(string! Value) -> void
-Excalibur.Dispatch.LeaseToken.Value.get -> string!
-Excalibur.Dispatch.LeaseToken.Value.init -> void
-Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Dispatch.Resilience.CircuitState.Closed = 0 -> Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Dispatch.Resilience.CircuitState.HalfOpen = 2 -> Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Dispatch.Resilience.CircuitState.Open = 1 -> Excalibur.Dispatch.Resilience.CircuitState
-override Excalibur.Dispatch.LeaseToken.ToString() -> string!
-Excalibur.Dispatch.Transport.TransportHealthStatus.Unknown = 3 -> Excalibur.Dispatch.Transport.TransportHealthStatus
-Microsoft.Extensions.DependencyInjection.AotEventSerializerServiceCollectionExtensions
-const Excalibur.Dispatch.TenantId.MaxLength = 64 -> int
-static Excalibur.Dispatch.EventSerializationDefaults.SerializeMetadataWithResolver(System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Text.Json.JsonSerializerOptions! jsonOptions) -> byte[]!
-static Excalibur.Dispatch.EventSerializationDefaults.TryApplyTypeInfoResolver(System.Text.Json.JsonSerializerOptions! jsonOptions, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? resolver) -> bool
-static Excalibur.Dispatch.KeyedTenantPartition.ToSignedTenantId(string? storedValue) -> string?
-static Microsoft.Extensions.DependencyInjection.AotEventSerializerServiceCollectionExtensions.AddAotEventSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Text.Json.Serialization.JsonSerializerContext! jsonContext) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Dispatch.IClaimableDeduplicator.ReleaseAsync(string! messageId, Excalibur.Dispatch.LeaseToken claim, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.IClaimableDeduplicator.TryClaimAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.LeaseToken?>!
-Excalibur.Dispatch.IInboxStoreAdmin.GetAllTenantsFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.InboxEntry!>!>
-Excalibur.Dispatch.Serialization.IPayloadSerializer.DeserializeObject(byte[]! data, System.Type! type) -> object!
-static Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions.AddTenantScopedProjectionStore<TService, TStore, TCapabilityFamily>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, TStore!>! storeFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Dispatch.Diagnostics.TagCardinalityGuard
-Excalibur.Dispatch.Diagnostics.TagCardinalityGuard.Guard(string? tagValue) -> string!
-Excalibur.Dispatch.Diagnostics.TagCardinalityGuard.TagCardinalityGuard(int maxCardinality = 100, string! overflowValue = "__other__") -> void
-Excalibur.Dispatch.IInboxStoreCapabilities.SupportsScopedTransactional.get -> bool
-Microsoft.Extensions.DependencyInjection.DefaultTenantContextServiceCollectionExtensions
-Microsoft.Extensions.DependencyInjection.KeyedStoreServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.DefaultTenantContextServiceCollectionExtensions.AddDefaultTenantContext(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.KeyedStoreServiceCollectionExtensions.DecorateKeyedStores<TService>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<TService!, System.IServiceProvider!, TService!>! decoratorFactory, System.Collections.Generic.IReadOnlyCollection<object!>? reservedKeys = null) -> bool

@@ -27,7 +27,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	private readonly ActivitySource _activitySource;
 	private readonly TelemetryEventStore _sut;
 	private readonly ActivityListener _listener;
-	private readonly List<Activity> _capturedActivities = [];
+	private readonly ConcurrentQueue<Activity> _capturedActivities = new();
 	private readonly MeterListener _meterListener;
 	// ConcurrentBag, not List: a MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT.
 	// List<T>.Add resizes with a Count-then-Array.Copy that a concurrent append invalidates, surfacing as
@@ -50,7 +50,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 		{
 			ShouldListenTo = source => source.Name == _activitySource.Name,
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-			ActivityStarted = activity => _capturedActivities.Add(activity)
+			ActivityStarted = activity => _capturedActivities.Enqueue(activity)
 		};
 		ActivitySource.AddActivityListener(_listener);
 
@@ -80,10 +80,6 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	{
 		_meterListener.Dispose();
 		_listener.Dispose();
-		foreach (var activity in _capturedActivities)
-		{
-			activity.Dispose();
-		}
 		_activitySource.Dispose();
 		_meter.Dispose();
 	}

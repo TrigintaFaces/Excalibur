@@ -142,8 +142,6 @@ namespace Excalibur.Dispatch {
         internal static string TransportAdapterRouter_RoutingFailureDetail { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureDetail", resourceCulture); } }
         internal static string TransportAdapterRouter_RoutingFailureTitle { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureTitle", resourceCulture); } }
         internal static string TransportAdapterRouter_RoutingFailureType { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureType", resourceCulture); } }
-        internal static string MessageBufferPool_MinimumLengthNonNegative { get { return ResourceManager.GetString("MessageBufferPool_MinimumLengthNonNegative", resourceCulture); } }
-        internal static string MessageBufferPool_RequestExceedsMaxArrayLength { get { return ResourceManager.GetString("MessageBufferPool_RequestExceedsMaxArrayLength", resourceCulture); } }
         internal static string PooledBufferWriter_CannotAdvancePastEnd { get { return ResourceManager.GetString("PooledBufferWriter_CannotAdvancePastEnd", resourceCulture); } }
         internal static string InMemoryTransportAdapter_NotRunning { get { return ResourceManager.GetString("InMemoryTransportAdapter_NotRunning", resourceCulture); } }
         internal static string TenantIdentityMiddleware_NoTenantIdentifierFound { get { return ResourceManager.GetString("TenantIdentityMiddleware_NoTenantIdentifierFound", resourceCulture); } }
@@ -176,17 +174,17 @@ namespace Excalibur.Dispatch {
         internal static string Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32 { get { return ResourceManager.GetString("Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32", resourceCulture); } }
         internal static string Utf8JsonWriterPool_CountMustBeGreaterThanZero { get { return ResourceManager.GetString("Utf8JsonWriterPool_CountMustBeGreaterThanZero", resourceCulture); } }
         internal static string ExponentialBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("ExponentialBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
-        internal static string ExponentialBackoffCalculator_BaseDelayMustBePositive { get { return ResourceManager.GetString("ExponentialBackoffCalculator_BaseDelayMustBePositive", resourceCulture); } }
-        internal static string ExponentialBackoffCalculator_MaxDelayMustBePositive { get { return ResourceManager.GetString("ExponentialBackoffCalculator_MaxDelayMustBePositive", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_BaseDelayCannotBeNegative { get { return ResourceManager.GetString("ExponentialBackoffCalculator_BaseDelayCannotBeNegative", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_MaxDelayCannotBeNegative { get { return ResourceManager.GetString("ExponentialBackoffCalculator_MaxDelayCannotBeNegative", resourceCulture); } }
         internal static string ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne { get { return ResourceManager.GetString("ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne", resourceCulture); } }
         internal static string ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne { get { return ResourceManager.GetString("ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture); } }
-        internal static string LinearBackoffCalculator_MaxDelayMustBePositive { get { return ResourceManager.GetString("LinearBackoffCalculator_MaxDelayMustBePositive", resourceCulture); } }
+        internal static string LinearBackoffCalculator_MaxDelayCannotBeNegative { get { return ResourceManager.GetString("LinearBackoffCalculator_MaxDelayCannotBeNegative", resourceCulture); } }
         internal static string LinearBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("LinearBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
-        internal static string LinearBackoffCalculator_BaseDelayMustBePositive { get { return ResourceManager.GetString("LinearBackoffCalculator_BaseDelayMustBePositive", resourceCulture); } }
+        internal static string LinearBackoffCalculator_BaseDelayCannotBeNegative { get { return ResourceManager.GetString("LinearBackoffCalculator_BaseDelayCannotBeNegative", resourceCulture); } }
         internal static string FixedBackoffCalculator_DelayCannotBeNegative { get { return ResourceManager.GetString("FixedBackoffCalculator_DelayCannotBeNegative", resourceCulture); } }
         internal static string FixedBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("FixedBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
-        internal static string FibonacciBackoffCalculator_BaseDelayMustBePositive { get { return ResourceManager.GetString("FibonacciBackoffCalculator_BaseDelayMustBePositive", resourceCulture); } }
-        internal static string FibonacciBackoffCalculator_MaxDelayMustBePositive { get { return ResourceManager.GetString("FibonacciBackoffCalculator_MaxDelayMustBePositive", resourceCulture); } }
+        internal static string FibonacciBackoffCalculator_BaseDelayCannotBeNegative { get { return ResourceManager.GetString("FibonacciBackoffCalculator_BaseDelayCannotBeNegative", resourceCulture); } }
+        internal static string FibonacciBackoffCalculator_MaxDelayCannotBeNegative { get { return ResourceManager.GetString("FibonacciBackoffCalculator_MaxDelayCannotBeNegative", resourceCulture); } }
         internal static string FibonacciBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("FibonacciBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
         internal static string JitteredBackoffCalculator_InnerCalculatorRequired { get { return ResourceManager.GetString("JitteredBackoffCalculator_InnerCalculatorRequired", resourceCulture); } }
         internal static string JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne { get { return ResourceManager.GetString("JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture); } }

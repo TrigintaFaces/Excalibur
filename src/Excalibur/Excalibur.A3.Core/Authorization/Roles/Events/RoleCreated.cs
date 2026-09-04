@@ -8,6 +8,7 @@ namespace Excalibur.A3.Authorization.Roles.Events;
 /// <summary>
 /// Raised when a new role is created.
 /// </summary>
+[MessageName("Excalibur.A3.RoleCreated")]
 internal sealed class RoleCreated : IDomainEvent
 {
 	public required string RoleId { get; init; }
@@ -21,6 +22,5 @@ internal sealed class RoleCreated : IDomainEvent
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType => nameof(RoleCreated);
 	public IDictionary<string, object>? Metadata { get; init; }
 }

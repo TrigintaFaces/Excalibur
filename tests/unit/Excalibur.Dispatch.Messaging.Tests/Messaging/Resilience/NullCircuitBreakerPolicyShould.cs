@@ -71,19 +71,6 @@ public sealed class NullCircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void NotThrowOnRecordSuccess()
-	{
-		Should.NotThrow(() => NullCircuitBreakerPolicy.Instance.RecordSuccess());
-	}
-
-	[Fact]
-	public void NotThrowOnRecordFailure()
-	{
-		Should.NotThrow(() => NullCircuitBreakerPolicy.Instance.RecordFailure());
-		Should.NotThrow(() => NullCircuitBreakerPolicy.Instance.RecordFailure(new InvalidOperationException("test")));
-	}
-
-	[Fact]
 	public void NotThrowOnReset()
 	{
 		Should.NotThrow(() => NullCircuitBreakerPolicy.Instance.Reset());
@@ -114,13 +101,13 @@ public sealed class NullCircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void RemainClosedAfterMultipleFailures()
+	public async Task RemainClosedAfterMultipleFailures()
 	{
 		var sut = NullCircuitBreakerPolicy.Instance;
 
 		for (var i = 0; i < 100; i++)
 		{
-			sut.RecordFailure(new InvalidOperationException($"failure {i}"));
+			await sut.FailAsync(new InvalidOperationException($"failure {i}"));
 		}
 
 		sut.State.ShouldBe(CircuitState.Closed);

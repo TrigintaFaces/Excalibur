@@ -28,13 +28,13 @@ internal sealed class InventoryView
 /// <summary>
 /// Concrete test event for order placed.
 /// </summary>
+[MessageName("Test.TestOrderPlaced")]
 public sealed class TestOrderPlaced : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = "order-1";
 	public long Version { get; init; } = 1;
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(TestOrderPlaced);
 	public IDictionary<string, object>? Metadata { get; init; }
 	public decimal Amount { get; init; } = 99.99m;
 }
@@ -42,13 +42,13 @@ public sealed class TestOrderPlaced : IDomainEvent
 /// <summary>
 /// Concrete test event for order shipped.
 /// </summary>
+[MessageName("Test.TestFixtures.TestOrderShipped")]
 public sealed class TestOrderShipped : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = "order-1";
 	public long Version { get; init; } = 2;
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(TestOrderShipped);
 	public IDictionary<string, object>? Metadata { get; init; }
 	public DateTimeOffset ShippedAt { get; init; } = DateTimeOffset.UtcNow;
 }
@@ -103,13 +103,13 @@ internal sealed class InMemoryProjectionStore<T> : IProjectionStore<T>
 /// <summary>
 /// Test event for order cancelled (used in handler resolution tests).
 /// </summary>
+[MessageName("Test.TestOrderCancelled")]
 public sealed class TestOrderCancelled : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = "order-1";
 	public long Version { get; init; } = 3;
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(TestOrderCancelled);
 	public IDictionary<string, object>? Metadata { get; init; }
 	public string Reason { get; init; } = "Customer request";
 }
@@ -176,13 +176,13 @@ internal sealed class OrderCancelledWithOverrideHandler : IProjectionEventHandle
 /// <summary>
 /// Test event for order failed (used in error path testing to avoid duplicate handler conflicts).
 /// </summary>
+[MessageName("Test.TestOrderFailed")]
 public sealed class TestOrderFailed : IDomainEvent
 {
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 	public string AggregateId { get; init; } = "order-1";
 	public long Version { get; init; } = 4;
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-	public string EventType { get; init; } = nameof(TestOrderFailed);
 	public IDictionary<string, object>? Metadata { get; init; }
 	public string FailureReason { get; init; } = "Payment declined";
 }

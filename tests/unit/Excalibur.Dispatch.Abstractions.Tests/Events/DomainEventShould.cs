@@ -9,12 +9,14 @@ namespace Excalibur.Dispatch.Tests.Events;
 public sealed class DomainEventShould
 {
 	// Test implementation of abstract DomainEvent
+	[MessageName("Test.DomainEvent.TestDomainEvent")]
 	private sealed record TestDomainEvent : DomainEvent
 	{
 
 	}
 
 	// Derived record with positional params (AggregateId/Version are no longer IDomainEvent members)
+	[MessageName("Test.DomainEvent.TestOrderCreated")]
 	private sealed record TestOrderCreated(string OrderId, decimal Total) : DomainEvent;
 
 	[Fact]
@@ -227,7 +229,6 @@ public sealed class DomainEventShould
 		// Assert
 		evt.OrderId.ShouldBe("order-42");
 		evt.Total.ShouldBe(199.99m);
-		evt.EventType.ShouldBe(nameof(TestOrderCreated));
 	}
 
 	[Fact]
@@ -262,10 +263,7 @@ public sealed class DomainEventShould
 	// envelope (StoredEvent.Version -> HistoricEvent). Their DefaultVersion/DefaultAggregateId
 	// tests are deleted; the interface-contract absence is asserted by IDomainEventContractShould (K3).
 
-	[Fact]
-	public void EventType_ReturnsTypeName()
-	{
-		var evt = new TestDomainEvent();
-		evt.EventType.ShouldBe(nameof(TestDomainEvent));
-	}
+	// EventType is no longer a DomainEvent member: identity is declared per-type via
+	// [MessageName], not derived from the class name. Its default-to-type-name test is deleted;
+	// the absence is asserted by IDomainEventContractShould.NotDefine_EventType_OnTheMessagingContract.
 }

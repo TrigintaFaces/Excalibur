@@ -21,15 +21,7 @@ internal sealed class RateLimitingOptionsValidator : IValidateOptions<RateLimiti
 			failures.Add($"{nameof(options.DefaultRetryAfterMilliseconds)} must be at least 1.");
 		}
 
-		if (options.CleanupIntervalMinutes < 1)
-		{
-			failures.Add($"{nameof(options.CleanupIntervalMinutes)} must be at least 1.");
-		}
 
-		if (options.InactivityTimeoutMinutes < 1)
-		{
-			failures.Add($"{nameof(options.InactivityTimeoutMinutes)} must be at least 1.");
-		}
 
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)

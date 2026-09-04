@@ -205,7 +205,6 @@ public sealed class TenantRoutingEventStoreDiResolutionShould : IAsyncLifetime
 		Version = version,
 		EventId = Guid.NewGuid().ToString(),
 		OccurredAt = DateTimeOffset.UtcNow,
-		EventType = nameof(TestShardDiEvent),
 	};
 
 	private string GetShardConnectionString(string databaseName) =>
@@ -257,13 +256,13 @@ public sealed class TenantRoutingEventStoreDiResolutionShould : IAsyncLifetime
 		return (int)(await command.ExecuteScalarAsync().ConfigureAwait(false))!;
 	}
 
-	private sealed class TestShardDiEvent : IDomainEvent
+[MessageName("Test.TestShardDiEvent")]
+private sealed class TestShardDiEvent : IDomainEvent
 	{
 		public string EventId { get; init; } = string.Empty;
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-		public string EventType { get; init; } = nameof(TestShardDiEvent);
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 

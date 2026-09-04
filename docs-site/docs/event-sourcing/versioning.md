@@ -26,6 +26,20 @@ Events are immutable and stored forever. When business requirements change:
 - Fields may become required or optional
 - Event structures may need to split or merge
 
+## Payload Changes vs Name Changes
+
+Two different things get called "versioning", and they have different answers:
+
+- The **payload** changed shape — a field added, a type widened, one event split into two. That is
+  what this page is about: handle it with an **upcaster**.
+- The **name** changed — the type moved namespace or assembly, or you simply want to call it
+  something else. That is handled by a **`[MessageNameAlias]`**, described in
+  [Stable Message Names](domain-events.md#stable-message-names).
+
+A message's name is its permanent stored identity, so it carries **no version segment**. Putting one
+in conflates the two problems and leaves you with a fresh name for every revision — and every reader,
+filter and route that used the old one broken.
+
 ## Versioning Strategies
 
 ### Weak Schema (Recommended)
@@ -34,9 +48,11 @@ Use flexible serialization that ignores unknown properties:
 
 ```csharp
 // V1 - Original event
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent;
 
 // V2 - Added field (backward compatible)
+[MessageName("Contoso.Orders.OrderCreatedV2")]
 public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEvent;
 
 // Configure serializer to handle schema evolution
@@ -53,6 +69,7 @@ Transform old events to new schema during loading using the upcasting pipeline:
 
 ```csharp
 // V1 event (stored in database)
+[MessageName("Contoso.Orders.OrderCreatedV1")]
 public record OrderCreatedV1 : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
@@ -65,6 +82,7 @@ public record OrderCreatedV1 : DomainEvent, IVersionedMessage
 }
 
 // V2 event (current schema)
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
@@ -119,20 +137,22 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 }));
 ```
 
-Event types use the `EventType` property for serialization, which defaults to the class name. Override it in `DomainEvent`-derived records for custom type names:
+Each stored shape is a distinct type, and each type declares its own `[MessageName]` — the name its
+data was written under. Nothing is derived from the CLR type, so the upcaster knows which shape it
+read from the name alone:
 
 ```csharp
-public record OrderCreated : DomainEvent, IVersionedMessage
-{
-    // Override the virtual EventType property for custom serialization name
-    public override string EventType => "order.created.v2";
+[MessageName("Contoso.Orders.OrderCreatedV1")]
+public record OrderCreatedV1 : DomainEvent, IVersionedMessage { /* ... */ }
 
-    // IVersionedMessage implementation
-    int IVersionedMessage.Version => 2;
-    public string MessageType => "OrderCreated";
-    // ...
-}
+[MessageName("Contoso.Orders.OrderCreated")]
+public record OrderCreated : DomainEvent, IVersionedMessage { /* ... */ }
 ```
+
+Note that `IVersionedMessage.MessageType` is the *logical* message these shapes are revisions of, and
+is unrelated to the stored `[MessageName]`. If you are not changing the payload's shape but only what
+the message is called, you want an alias rather than a new type — see
+[Stable Message Names](domain-events.md#stable-message-names).
 
 ## Core Interfaces
 
@@ -177,6 +197,7 @@ public interface IMessageUpcaster<in TOld, out TNew>
 
 ```csharp
 // Safe - add optional fields with defaults
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(
     Guid OrderId,
     string CustomerId,
@@ -190,6 +211,7 @@ public record OrderCreated(
 
 ```csharp
 // Use JSON property name for backward compatibility
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(
     Guid OrderId,
     [property: JsonPropertyName("customerId")]
@@ -202,6 +224,7 @@ public record OrderCreated(
 
 ```csharp
 // V1: decimal
+[MessageName("Contoso.Orders.OrderCreatedV1")]
 public record OrderCreatedV1 : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
@@ -213,6 +236,7 @@ public record OrderCreatedV1 : DomainEvent, IVersionedMessage
 }
 
 // V2: Money value object
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
@@ -249,6 +273,7 @@ When a single event needs to become multiple events, handle this in your aggrega
 
 ```csharp
 // V1: Single event with multiple concerns
+[MessageName("Contoso.Orders.OrderProcessedV1")]
 public record OrderProcessedV1 : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
@@ -261,8 +286,10 @@ public record OrderProcessedV1 : DomainEvent, IVersionedMessage
 }
 
 // V2: Split into focused events
+[MessageName("Contoso.Orders.OrderStatusChanged")]
 public record OrderStatusChanged(Guid OrderId, string Status) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderShipped")]
 public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent;
 
 // Handle V1 events in aggregate by treating as multiple logical events
@@ -299,11 +326,14 @@ When separate events should become a single event, the aggregate handles both ol
 
 ```csharp
 // V1: Separate events
+[MessageName("Contoso.Orders.AddressChangedV1")]
 public record AddressChangedV1(Guid OrderId, Address NewAddress) : DomainEvent;
 
+[MessageName("Contoso.Orders.ContactChangedV1")]
 public record ContactChangedV1(Guid OrderId, string Email, string Phone) : DomainEvent;
 
 // V2: Combined event
+[MessageName("Contoso.Orders.CustomerDetailsUpdated")]
 public record CustomerDetailsUpdated(
     Guid OrderId,
     Address? NewAddress = null,
@@ -438,7 +468,7 @@ public class EventVersioningTests
 - Keep upgraders simple and stateless
 - Test upgraders thoroughly
 - Document breaking changes
-- Version event type names explicitly
+- Keep the `[MessageName]` stable across payload revisions; rename only via `[MessageNameAlias]`
 
 ### Don't
 
@@ -453,6 +483,7 @@ public class EventVersioningTests
 When evolving an event schema:
 
 1. [ ] Create new event type implementing `IVersionedMessage`:
+   - `[MessageName]` attribute declaring the name this shape is stored under
    - `int Version` property (increment from previous)
    - `string MessageType` property (same as previous version)
 2. [ ] Implement upcaster from previous version (`IMessageUpcaster<TOld, TNew>`):

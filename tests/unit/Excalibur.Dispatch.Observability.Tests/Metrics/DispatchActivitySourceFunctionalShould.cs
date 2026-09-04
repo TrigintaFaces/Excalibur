@@ -17,7 +17,6 @@ namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 public sealed class DispatchActivitySourceFunctionalShould : IDisposable
 {
 	private readonly ActivityListener _listener;
-	private readonly List<Activity> _capturedActivities = [];
 
 	public DispatchActivitySourceFunctionalShould()
 	{
@@ -25,7 +24,6 @@ public sealed class DispatchActivitySourceFunctionalShould : IDisposable
 		{
 			ShouldListenTo = source => source.Name.Contains("Dispatch", StringComparison.OrdinalIgnoreCase),
 			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-			ActivityStarted = activity => _capturedActivities.Add(activity),
 		};
 		ActivitySource.AddActivityListener(_listener);
 	}
@@ -33,10 +31,6 @@ public sealed class DispatchActivitySourceFunctionalShould : IDisposable
 	public void Dispose()
 	{
 		_listener.Dispose();
-		foreach (var activity in _capturedActivities)
-		{
-			activity.Dispose();
-		}
 	}
 
 	[Fact]

@@ -292,9 +292,6 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 			return new GooglePubSubMessageBus(
 				new TopicPublisherClientAdapter(client), serializer, options, logger);
 		});
-
-		// Register work distribution strategy (default: round-robin)
-		services.TryAddSingleton<IWorkDistributionStrategy, RoundRobinDistributionStrategy>();
 	}
 
 	/// <summary>

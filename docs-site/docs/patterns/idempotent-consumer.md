@@ -299,6 +299,7 @@ The middleware deduplicates on the message id. When the same logical operation m
 a fresh transport id on retry, carry the business key on the message id itself:
 
 ```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreatedEvent(Guid OrderId, string CustomerId) : IDispatchEvent
 {
     public string MessageId { get; init; } = $"order-created-{OrderId}";

@@ -57,13 +57,16 @@ flowchart LR
 
 ### 1. Define Domain Events
 
-Events extend the `DomainEvent` abstract record which provides `EventId`, `OccurredAt`, `EventType`, and `Metadata`. An event carries only its own business data; the aggregate id is passed to the event store when appending, and the stream version is store-assigned:
+Events extend the `DomainEvent` abstract record which provides `EventId`, `OccurredAt`, and `Metadata`. Each event declares the stable name it is stored and transmitted under with `[MessageName]` — see [Stable Message Names](domain-events.md#stable-message-names). An event carries only its own business data; the aggregate id is passed to the event store when appending, and the stream version is store-assigned:
 
 ```csharp
+[MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderShipped")]
 public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent;
 
+[MessageName("Contoso.Orders.OrderCancelled")]
 public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 ```
 
@@ -245,7 +248,6 @@ public interface IDomainEvent : IDispatchEvent
 {
     string EventId { get; }
     DateTimeOffset OccurredAt { get; }
-    string EventType { get; }
     IDictionary<string, object>? Metadata { get; }
     string? CorrelationId { get; }
     string? CausationId { get; }
@@ -256,12 +258,14 @@ public abstract record DomainEvent : IDomainEvent
 {
     public virtual string EventId { get; init; } = Guid.NewGuid().ToString();
     public virtual DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public virtual string EventType => GetType().Name;
     public virtual IDictionary<string, object>? Metadata { get; init; }
     public virtual string? CorrelationId { get; init; }
     public virtual string? CausationId { get; init; }
 }
 
+// The event's stored name is declared with [MessageName] on each event type —
+// nothing is derived from the CLR type. See "Stable Message Names" in Domain Events.
+//
 // The aggregate id is supplied to the event store on append/load; the stream
 // version is store-assigned and surfaced on the envelope during replay
 // (HistoricEvent.Version / StoredEvent.Version) — never read from the event itself.

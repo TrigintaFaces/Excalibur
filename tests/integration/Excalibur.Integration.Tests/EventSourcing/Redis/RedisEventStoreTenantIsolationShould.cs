@@ -10,6 +10,8 @@ using Microsoft.Extensions.Options;
 
 using StackExchange.Redis;
 
+using System.Text;
+
 namespace Excalibur.Integration.Tests.EventSourcing.Redis;
 
 /// <summary>
@@ -85,10 +87,10 @@ public sealed class RedisEventStoreTenantIsolationShould : IClassFixture<RedisCo
 		var globexEvents = await globex.LoadAsync(aggregateId, AggregateType, CancellationToken.None);
 
 		acmeEvents.Count.ShouldBe(1, "acme must see only its own event");
-		acmeEvents[0].EventType.ShouldBe("acme-1");
+		Encoding.UTF8.GetString(acmeEvents[0].EventData!).ShouldContain("acme-1");
 
 		globexEvents.Count.ShouldBe(1, "globex must see only its own event, never acme's");
-		globexEvents[0].EventType.ShouldBe("globex-1");
+		Encoding.UTF8.GetString(globexEvents[0].EventData!).ShouldContain("globex-1");
 
 		// Append a second event to each independently — proves the version counters are genuinely
 		// separate, not merely the first write.
@@ -143,22 +145,30 @@ public sealed class RedisEventStoreTenantIsolationShould : IClassFixture<RedisCo
 		return new RedisEventStore(connection, options, NullLogger<RedisEventStore>.Instance, tenantContext);
 	}
 
+	[MessageName("Test.RedisEventStoreTenantIsolation.TestDomainEvent")]
 	private sealed record TestDomainEvent : IDomainEvent
 	{
-		public TestDomainEvent(string aggregateId, string eventType)
+		public TestDomainEvent(string aggregateId, string marker)
 		{
 			EventId = Guid.NewGuid().ToString();
 			AggregateId = aggregateId;
 			Version = 0;
 			OccurredAt = DateTimeOffset.UtcNow;
-			EventType = eventType;
+			Marker = marker;
 		}
+
+		/// <summary>
+		/// Distinguishes one tenant's event from the other's. This used to ride on the event's own
+		/// EventType property; that property is gone, and the stored event-type field now holds the
+		/// type's declared name -- identical for both tenants, so it can no longer tell them apart.
+		/// The marker is payload, which is where a per-instance value belongs.
+		/// </summary>
+		public string Marker { get; init; }
 
 		public string EventId { get; init; }
 		public string AggregateId { get; init; }
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; }
-		public string EventType { get; init; }
 		public IDictionary<string, object>? Metadata => null;
 	}
 

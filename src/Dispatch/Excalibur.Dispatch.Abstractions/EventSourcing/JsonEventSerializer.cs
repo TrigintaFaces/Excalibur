@@ -58,7 +58,12 @@ public sealed class JsonEventSerializer : IEventSerializer
 	/// <param name="allowAssemblyScan">See the public constructor.</param>
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming. Use AotJsonEventSerializer for an AOT-safe path.")]
 	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
-	internal JsonEventSerializer(IEventTypeRegistry? registry, JsonSerializerOptions? options = null, bool allowAssemblyScan = false)
+	// Public because IEventTypeRegistry is public. A consumer who implements IEventStore, or who
+	// builds a serializer directly, needs a way to supply the registry that maps declared names to
+	// types -- a public contract with no public way to hand it over is not usable. Registration is
+	// also the ONLY resolution path for a declared name: the assembly scan matches CLR type names,
+	// and a declared name deliberately is not one.
+	public JsonEventSerializer(IEventTypeRegistry? registry, JsonSerializerOptions? options = null, bool allowAssemblyScan = false)
 	{
 		_options = options ?? EventSerializationDefaults.CreateCanonicalOptions();
 		_typeCache = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
@@ -125,7 +130,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 	/// <inheritdoc />
 	public string GetTypeName(Type type)
 	{
-		return EventTypeNameHelper.GetEventTypeName(type);
+		return MessageNameHelper.GetName(type);
 	}
 
 	/// <inheritdoc />

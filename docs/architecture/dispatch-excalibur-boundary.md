@@ -33,7 +33,7 @@ This document describes where capabilities belong between the two frameworks.
 | Minimal hosting bridge (ASP.NET Core) | `Excalibur.Dispatch.Hosting.AspNetCore` | N/A | Provides only endpoint/DI helpers – no OpenAPI or compliance logic. |
 | Rich hosting experiences (ASP.NET Core, Azure/AWS/GCP Functions, Web hooks) | — | `Excalibur.Hosting.*` | Ship multilingual host templates, diagnostics, OpenAPI, API versioning, etc. |
 | Aggregates, repositories, sagas | — | `Excalibur.Domain`, `Excalibur.EventSourcing.*`, `Excalibur.Saga.*` | All CQRS state management lives here. |
-| Event stores + serialization helpers | — | `Excalibur.EventSourcing.*` | Dispatch exposes serialization primitives (e.g., `IEventSerializer`, `EventTypeNameHelper`). |
+| Event stores + serialization helpers | — | `Excalibur.EventSourcing.*` | Dispatch exposes serialization primitives (e.g., `IEventSerializer`, `MessageNameHelper`). |
 | Compliance (audit logging, key escrow, masking) | Minimal hooks only | `Excalibur.Compliance.*` | Dispatch exposes interfaces; Excalibur ships providers. |
 | Leader election + coordination | — | `Excalibur.LeaderElection.*` | Dispatch samples can reference these packages, but the implementations stay in Excalibur. |
 | Samples | `samples/01-getting-started/DispatchOnly` | `samples/01-getting-started/EventSourcingIntro` | Use both to explain upgrade path. |
@@ -150,7 +150,7 @@ builder.Services
 |----------|---------------------|-------|
 | MediatR replacement / vanilla API | `Dispatch`, `Excalibur.Dispatch.Abstractions`, *(optional)* `Excalibur.Dispatch.Hosting.AspNetCore` | Keep footprint minimal; build your own persistence & hosting. |
 | Dispatch + custom transports | Above + `Excalibur.Dispatch.Transport.*` | Mix transports without pulling Excalibur. |
-| CQRS read/write separation, aggregates, event sourcing | Dispatch packages + `Excalibur.Domain`, `Excalibur.EventSourcing`, provider-specific stores | Gain aggregates, snapshots, event stores, serializers (`EventTypeNameHelper`). |
+| CQRS read/write separation, aggregates, event sourcing | Dispatch packages + `Excalibur.Domain`, `Excalibur.EventSourcing`, provider-specific stores | Gain aggregates, snapshots, event stores, serializers (`MessageNameHelper`). |
 | Enterprise hosting (OpenAPI, health, compliance) | Dispatch packages + `Excalibur.Hosting.*`, `Excalibur.Compliance.*`, `Excalibur.LeaderElection.*` | Use Excalibur wrappers for a batteries-included platform. |
 | Serverless functions | Dispatch packages for local handlers, Excalibur hosting package for your platform (Azure Functions/Lambda/GCF). | Dispatch samples illustrate manual wiring; Excalibur provides templates. |
 

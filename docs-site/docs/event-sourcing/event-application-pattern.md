@@ -273,7 +273,7 @@ public class ShoppingCart : AggregateRoot<Guid>
         RaiseEvent(new CartItemRemoved(Id, productId));
     }
 
-    // Command: Checkout
+    // Command: check out the cart
     public void Checkout()
     {
         if (Status != CartStatus.Active)
@@ -342,15 +342,20 @@ public record CartItem(string ProductId, int Quantity, decimal UnitPrice);
 
 public enum CartStatus { Active, CheckedOut, Abandoned }
 
-// Events - extend DomainEvent abstract record
+// Events - extend DomainEvent abstract record and declare a stable [MessageName]
+[MessageName("Contoso.Carts.CartCreated")]
 public record CartCreated(Guid CartId, string CustomerId) : DomainEvent;
 
+[MessageName("Contoso.Carts.CartItemAdded")]
 public record CartItemAdded(Guid CartId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent;
 
+[MessageName("Contoso.Carts.CartItemQuantityChanged")]
 public record CartItemQuantityChanged(Guid CartId, string ProductId, int NewQuantity) : DomainEvent;
 
+[MessageName("Contoso.Carts.CartItemRemoved")]
 public record CartItemRemoved(Guid CartId, string ProductId) : DomainEvent;
 
+[MessageName("Contoso.Carts.CartCheckedOut")]
 public record CartCheckedOut(Guid CartId, decimal Total) : DomainEvent;
 ```
 
