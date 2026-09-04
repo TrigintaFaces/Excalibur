@@ -44,7 +44,7 @@ R="$(new_repo)"
 echo "public class Widget { public void New() {} }" > "$R/src/Widget/Widget.cs"
 echo "Widget.New() -> void" >> "$R/src/Widget/PublicAPI.Unshipped.txt"   # in the TREE...
 git -C "$R" add src/Widget/Widget.cs >/dev/null 2>&1                      # ...but NOT in the commit
-( cd "$R" && "$GATE" --staged ) >"$R/out.txt" 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >"$R/out.txt" 2>&1; rc=$?
 report "SAFETY: under-staged coupled set (impl staged, baseline withheld) is REJECTED" 1 "$rc"
 if grep -q "PublicAPI.Unshipped.txt" "$R/out.txt" 2>/dev/null; then
     echo "  ok   SAFETY: failure output NAMES the missing file"; pass=$((pass + 1))
@@ -58,7 +58,7 @@ R="$(new_repo)"
 echo "public class A { }" > "$R/src/Widget/A.cs"
 echo "public class B { }" > "$R/src/Widget/B.cs"     # never `git add`ed at all
 git -C "$R" add src/Widget/A.cs >/dev/null 2>&1
-( cd "$R" && "$GATE" --staged ) >/dev/null 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "SAFETY: untracked sibling in a touched project is REJECTED" 1 "$rc"
 rm -rf "$R"
 
@@ -67,7 +67,7 @@ R="$(new_repo)"
 echo "public class Widget { public void New() {} }" > "$R/src/Widget/Widget.cs"
 echo "Widget.New() -> void" >> "$R/src/Widget/PublicAPI.Unshipped.txt"
 git -C "$R" add src/Widget/Widget.cs src/Widget/PublicAPI.Unshipped.txt >/dev/null 2>&1
-( cd "$R" && "$GATE" --staged ) >/dev/null 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "LIVENESS: complete, correctly-staged commit is ACCEPTED" 0 "$rc"
 rm -rf "$R"
 
@@ -84,13 +84,13 @@ git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm other >/dev/null 2>&1
 echo "public class Widget {}" > "$R/src/Widget/Widget.cs"
 git -C "$R" add src/Widget/Widget.cs >/dev/null 2>&1
 echo "// unrelated dirt" >> "$R/src/Other/O.cs"          # dirty, but a DIFFERENT project
-( cd "$R" && "$GATE" --staged ) >/dev/null 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "LIVENESS: dirt in an UNRELATED project does not block the commit" 0 "$rc"
 rm -rf "$R"
 
 # ── LIVENESS: an empty index is not a failure ───────────────────────────────────────────────────────
 R="$(new_repo)"
-( cd "$R" && "$GATE" --staged ) >/dev/null 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "LIVENESS: nothing staged is ACCEPTED" 0 "$rc"
 rm -rf "$R"
 
@@ -112,7 +112,7 @@ git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm wired >/dev/null 2>&1
 echo "echo gate v2" >> "$R/eng/ci/some-verifier-gate.sh"
 echo "run: bash eng/ci/some-verifier-gate.sh other.log" >> "$R/.github/actions/x/action.yml"
 git -C "$R" add eng/ci/some-verifier-gate.sh >/dev/null 2>&1   # caller left dirty
-( cd "$R" && "$GATE" --staged ) >"$R/out2.txt" 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >"$R/out2.txt" 2>&1; rc=$?
 report "SAFETY: coupled set split across NON-project files is REJECTED" 1 "$rc"
 if grep -q "action.yml" "$R/out2.txt" 2>/dev/null; then
     echo "  ok   SAFETY: failure output NAMES the dirty file that references the staged one"; pass=$((pass + 1))
@@ -132,7 +132,7 @@ git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm base >/dev/null 2>&1
 echo "echo gate v2" >> "$R/eng/ci/some-verifier-gate.sh"
 echo '{"id":"x","description":"see eng/ci/some-verifier-gate.sh for details"}' > "$R/.beads/issues.jsonl"
 git -C "$R" add eng/ci/some-verifier-gate.sh >/dev/null 2>&1
-( cd "$R" && "$GATE" --staged ) >"$R/out3.txt" 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >"$R/out3.txt" 2>&1; rc=$?
 report "LIVENESS: tracker data mentioning a staged file does NOT block" 0 "$rc"
 rm -rf "$R"
 
@@ -155,7 +155,7 @@ R="$(sib_repo)"
 echo "b" > "$R/src/Excalibur.Fam.SqlServer/Requests/Save.cs"
 echo "b" > "$R/src/Excalibur.Fam.Postgres/Requests/Save.cs"
 git -C "$R" add src/Excalibur.Fam.SqlServer/Requests/Save.cs >/dev/null 2>&1   # twin left dirty
-( cd "$R" && "$GATE" --staged ) >"$R/sib1.txt" 2>&1; rc=$?
+( cd "$R" && bash "$GATE" --staged ) >"$R/sib1.txt" 2>&1; rc=$?
 if grep -q "Excalibur.Fam.Postgres/Requests/Save.cs" "$R/sib1.txt" 2>/dev/null; then
     echo "  ok   SAFETY: a dirty provider sibling of a staged file is NAMED"; pass=$((pass + 1))
 else
@@ -170,7 +170,7 @@ R="$(sib_repo)"
 echo "b" > "$R/src/Excalibur.Fam.SqlServer/Requests/Save.cs"
 echo "b" > "$R/src/Excalibur.Fam.Postgres/Requests/Save.cs"
 git -C "$R" add -A >/dev/null 2>&1                                             # both staged
-( cd "$R" && "$GATE" --staged ) >"$R/sib2.txt" 2>&1
+( cd "$R" && bash "$GATE" --staged ) >"$R/sib2.txt" 2>&1
 if grep -q "PROVIDER SIBLINGS" "$R/sib2.txt" 2>/dev/null; then
     echo "  FAIL LIVENESS: siblings all staged but the arm still fired"; fail=$((fail + 1))
 else
@@ -184,7 +184,7 @@ echo "x" > "$R/src/Excalibur.Solo.OnlyOne/Requests/A.cs"
 git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm solo >/dev/null 2>&1
 echo "y" > "$R/src/Excalibur.Solo.OnlyOne/Requests/A.cs"
 git -C "$R" add -A >/dev/null 2>&1
-( cd "$R" && "$GATE" --staged ) >"$R/sib3.txt" 2>&1
+( cd "$R" && bash "$GATE" --staged ) >"$R/sib3.txt" 2>&1
 if grep -q "PROVIDER SIBLINGS" "$R/sib3.txt" 2>/dev/null; then
     echo "  FAIL LIVENESS: single-provider family produced a sibling warning"; fail=$((fail + 1))
 else

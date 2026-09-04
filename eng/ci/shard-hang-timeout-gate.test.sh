@@ -24,7 +24,7 @@ fail=0
 
 check() { # name expected_exit dir
     local name="$1" expected="$2" dir="$3" actual
-    SCAN_ROOT="$dir" "$GATE" >/dev/null 2>&1
+    SCAN_ROOT="$dir" bash "$GATE" >/dev/null 2>&1
     actual=$?
     if [ "$actual" -eq "$expected" ]; then
         echo "  ok   $name (exit $actual)"
