@@ -449,3 +449,56 @@ jobs:
       # reddens this required check. Passes clean on committed content today.
       - name: package-metadata-gate
         run: bash eng/ci/package-metadata-gate.sh
+
+  # A commit whose own checkout is dirty is a commit that describes a tree nobody can reproduce.
+  # release.yml already refuses on it -- and until now that was the ONLY place in the repo asserting
+  # it, so the assertion could not fire before a release. It fired there: run 33917094420 refused
+  # v10.0.0-alpha.10 on 23 blobs carrying a stray CR, written months earlier by a tool that re-emitted
+  # CRLF over already-CRLF files. git's clean filter strips exactly ONE CR before each LF, so the
+  # surplus CR survives into the blob, and every clone of that commit is dirty the moment it lands.
+  # Nothing about it is release-specific. The same one-line assertion belongs on every commit, which
+  # is what this job is: the release gate, moved to where it can still be cheap to fix.
+  clean-checkout:
+    name: Committed-Content Clean Checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      # Nothing runs before this: no build, no restore, no generator. Anything reported is therefore
+      # a property of the COMMIT, not of a step that mutated the tree.
+      #
+      # The liveness arm runs FIRST and is not optional. `git status --porcelain` returning empty is
+      # the pass condition, and an empty string is also what a broken git, a bad working directory, or
+      # a shallow-checkout quirk returns -- indistinguishable from a clean tree. So the job proves the
+      # command can report dirt HERE before it is allowed to certify the absence of it.
+      - name: Assert the checkout is clean (liveness arm, then the gate)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          probe=".clean-checkout-liveness-probe"
+          echo probe > "$probe"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "::error::REFUSE: git status reported CLEAN with an untracked probe file present."
+            echo "  The command cannot see dirt in this environment, so its silence proves nothing."
+            exit 1
+          fi
+          rm -f "$probe"
+          echo "liveness arm passed: git status reports dirt when dirt exists"
+
+          dirty="$(git status --porcelain)"
+          if [ -n "$dirty" ]; then
+            echo "::error::The checked-out tree is dirty at ${GITHUB_SHA}. Every clone of this commit is."
+            echo "$dirty"
+            echo ""
+            echo "Most likely a stray carriage return inside a committed blob. To find them:"
+            echo "  git grep -I -l -P '\r$' HEAD"
+            echo "To fix, per file:  perl -0pi -e 's/\r+\n/\r\n/g' <file>  then re-stage."
+            exit 1
+          fi
+          echo "working tree clean"

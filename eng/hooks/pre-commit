@@ -836,4 +836,23 @@ if [ -n "$STAGED_SRC_CS" ]; then
     esac
 fi
 
+
+# @@ Stray CR inside a staged blob @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# .gitattributes declares every text type normalized (`* text=auto`), so a committed blob must hold
+# LF only. It can still hold a CR: git's clean filter strips exactly ONE CR before each LF, so a
+# worktree line ending CR-CR-LF -- what a tool writes when it re-emits CRLF over an already-CRLF
+# file -- lands in the blob as CR-LF. Nothing local notices: on Windows the smudge/clean round trip
+# is stable and `git status` stays clean. On a Linux checkout the smudge normalizes to LF, the clean
+# filter then strips the surviving CR, and the tree is dirty the instant it is cloned -- which is
+# why this surfaced as `REFUSE: the working tree is not clean` in a RELEASE run, on 23 files, with
+# the publish blocked. Fail-closed here: the blob is the thing that ships.
+CR_BLOBS="$(git grep -I -l --cached -e "$(printf '\r')" -- . 2>/dev/null || true)"
+if [ -n "$CR_BLOBS" ]; then
+    echo -e "${RED}X COMMIT REJECTED: a staged blob contains a carriage return.${NC}" >&2
+    echo "$CR_BLOBS" | sed 's/^/    /' >&2
+    echo -e "${RED}  These clone dirty on Linux and REFUSE the release gate (clean-tree assertion).${NC}" >&2
+    echo -e "${CYAN}  Fix:  perl -0pi -e 's/\r+\n/\r\n/g' <file>   (then re-stage)${NC}" >&2
+    exit 1
+fi
+
 exit 0
