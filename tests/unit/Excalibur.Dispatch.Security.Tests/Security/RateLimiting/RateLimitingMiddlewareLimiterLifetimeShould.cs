@@ -118,6 +118,9 @@ public sealed class RateLimitingMiddlewareLimiterLifetimeShould
 				.ShouldBeOfType<RateLimitExceededResult>(
 					$"the key regained budget after {clock.Elapsed.TotalSeconds:F0}s without any replenishment");
 
+			// delay-ok: paces requests across the real reclaim window. The elapsed duration IS the
+			// semantic under test -- the point is that a key kept active for longer than the window
+			// never regains budget -- so there is no condition to poll for instead.
 			await Task.Delay(TimeSpan.FromMilliseconds(500), CancellationToken.None);
 		}
 		while (clock.Elapsed < ReclaimWindow);

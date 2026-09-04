@@ -949,15 +949,15 @@ Latest comparative validation run:
 - Date: April 20, 2026
 - BenchmarkDotNet 0.15.8 on .NET 10.0.6 / SDK 10.0.202
 - Result: 16 reports captured (8 Comparative + 8 WarmPath), GREEN intra-report (Dispatch leads every competitor row), methodology divergence vs prior `20260302` baseline per BDN 0.15.4→0.15.8 shift
-- Summaries: benchmark matrix summary + warm-path matrix summary (April 20, 2026)
+- Summaries: refreshed from the full WarmPath comparison run of 2026-09-03
 
 | Scenario | MediatR | Excalibur | Relative Result |
 |----------|---------|-------------------|-----------------|
-| Single command handler | 40.59 ns | 78.24 ns | MediatR ~1.9x faster |
-| Single command ultra-local API | 40.59 ns | 29.72 ns | **Dispatch ~1.4x faster** |
-| Notification to 3 handlers | 88.71 ns | 127.07 ns | MediatR ~1.4x faster |
-| Query with return value | 46.47 ns | 81.75 ns | MediatR ~1.8x faster |
-| Query ultra-local API | 46.47 ns | 49.35 ns | MediatR ~1.1x faster |
+| Single command handler | 43.4 ns | 30.5 ns | **Dispatch ~1.42x faster** |
+| Single command ultra-local API | 43.4 ns | 33.2 ns | **Dispatch ~1.31x faster** |
+| Notification to 3 handlers | 97.6 ns | 140.8 ns | MediatR ~1.44x faster; Dispatch allocates 6.4x less |
+| Query with return value | 39.3 ns | 43.0 ns | Parity (MediatR ~1.09x); Dispatch allocates 1.9x less |
+| Query ultra-local API | 39.3 ns | 45.1 ns | MediatR ~1.15x faster; Dispatch allocates 1.9x less |
 | 10 concurrent commands | 497.09 ns | 921.98 ns | MediatR ~1.9x faster |
 | 100 concurrent commands | 4,987.21 ns | 8,282.24 ns | MediatR ~1.7x faster |
 

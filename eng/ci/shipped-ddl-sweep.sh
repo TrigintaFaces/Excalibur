@@ -351,7 +351,7 @@ sweep() {
         # normalises to the same `schema.Table` shape MAP_ROWS matches against. (In a POSIX
         # bracket expression a literal `]` must come first.)
         tables="$(grep -oiE 'create[ \t]+table[ \t]+(if[ \t]+not[ \t]+exists[ \t]+)?[]["A-Za-z_][]["A-Za-z0-9_.]*' "$f" \
-                  | awk '{print $NF}' | tr -d '[]"' | sort -u)"
+                  | awk '{print $NF}' | tr -d '[]"'                   | grep -viE '^(if|not|exists)$' | sort -u)"
         while IFS= read -r t; do
             [ -n "$t" ] || continue
             matched=0

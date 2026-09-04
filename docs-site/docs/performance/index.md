@@ -15,16 +15,16 @@ Excalibur.Dispatch is designed for low-latency messaging with explicit performan
 
 ## Key Performance Metrics
 
-Source baseline: `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/` (April 20, 2026 epoch)
+Source: full WarmPath comparison run of 2026-09-03. The prior epoch is `benchmarks/baselines/net10.0/dispatch-comparative-20260420/results/` (April 20, 2026).
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Dispatch single command (standard) | 70.87 ns / 240 B | MediatRWarmPathComparisonBenchmarks (April 20, 2026) |
-| Dispatch ultra-local command | 34.56 ns / 24 B | MediatRWarmPathComparisonBenchmarks |
-| Dispatch vs MediatR (ultra-local) | 34.56 ns vs 44.20 ns (**1.28x faster, 6.3x less memory**) | MediatRWarmPathComparisonBenchmarks |
+| Dispatch single command (standard) | 30.5 ns / 24 B | MediatRWarmPathComparisonBenchmarks (2026-09-03) |
+| Dispatch ultra-local command | 33.2 ns / 24 B | MediatRWarmPathComparisonBenchmarks |
+| Dispatch vs MediatR (standard) | 30.5 ns vs 43.4 ns (**1.42x faster, 6.3x less memory**) | MediatRWarmPathComparisonBenchmarks |
 | Handler activation (precreated) | 24.4 ns / 0 B | DispatchHotPathBreakdownBenchmarks (not in 20260420 epoch; see performance-report) |
 | Handler invocation | 6.0 ns / 0 B | DispatchHotPathBreakdownBenchmarks (not in 20260420 epoch) |
-| Dispatch vs Wolverine InvokeAsync | 74.83 ns vs 197.75 ns (**2.64x faster**) | WolverineInProcessWarmPathComparisonBenchmarks |
+| Dispatch vs Wolverine InvokeAsync | 33.1 ns vs 186.5 ns (**5.64x faster, 24x less memory**) | WolverineInProcessWarmPathComparisonBenchmarks |
 
 :::warning Epoch boundary
 
@@ -53,8 +53,8 @@ The diagnostics baseline above is from `DispatchHotPathBreakdownBenchmarks` whic
 
 | Track | Summary |
 |------|---------|
-| MediatR WarmPath parity | MediatR ~1.6x faster on standard; **Dispatch ultra-local 1.28x faster with 6.3x less memory** |
-| Wolverine in-process parity | **Dispatch ~2.64x faster on command; ~54x faster on notifications** (Dispatch 120 ns vs Wolverine 6,455 ns to 2 handlers) |
+| MediatR WarmPath parity | **Dispatch ~1.42x faster on standard with 6.3x less memory**; parity on query and concurrent tiers; MediatR ahead only on notification latency |
+| Wolverine in-process parity | **Dispatch ~5.64x faster on command, ~1.69x on notification fan-out**, allocating 6-24x less |
 | MassTransit in-memory parity | **Dispatch leads on all in-process tiers**, see MassTransitComparisonBenchmarks |
 | Pipeline parity (3 middleware) | See PipelineComparisonBenchmarks — Dispatch leads on allocation; latency tiers per ratio column |
 

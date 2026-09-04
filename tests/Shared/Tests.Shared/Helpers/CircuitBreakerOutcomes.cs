@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Resilience;
+using Tests.Shared.Infrastructure;
 
 namespace Tests.Shared.Helpers;
 
@@ -74,15 +75,10 @@ public static class CircuitBreakerOutcomes
 	{
 		ArgumentNullException.ThrowIfNull(policy);
 
-		var deadline = DateTimeOffset.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
-		var state = policy.State;
+		_ = await WaitHelpers.WaitUntilAsync(
+			() => policy.State == expected,
+			timeout ?? TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-		while (state != expected && DateTimeOffset.UtcNow < deadline)
-		{
-			await Task.Delay(10).ConfigureAwait(false);
-			state = policy.State;
-		}
-
-		return state;
+		return policy.State;
 	}
 }

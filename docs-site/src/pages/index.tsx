@@ -162,7 +162,7 @@ const features: { title: string; icon: ReactNode; description: string }[] = [
     title: 'Blazing Fast Messaging',
     icon: <IconLightning />,
     description:
-      'Low-allocation message dispatching with minimal overhead. Ultra-local dispatch at ~35 ns / 24 B -- 1.28x faster than MediatR with 6.3x less memory. Zero-allocation handler internals.',
+      'Low-allocation message dispatching with minimal overhead. Standard dispatch at ~30 ns / 24 B -- 1.42x faster than MediatR with 6.3x less memory. Zero-allocation handler internals.',
   },
   {
     title: 'Event Sourcing Built-in',
@@ -363,8 +363,8 @@ dotnet add package Excalibur.Hosting.Web`}
 
 function PerformanceShowcaseSection() {
   const metrics: { value: string; label: string; detail: string }[] = [
-    { value: '~71 ns', label: 'Standard Dispatch', detail: 'Full pipeline, 240 B allocated' },
-    { value: '~35 ns', label: 'Ultra-Local Dispatch', detail: '1.28x faster than MediatR, 24 B' },
+    { value: '~30 ns', label: 'Standard Dispatch', detail: '1.42x faster than MediatR, 24 B allocated' },
+    { value: '~33 ns', label: 'Ultra-Local Dispatch', detail: 'Explicit lowest-overhead API, 24 B' },
     { value: '6.3x', label: 'Less Memory Than MediatR', detail: 'Ultra-local: 24 B vs 152 B' },
     { value: '2.6x', label: 'Faster Than Wolverine', detail: 'Single command, in-process' },
     { value: '44,262+', label: 'Tests Passing', detail: 'Unit, integration, functional' },

@@ -34,11 +34,13 @@ WarmPath companion (ns-scale, `MediatRWarmPathComparisonBenchmarks`):
 
 | Scenario | Dispatch | MediatR |
 |----------|---------:|--------:|
-| Single command handler | 70.87 ns / 240 B | 44.20 ns / 152 B |
-| Single command ultra-local API | 34.56 ns / 24 B | 44.20 ns / 152 B |
-| Notification to 3 handlers | 117.36 ns / 240 B | 94.47 ns / 616 B |
-| Query with return value | 76.61 ns / 336 B | 51.81 ns / 296 B |
-| Query ultra-local API | 56.63 ns / 192 B | 51.81 ns / 296 B |
+| Single command handler | 30.5 ns / 24 B | 43.4 ns / 152 B |
+| Single command ultra-local API | 33.2 ns / 24 B | 43.4 ns / 152 B |
+| Notification to 3 handlers | 140.8 ns / 96 B | 97.6 ns / 616 B |
+| Query with return value | 43.0 ns / 120 B | 39.3 ns / 224 B |
+| Query ultra-local API | 45.1 ns / 120 B | 39.3 ns / 224 B |
+
+Refreshed from the full WarmPath comparison run of 2026-09-03.
 
 #### Dispatch vs Wolverine (Invoke/local in-process)
 

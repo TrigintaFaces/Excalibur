@@ -158,7 +158,15 @@ public class DispatchPathDecompositionBenchmarks
 	{
 		((IMessageContext)_pinnedContext).Message = _command;
 		var t = _handler.HandleAsync(_command, CancellationToken.None);
-		return t.IsCompletedSuccessfully ? _cachedResultTask : _cachedResultTask;
+
+		// Mirrors I's shape exactly, minus the two ambient writes -- that difference IS what this arm
+		// prices, so the completion branch has to stay even though both sides return the same task.
+		if (t.IsCompletedSuccessfully)
+		{
+			return _cachedResultTask;
+		}
+
+		return _cachedResultTask;
 	}
 
 	/// <summary>

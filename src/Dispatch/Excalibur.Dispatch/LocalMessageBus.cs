@@ -1972,7 +1972,12 @@ internal sealed partial class LocalMessageBus(
 	/// </summary>
 	private readonly record struct InvokeScopeState(
 		LocalMessageBus Bus,
+		// param and field as well as property. Annotating only the generated property leaves the
+		// constructor parameter and its backing field unannotated, so the caller's annotated Type is
+		// stored somewhere trimming believes carries no requirement -- which is what IL2069 reports.
+		[param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		[field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
 		IDispatchMessage Message,
 		IMessageContext Context,
@@ -2086,7 +2091,12 @@ internal sealed partial class LocalMessageBus(
 	private readonly record struct ScopedActionState(
 		LocalMessageBus Bus,
 		Type ActionType,
+		// param and field as well as property. Annotating only the generated property leaves the
+		// constructor parameter and its backing field unannotated, so the caller's annotated Type is
+		// stored somewhere trimming believes carries no requirement -- which is what IL2069 reports.
+		[param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		[field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
 		IDispatchAction Action,
 		IMessageContext? Context,
@@ -2806,7 +2816,12 @@ internal sealed partial class LocalMessageBus(
 	[UnconditionalSuppressMessage("Trimming", "IL2069",
 		Justification = "Handler types are registered at startup and preserved by the DI container.")]
 	private readonly record struct DirectActionDispatchPlan(
+		// param and field as well as property. Annotating only the generated property leaves the
+		// constructor parameter and its backing field unannotated, so the caller's annotated Type is
+		// stored somewhere trimming believes carries no requirement -- which is what IL2069 reports.
+		[param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		[field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
 		bool ExpectsResponse,
 		bool RequiresContext,
@@ -2847,7 +2862,12 @@ internal sealed partial class LocalMessageBus(
 	[UnconditionalSuppressMessage("Trimming", "IL2069",
 		Justification = "Handler types are registered at startup and preserved by the DI container.")]
 	private readonly record struct EventDispatchPlan(
+		// param and field as well as property. Annotating only the generated property leaves the
+		// constructor parameter and its backing field unannotated, so the caller's annotated Type is
+		// stored somewhere trimming believes carries no requirement -- which is what IL2069 reports.
+		[param: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		[field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
 		bool RequiresContext,
 		EventHandlerAsyncInvoker Invoke);
