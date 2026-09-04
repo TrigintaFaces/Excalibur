@@ -43,6 +43,18 @@ have classified, not everything that exists — see the What's New page for the 
 - **Bulkhead queueing is now FIFO, and a waiting caller is never displaced.** Admission moved onto `System.Threading.RateLimiting.ConcurrencyLimiter`, which admits oldest-first; the previous semaphore left ordering unspecified. A caller arriving when the queue is full is rejected, rather than a caller already waiting being evicted to make room for it.
 - **Scoped dispatch allocates less.** Resolving a handler in its own scope no longer allocates a closure and delegate per dispatch — measured at 448 B to 320 B on the scoped-resolution benchmark, with transient and singleton resolution unchanged. Behaviour is identical; scope creation, teardown and `RequestServices` restoration are untouched.
 
+#### Leader election
+
+- **Kubernetes leader election could elect more than one leader.** A candidate whose lease write was
+  rejected with `409 Conflict` -- meaning another candidate won the race -- re-derived its leadership
+  from its own in-memory copy of the lease, and that copy already carried its own holder identity,
+  written there moments before the attempt. So the loser read its own identity back and concluded it
+  had won, and the guard that should have reported a lost race could never fire. The conformance kit
+  observed **three leaders among four candidates against a real API server**. A candidate that loses
+  the race now re-reads the lease and believes the server; if that read fails it reports itself a
+  follower rather than claiming leadership it cannot confirm. Anything fencing work on leadership --
+  a scheduler, a drain, a singleton processor -- could previously have run in several places at once.
+
 #### Dispatch performance and the message context
 
 - **BREAKING — the dispatcher no longer publishes a message context to handlers that never asked for one, and `MessageContextHolder` is now `internal`.** Publishing it cost an `ExecutionContext` copy-on-write on every dispatch — measured at 18.6 ns and 72 bytes, 44% of the standard path and all of its allocation — and it was paid unconditionally, in case some handler was reading the ambient static. Making that static internal is what removes the doubt: a handler now says it wants a context, by exposing a settable `IMessageContext` property or by injecting `IMessageContextAccessor`, and the dispatcher skips the publication for the handlers that said nothing. Single-command dispatch goes from 66.8 ns / 240 B to 30.5 ns / 24 B, which turns a 1.63x deficit against MediatR into a 1.42x lead. **Migration:** if you read `MessageContextHolder.Current` anywhere, inject `IMessageContextAccessor` and read `.MessageContext` instead — it is public, registered by default, and unchanged in behaviour.

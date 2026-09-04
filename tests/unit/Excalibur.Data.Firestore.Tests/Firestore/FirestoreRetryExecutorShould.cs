@@ -74,15 +74,40 @@ public sealed class FirestoreRetryExecutorShould : UnitTestBase
 		// would satisfy the spread assertion below on its own.
 		waits.Count.ShouldBe(herdSize, "every retrying caller should complete");
 
-		// Assert — DISPERSION: the waits must not all be the same value. A deterministic backoff puts every
-		// caller's wait within scheduler noise of every other, so the spread collapses toward zero; drawing
-		// from a range spreads them across it. The bound is far below the range the executor draws over and
-		// far above scheduler noise, and CPU load can only widen the observed spread, never narrow it.
-		var spread = waits.Max() - waits.Min();
+		// DISPERSION is asserted in DrawEachBackoffFromARangeRatherThanAFixedValue, against the draw
+		// itself. It used to be asserted here, from the elapsed wall time of 24 concurrent Task.Delay
+		// calls, with the reasoning that "CPU load can only widen the observed spread, never narrow it".
+		// A macOS runner produced a 4.95 ms spread where the draw is uniform over [0, 100] ms -- an
+		// outcome with a probability around 1e-28 if the elapsed times tracked the draws, so they do
+		// not: something in that environment collapses short delays toward each other. That makes the
+		// elapsed time a proxy for the draw that the scheduler is free to break, and a property of a
+		// pure function had been made to depend on the machine measuring it.
+	}
 
+	[Fact]
+	public void DrawEachBackoffFromARangeRatherThanAFixedValue()
+	{
+		// The dispersion contract, asserted where it actually lives: the delay computation. A backoff
+		// derived solely from the attempt number returns one value to every caller, so a herd that
+		// collided once collides again on every wake. Drawing from a range is what separates them.
+		const int herdSize = 24;
+
+		var draws = Enumerable
+			.Range(0, herdSize)
+			.Select(_ => FirestoreRetryExecutor.NextDelay(TimeSpan.FromMilliseconds(100), attempt: 0).TotalMilliseconds)
+			.ToArray();
+
+		var spread = draws.Max() - draws.Min();
+
+		// Uniform over [0, 100] with 24 draws: the expected spread is ~92 ms, and a spread below 20 ms
+		// has a probability around 1e-28. This cannot flake on a slow machine because no clock is read.
 		spread.ShouldBeGreaterThan(
 			20d,
-			$"concurrent retriers must not all wake at the same instant; observed waits: {string.Join(", ", waits.Order())}");
+			$"each caller must draw its own backoff; observed draws: {string.Join(", ", draws.Order())}");
+
+		// Liveness for the bound itself: a draw is inside the range it claims to sample, so the arm
+		// above cannot be satisfied by a computation that returns wild values instead of dispersed ones.
+		draws.ShouldAllBe(d => d >= 0 && d <= 100, "every draw must fall inside the ceiling it was given");
 	}
 
 	[Fact]

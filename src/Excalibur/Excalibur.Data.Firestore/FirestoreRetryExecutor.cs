@@ -99,7 +99,10 @@ internal static class FirestoreRetryExecutor
 	/// about to sleep.
 	/// </para>
 	/// </remarks>
-	private static TimeSpan NextDelay(TimeSpan baseDelay, int attempt)
+	// internal, not private, so the dispersion contract can be tested against the DRAW itself.
+	// Asserting it through the executor means measuring elapsed wall time across a herd of tasks,
+	// which makes a property of this function depend on the scheduler that runs it.
+	internal static TimeSpan NextDelay(TimeSpan baseDelay, int attempt)
 	{
 		// Cap the exponent so the ceiling cannot overflow if the policy's attempt count is raised: the
 		// delay cap below bounds the value anyway, this bounds the arithmetic that reaches it.

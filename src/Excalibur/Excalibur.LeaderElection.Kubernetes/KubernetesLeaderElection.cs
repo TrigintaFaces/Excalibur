@@ -558,7 +558,10 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	// Justification: Leader election state machine with K8s API calls, lease acquisition/renewal, and error recovery requires sequential orchestration for correctness
 	// Method is too long
 #pragma warning disable MA0051
-	private async Task TryAcquireOrRenewLeaseAsync(CancellationToken cancellationToken)
+	// internal so the split-brain regression can drive one acquisition attempt directly. Driving it
+	// through StartAsync would mean waiting on a renewal timer, which puts a clock back into a test
+	// whose subject is a race, not a duration.
+	internal async Task TryAcquireOrRenewLeaseAsync(CancellationToken cancellationToken)
 	{
 		await _leaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
@@ -664,9 +667,40 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				}
 				catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.Conflict)
 				{
-					// Another candidate won the race
+					// Another candidate won the race.
+					//
+					// `lease` is OUR copy, and its HolderIdentity was overwritten with CandidateId above
+					// before the write was attempted. Deriving leadership from it here reads our own
+					// identity back and concludes we won -- so EVERY loser of the race declared itself
+					// leader, and the !IsLeader guard below could never fire. That is a split-brain: the
+					// conformance kit observed three leaders among four candidates against a real API
+					// server. The authoritative holder is what the server has, so re-read it.
 					LogLostRace(_leaseName);
-					await UpdateLeadershipStateFromLeaseAsync(lease).ConfigureAwait(false);
+
+					try
+					{
+						var authoritative = await _retryPolicy.ExecuteAsync(
+							async ct => await _kubernetesClient.CoordinationV1.ReadNamespacedLeaseAsync(
+								_leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
+							cancellationToken).ConfigureAwait(false);
+
+						_currentLease = authoritative;
+						await UpdateLeadershipStateFromLeaseAsync(authoritative).ConfigureAwait(false);
+					}
+					catch (Exception readEx) when (readEx is not OperationCanceledException)
+					{
+						// Fail CLOSED. We lost the race and could not learn who won, so we cannot be the
+						// leader -- claiming it on an unconfirmed read is the same defect one layer down.
+						if (IsLeader)
+						{
+							_isLeader = false;
+							LogLostLeadership(_resourceName);
+							LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+						}
+
+						_currentLeaderId = null;
+					}
+
 					if (!IsLeader)
 					{
 						RaiseAcquisitionFailed("lost the acquisition race", exception: null);
