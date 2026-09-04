@@ -35,7 +35,7 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 	{
 		try
 		{
-			_container = new PubSubBuilder().Build();
+			_container = new PubSubBuilder().WithImage(TestContainerImages.GoogleCloudEmulators).Build();
 			await TestTimeouts.WithTimeout(
 				_container.StartAsync(),
 				TestTimeouts.ContainerStart,

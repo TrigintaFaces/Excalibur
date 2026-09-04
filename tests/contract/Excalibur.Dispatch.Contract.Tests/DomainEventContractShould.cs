@@ -33,8 +33,12 @@ public sealed class DomainEventContractShould
 
 		propertyNames.ShouldContain("EventId");
 		propertyNames.ShouldContain("OccurredAt");
-		propertyNames.ShouldContain("EventType");
 		propertyNames.ShouldContain("Metadata");
+		propertyNames.ShouldNotContain(
+			"EventType",
+			"identity is declared on the type with [MessageName], not carried per-instance -- a property " +
+			"let each instance name itself, so what a subscriber matched on depended on what that " +
+			"instance happened to set");
 		propertyNames.ShouldNotContain("AggregateId", "AggregateId is a persistence concern, not a messaging one");
 		propertyNames.ShouldNotContain("Version", "the stream version lives in the persistence envelope, not the event");
 	}
@@ -68,13 +72,21 @@ public sealed class DomainEventContractShould
 		using var doc = JsonDocument.Parse(json);
 		var root = doc.RootElement;
 
-		// Assert — all IDomainEvent properties must be present in serialized form
+		// Assert — every IDomainEvent property must be present in serialized form.
 		root.TryGetProperty("eventId", out _).ShouldBeTrue("IDomainEvent must serialize 'eventId'");
-		root.TryGetProperty("aggregateId", out _).ShouldBeTrue("IDomainEvent must serialize 'aggregateId'");
-		root.TryGetProperty("version", out _).ShouldBeTrue("IDomainEvent must serialize 'version'");
 		root.TryGetProperty("occurredAt", out _).ShouldBeTrue("IDomainEvent must serialize 'occurredAt'");
-		root.TryGetProperty("eventType", out _).ShouldBeTrue("IDomainEvent must serialize 'eventType'");
 		root.TryGetProperty("metadata", out _).ShouldBeTrue("IDomainEvent must serialize 'metadata'");
+
+		// aggregateId and version are this TEST TYPE's own properties, not the interface's -- they are
+		// asserted here to show a concrete event may still carry them, not because the contract does.
+		root.TryGetProperty("aggregateId", out _).ShouldBeTrue("the test event declares its own aggregateId");
+		root.TryGetProperty("version", out _).ShouldBeTrue("the test event declares its own version");
+
+		// eventType must NOT appear: the stored and transmitted name is declared on the type with
+		// [MessageName] and resolved from it, so an event no longer carries a per-instance name that
+		// could disagree with the one subscribers filter on.
+		root.TryGetProperty("eventType", out _)
+			.ShouldBeFalse("identity comes from [MessageName], not a serialized per-instance property");
 	}
 
 	[Fact]
@@ -135,8 +147,8 @@ public sealed class DomainEventContractShould
 
 		props["EventId"].ShouldBe(typeof(string));
 		props["OccurredAt"].ShouldBe(typeof(DateTimeOffset));
-		props["EventType"].ShouldBe(typeof(string));
 		props["Metadata"].ShouldBe(typeof(IDictionary<string, object>));
+		props.ShouldNotContainKey("EventType", "the stored/transmitted name comes from [MessageName]");
 		props.ShouldNotContainKey("AggregateId", "AggregateId was removed from the messaging contract");
 		props.ShouldNotContainKey("Version", "Version was removed from the messaging contract");
 	}

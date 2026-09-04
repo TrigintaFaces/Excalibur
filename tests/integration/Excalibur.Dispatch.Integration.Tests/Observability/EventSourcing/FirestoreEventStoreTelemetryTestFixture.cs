@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Tests.Shared.Infrastructure;
 using Excalibur.Dispatch;
 using MsOptions = Microsoft.Extensions.Options.Options;
 using Excalibur.EventSourcing.Firestore;
@@ -45,7 +46,7 @@ public sealed class FirestoreEventStoreTelemetryTestFixture : IAsyncLifetime, ID
 	public FirestoreEventStoreTelemetryTestFixture()
 	{
 		_container = new FirestoreBuilder()
-			.WithImage("gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators")
+			.WithImage(TestContainerImages.GoogleCloudEmulators)
 			.WithName($"firestore-telemetry-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();

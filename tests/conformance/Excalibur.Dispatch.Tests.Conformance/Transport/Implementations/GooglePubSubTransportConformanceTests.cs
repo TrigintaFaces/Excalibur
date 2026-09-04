@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Tests.Shared.Infrastructure;
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 
@@ -31,8 +32,14 @@ public sealed class GooglePubSubTransportConformanceTests
 
 	protected override async Task<GooglePubSubChannelSender> CreateSenderAsync()
 	{
-		// Start Google Pub/Sub emulator container
+		// Start Google Pub/Sub emulator container.
+		// The image is pinned explicitly rather than taking the Testcontainers module default: that
+		// default is google-cloud-cli:446.0.1-emulators, and Google has withdrawn that tag -- pulling
+		// it now fails with "manifest unknown", so this suite could not start at all on a machine
+		// without it already cached. The :emulators tag is the one the nine integration fixtures in
+		// this repo already use successfully.
 		_pubSubContainer = new PubSubBuilder()
+			.WithImage(TestContainerImages.GoogleCloudEmulators)
 			.Build();
 
 		await _pubSubContainer.StartAsync();

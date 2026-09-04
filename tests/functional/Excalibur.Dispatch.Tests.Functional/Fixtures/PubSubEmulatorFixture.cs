@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Tests.Shared.Infrastructure;
 using Testcontainers.PubSub;
 
 using Tests.Shared.Fixtures;
@@ -22,7 +23,7 @@ public sealed class PubSubEmulatorFixture : ContainerFixtureBase
 	/// <inheritdoc />
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
-		_container = new PubSubBuilder().Build();
+		_container = new PubSubBuilder().WithImage(TestContainerImages.GoogleCloudEmulators).Build();
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
 

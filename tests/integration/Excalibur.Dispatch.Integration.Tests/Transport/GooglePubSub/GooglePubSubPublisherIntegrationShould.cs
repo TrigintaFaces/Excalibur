@@ -33,7 +33,7 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 	{
 		try
 		{
-			_container = new PubSubBuilder().Build();
+			_container = new PubSubBuilder().WithImage(TestContainerImages.GoogleCloudEmulators).Build();
 			await _container.StartAsync().ConfigureAwait(false);
 
 			var endpoint = _container.GetEmulatorEndpoint();

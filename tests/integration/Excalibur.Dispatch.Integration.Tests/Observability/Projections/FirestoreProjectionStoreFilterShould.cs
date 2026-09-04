@@ -3,6 +3,7 @@
 
 #pragma warning disable CS8618 // Non-nullable field set in InitializeAsync()
 
+using Tests.Shared.Infrastructure;
 using Excalibur.Data.Firestore.Projections;
 using Excalibur.EventSourcing;
 
@@ -239,7 +240,7 @@ public sealed class FirestoreProjectionFilterFixture : IAsyncLifetime
 	public FirestoreProjectionFilterFixture()
 	{
 		_container = new FirestoreBuilder()
-			.WithImage("gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators")
+			.WithImage(TestContainerImages.GoogleCloudEmulators)
 			.WithName($"firestore-projfilter-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();

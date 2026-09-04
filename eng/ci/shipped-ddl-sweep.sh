@@ -135,6 +135,12 @@ MAP_ROWS=(
     # same single write path (qualifiedTable), same columns. Mapping it verifies every shipped sample DDL
     # for that table declares the tenant column the keyed store now writes.
     'dbo[.]EventStoreEvents|src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/*Event*.cs src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/IsErasedRequest.cs src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/GetCurrentVersionRequest.cs|qualifiedTable|sqlserver event store (sample custom table name)'
+    # SQLite ships a table also called Events, with its own PascalCase columns, written by
+    # SqliteEventStore through `_table`. Doc-scoped (5th field) so it claims only the SQLite page;
+    # the bare postgres row below stays unscoped and claims every other doc that spells it
+    # unqualified. Without the scope both rows claim the SQLite page and the postgres one reports
+    # drift against a write path that does not serve it.
+    'Events|src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs|_table|sqlite event store|data-providers/sqlite[.]md'
     'events|src/Excalibur/Excalibur.EventSourcing.Postgres/Requests/*Event*.cs src/Excalibur/Excalibur.EventSourcing.Postgres/Requests/IsErasedRequest.cs src/Excalibur/Excalibur.EventSourcing.Postgres/Requests/GetCurrentVersionRequest.cs|qualifiedTable|postgres event store'
     # The published DDL previously created [EventSourcing].[Snapshots] and [snapshots].[Snapshots],
     # neither of which any store reads: the SQL Server snapshot store defaults to schema "dbo",
@@ -264,7 +270,7 @@ src_written_columns() {
         [ -f "$f" ] || continue
         awk -v tv="$tvar" '
             {
-                if ($0 ~ /(UPDATE|INSERT[ \t]+INTO|DELETE[ \t]+FROM|MERGE[ \t]+INTO|FROM)[ \t]*\{/ \
+                if ($0 ~ /(UPDATE|INSERT[ \t]+INTO|DELETE[ \t]+FROM|MERGE[ \t]+INTO|FROM)[ \t]*[]["`]*\{/ \
                     && $0 ~ ("\\{" tv "\\}")) inblk=1
                 if (inblk) print
                 if (inblk && $0 ~ /"""/) inblk=0
@@ -282,7 +288,7 @@ src_written_columns() {
 
         # INSERT paren-list: INSERT INTO {tvar} ( a, b, c )  -- may span lines (joined)
         printf '%s' "$joined" \
-            | grep -oiE "INSERT[[:space:]]+INTO[[:space:]]*\{$tvar\}[[:space:]]*\([^)]*\)" \
+            | grep -oiE "INSERT[[:space:]]+INTO[[:space:]]*[]["\x60]*\{$tvar\}[]["\x60]*[[:space:]]*\([^)]*\)" \
             | sed -E 's/^[^(]*\(//; s/\).*$//' \
             | tr ',' '\n' \
             | sed -E 's/[[:space:]]//g; s/\{[^}]*\}//g; s/[]"\x60[]//g' \
@@ -359,8 +365,16 @@ sweep() {
                 local rest tvar
                 tbl_re="${row%%|*}";  rest="${row#*|}"
                 glob="${rest%%|*}";   rest="${rest#*|}"
-                tvar="${rest%%|*}";   label="${rest#*|}"
-                if printf '%s' "$t" | grep -qiE "^${tbl_re}$"; then
+                tvar="${rest%%|*}";   rest="${rest#*|}"
+                label="${rest%%|*}";  docre="${rest#*|}"
+                # OPTIONAL 5th field: a doc-path regex scoping the row to the file that ships it.
+                # MAP_ROWS otherwise matches on TABLE NAME alone, and two providers legitimately ship
+                # a table of the same name with different columns -- SQLite's [Events] (PascalCase)
+                # and Postgres's events (snake_case). Unscoped, the Postgres row also claims the
+                # SQLite page and reports five columns of drift that do not exist. An absent 5th
+                # field means "any doc", which is what every pre-existing row wants.
+                [ "$docre" = "$label" ] && docre='.'
+                if printf '%s' "$t" | grep -qiE "^${tbl_re}$" && printf '%s' "$f" | grep -qE "$docre"; then
                     matched=1
                     # ── The fourth state: NOT-APPLICABLE (a DECLARED non-promise) ─────────────
                     # Not every shipped CREATE TABLE is a promise about framework-owned schema.
@@ -428,6 +442,15 @@ sweep() {
                     else
                         echo "  ✓ ok    $t ($label) — $(printf '%s' "$scols" | grep -c .) written/read cols all declared"
                     fi
+
+                    # One table in one doc has exactly ONE write path, so the first row that claims
+                    # it is the answer and the remaining rows must not also evaluate it. Without this
+                    # a second, broader row re-evaluates the same table against a DIFFERENT source
+                    # tree and reports drift that is really just the wrong write path being consulted
+                    # -- which is precisely what the unscoped postgres `events` row did to the SQLite
+                    # page. Rows are anchored (^re$), so today exactly one row matches any given
+                    # table name and this changes nothing for the pre-existing set.
+                    break
                 fi
             done
             if [ "$matched" -eq 0 ]; then

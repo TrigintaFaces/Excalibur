@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Tests.Shared.Infrastructure;
 using Google.Api.Gax;
 
 using Google.Cloud.Firestore;
@@ -48,7 +49,7 @@ public sealed class FirestoreOutboxStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new FirestoreBuilder()
-			.WithImage("gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators")
+			.WithImage(TestContainerImages.GoogleCloudEmulators)
 			.WithName($"firestore-outbox-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();
