@@ -72,6 +72,33 @@ public sealed class UltraLocalScopeAllocationShould
 		return services.BuildServiceProvider();
 	}
 
+	/// <summary>A handler whose constructor reaches a scoped service, so resolving it REQUIRES a scope.</summary>
+	private sealed class ScopedDependencyCommandHandler(IScopedDependency dependency)
+		: IActionHandler<ScopeProbeCommand>
+	{
+		public Task HandleAsync(ScopeProbeCommand message, CancellationToken cancellationToken)
+		{
+			_ = dependency.Value;
+			return Task.CompletedTask;
+		}
+	}
+
+	private interface IScopedDependency
+	{
+		int Value { get; }
+	}
+
+	private sealed class ScopedDependency : IScopedDependency
+	{
+		public int Value => 1;
+	}
+
+	/// <summary>
+	/// The same container except the handler takes a scoped dependency, so the resolver must create a
+	/// scope per dispatch. This is the configuration the counting arm below must go RED against.
+	/// </summary>
+
+
 	[Fact]
 	public void ReportNoScopeRequiredForADependencyFreeTransientHandler()
 	{
@@ -93,33 +120,55 @@ public sealed class UltraLocalScopeAllocationShould
 	[Fact]
 	public async Task NotAllocateAScopePerDispatchWhenTheHandlerNeedsNone()
 	{
-		// The property consumers actually pay for. This is the arm that fails today.
-		using var provider = Build();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
-		var direct = dispatcher.ShouldBeAssignableTo<IDirectLocalDispatcher>();
-
-		// Warm every one-time cost off the measurement: plan resolution, the scope verdict cache, JIT.
-		for (var i = 0; i < 50; i++)
+		// The property observed directly. A byte total cannot express it: the dispatch path legitimately
+		// allocates for reasons that have nothing to do with scoping (an ambient ExecutionContext copy, a
+		// result Task), so a ceiling on the total fails for costs this lock was never about while a scope
+		// could hide under a generous one. ScopePathProbe counts entries into the scope-taking branch.
+		var probe = new ScopePathProbe();
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddDispatch();
+		_ = services.AddSingleton<IDispatchAmbientScopeAccessor>(probe);
+		_ = services.AddTransient<ScopeProbeCommandHandler>();
+		_ = services.AddTransient<IActionHandler<ScopeProbeCommand>, ScopeProbeCommandHandler>();
+		using (var provider = services.BuildServiceProvider())
 		{
-			await direct!.DispatchLocalAsync(new ScopeProbeCommand { Value = i }, CancellationToken.None);
+			var dispatcher = provider.GetRequiredService<IDispatcher>();
+			for (var i = 0; i < 100; i++)
+			{
+				_ = await dispatcher.DispatchAsync(new ScopeProbeCommand { Value = i }, CancellationToken.None);
+			}
+
+			probe.ScopePathEntries.ShouldBe(
+				0,
+				$"100 dispatches of a dependency-free handler entered the scope-taking branch "
+				+ $"{probe.ScopePathEntries} times. Scope-correct resolution must stay off handlers whose "
+				+ "dependency graph cannot reach a scoped service, or every consumer pays for a scope none "
+				+ "of their handlers required");
 		}
 
-		const int Iterations = 100;
-		var before = GC.GetAllocatedBytesForCurrentThread();
-		for (var i = 0; i < Iterations; i++)
+		// LIVENESS. Without this the arm above is passed by a resolver that never scopes for anyone, and
+		// by a probe wired to nothing. The same probe, the same assertion, must be able to move.
+		var scopedProbe = new ScopePathProbe();
+		var scopedServices = new ServiceCollection();
+		_ = scopedServices.AddLogging();
+		_ = scopedServices.AddDispatch();
+		_ = scopedServices.AddSingleton<IDispatchAmbientScopeAccessor>(scopedProbe);
+		_ = scopedServices.AddScoped<IScopedDependency, ScopedDependency>();
+		_ = scopedServices.AddTransient<IActionHandler<ScopeProbeCommand>, ScopedDependencyCommandHandler>();
+		using (var scopedProvider = scopedServices.BuildServiceProvider())
 		{
-			await direct!.DispatchLocalAsync(new ScopeProbeCommand { Value = i }, CancellationToken.None);
+			var dispatcher = scopedProvider.GetRequiredService<IDispatcher>();
+			for (var i = 0; i < 10; i++)
+			{
+				_ = await dispatcher.DispatchAsync(new ScopeProbeCommand { Value = i }, CancellationToken.None);
+			}
+
+			scopedProbe.ScopePathEntries.ShouldBeGreaterThan(
+				0,
+				"a handler whose constructor reaches a scoped service MUST drive the dispatch into the "
+				+ "scope-taking branch; if this is zero the probe observes nothing and the arm above "
+				+ "proves nothing");
 		}
-
-		var perDispatch = (GC.GetAllocatedBytesForCurrentThread() - before) / (double)Iterations;
-
-		// The published figure for this path is 24 B. A created IServiceScope and its scoped provider cost
-		// several hundred bytes, so the bound separates "no scope" from "a scope per dispatch" with room to
-		// spare rather than pinning an exact number that ordinary churn would flap.
-		perDispatch.ShouldBeLessThan(
-			128,
-			$"the ultra-local path allocated {perDispatch:F0} B per dispatch for a handler that provably "
-			+ "needs no scope. Scope-correct resolution must stay off handlers whose dependency graph cannot "
-			+ "reach a scoped service, or every consumer pays for a scope none of their handlers required");
 	}
 }

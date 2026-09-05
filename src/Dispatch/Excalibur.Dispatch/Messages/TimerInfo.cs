@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Messages;
 /// an event rather than an action, and classifying it explicitly keeps it out of the unclassifiable set that the pipeline refuses to
 /// dispatch.
 /// </remarks>
+[MessageName("Excalibur.Dispatch.TimerInfo")]
 public sealed class TimerInfo : IDispatchEvent
 {
 	private readonly Dictionary<string, object> _headers = [];

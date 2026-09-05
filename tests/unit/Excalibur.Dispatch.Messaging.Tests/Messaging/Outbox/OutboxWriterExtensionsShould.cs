@@ -96,4 +96,44 @@ public sealed class OutboxWriterExtensionsShould : UnitTestBase
 		A.CallTo(() => writer.WriteAsync(message, "dest", cts.Token))
 			.MustHaveHappenedOnceExactly();
 	}
+
+	[Fact]
+	public async Task GiveTheScheduledTimeToAWriterThatOnlyRecordsItAfterAnAwait()
+	{
+		// The scheduled time used to travel to the writer through an AsyncLocal that the extension cleared
+		// in a finally block -- which ran before an asynchronous writer had reached the line that reads it.
+		// It is a parameter now, so it cannot be cleared out from under a writer that suspends first. This
+		// arm is RED against any return to a set-then-clear ambient.
+		var writer = new AwaitsBeforeRecordingWriter();
+		var message = A.Fake<IDispatchMessage>();
+		var scheduledAt = new DateTimeOffset(2026, 8, 3, 9, 30, 0, TimeSpan.Zero);
+
+		await writer.WriteScheduledAsync(message, "dest", scheduledAt, CancellationToken.None);
+
+		writer.Recorded.ShouldBe(
+			scheduledAt,
+			"the writer must see the caller's scheduled time for the whole write, including after it suspends");
+	}
+
+	/// <summary>
+	/// A writer that yields before recording, so anything the extension tears down synchronously is already
+	/// gone by the time the value is read.
+	/// </summary>
+	private sealed class AwaitsBeforeRecordingWriter : IOutboxWriter, IScheduledOutboxWriter
+	{
+		public DateTimeOffset? Recorded { get; private set; }
+
+		public ValueTask WriteAsync(IDispatchMessage message, string? destination, CancellationToken cancellationToken)
+			=> ValueTask.CompletedTask;
+
+		public async ValueTask WriteScheduledAsync(
+			IDispatchMessage message,
+			string? destination,
+			DateTimeOffset scheduledAt,
+			CancellationToken cancellationToken)
+		{
+			await Task.Yield();
+			Recorded = scheduledAt;
+		}
+	}
 }

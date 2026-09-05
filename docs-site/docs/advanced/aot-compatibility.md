@@ -412,8 +412,6 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | `Excalibur.Security.AuditLogging` | AOT-safe |  |
 | `Excalibur.Testing.Containers` | **Not compatible** | Fixtures run under a test host, not a trimmed consumer app; reflection in Testcontainers is acceptable here. |
 | `Excalibur.Workflows.Abstractions` | AOT-safe |  |
-| `Excalibur.Workflows.Analyzers` | **Not compatible** | Disable AOT analysis - not applicable to analyzers (run in compiler, not runtime) |
-| `Excalibur.Workflows.CodeFixes` | **Not compatible** |  |
 | `Excalibur.Workflows.SqlServer` | AOT-safe |  |
 | `Excalibur.Workflows` | AOT-safe |  |
 | `Excalibur.Dispatch.AspNetCore` | Annotated | Annotated paths: `AddDispatchAspNetCore`. The rest of the surface publishes clean. |

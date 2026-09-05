@@ -24,12 +24,19 @@ pwsh -NoProfile -File eng/ci/Reap-OrphanTestHosts.ps1
 # 2. Build (Release). Use the REPO-LOCAL SDK: global.json pins a version that a bare
 #    `dotnet` on PATH does not have, and bare `dotnet` fails with "A compatible .NET SDK
 #    was not found" before any benchmark runs.
-./.dotnet/dotnet.exe build benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj -c Release --nologo
+#
+#    -p:BuildExamplesAndTests=true IS REQUIRED AND ITS ABSENCE IS SILENT. Directory.Build.targets
+#    removes every .cs from any project under benchmarks/ unless it is set. Without it the build
+#    prints "Skipping compile for Excalibur.Dispatch.Benchmarks", reports "Build succeeded. 0
+#    Error(s)", leaves the PREVIOUS dll in bin/, and the next run measures that stale binary --
+#    reproduced 2026-09-05: an edited benchmark built clean and ran the old code's output.
+#    `dotnet run` without --no-build skips the compile the same way, so the flag belongs on both.
+./.dotnet/dotnet.exe build benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj -c Release --nologo -p:BuildExamplesAndTests=true   | grep "Skipping compile for Excalibur.Dispatch.Benchmarks"   # expect NO output
 
 # 3. Run detached. ONE --filter: BenchmarkDotNet does not treat '|' as alternation, and
 #    repeating --filter did not match either. "*Comparative*" selects the whole
 #    comparative suite (268 benchmarks at time of writing).
-nohup ./.dotnet/dotnet.exe run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks --   --filter "*Comparative*"   --artifacts benchmarks/runs/$(date +%Y%m%d)-artifacts   > benchmarks/runs/$(date +%Y%m%d)-run.log 2>&1 &
+nohup ./.dotnet/dotnet.exe run -c Release --project benchmarks/Excalibur.Dispatch.Benchmarks --no-build -p:BuildExamplesAndTests=true --   --filter "*Comparative*"   --artifacts benchmarks/runs/$(date +%Y%m%d)-artifacts   > benchmarks/runs/$(date +%Y%m%d)-run.log 2>&1 &
 disown
 
 # 4. CONFIRM IT IS ACTUALLY RUNNING -- the launcher's exit code is nohup's, not the run's.
@@ -252,6 +259,7 @@ BLOCKERs should escalate to REVIEW_ARCH (ORACLE) for adjudication: is this a rea
 - [ ] `.NET SDK` + `.NET Runtime` noted (from the first run's report header)
 - [ ] Other IDEs / dotnet-watch / VS Test Explorer / Rider closed
 - [ ] Laptop plugged in (not on battery — CPU throttles affect measurements)
+- [ ] Built with `-p:BuildExamplesAndTests=true`, and the log has NO `Skipping compile for Excalibur.Dispatch.Benchmarks`
 - [ ] Pre-run `taskkill` → 0 dotnet
 - [ ] Detached via `nohup + disown`
 - [ ] Log file actively growing (`tail -f <logfile>` briefly to confirm)

@@ -78,8 +78,6 @@ src/Dispatch/Excalibur.Dispatch/Configuration/DispatchConfigurationServiceCollec
 src/Dispatch/Excalibur.Dispatch/Configuration/DispatchConfigurationServiceCollectionExtensions.cs::AddStrictDispatchPipelines
 src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public Task<IMessageResult<TResponse>> D
 src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public Task<IMessageResult> DispatchAsyn
-src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public ValueTask DispatchLocalAsync<TMes
-src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs::public ValueTask<TResponse?> DispatchLoc
 src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerActivator.cs::PreWarmCache
 src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerInvoker.cs::IValueTaskHandlerInvoker
 src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/HandlerLifetimeAnalyzer.cs::PromoteEligibleHandlers

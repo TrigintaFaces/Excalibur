@@ -568,7 +568,7 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task Preserve_Ambient_Context_On_Sync_DirectLocal_FastPath()
+	public async Task Restore_The_Callers_Ambient_Context_After_Sync_DirectLocal_FastPath()
 	{
 		// Arrange
 		var (dispatcher, localInvoker, _) = CreateTransportAwareDispatcherForFastPath();
@@ -589,18 +589,16 @@ public sealed class DispatcherShould
 
 			// Assert
 			result.Succeeded.ShouldBeTrue();
-			// The ultra-local fast path publishes NO ambient context. It is reached only when the
-			// per-type dispatch info says the handler declared it takes no context (neither a settable
-			// IMessageContext property nor an IMessageContextAccessor constructor parameter), so there
-			// is nobody on this path entitled to read one -- and publishing it cost an ExecutionContext
-			// copy-on-write, 44% of the path and all of its allocation.
-			// What still matters, and is what this test now pins: the fast path must leave a caller's
-			// existing ambient ALONE. The handler sees the outer ambient unchanged, and it is still
-			// intact afterwards. (Supersedes the Sprint 656 behaviour, which pushed the dispatch
-			// context here so a handler could read it from the public static; that static is now
-			// internal, so no handler can reach it without declaring injection.)
-			capturedAmbient.ShouldBe(previousAmbient);
-			MessageContextHolder.Current.ShouldBe(previousAmbient);
+			// The fast path publishes the DISPATCH context around the handler, because the framework
+			// reads the ambient on the handler's behalf: a nested two-argument DispatchAsync consults
+			// MessageContextHolder.Current to decide child-vs-root. Not publishing it made every nested
+			// dispatch a fresh root, losing causation, correlation, tenant and user.
+			capturedAmbient.ShouldBe(context,
+				"the handler must observe the context this dispatch is running under");
+
+			// And it must pop: a caller's existing ambient is restored, not clobbered.
+			MessageContextHolder.Current.ShouldBe(previousAmbient,
+				"the push must be scoped to the dispatch -- the caller's ambient is restored afterwards");
 		}
 		finally
 		{
@@ -609,7 +607,7 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task Not_Publish_Ambient_Context_On_Sync_DirectLocal_FastPath()
+	public async Task Publish_The_Dispatch_Context_As_Ambient_On_Sync_DirectLocal_FastPath()
 	{
 		// Arrange
 		var (dispatcher, localInvoker, _) = CreateTransportAwareDispatcherForFastPath();
@@ -627,23 +625,25 @@ public sealed class DispatcherShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		// No ambient is published on the ultra-local fast path, so a handler that declared it takes
-		// no context sees exactly what was there before: nothing. This is the liveness counterpart to
-		// the preservation test above -- together they pin "does not publish" and "does not disturb",
-		// which is the whole ambient contract of this path.
-		capturedAmbient.ShouldBeNull();
-		MessageContextHolder.Current.ShouldBeNull();
+		// The ambient IS published on the fast path. This is the liveness counterpart to the restore
+		// test above -- together they pin "publishes" and "pops", which is the whole ambient contract
+		// of this path. A change that simply stopped pushing would pass the restore arm alone.
+		capturedAmbient.ShouldBe(context,
+			"the handler must observe the context this dispatch is running under");
+		MessageContextHolder.Current.ShouldBeNull(
+			"nothing was ambient before the dispatch, so nothing is ambient after it");
 	}
 
 	[Fact]
-	public async Task DispatchLocalAsync_Should_Use_UltraLocal_ValueTask_Path()
+	public async Task DispatchAsync_Should_Use_UltraLocal_ValueTask_Path()
 	{
 		// Arrange
 		var (dispatcher, localInvoker, _) = CreateTransportAwareDispatcherForFastPath();
 		var message = new LocalTransportAction();
+		var context = new MessageContext();
 
 		// Act
-		await dispatcher.DispatchLocalAsync(message, CancellationToken.None);
+		_ = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		A.CallTo(() => localInvoker.InvokeAsync(A<object>._, message, A<CancellationToken>._))
@@ -651,17 +651,18 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task DispatchLocalAsync_With_Response_Should_Return_Handler_Output()
+	public async Task DispatchAsync_With_Response_Should_Return_Handler_Output()
 	{
 		// Arrange
 		var (dispatcher, localInvoker) = CreateTransportAwareTypedDispatcherForFastPath();
 		var message = new LocalTransportQuery { Value = 11 };
+		var context = new MessageContext();
 
 		// Act
-		var result = await dispatcher.DispatchLocalAsync<LocalTransportQuery, int>(message, CancellationToken.None);
+		var result = await dispatcher.DispatchAsync<LocalTransportQuery, int>(message, context, CancellationToken.None);
 
 		// Assert
-		result.ShouldBe(22);
+		result.ReturnValue.ShouldBe(22);
 		A.CallTo(() => localInvoker.InvokeAsync(A<object>._, message, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -810,86 +811,6 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task DispatchLocalAsync_Should_Create_Context_Lazily_Without_Ambient_Mutation_When_Handler_Requires_Context()
-	{
-		// Arrange
-		var serviceProvider = A.Fake<IServiceProvider>();
-		var registry = A.Fake<IHandlerRegistry>();
-		var activator = A.Fake<IHandlerActivator>();
-		var localInvoker = A.Fake<IHandlerInvoker>();
-		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
-		var busProvider = A.Fake<IMessageBusProvider>();
-		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
-		var contextFactory = A.Fake<IMessageContextFactory>();
-		var rentedContext = new MessageContext();
-		var handler = new LocalTransportContextActionHandler();
-		var message = new LocalTransportContextAction();
-		var previousAmbient = new MessageContext { MessageId = "existing-ambient" };
-		IMessageContext? capturedAmbient = null;
-
-		var handlerEntry = new HandlerRegistryEntry(
-			typeof(LocalTransportContextAction),
-			typeof(LocalTransportContextActionHandler),
-			expectsResponse: false);
-		IHandlerRegistryEntry outEntry = handlerEntry;
-		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportContextAction), out outEntry))
-			.Returns(true)
-			.AssignsOutAndRefParameters(handlerEntry);
-		_ = A.CallTo(() => registry.GetAll())
-			.Returns([handlerEntry]);
-
-		_ = A.CallTo(() => serviceProvider.GetService(typeof(IMessageContextFactory)))
-			.Returns(contextFactory);
-		_ = A.CallTo(() => contextFactory.CreateContext())
-			.Returns(rentedContext);
-
-		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportContextActionHandler), A<IMessageContext>._, serviceProvider))
-			.Invokes((Type _, IMessageContext context, IServiceProvider _) => handler.Context = context)
-			.Returns(handler);
-		_ = A.CallTo(() => localInvoker.InvokeAsync(handler, message, A<CancellationToken>._))
-			.Invokes(() => capturedAmbient = MessageContextHolder.Current)
-			.Returns(Task.FromResult<object?>(null));
-
-		var localMessageBus = new LocalMessageBus(serviceProvider, registry, activator, localInvoker, localLogger);
-		IMessageBus? outLocalBus = localMessageBus;
-		_ = A.CallTo(() => busProvider.TryGet("local", out outLocalBus))
-			.Returns(true)
-			.AssignsOutAndRefParameters(localMessageBus);
-
-		var finalHandler = new FinalDispatchHandler(busProvider, finalLogger, retryPolicy: null, busOptionsMap);
-		var dispatcher = new Dispatcher(
-			middlewareInvoker: new DispatchMiddlewareInvoker([]),
-			finalHandler: finalHandler,
-			transportContextProvider: null,
-			serviceProvider: serviceProvider,
-			localMessageBus: localMessageBus,
-			busOptionsMap: busOptionsMap,
-			dispatchRouter: null,
-			dispatchOptions: null);
-
-		MessageContextHolder.Current = previousAmbient;
-		try
-		{
-			// Act
-			await dispatcher.DispatchLocalAsync(message, CancellationToken.None);
-
-			// Assert
-			MessageContextHolder.Current.ShouldBe(previousAmbient);
-			if (capturedAmbient is not null)
-			{
-				capturedAmbient.ShouldBe(previousAmbient);
-			}
-			A.CallTo(() => contextFactory.CreateContext()).MustHaveHappenedOnceExactly();
-			A.CallTo(() => contextFactory.Return(rentedContext)).MustHaveHappenedOnceExactly();
-		}
-		finally
-		{
-			MessageContextHolder.Current = null;
-		}
-	}
-
-	[Fact]
 	public async Task Initialize_Full_DirectLocal_Context_When_Profile_Is_Full()
 	{
 		// Arrange
@@ -908,49 +829,6 @@ public sealed class DispatcherShould
 		context.CorrelationId.ShouldNotBeNullOrWhiteSpace();
 		context.CausationId.ShouldBe(context.CorrelationId);
 		context.GetMessageType().ShouldNotBeNullOrWhiteSpace();
-	}
-
-	[Fact]
-	public async Task DispatchLocalAsync_Should_Not_Create_Context_When_No_Local_Handler_Is_Registered()
-	{
-		// Arrange
-		var serviceProvider = A.Fake<IServiceProvider>();
-		var contextFactory = A.Fake<IMessageContextFactory>();
-		_ = A.CallTo(() => serviceProvider.GetService(typeof(IMessageContextFactory)))
-			.Returns(contextFactory);
-		var dispatcher = CreateDispatcherWithNoLocalHandlers(serviceProvider);
-
-		// Act
-		var ex = await Should.ThrowAsync<InvalidOperationException>(
-				async () => await dispatcher.DispatchLocalAsync(new MissingLocalAction(), CancellationToken.None))
-			;
-
-		// Assert
-		ex.Message.ShouldContain(nameof(MissingLocalAction));
-		A.CallTo(() => contextFactory.CreateContext()).MustNotHaveHappened();
-	}
-
-	[Fact]
-	public async Task DispatchLocalAsync_With_Response_Should_Not_Create_Context_When_No_Local_Handler_Is_Registered()
-	{
-		// Arrange
-		var serviceProvider = A.Fake<IServiceProvider>();
-		var contextFactory = A.Fake<IMessageContextFactory>();
-		_ = A.CallTo(() => serviceProvider.GetService(typeof(IMessageContextFactory)))
-			.Returns(contextFactory);
-		var dispatcher = CreateDispatcherWithNoLocalHandlers(serviceProvider);
-
-		// Act
-		var ex = await Should.ThrowAsync<InvalidOperationException>(
-				async () => await dispatcher.DispatchLocalAsync<MissingLocalQuery, int>(
-						new MissingLocalQuery { Value = 7 },
-						CancellationToken.None)
-					)
-			;
-
-		// Assert
-		ex.Message.ShouldContain(nameof(MissingLocalQuery));
-		A.CallTo(() => contextFactory.CreateContext()).MustNotHaveHappened();
 	}
 
 	[Fact]

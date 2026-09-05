@@ -162,7 +162,7 @@ const features: { title: string; icon: ReactNode; description: string }[] = [
     title: 'Blazing Fast Messaging',
     icon: <IconLightning />,
     description:
-      'Low-allocation message dispatching with minimal overhead. Standard dispatch at ~30 ns / 24 B -- 1.42x faster than MediatR with 6.3x less memory. Zero-allocation handler internals.',
+      'Low-allocation message dispatching with minimal overhead. A standard command dispatch measures ~46 ns at a 96 B floor, and a three-middleware pipeline ~72 ns -- 1.74x faster than MediatR at 2.8x less memory.',
   },
   {
     title: 'Event Sourcing Built-in',
@@ -363,10 +363,10 @@ dotnet add package Excalibur.Hosting.Web`}
 
 function PerformanceShowcaseSection() {
   const metrics: { value: string; label: string; detail: string }[] = [
-    { value: '~30 ns', label: 'Standard Dispatch', detail: '1.42x faster than MediatR, 24 B allocated' },
-    { value: '~33 ns', label: 'Ultra-Local Dispatch', detail: 'Explicit lowest-overhead API, 24 B' },
-    { value: '6.3x', label: 'Less Memory Than MediatR', detail: 'Ultra-local: 24 B vs 152 B' },
-    { value: '2.6x', label: 'Faster Than Wolverine', detail: 'Single command, in-process' },
+    { value: '~46 ns', label: 'Standard Dispatch', detail: '96 B floor; MediatR is 1.10x faster here' },
+    { value: '1.74x', label: 'Faster Than MediatR', detail: 'Three-middleware pipeline: 71.7 ns vs 124.9 ns' },
+    { value: '1.58x', label: 'Less Memory Than MediatR', detail: 'Single command: 96 B vs 152 B' },
+    { value: '3.8x', label: 'Faster Than Wolverine', detail: 'Single command in-process: 47.0 ns vs 179.1 ns' },
     { value: '44,262+', label: 'Tests Passing', detail: 'Unit, integration, functional' },
     { value: '170+', label: 'NuGet Packages', detail: 'Install only what you need' },
   ];

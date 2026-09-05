@@ -52,12 +52,12 @@ public class MediatRComparisonBenchmarks
 	private IMessageContextFactory? _dispatchContextFactory;
 	private IServiceProvider? _dispatchDirectServiceProvider;
 	private IDispatcher? _directDispatcher;
-	private IDirectLocalDispatcher? _directLocalDispatcher;
+	private Dispatcher? _contextLessDispatcher;
 	private IMessageContextFactory? _directContextFactory;
 
 	// Singleton-promoted infrastructure (auto-promotion optimization)
 	private IServiceProvider? _singletonServiceProvider;
-	private IDirectLocalDispatcher? _singletonDirectLocalDispatcher;
+	private Dispatcher? _singletonContextLessDispatcher;
 
 	// MediatR infrastructure
 	private IServiceProvider? _mediatrServiceProvider;
@@ -119,7 +119,7 @@ public class MediatRComparisonBenchmarks
 
 		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
 		_directDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>();
-		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+		_contextLessDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as Dispatcher;
 		_directContextFactory = _dispatchDirectServiceProvider.GetRequiredService<IMessageContextFactory>();
 
 		// NON-VACUITY ARM. The benchmarks below are NAMED for the ultra-local / direct-local path, but
@@ -131,16 +131,16 @@ public class MediatRComparisonBenchmarks
 		//
 		// So prove the premise before measuring it. Fail LOUD: a benchmark that cannot measure what it is
 		// named for must not emit a number at all.
-		if (_directLocalDispatcher is null)
+		if (_contextLessDispatcher is null)
 		{
 			throw new InvalidOperationException(
-				"Direct-local benchmarks: the dispatcher does not implement IDirectLocalDispatcher, so the "
-				+ "ultra-local path cannot be exercised and every 'ultra-local' figure below would describe "
+				"Direct-local benchmarks: the registered dispatcher is not the in-box Dispatcher, so the "
+				+ "fast arm cannot be confirmed and every 'ultra-local' figure below would describe "
 				+ "the ordinary pipeline.");
 		}
 
-		if (!_directLocalDispatcher.CanBypassMiddlewareFor(typeof(TestCommand))
-			|| !_directLocalDispatcher.CanBypassMiddlewareFor(typeof(TestQuery)))
+		if (!_contextLessDispatcher.CanBypassMiddlewareFor(typeof(TestCommand))
+			|| !_contextLessDispatcher.CanBypassMiddlewareFor(typeof(TestQuery)))
 		{
 			throw new InvalidOperationException(
 				"Direct-local benchmarks: this container reports that middleware applies, so dispatch will "
@@ -174,7 +174,7 @@ public class MediatRComparisonBenchmarks
 		_ = singletonServices.AddTransient<IActionHandler<TestQuery, int>, DispatchTestQueryHandler>();
 
 		_singletonServiceProvider = singletonServices.BuildServiceProvider();
-		_singletonDirectLocalDispatcher = _singletonServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+		_singletonContextLessDispatcher = _singletonServiceProvider.GetRequiredService<IDispatcher>() as Dispatcher;
 
 		// Setup MediatR
 		var mediatrServices = new ServiceCollection();
@@ -242,11 +242,11 @@ public class MediatRComparisonBenchmarks
 	/// <summary>
 	/// Excalibur.Dispatch ultra-local API path (ValueTask, no IMessageResult materialization on success).
 	/// </summary>
-	[Benchmark(Description = "Dispatch: Single command ultra-local API")]
-	public ValueTask Dispatch_SingleCommand_UltraLocalApi()
+	[Benchmark(Description = "Dispatch: Single command (context-less 2-arg)")]
+	public Task<IMessageResult> Dispatch_SingleCommand_ContextLessOverload()
 	{
 		var command = new TestCommand { Value = 42 };
-		return DispatchUltraLocalAsync(_directLocalDispatcher, command);
+		return DispatchContextLessAsync(_contextLessDispatcher, command);
 	}
 
 	/// <summary>
@@ -312,11 +312,11 @@ public class MediatRComparisonBenchmarks
 	/// <summary>
 	/// Excalibur.Dispatch ultra-local query path (ValueTask&lt;T&gt;, no IMessageResult materialization on success).
 	/// </summary>
-	[Benchmark(Description = "Dispatch: Query ultra-local API")]
-	public ValueTask<int> Dispatch_QueryWithReturnValue_UltraLocalApi()
+	[Benchmark(Description = "Dispatch: Query (context-less 2-arg)")]
+	public Task<IMessageResult<int>> Dispatch_QueryWithReturnValue_ContextLessOverload()
 	{
 		var query = new TestQuery { Id = 123 };
-		return DispatchUltraLocalWithResponseAsync<TestQuery, int>(_directLocalDispatcher, query);
+		return DispatchContextLessWithResponseAsync<TestQuery, int>(_contextLessDispatcher, query);
 	}
 
 	/// <summary>
@@ -337,21 +337,21 @@ public class MediatRComparisonBenchmarks
 	/// Excalibur.Dispatch with auto-promoted singleton handlers (PERF optimization).
 	/// Stateless handlers are automatically promoted from transient to singleton lifetime.
 	/// </summary>
-	[Benchmark(Description = "Dispatch: Ultra-local singleton-promoted")]
-	public ValueTask Dispatch_SingleCommand_SingletonPromoted()
+	[Benchmark(Description = "Dispatch: Singleton-promoted (context-less 2-arg)")]
+	public Task<IMessageResult> Dispatch_SingleCommand_SingletonPromoted()
 	{
 		var command = new TestCommand { Value = 42 };
-		return DispatchUltraLocalAsync(_singletonDirectLocalDispatcher, command);
+		return DispatchContextLessAsync(_singletonContextLessDispatcher, command);
 	}
 
 	/// <summary>
 	/// Excalibur.Dispatch with auto-promoted singleton handlers (query with response).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query singleton-promoted")]
-	public ValueTask<int> Dispatch_Query_SingletonPromoted()
+	public Task<IMessageResult<int>> Dispatch_Query_SingletonPromoted()
 	{
 		var query = new TestQuery { Id = 123 };
-		return DispatchUltraLocalWithResponseAsync<TestQuery, int>(_singletonDirectLocalDispatcher, query);
+		return DispatchContextLessWithResponseAsync<TestQuery, int>(_singletonContextLessDispatcher, query);
 	}
 
 	// ============================================================================
@@ -432,12 +432,12 @@ public class MediatRComparisonBenchmarks
 			.GetAwaiter().GetResult();
 
 		// Warmup singleton-promoted path
-		if (_singletonDirectLocalDispatcher is not null)
+		if (_singletonContextLessDispatcher is not null)
 		{
-			DispatchUltraLocalAsync(_singletonDirectLocalDispatcher, new TestCommand { Value = 1 })
-				.AsTask().GetAwaiter().GetResult();
-			DispatchUltraLocalWithResponseAsync<TestQuery, int>(_singletonDirectLocalDispatcher, new TestQuery { Id = 1 })
-				.AsTask().GetAwaiter().GetResult();
+			_ = DispatchContextLessAsync(_singletonContextLessDispatcher, new TestCommand { Value = 1 })
+				.GetAwaiter().GetResult();
+			_ = DispatchContextLessWithResponseAsync<TestQuery, int>(_singletonContextLessDispatcher, new TestQuery { Id = 1 })
+				.GetAwaiter().GetResult();
 		}
 
 		HandlerInvoker.FreezeCache();
@@ -522,22 +522,22 @@ public class MediatRComparisonBenchmarks
 		}
 	}
 
-	private static ValueTask DispatchUltraLocalAsync<TMessage>(
-		IDirectLocalDispatcher? dispatcher,
+	private static Task<IMessageResult> DispatchContextLessAsync<TMessage>(
+		IDispatcher? dispatcher,
 		TMessage message)
 		where TMessage : IDispatchAction
 	{
 		ArgumentNullException.ThrowIfNull(dispatcher);
-		return dispatcher.DispatchLocalAsync(message, CancellationToken.None);
+		return dispatcher.DispatchAsync(message, CancellationToken.None);
 	}
 
-	private static ValueTask<TResponse?> DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
-		IDirectLocalDispatcher? dispatcher,
+	private static Task<IMessageResult<TResponse>> DispatchContextLessWithResponseAsync<TMessage, TResponse>(
+		IDispatcher? dispatcher,
 		TMessage message)
 		where TMessage : IDispatchAction<TResponse>
 	{
 		ArgumentNullException.ThrowIfNull(dispatcher);
-		return dispatcher.DispatchLocalAsync<TMessage, TResponse>(message, CancellationToken.None);
+		return dispatcher.DispatchAsync<TMessage, TResponse>(message, CancellationToken.None);
 	}
 }
 

@@ -26,6 +26,12 @@ namespace Excalibur.Dispatch;
 /// examined, so an unrelated dependency that happens to define an event cannot fail an unrelated host.
 /// </para>
 /// <para>
+/// Generic event types are examined at their DEFINITION, which is where the name is declared and from
+/// which every construction composes a distinct one. That was not a meaningful thing to require until
+/// the composition existed: before it, one declaration would have made every construction claim one
+/// name, and a name two types claim resolves to neither.
+/// </para>
+/// <para>
 /// Trimming can remove a type before this runs, so a report is proof of a problem while a clean run is
 /// not proof of its absence. It narrows the window; it does not close it. The check is startup-only and
 /// touches no dispatch path.
@@ -76,9 +82,11 @@ internal sealed class UndeclaredEventNameStartupValidator : IStartupPrerequisite
 
 			foreach (var type in types)
 			{
+				// A generic definition is deliberately NOT skipped. It is never dispatched itself, so the
+				// construction that IS dispatched exists only in consumer code where nothing of ours
+				// runs -- the definition is the only reachable place to require the declaration.
 				if (type.IsAbstract
 					|| type.IsInterface
-					|| type.ContainsGenericParameters
 					|| !typeof(IDomainEvent).IsAssignableFrom(type))
 				{
 					continue;
@@ -103,7 +111,9 @@ internal sealed class UndeclaredEventNameStartupValidator : IStartupPrerequisite
 		throw new InvalidOperationException(
 			$"{undeclared.Count} domain event type(s) declare no message name:{Environment.NewLine}{names}{Environment.NewLine}"
 			+ "An event is stored under the name it declares, so writing one of these would fail inside "
-			+ "AppendAsync rather than here. Add [MessageName(\"...\")] to each type. A type that is not an "
-			+ "event and cannot reach an event store does not need one and should not implement IDomainEvent.");
+			+ "AppendAsync rather than here. Add [MessageName(\"...\")] to each type -- on a generic type "
+			+ "that is its definition, which every construction composes its own distinct name from. A type "
+			+ "that is not an event and cannot reach an event store does not need one and should not "
+			+ "implement IDomainEvent.");
 	}
 }

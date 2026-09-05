@@ -44,7 +44,7 @@ public class MassTransitComparisonBenchmarks
 
 	// Excalibur infrastructure — tuned direct-local path (no middleware chain)
 	private IServiceProvider? _dispatchDirectServiceProvider;
-	private IDirectLocalDispatcher? _directLocalDispatcher;
+	private IDispatcher? _contextLessDispatcher;
 
 	// MassTransit infrastructure
 	private IServiceProvider? _massTransitServiceProvider;
@@ -97,7 +97,7 @@ public class MassTransitComparisonBenchmarks
 		_ = directDispatchServices.AddTransient<IEventHandler<MassTransitTestEvent>, DispatchMassTransitEventHandler2>();
 
 		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
-		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+		_contextLessDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>();
 
 		// Setup MassTransit (in-memory bus only for fair comparison)
 		var massTransitServices = new ServiceCollection();
@@ -188,10 +188,10 @@ public class MassTransitComparisonBenchmarks
 	/// Dispatch via the tuned direct-local path, matching the tuned tier every other pairing publishes.
 	/// </summary>
 	[Benchmark(Description = "Dispatch (tuned direct-local): Single command")]
-	public ValueTask Dispatch_SingleCommand_DirectLocal()
+	public Task<IMessageResult> Dispatch_SingleCommand_DirectLocal()
 	{
 		var command = new MassTransitTestCommand { Value = 42 };
-		return _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None);
+		return _contextLessDispatcher!.DispatchAsync(command, CancellationToken.None);
 	}
 
 	/// <summary>

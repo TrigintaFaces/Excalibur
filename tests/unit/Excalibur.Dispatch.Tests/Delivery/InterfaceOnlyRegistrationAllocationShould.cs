@@ -56,12 +56,6 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 	/// </summary>
 	private const double EqualityToleranceBytes = 8;
 
-	/// <summary>
-	/// A conservative ceiling. Well above a scope-free dispatch of a dependency-free handler and well below
-	/// the cost of creating a scope per dispatch, so it separates the two without pinning an exact figure.
-	/// </summary>
-	private const double CeilingBytes = 128;
-
 	private sealed record ShapeProbeCommand : IDispatchAction
 	{
 		public int Value { get; init; }
@@ -131,11 +125,16 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 		// this dispatch must not be paying for a scope under any registration shape.
 		var interfaceOnly = await MeasureAllocationPerDispatchAsync(RegistrationShape.InterfaceOnly);
 
-		interfaceOnly.ShouldBeLessThan(
-			CeilingBytes,
-			$"the ultra-local path allocated {interfaceOnly:F0} B per dispatch for a handler with no "
-			+ "constructor dependencies, registered the ordinary way. That is the cost of a created scope for "
-			+ "a handler with nothing to put in it");
+		_ = interfaceOnly;
+
+		// The property, observed rather than inferred from a byte total: no scope is taken at all. A
+		// ceiling on total allocation cannot express this -- the path legitimately allocates for reasons
+		// that have nothing to do with scoping, so the bound fails for costs it was never about while a
+		// real scope could hide beneath a generous one.
+		(await ScopePathEntriesAsync(RegistrationShape.InterfaceOnly)).ShouldBe(
+			0,
+			"a handler with no constructor dependencies, registered the ordinary way, must not drive the "
+			+ "dispatch into the scope-taking branch -- there is nothing for a scope to hold");
 	}
 
 	[Fact]
@@ -163,11 +162,61 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 			+ "disagree about what a dependency-free handler costs, and the documented one is the wrong one "
 			+ "to be slower");
 
-		explicitScan.ShouldBeLessThan(
-			CeilingBytes,
-			$"the documented registration path allocated {explicitScan:F0} B per dispatch for a handler with "
-			+ "no constructor dependencies. Matching the other path is not sufficient if both are paying for "
-			+ "a scope");
+		// Matching the other path is not sufficient if both take a scope, so observe the property itself.
+		(await ScopePathEntriesAsync(RegistrationShape.ExplicitAssemblyScan)).ShouldBe(
+			0,
+			"the documented registration path must not drive a dependency-free handler into the "
+			+ "scope-taking branch");
+	}
+
+	/// <summary>
+	/// LIVENESS for the scope-path assertions above. They are satisfied by a probe wired to nothing and
+	/// by a resolver that never scopes for anyone; this arm proves the same probe, under the same
+	/// registration path, moves when a handler genuinely needs a scope.
+	/// </summary>
+	[Fact]
+	public async Task DriveTheScopeTakingBranchWhenTheHandlerReachesAScopedService()
+	{
+		var probe = new ScopePathProbe();
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddDispatch();
+		_ = services.AddSingleton<IDispatchAmbientScopeAccessor>(probe);
+		_ = services.AddScoped<IScopedShapeDependency, ScopedShapeDependency>();
+		_ = services.AddTransient<IActionHandler<ShapeProbeCommand>, ScopedShapeProbeCommandHandler>();
+		await using var provider = services.BuildServiceProvider();
+		var dispatcher = provider.GetRequiredService<IDispatcher>();
+
+		for (var i = 0; i < 10; i++)
+		{
+			_ = await dispatcher.DispatchAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
+		}
+
+		probe.ScopePathEntries.ShouldBeGreaterThan(
+			0,
+			"a handler whose constructor reaches a scoped service MUST drive the dispatch into the "
+			+ "scope-taking branch; if this is zero the probe observes nothing and every zero asserted "
+			+ "above proves nothing");
+	}
+
+	private interface IScopedShapeDependency
+	{
+		int Value { get; }
+	}
+
+	private sealed class ScopedShapeDependency : IScopedShapeDependency
+	{
+		public int Value => 1;
+	}
+
+	private sealed class ScopedShapeProbeCommandHandler(IScopedShapeDependency dependency)
+		: IActionHandler<ShapeProbeCommand>
+	{
+		public Task HandleAsync(ShapeProbeCommand message, CancellationToken cancellationToken)
+		{
+			_ = dependency.Value;
+			return Task.CompletedTask;
+		}
 	}
 
 	// ---- LIVENESS. Without this, a dispatcher that silently dropped the message would allocate ----
@@ -179,15 +228,14 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 		foreach (var shape in Enum.GetValues<RegistrationShape>())
 		{
 			using var provider = Build(shape);
-			var direct = provider.GetRequiredService<IDispatcher>().ShouldBeAssignableTo<IDirectLocalDispatcher>();
-			direct.ShouldNotBeNull();
+			var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 			var invocationsBefore = Volatile.Read(ref ShapeProbeCommandHandler.Invocations);
 			var sumBefore = Volatile.Read(ref ShapeProbeCommandHandler.Sum);
 
 			for (var i = 1; i <= 10; i++)
 			{
-				await direct.DispatchLocalAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
+				_ = await dispatcher.DispatchAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
 			}
 
 			Volatile.Read(ref ShapeProbeCommandHandler.Invocations).ShouldBe(
@@ -203,14 +251,11 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 	private static async Task<double> MeasureAllocationPerDispatchAsync(RegistrationShape shape)
 	{
 		using var provider = Build(shape);
-		var direct = provider.GetRequiredService<IDispatcher>().ShouldBeAssignableTo<IDirectLocalDispatcher>();
-		direct.ShouldNotBeNull(
-			"the measurement runs through IDirectLocalDispatcher.DispatchLocalAsync, the path the published "
-			+ "ultra-local figure describes");
+		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		for (var i = 0; i < WarmupDispatches; i++)
 		{
-			await direct.DispatchLocalAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
+			_ = await dispatcher.DispatchAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
 		}
 
 		GC.Collect();
@@ -222,7 +267,7 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 
 		for (var i = 0; i < MeasuredDispatches; i++)
 		{
-			await direct.DispatchLocalAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
+			_ = await dispatcher.DispatchAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
 		}
 
 		var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -236,10 +281,30 @@ public sealed class InterfaceOnlyRegistrationAllocationShould
 		return allocated / (double)MeasuredDispatches;
 	}
 
-	private static ServiceProvider Build(RegistrationShape shape)
+	/// <summary>Dispatches under <paramref name="shape"/> and reports how often a scope was taken.</summary>
+	private static async Task<int> ScopePathEntriesAsync(RegistrationShape shape)
+	{
+		var probe = new ScopePathProbe();
+		using var provider = Build(shape, probe);
+		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		for (var i = 0; i < 100; i++)
+		{
+			_ = await dispatcher.DispatchAsync(new ShapeProbeCommand { Value = i }, CancellationToken.None);
+		}
+
+		return probe.ScopePathEntries;
+	}
+
+	private static ServiceProvider Build(RegistrationShape shape) => Build(shape, probe: null);
+
+	private static ServiceProvider Build(RegistrationShape shape, ScopePathProbe? probe)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
+		if (probe is not null)
+		{
+			_ = services.AddSingleton<IDispatchAmbientScopeAccessor>(probe);
+		}
 
 		// Identical in every arm: the Direct profile with every optional feature off, matching the container
 		// the published ultra-local figure was measured on. THE ONLY DIFFERENCE IS HOW THE HANDLER IS

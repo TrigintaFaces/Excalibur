@@ -48,15 +48,41 @@ public static class MessageNameHelper
 	/// <returns>The declared name, or <see langword="null"/>.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="type"/> is <see langword="null"/>.</exception>
 	/// <remarks>
+	/// <para>
 	/// For a caller that must degrade rather than fail when a message is unnamed. A stored identity is
 	/// not such a caller -- use <see cref="GetName(Type)"/> there.
+	/// </para>
+	/// <para>
+	/// A closed generic composes its name from the name its open definition declares, so one declaration
+	/// covers every construction and two constructions never claim one name. The composition follows the
+	/// rule the data contract serializer has used for generic types since .NET 3.0 -- the declared name,
+	/// the word <c>Of</c>, then the declared name of each type argument, falling back to the argument's
+	/// type name where it declares none. <c>Drawing&lt;Square, RedBrush&gt;</c> is
+	/// <c>DrawingOfSquareRedBrush</c> there and here alike.
+	/// </para>
+	/// <para>
+	/// The hash of argument namespaces that the data contract serializer appends is deliberately not
+	/// reproduced: it exists to separate two arguments sharing a name in different namespaces, which
+	/// here is refused loudly at registration rather than accepted silently, and it would make every
+	/// generic message name unreadable to buy that.
+	/// </para>
 	/// </remarks>
 	public static string? GetDeclaredName(Type type)
 	{
 		ArgumentNullException.ThrowIfNull(type);
 
 		return DeclaredNames.GetOrAdd(type, static t =>
-			t.GetCustomAttribute<MessageNameAttribute>(inherit: false)?.Name);
+		{
+			// An attribute on the open definition is returned for every construction of it, so without
+			// the composition below every construction would answer with one shared name -- and a name
+			// two types claim is worse than no name at all: it resolves to neither.
+			var declared = t.GetCustomAttribute<MessageNameAttribute>(inherit: false)?.Name;
+
+			return declared is not null && t.IsConstructedGenericType
+				? declared + "Of" + string.Concat(
+					t.GetGenericArguments().Select(static a => GetDeclaredName(a) ?? a.Name))
+				: declared;
+		});
 	}
 
 	/// <summary>

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Middleware.Outbox;
 /// <see cref="OutboxConsistencyMode.EventuallyConsistent"/> mode. Messages are
 /// buffered during handler execution and staged after the handler completes.
 /// </remarks>
-internal sealed class DeferredOutboxWriter(IMessageContextAccessor contextAccessor) : IOutboxWriter
+internal sealed class DeferredOutboxWriter(IMessageContextAccessor contextAccessor) : IOutboxWriter, IScheduledOutboxWriter
 {
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -25,7 +25,20 @@ internal sealed class DeferredOutboxWriter(IMessageContextAccessor contextAccess
 	public ValueTask WriteAsync(
 		IDispatchMessage message,
 		string? destination,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+		Buffer(message, destination, scheduledAt: null);
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public ValueTask WriteScheduledAsync(
+		IDispatchMessage message,
+		string? destination,
+		DateTimeOffset scheduledAt,
+		CancellationToken cancellationToken) =>
+		Buffer(message, destination, scheduledAt);
+
+	private ValueTask Buffer(IDispatchMessage message, string? destination, DateTimeOffset? scheduledAt)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
@@ -38,7 +51,6 @@ internal sealed class DeferredOutboxWriter(IMessageContextAccessor contextAccess
 			?? throw new InvalidOperationException(
 				"OutboxContext not found. Ensure OutboxStagingMiddleware is in the pipeline.");
 
-		var scheduledAt = OutboxScheduledDeliveryScope.Current;
 		outboxContext.AddOutboundMessage(message, destination, scheduledAt);
 
 		return ValueTask.CompletedTask;

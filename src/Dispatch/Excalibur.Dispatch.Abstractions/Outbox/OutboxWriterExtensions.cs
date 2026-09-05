@@ -32,14 +32,11 @@ public static class OutboxWriterExtensions
 		ArgumentNullException.ThrowIfNull(writer);
 		ArgumentNullException.ThrowIfNull(message);
 
-		OutboxScheduledDeliveryScope.Current = scheduledAt;
-		try
-		{
-			return writer.WriteAsync(message, destination, cancellationToken);
-		}
-		finally
-		{
-			OutboxScheduledDeliveryScope.Current = null;
-		}
+		// The framework's own deferred writer takes the time as a parameter. Anything else gets the plain
+		// write -- which is what it got before too, since the ambient this replaced was internal and no
+		// other writer read it.
+		return writer is IScheduledOutboxWriter scheduled
+			? scheduled.WriteScheduledAsync(message, destination, scheduledAt, cancellationToken)
+			: writer.WriteAsync(message, destination, cancellationToken);
 	}
 }

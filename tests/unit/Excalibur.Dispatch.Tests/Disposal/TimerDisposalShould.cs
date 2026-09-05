@@ -17,7 +17,11 @@ public sealed class TimerDisposalShould
 	[Fact]
 	public void DisposeCleanupTimerInInMemoryDeduplicator()
 	{
-		// Arrange
+		// Arrange -- a TimeProvider that hands back a timer it can be asked about afterwards. Before
+		// TimeProvider the only way to observe the timer at all was to reflect over the field and check
+		// its concrete type; now the property the test actually cares about -- the cleanup timer is
+		// disposed with the deduplicator -- is directly observable through the seam.
+		var clock = new SpyTimerTimeProvider();
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
 		{
 			EnableAutomaticCleanup = true,
@@ -25,22 +29,19 @@ public sealed class TimerDisposalShould
 		});
 		var deduplicator = new InMemoryDeduplicator(
 			options,
+			meterFactory: null,
+			clock,
 			NullLogger<InMemoryDeduplicator>.Instance);
 
-		// Get the timer field via reflection
-		var timerField = typeof(InMemoryDeduplicator)
-			.GetField("_cleanupTimer", BindingFlags.NonPublic | BindingFlags.Instance);
-		timerField.ShouldNotBeNull("Expected _cleanupTimer field on InMemoryDeduplicator");
-
-		var timer = timerField.GetValue(deduplicator) as Timer;
-		timer.ShouldNotBeNull("Timer should be initialized");
+		var timer = clock.Created;
+		timer.ShouldNotBeNull("a cleanup timer must be created when automatic cleanup is enabled");
+		timer.IsDisposed.ShouldBeFalse("the timer must still be running before disposal");
 
 		// Act
 		deduplicator.Dispose();
 
-		// Assert -- after dispose, the timer should be disposed (Change returns false on disposed timer)
-		timer.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)).ShouldBeFalse(
-			"Timer.Change should return false after disposal");
+		// Assert
+		timer.IsDisposed.ShouldBeTrue("disposing the deduplicator must dispose its cleanup timer");
 	}
 
 	[Fact]
@@ -76,7 +77,7 @@ public sealed class TimerDisposalShould
 		{
 			// Act
 			var timerFields = type.GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
-				.Where(f => f.FieldType == typeof(Timer) || f.FieldType == typeof(Timer))
+				.Where(f => f.FieldType == typeof(Timer) || f.FieldType == typeof(System.Threading.ITimer))
 				.ToList();
 
 			// Assert
@@ -93,7 +94,7 @@ public sealed class TimerDisposalShould
 		var timerClasses = assembly.GetTypes()
 			.Where(t => t.IsClass && !t.IsAbstract)
 			.Where(t => t.GetFields(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-				.Any(f => f.FieldType == typeof(Timer)))
+				.Any(f => f.FieldType == typeof(Timer) || f.FieldType == typeof(System.Threading.ITimer)))
 			.ToList();
 
 		// Act & Assert -- all classes with Timer fields should implement IDisposable or IAsyncDisposable
@@ -114,7 +115,7 @@ public sealed class TimerDisposalShould
 		var timerClasses = assembly.GetTypes()
 			.Where(t => t.IsClass && !t.IsAbstract)
 			.Where(t => t.GetFields(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-				.Any(f => f.FieldType == typeof(Timer)))
+				.Any(f => f.FieldType == typeof(Timer) || f.FieldType == typeof(System.Threading.ITimer)))
 			.ToList();
 
 		// Act & Assert -- all timer classes should have a Dispose method
@@ -130,5 +131,32 @@ public sealed class TimerDisposalShould
 
 		missingDispose.ShouldBeEmpty(
 			$"Timer-based classes not implementing IDisposable/IAsyncDisposable: {string.Join(", ", missingDispose)}");
+	}
+
+	/// <summary>
+	/// A <see cref="TimeProvider"/> whose timer records whether it was disposed, so a test can assert
+	/// the disposal itself instead of inferring it from the field's declared type.
+	/// </summary>
+	private sealed class SpyTimerTimeProvider : TimeProvider
+	{
+		public SpyTimer? Created { get; private set; }
+
+		public override System.Threading.ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+			Created = new SpyTimer();
+
+		internal sealed class SpyTimer : System.Threading.ITimer
+		{
+			public bool IsDisposed { get; private set; }
+
+			public bool Change(TimeSpan dueTime, TimeSpan period) => !IsDisposed;
+
+			public void Dispose() => IsDisposed = true;
+
+			public ValueTask DisposeAsync()
+			{
+				Dispose();
+				return ValueTask.CompletedTask;
+			}
+		}
 	}
 }

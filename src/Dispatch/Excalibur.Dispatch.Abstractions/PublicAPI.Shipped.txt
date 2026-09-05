@@ -505,10 +505,6 @@ Excalibur.Dispatch.IDeduplicationStrategy.GenerateDeduplicationId(string! messag
 Excalibur.Dispatch.IDeduplicationStrategy.IsDuplicateAsync(string! deduplicationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.IDeduplicationStrategy.MarkAsProcessedAsync(string! deduplicationId, System.TimeSpan? expiration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.IDeduplicationStrategy.RemoveAsync(string! deduplicationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.IDirectLocalDispatcher
-Excalibur.Dispatch.IDirectLocalDispatcher.CanBypassMiddlewareFor(System.Type! messageType) -> bool
-Excalibur.Dispatch.IDirectLocalDispatcher.DispatchLocalAsync<TMessage, TResponse>(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResponse?>
-Excalibur.Dispatch.IDirectLocalDispatcher.DispatchLocalAsync<TMessage>(TMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IDispatchAction
 Excalibur.Dispatch.IDispatchAction<TResponse>
 Excalibur.Dispatch.IDispatchAmbientScopeAccessor

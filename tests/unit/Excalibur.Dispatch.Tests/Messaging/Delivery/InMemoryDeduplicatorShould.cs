@@ -2,6 +2,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Microsoft.Extensions.Options;
 
 using Tests.Shared.Infrastructure;
@@ -127,28 +128,43 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	[Fact]
 	public async Task CleanupExpiredEntries_RemovesExpired()
 	{
-		// Mark with very short expiry
-		await _deduplicator.MarkProcessedAsync(
-			"msg-1", ShortExpiry, CancellationToken.None);
+		// A fake clock makes expiry observable by advancing time rather than by waiting for it: no
+		// Task.Delay, no poll, no timing tolerance, so the outcome cannot depend on runner speed.
+		var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch);
+		using var dedup = NewDeduplicator(clock);
 
-		// The poll condition MUTATES: it runs the cleanup on every attempt. Assigning the latest
-		// call's return meant `== 1` was observable on exactly one attempt -- the one that performed
-		// the removal -- and every later attempt overwrote it with 0, so a single unlucky interleaving
-		// made the condition unsatisfiable for the remaining ten seconds. Accumulating instead means
-		// whichever attempt does the removal contributes its 1 and the condition stays true.
-		var removedCount = 0;
-		await AwaitCleanupResultAsync(async () =>
-		{
-			removedCount += await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
-			return removedCount == 1;
-		}, TimeSpan.FromSeconds(10));
+		await dedup.MarkProcessedAsync("msg-1", ShortExpiry, CancellationToken.None);
 
-		removedCount.ShouldBe(1, "the expired entry must be removed exactly once");
+		// Still inside the window -- nothing is expired yet, so cleanup must remove nothing.
+		(await dedup.CleanupExpiredEntriesAsync(CancellationToken.None))
+			.ShouldBe(0, "an unexpired entry must not be removed");
+
+		clock.Advance(ShortExpiry + TimeSpan.FromTicks(1));
+
+		(await dedup.CleanupExpiredEntriesAsync(CancellationToken.None))
+			.ShouldBe(1, "the expired entry must be removed exactly once");
 
 		// The outcome, not just the return value: nothing expired is still tracked. A cleanup that
 		// reported 1 while leaving the entry behind would satisfy the assertion above on its own.
-		var stats = _deduplicator.GetStatistics();
-		stats.TrackedMessageCount.ShouldBe(0, "the expired entry must no longer be tracked");
+		dedup.GetStatistics().TrackedMessageCount
+			.ShouldBe(0, "the expired entry must no longer be tracked");
+	}
+
+	[Fact]
+	public async Task IsDuplicateAsync_ReturnsFalse_AfterEntryExpires()
+	{
+		var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch);
+		using var dedup = NewDeduplicator(clock);
+
+		await dedup.MarkProcessedAsync("msg-1", ShortExpiry, CancellationToken.None);
+
+		(await dedup.IsDuplicateAsync("msg-1", ShortExpiry, CancellationToken.None))
+			.ShouldBeTrue("the entry is still inside its expiry window");
+
+		clock.Advance(ShortExpiry + TimeSpan.FromTicks(1));
+
+		(await dedup.IsDuplicateAsync("msg-1", ShortExpiry, CancellationToken.None))
+			.ShouldBeFalse("the entry expired, so the message is admissible again");
 	}
 
 	[Fact]
@@ -347,14 +363,14 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		_deduplicator.Dispose();
 	}
 
-	private static async Task AwaitCleanupResultAsync(Func<Task<bool>> condition, TimeSpan timeout)
-	{
-		var scaledTimeout = TestTimeouts.Scale(timeout);
-		var conditionMet = await WaitHelpers.WaitUntilAsync(
-				condition,
-				scaledTimeout,
-				TimeSpan.FromMilliseconds(100))
-			.ConfigureAwait(false);
-		conditionMet.ShouldBeTrue($"Condition was not met within {scaledTimeout}.");
-	}
+	private static InMemoryDeduplicator NewDeduplicator(TimeProvider clock) =>
+		new(
+			Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+			{
+				EnableAutomaticCleanup = false,
+				CleanupInterval = TimeSpan.FromHours(1),
+			}),
+			meterFactory: null,
+			clock,
+			NullLogger<InMemoryDeduplicator>.Instance);
 }

@@ -339,8 +339,6 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Workflows.Abstractions` | Workflow and activity interfaces |
 | `Excalibur.Workflows` | Durable workflow engine — `AddWorkflow()`, `AddActivity()` |
 | `Excalibur.Workflows.SqlServer` | SQL Server workflow signal inbox — `AddSqlServerWorkflowSignalInbox()` |
-| `Excalibur.Workflows.Analyzers` | Workflow analyzers. Install alongside `Excalibur.Workflows` — unlike the framework's other analyzers, these are not bundled into their parent package |
-| `Excalibur.Workflows.CodeFixes` | Code fixes for the workflow analyzers. Install alongside `Excalibur.Workflows` |
 
 ## Operations Dashboard
 

@@ -12,8 +12,8 @@ This document explains when to use the `IMessageContext.Items` dictionary versus
 
 `IMessageContext` provides two mechanisms for storing contextual data:
 
-1. **Direct Properties** - Strongly-typed properties with ~1-3ns access time
-2. **Items Dictionary** - Flexible key-value storage with ~30-50ns access time (includes boxing overhead)
+1. **Direct Properties** - Strongly-typed properties, sub-nanosecond access
+2. **Items Dictionary** - Flexible key-value storage, around 6 ns per read
 
 ### When to Use Direct Properties
 
@@ -204,11 +204,11 @@ context.Items["PayloadSizeWarning"] = warningMessage;
 If you previously used Items for hot-path data, migrate to the new direct properties:
 
 ```csharp
-// Before (Items dictionary - 30-50ns)
+// Before (Items dictionary - around 6 ns per read)
 context.Items["ValidationPassed"] = true;
 var passed = (bool)context.Items["ValidationPassed"];
 
-// After (Direct property - 1-3ns)
+// After (Direct property - under one CPU cycle)
 context.ValidationPassed = true;
 var passed = context.ValidationPassed;
 ```
@@ -231,13 +231,31 @@ var passed = context.ValidationPassed;
 
 ## Performance Comparison
 
-| Access Method | Typical Latency | Notes |
-|---------------|-----------------|-------|
-| Direct property | 1-3ns | Inline property access |
-| Items dictionary | 30-50ns | Dictionary lookup + boxing |
-| GetItem&lt;T&gt; | 40-60ns | Dictionary + type check |
+| Access Method | Measured | Allocated | Notes |
+|---------------|----------|-----------|-------|
+| Direct property (`CorrelationId`, `MessageId`) | ~0.2 ns | 0 B | A field read. See the note below. |
+| Feature extension (`GetTenantId()`, `GetUserId()`) | 5.7-7.7 ns | 0 B | Feature lookup then field read |
+| Items dictionary (`Items["key"]`) | 5.7-6.9 ns | 0 B | Dictionary lookup + boxing |
+| `GetItem<T>()` | 4.3-4.9 ns | 0 B | Dictionary + type check |
 
-For data accessed on every message (hot path), the 10-20x performance difference is significant at scale.
+Measured 2026-09-04, `MessageContextBenchmarks`, BenchmarkDotNet 0.15.8 in-process on .NET 10.0.11
+(i9-14900K). Errors 0.006-0.13 ns.
+
+:::note What these numbers do and do not say
+
+**The direct-property figure is at the resolution limit.** ~0.2 ns is well under one cycle on this
+CPU, which is what a field read the JIT can hoist looks like. Read it as *effectively free*, not as
+a precise 0.2.
+
+**A feature extension is not cheaper than the Items dictionary.** They measure the same, around
+6 ns, and typed `GetItem<T>()` is the cheapest of the three non-property options. If you were
+choosing a feature extension over `Items` for speed, that reason does not hold -- choose on type
+safety and intent instead.
+
+**The gap that is real is the first row against all the others** -- roughly 30x, not the 10-20x
+previously stated here. Everything below the first row costs single-digit nanoseconds and
+allocates nothing.
+:::
 
 ## Next Steps
 

@@ -1,91 +1,67 @@
 ---
 sidebar_position: 3
-title: Ultra-Local Dispatch
-description: Use the ultra-local ValueTask path for lowest local command/query overhead.
+title: Migrating off IDirectLocalDispatcher
+description: IDirectLocalDispatcher and DispatchLocalAsync have been removed. Call IDispatcher.DispatchAsync instead.
 ---
 
-# Ultra-Local Dispatch
+# Migrating off `IDirectLocalDispatcher`
 
-Ultra-local dispatch is the lowest-overhead local command/query execution path in Dispatch. It is designed for in-process scenarios where you want MediatR-style local handling with minimal allocations.
+`IDirectLocalDispatcher` and both `DispatchLocalAsync` overloads have been removed from the public
+surface. If your build broke on either name, this page is the whole migration.
 
-## Before You Start
+## What to call instead
 
-- .NET 10.0
-- `Excalibur.Dispatch` and `Excalibur.Dispatch.Abstractions`
-- Familiarity with [Actions and Handlers](../core-concepts/actions-and-handlers.md) and [Message Context](../core-concepts/message-context.md)
-
-## Two Ways It Is Used
-
-### 1. Automatic through `DispatchAsync(...)`
-
-For top-level local actions, `DispatcherContextExtensions` will use the ultra-local path automatically when eligible.
+`IDispatcher.DispatchAsync`. No cast, no opt-in, no configuration:
 
 ```csharp
-var result = await dispatcher.DispatchAsync(new CreateOrderAction(...), ct);
-```
-
-### 2. Explicit through `IDirectLocalDispatcher`
-
-Dispatch also exposes a direct ValueTask API:
-
-```csharp
-public interface IDirectLocalDispatcher
-{
-    ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
-        where TMessage : IDispatchAction;
-
-    ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(TMessage message, CancellationToken cancellationToken)
-        where TMessage : IDispatchAction<TResponse>;
-}
-```
-
-If you need explicit control, resolve `IDispatcher` and cast:
-
-```csharp
-var dispatcher = serviceProvider.GetRequiredService<IDispatcher>();
+// Before
 if (dispatcher is IDirectLocalDispatcher direct)
 {
     var response = await direct.DispatchLocalAsync<GetOrderQuery, OrderDto>(query, ct);
 }
+
+// After
+var result = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(query, ct);
+var response = result.ReturnValue;
 ```
 
-> **AOT note:** `IDirectLocalDispatcher` methods carry `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` attributes because the internal dispatch plan uses reflection. When source generators are referenced, the source-generated interceptor eliminates these warnings. See [Native AOT](../advanced/native-aot.md) for details.
+One behavioral difference to handle: `DispatchAsync` reports failure through the returned
+`IMessageResult`, where `DispatchLocalAsync` threw. A failure you previously caught is now a result
+you inspect -- see [Results and Errors](../core-concepts/results-and-errors.md).
 
-## Eligibility and Fallback
+## Why it was removed
 
-Dispatch uses ultra-local/direct-local only when the message can stay on the local fast path. If not, it falls back to the full dispatch pipeline automatically.
+`DispatchLocalAsync` bypassed middleware unconditionally. Its eligibility check asked whether the
+handler invoker was the concrete one and whether local retries were off -- it never asked whether
+you had registered any middleware. So validation, authorization and telemetry that you had
+configured were silently skipped, with no diagnostic, on an injectable public API. Gating the method
+on middleware would only have made every call fall through to the standard path, so the method is
+gone instead.
 
-Common fallback triggers:
+## Are you giving up performance?
 
-- middleware/pipeline requirements for that message
-- non-local routing decision
-- local retry mode that requires richer execution path
+No -- you gain a little. The ultra-local fast path is an internal optimization, not an API, and it
+is unchanged: when a local action has no middleware applicable to its type, `DispatchAsync` takes
+the short path automatically, exactly as it did before. The explicit method was never the faster of
+the two. It measured *slower* than the standard call while doing strictly less work -- it created no
+message context and returned no `IMessageResult` -- so removing it makes the public call faster,
+not slower.
+
+## Tuning the fast path
+
+The fast path is still configurable through `DispatchOptions.CrossCutting.Performance`. It is used
+only when the message can stay local; otherwise Dispatch falls back to the full pipeline
+automatically. Common fallback triggers:
+
+- middleware applies to that message type
+- a non-local routing decision
+- a local retry mode that requires the richer execution path
 - operations that require full context-bound semantics
-
-## Configuration
-
-Configure through `DispatchOptions.CrossCutting.Performance`:
-
-```csharp
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.ConfigureOptions<DispatchOptions>(options =>
-    {
-        options.CrossCutting.Performance.DirectLocalContextInitialization =
-            DirectLocalContextInitializationProfile.Lean; // default
-
-        options.CrossCutting.Performance.EmitDirectLocalResultMetadata = false; // default
-    });
-});
-```
 
 ### `DirectLocalContextInitialization`
 
-- `Lean` (default): minimizes initialization work on direct-local path.
-- `Full`: forces eager message-type initialization on direct-local path.
-
-Exact behavior on direct-local path:
+- `Lean` (default): minimizes initialization work on the local fast path.
+- `Full`: forces eager message-type initialization on the local fast path.
 
 | Context field/state | `Lean` | `Full` |
 |---|---|---|
@@ -94,44 +70,18 @@ Exact behavior on direct-local path:
 | `context.CausationId` (when missing and correlation present) | Set from correlation | Set from correlation |
 | `context.MessageType` (when missing) | Not populated | Populated |
 
-Notes:
-
-- Existing values are preserved in both profiles (Dispatch only fills missing values).
-- If `context.MessageType` is already set before dispatch, both profiles keep it.
-- Direct-local initialization is for local hot paths. Transport-binding metadata is part of richer routed paths.
+Existing values are preserved in both profiles -- Dispatch only fills missing values.
 
 ### `EmitDirectLocalResultMetadata`
 
-- `false` (default): minimal success result shape on direct-local path.
-- `true`: include full result metadata on direct-local success.
+- `false` (default): minimal success result shape on the local fast path.
+- `true`: include full result metadata on local fast-path success.
 
-`appsettings.json` example:
-
-```json
-{
-  "Dispatch": {
-    "CrossCutting": {
-      "Performance": {
-        "DirectLocalContextInitialization": "Lean",
-        "EmitDirectLocalResultMetadata": false
-      }
-    }
-  }
-}
-```
-
-## Which Profile Should You Use?
-
-- Use `Lean` for MediatR-style local command/query performance targets.
-- Use `Full` if downstream middleware/handlers require eager `MessageType` initialization on local fast paths.
-
-## Correlation, Causation, and Child Dispatch
-
-Ultra-local is primarily a top-level local optimization. For nested dispatch from handlers, calling `DispatchAsync(...)` automatically preserves child-message lineage (correlation/causation semantics) by dispatching a child message.
+See [Core Configuration](../core-concepts/configuration.md) for the registration snippet and the
+`appsettings.json` equivalent.
 
 ## See Also
 
 - [Performance Overview](./index.md)
 - [MessageContext Best Practices](./messagecontext-best-practices.md)
-- [Core Configuration](../core-concepts/configuration.md)
 - [Results and Errors](../core-concepts/results-and-errors.md)

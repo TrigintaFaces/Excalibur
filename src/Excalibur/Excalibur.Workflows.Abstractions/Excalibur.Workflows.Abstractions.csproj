@@ -16,6 +16,30 @@
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Analyzer-only references: build the analyzer + code-fix before pack and run them over this
+         project, without a runtime assembly reference or a package dependency. -->
+    <ProjectReference Include="..\Excalibur.Workflows.Analyzers\Excalibur.Workflows.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\Excalibur.Workflows.CodeFixes\Excalibur.Workflows.CodeFixes.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- BUNDLE the determinism analyzer and its code fixes into this package at analyzers/dotnet/cs
+         (the Microsoft pattern, as System.Text.Json bundles its generator).
+         THIS package is the carrier, not the engine package, because it defines the surface the
+         analyzer inspects: the workflow attribute and the workflow context. Analyzer assets reach a
+         consumer through a package dependency, so bundling here covers BOTH audiences from one copy
+        : a consumer who installs only these abstractions gets the diagnostics directly, and a
+         consumer who installs the engine gets them through its dependency on this package.
+         ONE delivery path: do NOT also bundle these into the engine package or publish them
+         standalone. Measured, not inferred: with the same analyzer assembly arriving from two
+         packages the compiler loads both copies and reports EVERY diagnostic TWICE, with no warning
+         that it has done so.
+         The ProjectReferences above build them before pack, so these output DLLs exist. -->
+    <None Include="..\Excalibur.Workflows.Analyzers\bin\$(Configuration)\netstandard2.0\Excalibur.Workflows.Analyzers.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="..\Excalibur.Workflows.CodeFixes\bin\$(Configuration)\netstandard2.0\Excalibur.Workflows.CodeFixes.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

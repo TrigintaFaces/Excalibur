@@ -139,9 +139,11 @@ builder.Services.AddDispatch(dispatch =>
 });
 ```
 
-### Ultra-Local Performance Options
+### Local Fast-Path Performance Options
 
-Configure direct-local/ultra-local behavior on `DispatchOptions.CrossCutting.Performance`:
+Configure direct-local behaviour on `DispatchOptions.CrossCutting.Performance`. There is no explicit
+local API to call -- the fast path is selected automatically -- but these options govern how much
+context it initialises:
 
 ```csharp
 builder.Services.AddDispatch(dispatch =>
@@ -159,7 +161,7 @@ builder.Services.AddDispatch(dispatch =>
 
 Use `DirectLocalContextInitializationProfile.Full` when you need eager full-context initialization on direct-local paths.
 
-See [Ultra-Local Dispatch](../performance/ultra-local-dispatch.md) for dispatch semantics and fallback behavior.
+See [Migrating off IDirectLocalDispatcher](../performance/ultra-local-dispatch.md) for dispatch semantics and fallback behavior.
 
 Profile detail:
 

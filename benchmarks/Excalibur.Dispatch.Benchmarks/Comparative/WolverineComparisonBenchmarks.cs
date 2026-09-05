@@ -48,7 +48,7 @@ public class WolverineComparisonBenchmarks
 
 	// Excalibur infrastructure — direct-local path (no middleware)
 	private IServiceProvider? _dispatchDirectServiceProvider;
-	private IDirectLocalDispatcher? _directLocalDispatcher;
+	private IDispatcher? _contextLessDispatcher;
 
 	// Wolverine infrastructure
 	private IHost? _wolverineHost;
@@ -99,7 +99,7 @@ public class WolverineComparisonBenchmarks
 		_ = directDispatchServices.AddTransient<IActionHandler<WolverineTestQuery, int>, DispatchWolverineQueryHandler>();
 
 		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
-		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+		_contextLessDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>();
 
 		// Setup Wolverine (local bus only, no external transports)
 		_wolverineHost = await Host.CreateDefaultBuilder()
@@ -206,11 +206,11 @@ public class WolverineComparisonBenchmarks
 	/// Excalibur.Dispatch ultra-local path (no middleware, no IMessageResult materialization).
 	/// Closest apples-to-apples comparison with Wolverine InvokeAsync.
 	/// </summary>
-	[Benchmark(Description = "Dispatch: Single command (ultra-local)")]
-	public ValueTask Dispatch_SingleCommand_UltraLocal()
+	[Benchmark(Description = "Dispatch: Single command (context-less 2-arg)")]
+	public Task<IMessageResult> Dispatch_SingleCommand_UltraLocal()
 	{
 		var command = new WolverineTestCommand { Value = 42 };
-		return _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None);
+		return _contextLessDispatcher!.DispatchAsync(command, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -427,10 +427,10 @@ public class WolverineComparisonBenchmarks
 		_ = DispatchWithFreshContextAsync(new WolverineTestEvent { Message = "warmup" })
 			.GetAwaiter().GetResult();
 
-		if (_directLocalDispatcher is not null)
+		if (_contextLessDispatcher is not null)
 		{
-			_directLocalDispatcher.DispatchLocalAsync(new WolverineTestCommand { Value = 1 }, CancellationToken.None)
-				.AsTask().GetAwaiter().GetResult();
+			_ = _contextLessDispatcher.DispatchAsync(new WolverineTestCommand { Value = 1 }, CancellationToken.None)
+				.GetAwaiter().GetResult();
 		}
 
 		HandlerInvoker.FreezeCache();

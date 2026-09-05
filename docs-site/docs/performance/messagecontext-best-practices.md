@@ -17,11 +17,19 @@ This guide covers performance optimization patterns for `IMessageContext` usage 
 
 `IMessageContext` has three levels of data access with different performance characteristics:
 
-| Access Method | Latency | Use Case |
-|---------------|---------|----------|
-| Core property (e.g., `CorrelationId`) | 1-3ns | 8 core properties on the interface |
-| Feature extension (e.g., `GetTenantId()`) | 10-30ns | Cross-cutting concerns via typed features |
-| Items dictionary (`GetItem<T>()`) | 30-60ns | Transport-specific and user-defined data |
+| Access Method | Measured | Use Case |
+|---------------|----------|----------|
+| Core property (e.g., `CorrelationId`) | ~0.2 ns | 8 core properties on the interface |
+| Feature extension (e.g., `GetTenantId()`) | 5.7-7.7 ns | Cross-cutting concerns via typed features |
+| Items dictionary (`GetItem<T>()`) | 4.3-4.9 ns | Transport-specific and user-defined data |
+
+Measured 2026-09-04, `MessageContextBenchmarks`, BenchmarkDotNet 0.15.8 in-process on .NET 10.0.11.
+All three allocate nothing. The core-property figure is under one CPU cycle and should be read as
+effectively free rather than as a precise number.
+
+Note that a feature extension is **not** cheaper than the Items dictionary -- a raw `Items["key"]`
+read measures 5.7-6.9 ns and typed `GetItem<T>()` measures 4.3-4.9 ns, so the three non-property
+options are all in the same band. Prefer features for type safety and intent, not for speed.
 
 ### Core Properties (Direct on Interface)
 
@@ -189,18 +197,21 @@ finally
 
 ## Benchmarks
 
-Typical performance at scale (100K messages/second):
+Extrapolated from the measurements above to 100K messages/second. These are arithmetic, not a
+throughput benchmark -- no throughput measurement exists for this path:
 
-| Pattern | CPU Cost per Second |
-|---------|---------------------|
-| 1 core property read | ~0.2ms |
-| 1 feature extension read | ~2ms |
-| 1 Items dictionary read | ~3.5ms |
-| 10 core property reads | ~2ms |
-| 10 feature extension reads | ~20ms |
-| 10 Items dictionary reads | ~35ms |
+| Pattern | CPU cost per second at 100K msg/s |
+|---------|-----------------------------------|
+| 1 core property read | under 0.03 ms |
+| 1 feature extension read | ~0.7 ms |
+| 1 Items dictionary read | ~0.6 ms |
+| 10 core property reads | ~0.2 ms |
+| 10 feature extension reads | ~7 ms |
+| 10 Items dictionary reads | ~6 ms |
 
-For middleware accessing 5-10 properties per message, caching feature references saves significant CPU at high throughput.
+The practical reading: at 100K messages/second, ten feature reads per message cost single-digit
+milliseconds of CPU per second. Caching a feature reference when you take several properties off
+the same feature is still worth doing, but the saving is smaller than this page used to imply.
 
 ## Summary
 

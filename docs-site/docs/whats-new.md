@@ -54,9 +54,34 @@ Two things to check before upgrading:
 | If your handler… | What happens now | What to do |
 | --- | --- | --- |
 | injects `IOutboxWriter`, or anything else that reads `IMessageContextAccessor`, but declares no context of its own | throws on first use, with a message naming the missing context | inject `IMessageContextAccessor` (or expose an `IMessageContext` property) on the handler as well |
-| calls `DispatchAsync(message, cancellationToken)` for a follow-up message and relies on the causal chain | the follow-up starts a **new root** instead of a child — nothing throws | declare the context as above, or pass the parent explicitly with `DispatchAsync(message, context, cancellationToken)` |
+| calls `DispatchAsync(message, cancellationToken)` for a follow-up message and relies on the causal chain | the follow-up is a **child**, carrying causation, correlation, tenant and user | nothing — this works whether or not your handler declares a context |
 
 Handlers that already take a context, and everything running through middleware, are unaffected.
+
+### A generic event type must declare a name on its definition
+
+An event type that is generic — `EntityCreated<T>` and the like — now needs `[MessageName]` on the
+open definition, and **an application that has one without it will not start**. The startup
+validator names the offending type and the fix is one attribute.
+
+This is a rule the framework already applied to every non-generic event; generics were exempt only
+because, until now, declaring a name on them did not work. An attribute on an open definition is
+inherited by every closed construction, so one declaration made `EntityCreated<Order>` and
+`EntityCreated<Invoice>` claim the same name — and a name two types claim resolves to neither. The
+exemption was correct while that was true.
+
+It is no longer true. A closed generic now composes its own name from the declaration plus its type
+arguments, following the convention `DataContractSerializer` has used since .NET 3.0 — the declared
+name, the literal `Of`, then each argument's name. So `[MessageName("Ordering.EntityCreated")]` on
+the definition yields `Ordering.EntityCreatedOfOrder` and `Ordering.EntityCreatedOfInvoice`:
+distinct, stable across runs and machines, and carrying no assembly or version.
+
+**These names are wire contract.** They are what a stored event is written under and read back by,
+so choose the declared name once and do not change it afterwards.
+
+One case is worth checking before you upgrade: a generic event base you never actually construct —
+used only through named non-generic derivatives — will now stop your application from starting even
+though nothing ever appends it. Give it a name, or mark it `abstract`, which is what it is.
 
 ### Removed APIs
 
@@ -72,6 +97,7 @@ Handlers that already take a context, and everything running through middleware,
 | `AddComplianceEncryption<TKeyManagement>(...)`, `AddComplianceEncryptionWithRotation(...)` | one fluent builder: `AddComplianceEncryption(e => e.WithInMemoryKeyManagement().WithEncryption().WithKeyRotation())` |
 | `KeyedTenantPartition.FromContext(ITenantContext?)` and `TenantScope.FromContext(ITenantContext?)` — the null-accepting overloads | the non-nullable `FromContext(ITenantContext)`. If your context is optional, choose the fallback yourself: `ctx is null ? KeyedTenantPartition.Untenanted : KeyedTenantPartition.FromContext(ctx)`. The old form silently turned *"no context was wired"* into *"this row has no tenant"* — see [multi-tenancy](./multi-tenancy.md#keyed-stores-always-bind-a-tenant-term) |
 | `DispatchHealthCheckOptions.IncludeSaga` | nothing — it referenced a deleted service |
+| `IDirectLocalDispatcher`, and both `DispatchLocalAsync` overloads | `IDispatcher.DispatchAsync` — no cast, nothing to opt into. The local fast path still exists; it is internal and selected automatically. This API was removed because it bypassed middleware **unconditionally** — its eligibility check asked whether the invoker was concrete and whether retries were off, never whether middleware was registered, so validation, authorization and telemetry were skipped for consumers who had registered them. It was also slower than the path it optimised, so nothing is given up by moving. See [migrating off IDirectLocalDispatcher](./performance/ultra-local-dispatch.md) |
 | `MessageContextHolder` (now `internal`) | declare that you want the context instead of reaching for it: a handler exposes a settable `IMessageContext` property or injects `IMessageContextAccessor`; a service that has no dispatch-time parameter injects `IMessageContextAccessor`. Declaring it is what lets the dispatcher skip publishing a context to handlers that never read one — see [how `DispatchAsync` behaves by context](./handlers.md#how-dispatchasync-behaves-by-context) |
 | `ISagaReminder` (now `internal`) | `ISagaBuilder` extensions — `.WithReminders()` |
 | `ISagaOutboxMediator`, `SagaOutboxOptions`, `.WithOutbox()` | nothing — saga messages are dispatched after the state commit and are not part of it, so an outbox at that seam could not have made them durable |
@@ -366,7 +392,7 @@ Absent subsystems **fail open** (report "not configured") rather than erroring. 
 ## Developer experience
 
 - **Native AOT** — 160 of 195 shipped projects declare AOT compatibility; the remainder are blocked by external SDK dependencies rather than by framework code. A consumer-facing AOT sample publishes and runs with `dotnet publish -p:PublishAot=true`.
-- **Performance** — ultra-local dispatch at roughly 35 ns and 24 bytes, with zero-allocation handler invocation and activation. `UseLightMode = true` disables correlation-id generation for maximum throughput.
+- **Performance** — a standard command dispatch measures about 46 ns and allocates a floor of 96 bytes, and a three-middleware pipeline about 72 ns at 240 bytes. The 96 bytes is a floor rather than a fixed cost: 72 of it is one `ExecutionContext` copy-on-write for the ambient message context, and the copy is of the whole async-local value map, so the real figure scales with how many `AsyncLocal` values your own application keeps live. `UseLightMode = true` disables correlation-id generation for maximum throughput.
 - **A canonical builder pattern** across every SQL Server, PostgreSQL, MongoDB, Cosmos DB, and Redis subsystem package — one `subsystem.UseProvider(Action<IBuilder>)` entry point, with consistent connection overloads per provider and `ValidateOnStart` on every builder.
 - **Roslyn analyzers** for common mistakes, **source generators** for AOT-compatible registration, and **`dotnet new` templates** for dispatch, event-sourcing, and saga projects.
 - **A container deployment guide** covering Dockerfile recipes for JIT, ReadyToRun and AOT, Kubernetes probes, GC tuning, graceful shutdown, and Azure Container Apps.

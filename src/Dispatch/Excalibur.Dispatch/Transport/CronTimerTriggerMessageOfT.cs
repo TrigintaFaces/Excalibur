@@ -42,6 +42,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </example>
 /// <seealso cref="ICronTimerMarker"/>
 /// <seealso cref="CronTimerTriggerMessage"/>
+[MessageName("Excalibur.Dispatch.CronTimerTriggerMessage")]
 public record CronTimerTriggerMessage<TTimer> : CronTimerTriggerMessage
 	where TTimer : ICronTimerMarker
 {

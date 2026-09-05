@@ -91,12 +91,7 @@ The context exposes these operations, each journaled so replay returns the recor
 A workflow body that performs non-deterministic work directly — reading the clock with `DateTimeOffset.UtcNow`, generating a GUID with `Guid.NewGuid()`, sleeping with `Task.Delay`, or calling a remote service — instead of through the context (or a journaled activity) will diverge on replay. Use the context member for time, identifiers, timers, and signals; route external calls **inside an activity**, whose result is journaled.
 
 :::tip Non-determinism analyzer
-The opt-in `Excalibur.Workflows.Analyzers` package ships a Roslyn analyzer that flags non-deterministic calls (`DateTimeOffset.UtcNow`, `Guid.NewGuid()`, `Task.Delay`, and similar) inside a workflow body; the companion `Excalibur.Workflows.CodeFixes` package supplies a code-fix that redirects each to the corresponding `IWorkflowContext` member — so divergence is caught at build time rather than on replay.
-
-```bash
-dotnet add package Excalibur.Workflows.Analyzers
-dotnet add package Excalibur.Workflows.CodeFixes
-```
+A Roslyn analyzer flags non-deterministic calls (`DateTimeOffset.UtcNow`, `Guid.NewGuid()`, `Task.Delay`, and similar) inside a workflow body, and a companion code-fix redirects each to the corresponding `IWorkflowContext` member — so divergence is caught at build time rather than on replay. Both ship inside `Excalibur.Workflows.Abstractions` and so arrive with `Excalibur.Workflows` too; there is nothing extra to install.
 :::
 
 ### Activities

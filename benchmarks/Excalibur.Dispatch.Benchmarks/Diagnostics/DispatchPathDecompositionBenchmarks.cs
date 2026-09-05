@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Benchmarks.Diagnostics;
 
 /// <summary>
 /// DIAGNOSTIC ONLY. Decomposes the standard dispatch path (Dispatcher.DispatchAsync with a
-/// caller-supplied context) against the ultra-local path (IDirectLocalDispatcher.DispatchLocalAsync)
-/// so the delta between them can be attributed to named components.
+/// caller-supplied context) against its component parts so the delta between them can be attributed
+/// to named components.
 /// </summary>
 /// <remarks>
 /// RUN ONE ARM PER PROCESS. Running the whole class in a single BenchmarkDotNet process gives wrong
@@ -38,7 +38,6 @@ public class DispatchPathDecompositionBenchmarks
 	private readonly TestCommand _command = new() { Value = 42 };
 	private ServiceProvider _provider = null!;
 	private Dispatcher _dispatcher = null!;
-	private IDirectLocalDispatcher _directLocal = null!;
 	private IMessageContextFactory _factory = null!;
 	private LocalMessageBus _bus = null!;
 	private IActionHandler<TestCommand> _handler = null!;
@@ -57,7 +56,6 @@ public class DispatchPathDecompositionBenchmarks
 		_provider = services.BuildServiceProvider();
 		var dispatcher = _provider.GetRequiredService<IDispatcher>();
 		_dispatcher = (Dispatcher)dispatcher;
-		_directLocal = (IDirectLocalDispatcher)dispatcher;
 		_factory = _provider.GetRequiredService<IMessageContextFactory>();
 		_bus = _provider.GetRequiredService<LocalMessageBus>();
 		_handler = _provider.GetRequiredService<IActionHandler<TestCommand>>();
@@ -68,7 +66,6 @@ public class DispatchPathDecompositionBenchmarks
 		var warmResult = _dispatcher.DispatchAsync(_command, (IMessageContext)_pinnedContext, CancellationToken.None)
 			.GetAwaiter().GetResult();
 		_cachedResultTask = Task.FromResult(warmResult);
-		_directLocal.DispatchLocalAsync(_command, CancellationToken.None).GetAwaiter().GetResult();
 		if (!_bus.TryInvokeUltraLocalNoResponse(_command, CancellationToken.None, out _, out _))
 		{
 			throw new InvalidOperationException(
@@ -93,10 +90,6 @@ public class DispatchPathDecompositionBenchmarks
 		return task;
 	}
 
-	/// <summary>Replica of the published "Dispatch: Single command ultra-local API" arm.</summary>
-	[Benchmark(Description = "B. ULTRA-LOCAL published (DispatchLocalAsync)")]
-	public ValueTask B_UltraLocal_Published() => _directLocal.DispatchLocalAsync(_command, CancellationToken.None);
-
 	/// <summary>A minus the context rent/return the CALLER (not the dispatcher) performs.</summary>
 	[Benchmark(Description = "C. standard, pinned context (no rent/return)")]
 	public Task<IMessageResult> C_Standard_PinnedContext()
@@ -107,7 +100,12 @@ public class DispatchPathDecompositionBenchmarks
 	public Task<IMessageResult> D_Standard_ConcreteOverload()
 		=> _dispatcher.DispatchAsync(_command, _pinnedContext, CancellationToken.None);
 
-	/// <summary>B minus the dispatcher frame: the bus call the ultra-local path terminates in.</summary>
+	/// <summary>D through IDispatcher. H minus C is the standard path's interface toll.</summary>
+	[Benchmark(Description = "H. standard via IDispatcher interface (concrete context)")]
+	public Task<IMessageResult> H_Standard_ViaInterface()
+		=> ((IDispatcher)_dispatcher).DispatchAsync(_command, _pinnedContext, CancellationToken.None);
+
+	/// <summary>The bus call the standard path's ultra-local fast arm terminates in.</summary>
 	[Benchmark(Description = "E. ultra-local bus only (TryInvokeUltraLocalNoResponse)")]
 	public ValueTask E_UltraLocal_BusOnly()
 	{
@@ -118,10 +116,6 @@ public class DispatchPathDecompositionBenchmarks
 	/// <summary>The handler itself, called directly. Everything above this is framework cost.</summary>
 	[Benchmark(Description = "F. handler direct call (floor)")]
 	public Task F_HandlerDirect() => _handler.HandleAsync(_command, CancellationToken.None);
-
-	/// <summary>B called on the concrete Dispatcher, isolating the IDirectLocalDispatcher interface call.</summary>
-	[Benchmark(Description = "G. ultra-local on concrete Dispatcher (no interface call)")]
-	public ValueTask G_UltraLocal_Concrete() => _dispatcher.DispatchLocalAsync(_command, CancellationToken.None);
 
 	/// <summary>
 	/// The standard fast path's SHAPE, hand-built: ambient push, context init, handler, pop, cached Task.

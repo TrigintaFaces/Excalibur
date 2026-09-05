@@ -49,7 +49,8 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 
 	private readonly ConcurrentDictionary<string, ProcessedEntry> _processedMessages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeduplicator> _logger;
-	private readonly Timer? _cleanupTimer;
+	private readonly TimeProvider _timeProvider;
+	private readonly ITimer? _cleanupTimer;
 	private readonly Lock _statsLock = new();
 
 	private readonly ValueStopwatch _uptime = ValueStopwatch.StartNew();
@@ -74,7 +75,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	public InMemoryDeduplicator(
 		IOptions<InMemoryDeduplicatorOptions> options,
 		ILogger<InMemoryDeduplicator> logger)
-		: this(options, meterFactory: null, logger)
+		: this(options, meterFactory: null, timeProvider: null, logger)
 	{
 	}
 
@@ -83,16 +84,19 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	/// </summary>
 	/// <param name="options">Configuration options for the deduplicator.</param>
 	/// <param name="meterFactory"> Optional meter factory for DI-managed metric lifecycle; when null a standalone meter is created. </param>
+	/// <param name="timeProvider"> Optional time source for entry expiry and the cleanup timer; when null <see cref="TimeProvider.System"/> is used. </param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public InMemoryDeduplicator(
 		IOptions<InMemoryDeduplicatorOptions> options,
 		IMeterFactory? meterFactory,
+		TimeProvider? timeProvider,
 		ILogger<InMemoryDeduplicator> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		_meter = meterFactory?.Create(DispatchTelemetryConstants.Meters.ExactlyOnce)
 			?? new Meter(DispatchTelemetryConstants.Meters.ExactlyOnce, "1.0.0");
@@ -110,9 +114,9 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		if (opts.EnableAutomaticCleanup)
 		{
 			var interval = opts.CleanupInterval;
-			_cleanupTimer = new Timer(
-				async _ => await PerformScheduledCleanupAsync().ConfigureAwait(false),
-				state: null,
+			_cleanupTimer = _timeProvider.CreateTimer(
+				static state => _ = ((InMemoryDeduplicator)state!).PerformScheduledCleanupAsync(),
+				state: this,
 				interval,
 				interval);
 
@@ -134,7 +138,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 
 		_ = Interlocked.Increment(ref _totalChecks);
 
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 
 		// Check if message exists and hasn't expired
 		if (_processedMessages.TryGetValue(messageId, out var entry))
@@ -186,7 +190,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		// acked and is redelivered, rather than recording nothing and missing a later duplicate.
 		EnsureCapacityOrThrow();
 
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 		var expiresAt = now.Add(expiry);
 
 		var entry = new ProcessedEntry { ClaimId = NewClaimId(), MessageId = messageId, ProcessedAt = now, ExpiresAt = expiresAt };
@@ -219,7 +223,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 
 		_ = Interlocked.Increment(ref _totalChecks);
 
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 
 		// An unexpired entry means the message is already claimed or processed -> duplicate.
 		if (_processedMessages.TryGetValue(messageId, out var existing))
@@ -299,7 +303,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	/// <inheritdoc />
 	public Task<int> CleanupExpiredEntriesAsync(CancellationToken cancellationToken)
 	{
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 		var removedCount = 0;
 
 		// Capture the whole entry, not just the key. The scan and the removal are separate passes, so a
@@ -358,7 +362,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 				TotalChecks = _totalChecks,
 				DuplicatesDetected = _duplicatesDetected,
 				EstimatedMemoryUsageBytes = estimatedMemoryBytes,
-				CapturedAt = DateTimeOffset.UtcNow,
+				CapturedAt = _timeProvider.GetUtcNow(),
 			};
 		}
 	}

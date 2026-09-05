@@ -100,10 +100,21 @@ internal sealed class CachingMiddleware(
 	// It used to be survivable by accident: a per-caller deadline sat around the cache call and turned the
 	// cycle into a timeout plus a duplicate execution. That deadline was removed because it also bounded
 	// handler execution and destroyed stampede protection, which means the accidental escape is gone and
-	// the cycle would now hang for good. AsyncLocal flows into the nested dispatch, so re-entry is
-	// detectable exactly where it happens -- and a thrown error naming both messages is worth far more to
-	// the consumer than a hang with no stack to read.
-	private static readonly AsyncLocal<ImmutableHashSet<string>?> KeysInFlight = new();
+	// the cycle would now hang for good. So re-entry has to be detectable exactly where it happens -- a
+	// thrown error naming both messages is worth far more to the consumer than a hang with no stack to read.
+	//
+	// The set rides the message context rather than an AsyncLocal. It reaches the nested dispatch the same
+	// way: a nested dispatch is given a CHILD context, whose Items are a shallow per-entry copy of the
+	// parent's, so the outer key is visible to the inner middleware. The copy is what bounds the effect --
+	// the child's writes land in the child's own dictionary and never travel back up, and two concurrent
+	// siblings each get their own copy, which is the isolation the AsyncLocal used to provide. A nested
+	// dispatch that deliberately REUSES the parent context shares the dictionary, and the restore below is
+	// what unwinds that frame.
+	//
+	// This is one fewer ambient in the flow. The runtime copies the whole async-local value map on any
+	// write and swaps representation by entry count, so every ambient this framework declares taxes every
+	// other publication -- ours and the consumer's.
+	private const string KeysInFlightItemKey = "Dispatch:Cache:KeysInFlight";
 
 	private readonly CacheOptions _options = options.Value;
 	private readonly IResultCachePolicy? _globalPolicy = globalPolicy ?? options.Value.GlobalPolicy;
@@ -781,7 +792,7 @@ internal sealed class CachingMiddleware(
 			}
 		}
 
-		var inFlight = KeysInFlight.Value ?? ImmutableHashSet<string>.Empty;
+		var inFlight = context.GetItem<ImmutableHashSet<string>>(KeysInFlightItemKey) ?? ImmutableHashSet<string>.Empty;
 		if (inFlight.Contains(key))
 		{
 			throw new CacheReentrancyException(
@@ -794,7 +805,7 @@ internal sealed class CachingMiddleware(
 				key);
 		}
 
-		KeysInFlight.Value = inFlight.Add(key);
+		context.SetItem(KeysInFlightItemKey, inFlight.Add(key));
 		try
 		{
 			cachedResult = await cache.GetOrCreateAsync(
@@ -857,18 +868,19 @@ internal sealed class CachingMiddleware(
 		}
 		finally
 		{
-			// Restore rather than Remove: AsyncLocal copy-on-write means a nested dispatch may have
-			// published its own set, and assigning the value captured on entry is what unwinds this frame
-			// exactly.
-			//
-			// Scope of the effect, measured rather than assumed: an AsyncLocal write inside an async method
-			// does not flow back to that method's caller, because the state machine restores the captured
-			// ExecutionContext at the end of the first synchronous segment. Writes therefore travel DOWN
-			// into the value factory -- which is what lets the guard above see an outer key at all -- and
-			// never back UP. So this restore does not, and cannot, protect a caller further out; its one
-			// reachable effect is to unwind this frame before CompleteCacheOperationAsync runs after the
-			// try. It is kept for that.
-			KeysInFlight.Value = inFlight;
+			// Restore the set captured on entry, which unwinds exactly this frame. Unlike the AsyncLocal
+			// this replaced, a write here IS visible to a caller that passed the same context object, so
+			// the restore is now load-bearing rather than merely tidy. An empty set is removed rather than
+			// stored: a leftover entry would be copied into every child context created from here on, for
+			// nothing.
+			if (inFlight.IsEmpty)
+			{
+				context.RemoveItem(KeysInFlightItemKey);
+			}
+			else
+			{
+				context.SetItem(KeysInFlightItemKey, inFlight);
+			}
 		}
 
 		// Result handling (deserialization, poison-marker eviction, tag registration) runs OUTSIDE the

@@ -16,16 +16,35 @@ This guide covers performance optimization for event sourcing, outbox processing
 
 ## Performance Benchmarks
 
-### Dispatch Framework Overhead (Mar 11, 2026)
+### Dispatch Framework Overhead
 
 The Dispatch messaging layer adds minimal overhead to your application:
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Single command dispatch | 55.9 ns | Hot-path, no middleware |
-| Query with response | 75.2 ns | Hot-path, no middleware |
-| Command with 3 middleware | ~414 ns | Typical production pipeline |
-| 100K dispatches allocation | 64.88 MB | Long-run GC pressure |
+| Operation | Latency | Allocated | Notes |
+|-----------|---------|-----------|-------|
+| Single command dispatch | 45.6 ns | 96 B | Hot-path, no middleware |
+| Query with response | 63.7 ns | 192 B | Hot-path, no middleware |
+| Command with 3 middleware | 71.7 ns | 240 B | Typical production pipeline |
+
+From the WarmPath comparison epoch of 2026-09-05
+(`benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`). The first two rows
+are `MediatRWarmPathComparisonBenchmarks`, the third `PipelineWarmPathComparisonBenchmarks`.
+
+**Budget from a floor, not from these numbers.** Every dispatch publishes an ambient message context
+so a nested dispatch inherits causation, correlation, tenant and user rather than starting a fresh
+root. That costs one `ExecutionContext` copy-on-write, and the copy is of the whole async-local value
+map — so the real per-dispatch allocation scales with how many `AsyncLocal` values your application
+keeps live: 72 of the 96 bytes when there are none, roughly 160 B with one other, roughly 992 B with
+fifteen. A production host normally carries several before it reaches this framework, and the
+framework itself declares two. Size your allocation budget against your own async-local density.
+
+Latency here varied about 4% run to run; read the nanosecond figures as indicative and the byte
+figures as exact.
+
+A long-run allocation figure of **64.88 MB per 100K dispatches** was measured on 2026-03-11 and has
+not been re-taken since. Treat it as historical rather than current: it measures a different workload
+(middleware and context included), and it should not be reconciled with the per-dispatch figure above
+by arithmetic.
 
 ### Application-Level Baseline Expectations
 

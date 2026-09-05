@@ -184,8 +184,6 @@
       "src\\Excalibur\\Excalibur.Testing\\Excalibur.Testing.csproj",
       "src\\Excalibur\\Excalibur.Workflows.Abstractions\\Excalibur.Workflows.Abstractions.csproj",
       "src\\Excalibur\\Excalibur.Workflows\\Excalibur.Workflows.csproj",
-      "src\\Excalibur\\Excalibur.Workflows.Analyzers\\Excalibur.Workflows.Analyzers.csproj",
-      "src\\Excalibur\\Excalibur.Workflows.CodeFixes\\Excalibur.Workflows.CodeFixes.csproj",
       "src\\Excalibur\\Excalibur.Workflows.SqlServer\\Excalibur.Workflows.SqlServer.csproj",
       "src\\metapackages\\Excalibur.Dispatch.AspNetCore\\Excalibur.Dispatch.AspNetCore.csproj",
       "src\\metapackages\\Excalibur.Dispatch.Aws\\Excalibur.Dispatch.Aws.csproj",

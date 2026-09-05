@@ -19,6 +19,7 @@ namespace Excalibur.A3.Audit;
 /// </summary>
 /// <typeparam name="TRequest"> The type of the request. </typeparam>
 /// <typeparam name="TResponse"> The type of the response. </typeparam>
+[MessageName("Excalibur.A3.ActivityAudit")]
 public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 {
 	/// <summary>

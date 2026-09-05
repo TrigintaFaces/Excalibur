@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.CloudEvents;
 /// A CloudEvent is, by its own specification, a record that something happened; there is no reading under which it is a command. It is
 /// classified explicitly rather than left unclassifiable, so it never depends on a default to decide which middleware protects it.
 /// </remarks>
+[MessageName("Excalibur.Dispatch.CloudEventMessage")]
 public sealed class CloudEventMessage : IDispatchEvent
 {
 	private readonly Dictionary<string, object> _headers = [];

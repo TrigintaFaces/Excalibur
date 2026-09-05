@@ -53,7 +53,7 @@ public sealed class ContextLessDispatchRunsMiddlewareShould
 		using var provider = Build(withMiddleware: true);
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
-		var direct = dispatcher.ShouldBeAssignableTo<IDirectLocalDispatcher>();
+		var direct = dispatcher.ShouldBeAssignableTo<Dispatcher>();
 
 		direct!.CanBypassMiddlewareFor(typeof(ProbeAction)).ShouldBeFalse(
 			"middleware is configured for this message, so the ultra-local path must not be taken; if this "
@@ -69,7 +69,7 @@ public sealed class ContextLessDispatchRunsMiddlewareShould
 		using var provider = Build(withMiddleware: false);
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
-		var direct = dispatcher.ShouldBeAssignableTo<IDirectLocalDispatcher>();
+		var direct = dispatcher.ShouldBeAssignableTo<Dispatcher>();
 
 		var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
 		var invoker = dispatcher.GetType().GetField("_concreteMiddlewareInvoker", flags)?.GetValue(dispatcher);

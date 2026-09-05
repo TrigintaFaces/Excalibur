@@ -301,7 +301,7 @@ Key behaviors:
 - **Event serialization** uses `JsonSerializerContext.GetTypeInfo()` for type-safe serialization without `Type.GetType()`.
 - **Handler resolution**, **saga coordination**, **caching**, and **projection invalidation** all use pre-compiled registries instead of `MakeGenericType()`.
 - **Runtime branching** via `RuntimeFeature.IsDynamicCodeSupported` ensures JIT builds keep their existing behavior with zero overhead, while AOT builds use the source-generated path.
-- **Annotation propagation**: Core dispatch paths (`Dispatcher`, `FinalDispatchHandler`, `IDirectLocalDispatcher`, etc.) carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` attributes so the trimmer accurately reports any reflection-dependent call sites. Source-generated alternatives eliminate these warnings when the generators package is referenced.
+- **Annotation propagation**: the core dispatch *implementations* (`Dispatcher`, including its local fast path, and `FinalDispatchHandler`) carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` attributes so the trimmer accurately reports any reflection-dependent call sites. The `IDispatcher` abstraction itself carries no such attributes. Source-generated alternatives eliminate these warnings when the generators package is referenced.
 
 All of this is transparent to consumers. The same `AddDispatch()`, `AddSaga()`, and `AddProjection()` DI entry points work identically under both JIT and AOT.
 

@@ -26,7 +26,7 @@ public class MediatRLocalHotPathBenchmarks
 {
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
-	private IDirectLocalDispatcher? _directLocalDispatcher;
+	private IDispatcher? _contextLessDispatcher;
 	private IMessageContextFactory? _contextFactory;
 
 	private IServiceProvider? _mediatrServiceProvider;
@@ -45,7 +45,7 @@ public class MediatRLocalHotPathBenchmarks
 
 		_dispatchServiceProvider = dispatchServices.BuildServiceProvider();
 		_dispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
-		_directLocalDispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+		_contextLessDispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
 		_contextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
 
 		var mediatrServices = new ServiceCollection();
@@ -92,18 +92,18 @@ public class MediatRLocalHotPathBenchmarks
 		return DispatchWithFreshContextTypedAsync<TestQuery, int>(_dispatcher, _contextFactory, query);
 	}
 
-	[Benchmark(Description = "Dispatch hot-path: ultra-local command")]
-	public ValueTask Dispatch_UltraLocalCommand()
+	[Benchmark(Description = "Dispatch hot-path: context-less 2-arg command")]
+	public Task<IMessageResult> Dispatch_UltraLocalCommand()
 	{
 		var command = new TestCommand { Value = 42 };
-		return DispatchUltraLocalAsync(_directLocalDispatcher, command);
+		return DispatchContextLessAsync(_contextLessDispatcher, command);
 	}
 
-	[Benchmark(Description = "Dispatch hot-path: ultra-local query")]
-	public ValueTask<int> Dispatch_UltraLocalQuery()
+	[Benchmark(Description = "Dispatch hot-path: context-less 2-arg query")]
+	public Task<IMessageResult<int>> Dispatch_UltraLocalQuery()
 	{
 		var query = new TestQuery { Id = 123 };
-		return DispatchUltraLocalWithResponseAsync<TestQuery, int>(_directLocalDispatcher, query);
+		return DispatchContextLessWithResponseAsync<TestQuery, int>(_contextLessDispatcher, query);
 	}
 
 	[Benchmark(Description = "MediatR hot-path: command")]
@@ -186,26 +186,26 @@ public class MediatRLocalHotPathBenchmarks
 		}
 	}
 
-	private static ValueTask DispatchUltraLocalAsync<TMessage>(IDirectLocalDispatcher? dispatcher, TMessage message)
+	private static Task<IMessageResult> DispatchContextLessAsync<TMessage>(IDispatcher? dispatcher, TMessage message)
 		where TMessage : IDispatchAction
 	{
 		ArgumentNullException.ThrowIfNull(dispatcher);
-		return dispatcher.DispatchLocalAsync(message, CancellationToken.None);
+		return dispatcher.DispatchAsync(message, CancellationToken.None);
 	}
 
-	private static ValueTask<TResponse?> DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
-		IDirectLocalDispatcher? dispatcher,
+	private static Task<IMessageResult<TResponse>> DispatchContextLessWithResponseAsync<TMessage, TResponse>(
+		IDispatcher? dispatcher,
 		TMessage message)
 		where TMessage : IDispatchAction<TResponse>
 	{
 		ArgumentNullException.ThrowIfNull(dispatcher);
-		return dispatcher.DispatchLocalAsync<TMessage, TResponse>(message, CancellationToken.None);
+		return dispatcher.DispatchAsync<TMessage, TResponse>(message, CancellationToken.None);
 	}
 
 	private void WarmupAndFreezeDispatchCaches()
 	{
 		ArgumentNullException.ThrowIfNull(_dispatcher);
-		ArgumentNullException.ThrowIfNull(_directLocalDispatcher);
+		ArgumentNullException.ThrowIfNull(_contextLessDispatcher);
 		ArgumentNullException.ThrowIfNull(_contextFactory);
 
 		for (var i = 0; i < 8; i++)
@@ -224,8 +224,8 @@ public class MediatRLocalHotPathBenchmarks
 				_contextFactory.Return(context);
 			}
 
-			_directLocalDispatcher.DispatchLocalAsync(command, CancellationToken.None).GetAwaiter().GetResult();
-			_ = _directLocalDispatcher.DispatchLocalAsync<TestQuery, int>(query, CancellationToken.None).GetAwaiter().GetResult();
+			_ = _contextLessDispatcher.DispatchAsync(command, CancellationToken.None).GetAwaiter().GetResult();
+			_ = _contextLessDispatcher.DispatchAsync<TestQuery, int>(query, CancellationToken.None).GetAwaiter().GetResult();
 		}
 
 		HandlerInvokerRegistry.FreezeCache();

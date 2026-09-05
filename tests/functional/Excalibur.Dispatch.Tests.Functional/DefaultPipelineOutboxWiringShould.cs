@@ -74,8 +74,8 @@ public sealed class DefaultPipelineOutboxWiringShould : FunctionalTestBase
         // resolve/invoke OutboxStagingMiddleware ourselves: the whole point is that the default pipeline
         // wired by AddDefaultDispatchPipelines runs it for us. We use the 3-arg IDispatcher.DispatchAsync
         // (explicit context, the same routing the S848 T1 harness used) so the dispatch goes through the
-        // configured pipeline / middleware invoker — NOT the 2-arg extension's own IDirectLocalDispatcher
-        // ultra-local shortcut, which would bypass the pipeline independently of the wiring under test and
+        // configured pipeline / middleware invoker — NOT the 2-arg extension's own
+        // ultra-local fast arm, which would bypass the pipeline independently of the wiring under test and
         // make the lock vacuous. Pre-fix the pipeline is empty and bypassed (_canBypassAllMiddleware), so the
         // staging middleware never executes and nothing is staged → this assertion fails for the right reason (RED).
         await using (var scope = provider.CreateAsyncScope())

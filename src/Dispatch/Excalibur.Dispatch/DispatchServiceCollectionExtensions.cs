@@ -87,8 +87,6 @@ public static class DispatchServiceCollectionExtensions
 			(IStreamingDispatcher)sp.GetRequiredService<IDispatcher>());
 		services.TryAddSingleton<IProgressDispatcher>(static sp =>
 			(IProgressDispatcher)sp.GetRequiredService<IDispatcher>());
-		services.TryAddSingleton<IDirectLocalDispatcher>(static sp =>
-			(IDirectLocalDispatcher)sp.GetRequiredService<IDispatcher>());
 		// Legacy fallback: discovers middleware from DI via GetServices<IDispatchMiddleware>().
 		// When DispatchBuilder.Build() is called (the modern path), these TryAdd registrations
 		// are replaced via Services.Replace() with builder-materialized middleware.

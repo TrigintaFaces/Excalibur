@@ -34,3 +34,17 @@ public sealed record DeclaredDomainEventFixture(string Id) : IDomainEvent
 
 	public IDictionary<string, object>? Metadata => null;
 }
+
+/// <summary>
+/// An undeclared GENERIC sibling. Its definition is the only place a name can be declared, and until a
+/// closed generic could compose one from it, requiring the declaration here would have made every
+/// construction claim the same name -- so the guard skipped generics entirely.
+/// </summary>
+public sealed record UndeclaredGenericDomainEventFixture<T>(string Id) : IDomainEvent
+{
+	public string EventId => Id;
+
+	public DateTimeOffset OccurredAt => DateTimeOffset.UnixEpoch;
+
+	public IDictionary<string, object>? Metadata => null;
+}

@@ -145,48 +145,43 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 ### Key Metrics
 
-Median of 7 WarmPath runs on one idle machine (BenchmarkDotNet 0.15.8, .NET 10.0.6 / SDK 10.0.202, i9-14900K). Allocation was byte-identical across all 7 runs; latency varied 6-10% between runs, which is several times BenchmarkDotNet's reported error — that error describes spread within a single process, not reproducibility between processes. Read the byte figures as exact and the nanosecond figures as indicative.
+Median of the WarmPath comparison epoch of 2026-09-05 (BenchmarkDotNet 0.15.8, .NET 10.0.11 / SDK 10.0.400, i9-14900K, `InProcessEmitToolchain`). Allocation was byte-identical across runs; latency varied about 4% run to run on our arms and about 8.6% on MediatR's, which is several times BenchmarkDotNet's reported error — that error describes spread within a single process, not reproducibility between processes. Read the byte figures as exact and the nanosecond figures as indicative, and do not read a ratio inside that band as a finding.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Standard dispatch** | 30.5 ns / 24 B | Default path for a handler that takes no message context (`MediatRWarmPathComparisonBenchmarks`) |
-| **Ultra-local dispatch** | 33.2 ns / 24 B | Explicit lowest-overhead API |
-| **Singleton-promoted** | 33.2 ns / 24 B | Cached direct handler path |
-| **Handler invocation** | 6.0 ns / 0 B | Direct delegate, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
-| **Handler activation** | 24.4 ns / 0 B | Pre-created context, zero allocation (from `DispatchHotPathBreakdownBenchmarks`, last refreshed 2026-04-13) |
-| **100 concurrent commands** | 4,484.1 ns / 4,960 B | Scales linearly (WarmPath) |
+| **Standard dispatch** | 45.6 ns / 96 B | `DispatchAsync` with a caller-supplied context (`MediatRWarmPathComparisonBenchmarks`) |
+| **Context-less 2-arg overload** | 53.0 ns / 96 B | `DispatchAsync(message, ct)` — the framework creates the context for you |
+| **Singleton-promoted handler** | 53.9 ns / 96 B | Context-less overload against a promoted singleton handler |
+| **Query with return value** | 63.7 ns / 192 B | Typed result materialised |
+| **Three-middleware pipeline** | 71.7 ns / 240 B | Logging + validation + timing (`PipelineWarmPathComparisonBenchmarks`) |
+| **100 concurrent commands** | 5,584 ns / 12,160 B | Scales linearly |
 
-**Competitor comparisons** (WarmPath, 2026-09-03). Against **Wolverine** we are **5.6× faster** on `InvokeAsync` (33.1 ns vs 186.5 ns) at 24× less memory, and against **MassTransit Mediator** **42× faster** (28.6 ns vs 1,208 ns) at 148× less memory. On a three-middleware pipeline we are **3.2× faster than MediatR** (49.9 ns vs 161.0 ns) at 4.4× less memory.
+**Read the 96 B as a floor, not a fixed cost.** A dispatch publishes an ambient message context so a nested dispatch inherits causation, correlation, tenant and user instead of silently starting a fresh root. That costs one `ExecutionContext` copy-on-write, and the copy is of the whole async-local value map — so what you actually pay scales with how many `AsyncLocal` values *your* application has live: 72 of the 96 bytes when there are none, roughly 160 B with one other, roughly 992 B with fifteen. A real host carries several before it reaches us, and this framework itself declares two.
 
-Against **MediatR** the answer splits, and both halves are worth knowing:
+**Competitor comparisons** (same epoch). Against **Wolverine** in-process we are **3.8× faster** on `InvokeAsync` (47.0 ns vs 179.1 ns) at 6.1× less memory, and against **MassTransit**'s in-memory bus **370× faster** on a single command (46.3 ns vs 17,118 ns) at 230× less memory. On a three-middleware pipeline we lead every framework measured: **71.7 ns / 240 B** against MediatR's 124.9 ns / 680 B, Wolverine's 236.3 ns / 680 B and MassTransit's 2,128.0 ns / 4,568 B.
+
+Against **MediatR** the answer splits, and the half that goes against us belongs first:
 
 | | Dispatch | MediatR | |
 |---|---|---|---|
-| Standard dispatch | **30.5 ns / 24 B** | 43.4 ns / 152 B | we are 1.42× faster, 6.3× less memory |
-| Ultra-local dispatch | **33.2 ns / 24 B** | 43.4 ns / 152 B | we are 1.31× faster, 6.3× less memory |
-| Query with return | 43.0 ns / **120 B** | 39.3 ns / 224 B | parity on time; we allocate 1.9× less |
-| Notification → 3 handlers | 140.8 ns / **96 B** | 97.6 ns / 616 B | MediatR is 1.44× faster; we allocate 6.4× less |
-| 100 concurrent commands | **4,484 ns / 4.9 KB** | 5,203 ns / 17.1 KB | we are 1.16× faster; we allocate 3.4× less |
+| Single command | 45.6 ns / **96 B** | 41.3 ns / 152 B | MediatR is 1.10× faster; we allocate 1.58× less |
+| Notification → 3 handlers | 135.0 ns / **96 B** | 95.0 ns / 616 B | MediatR is 1.42× faster; we allocate 6.4× less |
+| 10 concurrent commands | 596.1 ns / **1,360 B** | 541.7 ns / 1,856 B | MediatR is 1.10× faster; we allocate 1.36× less |
+| 100 concurrent commands | 5,584 ns / **12,160 B** | 5,146 ns / 17,064 B | MediatR is 1.09× faster; we allocate 1.40× less |
+| Three-middleware pipeline | **71.7 ns / 240 B** | 124.9 ns / 680 B | we are 1.74× faster; we allocate 2.83× less |
 
-So: **we allocate less than MediatR on every scenario, and the standard path is now the fast one.**
-It used to cost 66.8 ns and 240 B because it published a message context to every handler, including
-the ones that never read it. It no longer does that — a handler receives a context when it declares
-it wants one, and pays for it only then. Notification fan-out is the one tier where MediatR is still
-ahead on time, and it allocates 6.4× more to get there.
+So: **MediatR is a few nanoseconds ahead on the bare paths, we allocate less on every scenario, and we lead once middleware is in the pipeline** — which is the shape most applications actually run. The two concurrency gaps sit inside the run-to-run band described above; the single-command and notification gaps do not, and are stated as measured.
 
-The standard path measuring slightly *faster* than the explicit ultra-local API is not a mistake:
-the standard path uses a per-type cached invoker, while the ultra-local entry point re-resolves its
-dispatch plan on every call. Reach for the ultra-local API when you want the guarantee, not because
-it is quicker.
+The query comparison is deliberately absent. MediatR's own query row moved about 21% between epochs for reasons that have nothing to do with this framework and were consistent across every run of the new one; until that is explained the ratio means nothing in either direction. Dispatch's own query figures are in the table above.
 
 > **Reading these numbers.** They come from BenchmarkDotNet's warm job (`WarmPathBenchmarkConfig`), which is the configuration used for published comparisons; the cold job is a CI latency gate and does not report allocation. Every arm calls its library directly from the benchmark method with no intermediate `async` frame, so the allocation column compares libraries rather than harness — an extra `async` frame returning a reference costs ~72 bytes on x64 and would silently charge one side for the measurement itself. Your own call site adds whatever your `await` costs on top of the figures above.
 
 ### Optimizations Included
-
 - **C# 12 Interceptors** - Compile-time dispatch resolution
 - **FrozenDictionary Caches** - Lock-free handler and middleware lookup
-- **Static Pipelines** - Zero-allocation execution for known message types
+- **Static Pipelines** - Pre-built execution chains for message types whose route is known
 - **Auto-Freeze on Startup** - Zero-configuration production optimization
+- **LightMode** - Opt-in minimal overhead (skips correlation-ID generation)
 - **LightMode** - Opt-in minimal overhead (disables AsyncLocal context flow + correlation)
 
 ### Quick Configuration
@@ -203,7 +198,7 @@ services.Configure<DispatchOptions>(o => o.CrossCutting.Performance.AutoFreezeOn
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
 - [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
-- `benchmarks/baselines/` (published baselines)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260905/` (the epoch quoted above)
 - `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
 - `benchmarks/experiments/` (auto-optimize experiment logs)
 

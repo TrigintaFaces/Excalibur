@@ -64,7 +64,7 @@ public sealed class UndeclaredEventNameStartupGuardShould
 		// Dot-prefixed: the undeclared fixture's own name ENDS with the declared one's, so a bare
 		// substring check can never pass and would look like a guard defect rather than a test bug.
 		exception.Message.ShouldNotContain("." + nameof(DeclaredDomainEventFixture));
-		exception.Message.ShouldStartWith("1 domain event type(s)");
+		exception.Message.ShouldStartWith("2 domain event type(s)");
 	}
 
 	[Fact]
@@ -93,4 +93,17 @@ public sealed class UndeclaredEventNameStartupGuardShould
 		exception.Message.ShouldNotContain("customer-created");
 	}
 
+	[Fact]
+	public void ReportAGenericEventWhoseDefinitionDeclaresNoName()
+	{
+		// A definition is never dispatched, so a scan of concrete types cannot see it -- and the
+		// construction that IS dispatched exists only in consumer code, where nothing of ours runs.
+		// The definition is the only reachable place to require the declaration.
+		var validator = ValidatorsFor(typeof(DeclaredDomainEventFixture))
+			.Single(v => v.GetType().Name == "UndeclaredEventNameStartupValidator");
+
+		var exception = Should.Throw<InvalidOperationException>(validator.Validate);
+
+		exception.Message.ShouldContain("UndeclaredGenericDomainEventFixture");
+	}
 }

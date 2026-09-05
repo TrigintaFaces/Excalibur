@@ -55,17 +55,11 @@ If validation fails, the middleware throws `Excalibur.Dispatch.Exceptions.Valida
 handler is never invoked, and the exception propagates out of `DispatchAsync` to the caller — it is not
 surfaced as `IMessageResult.IsSuccess == false`.
 
-:::warning Validation only runs on dispatch paths that use the pipeline
-The above describes dispatch **through the middleware pipeline**. The direct-local dispatch path does
-not use the pipeline at all: it resolves the handler and invokes it, so **no middleware runs and
-validation does not happen**. It also catches the failure and returns a failed `IMessageResult` rather
-than letting an exception reach you, so the difference is quiet — a message that would be rejected on
-one path is simply handled on the other, and nothing reports that validation was skipped.
-
-If validation must apply, dispatch through the pipeline. If you are unsure which path a call takes,
-assert it rather than assume: resolve the middleware invoker in a test and confirm the stage is present
-for your message type. A validator that is registered, resolvable, and never invoked looks identical
-from the outside to one that passed.
+:::note The local fast path defers to your validation
+Dispatch takes an internal fast path for local messages, but only when no middleware applies to that
+message type. Registering validation middleware means it applies to the types it covers, so those
+dispatches take the pipeline and your validators run. There is nothing to opt into, no path to route
+around, and no reason to duplicate validation inside handlers to defend against the fast path.
 :::
 
 ## Setup

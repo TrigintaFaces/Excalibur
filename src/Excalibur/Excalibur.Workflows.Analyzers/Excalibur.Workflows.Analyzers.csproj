@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- Analyzers MUST target netstandard2.0 only - override multi-targeting from Directory.Build.props -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
@@ -19,12 +18,12 @@
     <IsTrimmable>false</IsTrimmable>
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PackageId>Excalibur.Workflows.Analyzers</PackageId>
-    <Title>Workflow Determinism Analyzers</Title>
-    <Description>Roslyn analyzers that flag non-deterministic API usage (DateTime.Now, Guid.NewGuid, ...) inside durable workflow bodies, which would break deterministic replay. Suggests the deterministic IWorkflowContext primitives instead.</Description>
-    <PackageTags>roslyn;analyzer;workflow;durable;determinism;excalibur</PackageTags>
+    <!--
+      Excalibur.Workflows.Abstractions bundles this assembly into analyzers/dotnet/cs. ONE delivery
+      path: shipping this as a standalone package as well would be a second, and a second means every
+      diagnostic reported twice for anyone who referenced both: measured, not inferred.
+    -->
+    <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);NU5017;NU5128;RS2007;RS2008</NoWarn>
   </PropertyGroup>
   <ItemGroup>
@@ -40,13 +39,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-  </ItemGroup>
-  <ItemGroup>
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
     <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

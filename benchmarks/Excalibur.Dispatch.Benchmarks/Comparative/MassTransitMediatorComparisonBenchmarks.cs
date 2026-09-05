@@ -61,7 +61,7 @@ public class MassTransitMediatorComparisonBenchmarks
 
 	// Excalibur infrastructure — tuned direct-local path (no middleware chain)
 	private IServiceProvider? _dispatchDirectServiceProvider;
-	private IDirectLocalDispatcher? _directLocalDispatcher;
+	private IDispatcher? _contextLessDispatcher;
 
 	// MassTransit Mediator infrastructure — IScopedMediator, reuses one ambient scope
 	private IServiceProvider? _mediatorServiceProvider;
@@ -112,7 +112,7 @@ public class MassTransitMediatorComparisonBenchmarks
 		_ = directDispatchServices.AddTransient<IActionHandler<MassTransitMediatorDispatchQuery, int>, MassTransitMediatorDispatchQueryHandler>();
 
 		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
-		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
+		_contextLessDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>();
 
 		// Setup MassTransit Mediator
 		var mediatorServices = new ServiceCollection();
@@ -225,10 +225,10 @@ public class MassTransitMediatorComparisonBenchmarks
 	/// wrong, but it was undeclared and not comparable across pairings.
 	/// </remarks>
 	[Benchmark(Description = "Dispatch (tuned direct-local): Single command")]
-	public ValueTask Dispatch_SingleCommand_DirectLocal()
+	public Task<IMessageResult> Dispatch_SingleCommand_DirectLocal()
 	{
 		var command = new MassTransitMediatorDispatchCommand { Value = 42 };
-		return _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None);
+		return _contextLessDispatcher!.DispatchAsync(command, CancellationToken.None);
 	}
 
 	// ============================================================================

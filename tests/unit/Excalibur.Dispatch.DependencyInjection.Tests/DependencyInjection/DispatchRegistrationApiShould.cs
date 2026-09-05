@@ -37,7 +37,6 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		// Assert
 		var provider = services.BuildServiceProvider();
 		_ = provider.GetService<IDispatcher>().ShouldNotBeNull();
-		_ = provider.GetService<IDirectLocalDispatcher>().ShouldNotBeNull();
 		_ = provider.GetService<IDispatchPipeline>().ShouldNotBeNull();
 	}
 
@@ -123,7 +122,6 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		// Assert
 		var provider = services.BuildServiceProvider();
 		_ = provider.GetService<IDispatcher>().ShouldNotBeNull();
-		_ = provider.GetService<IDirectLocalDispatcher>().ShouldNotBeNull();
 		_ = provider.GetService<IDispatchPipeline>().ShouldNotBeNull();
 	}
 

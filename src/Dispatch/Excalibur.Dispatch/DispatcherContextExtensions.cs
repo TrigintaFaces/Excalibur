@@ -51,16 +51,28 @@ public static class DispatcherContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
-		if (MessageContextHolder.Current is null &&
-			message is IDispatchAction localAction &&
-			dispatcher is IDirectLocalDispatcher directLocalDispatcher &&
-			directLocalDispatcher.CanBypassMiddlewareFor(localAction.GetType()))
+		var current = MessageContextHolder.Current;
+		if (current is not null)
 		{
-			return DispatchUltraLocalAsync(directLocalDispatcher, localAction, cancellationToken);
+			// A child of the ambient context was not rented from the factory, so there is nothing to return.
+			return dispatcher.DispatchAsync(message, current.CreateChildContext(), cancellationToken);
 		}
 
-		var context = GetOrCreateChildContext(dispatcher);
-		return dispatcher.DispatchAsync(message, context, cancellationToken);
+		var factory = GetContextFactory(dispatcher);
+		if (factory is null)
+		{
+			return dispatcher.DispatchAsync(message, new MessageContext(), cancellationToken);
+		}
+
+		var rented = factory.CreateContext();
+		var dispatchTask = dispatcher.DispatchAsync(message, rented, cancellationToken);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			factory.Return(rented);
+			return dispatchTask;
+		}
+
+		return AwaitAndReturnContextAsync(dispatchTask, factory, rented);
 	}
 
 	/// <summary>
@@ -96,18 +108,28 @@ public static class DispatcherContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
-		if (MessageContextHolder.Current is null &&
-			dispatcher is IDirectLocalDispatcher directLocalDispatcher &&
-			directLocalDispatcher.CanBypassMiddlewareFor(typeof(TMessage)))
+		var current = MessageContextHolder.Current;
+		if (current is not null)
 		{
-			return DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
-				directLocalDispatcher,
-				message,
-				cancellationToken);
+			// A child of the ambient context was not rented from the factory, so there is nothing to return.
+			return dispatcher.DispatchAsync<TMessage, TResponse>(message, current.CreateChildContext(), cancellationToken);
 		}
 
-		var context = GetOrCreateChildContext(dispatcher);
-		return dispatcher.DispatchAsync<TMessage, TResponse>(message, context, cancellationToken);
+		var factory = GetContextFactory(dispatcher);
+		if (factory is null)
+		{
+			return dispatcher.DispatchAsync<TMessage, TResponse>(message, new MessageContext(), cancellationToken);
+		}
+
+		var rented = factory.CreateContext();
+		var dispatchTask = dispatcher.DispatchAsync<TMessage, TResponse>(message, rented, cancellationToken);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			factory.Return(rented);
+			return dispatchTask;
+		}
+
+		return AwaitAndReturnContextAsync(dispatchTask, factory, rented);
 	}
 
 	/// <summary>
@@ -222,55 +244,51 @@ public static class DispatcherContextExtensions
 	/// <param name="dispatcher">The dispatcher to get the service provider from.</param>
 	/// <returns>A new message context instance.</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static IMessageContext CreateContextCore(IDispatcher dispatcher)
-	{
-		var factory = ContextFactoryCache.GetValue(
-			dispatcher,
-			static key => new ContextFactoryHolder(key.ServiceProvider?.GetService<IMessageContextFactory>())).Factory;
-		return factory?.CreateContext() ?? new MessageContext();
-	}
-
-	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
-	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
-	private static async Task<IMessageResult> DispatchUltraLocalAsync(
-		IDirectLocalDispatcher directLocalDispatcher,
-		IDispatchAction action,
-		CancellationToken cancellationToken)
-	{
-		ThrowIfHandlerNotRegistered(directLocalDispatcher, action.GetType());
-
-		await directLocalDispatcher.DispatchLocalAsync(action, cancellationToken).ConfigureAwait(false);
-		return MessageResult.Success();
-	}
-
-	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
-	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
-	private static async Task<IMessageResult<TResponse>> DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
-		IDirectLocalDispatcher directLocalDispatcher,
-		TMessage message,
-		CancellationToken cancellationToken)
-		where TMessage : IDispatchAction<TResponse>
-	{
-		ThrowIfHandlerNotRegistered(directLocalDispatcher, message.GetType());
-
-		var value = await directLocalDispatcher.DispatchLocalAsync<TMessage, TResponse>(message, cancellationToken)
-			.ConfigureAwait(false);
-		return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: false);
-	}
+	private static IMessageContext CreateContextCore(IDispatcher dispatcher) =>
+		GetContextFactory(dispatcher)?.CreateContext() ?? new MessageContext();
 
 	/// <summary>
-	/// Raises the missing-registration fault as a configuration fault, distinct from a handler that ran and threw.
+	/// Resolves (and caches per dispatcher) the <see cref="IMessageContextFactory"/> a rented root context
+	/// must be returned to.
 	/// </summary>
-	/// <param name="directLocalDispatcher"> The dispatcher about to run the action. </param>
-	/// <param name="messageType"> The message type about to be dispatched. </param>
-	/// <exception cref="InvalidOperationException"> Thrown when no handler is registered for <paramref name="messageType" />. </exception>
-	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
-	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
-	private static void ThrowIfHandlerNotRegistered(IDirectLocalDispatcher directLocalDispatcher, Type messageType)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static IMessageContextFactory? GetContextFactory(IDispatcher dispatcher) =>
+		ContextFactoryCache.GetValue(
+			dispatcher,
+			static key => new ContextFactoryHolder(key.ServiceProvider?.GetService<IMessageContextFactory>())).Factory;
+
+	/// <summary>
+	/// Returns the rented context only after the dispatch has fully completed, so no continuation can still
+	/// be holding it when the factory resets and recycles it.
+	/// </summary>
+	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
+		Task<IMessageResult> dispatchTask,
+		IMessageContextFactory? factory,
+		IMessageContext context)
 	{
-		if (directLocalDispatcher is Dispatcher dispatcher && dispatcher.IsMissingLocalHandler(messageType))
+		try
 		{
-			throw LocalMessageBus.CreateMissingHandlerException(messageType);
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			factory?.Return(context);
+		}
+	}
+
+	/// <inheritdoc cref="AwaitAndReturnContextAsync(Task{IMessageResult}, IMessageContextFactory, IMessageContext)"/>
+	private static async Task<IMessageResult<TResponse>> AwaitAndReturnContextAsync<TResponse>(
+		Task<IMessageResult<TResponse>> dispatchTask,
+		IMessageContextFactory? factory,
+		IMessageContext context)
+	{
+		try
+		{
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			factory?.Return(context);
 		}
 	}
 

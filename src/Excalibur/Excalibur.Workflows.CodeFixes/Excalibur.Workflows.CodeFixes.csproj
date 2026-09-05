@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- Analyzers/code-fixes MUST target netstandard2.0 only -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
@@ -21,8 +20,8 @@
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <IsTrimmable>false</IsTrimmable>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
-    <Description>Roslyn code-fix providers for the Excalibur.Workflows.Analyzers determinism diagnostics: rewrites non-deterministic API calls inside workflow bodies to the deterministic IWorkflowContext primitives.</Description>
-    <PackageTags>workflow;durable;determinism;codefix;roslyn;excalibur</PackageTags>
+    <!-- Bundled into Excalibur.Workflows.Abstractions at analyzers/dotnet/cs; never shipped standalone. -->
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
@@ -68,11 +67,5 @@
   <ItemGroup>
     <!-- Shares the EXWF diagnostic ID constants (FixableDiagnosticIds); compile-time only, not packed. -->
     <ProjectReference Include="..\Excalibur.Workflows.Analyzers\Excalibur.Workflows.Analyzers.csproj" PrivateAssets="all" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

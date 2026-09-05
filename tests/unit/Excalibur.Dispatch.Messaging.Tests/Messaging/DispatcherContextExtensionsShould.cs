@@ -198,41 +198,6 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		capturedContext.CorrelationId.ShouldBe(existingCorrelationId);
 	}
 
-	[Fact]
-	public async Task DispatchAsync_Should_Use_UltraLocal_Path_When_Dispatcher_Supports_It()
-	{
-		// Arrange
-		var dispatcher = new DirectLocalTestDispatcher();
-		var message = new LocalActionMessage();
-		MessageContextHolder.Current = null;
-
-		// Act — call extension method explicitly to test the ultra-local dispatch path
-		var result = await DispatcherContextExtensions.DispatchAsync(dispatcher, message, CancellationToken.None);
-
-		// Assert
-		result.Succeeded.ShouldBeTrue();
-		dispatcher.LocalActionCalls.ShouldBe(1);
-		dispatcher.ContextDispatchCalls.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task DispatchAsync_With_Response_Should_Use_UltraLocal_Path_When_Dispatcher_Supports_It()
-	{
-		// Arrange
-		var dispatcher = new DirectLocalTestDispatcher();
-		var message = new LocalQueryMessage { Value = 21 };
-		MessageContextHolder.Current = null;
-
-		// Act
-		var result = await dispatcher.DispatchAsync<LocalQueryMessage, int>(message, CancellationToken.None);
-
-		// Assert
-		result.Succeeded.ShouldBeTrue();
-		result.ReturnValue.ShouldBe(42);
-		dispatcher.LocalQueryCalls.ShouldBe(1);
-		dispatcher.ContextDispatchCalls.ShouldBe(0);
-	}
-
 	/// <summary>
 	/// Verifies that DispatchAsync throws ArgumentNullException when dispatcher is null.
 	/// </summary>
@@ -773,68 +738,4 @@ IDispatchAction<Guid> action1 = message1;
 	}
 
 	private sealed record TestGetCountQuery : IDispatchAction<int>;
-
-	private sealed record LocalActionMessage : IDispatchAction;
-
-	private sealed record LocalQueryMessage : IDispatchAction<int>
-	{
-		public int Value { get; init; }
-	}
-
-	private sealed class DirectLocalTestDispatcher : IDispatcher, IDirectLocalDispatcher
-	{
-		/// <summary>
-		/// Opts this double into the ultra-local path.
-		/// </summary>
-		/// <param name="messageType">The message type about to be dispatched.</param>
-		/// <returns>Always <see langword="true"/>.</returns>
-		/// <remarks>
-		/// The interface defaults to <see langword="false"/> so an implementation that cannot determine
-		/// whether skipping the pipeline is observable gets the pipeline. This double exists to exercise
-		/// the ultra-local path, so it answers for itself -- which is what a real implementation does, and
-		/// is the point of asking through the interface rather than downcasting to a known dispatcher.
-		/// </remarks>
-		public bool CanBypassMiddlewareFor(Type messageType) => true;
-
-		public int LocalActionCalls { get; private set; }
-		public int LocalQueryCalls { get; private set; }
-		public int ContextDispatchCalls { get; private set; }
-
-		public IServiceProvider? ServiceProvider => null;
-
-		public Task<IMessageResult> DispatchAsync<TMessage>(
-			TMessage message,
-			IMessageContext context,
-			CancellationToken cancellationToken)
-			where TMessage : IDispatchMessage
-		{
-			ContextDispatchCalls++;
-			return Task.FromResult<IMessageResult>(MessageResult.Success());
-		}
-
-		public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
-			TMessage message,
-			IMessageContext context,
-			CancellationToken cancellationToken)
-			where TMessage : IDispatchAction<TResponse>
-		{
-			ContextDispatchCalls++;
-			return Task.FromResult<IMessageResult<TResponse>>(MessageResult.Success(default(TResponse)!));
-		}
-
-		public ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
-			where TMessage : IDispatchAction
-		{
-			LocalActionCalls++;
-			return ValueTask.CompletedTask;
-		}
-
-		public ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(TMessage message, CancellationToken cancellationToken)
-			where TMessage : IDispatchAction<TResponse>
-		{
-			LocalQueryCalls++;
-			object? value = message is LocalQueryMessage query ? query.Value * 2 : default(TResponse);
-			return new ValueTask<TResponse?>((TResponse?)value);
-		}
-	}
 }

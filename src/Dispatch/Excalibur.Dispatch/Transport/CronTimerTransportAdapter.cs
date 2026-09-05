@@ -786,6 +786,7 @@ public enum CronTimerCatchUpPolicy
 /// <see cref="CronTimerTriggerMessage{TTimer}"/> with a marker type.
 /// </para>
 /// </remarks>
+[MessageName("Excalibur.Dispatch.CronTimerTriggerMessage")]
 public record CronTimerTriggerMessage : IDispatchEvent
 {
 	/// <summary>

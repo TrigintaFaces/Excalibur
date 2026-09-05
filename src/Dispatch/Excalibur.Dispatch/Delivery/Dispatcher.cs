@@ -45,7 +45,7 @@ internal sealed class Dispatcher(
 	LocalMessageBus? localMessageBus = null,
 	IDictionary<string, MessageBusOptions>? busOptionsMap = null,
 	IDispatchRouter? dispatchRouter = null,
-	IOptions<DispatchOptions>? dispatchOptions = null) : IDispatcher, IStreamingDispatcher, IProgressDispatcher, IDirectLocalDispatcher
+	IOptions<DispatchOptions>? dispatchOptions = null) : IDispatcher, IStreamingDispatcher, IProgressDispatcher
 {
 	/// <inheritdoc />
 	public IServiceProvider? ServiceProvider => serviceProvider;
@@ -110,12 +110,6 @@ internal sealed class Dispatcher(
 
 	private readonly bool _emitDirectLocalResultMetadata =
 		dispatchOptions?.Value.CrossCutting.Performance.EmitDirectLocalResultMetadata ?? false;
-
-	// PERF-7: Cache the IMessageContextFactory at construction time to avoid per-dispatch DI lookup.
-	// The factory is a singleton, so resolving it once is safe and eliminates ~10-15ns of GetService overhead per dispatch.
-	// Use non-generic GetService + safe cast to avoid InvalidCastException with faked IServiceProvider in tests.
-	private readonly IMessageContextFactory? _cachedContextFactory =
-		serviceProvider?.GetService(typeof(IMessageContextFactory)) as IMessageContextFactory;
 
 	// PERF: Cache terminal handler delegate once to avoid method-group conversion on every dispatch.
 	private readonly Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>? _finalHandlerDelegate =
@@ -441,134 +435,6 @@ internal sealed class Dispatcher(
 		return DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, canBypass, cancellationToken);
 	}
 
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
-	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
-	public ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
-		where TMessage : IDispatchAction
-	{
-		ArgumentNullException.ThrowIfNull(message);
-
-		if (cancellationToken.IsCancellationRequested)
-		{
-			return ValueTask.FromCanceled(cancellationToken);
-		}
-
-		if (!CanUseUltraLocalPath())
-		{
-			return new ValueTask(DispatchLocalFallbackAsync(message, cancellationToken));
-		}
-
-		if (localMessageBus!.TryInvokeUltraLocalNoResponse(
-				message,
-				cancellationToken,
-				out var ultraLocalInvocation,
-				out var requiresContext))
-		{
-			return requiresContext
-				? ValueTask.FromException(new InvalidOperationException(
-					$"Direct local dispatch for {message.GetType().FullName} requires a context-bound path."))
-				: (ultraLocalInvocation.IsCompletedSuccessfully
-					? ValueTask.CompletedTask
-					: AwaitUltraLocalNoResponseAsync(ultraLocalInvocation));
-		}
-
-		if (requiresContext &&
-			TryInvokeDirectNoResponseWithLazyContext(
-				message,
-				cancellationToken,
-				out var contextBoundInvocation,
-				out var rentedContext,
-				out var contextFactory))
-		{
-			if (contextBoundInvocation.IsCompletedSuccessfully)
-			{
-				ReturnDispatchContext(contextFactory, rentedContext);
-				return ValueTask.CompletedTask;
-			}
-
-			return AwaitUltraLocalNoResponseWithContextAsync(contextBoundInvocation, rentedContext, contextFactory);
-		}
-
-		var messageType = message.GetType();
-		return ValueTask.FromException(LocalMessageBus.CreateMissingHandlerException(messageType));
-	}
-
-	/// <inheritdoc />
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
-	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-		Justification = "Dispatcher is internal and has no public constructor, so a consumer reaches direct local dispatch only through registration; the registration surface carries the annotation. The reflective invoker is selected by ConfigureHandlerInvoker, which registers the source-generated HandlerInvokerAot when RuntimeFeature.IsDynamicCodeSupported is false.")]
-	public ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(
-		TMessage message,
-		CancellationToken cancellationToken)
-		where TMessage : IDispatchAction<TResponse>
-	{
-		ArgumentNullException.ThrowIfNull(message);
-
-		if (cancellationToken.IsCancellationRequested)
-		{
-			return ValueTask.FromCanceled<TResponse?>(cancellationToken);
-		}
-
-		if (!CanUseUltraLocalPath())
-		{
-			return new ValueTask<TResponse?>(DispatchLocalFallbackWithResponseAsync<TMessage, TResponse>(message, cancellationToken));
-		}
-
-		if (localMessageBus!.TryInvokeUltraLocal(
-				message,
-				cancellationToken,
-				out var ultraLocalInvocation,
-				out var requiresContext))
-		{
-			if (!requiresContext)
-			{
-				if (ultraLocalInvocation.IsCompletedSuccessfully)
-				{
-					return new ValueTask<TResponse?>(CastUltraLocalResponse<TResponse>(ultraLocalInvocation.Result));
-				}
-
-				return AwaitUltraLocalResponseAsync<TResponse>(ultraLocalInvocation);
-			}
-		}
-
-		if (requiresContext &&
-			TryInvokeDirectWithLazyContext(
-				message,
-				cancellationToken,
-				out var contextBoundInvocation,
-				out var rentedContext,
-				out var contextFactory))
-		{
-			if (contextBoundInvocation.IsCompletedSuccessfully)
-			{
-				try
-				{
-					return new ValueTask<TResponse?>(CastUltraLocalResponse<TResponse>(contextBoundInvocation.Result));
-				}
-				finally
-				{
-					ReturnDispatchContext(contextFactory, rentedContext);
-				}
-			}
-
-			return AwaitUltraLocalResponseWithContextAsync<TResponse>(contextBoundInvocation, rentedContext, contextFactory);
-		}
-
-		var messageType = message.GetType();
-		return ValueTask.FromException<TResponse?>(LocalMessageBus.CreateMissingHandlerException(messageType));
-	}
-
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
 	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<IMessageResult> DispatchWithPreRoutingAsync<TMessage>(
@@ -687,49 +553,6 @@ internal sealed class Dispatcher(
 				cancellationToken)
 			.ConfigureAwait(false);
 	}
-
-	private static async ValueTask AwaitUltraLocalNoResponseAsync(ValueTask invocation)
-	{
-		await invocation.ConfigureAwait(false);
-	}
-
-	private static async ValueTask<TResponse?> AwaitUltraLocalResponseAsync<TResponse>(ValueTask<object?> invocation)
-	{
-		var result = await invocation.ConfigureAwait(false);
-		return CastUltraLocalResponse<TResponse>(result);
-	}
-
-	private static async ValueTask AwaitUltraLocalNoResponseWithContextAsync(
-		ValueTask invocation,
-		IMessageContext context,
-		IMessageContextFactory? factory)
-	{
-		try
-		{
-			await invocation.ConfigureAwait(false);
-		}
-		finally
-		{
-			ReturnDispatchContext(factory, context);
-		}
-	}
-
-	private static async ValueTask<TResponse?> AwaitUltraLocalResponseWithContextAsync<TResponse>(
-		ValueTask<object?> invocation,
-		IMessageContext context,
-		IMessageContextFactory? factory)
-	{
-		try
-		{
-			var result = await invocation.ConfigureAwait(false);
-			return CastUltraLocalResponse<TResponse>(result);
-		}
-		finally
-		{
-			ReturnDispatchContext(factory, context);
-		}
-	}
-
 	private static TResponse? CastUltraLocalResponse<TResponse>(object? value)
 	{
 		if (value is null)
@@ -745,130 +568,6 @@ internal sealed class Dispatcher(
 		throw new InvalidOperationException(
 			$"Direct local dispatch returned {value.GetType().FullName}, expected {typeof(TResponse).FullName}.");
 	}
-
-	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
-	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	private async Task DispatchLocalFallbackAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
-		where TMessage : IDispatchAction
-	{
-		var (context, contextFactory) = CreateDispatchContext();
-		try
-		{
-			var result = await DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
-			ThrowIfFailed(result);
-		}
-		finally
-		{
-			ReturnDispatchContext(contextFactory, context);
-		}
-	}
-
-	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
-	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	private async Task<TResponse?> DispatchLocalFallbackWithResponseAsync<TMessage, TResponse>(
-		TMessage message,
-		CancellationToken cancellationToken)
-		where TMessage : IDispatchAction<TResponse>
-	{
-		var (context, contextFactory) = CreateDispatchContext();
-		try
-		{
-			var result = await DispatchAsync<TMessage, TResponse>(message, context, cancellationToken).ConfigureAwait(false);
-			ThrowIfFailed(result);
-			return result.ReturnValue;
-		}
-		finally
-		{
-			ReturnDispatchContext(contextFactory, context);
-		}
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private bool CanUseUltraLocalPath()
-	{
-		return _directLocalActionPathEnabled &&
-			   localMessageBus is not null;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
-	[RequiresDynamicCode("Direct invocation uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	private bool TryInvokeDirectWithLazyContext<TMessage>(
-		TMessage message,
-		CancellationToken cancellationToken,
-		out ValueTask<object?> invocation,
-		out IMessageContext context,
-		out IMessageContextFactory? contextFactory)
-		where TMessage : IDispatchAction
-	{
-		var dispatchContext = CreateDispatchContext();
-		context = dispatchContext.Context;
-		contextFactory = dispatchContext.Factory;
-
-		InitializeDirectLocalContext(message, context);
-		if (localMessageBus!.TryInvokeDirect(message, context, cancellationToken, out invocation))
-		{
-			return true;
-		}
-
-		ReturnDispatchContext(contextFactory, context);
-		context = null!;
-		contextFactory = null;
-		return false;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
-	[RequiresDynamicCode("Direct invocation uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
-	private bool TryInvokeDirectNoResponseWithLazyContext<TMessage>(
-		TMessage message,
-		CancellationToken cancellationToken,
-		out ValueTask invocation,
-		out IMessageContext context,
-		out IMessageContextFactory? contextFactory)
-		where TMessage : IDispatchAction
-	{
-		var dispatchContext = CreateDispatchContext();
-		context = dispatchContext.Context;
-		contextFactory = dispatchContext.Factory;
-
-		InitializeDirectLocalContext(message, context);
-		if (localMessageBus!.TryInvokeDirectNoResponse(message, context, cancellationToken, out invocation))
-		{
-			return true;
-		}
-
-		ReturnDispatchContext(contextFactory, context);
-		context = null!;
-		contextFactory = null;
-		return false;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private (IMessageContext Context, IMessageContextFactory? Factory) CreateDispatchContext()
-	{
-		// PERF-7: Use cached factory instead of per-dispatch DI lookup.
-		var context = _cachedContextFactory?.CreateContext() ?? new MessageContext();
-		return (context, _cachedContextFactory);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void ReturnDispatchContext(IMessageContextFactory? factory, IMessageContext context)
-	{
-		factory?.Return(context);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void ThrowIfFailed(IMessageResult result)
-	{
-		if (result.Succeeded)
-		{
-			return;
-		}
-
-		throw new InvalidOperationException(result.ErrorMessage ?? "Direct local dispatch failed.");
-	}
-
 	/// <summary>
 	/// Selects and runs the direct-local fast path for a bypass-eligible message. Callers gate this on
 	/// their own eligibility guard; this method owns only the action/event selection.
@@ -947,36 +646,44 @@ internal sealed class Dispatcher(
 		// If the token becomes cancelled between the caller's check and handler invocation,
 		// the handler will throw OperationCanceledException which is caught below.
 
-		// No ambient context is pushed here, deliberately. Every caller of this method has already
-		// tested dispatchInfo.DirectLocalNoResponseEligible / DirectLocalTypedEligible, and those flags
-		// are assigned ONLY inside `if (!directRequiresContext)` when the per-type dispatch info is
-		// built -- so reaching this method is proof that the handler declared it does not take a
-		// context. Pushing one cost an ExecutionContext copy-on-write (measured: 18.64 ns and 72 B --
-		// 44% of the standard dispatch path and 100% of its allocation) to publish a value nothing on
-		// this path is allowed to read. MessageContextHolder is internal, so a handler cannot read it
-		// without declaring injection, and declaring injection routes to the context-aware path rather
-		// than here. NOTE: a ThreadStatic dual-layer fast path was tried and reverted (experiment #1) --
-		// do not reintroduce it.
+		// Push the ambient context around the handler, exactly as the context-aware paths do. A handler
+		// that declares no context of its own still dispatches nested messages through the two-argument
+		// DispatchAsync, and that overload reads MessageContextHolder.Current to decide child-vs-root --
+		// so the framework reads the ambient value on the handler's behalf even when the handler cannot.
+		// Not publishing it here made every nested dispatch a fresh root, losing causation, correlation,
+		// tenant and user. Costs an ExecutionContext copy-on-write: 21.08 ns, and 160 B measured on this
+		// path -- 72 B is the isolated write pair and is a FLOOR, since the copy grows with how many
+		// AsyncLocals the caller's context already holds, so a consumer pays more than we measure. A
+		// tenancy invariant outranks that. NOTE: a ThreadStatic fast path was tried and reverted (#1)
+		// -- do not reintroduce it.
+		var previous = PushAmbientContext(context);
 		try
 		{
-			InitializeDirectLocalContext(message, context);
-
-			var invocation = noResponseInvoker(action, cancellationToken);
-
-			if (invocation.IsCompletedSuccessfully)
+			try
 			{
-				task = DirectLocalSuccessResultTask;
+				InitializeDirectLocalContext(message, context);
+
+				var invocation = noResponseInvoker(action, cancellationToken);
+
+				if (invocation.IsCompletedSuccessfully)
+				{
+					task = DirectLocalSuccessResultTask;
+					return true;
+				}
+
+				task = AwaitDirectLocalNoResponseAsync(invocation, context);
+
 				return true;
 			}
-
-			task = AwaitDirectLocalNoResponseAsync(invocation, context);
-
-			return true;
+			catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+			{
+				task = CancelledResultTask;
+				return true;
+			}
 		}
-		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		finally
 		{
-			task = CancelledResultTask;
-			return true;
+			PopAmbientContext(previous);
 		}
 	}
 
@@ -993,37 +700,45 @@ internal sealed class Dispatcher(
 		// PERF: Cancellation check removed — caller (DispatchAsync) already checks
 		// cancellationToken.IsCancellationRequested before calling this method.
 
-		// No ambient context is pushed here, deliberately. Every caller of this method has already
-		// tested dispatchInfo.DirectLocalNoResponseEligible / DirectLocalTypedEligible, and those flags
-		// are assigned ONLY inside `if (!directRequiresContext)` when the per-type dispatch info is
-		// built -- so reaching this method is proof that the handler declared it does not take a
-		// context. Pushing one cost an ExecutionContext copy-on-write (measured: 18.64 ns and 72 B --
-		// 44% of the standard dispatch path and 100% of its allocation) to publish a value nothing on
-		// this path is allowed to read. MessageContextHolder is internal, so a handler cannot read it
-		// without declaring injection, and declaring injection routes to the context-aware path rather
-		// than here. NOTE: a ThreadStatic dual-layer fast path was tried and reverted (experiment #1) --
-		// do not reintroduce it.
+		// Push the ambient context around the handler, exactly as the context-aware paths do. A handler
+		// that declares no context of its own still dispatches nested messages through the two-argument
+		// DispatchAsync, and that overload reads MessageContextHolder.Current to decide child-vs-root --
+		// so the framework reads the ambient value on the handler's behalf even when the handler cannot.
+		// Not publishing it here made every nested dispatch a fresh root, losing causation, correlation,
+		// tenant and user. Costs an ExecutionContext copy-on-write: 21.08 ns, and 160 B measured on this
+		// path -- 72 B is the isolated write pair and is a FLOOR, since the copy grows with how many
+		// AsyncLocals the caller's context already holds, so a consumer pays more than we measure. A
+		// tenancy invariant outranks that. NOTE: a ThreadStatic fast path was tried and reverted (#1)
+		// -- do not reintroduce it.
+		var previous = PushAmbientContext(context);
 		try
 		{
-			InitializeDirectLocalContext(message, context);
-
-			var invocation = withResponseInvoker(action, cancellationToken);
-
-			if (invocation.IsCompletedSuccessfully)
+			try
 			{
-				TrySetContextResult(context, invocation.Result);
-				task = DirectLocalSuccessResultTask;
+				InitializeDirectLocalContext(message, context);
+
+				var invocation = withResponseInvoker(action, cancellationToken);
+
+				if (invocation.IsCompletedSuccessfully)
+				{
+					TrySetContextResult(context, invocation.Result);
+					task = DirectLocalSuccessResultTask;
+					return true;
+				}
+
+				task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
+
 				return true;
 			}
-
-			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
-
-			return true;
+			catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+			{
+				task = CancelledResultTask;
+				return true;
+			}
 		}
-		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		finally
 		{
-			task = CancelledResultTask;
-			return true;
+			PopAmbientContext(previous);
 		}
 	}
 
@@ -1040,36 +755,44 @@ internal sealed class Dispatcher(
 		// checks cancellationToken.IsCancellationRequested before calling this method.
 		// Saves one branch + ShouldReturnCancelledResult per dispatch.
 
-		// No ambient context is pushed here, deliberately. Every caller of this method has already
-		// tested dispatchInfo.DirectLocalNoResponseEligible / DirectLocalTypedEligible, and those flags
-		// are assigned ONLY inside `if (!directRequiresContext)` when the per-type dispatch info is
-		// built -- so reaching this method is proof that the handler declared it does not take a
-		// context. Pushing one cost an ExecutionContext copy-on-write (measured: 18.64 ns and 72 B --
-		// 44% of the standard dispatch path and 100% of its allocation) to publish a value nothing on
-		// this path is allowed to read. MessageContextHolder is internal, so a handler cannot read it
-		// without declaring injection, and declaring injection routes to the context-aware path rather
-		// than here. NOTE: a ThreadStatic dual-layer fast path was tried and reverted (experiment #1) --
-		// do not reintroduce it.
+		// Push the ambient context around the handler, exactly as the context-aware paths do. A handler
+		// that declares no context of its own still dispatches nested messages through the two-argument
+		// DispatchAsync, and that overload reads MessageContextHolder.Current to decide child-vs-root --
+		// so the framework reads the ambient value on the handler's behalf even when the handler cannot.
+		// Not publishing it here made every nested dispatch a fresh root, losing causation, correlation,
+		// tenant and user. Costs an ExecutionContext copy-on-write: 21.08 ns, and 160 B measured on this
+		// path -- 72 B is the isolated write pair and is a FLOOR, since the copy grows with how many
+		// AsyncLocals the caller's context already holds, so a consumer pays more than we measure. A
+		// tenancy invariant outranks that. NOTE: a ThreadStatic fast path was tried and reverted (#1)
+		// -- do not reintroduce it.
+		var previous = PushAmbientContext(context);
 		try
 		{
-			InitializeDirectLocalContext(message, context);
-
-			var invocation = withResponseInvoker(message, cancellationToken);
-
-			if (invocation.IsCompletedSuccessfully)
+			try
 			{
-				task = Task.FromResult(CreateDirectLocalTypedSuccessResult<TResponse>(invocation.Result, context));
+				InitializeDirectLocalContext(message, context);
+
+				var invocation = withResponseInvoker(message, cancellationToken);
+
+				if (invocation.IsCompletedSuccessfully)
+				{
+					task = Task.FromResult(CreateDirectLocalTypedSuccessResult<TResponse>(invocation.Result, context));
+					return true;
+				}
+
+				task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
+
 				return true;
 			}
-
-			task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
-
-			return true;
+			catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+			{
+				task = CancelledResultTaskCache<TResponse>.Task;
+				return true;
+			}
 		}
-		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		finally
 		{
-			task = CancelledResultTaskCache<TResponse>.Task;
-			return true;
+			PopAmbientContext(previous);
 		}
 	}
 
@@ -1448,9 +1171,8 @@ internal sealed class Dispatcher(
 	/// <param name="messageType">The message type about to be dispatched.</param>
 	/// <returns><see langword="true"/> only when no configured middleware applies to that type.</returns>
 	/// <remarks>
-	/// Exists so the context-less dispatch extensions can ask the question this class already answers for
-	/// its own fast path, rather than skipping the pipeline on the strength of the CALLER's shape alone.
-	/// Cached per message type, so asking is not a per-dispatch cost.
+	/// Reports the decision the standard fast path already makes for itself, so a test can assert which
+	/// arm a dispatch took. Cached per message type, so asking is not a per-dispatch cost.
 	/// </remarks>
 	[UnconditionalSuppressMessage(
 		"Trimming", "IL2026:RequiresUnreferencedCode",
@@ -1458,24 +1180,12 @@ internal sealed class Dispatcher(
 	[UnconditionalSuppressMessage(
 		"AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Reads a bool cached per message type; no type is constructed by this call.")]
-	public bool CanBypassMiddlewareFor(Type messageType)
+	internal bool CanBypassMiddlewareFor(Type messageType)
 	{
 		ArgumentNullException.ThrowIfNull(messageType);
 
 		return GetMessageDispatchInfo(messageType).CanBypassMiddleware;
 	}
-
-	/// <summary>
-	/// Determines whether a local action would reach the local bus with no handler registered for it.
-	/// </summary>
-	/// <param name="messageType"> The message type about to be dispatched. </param>
-	/// <returns>
-	/// <see langword="true" /> only when a local bus is present and has no handler for <paramref name="messageType" />; otherwise
-	/// <see langword="false" />, including when no local bus is configured and the question cannot be answered here.
-	/// </returns>
-	internal bool IsMissingLocalHandler(Type messageType) =>
-		localMessageBus is { } bus && !bus.HasHandlerFor(messageType);
-
 
 	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
