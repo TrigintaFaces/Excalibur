@@ -363,7 +363,7 @@ dotnet add package Excalibur.Hosting.Web`}
 
 function PerformanceShowcaseSection() {
   const metrics: { value: string; label: string; detail: string }[] = [
-    { value: '~46 ns', label: 'Standard Dispatch', detail: '96 B floor; MediatR is 1.10x faster here' },
+    { value: '~60 ns', label: 'Standard Dispatch', detail: '96 B floor; MediatR is 1.40x faster here' },
     { value: '1.74x', label: 'Faster Than MediatR', detail: 'Three-middleware pipeline: 71.7 ns vs 124.9 ns' },
     { value: '1.58x', label: 'Less Memory Than MediatR', detail: 'Single command: 96 B vs 152 B' },
     { value: '3.8x', label: 'Faster Than Wolverine', detail: 'Single command in-process: 47.0 ns vs 179.1 ns' },

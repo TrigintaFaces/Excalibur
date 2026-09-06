@@ -50,9 +50,9 @@ Source: `MediatRWarmPathComparisonBenchmarks-report-github.md`
 
 | Scenario | Dispatch | MediatR |
 |----------|---------:|--------:|
-| Single command handler | 45.58 ns / 96 B | 41.32 ns / 152 B |
+| Single command handler | 60.04 ns / 96 B | 42.78 ns / 152 B |
 | Single command, strict direct-local | 46.00 ns / 96 B | 41.32 ns / 152 B |
-| Single command, context-less 2-arg | 53.00 ns / 96 B | 41.32 ns / 152 B |
+| Single command, context-less 2-arg | 67.52 ns / 96 B | 42.78 ns / 152 B |
 | Singleton-promoted command | 53.85 ns / 96 B | 41.32 ns / 152 B |
 | Notification to 3 handlers | 134.99 ns / 96 B | 95.01 ns / 616 B |
 | 10 concurrent commands | 596.06 ns / 1,360 B | 541.74 ns / 1,856 B |

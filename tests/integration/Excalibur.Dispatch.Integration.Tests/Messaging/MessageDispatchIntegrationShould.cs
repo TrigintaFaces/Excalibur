@@ -168,9 +168,6 @@ public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 		_ = services.AddDispatch(builder => builder.UseContextEnrichment());
-		_ = services.Configure<Excalibur.Dispatch.Options.Configuration.DispatchOptions>(o =>
-			o.CrossCutting.Performance.DirectLocalContextInitialization =
-				Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile.Full);
 		_ = services.AddTransient<IActionHandler<TestCommand>, TestCommandHandler>();
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IDispatcher>();

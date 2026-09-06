@@ -3,6 +3,8 @@
 
 using System.Collections.Concurrent;
 
+using System.Diagnostics.CodeAnalysis;
+
 using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch;
@@ -195,6 +197,8 @@ public class CacheOptimizationBenchmarks
 	/// the field arm it answers whether the optimiser is folding this call away.
 	/// </summary>
 	[Benchmark(Description = "TypeName: Type.Name (type known to the JIT)")]
+	[SuppressMessage("Style", "IDE0082:Convert typeof to nameof",
+		Justification = "This arm exists to measure Type.Name when the JIT knows the type. nameof is a compile-time constant, so the conversion would delete the measurement rather than tidy it.")]
 	public string TypeName_FromTypeof() => typeof(TestActionMessage).Name;
 
 	/// <summary>

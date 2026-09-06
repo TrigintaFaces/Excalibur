@@ -811,11 +811,14 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task Initialize_Full_DirectLocal_Context_When_Profile_Is_Full()
+	public async Task Initialize_DirectLocal_Context_With_Correlation_On_Default_Options()
 	{
 		// Arrange
 		var options = new DispatchOptions();
-		options.CrossCutting.Performance.DirectLocalContextInitialization = DirectLocalContextInitializationProfile.Full;
+		// DEFAULT options, deliberately. Correlation on the fast path is not a profile a consumer
+		// opts into -- it is what dispatch guarantees. These same assertions used to run only
+		// behind an opt-in profile, which left the default path (the one nearly every consumer
+		// takes) unlocked, and it silently dropped correlation there the whole time.
 		var (dispatcher, _, _) = CreateTransportAwareDispatcherForFastPath(Microsoft.Extensions.Options.Options.Create(options));
 		var context = new MessageContext();
 		var message = new LocalTransportAction();

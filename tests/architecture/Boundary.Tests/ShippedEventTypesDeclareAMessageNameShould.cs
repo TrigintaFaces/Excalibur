@@ -109,7 +109,7 @@ public sealed class ShippedEventTypesDeclareAMessageNameShould
 				}
 				catch (ReflectionTypeLoadException ex)
 				{
-					return Array.FindAll(ex.Types, static t => t is not null)!;
+					return ex.Types.Where(static t => t is not null).Select(static t => t!);
 				}
 			})
 			.Where(static t =>

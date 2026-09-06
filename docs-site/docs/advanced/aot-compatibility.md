@@ -388,7 +388,7 @@ directly from each project's `IsAotCompatible` property, the same source the sec
 | Package | AOT Status | Notes |
 |---------|------------|-------|
 | `Excalibur.Dispatch.Compat.MassTransit` | AOT-safe |  |
-| `Excalibur.Dispatch.Compat.MediatR` | Annotated | Annotated paths: `AddMediatRCompat`. The rest of the surface publishes clean. |
+| `Excalibur.Dispatch.Compat.MediatR` | AOT-safe | `AddMediatRCompat` registers a fixed set of adapters and needs no reflection over consumer types, so the whole surface publishes clean. |
 | `Excalibur.Dispatch.Migration` | **Not compatible** |  |
 | `Excalibur.Dispatch.Transport.IbmMq` | **Not compatible** | NOT compatible. The IBM MQ managed client uses runtime reflection and dynamic assembly loading. |
 | `Excalibur.Dispatch.Transport.Mqtt` | AOT-safe |  |

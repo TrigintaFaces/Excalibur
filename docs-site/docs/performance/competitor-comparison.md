@@ -6,6 +6,9 @@ description: Performance comparison of Excalibur.Dispatch vs MediatR, Wolverine,
 
 # Competitor Comparison
 
+> **The non-MediatR comparisons below predate the 2026-09-05 correlation fix and are being re-measured.** Restoring correlation on the default fast path cost about 10-11 ns on the Dispatch side of every in-process comparison, so any ratio on this page that was not re-measured overstates Dispatch's lead. The MediatR rows have been re-measured; the Wolverine and MassTransit rows have not. Treat them as an upper bound on our favour until they are.
+
+
 This page documents comparative benchmarks for **Excalibur.Dispatch** using three explicit tracks:
 
 1. **In-process parity** (raw handler-dispatch, no middleware)
@@ -53,7 +56,7 @@ WarmPath numbers reflect what users experience in production; ColdPath numbers c
 
 | Track | Summary |
 |------|---------|
-| In-process parity (MediatR) | **MediatR is ~1.10x faster on a single command and ~1.42x on notification fan-out**; Dispatch allocates 1.58x and 6.4x less on those rows, and is within run-to-run variance on both concurrency tiers |
+| In-process parity (MediatR) | **MediatR is ~1.40x faster on a single command**; Dispatch allocates 1.58x less on that row. The notification fan-out row has not been re-measured since the correlation fix |
 | In-process parity (Wolverine `InvokeAsync`) | **Dispatch ~3.8x faster on command, ~4.0x on query, ~1.66x on notification fan-out**, allocating 2.7-6.3x less |
 | In-process parity (MassTransit Mediator) | **Dispatch leads every tier** — ~17x on single command against MassTransit's ambient-scope mediator, ~22x against its scope-per-message mediator |
 | In-process parity (MassTransit bus) | **Dispatch ~370x faster on a single command** against the in-memory bus, at ~230x less allocation |
@@ -95,9 +98,9 @@ Source: `MediatRWarmPathComparisonBenchmarks`, 2026-09-05 epoch (ns scale)
 
 | Scenario | Dispatch | MediatR | Relative Result |
 |----------|----------|---------|-----------------|
-| Single command handler | 45.58 ns / 96 B | 41.32 ns / 152 B | MediatR ~1.10x faster; **Dispatch allocates ~1.58x less** |
+| Single command handler | 60.04 ns / 96 B | 42.78 ns / 152 B | MediatR ~1.40x faster; **Dispatch allocates ~1.58x less** |
 | Single command, strict direct-local profile | 46.00 ns / 96 B | 41.32 ns / 152 B | MediatR ~1.11x faster; **Dispatch allocates ~1.58x less** |
-| Single command, context-less 2-arg overload | 53.00 ns / 96 B | 41.32 ns / 152 B | MediatR ~1.28x faster; **Dispatch allocates ~1.58x less** |
+| Single command, context-less 2-arg overload | 67.52 ns / 96 B | 42.78 ns / 152 B | MediatR ~1.58x faster; **Dispatch allocates ~1.58x less** |
 | Singleton-promoted command | 53.85 ns / 96 B | 41.32 ns / 152 B | MediatR ~1.30x faster; **Dispatch allocates ~1.58x less** |
 | Notification to 3 handlers | 134.99 ns / 96 B | 95.01 ns / 616 B | MediatR ~1.42x faster; **Dispatch allocates ~6.4x less** |
 | 10 concurrent commands | 596.06 ns / 1,360 B | 541.74 ns / 1,856 B | Within variance (~1.10x); **Dispatch allocates ~1.36x less** |

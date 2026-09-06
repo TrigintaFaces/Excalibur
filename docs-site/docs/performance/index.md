@@ -6,6 +6,9 @@ description: Performance characteristics and optimization strategies for Dispatc
 
 # Performance Overview
 
+> **The non-MediatR comparisons below predate the 2026-09-05 correlation fix and are being re-measured.** Restoring correlation on the default fast path cost about 10-11 ns on the Dispatch side of every in-process comparison, so any ratio on this page that was not re-measured overstates Dispatch's lead. The MediatR rows have been re-measured; the Wolverine and MassTransit rows have not. Treat them as an upper bound on our favour until they are.
+
+
 Excalibur.Dispatch is designed for low-latency messaging with explicit performance profiles for local and transport paths.
 
 ## Before You Start
@@ -61,7 +64,7 @@ methodology shift.
 
 | Track | Summary |
 |------|---------|
-| MediatR in-process parity | MediatR is ~1.10x faster on a single command and ~1.42x on notification fan-out; **Dispatch allocates 1.58x and 6.4x less** on those rows, and leads the pipeline track |
+| MediatR in-process parity | MediatR is ~1.40x faster on a single command; **Dispatch allocates 1.58x less** on that row. Fan-out and pipeline rows have not been re-measured since the correlation fix |
 | Wolverine in-process parity | **Dispatch ~3.8x faster on command, ~4.0x on query, ~1.66x on notification fan-out**, allocating 2.7-6.3x less |
 | MassTransit in-memory parity | **Dispatch leads every in-process tier** by two orders of magnitude against the bus and by ~17-22x against its mediator |
 | Pipeline parity (3 middleware) | **Dispatch leads every framework measured** — 1.74x over MediatR, 3.30x over Wolverine, 29.7x over MassTransit, at 2.83x, 2.83x and 19.0x less allocation |

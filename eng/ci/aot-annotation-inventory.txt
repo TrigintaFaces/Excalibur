@@ -6,6 +6,7 @@
 #
 # Regenerate deliberately, never to clear a failure you have not read:
 #   python3 eng/ci/aot-annotation-inventory-gate.py --regenerate
+
 src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/EventTypeRegistrationServiceCollectionExtensions.cs::AddEventTypesFromAssembly
 src/Dispatch/Excalibur.Dispatch.Abstractions/EventSourcing/JsonEventSerializer.cs::JsonEventSerializer
 src/Dispatch/Excalibur.Dispatch.Abstractions/Outbox/OutboxStoreDecorator.cs::EnqueueAsync
@@ -22,7 +23,6 @@ src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::D
 src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::InvokeAsync
 src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs::public static IServiceCollection AddDisp
 src/Dispatch/Excalibur.Dispatch.Caching/DefaultCacheKeyBuilder.cs::CreateKey
-src/Dispatch/Excalibur.Dispatch.Compat.MediatR/DependencyInjection/MediatRCompatServiceCollectionExtensions.cs::AddMediatRCompat
 src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/EndpointRouteBuilderExtensions.cs::public static RouteHandlerBuilder Dispat
 src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/WebApplicationBuilderExtensions.cs::AddDispatch
 src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/AwsLambdaServiceCollectionExtensions.cs::AddAwsLambdaServerless
@@ -50,7 +50,6 @@ src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSnsCloudEventAda
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSqsCloudEventAdapter.cs::ToBatchSqsMessageAsync
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSqsCloudEventAdapter.cs::ToSqsMessageAsync
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/CloudEvents/AwsSqsCloudEventAdapter.cs::ToTransportMessageAsync
-src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/LongPolling/LongPollingServiceCollectionExtensions.cs::AddAwsLongPolling
 src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Transport/Builders/Options/AwsSqsSnsOptions.cs::ToJson
 src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForEventHubs
 src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/CloudEvents/AzureCloudEventsServiceCollectionExtensions.cs::AddCloudEventsForServiceBus
@@ -103,6 +102,7 @@ src/Dispatch/Excalibur.Dispatch/ErrorHandling/PoisonMessage/PoisonMessageService
 src/Dispatch/Excalibur.Dispatch/Extensions/AssemblyExtensions.cs::GetLoadableTypes
 src/Dispatch/Excalibur.Dispatch/MemoryMessageExtensions.cs::DynamicallyAccessedMembers
 src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/DeferredOutboxWriter.cs::WriteAsync
+src/Dispatch/Excalibur.Dispatch/Middleware/Outbox/DeferredOutboxWriter.cs::WriteScheduledAsync
 src/Dispatch/Excalibur.Dispatch/Options/Serialization/DispatchJsonSerializerOptions.cs::ApplyDefaults
 src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishPendingMessagesAsync
 src/Dispatch/Excalibur.Dispatch/Outbox/MessageBusOutboxPublisher.cs::PublishScheduledMessagesAsync

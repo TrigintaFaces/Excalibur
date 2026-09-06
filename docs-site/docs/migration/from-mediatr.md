@@ -952,8 +952,8 @@ Run details:
 
 | Scenario | MediatR | Excalibur | Relative Result |
 |----------|---------|-------------------|-----------------|
-| Single command handler | 41.32 ns / 152 B | 45.58 ns / 96 B | MediatR ~1.10x faster; **Dispatch allocates 1.58x less** |
-| Single command, context-less 2-arg overload | 41.32 ns / 152 B | 53.00 ns / 96 B | MediatR ~1.28x faster; **Dispatch allocates 1.58x less** |
+| Single command handler | 42.78 ns / 152 B | 60.04 ns / 96 B | MediatR ~1.40x faster; **Dispatch allocates 1.58x less** |
+| Single command, context-less 2-arg overload | 42.78 ns / 152 B | 67.52 ns / 96 B | MediatR ~1.58x faster; **Dispatch allocates 1.58x less** |
 | Notification to 3 handlers | 95.01 ns / 616 B | 134.99 ns / 96 B | MediatR ~1.42x faster; **Dispatch allocates 6.4x less** |
 | 10 concurrent commands | 541.74 ns / 1,856 B | 596.06 ns / 1,360 B | Within variance (~1.10x); **Dispatch allocates 1.36x less** |
 | 100 concurrent commands | 5,146.08 ns / 17,064 B | 5,584.43 ns / 12,160 B | Within variance (~1.09x); **Dispatch allocates 1.40x less** |
@@ -992,7 +992,7 @@ See [Migrating off IDirectLocalDispatcher](../performance/ultra-local-dispatch.m
 the explicit `ValueTask` API this replaced.
 
 **Conclusion:** on this epoch the answer splits, and the half that goes against us belongs first.
-MediatR is a few nanoseconds ahead on a bare single command (41.32 ns against 45.58 ns) and clearly
+MediatR is a few nanoseconds ahead on a bare single command (42.78 ns against 60.04 ns) and clearly
 ahead on notification fan-out (95.01 ns against 134.99 ns, allocating 6.4x more to get there). The
 two concurrency tiers are inside run-to-run variance. Dispatch allocates less on every scenario
 measured, leads by 1.74x once three middleware are in the pipeline — the shape most applications

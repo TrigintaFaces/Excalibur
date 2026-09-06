@@ -2199,9 +2199,6 @@ Excalibur.Dispatch.Options.Configuration.ConsumerOptions.MaxRetries.get -> int
 Excalibur.Dispatch.Options.Configuration.ConsumerOptions.MaxRetries.set -> void
 Excalibur.Dispatch.Options.Configuration.ConsumerOptions.VisibilityTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Configuration.ConsumerOptions.VisibilityTimeout.set -> void
-Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile
-Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile.Full = 1 -> Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile
-Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile.Lean = 0 -> Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile
 Excalibur.Dispatch.Options.Configuration.DispatchCrossCuttingOptions
 Excalibur.Dispatch.Options.Configuration.DispatchCrossCuttingOptions.DispatchCrossCuttingOptions() -> void
 Excalibur.Dispatch.Options.Configuration.DispatchCrossCuttingOptions.Performance.get -> Excalibur.Dispatch.Options.Configuration.PerformanceOptions!
@@ -2287,8 +2284,6 @@ Excalibur.Dispatch.Options.Configuration.PerformanceOptions.AutoFreezeOnStart.ge
 Excalibur.Dispatch.Options.Configuration.PerformanceOptions.AutoFreezeOnStart.set -> void
 Excalibur.Dispatch.Options.Configuration.PerformanceOptions.AutoPromoteStatelessHandlersToSingleton.get -> bool
 Excalibur.Dispatch.Options.Configuration.PerformanceOptions.AutoPromoteStatelessHandlersToSingleton.set -> void
-Excalibur.Dispatch.Options.Configuration.PerformanceOptions.DirectLocalContextInitialization.get -> Excalibur.Dispatch.Options.Configuration.DirectLocalContextInitializationProfile
-Excalibur.Dispatch.Options.Configuration.PerformanceOptions.DirectLocalContextInitialization.set -> void
 Excalibur.Dispatch.Options.Configuration.PerformanceOptions.EmitDirectLocalResultMetadata.get -> bool
 Excalibur.Dispatch.Options.Configuration.PerformanceOptions.EmitDirectLocalResultMetadata.set -> void
 Excalibur.Dispatch.Options.Configuration.PerformanceOptions.EnableTypeMetadataCaching.get -> bool

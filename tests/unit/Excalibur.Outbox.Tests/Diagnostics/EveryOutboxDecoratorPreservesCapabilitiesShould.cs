@@ -421,6 +421,20 @@ public sealed class EveryOutboxDecoratorPreservesCapabilitiesShould
 	/// </remarks>
 	private static readonly string[] DocumentedExclusions =
 	[
+		// Probed off an IOutboxWriter, not off an outbox STORE, so the decorator hazard this file
+		// exists to catch does not reach it: no writer decorator exists. Measured, not assumed --
+		// the only IOutboxWriter implementations are DeferredOutboxWriter, which implements this
+		// capability directly, and TransactionalOutboxWriter, which does not and silently drops the
+		// scheduled time (tracked separately). Neither is wrapped; IOutboxWriter is registered
+		// straight to the concrete type.
+		//
+		// THE EXCLUSION EXPIRES THE MOMENT A WRITER DECORATOR APPEARS. A decorator that forwards
+		// IOutboxWriter without forwarding this capability would make every scheduled write
+		// silently immediate -- the same stripping failure this file locks for stores. If one is
+		// added, delete this entry and lock the capability instead.
+		// A literal rather than nameof: the type is internal to Excalibur.Dispatch.Abstractions and
+		// this assembly is not one of its friends, so the symbol is not in scope here.
+		"IScheduledOutboxWriter",
 	];
 
 	/// <summary>Matches a capability probe (<c>is</c>/<c>as</c>) against an outbox-store capability interface.</summary>

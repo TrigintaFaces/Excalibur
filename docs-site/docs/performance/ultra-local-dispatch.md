@@ -58,19 +58,17 @@ automatically. Common fallback triggers:
 - a local retry mode that requires the richer execution path
 - operations that require full context-bound semantics
 
-### `DirectLocalContextInitialization`
+### Context initialization on the fast path
 
-- `Lean` (default): minimizes initialization work on the local fast path.
-- `Full`: forces eager message-type initialization on the local fast path.
+| Context field/state | Behavior |
+|---|---|
+| `context.Message` | Set |
+| `context.CorrelationId` (when correlation enabled and missing) | Generated |
+| `context.CausationId` (when missing and correlation present) | Set from correlation |
+| `context.MessageType` (when missing) | Populated |
 
-| Context field/state | `Lean` | `Full` |
-|---|---|---|
-| `context.Message` | Set | Set |
-| `context.CorrelationId` (when correlation enabled and missing) | Generated | Generated |
-| `context.CausationId` (when missing and correlation present) | Set from correlation | Set from correlation |
-| `context.MessageType` (when missing) | Not populated | Populated |
-
-Existing values are preserved in both profiles -- Dispatch only fills missing values.
+Existing values are preserved -- Dispatch only fills missing values. Correlation is governed by
+`Features.EnableCorrelation`; when it is on, the fast path initializes it like any other path.
 
 ### `EmitDirectLocalResultMetadata`
 

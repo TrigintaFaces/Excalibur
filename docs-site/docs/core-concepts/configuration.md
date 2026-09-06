@@ -151,15 +151,10 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.ConfigureOptions<DispatchOptions>(options =>
     {
-        options.CrossCutting.Performance.DirectLocalContextInitialization =
-            DirectLocalContextInitializationProfile.Lean; // default
-
         options.CrossCutting.Performance.EmitDirectLocalResultMetadata = false; // default
     });
 });
 ```
-
-Use `DirectLocalContextInitializationProfile.Full` when you need eager full-context initialization on direct-local paths.
 
 See [Migrating off IDirectLocalDispatcher](../performance/ultra-local-dispatch.md) for dispatch semantics and fallback behavior.
 

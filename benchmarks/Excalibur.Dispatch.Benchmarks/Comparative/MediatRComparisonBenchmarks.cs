@@ -122,8 +122,8 @@ public class MediatRComparisonBenchmarks
 		_contextLessDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as Dispatcher;
 		_directContextFactory = _dispatchDirectServiceProvider.GetRequiredService<IMessageContextFactory>();
 
-		// NON-VACUITY ARM. The benchmarks below are NAMED for the ultra-local / direct-local path, but
-		// nothing about calling that API guarantees it is taken: the dispatcher consults
+		// NON-VACUITY ARM. The benchmarks below are NAMED for the framework-selected fast path, but
+		// nothing about calling the 2-arg overload guarantees it is taken: the dispatcher consults
 		// CanBypassMiddlewareFor first and falls through to the full pipeline when any middleware is
 		// configured. If that happens here, these benchmarks quietly measure the pipeline and publish the
 		// number under a fast-path name -- a wrong figure with no assertion anywhere to catch it, which is
@@ -134,8 +134,8 @@ public class MediatRComparisonBenchmarks
 		if (_contextLessDispatcher is null)
 		{
 			throw new InvalidOperationException(
-				"Direct-local benchmarks: the registered dispatcher is not the in-box Dispatcher, so the "
-				+ "fast arm cannot be confirmed and every 'ultra-local' figure below would describe "
+				"Fast-path benchmarks: the registered dispatcher is not the in-box Dispatcher, so the "
+				+ "fast arm cannot be confirmed and every fast-path figure below would describe "
 				+ "the ordinary pipeline.");
 		}
 
@@ -240,7 +240,8 @@ public class MediatRComparisonBenchmarks
 	}
 
 	/// <summary>
-	/// Excalibur.Dispatch ultra-local API path (ValueTask, no IMessageResult materialization on success).
+	/// Excalibur.Dispatch context-less 2-arg command overload. The framework selects the fast path
+	/// itself when no middleware is registered; there is no consumer-facing API that requests it.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Single command (context-less 2-arg)")]
 	public Task<IMessageResult> Dispatch_SingleCommand_ContextLessOverload()
@@ -310,7 +311,8 @@ public class MediatRComparisonBenchmarks
 	}
 
 	/// <summary>
-	/// Excalibur.Dispatch ultra-local query path (ValueTask&lt;T&gt;, no IMessageResult materialization on success).
+	/// Excalibur.Dispatch context-less 2-arg query overload. The framework selects the fast path
+	/// itself when no middleware is registered; there is no consumer-facing API that requests it.
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query (context-less 2-arg)")]
 	public Task<IMessageResult<int>> Dispatch_QueryWithReturnValue_ContextLessOverload()

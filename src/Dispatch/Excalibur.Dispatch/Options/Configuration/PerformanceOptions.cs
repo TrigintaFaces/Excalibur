@@ -7,23 +7,6 @@ using System.ComponentModel.DataAnnotations;
 namespace Excalibur.Dispatch.Options.Configuration;
 
 /// <summary>
-/// Controls how much context state Dispatch initializes on the direct local fast path.
-/// </summary>
-public enum DirectLocalContextInitializationProfile
-{
-	/// <summary>
-	/// Initialize only required hot-path fields (message reference).
-	/// Correlation/causation/message type are populated only when already present.
-	/// </summary>
-	Lean = 0,
-
-	/// <summary>
-	/// Initialize the full context surface used by the classic dispatch path.
-	/// </summary>
-	Full = 1,
-}
-
-/// <summary>
 /// Configuration options for performance optimizations.
 /// </summary>
 public sealed class PerformanceOptions
@@ -67,21 +50,6 @@ public sealed class PerformanceOptions
 	/// Defaults to <see langword="true"/>.
 	/// </value>
 	public bool AutoFreezeOnStart { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the direct-local context initialization profile.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// <see cref="DirectLocalContextInitializationProfile.Lean"/> minimizes local dispatch overhead and is optimized
-	/// for MediatR-style in-process replacement scenarios.
-	/// </para>
-	/// <para>
-	/// Set to <see cref="DirectLocalContextInitializationProfile.Full"/> to force legacy eager context initialization.
-	/// </para>
-	/// </remarks>
-	public DirectLocalContextInitializationProfile DirectLocalContextInitialization { get; set; } =
-		DirectLocalContextInitializationProfile.Lean;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether direct-local success results should include full metadata.

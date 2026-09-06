@@ -102,12 +102,8 @@ public class ProfileSelectionScaleBenchmarks
 
 		foreach (var message in _messages)
 		{
-			var warm = _warmRegistry.SelectProfile(message);
-			if (warm is null)
-			{
-				throw new InvalidOperationException(
-					"Profile selection returns null for a seeded type; every arm would measure a failed scan.");
-			}
+			var warm = _warmRegistry.SelectProfile(message) ?? throw new InvalidOperationException(
+				"Profile selection returns null for a seeded type; every arm would measure a failed scan.");
 
 			// Compared by name, not by reference: each registry builds its own profile instances, so
 			// reference equality across the two would never hold and would fail every run.

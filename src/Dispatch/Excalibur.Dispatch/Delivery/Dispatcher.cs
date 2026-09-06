@@ -104,10 +104,6 @@ internal sealed class Dispatcher(
 	// middleware that reads MessageContextHolder.Current.
 	private readonly bool _correlationEnabled = ResolveCorrelationEnabled(dispatchOptions);
 
-	private readonly DirectLocalContextInitializationProfile _directLocalContextInitializationProfile =
-		dispatchOptions?.Value.CrossCutting.Performance.DirectLocalContextInitialization ??
-		DirectLocalContextInitializationProfile.Lean;
-
 	private readonly bool _emitDirectLocalResultMetadata =
 		dispatchOptions?.Value.CrossCutting.Performance.EmitDirectLocalResultMetadata ?? false;
 
@@ -1023,14 +1019,6 @@ internal sealed class Dispatcher(
 		where TMessage : IDispatchMessage
 	{
 		context.Message = message;
-
-		// PERF: In Lean profile, skip correlation/causation volatile writes entirely.
-		// The ultra-local fast path never reads CorrelationId/CausationId, and the context
-		// is recycled immediately after dispatch. Saves 4 volatile writes (~8-12ns).
-		if (_directLocalContextInitializationProfile == DirectLocalContextInitializationProfile.Lean)
-		{
-			return;
-		}
 
 		if (_correlationEnabled)
 		{
