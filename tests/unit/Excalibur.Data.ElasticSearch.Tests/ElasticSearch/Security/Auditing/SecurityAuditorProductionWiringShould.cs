@@ -13,6 +13,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Data.Tests.ElasticSearch.Security.Auditing;
 
 /// <summary>
@@ -126,12 +128,13 @@ public sealed class SecurityAuditorProductionWiringShould
 		// Bounds a scheduling delay only -- the SCHEDULE is driven by FakeTimeProvider, so this never
 		// waits for wall-clock time to pass, only for an already-triggered continuation to run. It
 		// FAILS rather than hangs, so a drain that never reaches the store is a red test.
-		for (var i = 0; i < 500 && !condition(); i++)
-		{
-			await Task.Delay(10, TestContext.Current.CancellationToken).ConfigureAwait(false);
-		}
+		var observed = await WaitHelpers.WaitUntilAsync(
+			condition,
+			TimeSpan.FromSeconds(30),
+			TimeSpan.FromMilliseconds(10),
+			TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-		condition().ShouldBeTrue(
+		observed.ShouldBeTrue(
 			"the drain loop did not reach the supplied store within the scheduling budget");
 	}
 

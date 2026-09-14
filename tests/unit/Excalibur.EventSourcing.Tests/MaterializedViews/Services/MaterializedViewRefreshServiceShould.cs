@@ -634,7 +634,23 @@ public sealed class MaterializedViewRefreshServiceShould
 		using var cts = new CancellationTokenSource();
 
 		await service.StartAsync(cts.Token);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None);
+
+		// LIVENESS first, polled rather than slept for: the catch-up must actually have RUN. Without this
+		// the arm passes vacuously -- a service that never invoked CatchUpAsync at all also reports 0, which
+		// is less than 5.
+		var ran = await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref callCount) >= 1,
+			TimeSpan.FromSeconds(30),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None);
+		ran.ShouldBeTrue("the catch-up never ran, so a low retry count below would prove nothing");
+
+		// delay-ok: what follows is a RATE bound, so the window IS the semantic and there is no condition to
+		// poll -- the assertion is that something did NOT happen many times. With RefreshInterval and
+		// InitialRetryDelay both at 10ms, a retry loop gets ~30 chances inside this window; the poison halt
+		// gets one attempt per refresh tick. A slow runner only shrinks the number of chances a broken
+		// implementation gets, so load can make this arm miss a defect but never invent one.
+		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None); // delay-ok: see above
 		var afterFirstWindow = Volatile.Read(ref callCount);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);

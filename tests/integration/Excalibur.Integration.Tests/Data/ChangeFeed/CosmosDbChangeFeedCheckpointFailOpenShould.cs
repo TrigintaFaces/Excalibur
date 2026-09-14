@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Data.CloudNative;
 using Excalibur.Data.CosmosDb;
 using Excalibur.Data.CosmosDb.Diagnostics;
@@ -10,6 +12,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 
 using Tests.Shared.Helpers;
+using Tests.Shared.Infrastructure;
 
 using CosmosPartitionKey = Microsoft.Azure.Cosmos.PartitionKey;
 
@@ -88,21 +91,27 @@ public sealed class CosmosDbChangeFeedCheckpointFailOpenShould : IClassFixture<C
 			new CosmosDbChangeFeedSubscription<FailOpenDoc>(container, options, logger, faultStore);
 		await subscription.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-		var received = new List<string>();
+		// A generous SAFETY NET, not the exit mechanism: every wait below ends on an OBSERVED condition
+		// (a document delivered; the degraded flag flipped), so this deadline fires only if the
+		// subscription stops making progress altogether.
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+		var received = new ConcurrentQueue<string>();
 		var readTask = Task.Run(async () =>
 		{
 			await foreach (var evt in subscription.ReadChangesAsync(cts.Token))
 			{
 				if (evt.Document is not null)
 				{
-					received.Add(evt.Document.Id);
+					received.Enqueue(evt.Document.Id);
 				}
 			}
 		});
 
-		// Documents inserted with a delay between each so at least some land in SEPARATE change-feed
-		// pages -- proving delivery survives across multiple poll cycles, not just a single page.
+		// Each document is created only AFTER the previous one has been DELIVERED. That is strictly
+		// stronger than pacing the inserts on a timer and hoping they straddle poll cycles: a page that
+		// has already been read cannot contain a document created after it was read, so every document
+		// here PROVABLY lands in a separate change-feed page, and delivery across multiple poll cycles
+		// is proven rather than assumed.
 		var docs = new List<FailOpenDoc>();
 		for (var i = 0; i < 4; i++)
 		{
@@ -110,13 +119,25 @@ public sealed class CosmosDbChangeFeedCheckpointFailOpenShould : IClassFixture<C
 			docs.Add(doc);
 			await container.CreateItemAsync(doc, new CosmosPartitionKey(doc.PartitionKey), cancellationToken: cts.Token)
 				.ConfigureAwait(false);
-			await Task.Delay(TimeSpan.FromMilliseconds(500), cts.Token).ConfigureAwait(false);
+
+			var delivered = await WaitHelpers.WaitUntilAsync(
+				() => received.Contains(doc.Id),
+				TimeSpan.FromSeconds(30),
+				cancellationToken: cts.Token).ConfigureAwait(false);
+			delivered.ShouldBeTrue(
+				$"document {doc.Seq} was never delivered -- a checkpoint-save failure must not stop, slow, or "
+				+ "truncate event delivery, and nothing after this point can prove anything without it.");
 		}
 
-		// Let the loop run a little longer so the post-page checkpoint-save code for the LAST page
-		// actually executes (it runs only once the consumer resumes iteration past that page's final
-		// yield), then stop deterministically rather than racing the 20s hard timeout.
-		await Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
+		// Poll the real post-page state rather than waiting a fixed time and hoping. The checkpoint-save
+		// for a page runs only once the consumer resumes iteration PAST that page's final yield, so the
+		// LAST page's (failing) save lands a moment after its document is delivered. No assertion here:
+		// the richly-worded assertions below are the check, and they report which half is missing.
+		_ = await WaitHelpers.WaitUntilAsync(
+			() => faultStore.SaveAttempts > 0 && subscription.IsCheckpointDegraded,
+			TimeSpan.FromSeconds(30),
+			cancellationToken: cts.Token).ConfigureAwait(false);
+
 		await cts.CancelAsync().ConfigureAwait(false);
 		await readTask.ConfigureAwait(false);
 		await subscription.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -168,34 +189,53 @@ public sealed class CosmosDbChangeFeedCheckpointFailOpenShould : IClassFixture<C
 		};
 
 		// FIRST "run": a healthy checkpoint store (never forced to fail). Reads doc A, and -- critically
-		// -- keeps the enumeration running a while LONGER rather than breaking the instant doc A is
-		// observed: the checkpoint-save for a page only executes once the consumer resumes iteration
-		// PAST that page's last yield, so breaking immediately would race the very save this arm exists
-		// to prove happened.
+		// -- keeps the enumeration running rather than breaking the instant doc A is observed: the
+		// checkpoint-save for a page only executes once the consumer resumes iteration PAST that page's
+		// last yield, so breaking immediately would race the very save this arm exists to prove happened.
+		// The run therefore ends on the OBSERVED checkpoint, not on a deadline it has to beat.
 		var store1 = new CosmosDbChangeFeedCheckpointStore(checkpointContainer);
 		var logger1 = new CapturingLogger<object>();
-		var receivedFirstRun = new List<string>();
+		var receivedFirstRun = new ConcurrentQueue<string>();
 		await using (var subscription1 =
 			new CosmosDbChangeFeedSubscription<FailOpenDoc>(container, options, logger1, store1))
 		{
 			await subscription1.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-			using var cts1 = new CancellationTokenSource(TimeSpan.FromSeconds(6));
-			try
+			// Generous SAFETY NET; the exit below is an observed condition, not this deadline.
+			using var cts1 = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+			var readTask1 = Task.Run(async () =>
 			{
-				await foreach (var evt in subscription1.ReadChangesAsync(cts1.Token))
+				try
 				{
-					if (evt.Document is not null)
+					await foreach (var evt in subscription1.ReadChangesAsync(cts1.Token))
 					{
-						receivedFirstRun.Add(evt.Document.Id);
+						if (evt.Document is not null)
+						{
+							receivedFirstRun.Enqueue(evt.Document.Id);
+						}
 					}
 				}
-			}
-			catch (OperationCanceledException)
-			{
-				// Expected: cts1's timeout is how this run intentionally ends.
-			}
+				catch (OperationCanceledException)
+				{
+					// Expected: cancelling cts1 is how this run intentionally ends.
+				}
+			});
 
+			// End this run on the condition the SECOND run actually depends on -- a checkpoint that is
+			// durably READABLE -- instead of on elapsed time. The subscription's checkpoint key is
+			// restart-invariant (`cf-{container.Id}`, deliberately not the per-instance SubscriptionId),
+			// which is the whole reason run 2 is able to find it.
+			var checkpointKey = $"cf-{container.Id}";
+			var persisted = await WaitHelpers.WaitUntilAsync(
+				async () => await store1.LoadAsync(checkpointKey, cts1.Token).ConfigureAwait(false) is not null,
+				TimeSpan.FromSeconds(30),
+				cancellationToken: cts1.Token).ConfigureAwait(false);
+			persisted.ShouldBeTrue(
+				"the first run never persisted a readable checkpoint, so a failure of the resume asserted "
+				+ "below would be for want of a checkpoint rather than for want of resumption logic.");
+
+			await cts1.CancelAsync().ConfigureAwait(false);
+			await readTask1.ConfigureAwait(false);
 			await subscription1.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		}
 
@@ -219,7 +259,8 @@ public sealed class CosmosDbChangeFeedCheckpointFailOpenShould : IClassFixture<C
 		{
 			await subscription2.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-			using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+			// Generous SAFETY NET; this run exits on observing doc B, not on this deadline.
+			using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 			try
 			{
 				await foreach (var evt in subscription2.ReadChangesAsync(cts2.Token))
@@ -231,8 +272,11 @@ public sealed class CosmosDbChangeFeedCheckpointFailOpenShould : IClassFixture<C
 
 					if (evt.Document?.Id == docB.Id)
 					{
-						// Give the post-yield checkpoint-save code one more resume before stopping.
-						await Task.Delay(TimeSpan.FromMilliseconds(500), CancellationToken.None).ConfigureAwait(false);
+						// Stop the instant doc B is observed. There is nothing left to wait for, and
+						// waiting cannot mask the defect this run exists to catch: doc A was created
+						// FIRST, so any run that replayed from the beginning delivers it BEFORE doc B.
+						// By the time doc B arrives, a broken checkpoint has already put doc A in this
+						// list, and the ShouldNotContain below sees it.
 						await cts2.CancelAsync().ConfigureAwait(false);
 					}
 				}

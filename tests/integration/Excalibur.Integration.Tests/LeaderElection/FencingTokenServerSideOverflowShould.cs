@@ -26,6 +26,7 @@ using Npgsql;
 using StackExchange.Redis;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Integration.Tests.LeaderElection;
 
@@ -162,10 +163,35 @@ public sealed class FencingTokenServerSideOverflowShould :
 			NullLogger<RedisLeaderElection>.Instance,
 			new RedisLeaderElectionContext { FencingTokenProvider = fencingProvider });
 
+		// The attempt's outcome is observable on the PUBLIC surface: every provider raises
+		// AcquisitionFailed when a mint it cannot advance forces it to relinquish. Subscribe before
+		// StartAsync so the first attempt cannot be missed.
+		var acquisitionFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failureReason = string.Empty;
+		election.AcquisitionFailed += (_, args) =>
+		{
+			failureReason = args.Reason;
+			_ = acquisitionFailed.TrySetResult();
+		};
+
 		try
 		{
 			await election.StartAsync(TestContext.Current.CancellationToken);
-			await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+
+			// Observe the acquisition attempt through the public AcquisitionFailed event rather than
+			// sleeping. The 500ms this replaces was REDUNDANT, not load-bearing: every provider here
+			// awaits its first acquire inside StartAsync (Redis:168, Postgres/SqlServer/MongoDB
+			// likewise), so IsLeader is already decided on return. What the event buys is strength, not
+			// safety -- IsLeader.ShouldBeFalse alone is also satisfied by an election that never
+			// acquired for some unrelated reason, so the arm below pins WHY the attempt was abandoned.
+			await WaitHelpers.AwaitSignalAsync(
+				acquisitionFailed.Task,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
+			failureReason.Contains("fencing", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+				$"the attempt must have been abandoned because the fencing MINT was exhausted, but the "
+				+ $"reported reason was '{failureReason}' -- any other reason means this arm observed an "
+				+ "unrelated failure and proves nothing about overflow.");
 
 			// ELECTION-LEVEL ARM: an exhausted mint must relinquish -- the leadership attempt must NOT
 			// declare leadership with an un-advanced (or wrapped) fence.
@@ -263,10 +289,35 @@ public sealed class FencingTokenServerSideOverflowShould :
 			NullLogger<MongoDbLeaderElection>.Instance,
 			fencingProvider);
 
+		// The attempt's outcome is observable on the PUBLIC surface: every provider raises
+		// AcquisitionFailed when a mint it cannot advance forces it to relinquish. Subscribe before
+		// StartAsync so the first attempt cannot be missed.
+		var acquisitionFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failureReason = string.Empty;
+		election.AcquisitionFailed += (_, args) =>
+		{
+			failureReason = args.Reason;
+			_ = acquisitionFailed.TrySetResult();
+		};
+
 		try
 		{
 			await election.StartAsync(TestContext.Current.CancellationToken);
-			await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+
+			// Observe the acquisition attempt through the public AcquisitionFailed event rather than
+			// sleeping. The 500ms this replaces was REDUNDANT, not load-bearing: every provider here
+			// awaits its first acquire inside StartAsync (Redis:168, Postgres/SqlServer/MongoDB
+			// likewise), so IsLeader is already decided on return. What the event buys is strength, not
+			// safety -- IsLeader.ShouldBeFalse alone is also satisfied by an election that never
+			// acquired for some unrelated reason, so the arm below pins WHY the attempt was abandoned.
+			await WaitHelpers.AwaitSignalAsync(
+				acquisitionFailed.Task,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
+			failureReason.Contains("fencing", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+				$"the attempt must have been abandoned because the fencing MINT was exhausted, but the "
+				+ $"reported reason was '{failureReason}' -- any other reason means this arm observed an "
+				+ "unrelated failure and proves nothing about overflow.");
 
 			election.IsLeader.ShouldBeFalse(
 				"a leadership attempt whose fencing mint wraps past the int64 ceiling must relinquish rather than lead with an un-advanced fence");
@@ -383,10 +434,35 @@ public sealed class FencingTokenServerSideOverflowShould :
 			NullLogger<PostgresLeaderElection>.Instance,
 			fencingProvider);
 
+		// The attempt's outcome is observable on the PUBLIC surface: every provider raises
+		// AcquisitionFailed when a mint it cannot advance forces it to relinquish. Subscribe before
+		// StartAsync so the first attempt cannot be missed.
+		var acquisitionFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failureReason = string.Empty;
+		election.AcquisitionFailed += (_, args) =>
+		{
+			failureReason = args.Reason;
+			_ = acquisitionFailed.TrySetResult();
+		};
+
 		try
 		{
 			await election.StartAsync(TestContext.Current.CancellationToken);
-			await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+
+			// Observe the acquisition attempt through the public AcquisitionFailed event rather than
+			// sleeping. The 500ms this replaces was REDUNDANT, not load-bearing: every provider here
+			// awaits its first acquire inside StartAsync (Redis:168, Postgres/SqlServer/MongoDB
+			// likewise), so IsLeader is already decided on return. What the event buys is strength, not
+			// safety -- IsLeader.ShouldBeFalse alone is also satisfied by an election that never
+			// acquired for some unrelated reason, so the arm below pins WHY the attempt was abandoned.
+			await WaitHelpers.AwaitSignalAsync(
+				acquisitionFailed.Task,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
+			failureReason.Contains("fencing", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+				$"the attempt must have been abandoned because the fencing MINT was exhausted, but the "
+				+ $"reported reason was '{failureReason}' -- any other reason means this arm observed an "
+				+ "unrelated failure and proves nothing about overflow.");
 
 			election.IsLeader.ShouldBeFalse(
 				"a leadership attempt whose fencing mint exceeds the sequence's ceiling must relinquish rather than lead with an un-advanced fence");
@@ -499,10 +575,35 @@ public sealed class FencingTokenServerSideOverflowShould :
 			failureClassifier: null,
 			fencingTokenProvider: fencingProvider);
 
+		// The attempt's outcome is observable on the PUBLIC surface: every provider raises
+		// AcquisitionFailed when a mint it cannot advance forces it to relinquish. Subscribe before
+		// StartAsync so the first attempt cannot be missed.
+		var acquisitionFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failureReason = string.Empty;
+		election.AcquisitionFailed += (_, args) =>
+		{
+			failureReason = args.Reason;
+			_ = acquisitionFailed.TrySetResult();
+		};
+
 		try
 		{
 			await election.StartAsync(TestContext.Current.CancellationToken);
-			await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+
+			// Observe the acquisition attempt through the public AcquisitionFailed event rather than
+			// sleeping. The 500ms this replaces was REDUNDANT, not load-bearing: every provider here
+			// awaits its first acquire inside StartAsync (Redis:168, Postgres/SqlServer/MongoDB
+			// likewise), so IsLeader is already decided on return. What the event buys is strength, not
+			// safety -- IsLeader.ShouldBeFalse alone is also satisfied by an election that never
+			// acquired for some unrelated reason, so the arm below pins WHY the attempt was abandoned.
+			await WaitHelpers.AwaitSignalAsync(
+				acquisitionFailed.Task,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
+			failureReason.Contains("fencing", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+				$"the attempt must have been abandoned because the fencing MINT was exhausted, but the "
+				+ $"reported reason was '{failureReason}' -- any other reason means this arm observed an "
+				+ "unrelated failure and proves nothing about overflow.");
 
 			election.IsLeader.ShouldBeFalse(
 				"a leadership attempt whose fencing mint exceeds the sequence's ceiling must relinquish rather than lead with an un-advanced fence");

@@ -10,6 +10,8 @@ using Excalibur.Data.ElasticSearch.Security;
 
 using Microsoft.Extensions.Time.Testing;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Data.Tests.ElasticSearch.Security.Auditing;
 
 /// <summary>
@@ -220,18 +222,24 @@ public sealed class SecurityAuditorPeriodicLoopsShould
 	/// SAFETY arms something a continuously-running loop can actually fail.
 	/// </remarks>
 	private static Task GiveAWallClockLoopItsChanceAsync() =>
-		Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+		// delay-ok: the DURATION is the semantic. These are SAFETY arms asserting that NOTHING happened,
+		// and a negative cannot be polled for -- the window IS the assertion. A correct implementation is
+		// driven entirely by the injected FakeTimeProvider and provably cannot tick during it however long
+		// it runs, so this adds no flakiness in either direction; it exists solely so a loop whose schedule
+		// escaped the injected clock has real wall-clock time in which to fire and go red.
+		Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken); // delay-ok: see above
 
 	private static async Task WaitUntilAsync(Func<bool> condition)
 	{
 		// Bounds a scheduling delay only — the SCHEDULE itself is driven by FakeTimeProvider, so this
 		// never waits for wall-clock time to pass, only for an already-triggered continuation to run.
-		for (var i = 0; i < 500 && !condition(); i++)
-		{
-			await Task.Delay(10, TestContext.Current.CancellationToken).ConfigureAwait(false);
-		}
+		var observed = await WaitHelpers.WaitUntilAsync(
+			condition,
+			TimeSpan.FromSeconds(30),
+			TimeSpan.FromMilliseconds(10),
+			TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-		condition().ShouldBeTrue("the periodic loop body did not run within the scheduling budget");
+		observed.ShouldBeTrue("the periodic loop body did not run within the scheduling budget");
 	}
 
 	private static (SecurityAuditor Auditor, RecordingAuditStore Store, FakeTimeProvider Time, RecordingLogger Log) CreateAuditor(

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Kubernetes;
@@ -9,6 +11,8 @@ using k8s;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Integration.Tests.LeaderElection;
 
@@ -90,14 +94,34 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 			.Select(i => CreateElection(client, resourceName, $"candidate-{i}"))
 			.ToList();
 
+		// Every candidate's acquisition outcome is OBSERVABLE on the public surface: a winner flips
+		// IsLeader, a loser raises AcquisitionFailed. Subscribe before StartAsync so no early outcome is
+		// missed, and count the distinct candidates that have been decided.
+		var decidedLosers = new ConcurrentDictionary<string, byte>();
+		foreach (var e in elections)
+		{
+			e.AcquisitionFailed += (_, args) => decidedLosers[args.CandidateId] = 0;
+		}
+
 		try
 		{
 			// Act -- every candidate starts (and therefore attempts to acquire) concurrently.
 			await Task.WhenAll(elections.Select(e => e.StartAsync(TestContext.Current.CancellationToken)));
 
-			// Give the losers' retry loop one interval to settle rather than racing the assertion against
-			// the first CAS round.
-			await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+			// Wait for the first CAS round to have RESOLVED FOR EVERY CANDIDATE, not for a fixed duration.
+			// StartAsync only awaits EnsureLeaseExists and then hands the acquisition to a background loop,
+			// so a sleep here was betting that 500ms of real k3s round-trips was enough -- and on a loaded
+			// runner that bet loses. This waits until each of the 8 has an outcome: at least one leader, and
+			// the remaining 7 having each announced a failed acquisition. Strictly stronger than the timer,
+			// because it is what the timer was approximating.
+			var allDecided = await WaitHelpers.WaitUntilAsync(
+				() => elections.Count(e => e.IsLeader) + decidedLosers.Count >= concurrency,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
+			allDecided.ShouldBeTrue(
+				$"only {elections.Count(e => e.IsLeader)} leader(s) and {decidedLosers.Count} decided loser(s) of "
+				+ $"{concurrency} candidates resolved their first acquisition -- the exactly-one-winner assertion "
+				+ "below would be reading a race still in flight.");
 
 			// Assert -- SAFETY: exactly one winner, the same guarantee ConcurrentContention_ExactlyOneLeader
 			// proves generically, restated here because the fencing-token assertion below depends on it.
@@ -145,7 +169,13 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 		try
 		{
 			await election.StartAsync(TestContext.Current.CancellationToken);
-			await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+
+			// Poll the acquisition itself rather than sleeping past it. The assertion is POSITIVE, so the
+			// condition is directly observable and the bound is a safety net, not the exit mechanism.
+			_ = await WaitHelpers.WaitUntilAsync(
+				() => election.IsLeader,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
 			election.IsLeader.ShouldBeTrue("the sole candidate must acquire leadership -- one real transition");
 
 			var fencingProvider = CreateFencingProvider(client, out var fencingServices);
@@ -184,7 +214,10 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 
 		var electionA = CreateElection(client, resourceName, "candidate-a");
 		await electionA.StartAsync(TestContext.Current.CancellationToken);
-		await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+		_ = await WaitHelpers.WaitUntilAsync(
+			() => electionA.IsLeader,
+			TimeSpan.FromSeconds(60),
+			cancellationToken: TestContext.Current.CancellationToken);
 		electionA.IsLeader.ShouldBeTrue();
 		var firstToken = await fencingProvider.GetTokenAsync(resourceName, TestContext.Current.CancellationToken);
 		firstToken.ShouldNotBeNull();
@@ -195,7 +228,13 @@ public sealed class KubernetesFencingConcurrentAcquisitionShould
 		try
 		{
 			await electionB.StartAsync(TestContext.Current.CancellationToken);
-			await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken);
+
+			// The successor's acquisition is a second real CAS against a Lease A has only just vacated, so
+			// this is the one wait here that a 250ms sleep was most likely to be short for.
+			_ = await WaitHelpers.WaitUntilAsync(
+				() => electionB.IsLeader,
+				TimeSpan.FromSeconds(60),
+				cancellationToken: TestContext.Current.CancellationToken);
 			electionB.IsLeader.ShouldBeTrue("the successor must acquire the now-vacant Lease");
 
 			var secondToken = await fencingProvider.GetTokenAsync(resourceName, TestContext.Current.CancellationToken);

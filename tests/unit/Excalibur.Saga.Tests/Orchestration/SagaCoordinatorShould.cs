@@ -780,7 +780,14 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 				{
 					// Outlives the per-attempt timeout without observing cancellation itself, so the
 					// TIMEOUT strategy is what ends the attempt, not the action noticing its own token.
-					await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None).WaitAsync(ct).ConfigureAwait(false);
+					// SIMULATED WORK in a fake action, and the duration IS the semantic -- the
+					// action must outlive DefaultTimeout (50ms) so the TIMEOUT strategy is what ends the
+					// attempt. Nothing actually waits 5s: .WaitAsync(ct) unwinds the instant Polly's timeout
+					// cancels ct. Thread-pool starvation can only make this fire LATER, which strengthens the
+					// property rather than racing it. The bound is deliberate too -- were the timeout strategy
+					// broken, this completes and the attempts assertion goes RED, where an uncancellable
+					// never-completing task would HANG instead.
+					await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None).WaitAsync(ct).ConfigureAwait(false); // delay-ok: see above
 					return;
 				}
 
@@ -846,7 +853,14 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 					attempts++;
 					// Every attempt outlives the timeout -- this exhausts the WHOLE retry budget, unlike
 					// the earlier "retries per-attempt timeout THEN succeeds" arm, which never reaches here.
-					await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None).WaitAsync(ct).ConfigureAwait(false);
+					// SIMULATED WORK in a fake action, and the duration IS the semantic -- the
+					// action must outlive DefaultTimeout (50ms) so the TIMEOUT strategy is what ends the
+					// attempt. Nothing actually waits 5s: .WaitAsync(ct) unwinds the instant Polly's timeout
+					// cancels ct. Thread-pool starvation can only make this fire LATER, which strengthens the
+					// property rather than racing it. The bound is deliberate too -- were the timeout strategy
+					// broken, this completes and the attempts assertion goes RED, where an uncancellable
+					// never-completing task would HANG instead.
+					await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None).WaitAsync(ct).ConfigureAwait(false); // delay-ok: see above
 				},
 				CancellationToken.None));
 

@@ -480,7 +480,14 @@ public sealed class TimeoutDistributedCacheShould : UnitTestBase
 			// command already dispatched to a server that does not accept a token.
 			if (GetDelay > TimeSpan.Zero)
 			{
-				await Task.Delay(GetDelay, CancellationToken.None).ConfigureAwait(false);
+				// delay-ok: SIMULATED WORK in a fake backend, and being uncancellable IS the property under
+				// test -- this reproduces a Redis command already dispatched to a server that accepts no
+				// token. The duration is expressed relative to the deadline (Deadline * 20), never as an
+				// absolute wall-clock number, and the arm that uses it injects a FakeTimeProvider: the
+				// decorator's deadline fires on the fake clock, so the test never waits for this to elapse
+				// and load cannot perturb it. The two cancellable siblings on this same fixture pattern are
+				// already acknowledged in task-delay-syncwait.baseline.txt.
+				await Task.Delay(GetDelay, CancellationToken.None).ConfigureAwait(false); // delay-ok: see above
 			}
 
 			return Get(key);
