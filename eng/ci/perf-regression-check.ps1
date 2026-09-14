@@ -195,6 +195,21 @@ foreach ($resultFile in $resultFiles) {
 			$baselineMeanNs = [double]$baseline.meanNs
 			if ($baselineMeanNs -le 0) { continue }
 
+			# BenchmarkDotNet emits a benchmark record with 'Statistics': null when the
+			# benchmark produced no measurements at all. Under Set-StrictMode, reading
+			# .Mean off that null THROWS -- and because this loop sits inside the
+			# per-file try/catch, the throw abandons every REMAINING record in the file.
+			# That is a silent coverage drop: the verdict line still reports PASS, just
+			# over fewer comparisons than anyone expects, with only a ::warning:: to say
+			# so. Measured in this tree: the '*HotPath*' filter produces exactly one such
+			# record (CompoundOperation_FullHotPathAccess, Measurements: 0), so this is a
+			# shape BenchmarkDotNet really emits, not a defensive hypothetical.
+			# Skip the unmeasured record and keep comparing the rest of the file.
+			if ($null -eq $benchmark.Statistics -or $null -eq $benchmark.Statistics.Mean) {
+				Write-Host "::warning::$methodName has a baseline but the run recorded no measurements; not compared."
+				continue
+			}
+
 			$currentMeanNs = [double]$benchmark.Statistics.Mean
 			$compared++
 			$change = ($currentMeanNs - $baselineMeanNs) / $baselineMeanNs

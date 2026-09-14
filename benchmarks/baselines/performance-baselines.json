@@ -1,139 +1,114 @@
 {
-  "version": "1.0",
-  "created": "2026-01-25",
-  "source": "Sprint 458 Performance Optimization Epic",
-  "regressionThreshold": 0.10,
+  "version": "2.0",
+  "created": "2026-09-14",
+  "source": "Measured run of the '*HotPath*' filter (--iterationCount 3 --warmupCount 1, the CI settings)",
+  "provenance": "Regenerated against benchmarks that exist. The previous file (version 1.0, 2026-01-25) named 20 benchmarks that appear in no source file in this repository, so every comparison missed, the gate REFUSED on every run, and no performance claim was ever actually checked. Keys here are BenchmarkDotNet Benchmark.Method values, the field eng/ci/perf-regression-check.ps1 matches on.",
+  "measurementCaveat": "These means were measured on a developer workstation, not on a CI runner, and CI compares runs from ubuntu-latest, windows-latest and macos-latest against this one file. Absolute means are therefore machine-dependent and a cross-machine delta is not necessarily a code regression. Re-record from a CI run when one is available. allocatedBytes, unlike meanNs, is machine-independent and is recorded here for that future use; the gate does not compare it today.",
+  "regressionThreshold": 0.1,
+  "notCompared": {
+    "why": "Recorded, deliberately not compared. These are NOT deleted: the gate iterates only \"baselines\", so entries here are preserved for provenance without producing verdicts the measurement cannot support.",
+    "benchmarks": {
+      "Dispatch_Query": {
+        "meanNs": 12866.67,
+        "allocatedBytes": 4280,
+        "description": "Dispatch hot-path: query",
+        "measuredStandardErrorPct": 15.3,
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression"
+      },
+      "Dispatch_TypedQuery": {
+        "meanNs": 15266.67,
+        "allocatedBytes": 6056,
+        "description": "Dispatch hot-path: typed query API",
+        "measuredStandardErrorPct": 11.7,
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression"
+      },
+      "Dispatch_UltraLocalCommand": {
+        "meanNs": 11916.67,
+        "allocatedBytes": 416,
+        "description": "Dispatch hot-path: context-less 2-arg command",
+        "measuredStandardErrorPct": 7.9,
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression"
+      },
+      "Dispatch_UltraLocalQuery": {
+        "meanNs": 12233.33,
+        "allocatedBytes": 6272,
+        "description": "Dispatch hot-path: context-less 2-arg query",
+        "measuredStandardErrorPct": 10.0,
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression"
+      },
+      "MediatR_SingleCommand": {
+        "meanNs": 36666.67,
+        "allocatedBytes": 216,
+        "description": "MediatR hot-path: command",
+        "measuredStandardErrorPct": 82.4,
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression"
+      },
+      "MediatR_Query": {
+        "meanNs": 46900.0,
+        "allocatedBytes": 4896,
+        "description": "MediatR hot-path: query",
+        "measuredStandardErrorPct": 82.6,
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression"
+      },
+      "CompoundOperation_FullHotPathAccess": {
+        "reason": "the run recorded no measurements for this benchmark"
+      }
+    }
+  },
   "baselines": {
-    "dispatch": {
-      "DirectHandlerInvocation_Command": {
-        "meanNs": 0.13,
-        "allocatedBytes": 0,
-        "description": "Direct handler invocation - near-zero overhead baseline"
-      },
-      "FrozenDictionary_ResolveAndInvoke_Command": {
-        "meanNs": 6.77,
-        "allocatedBytes": 0,
-        "description": "FrozenDictionary lookup + handler invocation"
-      },
-      "ConcurrentDictionary_ResolveAndInvoke_Command": {
-        "meanNs": 7.21,
-        "allocatedBytes": 0,
-        "description": "ConcurrentDictionary lookup + handler invocation"
-      },
-      "FullPipeline_DispatchCommand": {
-        "meanNs": 4940,
-        "allocatedBytes": 5775,
-        "description": "Full pipeline dispatch including all middleware"
+    "MediatRLocalHotPathBenchmarks": {
+      "Dispatch_SingleCommand": {
+        "meanNs": 16333.33,
+        "allocatedBytes": 488,
+        "description": "Dispatch hot-path: command"
       }
     },
-    "middleware": {
-      "DirectTypedInvocation_SingleMiddleware": {
-        "meanNs": 6.94,
-        "allocatedBytes": 128,
-        "description": "Single middleware with direct typed invocation"
+    "DispatchHotPathBreakdownBenchmarks": {
+      "Dispatcher_SingleCommand": {
+        "meanNs": 86.24,
+        "allocatedBytes": 232,
+        "description": "Dispatcher: Single command"
       },
-      "InterfaceDispatch_SingleMiddleware": {
-        "meanNs": 10.36,
-        "allocatedBytes": 128,
-        "description": "Single middleware with interface dispatch"
+      "Dispatcher_QueryWithResponse": {
+        "meanNs": 96.61,
+        "allocatedBytes": 424,
+        "description": "Dispatcher: Query with response"
       },
-      "FrozenRegistry_LookupAndInvoke": {
-        "meanNs": 16.46,
-        "allocatedBytes": 128,
-        "description": "FrozenDictionary middleware registry lookup and invocation"
+      "MiddlewareInvoker_DirectInvoke": {
+        "meanNs": 41.63,
+        "allocatedBytes": 280,
+        "description": "MiddlewareInvoker: Direct invoke"
       },
-      "Pipeline3Stages_DirectTyped": {
-        "meanNs": 16.22,
-        "allocatedBytes": 128,
-        "description": "3-stage pipeline with direct typed invocation"
+      "FinalDispatchHandler_Action": {
+        "meanNs": 68.29,
+        "allocatedBytes": 208,
+        "description": "FinalDispatchHandler: Action"
       },
-      "Pipeline5Stages_DirectTyped": {
-        "meanNs": 21.08,
-        "allocatedBytes": 128,
-        "description": "5-stage pipeline with direct typed invocation"
-      }
-    },
-    "pipeline": {
-      "NoMiddleware_Pipeline": {
-        "meanNs": 10.94,
-        "allocatedBytes": 128,
-        "description": "Pipeline execution without middleware"
+      "LocalMessageBus_SendAction": {
+        "meanNs": 44.94,
+        "allocatedBytes": 64,
+        "description": "LocalMessageBus: Send action"
       },
-      "BeforeAfter_Middleware": {
-        "meanNs": 11.09,
-        "allocatedBytes": 128,
-        "description": "Pipeline with before/after middleware"
+      "HandlerActivator_Activate": {
+        "meanNs": 24.49,
+        "allocatedBytes": 24,
+        "description": "HandlerActivator: Activate"
       },
-      "TryCatch_Middleware": {
-        "meanNs": 16.13,
-        "allocatedBytes": 128,
-        "description": "Pipeline with try-catch middleware"
+      "HandlerActivator_Activate_PrecreatedContext": {
+        "meanNs": 18.02,
+        "allocatedBytes": 24,
+        "description": "HandlerActivator: Activate (precreated context)"
       },
-      "FullPipeline_DeterministicCommand": {
-        "meanNs": 5044,
-        "allocatedBytes": 5776,
-        "description": "Full pipeline for deterministic command type"
-      },
-      "FullPipeline_NonDeterministicCommand": {
-        "meanNs": 8332,
-        "allocatedBytes": 6520,
-        "description": "Full pipeline for non-deterministic command type"
-      },
-      "StaticPipeline_Batch100": {
-        "meanNs": 80.32,
+      "HandlerInvoker_Invoke": {
+        "meanNs": 7.65,
         "allocatedBytes": 0,
-        "description": "Static pipeline batch of 100 calls - zero allocation"
+        "description": "HandlerInvoker: Invoke"
       },
-      "FullPipeline_Batch100": {
-        "meanNs": 612025,
-        "allocatedBytes": 577704,
-        "description": "Dynamic pipeline batch of 100 calls"
-      }
-    },
-    "cache": {
-      "Dictionary_TryGetValue": {
-        "meanNs": 6.21,
+      "HandlerRegistry_Lookup": {
+        "meanNs": 7.79,
         "allocatedBytes": 0,
-        "description": "Standard Dictionary lookup"
-      },
-      "ConcurrentDictionary_TryGetValue": {
-        "meanNs": 7.07,
-        "allocatedBytes": 0,
-        "description": "ConcurrentDictionary lookup"
-      },
-      "CreateCacheEntry_Class": {
-        "meanNs": 43.17,
-        "allocatedBytes": 56,
-        "description": "Cache entry creation with class"
-      },
-      "CreateCacheEntry_Struct": {
-        "meanNs": 36.77,
-        "allocatedBytes": 0,
-        "description": "Cache entry creation with struct"
+        "description": "HandlerRegistry: Lookup"
       }
     }
-  },
-  "thresholds": {
-    "hotPath": {
-      "maxMeanNs": 100,
-      "maxAllocatedBytes": 256,
-      "description": "Hot path operations must complete in <100ns with minimal allocations"
-    },
-    "fullPipeline": {
-      "maxMeanNs": 10000,
-      "maxAllocatedBytes": 10000,
-      "description": "Full pipeline dispatch should complete in <10ms"
-    },
-    "staticPipeline": {
-      "maxMeanNs": 200,
-      "maxAllocatedBytes": 0,
-      "description": "Static pipeline must be zero-allocation"
-    }
-  },
-  "notes": [
-    "Baselines established from Sprint 458 Performance Optimization Epic",
-    "All measurements taken on Intel Core i9-14900K, .NET 9.0.12",
-    "Regression threshold: 10% - builds fail if performance degrades by more than 10%",
-    "Memory regression threshold: 20% - allocations should not increase significantly"
-  ]
+  }
 }
